@@ -75,6 +75,14 @@ data class MealItemEntity(
 
 @Entity(
     tableName = "barcode_products",
+    foreignKeys = [
+        ForeignKey(
+            entity = FoodEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["linkedFoodId"],
+            onDelete = ForeignKey.SET_NULL,
+        ),
+    ],
     indices = [Index(value = ["barcode"], unique = true), Index("linkedFoodId")],
 )
 data class BarcodeProductEntity(

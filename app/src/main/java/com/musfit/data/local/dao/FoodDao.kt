@@ -1,6 +1,7 @@
 package com.musfit.data.local.dao
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -16,6 +17,12 @@ interface FoodDao {
     @Query("SELECT * FROM foods ORDER BY name")
     fun observeFoods(): Flow<List<FoodEntity>>
 
+    @Query("SELECT * FROM food_servings WHERE foodId = :foodId ORDER BY label")
+    fun observeServings(foodId: String): Flow<List<FoodServingEntity>>
+
+    @Query("SELECT * FROM food_servings WHERE foodId = :foodId ORDER BY label")
+    suspend fun getServings(foodId: String): List<FoodServingEntity>
+
     @Query("SELECT * FROM meals WHERE dateEpochDay = :dateEpochDay ORDER BY createdAtEpochMillis")
     fun observeMealsForDate(dateEpochDay: Long): Flow<List<MealEntity>>
 
@@ -24,6 +31,15 @@ interface FoodDao {
 
     @Query("SELECT * FROM barcode_products WHERE barcode = :barcode LIMIT 1")
     suspend fun getBarcodeProduct(barcode: String): BarcodeProductEntity?
+
+    @Query("SELECT * FROM barcode_products ORDER BY fetchedAtEpochMillis DESC")
+    fun observeBarcodeProducts(): Flow<List<BarcodeProductEntity>>
+
+    @Query("SELECT * FROM barcode_products WHERE linkedFoodId = :foodId ORDER BY fetchedAtEpochMillis DESC")
+    fun observeBarcodeProducts(foodId: String): Flow<List<BarcodeProductEntity>>
+
+    @Delete
+    suspend fun deleteFood(food: FoodEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertFood(food: FoodEntity)

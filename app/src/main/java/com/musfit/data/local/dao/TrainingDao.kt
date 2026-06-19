@@ -22,6 +22,12 @@ interface TrainingDao {
     @Query("SELECT * FROM workout_sessions ORDER BY startedAtEpochMillis DESC")
     fun observeWorkoutSessions(): Flow<List<WorkoutSessionEntity>>
 
+    @Query("SELECT * FROM routine_exercises WHERE routineId = :routineId ORDER BY sortOrder")
+    fun observeRoutineExercises(routineId: String): Flow<List<RoutineExerciseEntity>>
+
+    @Query("SELECT * FROM routine_exercises WHERE routineId = :routineId ORDER BY sortOrder")
+    suspend fun getRoutineExercises(routineId: String): List<RoutineExerciseEntity>
+
     @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId ORDER BY sortOrder")
     fun observeWorkoutSets(sessionId: String): Flow<List<WorkoutSetEntity>>
 

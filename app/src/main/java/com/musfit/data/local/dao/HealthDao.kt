@@ -11,6 +11,20 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface HealthDao {
+    @Query(
+        "SELECT * FROM body_metrics " +
+            "WHERE type = :type AND measuredAtEpochMillis >= :fromEpochMillis " +
+            "ORDER BY measuredAtEpochMillis DESC",
+    )
+    fun observeBodyMetrics(type: String, fromEpochMillis: Long): Flow<List<BodyMetricEntity>>
+
+    @Query(
+        "SELECT * FROM body_metrics " +
+            "WHERE type = :type AND measuredAtEpochMillis >= :fromEpochMillis " +
+            "ORDER BY measuredAtEpochMillis DESC",
+    )
+    suspend fun getBodyMetrics(type: String, fromEpochMillis: Long): List<BodyMetricEntity>
+
     @Query("SELECT * FROM daily_health_summaries WHERE dateEpochDay = :dateEpochDay LIMIT 1")
     fun observeDailySummary(dateEpochDay: Long): Flow<DailyHealthSummaryEntity?>
 

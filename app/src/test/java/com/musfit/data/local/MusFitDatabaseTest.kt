@@ -1,14 +1,54 @@
 package com.musfit.data.local
 
+import android.content.Context
+import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
 import com.musfit.data.local.dao.TrainingDao
+import com.musfit.data.local.entity.BarcodeProductEntity
+import com.musfit.data.local.entity.BodyMetricEntity
+import com.musfit.data.local.entity.ExerciseEntity
+import com.musfit.data.local.entity.FoodEntity
+import com.musfit.data.local.entity.FoodServingEntity
+import com.musfit.data.local.entity.RoutineEntity
+import com.musfit.data.local.entity.RoutineExerciseEntity
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class MusFitDatabaseTest {
+    private lateinit var database: MusFitDatabase
+    private lateinit var foodDao: FoodDao
+    private lateinit var trainingDao: TrainingDao
+    private lateinit var healthDao: HealthDao
+
+    @Before
+    fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        database =
+            Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
+        foodDao = database.foodDao()
+        trainingDao = database.trainingDao()
+        healthDao = database.healthDao()
+    }
+
+    @After
+    fun tearDown() {
+        database.close()
+    }
+
     @Test
     fun database_exposesExpectedDaosAndGeneratedImplementation() {
         assertTrue(RoomDatabase::class.java.isAssignableFrom(MusFitDatabase::class.java))
@@ -20,5 +60,129 @@ class MusFitDatabaseTest {
                 Class.forName("com.musfit.data.local.MusFitDatabase_Impl"),
             ),
         )
+    }
+
+    @Test
+    fun daoRoundTrip_readsBackTask3PersistenceSurface() = runTest {
+        val food =
+            FoodEntity(
+                id = "food-1",
+                name = "Oats",
+                brand = "MusFit",
+                defaultServingGrams = 40.0,
+                caloriesPer100g = 389.0,
+                proteinPer100g = 16.9,
+                carbsPer100g = 66.3,
+                fatPer100g = 6.9,
+                createdAtEpochMillis = 1_000L,
+                updatedAtEpochMillis = 2_000L,
+            )
+        val serving =
+            FoodServingEntity(
+                id = "serving-1",
+                foodId = food.id,
+                label = "Bowl",
+                grams = 40.0,
+            )
+        val barcodeProduct =
+            BarcodeProductEntity(
+                id = "barcode-1",
+                barcode = "1234567890123",
+                provider = "openfoodfacts",
+                providerProductName = "Rolled Oats",
+                providerBrand = "MusFit",
+                rawJson = """{"name":"Rolled Oats"}""",
+                quality = "verified",
+                linkedFoodId = food.id,
+                fetchedAtEpochMillis = 3_000L,
+            )
+        val exercise =
+            ExerciseEntity(
+                id = "exercise-1",
+                name = "Back Squat",
+                category = "strength",
+                equipment = "barbell",
+                targetMuscles = "quads,glutes",
+                isCustom = false,
+            )
+        val routine =
+            RoutineEntity(
+                id = "routine-1",
+                name = "Lower Body",
+                notes = null,
+                createdAtEpochMillis = 4_000L,
+            )
+        val routineExercise =
+            RoutineExerciseEntity(
+                id = "routine-exercise-1",
+                routineId = routine.id,
+                exerciseId = exercise.id,
+                sortOrder = 1,
+                targetSets = 4,
+                targetReps = "5",
+            )
+        val bodyMetric =
+            BodyMetricEntity(
+                id = "metric-1",
+                type = "weight",
+                value = 80.5,
+                unit = "kg",
+                measuredAtEpochMillis = 5_000L,
+                source = "manual",
+                externalId = null,
+            )
+
+        foodDao.upsertFood(food)
+        foodDao.upsertServing(serving)
+        foodDao.upsertBarcodeProduct(barcodeProduct)
+        trainingDao.upsertExercise(exercise)
+        trainingDao.upsertRoutine(routine)
+        trainingDao.upsertRoutineExercise(routineExercise)
+        healthDao.upsertBodyMetric(bodyMetric)
+
+        assertEquals(listOf(serving), foodDao.observeServings(food.id).first())
+        assertEquals(barcodeProduct, foodDao.getBarcodeProduct(barcodeProduct.barcode))
+        assertEquals(listOf(barcodeProduct), foodDao.observeBarcodeProducts(food.id).first())
+        assertEquals(listOf(routineExercise), trainingDao.observeRoutineExercises(routine.id).first())
+        assertEquals(
+            listOf(bodyMetric),
+            healthDao.observeBodyMetrics(type = bodyMetric.type, fromEpochMillis = 4_000L).first(),
+        )
+    }
+
+    @Test
+    fun deletingLinkedFood_setsBarcodeProductLinkToNull() = runTest {
+        val food =
+            FoodEntity(
+                id = "food-2",
+                name = "Yogurt",
+                brand = null,
+                defaultServingGrams = 150.0,
+                caloriesPer100g = 61.0,
+                proteinPer100g = 3.5,
+                carbsPer100g = 4.7,
+                fatPer100g = 3.3,
+                createdAtEpochMillis = 10_000L,
+                updatedAtEpochMillis = 11_000L,
+            )
+        val barcodeProduct =
+            BarcodeProductEntity(
+                id = "barcode-2",
+                barcode = "9876543210987",
+                provider = "manual",
+                providerProductName = "Greek Yogurt",
+                providerBrand = null,
+                rawJson = """{"name":"Greek Yogurt"}""",
+                quality = "draft",
+                linkedFoodId = food.id,
+                fetchedAtEpochMillis = 12_000L,
+            )
+
+        foodDao.upsertFood(food)
+        foodDao.upsertBarcodeProduct(barcodeProduct)
+
+        foodDao.deleteFood(food)
+
+        assertNull(foodDao.getBarcodeProduct(barcodeProduct.barcode)?.linkedFoodId)
     }
 }
