@@ -93,3 +93,21 @@ Points to note:
 ### Concerns
 
 - The brief content is slightly stale relative to the installed AGP/Kotlin toolchain. The committed result is buildable, but it is not byte-for-byte identical to the brief in the three places called out above.
+
+### Review follow-up
+
+Applied the CI gap fix requested in review:
+
+- Added an explicit `./gradlew build` step to [.github/workflows/android.yml](C:/Users/att1a/OneDrive/Documents/MusFit/.github/workflows/android.yml) while keeping the existing unit test, lint, assemble debug, and artifact upload steps intact.
+
+Verification:
+
+```powershell
+. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat build
+```
+
+Result: succeeded with `BUILD SUCCESSFUL`.
+
+Commit SHA:
+
+- `e3feb2d9af6255f491bcd92bb1b1ea15120facf8`
