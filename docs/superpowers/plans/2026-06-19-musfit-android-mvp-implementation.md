@@ -6,12 +6,13 @@
 
 **Architecture:** Use one native Android app module in Kotlin. Keep Room as the local source of truth, place business rules in pure Kotlin domain files, and isolate Open Food Facts plus Health Connect behind interfaces so future providers can be added without changing screens.
 
-**Tech Stack:** Kotlin 2.4.0, Android Gradle Plugin 9.2.1, Gradle 9.4.1, JDK 17, minSdk 28, compileSdk 37, targetSdk 37, Jetpack Compose BOM 2026.04.01, Room 2.8.1, Hilt 2.59.2, AndroidX Hilt 1.3.0, Navigation Compose 2.9.8, Lifecycle 2.11.0, Activity Compose 1.13.0, Health Connect 1.1.0, WorkManager 2.11.2, CameraX 1.6.1, ML Kit Barcode Scanning 17.3.0, Retrofit 3.0.0, Moshi 1.15.2, Kotlin Coroutines 1.10.2, JUnit 4.13.2, Turbine 1.2.1.
+**Tech Stack:** Android Gradle Plugin 9.2.1 with built-in Kotlin support, Gradle 9.4.1, JDK 17, minSdk 28, compileSdk 37, targetSdk 37, Jetpack Compose BOM 2026.04.01, Room 2.8.1, Hilt 2.59.2, AndroidX Hilt 1.3.0, Navigation Compose 2.9.8, Lifecycle 2.11.0, Activity Compose 1.13.0, Health Connect 1.1.0, WorkManager 2.11.2, CameraX 1.6.1, ML Kit Barcode Scanning 17.3.0, Retrofit 3.0.0, Moshi 1.15.2, Kotlin Coroutines 1.10.2, JUnit 4.13.2, Turbine 1.2.1.
 
 ## Global Constraints
 
 - Android only. Do not add iOS, web, backend, or shared multiplatform modules.
 - Native Kotlin only. Do not use React Native, Flutter, Expo, or WebView-based app shells.
+- Use AGP 9 built-in Kotlin support. Do not apply `org.jetbrains.kotlin.android` or `org.jetbrains.kotlin.kapt`; use `com.android.legacy-kapt` for KAPT-backed annotation processors.
 - Local Room database is the source of truth for meals, foods, workouts, routines, body metrics, daily summaries, and sync metadata.
 - Health Connect is part of the first usable release, but the app must still work when Health Connect is unavailable, denied, or partially permitted.
 - Request Health Connect permissions only from the Health tab or an explicit sync action.
@@ -132,8 +133,7 @@ Create root `build.gradle.kts`:
 ```kotlin
 plugins {
     alias(libs.plugins.android.application) apply false
-    alias(libs.plugins.kotlin.android) apply false
-    alias(libs.plugins.kotlin.kapt) apply false
+    alias(libs.plugins.android.legacy.kapt) apply false
     alias(libs.plugins.hilt) apply false
 }
 ```
@@ -155,7 +155,6 @@ Create `gradle/libs.versions.toml`:
 ```toml
 [versions]
 agp = "9.2.1"
-kotlin = "2.4.0"
 composeBom = "2026.04.01"
 core = "1.19.0"
 activity = "1.13.0"
@@ -215,8 +214,7 @@ turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+android-legacy-kapt = { id = "com.android.legacy-kapt", version.ref = "agp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ```
 
@@ -227,8 +225,7 @@ Create `app/build.gradle.kts`:
 ```kotlin
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.android.legacy.kapt)
     alias(libs.plugins.hilt)
 }
 
@@ -255,11 +252,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        }
-    }
 }
 
 kapt {
@@ -3469,7 +3461,7 @@ Reference versions checked on 2026-06-19:
 
 - Android Gradle Plugin 9.2 compatibility: https://developer.android.com/build/releases/agp-9-2-0-release-notes
 - Android Studio Panda 4 Patch 1 / AGP 9.2.1: https://androidstudio.googleblog.com/2026/
-- Kotlin 2.4.0: https://blog.jetbrains.com/kotlin/2026/06/kotlin-2-4-0-released/
+- AGP 9 built-in Kotlin migration: https://developer.android.com/build/migrate-to-built-in-kotlin
 - Compose BOM 2026.04.01: https://android-developers.googleblog.com/2026/04/jetpack-compose-april-2026-updates.html
 - Health Connect 1.1.0 stable: https://developer.android.com/jetpack/androidx/releases/health-connect
 - Room 2.8.1: https://developer.android.com/jetpack/androidx/releases/room
