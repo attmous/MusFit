@@ -49,6 +49,21 @@ data class QuickCalorieLogInput(
     val date: LocalDate,
 )
 
+data class DiaryEntryUpdateInput(
+    val mealItemId: String,
+    val mealType: String,
+    val quantityGrams: Double,
+    val date: LocalDate,
+)
+
+data class SavedFoodUpsertInput(
+    val foodId: String?,
+    val name: String,
+    val brand: String?,
+    val defaultServingGrams: Double,
+    val nutritionPer100g: FoodNutrition,
+)
+
 data class SavedFoodItem(
     val id: String,
     val name: String,
@@ -99,6 +114,14 @@ interface FoodRepository {
     suspend fun logSavedFood(input: SavedFoodLogInput): String
 
     suspend fun quickLog(input: QuickCalorieLogInput): String
+
+    suspend fun updateDiaryEntry(input: DiaryEntryUpdateInput)
+
+    suspend fun deleteDiaryEntry(mealItemId: String)
+
+    suspend fun upsertSavedFood(input: SavedFoodUpsertInput): String
+
+    suspend fun deleteSavedFood(foodId: String)
 }
 
 class LocalFoodRepository @Inject constructor(
@@ -250,6 +273,101 @@ class LocalFoodRepository @Inject constructor(
                 date = input.date,
             ),
         )
+    }
+
+    override suspend fun updateDiaryEntry(input: DiaryEntryUpdateInput) {
+        input.requireValid()
+        database.withTransaction {
+            val existingItem = foodDao.getMealItem(input.mealItemId) ?: error("Diary item not found")
+            val existingMeal = foodDao.getMeal(existingItem.mealId)
+            val normalizedMealType = input.mealType.trim().ifBlank { DEFAULT_MEAL_TYPE }
+            val dateEpochDay = input.date.toEpochDay()
+            val targetMealId =
+                if (existingMeal?.dateEpochDay == dateEpochDay && existingMeal.type == normalizedMealType) {
+                    existingMeal.id
+                } else {
+                    val now = System.currentTimeMillis()
+                    UUID.randomUUID().toString().also { newMealId ->
+                        foodDao.upsertMeal(
+                            MealEntity(
+                                id = newMealId,
+                                dateEpochDay = dateEpochDay,
+                                type = normalizedMealType,
+                                notes = null,
+                                createdAtEpochMillis = now,
+                                updatedAtEpochMillis = now,
+                            ),
+                        )
+                    }
+                }
+
+            foodDao.upsertMealItem(
+                existingItem.copy(
+                    mealId = targetMealId,
+                    quantityGrams = input.quantityGrams,
+                ),
+            )
+        }
+    }
+
+    override suspend fun deleteDiaryEntry(mealItemId: String) {
+        require(mealItemId.isNotBlank()) { "Diary item id is required" }
+        database.withTransaction {
+            val deletedCount = foodDao.deleteMealItemById(mealItemId)
+            check(deletedCount > 0) { "Diary item not found" }
+        }
+    }
+
+    override suspend fun upsertSavedFood(input: SavedFoodUpsertInput): String {
+        input.requireValid()
+        return database.withTransaction {
+            val now = System.currentTimeMillis()
+            val foodId = input.foodId?.trim()?.takeIf { it.isNotEmpty() } ?: UUID.randomUUID().toString()
+            val existingFood = foodDao.getFood(foodId)
+            val servingGrams = input.defaultServingGrams
+            val resolvedBrand = input.brand?.trim()?.takeIf { it.isNotEmpty() }
+
+            foodDao.upsertFood(
+                FoodEntity(
+                    id = foodId,
+                    name = input.name.trim(),
+                    brand = resolvedBrand,
+                    defaultServingGrams = servingGrams,
+                    caloriesPer100g = input.nutritionPer100g.caloriesKcal,
+                    proteinPer100g = input.nutritionPer100g.proteinGrams,
+                    carbsPer100g = input.nutritionPer100g.carbsGrams,
+                    fatPer100g = input.nutritionPer100g.fatGrams,
+                    createdAtEpochMillis = existingFood?.createdAtEpochMillis ?: now,
+                    updatedAtEpochMillis = now,
+                ),
+            )
+            foodDao.upsertServing(
+                FoodServingEntity(
+                    id = defaultServingId(foodId),
+                    foodId = foodId,
+                    label = servingLabel(servingGrams),
+                    grams = servingGrams,
+                ),
+            )
+
+            foodId
+        }
+    }
+
+    override suspend fun deleteSavedFood(foodId: String) {
+        val trimmedFoodId = foodId.trim()
+        require(trimmedFoodId.isNotBlank()) { "Food id is required" }
+        database.withTransaction {
+            val food = foodDao.getFood(trimmedFoodId) ?: error("Saved food not found")
+            if (food.name == QUICK_CALORIES_NAME && food.brand == null) {
+                error("Quick calories cannot be deleted from database")
+            }
+            if (foodDao.countMealItemsForFood(trimmedFoodId) > 0) {
+                error("Food is used in diary entries")
+            }
+
+            foodDao.deleteFood(food)
+        }
     }
 
     private suspend fun upsertManualFood(input: FoodLogInput, now: Long): String {
@@ -439,6 +557,21 @@ private fun QuickCalorieLogInput.requireValid() {
     require(proteinGrams.isNonNegativeFinite())
     require(carbsGrams.isNonNegativeFinite())
     require(fatGrams.isNonNegativeFinite())
+}
+
+private fun DiaryEntryUpdateInput.requireValid() {
+    require(mealItemId.isNotBlank()) { "Diary item id is required" }
+    require(mealType.isNotBlank()) { "Meal type is required" }
+    require(quantityGrams.isFinite() && quantityGrams > 0.0) { "Quantity must be positive" }
+}
+
+private fun SavedFoodUpsertInput.requireValid() {
+    require(name.isNotBlank()) { "Food name is required" }
+    require(defaultServingGrams.isFinite() && defaultServingGrams > 0.0) { "Serving size must be positive" }
+    require(nutritionPer100g.caloriesKcal.isNonNegativeFinite())
+    require(nutritionPer100g.proteinGrams.isNonNegativeFinite())
+    require(nutritionPer100g.carbsGrams.isNonNegativeFinite())
+    require(nutritionPer100g.fatGrams.isNonNegativeFinite())
 }
 
 private fun Double.isNonNegativeFinite(): Boolean = isFinite() && this >= 0.0

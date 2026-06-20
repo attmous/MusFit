@@ -383,6 +383,153 @@ class LocalFoodRepositoryTest {
         assertTrue(savedFoods.isEmpty())
     }
 
+    @Test
+    fun updateDiaryEntry_changesQuantityAndMealWithoutDuplicatingSavedFood() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val mealItemId =
+            repository.logFood(
+                FoodLogInput(
+                    lookupResult = null,
+                    barcode = null,
+                    name = "Oats",
+                    brand = "Pantry",
+                    nutritionPer100g = nutrition(calories = 380.0, protein = 13.0, carbs = 67.0, fat = 7.0),
+                    servingGrams = 100.0,
+                    mealType = "breakfast",
+                    quantityGrams = 50.0,
+                    date = date,
+                ),
+            )
+
+        repository.updateDiaryEntry(
+            DiaryEntryUpdateInput(
+                mealItemId = mealItemId,
+                mealType = "lunch",
+                quantityGrams = 100.0,
+                date = date,
+            ),
+        )
+
+        val diary = repository.observeFoodDiary(date).first()
+        val savedFoods = repository.observeSavedFoods().first()
+
+        assertEquals(1, savedFoods.size)
+        assertEquals(listOf("lunch"), diary.meals.map { it.type })
+        assertEquals(380.0, diary.totals.caloriesKcal, 0.01)
+        assertEquals(13.0, diary.totals.proteinGrams, 0.01)
+        assertEquals(100.0, diary.meals.single().entries.single().quantityGrams, 0.01)
+    }
+
+    @Test
+    fun deleteDiaryEntry_removesDailyTotalsAndKeepsSavedFoodReusable() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val mealItemId =
+            repository.logFood(
+                FoodLogInput(
+                    lookupResult = null,
+                    barcode = null,
+                    name = "Rice bowl",
+                    brand = null,
+                    nutritionPer100g = nutrition(calories = 180.0, protein = 6.0, carbs = 32.0, fat = 4.0),
+                    servingGrams = 100.0,
+                    mealType = "dinner",
+                    quantityGrams = 200.0,
+                    date = date,
+                ),
+            )
+
+        repository.deleteDiaryEntry(mealItemId)
+
+        val diary = repository.observeFoodDiary(date).first()
+        val savedFoods = repository.observeSavedFoods().first()
+
+        assertEquals(0.0, diary.totals.caloriesKcal, 0.01)
+        assertTrue(diary.meals.isEmpty())
+        assertEquals(1, savedFoods.size)
+        assertEquals("Rice bowl", savedFoods.single().name)
+    }
+
+    @Test
+    fun upsertSavedFood_createsAndUpdatesReusableDatabaseFood() = runTest {
+        val foodId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Chicken breast",
+                    brand = "Kitchen",
+                    defaultServingGrams = 150.0,
+                    nutritionPer100g = nutrition(calories = 165.0, protein = 31.0, carbs = 0.0, fat = 3.6),
+                ),
+            )
+
+        repository.upsertSavedFood(
+            SavedFoodUpsertInput(
+                foodId = foodId,
+                name = "Chicken breast cooked",
+                brand = "",
+                defaultServingGrams = 120.0,
+                nutritionPer100g = nutrition(calories = 170.0, protein = 32.0, carbs = 0.0, fat = 4.0),
+            ),
+        )
+
+        val savedFood = repository.observeSavedFoods().first().single()
+        val servings = database.foodDao().getServings(foodId)
+
+        assertEquals(foodId, savedFood.id)
+        assertEquals("Chicken breast cooked", savedFood.name)
+        assertNull(savedFood.brand)
+        assertEquals(120.0, savedFood.defaultServingGrams, 0.01)
+        assertEquals(170.0, savedFood.nutritionPer100g.caloriesKcal, 0.01)
+        assertEquals(32.0, savedFood.nutritionPer100g.proteinGrams, 0.01)
+        assertEquals(1, servings.size)
+        assertEquals("120 g", servings.single().label)
+    }
+
+    @Test
+    fun deleteSavedFood_removesUnusedFoodFromDatabase() = runTest {
+        val foodId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Banana",
+                    brand = null,
+                    defaultServingGrams = 118.0,
+                    nutritionPer100g = nutrition(calories = 89.0, protein = 1.1, carbs = 23.0, fat = 0.3),
+                ),
+            )
+
+        repository.deleteSavedFood(foodId)
+
+        assertTrue(repository.observeSavedFoods().first().isEmpty())
+        assertNull(database.foodDao().getFood(foodId))
+        assertTrue(database.foodDao().getServings(foodId).isEmpty())
+    }
+
+    @Test
+    fun deleteSavedFood_blocksFoodThatIsUsedByDiaryEntries() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Greek yogurt",
+                brand = "Kitchen",
+                nutritionPer100g = nutrition(calories = 60.0, protein = 10.0, carbs = 4.0, fat = 1.0),
+                servingGrams = 150.0,
+                mealType = "breakfast",
+                quantityGrams = 150.0,
+                date = date,
+            ),
+        )
+        val foodId = repository.observeSavedFoods().first().single().id
+
+        val error = runCatching { repository.deleteSavedFood(foodId) }.exceptionOrNull()
+
+        assertTrue(error is IllegalStateException)
+        assertEquals("Food is used in diary entries", error?.message)
+        assertEquals(1, repository.observeSavedFoods().first().size)
+    }
+
     private fun foundProduct(
         barcode: String = "1234567890123",
         name: String = "Greek Yogurt",

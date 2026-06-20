@@ -9,8 +9,10 @@ import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.QuickCalorieLogInput
+import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.SavedFoodItem
 import com.musfit.data.repository.SavedFoodLogInput
+import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import kotlinx.coroutines.CompletableDeferred
@@ -522,6 +524,223 @@ class FoodViewModelTest {
         assertEquals("Logged food", viewModel.state.value.message)
     }
 
+    @Test
+    fun openDiaryEntryEditor_populatesFormAndSaveUpdatesSelectedEntry() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = "Kitchen",
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 120.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 8.0,
+                                    fatGrams = 2.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openDiaryEntryEditor("entry-1")
+        viewModel.onDiaryEntryQuantityChanged("125")
+        viewModel.onDiaryEntryMealChanged("dinner")
+        viewModel.saveDiaryEntry()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            DiaryEntryUpdateInput(
+                mealItemId = "entry-1",
+                mealType = "dinner",
+                quantityGrams = 125.0,
+                date = LocalDate.now(),
+            ),
+            repository.diaryEntryUpdate,
+        )
+        assertEquals("Updated diary item", viewModel.state.value.message)
+        assertFalse(viewModel.state.value.isAddPanelVisible)
+    }
+
+    @Test
+    fun deleteDiaryEntry_removesSelectedDiaryItem() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = null,
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 120.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 8.0,
+                                    fatGrams = 2.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openDiaryEntryEditor("entry-1")
+        with(viewModel.state.value) {
+            assertEquals(FoodSheetMode.DiaryEntryEditor, sheetMode)
+            assertEquals("entry-1", editingDiaryEntryId)
+            assertEquals("Greek yogurt", editingDiaryEntryName)
+            assertEquals("200", editingDiaryEntryQuantityGrams)
+        }
+
+        viewModel.deleteDiaryEntry()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("entry-1", repository.deletedDiaryEntryId)
+        assertEquals("Deleted diary item", viewModel.state.value.message)
+        assertFalse(viewModel.state.value.isAddPanelVisible)
+    }
+
+    @Test
+    fun openFoodDatabase_tracksSearchAndOpensExistingFoodEditor() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 200.0,
+                        nutritionPer100g = FoodNutrition(
+                            caloriesKcal = 60.0,
+                            proteinGrams = 10.0,
+                            carbsGrams = 4.0,
+                            fatGrams = 1.0,
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openFoodDatabase()
+        viewModel.onFoodDatabaseQueryChanged("yog")
+        viewModel.openSavedFoodEditor("food-1")
+
+        with(viewModel.state.value) {
+            assertTrue(isAddPanelVisible)
+            assertEquals(FoodSheetMode.SavedFoodEditor, sheetMode)
+            assertEquals("yog", foodDatabaseQuery)
+            assertEquals("food-1", editingSavedFoodId)
+            assertEquals("Greek yogurt", savedFoodName)
+            assertEquals("Kitchen", savedFoodBrand)
+            assertEquals("200", savedFoodServingGrams)
+            assertEquals("60", savedFoodCaloriesPer100g)
+            assertEquals("10", savedFoodProteinPer100g)
+            assertEquals("4", savedFoodCarbsPer100g)
+            assertEquals("1", savedFoodFatPer100g)
+        }
+    }
+
+    @Test
+    fun saveSavedFood_upsertsEditorValuesAndReturnsToDatabase() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openNewSavedFoodEditor()
+        viewModel.onSavedFoodNameChanged("Chicken breast")
+        viewModel.onSavedFoodBrandChanged("Kitchen")
+        viewModel.onSavedFoodServingChanged("150")
+        viewModel.onSavedFoodCaloriesChanged("165")
+        viewModel.onSavedFoodProteinChanged("31")
+        viewModel.onSavedFoodCarbsChanged("0")
+        viewModel.onSavedFoodFatChanged("3.6")
+        viewModel.saveSavedFood()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            SavedFoodUpsertInput(
+                foodId = null,
+                name = "Chicken breast",
+                brand = "Kitchen",
+                defaultServingGrams = 150.0,
+                nutritionPer100g = FoodNutrition(
+                    caloriesKcal = 165.0,
+                    proteinGrams = 31.0,
+                    carbsGrams = 0.0,
+                    fatGrams = 3.6,
+                ),
+            ),
+            repository.savedFoodUpsert,
+        )
+        assertEquals(FoodSheetMode.FoodDatabase, viewModel.state.value.sheetMode)
+        assertEquals("Saved food", viewModel.state.value.message)
+    }
+
+    @Test
+    fun deleteSavedFood_deletesCurrentEditorFood() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = null,
+                        defaultServingGrams = 200.0,
+                        nutritionPer100g = FoodNutrition(
+                            caloriesKcal = 60.0,
+                            proteinGrams = 10.0,
+                            carbsGrams = 4.0,
+                            fatGrams = 1.0,
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openSavedFoodEditor("food-1")
+        viewModel.deleteSavedFood()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("food-1", repository.deletedSavedFoodId)
+        assertEquals(FoodSheetMode.FoodDatabase, viewModel.state.value.sheetMode)
+        assertEquals("Deleted food", viewModel.state.value.message)
+    }
+
     private class FakeProductProvider(
         private val result: ProductLookupResult = foundProduct(),
     ) : FoodProductProvider {
@@ -562,6 +781,10 @@ class FoodViewModelTest {
         var savedLog: FoodLogInput? = null
         var savedFoodLog: SavedFoodLogInput? = null
         var quickLog: QuickCalorieLogInput? = null
+        var diaryEntryUpdate: DiaryEntryUpdateInput? = null
+        var deletedDiaryEntryId: String? = null
+        var savedFoodUpsert: SavedFoodUpsertInput? = null
+        var deletedSavedFoodId: String? = null
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -594,6 +817,23 @@ class FoodViewModelTest {
         override suspend fun quickLog(input: QuickCalorieLogInput): String {
             quickLog = input
             return "meal-item-1"
+        }
+
+        override suspend fun updateDiaryEntry(input: DiaryEntryUpdateInput) {
+            diaryEntryUpdate = input
+        }
+
+        override suspend fun deleteDiaryEntry(mealItemId: String) {
+            deletedDiaryEntryId = mealItemId
+        }
+
+        override suspend fun upsertSavedFood(input: SavedFoodUpsertInput): String {
+            savedFoodUpsert = input
+            return input.foodId ?: "food-new"
+        }
+
+        override suspend fun deleteSavedFood(foodId: String) {
+            deletedSavedFoodId = foodId
         }
     }
 
@@ -633,6 +873,26 @@ class FoodViewModelTest {
         override suspend fun quickLog(input: QuickCalorieLogInput): String {
             saveCalls += 1
             return saveResult.await()
+        }
+
+        override suspend fun updateDiaryEntry(input: DiaryEntryUpdateInput) {
+            saveCalls += 1
+            saveResult.await()
+        }
+
+        override suspend fun deleteDiaryEntry(mealItemId: String) {
+            saveCalls += 1
+            saveResult.await()
+        }
+
+        override suspend fun upsertSavedFood(input: SavedFoodUpsertInput): String {
+            saveCalls += 1
+            return saveResult.await()
+        }
+
+        override suspend fun deleteSavedFood(foodId: String) {
+            saveCalls += 1
+            saveResult.await()
         }
 
         fun completeSave(value: String = "food-1") {

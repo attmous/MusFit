@@ -5,10 +5,12 @@ import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.HealthRepository
+import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.QuickCalorieLogInput
 import com.musfit.data.repository.SavedFoodItem
 import com.musfit.data.repository.SavedFoodLogInput
+import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
 import com.musfit.data.repository.WorkoutForExport
@@ -119,6 +121,15 @@ class TodayViewModelTest {
         override suspend fun logSavedFood(input: SavedFoodLogInput): String = "meal-item-1"
 
         override suspend fun quickLog(input: QuickCalorieLogInput): String = "meal-item-1"
+
+        override suspend fun updateDiaryEntry(input: DiaryEntryUpdateInput) = Unit
+
+        override suspend fun deleteDiaryEntry(mealItemId: String) = Unit
+
+        override suspend fun upsertSavedFood(input: SavedFoodUpsertInput): String =
+            input.foodId ?: "food-1"
+
+        override suspend fun deleteSavedFood(foodId: String) = Unit
     }
 
     private class FakeTrainingRepository : TrainingRepository {

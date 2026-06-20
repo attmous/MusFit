@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.QuickCalorieLogInput
 import com.musfit.data.repository.SavedFoodItem
 import com.musfit.data.repository.SavedFoodLogInput
+import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +30,13 @@ enum class FoodAddMode {
     Manual,
     Barcode,
     Quick,
+}
+
+enum class FoodSheetMode {
+    AddFood,
+    FoodDatabase,
+    DiaryEntryEditor,
+    SavedFoodEditor,
 }
 
 data class FoodMacroProgressUiState(
@@ -61,6 +70,10 @@ data class SavedFoodUiState(
     val name: String,
     val brand: String?,
     val defaultServingGrams: Double,
+    val caloriesPer100g: Double,
+    val proteinPer100g: Double,
+    val carbsPer100g: Double,
+    val fatPer100g: Double,
     val caloriesPerServingKcal: Double,
     val proteinPerServingGrams: Double,
     val carbsPerServingGrams: Double,
@@ -88,6 +101,7 @@ data class FoodUiState(
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
     val savedFoods: List<SavedFoodUiState> = emptyList(),
     val isAddPanelVisible: Boolean = false,
+    val sheetMode: FoodSheetMode? = null,
     val selectedMealTitle: String = "Breakfast",
     val addMode: FoodAddMode = FoodAddMode.Saved,
     val savedFoodQuantityGrams: String = "100",
@@ -95,6 +109,20 @@ data class FoodUiState(
     val quickProteinGrams: String = "",
     val quickCarbsGrams: String = "",
     val quickFatGrams: String = "",
+    val foodDatabaseQuery: String = "",
+    val editingDiaryEntryId: String? = null,
+    val editingDiaryEntryName: String = "",
+    val editingDiaryEntryMealType: String = "breakfast",
+    val editingDiaryEntryQuantityGrams: String = "",
+    val editingDiaryEntryCaloriesKcal: Double = 0.0,
+    val editingSavedFoodId: String? = null,
+    val savedFoodName: String = "",
+    val savedFoodBrand: String = "",
+    val savedFoodServingGrams: String = "100",
+    val savedFoodCaloriesPer100g: String = "",
+    val savedFoodProteinPer100g: String = "",
+    val savedFoodCarbsPer100g: String = "",
+    val savedFoodFatPer100g: String = "",
 )
 
 @HiltViewModel
@@ -127,6 +155,7 @@ class FoodViewModel @Inject constructor(
         mutableState.update {
             it.copy(
                 isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.AddFood,
                 mealType = normalizedMealType,
                 selectedMealTitle = normalizedMealType.mealTitle(),
                 addMode = FoodAddMode.Saved,
@@ -136,11 +165,328 @@ class FoodViewModel @Inject constructor(
     }
 
     fun closeAddFood() {
-        mutableState.update { it.copy(isAddPanelVisible = false, message = null) }
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = false,
+                sheetMode = null,
+                message = null,
+                editingDiaryEntryId = null,
+                editingSavedFoodId = null,
+            )
+        }
     }
 
     fun selectAddMode(mode: FoodAddMode) {
         mutableState.update { it.copy(addMode = mode, message = null) }
+    }
+
+    fun openFoodDatabase() {
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.FoodDatabase,
+                message = null,
+                editingDiaryEntryId = null,
+                editingSavedFoodId = null,
+            )
+        }
+    }
+
+    fun onFoodDatabaseQueryChanged(value: String) {
+        mutableState.update { it.copy(foodDatabaseQuery = value, message = null) }
+    }
+
+    fun openDiaryEntryEditor(entryId: String) {
+        val sectionAndEntry = state.value.mealSections.firstNotNullOfOrNull { section ->
+            section.entries.firstOrNull { entry -> entry.id == entryId }?.let { entry -> section to entry }
+        }
+        if (sectionAndEntry == null) {
+            mutableState.update { it.copy(message = "Diary item not found") }
+            return
+        }
+
+        val (section, entry) = sectionAndEntry
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.DiaryEntryEditor,
+                message = null,
+                editingDiaryEntryId = entry.id,
+                editingDiaryEntryName = entry.name,
+                editingDiaryEntryMealType = section.id,
+                editingDiaryEntryQuantityGrams = entry.quantityGrams.formatInputNumber(),
+                editingDiaryEntryCaloriesKcal = entry.caloriesKcal,
+            )
+        }
+    }
+
+    fun onDiaryEntryMealChanged(value: String) {
+        mutableState.update {
+            it.copy(
+                editingDiaryEntryMealType = value.normalizedMealType(),
+                message = null,
+            )
+        }
+    }
+
+    fun onDiaryEntryQuantityChanged(value: String) {
+        mutableState.update { it.copy(editingDiaryEntryQuantityGrams = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun saveDiaryEntry() {
+        val currentState = state.value
+        if (currentState.isSaving) {
+            return
+        }
+        val mealItemId = currentState.editingDiaryEntryId
+        if (mealItemId == null) {
+            mutableState.update { it.copy(message = "Choose a diary item") }
+            return
+        }
+        val quantityGrams = currentState.editingDiaryEntryQuantityGrams.parsePositiveNumberOrNull()
+        if (quantityGrams == null) {
+            mutableState.update { it.copy(message = "Enter a valid amount") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.updateDiaryEntry(
+                    DiaryEntryUpdateInput(
+                        mealItemId = mealItemId,
+                        mealType = currentState.editingDiaryEntryMealType,
+                        quantityGrams = quantityGrams,
+                        date = selectedDate,
+                    ),
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = false,
+                        sheetMode = null,
+                        editingDiaryEntryId = null,
+                        message = "Updated diary item",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to update diary item",
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteDiaryEntry() {
+        val currentState = state.value
+        if (currentState.isSaving) {
+            return
+        }
+        val mealItemId = currentState.editingDiaryEntryId
+        if (mealItemId == null) {
+            mutableState.update { it.copy(message = "Choose a diary item") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.deleteDiaryEntry(mealItemId)
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = false,
+                        sheetMode = null,
+                        editingDiaryEntryId = null,
+                        message = "Deleted diary item",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to delete diary item",
+                    )
+                }
+            }
+        }
+    }
+
+    fun openNewSavedFoodEditor() {
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.SavedFoodEditor,
+                message = null,
+                editingSavedFoodId = null,
+                savedFoodName = "",
+                savedFoodBrand = "",
+                savedFoodServingGrams = "100",
+                savedFoodCaloriesPer100g = "",
+                savedFoodProteinPer100g = "",
+                savedFoodCarbsPer100g = "",
+                savedFoodFatPer100g = "",
+            )
+        }
+    }
+
+    fun openSavedFoodEditor(foodId: String) {
+        val savedFood = state.value.savedFoods.firstOrNull { it.id == foodId }
+        if (savedFood == null) {
+            mutableState.update { it.copy(message = "Saved food not found") }
+            return
+        }
+
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.SavedFoodEditor,
+                message = null,
+                editingSavedFoodId = savedFood.id,
+                savedFoodName = savedFood.name,
+                savedFoodBrand = savedFood.brand.orEmpty(),
+                savedFoodServingGrams = savedFood.defaultServingGrams.formatInputNumber(),
+                savedFoodCaloriesPer100g = savedFood.caloriesPer100g.formatInputNumber(),
+                savedFoodProteinPer100g = savedFood.proteinPer100g.formatInputNumber(),
+                savedFoodCarbsPer100g = savedFood.carbsPer100g.formatInputNumber(),
+                savedFoodFatPer100g = savedFood.fatPer100g.formatInputNumber(),
+            )
+        }
+    }
+
+    fun onSavedFoodNameChanged(value: String) {
+        mutableState.update { it.copy(savedFoodName = value, message = null) }
+    }
+
+    fun onSavedFoodBrandChanged(value: String) {
+        mutableState.update { it.copy(savedFoodBrand = value, message = null) }
+    }
+
+    fun onSavedFoodServingChanged(value: String) {
+        mutableState.update { it.copy(savedFoodServingGrams = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodCaloriesChanged(value: String) {
+        mutableState.update { it.copy(savedFoodCaloriesPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodProteinChanged(value: String) {
+        mutableState.update { it.copy(savedFoodProteinPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodCarbsChanged(value: String) {
+        mutableState.update { it.copy(savedFoodCarbsPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodFatChanged(value: String) {
+        mutableState.update { it.copy(savedFoodFatPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun saveSavedFood() {
+        val currentState = state.value
+        if (currentState.isSaving) {
+            return
+        }
+        val foodName = currentState.savedFoodName.trim()
+        if (foodName.isBlank()) {
+            mutableState.update { it.copy(message = "Enter a food name") }
+            return
+        }
+        val servingGrams = currentState.savedFoodServingGrams.parsePositiveNumberOrNull()
+        val nutrition = currentState.toSavedFoodNutritionOrNull()
+        if (servingGrams == null || nutrition == null) {
+            mutableState.update { it.copy(message = "Enter valid nutrition values") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.upsertSavedFood(
+                    SavedFoodUpsertInput(
+                        foodId = currentState.editingSavedFoodId,
+                        name = foodName,
+                        brand = currentState.savedFoodBrand.ifBlank { null },
+                        defaultServingGrams = servingGrams,
+                        nutritionPer100g = nutrition,
+                    ),
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = true,
+                        sheetMode = FoodSheetMode.FoodDatabase,
+                        editingSavedFoodId = null,
+                        message = "Saved food",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to save food",
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteSavedFood() {
+        val currentState = state.value
+        if (currentState.isSaving) {
+            return
+        }
+        val foodId = currentState.editingSavedFoodId
+        if (foodId == null) {
+            mutableState.update { it.copy(message = "Choose a saved food") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.deleteSavedFood(foodId)
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = true,
+                        sheetMode = FoodSheetMode.FoodDatabase,
+                        editingSavedFoodId = null,
+                        message = "Deleted food",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to delete food",
+                    )
+                }
+            }
+        }
     }
 
     fun onBarcodeChanged(value: String) {
@@ -473,6 +819,20 @@ class FoodViewModel @Inject constructor(
         )
     }
 
+    private fun FoodUiState.toSavedFoodNutritionOrNull(): FoodNutrition? {
+        val calories = savedFoodCaloriesPer100g.parseNutritionValue() ?: return null
+        val protein = savedFoodProteinPer100g.parseNutritionValue() ?: return null
+        val carbs = savedFoodCarbsPer100g.parseNutritionValue() ?: return null
+        val fat = savedFoodFatPer100g.parseNutritionValue() ?: return null
+
+        return FoodNutrition(
+            caloriesKcal = calories,
+            proteinGrams = protein,
+            carbsGrams = carbs,
+            fatGrams = fat,
+        )
+    }
+
     private fun FoodUiState.clearedEditableFields(): FoodUiState =
         copy(
             productName = "",
@@ -545,6 +905,10 @@ private fun SavedFoodItem.toUiState(): SavedFoodUiState {
         name = name,
         brand = brand,
         defaultServingGrams = defaultServingGrams,
+        caloriesPer100g = nutritionPer100g.caloriesKcal,
+        proteinPer100g = nutritionPer100g.proteinGrams,
+        carbsPer100g = nutritionPer100g.carbsGrams,
+        fatPer100g = nutritionPer100g.fatGrams,
         caloriesPerServingKcal = nutritionPer100g.caloriesKcal * servingMultiplier,
         proteinPerServingGrams = nutritionPer100g.proteinGrams * servingMultiplier,
         carbsPerServingGrams = nutritionPer100g.carbsGrams * servingMultiplier,
@@ -621,4 +985,13 @@ private fun String.sanitizeDecimalInput(): String {
     }
 
     return builder.toString()
+}
+
+private fun Double.formatInputNumber(): String {
+    val longValue = toLong()
+    return if (this == longValue.toDouble()) {
+        longValue.toString()
+    } else {
+        toString()
+    }
 }

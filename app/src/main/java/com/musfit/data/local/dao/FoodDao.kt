@@ -49,6 +49,15 @@ interface FoodDao {
     @Query("SELECT * FROM foods WHERE id = :foodId LIMIT 1")
     suspend fun getFood(foodId: String): FoodEntity?
 
+    @Query("SELECT * FROM meals WHERE id = :mealId LIMIT 1")
+    suspend fun getMeal(mealId: String): MealEntity?
+
+    @Query("SELECT * FROM meal_items WHERE id = :mealItemId LIMIT 1")
+    suspend fun getMealItem(mealItemId: String): MealItemEntity?
+
+    @Query("SELECT COUNT(*) FROM meal_items WHERE foodId = :foodId")
+    suspend fun countMealItemsForFood(foodId: String): Int
+
     @Query("SELECT * FROM meals WHERE dateEpochDay = :dateEpochDay ORDER BY createdAtEpochMillis")
     fun observeMealsForDate(dateEpochDay: Long): Flow<List<MealEntity>>
 
@@ -100,6 +109,9 @@ interface FoodDao {
 
     @Delete
     suspend fun deleteFood(food: FoodEntity)
+
+    @Query("DELETE FROM meal_items WHERE id = :mealItemId")
+    suspend fun deleteMealItemById(mealItemId: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertFood(food: FoodEntity)
