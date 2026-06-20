@@ -41,6 +41,7 @@ class HealthViewModelTest {
         assertEquals("Available", viewModel.state.value.availabilityLabel)
         assertEquals(1, viewModel.state.value.grantedPermissionCount)
         assertEquals(setOf("steps"), viewModel.state.value.requestablePermissions)
+        assertEquals(true, viewModel.state.value.canRequestPermissions)
     }
 
     @Test
@@ -59,10 +60,34 @@ class HealthViewModelTest {
 
         assertEquals("Install or update required", viewModel.state.value.availabilityLabel)
         assertEquals(0, viewModel.state.value.grantedPermissionCount)
+        assertTrue(viewModel.state.value.requestablePermissions.isEmpty())
+        assertEquals(1, viewModel.state.value.requestablePermissionCount)
+        assertEquals(false, viewModel.state.value.canRequestPermissions)
         assertEquals(
             "Install or update Health Connect to sync health data with MusFit.",
             viewModel.state.value.message,
         )
+    }
+
+    @Test
+    fun refreshStatus_hidesPermissionLauncherWhenGatewayNotSupported() = runTest {
+        val viewModel = HealthViewModel(
+            FakeHealthConnectGateway(
+                status = HealthConnectStatus(
+                    availability = HealthConnectAvailability.NotSupported,
+                    grantedPermissions = emptySet(),
+                ),
+                requestablePermissions = setOf("steps", "weight"),
+            ),
+        )
+
+        viewModel.refreshStatus()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Not supported", viewModel.state.value.availabilityLabel)
+        assertTrue(viewModel.state.value.requestablePermissions.isEmpty())
+        assertEquals(2, viewModel.state.value.requestablePermissionCount)
+        assertEquals(false, viewModel.state.value.canRequestPermissions)
     }
 
     @Test
@@ -109,19 +134,50 @@ class HealthViewModelTest {
     }
 
     @Test
-    fun refreshStatus_publishesStableErrorStateWhenGatewayFails() = runTest {
-        val viewModel = HealthViewModel(
-            FakeHealthConnectGateway(
-                statusException = IllegalStateException("boom"),
-            ),
-        )
+    fun refreshStatus_resetsStaleSuccessStateAfterFailure() = runTest {
+        var failNextRefresh = false
+        val gateway = object : HealthConnectGateway {
+            override suspend fun status(): HealthConnectStatus {
+                if (failNextRefresh) throw IllegalStateException("boom")
+                return HealthConnectStatus(
+                    availability = HealthConnectAvailability.Available,
+                    grantedPermissions = setOf("steps"),
+                )
+            }
 
+            override suspend fun requestablePermissions(): Set<String> = setOf("steps", "weight")
+
+            override suspend fun readDailySummary(date: LocalDate) = ImportedDailyHealthSummary(
+                steps = 1200,
+                activeCaloriesKcal = 100.0,
+                latestWeightKg = null,
+                restingHeartRateBpm = null,
+            )
+
+            override suspend fun exportWorkout(
+                session: com.musfit.data.local.entity.WorkoutSessionEntity,
+                sets: List<com.musfit.data.local.entity.WorkoutSetEntity>,
+            ): String? = "record-id"
+        }
+        val viewModel = HealthViewModel(gateway)
+
+        viewModel.refreshStatus()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Available", viewModel.state.value.availabilityLabel)
+        assertEquals(1, viewModel.state.value.grantedPermissionCount)
+        assertEquals(setOf("steps", "weight"), viewModel.state.value.requestablePermissions)
+        assertEquals(true, viewModel.state.value.canRequestPermissions)
+
+        failNextRefresh = true
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("Unknown", viewModel.state.value.availabilityLabel)
         assertEquals(0, viewModel.state.value.grantedPermissionCount)
+        assertEquals(0, viewModel.state.value.requestablePermissionCount)
         assertTrue(viewModel.state.value.requestablePermissions.isEmpty())
+        assertEquals(false, viewModel.state.value.canRequestPermissions)
         assertEquals(
             "Unable to refresh Health Connect status right now. Try again from the Health tab.",
             viewModel.state.value.message,

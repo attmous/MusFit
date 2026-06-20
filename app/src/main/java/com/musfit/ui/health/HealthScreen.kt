@@ -67,12 +67,12 @@ fun HealthScreen(viewModel: HealthViewModel = hiltViewModel()) {
         )
         Button(
             onClick = {
-                if (state.requestablePermissions.isNotEmpty()) {
+                if (state.canRequestPermissions) {
                     permissionLauncher.launch(state.requestablePermissions)
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = state.requestablePermissions.isNotEmpty(),
+            enabled = state.canRequestPermissions,
         ) {
             Text(text = "Enable Health Connect sync")
         }

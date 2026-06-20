@@ -17,6 +17,7 @@ data class HealthUiState(
     val grantedPermissionCount: Int = 0,
     val requestablePermissionCount: Int = 0,
     val requestablePermissions: Set<String> = emptySet(),
+    val canRequestPermissions: Boolean = false,
     val message: String = "Refresh status to check whether Health Connect is ready.",
 )
 
@@ -32,18 +33,30 @@ class HealthViewModel @Inject constructor(
             runCatching {
                 val status = gateway.status()
                 val requestablePermissions = gateway.requestablePermissions()
+                val launchablePermissions = if (status.availability == HealthConnectAvailability.Available) {
+                    requestablePermissions
+                } else {
+                    emptySet()
+                }
                 mutableState.update {
                     it.copy(
                         availabilityLabel = status.availability.label(),
                         grantedPermissionCount = status.grantedPermissions.size,
                         requestablePermissionCount = requestablePermissions.size,
-                        requestablePermissions = requestablePermissions,
+                        requestablePermissions = launchablePermissions,
+                        canRequestPermissions = status.availability == HealthConnectAvailability.Available &&
+                            launchablePermissions.isNotEmpty(),
                         message = status.toMessage(requestablePermissions.size),
                     )
                 }
             }.onFailure {
                 mutableState.update {
                     it.copy(
+                        availabilityLabel = "Unknown",
+                        grantedPermissionCount = 0,
+                        requestablePermissionCount = 0,
+                        requestablePermissions = emptySet(),
+                        canRequestPermissions = false,
                         message = "Unable to refresh Health Connect status right now. Try again from the Health tab.",
                     )
                 }
