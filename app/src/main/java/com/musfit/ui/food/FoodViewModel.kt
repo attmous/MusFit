@@ -20,10 +20,10 @@ data class FoodUiState(
     val message: String? = null,
     val productName: String = "",
     val brand: String = "",
-    val caloriesPer100g: Double = 0.0,
-    val proteinPer100g: Double = 0.0,
-    val carbsPer100g: Double = 0.0,
-    val fatPer100g: Double = 0.0,
+    val caloriesPer100g: String = "",
+    val proteinPer100g: String = "",
+    val carbsPer100g: String = "",
+    val fatPer100g: String = "",
     val lookupResult: ProductLookupResult.Found? = null,
 )
 
@@ -36,11 +36,16 @@ class FoodViewModel @Inject constructor(
     val state: StateFlow<FoodUiState> = mutableState.asStateFlow()
 
     fun onBarcodeChanged(value: String) {
+        val sanitized = value.filter(Char::isDigit)
         mutableState.update {
-            it.copy(
-                barcode = value.filter(Char::isDigit),
-                message = null,
-            )
+            if (sanitized == it.barcode) {
+                it.copy(message = null)
+            } else {
+                it.clearedEditableFields().copy(
+                    barcode = sanitized,
+                    message = null,
+                )
+            }
         }
     }
 
@@ -53,19 +58,19 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onCaloriesChanged(value: String) {
-        mutableState.update { it.copy(caloriesPer100g = value.toDoubleOrNull() ?: 0.0, message = null) }
+        mutableState.update { it.copy(caloriesPer100g = value, message = null) }
     }
 
     fun onProteinChanged(value: String) {
-        mutableState.update { it.copy(proteinPer100g = value.toDoubleOrNull() ?: 0.0, message = null) }
+        mutableState.update { it.copy(proteinPer100g = value, message = null) }
     }
 
     fun onCarbsChanged(value: String) {
-        mutableState.update { it.copy(carbsPer100g = value.toDoubleOrNull() ?: 0.0, message = null) }
+        mutableState.update { it.copy(carbsPer100g = value, message = null) }
     }
 
     fun onFatChanged(value: String) {
-        mutableState.update { it.copy(fatPer100g = value.toDoubleOrNull() ?: 0.0, message = null) }
+        mutableState.update { it.copy(fatPer100g = value, message = null) }
     }
 
     fun lookupBarcode() {
@@ -91,10 +96,10 @@ class FoodViewModel @Inject constructor(
                             isLoading = false,
                             productName = result.name,
                             brand = result.brand.orEmpty(),
-                            caloriesPer100g = result.nutritionPer100g.caloriesKcal,
-                            proteinPer100g = result.nutritionPer100g.proteinGrams,
-                            carbsPer100g = result.nutritionPer100g.carbsGrams,
-                            fatPer100g = result.nutritionPer100g.fatGrams,
+                            caloriesPer100g = result.nutritionPer100g.caloriesKcal.toString(),
+                            proteinPer100g = result.nutritionPer100g.proteinGrams.toString(),
+                            carbsPer100g = result.nutritionPer100g.carbsGrams.toString(),
+                            fatPer100g = result.nutritionPer100g.fatGrams.toString(),
                             lookupResult = result,
                             message = null,
                         )
@@ -102,18 +107,16 @@ class FoodViewModel @Inject constructor(
 
                 is ProductLookupResult.NotFound ->
                     mutableState.update {
-                        it.copy(
+                        it.clearedEditableFields().copy(
                             isLoading = false,
-                            lookupResult = null,
                             message = "Product not found",
                         )
                     }
 
                 is ProductLookupResult.Failed ->
                     mutableState.update {
-                        it.copy(
+                        it.clearedEditableFields().copy(
                             isLoading = false,
-                            lookupResult = null,
                             message = result.message,
                         )
                     }
@@ -147,9 +150,20 @@ class FoodViewModel @Inject constructor(
 
     private fun FoodUiState.toEditedNutrition(): FoodNutrition =
         FoodNutrition(
-            caloriesKcal = caloriesPer100g,
-            proteinGrams = proteinPer100g,
-            carbsGrams = carbsPer100g,
-            fatGrams = fatPer100g,
+            caloriesKcal = caloriesPer100g.toDoubleOrNull() ?: 0.0,
+            proteinGrams = proteinPer100g.toDoubleOrNull() ?: 0.0,
+            carbsGrams = carbsPer100g.toDoubleOrNull() ?: 0.0,
+            fatGrams = fatPer100g.toDoubleOrNull() ?: 0.0,
+        )
+
+    private fun FoodUiState.clearedEditableFields(): FoodUiState =
+        copy(
+            productName = "",
+            brand = "",
+            caloriesPer100g = "",
+            proteinPer100g = "",
+            carbsPer100g = "",
+            fatPer100g = "",
+            lookupResult = null,
         )
 }

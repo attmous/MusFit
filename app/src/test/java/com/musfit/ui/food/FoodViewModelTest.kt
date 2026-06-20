@@ -7,6 +7,7 @@ import com.musfit.data.repository.FoodRepository
 import com.musfit.domain.model.FoodNutrition
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -19,6 +20,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class FoodViewModelTest {
     private val dispatcher = StandardTestDispatcher()
 
@@ -64,10 +66,10 @@ class FoodViewModelTest {
         assertEquals("12345", result.barcode)
         assertEquals("Greek Yogurt", result.productName)
         assertEquals("Example Dairy", result.brand)
-        assertEquals(59.0, result.caloriesPer100g, 0.01)
-        assertEquals(10.0, result.proteinPer100g, 0.01)
-        assertEquals(3.6, result.carbsPer100g, 0.01)
-        assertEquals(0.4, result.fatPer100g, 0.01)
+        assertEquals("59.0", result.caloriesPer100g)
+        assertEquals("10.0", result.proteinPer100g)
+        assertEquals("3.6", result.carbsPer100g)
+        assertEquals("0.4", result.fatPer100g)
         assertNull(result.message)
 
         viewModel.onProductNameChanged("Edited Yogurt")
@@ -145,6 +147,71 @@ class FoodViewModelTest {
         assertNull(viewModel.state.value.lookupResult)
     }
 
+    @Test
+    fun onBarcodeChanged_afterSuccessfulLookup_clearsStaleLookupAndEditableFields() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.onBarcodeChanged("12345")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Greek Yogurt", viewModel.state.value.productName)
+        assertTrue(viewModel.state.value.lookupResult != null)
+
+        viewModel.onBarcodeChanged("54321")
+
+        with(viewModel.state.value) {
+            assertEquals("54321", barcode)
+            assertNull(lookupResult)
+            assertEquals("", productName)
+            assertEquals("", brand)
+            assertEquals("", caloriesPer100g)
+            assertEquals("", proteinPer100g)
+            assertEquals("", carbsPer100g)
+            assertEquals("", fatPer100g)
+        }
+    }
+
+    @Test
+    fun lookupBarcode_withZeroNutrition_keepsZeroValuesVisibleAndSaveable() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(result = foundProduct(nutrition = FoodNutrition(0.0, 0.0, 0.0, 0.0))),
+            repository = repository,
+        )
+
+        viewModel.onBarcodeChanged("12345")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        with(viewModel.state.value) {
+            assertEquals("0.0", caloriesPer100g)
+            assertEquals("0.0", proteinPer100g)
+            assertEquals("0.0", carbsPer100g)
+            assertEquals("0.0", fatPer100g)
+        }
+
+        viewModel.onCaloriesChanged("0")
+        viewModel.onProteinChanged("0")
+        viewModel.onCarbsChanged("0")
+        viewModel.onFatChanged("0")
+        viewModel.saveProduct()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            FoodNutrition(
+                caloriesKcal = 0.0,
+                proteinGrams = 0.0,
+                carbsGrams = 0.0,
+                fatGrams = 0.0,
+            ),
+            repository.savedNutrition,
+        )
+    }
+
     private class FakeProductProvider(
         private val result: ProductLookupResult = foundProduct(),
     ) : FoodProductProvider {
@@ -189,12 +256,13 @@ private fun foundProduct(
     name: String = "Greek Yogurt",
     brand: String? = "Example Dairy",
     servingQuantityGrams: Double? = 170.0,
+    nutrition: FoodNutrition = FoodNutrition(59.0, 10.0, 3.6, 0.4),
 ) = ProductLookupResult.Found(
     barcode = barcode,
     name = name,
     brand = brand,
     servingQuantityGrams = servingQuantityGrams,
-    nutritionPer100g = FoodNutrition(59.0, 10.0, 3.6, 0.4),
+    nutritionPer100g = nutrition,
     quality = ProductDataQuality.Complete,
     rawJson = "{}",
 )

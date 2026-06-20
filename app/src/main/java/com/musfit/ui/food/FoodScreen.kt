@@ -88,22 +88,22 @@ fun FoodScreen(viewModel: FoodViewModel = hiltViewModel()) {
 
         NutritionField(
             label = "Calories",
-            value = state.caloriesPer100g.toDisplayValue(),
+            value = state.caloriesPer100g,
             onValueChange = viewModel::onCaloriesChanged,
         )
         NutritionField(
             label = "Protein (g)",
-            value = state.proteinPer100g.toDisplayValue(),
+            value = state.proteinPer100g,
             onValueChange = viewModel::onProteinChanged,
         )
         NutritionField(
             label = "Carbs (g)",
-            value = state.carbsPer100g.toDisplayValue(),
+            value = state.carbsPer100g,
             onValueChange = viewModel::onCarbsChanged,
         )
         NutritionField(
             label = "Fat (g)",
-            value = state.fatPer100g.toDisplayValue(),
+            value = state.fatPer100g,
             onValueChange = viewModel::onFatChanged,
         )
 
@@ -132,5 +132,3 @@ private fun NutritionField(
         modifier = Modifier.fillMaxWidth(),
     )
 }
-
-private fun Double.toDisplayValue(): String = if (this == 0.0) "" else toString()
