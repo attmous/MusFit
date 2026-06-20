@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
@@ -22,8 +23,20 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 @Composable
-fun FoodScreen(viewModel: FoodViewModel = hiltViewModel()) {
+fun FoodScreen(
+    scannedBarcode: String? = null,
+    onScanClick: () -> Unit = {},
+    onScannedBarcodeConsumed: () -> Unit = {},
+    viewModel: FoodViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(scannedBarcode) {
+        if (!scannedBarcode.isNullOrBlank()) {
+            viewModel.onBarcodeChanged(scannedBarcode)
+            onScannedBarcodeConsumed()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -56,6 +69,14 @@ fun FoodScreen(viewModel: FoodViewModel = hiltViewModel()) {
             ) {
                 Text(if (state.isLoading) "Loading" else "Lookup")
             }
+        }
+
+        Button(
+            onClick = onScanClick,
+            enabled = !state.isLoading && !state.isSaving,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Scan")
         }
 
         state.message?.let { message ->

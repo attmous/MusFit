@@ -16,4 +16,10 @@ class AppDestinationTest {
             AppDestination.entries.map { it.label },
         )
     }
+
+    @Test
+    fun barcodeScannerRoute_is_separate_from_bottom_navigation_routes() {
+        assertEquals("barcode-scanner", BARCODE_SCANNER_ROUTE)
+        assertEquals(false, AppDestination.entries.any { it.route == BARCODE_SCANNER_ROUTE })
+    }
 }

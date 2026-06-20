@@ -7,11 +7,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodScreen
 import com.musfit.ui.health.HealthScreen
 import com.musfit.ui.today.TodayScreen
@@ -23,6 +27,7 @@ fun AppNavGraph() {
     val destinations = AppDestination.entries
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: AppDestination.Today.route
+    var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(
         bottomBar = {
@@ -49,9 +54,25 @@ fun AppNavGraph() {
             modifier = Modifier.padding(padding),
         ) {
             composable(AppDestination.Today.route) { TodayScreen() }
-            composable(AppDestination.Food.route) { FoodScreen() }
+            composable(AppDestination.Food.route) {
+                FoodScreen(
+                    scannedBarcode = scannedBarcode,
+                    onScanClick = { navController.navigate(BARCODE_SCANNER_ROUTE) },
+                    onScannedBarcodeConsumed = { scannedBarcode = null },
+                )
+            }
             composable(AppDestination.Training.route) { TrainingScreen() }
             composable(AppDestination.Health.route) { HealthScreen() }
+            composable(BARCODE_SCANNER_ROUTE) {
+                BarcodeScannerScreen(
+                    onBarcodeDetected = { barcode ->
+                        if (barcode.isNotBlank()) {
+                            scannedBarcode = barcode
+                            navController.popBackStack()
+                        }
+                    },
+                )
+            }
         }
     }
 }
