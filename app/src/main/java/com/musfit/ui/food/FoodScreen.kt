@@ -27,7 +27,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -131,20 +130,6 @@ fun FoodScreen(
             }
         }
 
-        FloatingActionButton(
-            onClick = { viewModel.openAddFood("breakfast") },
-            containerColor = ActionGreen,
-            contentColor = Color(0xFF053D2D),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(20.dp),
-        ) {
-            Text(
-                text = "+",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Medium,
-            )
-        }
     }
 
     if (state.isAddPanelVisible) {
