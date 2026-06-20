@@ -23,6 +23,9 @@ interface FoodDao {
     @Query("SELECT * FROM food_servings WHERE foodId = :foodId ORDER BY label")
     suspend fun getServings(foodId: String): List<FoodServingEntity>
 
+    @Query("SELECT * FROM foods WHERE id = :foodId LIMIT 1")
+    suspend fun getFood(foodId: String): FoodEntity?
+
     @Query("SELECT * FROM meals WHERE dateEpochDay = :dateEpochDay ORDER BY createdAtEpochMillis")
     fun observeMealsForDate(dateEpochDay: Long): Flow<List<MealEntity>>
 

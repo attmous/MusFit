@@ -29,7 +29,9 @@ class LocalFoodRepository @Inject constructor(
         editedBrand: String?,
         editedNutrition: FoodNutrition,
     ): String {
-        val foodId = UUID.randomUUID().toString()
+        val existingBarcodeProduct = foodDao.getBarcodeProduct(result.barcode)
+        val foodId = existingBarcodeProduct?.linkedFoodId ?: UUID.randomUUID().toString()
+        val existingFood = foodDao.getFood(foodId)
         val now = System.currentTimeMillis()
         val servingGrams = result.servingQuantityGrams ?: 100.0
         val resolvedName = editedName.ifBlank { result.name }
@@ -45,13 +47,13 @@ class LocalFoodRepository @Inject constructor(
                 proteinPer100g = editedNutrition.proteinGrams,
                 carbsPer100g = editedNutrition.carbsGrams,
                 fatPer100g = editedNutrition.fatGrams,
-                createdAtEpochMillis = now,
+                createdAtEpochMillis = existingFood?.createdAtEpochMillis ?: now,
                 updatedAtEpochMillis = now,
             ),
         )
         foodDao.upsertServing(
             FoodServingEntity(
-                id = UUID.randomUUID().toString(),
+                id = defaultServingId(foodId),
                 foodId = foodId,
                 label = servingLabel(servingGrams),
                 grams = servingGrams,
@@ -59,7 +61,7 @@ class LocalFoodRepository @Inject constructor(
         )
         foodDao.upsertBarcodeProduct(
             BarcodeProductEntity(
-                id = UUID.randomUUID().toString(),
+                id = existingBarcodeProduct?.id ?: UUID.randomUUID().toString(),
                 barcode = result.barcode,
                 provider = OPEN_FOOD_FACTS_PROVIDER,
                 providerProductName = result.name,
@@ -88,6 +90,8 @@ class LocalFoodRepository @Inject constructor(
             ProductDataQuality.Complete -> "complete"
             ProductDataQuality.Incomplete -> "incomplete"
         }
+
+    private fun defaultServingId(foodId: String): String = "$foodId:default-serving"
 
     private companion object {
         const val OPEN_FOOD_FACTS_PROVIDER = "open_food_facts"

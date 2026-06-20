@@ -2,20 +2,31 @@ package com.musfit.data.remote.food
 
 import com.musfit.domain.model.FoodNutrition
 import com.squareup.moshi.Moshi
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 class OpenFoodFactsProductProvider @Inject constructor(
     private val api: OpenFoodFactsApi,
     private val moshi: Moshi,
 ) : FoodProductProvider {
+    private val responseAdapter = moshi.adapter(OpenFoodFactsResponse::class.java)
+
     override suspend fun lookupBarcode(barcode: String): ProductLookupResult =
         try {
-            val response = api.getProduct(barcode)
+            val rawJson = api.getProduct(barcode).string()
+            val response =
+                responseAdapter.fromJson(rawJson)
+                    ?: return ProductLookupResult.Failed(
+                        barcode = barcode,
+                        message = "Lookup failed",
+                    )
             normalize(
                 barcode = barcode,
                 response = response,
-                rawJson = moshi.adapter(OpenFoodFactsResponse::class.java).toJson(response),
+                rawJson = rawJson,
             )
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (exception: Exception) {
             ProductLookupResult.Failed(
                 barcode = barcode,

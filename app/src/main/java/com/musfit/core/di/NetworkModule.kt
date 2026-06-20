@@ -13,7 +13,6 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
 import javax.inject.Singleton
 
 @Module
@@ -41,12 +40,10 @@ object NetworkProvidesModule {
     @Singleton
     fun provideOpenFoodFactsApi(
         okHttpClient: OkHttpClient,
-        moshi: Moshi,
     ): OpenFoodFactsApi =
         Retrofit.Builder()
             .baseUrl("https://world.openfoodfacts.org/")
             .client(okHttpClient)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(OpenFoodFactsApi::class.java)
 }
