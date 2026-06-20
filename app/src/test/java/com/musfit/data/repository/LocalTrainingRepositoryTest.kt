@@ -21,9 +21,11 @@ import java.time.ZoneId
 class LocalTrainingRepositoryTest {
     private lateinit var database: MusFitDatabase
     private lateinit var repository: LocalTrainingRepository
+    private var currentInstant: Instant = WORKOUT_START
 
     @Before
     fun setUp() {
+        currentInstant = WORKOUT_START
         val context = ApplicationProvider.getApplicationContext<Context>()
         database =
             Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
@@ -32,7 +34,7 @@ class LocalTrainingRepositoryTest {
         repository = LocalTrainingRepository(
             database = database,
             trainingDao = database.trainingDao(),
-            clock = { WORKOUT_START.toEpochMilli() },
+            clock = { currentInstant.toEpochMilli() },
         )
     }
 
@@ -95,6 +97,37 @@ class LocalTrainingRepositoryTest {
         assertNotNull(workout)
         assertEquals(1, workout?.sets?.size)
         assertEquals(2, workout?.sets?.single()?.reps)
+    }
+
+    @Test
+    fun addCompletedSet_afterDateChanges_startsNewSessionForNewDaySummary() = runTest {
+        repository.addCompletedSet(
+            exerciseName = "Bench Press",
+            reps = 5,
+            weightKg = 100.0,
+        )
+
+        val nextDate = WORKOUT_DATE.plusDays(1)
+        currentInstant = nextDate
+            .atTime(9, 0)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+
+        repository.addCompletedSet(
+            exerciseName = "Squat",
+            reps = 3,
+            weightKg = 120.0,
+        )
+
+        val sessions = database.trainingDao().observeWorkoutSessions().first()
+        val firstDaySummary = repository.observeDailyTrainingSummary(WORKOUT_DATE).first()
+        val nextDaySummary = repository.observeDailyTrainingSummary(nextDate).first()
+
+        assertEquals(2, sessions.size)
+        assertEquals(1, firstDaySummary.completedSetCount)
+        assertEquals(500.0, firstDaySummary.totalVolumeKg, 0.01)
+        assertEquals(1, nextDaySummary.completedSetCount)
+        assertEquals(360.0, nextDaySummary.totalVolumeKg, 0.01)
     }
 
     private companion object {

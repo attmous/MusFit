@@ -10,6 +10,7 @@ import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.WorkoutCalculator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -174,7 +175,7 @@ class LocalTrainingRepository @Inject constructor(
 
     private suspend fun currentOrNewSession(now: Long): WorkoutSessionEntity {
         val existingSession = activeSessionId?.let { trainingDao.getWorkoutSession(it) }
-        if (existingSession != null) {
+        if (existingSession != null && existingSession.startedAtEpochMillis.isSameDayAs(now)) {
             return existingSession
         }
 
@@ -207,3 +208,7 @@ private fun LocalDate.dayRange(zoneId: ZoneId = ZoneId.systemDefault()): DayRang
         startEpochMillis = atStartOfDay(zoneId).toInstant().toEpochMilli(),
         endEpochMillis = plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(),
     )
+
+private fun Long.isSameDayAs(other: Long, zoneId: ZoneId = ZoneId.systemDefault()): Boolean =
+    Instant.ofEpochMilli(this).atZone(zoneId).toLocalDate() ==
+        Instant.ofEpochMilli(other).atZone(zoneId).toLocalDate()

@@ -30,12 +30,12 @@ data class TodayUiState(
 )
 
 @HiltViewModel
-class TodayViewModel @Inject constructor(
+class TodayViewModel internal constructor(
     private val foodRepository: FoodRepository,
     private val trainingRepository: TrainingRepository,
     private val healthRepository: HealthRepository,
+    private val dateProvider: () -> LocalDate,
 ) : ViewModel() {
-    private var dateProvider: () -> LocalDate = { LocalDate.now() }
     private val mutableState = MutableStateFlow(TodayUiState())
     val state: StateFlow<TodayUiState> = mutableState.asStateFlow()
 
@@ -43,14 +43,17 @@ class TodayViewModel @Inject constructor(
         observeToday()
     }
 
-    internal constructor(
+    @Inject
+    constructor(
         foodRepository: FoodRepository,
         trainingRepository: TrainingRepository,
         healthRepository: HealthRepository,
-        dateProvider: () -> LocalDate,
-    ) : this(foodRepository, trainingRepository, healthRepository) {
-        this.dateProvider = dateProvider
-    }
+    ) : this(
+        foodRepository = foodRepository,
+        trainingRepository = trainingRepository,
+        healthRepository = healthRepository,
+        dateProvider = { LocalDate.now() },
+    )
 
     private fun observeToday() {
         val date = dateProvider()

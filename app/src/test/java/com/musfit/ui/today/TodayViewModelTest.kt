@@ -69,7 +69,29 @@ class TodayViewModelTest {
         assertEquals(82.4, state.bodyWeightKg ?: 0.0, 0.01)
     }
 
+    @Test
+    fun state_usesInjectedDateProviderBeforeStartingRepositoryFlows() = runTest {
+        val targetDate = LocalDate.now().plusDays(3)
+        val foodRepository = FakeFoodRepository()
+        val trainingRepository = FakeTrainingRepository()
+        val healthRepository = FakeHealthRepository(targetDate)
+
+        TodayViewModel(
+            foodRepository = foodRepository,
+            trainingRepository = trainingRepository,
+            healthRepository = healthRepository,
+            dateProvider = { targetDate },
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(targetDate), foodRepository.observedDates)
+        assertEquals(listOf(targetDate), trainingRepository.observedDates)
+        assertEquals(listOf(targetDate), healthRepository.observedDates)
+    }
+
     private class FakeFoodRepository : FoodRepository {
+        val observedDates = mutableListOf<LocalDate>()
+
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
             editedName: String,
@@ -79,11 +101,15 @@ class TodayViewModelTest {
 
         override suspend fun logFood(input: FoodLogInput): String = "meal-item-1"
 
-        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
-            MutableStateFlow(NutritionTotals(600.0, 45.0, 70.0, 18.0))
+        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> {
+            observedDates += date
+            return MutableStateFlow(NutritionTotals(600.0, 45.0, 70.0, 18.0))
+        }
     }
 
     private class FakeTrainingRepository : TrainingRepository {
+        val observedDates = mutableListOf<LocalDate>()
+
         override suspend fun addCompletedSet(
             exerciseName: String,
             reps: Int,
@@ -92,14 +118,16 @@ class TodayViewModelTest {
 
         override suspend fun setCompletion(setId: String, completed: Boolean) = Unit
 
-        override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> =
-            MutableStateFlow(
+        override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> {
+            observedDates += date
+            return MutableStateFlow(
                 TrainingSummary(
                     completedSetCount = 2,
                     totalVolumeKg = 1250.0,
                     bestEstimatedOneRepMaxKg = 130.0,
                 ),
             )
+        }
 
         override suspend fun getLatestWorkoutForExport(): WorkoutForExport? = null
 
@@ -113,13 +141,16 @@ class TodayViewModelTest {
     private class FakeHealthRepository(
         private val date: LocalDate,
     ) : HealthRepository {
+        val observedDates = mutableListOf<LocalDate>()
+
         override suspend fun status(): HealthConnectStatus =
             HealthConnectStatus(HealthConnectAvailability.Available, emptySet())
 
         override suspend fun requestablePermissions(): Set<String> = emptySet()
 
-        override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> =
-            MutableStateFlow(
+        override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> {
+            observedDates += date
+            return MutableStateFlow(
                 DailyHealthSummaryEntity(
                     dateEpochDay = this.date.toEpochDay(),
                     steps = 8200L,
@@ -129,6 +160,7 @@ class TodayViewModelTest {
                     updatedAtEpochMillis = 1L,
                 ),
             )
+        }
 
         override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
             ImportedDailyHealthSummary(8200L, 420.0, 82.4, 58)
