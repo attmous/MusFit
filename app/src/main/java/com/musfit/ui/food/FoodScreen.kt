@@ -51,7 +51,7 @@ fun FoodScreen(viewModel: FoodViewModel = hiltViewModel()) {
 
             Button(
                 onClick = viewModel::lookupBarcode,
-                enabled = !state.isLoading,
+                enabled = !state.isLoading && !state.isSaving,
                 modifier = Modifier.width(112.dp),
             ) {
                 Text(if (state.isLoading) "Loading" else "Lookup")
@@ -109,10 +109,10 @@ fun FoodScreen(viewModel: FoodViewModel = hiltViewModel()) {
 
         Button(
             onClick = viewModel::saveProduct,
-            enabled = state.lookupResult != null && !state.isLoading,
+            enabled = state.lookupResult != null && !state.isLoading && !state.isSaving,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Save food")
+            Text(if (state.isSaving) "Saving" else "Save food")
         }
     }
 }

@@ -7,6 +7,8 @@ import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.repository.FoodRepository
 import com.musfit.domain.model.FoodNutrition
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +19,7 @@ import javax.inject.Inject
 data class FoodUiState(
     val barcode: String = "",
     val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
     val message: String? = null,
     val productName: String = "",
     val brand: String = "",
@@ -34,15 +37,21 @@ class FoodViewModel @Inject constructor(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(FoodUiState())
     val state: StateFlow<FoodUiState> = mutableState.asStateFlow()
+    private var lookupJob: Job? = null
 
     fun onBarcodeChanged(value: String) {
         val sanitized = value.filter(Char::isDigit)
+        val barcodeChanged = sanitized != state.value.barcode
+        if (barcodeChanged) {
+            lookupJob?.cancel()
+        }
         mutableState.update {
             if (sanitized == it.barcode) {
                 it.copy(message = null)
             } else {
                 it.clearedEditableFields().copy(
                     barcode = sanitized,
+                    isLoading = false,
                     message = null,
                 )
             }
@@ -80,7 +89,8 @@ class FoodViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
+        lookupJob?.cancel()
+        lookupJob = viewModelScope.launch {
             mutableState.update {
                 it.copy(
                     isLoading = true,
@@ -91,34 +101,46 @@ class FoodViewModel @Inject constructor(
 
             when (val result = provider.lookupBarcode(barcode)) {
                 is ProductLookupResult.Found ->
-                    mutableState.update {
-                        it.copy(
-                            isLoading = false,
-                            productName = result.name,
-                            brand = result.brand.orEmpty(),
-                            caloriesPer100g = result.nutritionPer100g.caloriesKcal.toString(),
-                            proteinPer100g = result.nutritionPer100g.proteinGrams.toString(),
-                            carbsPer100g = result.nutritionPer100g.carbsGrams.toString(),
-                            fatPer100g = result.nutritionPer100g.fatGrams.toString(),
-                            lookupResult = result,
-                            message = null,
-                        )
+                    mutableState.update { currentState ->
+                        if (currentState.barcode != barcode) {
+                            currentState.copy(isLoading = false)
+                        } else {
+                            currentState.copy(
+                                isLoading = false,
+                                productName = result.name,
+                                brand = result.brand.orEmpty(),
+                                caloriesPer100g = result.nutritionPer100g.caloriesKcal.toString(),
+                                proteinPer100g = result.nutritionPer100g.proteinGrams.toString(),
+                                carbsPer100g = result.nutritionPer100g.carbsGrams.toString(),
+                                fatPer100g = result.nutritionPer100g.fatGrams.toString(),
+                                lookupResult = result,
+                                message = null,
+                            )
+                        }
                     }
 
                 is ProductLookupResult.NotFound ->
-                    mutableState.update {
-                        it.clearedEditableFields().copy(
-                            isLoading = false,
-                            message = "Product not found",
-                        )
+                    mutableState.update { currentState ->
+                        if (currentState.barcode != barcode) {
+                            currentState.copy(isLoading = false)
+                        } else {
+                            currentState.clearedEditableFields().copy(
+                                isLoading = false,
+                                message = "Product not found",
+                            )
+                        }
                     }
 
                 is ProductLookupResult.Failed ->
-                    mutableState.update {
-                        it.clearedEditableFields().copy(
-                            isLoading = false,
-                            message = result.message,
-                        )
+                    mutableState.update { currentState ->
+                        if (currentState.barcode != barcode) {
+                            currentState.copy(isLoading = false)
+                        } else {
+                            currentState.clearedEditableFields().copy(
+                                isLoading = false,
+                                message = result.message,
+                            )
+                        }
                     }
             }
         }
@@ -131,30 +153,75 @@ class FoodViewModel @Inject constructor(
             mutableState.update { it.copy(message = "Look up a product before saving") }
             return
         }
+        if (currentState.isSaving) {
+            return
+        }
+        val editedNutrition = currentState.toEditedNutritionOrNull()
+        if (editedNutrition == null) {
+            mutableState.update { it.copy(message = "Enter valid nutrition values") }
+            return
+        }
+
+        var saveStarted = false
+        mutableState.update {
+            if (it.isSaving) {
+                it
+            } else {
+                saveStarted = true
+                it.copy(isSaving = true, message = null)
+            }
+        }
+        if (!saveStarted) {
+            return
+        }
 
         viewModelScope.launch {
-            repository.saveConfirmedProduct(
-                result = result,
-                editedName = currentState.productName,
-                editedBrand = currentState.brand.ifBlank { null },
-                editedNutrition = currentState.toEditedNutrition(),
-            )
-            mutableState.update {
-                it.copy(
-                    message = "Saved food",
-                    lookupResult = null,
+            try {
+                repository.saveConfirmedProduct(
+                    result = result,
+                    editedName = currentState.productName,
+                    editedBrand = currentState.brand.ifBlank { null },
+                    editedNutrition = editedNutrition,
                 )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = "Saved food",
+                        lookupResult = null,
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to save food",
+                    )
+                }
             }
         }
     }
 
-    private fun FoodUiState.toEditedNutrition(): FoodNutrition =
-        FoodNutrition(
-            caloriesKcal = caloriesPer100g.toDoubleOrNull() ?: 0.0,
-            proteinGrams = proteinPer100g.toDoubleOrNull() ?: 0.0,
-            carbsGrams = carbsPer100g.toDoubleOrNull() ?: 0.0,
-            fatGrams = fatPer100g.toDoubleOrNull() ?: 0.0,
+    private fun FoodUiState.toEditedNutritionOrNull(): FoodNutrition? {
+        val calories = caloriesPer100g.parseNutritionValue() ?: return null
+        val protein = proteinPer100g.parseNutritionValue() ?: return null
+        val carbs = carbsPer100g.parseNutritionValue() ?: return null
+        val fat = fatPer100g.parseNutritionValue() ?: return null
+
+        return FoodNutrition(
+            caloriesKcal = calories,
+            proteinGrams = protein,
+            carbsGrams = carbs,
+            fatGrams = fat,
         )
+    }
+
+    private fun String.parseNutritionValue(): Double? =
+        trim()
+            .takeIf { it.isNotEmpty() }
+            ?.toDoubleOrNull()
 
     private fun FoodUiState.clearedEditableFields(): FoodUiState =
         copy(

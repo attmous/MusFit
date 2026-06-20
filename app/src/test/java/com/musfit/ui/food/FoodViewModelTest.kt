@@ -118,6 +118,35 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun lookupBarcode_ignoresStaleInFlightResponseAfterBarcodeChanges() = runTest {
+        val provider = BarcodeBlockingProductProvider()
+        val viewModel = FoodViewModel(
+            provider = provider,
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.onBarcodeChanged("111")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.runCurrent()
+
+        viewModel.onBarcodeChanged("222")
+        provider.completeWith("111", foundProduct(barcode = "111", name = "Old Product"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        with(viewModel.state.value) {
+            assertEquals("222", barcode)
+            assertFalse(isLoading)
+            assertNull(lookupResult)
+            assertEquals("", productName)
+            assertEquals("", brand)
+            assertEquals("", caloriesPer100g)
+            assertEquals("", proteinPer100g)
+            assertEquals("", carbsPer100g)
+            assertEquals("", fatPer100g)
+        }
+    }
+
+    @Test
     fun lookupBarcode_whenProductNotFound_setsMessage() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(result = ProductLookupResult.NotFound("999")),
@@ -212,6 +241,70 @@ class FoodViewModelTest {
         )
     }
 
+    @Test
+    fun saveProduct_whileSaveInFlight_onlySavesOnce() = runTest {
+        val repository = BlockingFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.onBarcodeChanged("12345")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.saveProduct()
+        viewModel.saveProduct()
+        dispatcher.scheduler.runCurrent()
+
+        assertEquals(1, repository.saveCalls)
+
+        repository.completeSave()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Saved food", viewModel.state.value.message)
+    }
+
+    @Test
+    fun saveProduct_withInvalidNutritionText_setsValidationMessageAndDoesNotSave() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.onBarcodeChanged("12345")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onCaloriesChanged("..")
+        viewModel.saveProduct()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Enter valid nutrition values", viewModel.state.value.message)
+        assertNull(repository.savedNutrition)
+    }
+
+    @Test
+    fun saveProduct_withBlankNutritionText_setsValidationMessageAndDoesNotSave() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.onBarcodeChanged("12345")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onProteinChanged("")
+        viewModel.saveProduct()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Enter valid nutrition values", viewModel.state.value.message)
+        assertNull(repository.savedNutrition)
+    }
+
     private class FakeProductProvider(
         private val result: ProductLookupResult = foundProduct(),
     ) : FoodProductProvider {
@@ -232,6 +325,17 @@ class FoodViewModelTest {
         }
     }
 
+    private class BarcodeBlockingProductProvider : FoodProductProvider {
+        private val resultsByBarcode = mutableMapOf<String, CompletableDeferred<ProductLookupResult>>()
+
+        override suspend fun lookupBarcode(barcode: String): ProductLookupResult =
+            resultsByBarcode.getOrPut(barcode) { CompletableDeferred() }.await()
+
+        fun completeWith(barcode: String, value: ProductLookupResult) {
+            resultsByBarcode.getOrPut(barcode) { CompletableDeferred() }.complete(value)
+        }
+    }
+
     private class FakeFoodRepository : FoodRepository {
         var savedName: String? = null
         var savedBrand: String? = null
@@ -247,6 +351,25 @@ class FoodViewModelTest {
             savedBrand = editedBrand
             savedNutrition = editedNutrition
             return "food-1"
+        }
+    }
+
+    private class BlockingFoodRepository : FoodRepository {
+        private val saveResult = CompletableDeferred<String>()
+        var saveCalls: Int = 0
+
+        override suspend fun saveConfirmedProduct(
+            result: ProductLookupResult.Found,
+            editedName: String,
+            editedBrand: String?,
+            editedNutrition: FoodNutrition,
+        ): String {
+            saveCalls += 1
+            return saveResult.await()
+        }
+
+        fun completeSave(value: String = "food-1") {
+            saveResult.complete(value)
         }
     }
 }
