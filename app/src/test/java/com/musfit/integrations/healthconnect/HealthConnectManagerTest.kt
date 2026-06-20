@@ -1,0 +1,208 @@
+package com.musfit.integrations.healthconnect
+
+import android.content.Context
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.WeightRecord
+import androidx.test.core.app.ApplicationProvider
+import com.musfit.data.local.entity.WorkoutSessionEntity
+import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.ImportedDailyHealthSummary
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import java.time.LocalDate
+
+@RunWith(RobolectricTestRunner::class)
+class HealthConnectManagerTest {
+    private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Test
+    fun readDailySummary_returnsEmptySummary_whenHealthConnectUnavailable() = runTest {
+        val factory = FakeClientFactory()
+        val manager = managerWith(
+            status = HealthConnectStatus(HealthConnectAvailability.NotInstalled, emptySet()),
+            factory = factory,
+        )
+
+        val summary = manager.readDailySummary(LocalDate.of(2026, 6, 20))
+
+        assertEquals(
+            ImportedDailyHealthSummary(
+                steps = null,
+                activeCaloriesKcal = null,
+                latestWeightKg = null,
+                restingHeartRateBpm = null,
+            ),
+            summary,
+        )
+        assertEquals(0, factory.createCount)
+    }
+
+    @Test
+    fun readDailySummary_readsOnlyGrantedMetrics() = runTest {
+        val client = FakeHealthConnectClientAdapter(
+            steps = 9_876L,
+            activeCaloriesKcal = 321.5,
+            latestWeightKg = 81.2,
+            restingHeartRateBpm = 55L,
+        )
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(
+                    readStepsPermission(),
+                    readHeartRatePermission(),
+                ),
+            ),
+            factory = factory,
+        )
+
+        val summary = manager.readDailySummary(LocalDate.of(2026, 6, 20))
+
+        assertEquals(9_876L, summary.steps)
+        assertNull(summary.activeCaloriesKcal)
+        assertNull(summary.latestWeightKg)
+        assertEquals(55L, summary.restingHeartRateBpm)
+        assertEquals(1, factory.createCount)
+        assertEquals(1, client.stepsCalls)
+        assertEquals(0, client.activeCaloriesCalls)
+        assertEquals(0, client.latestWeightCalls)
+        assertEquals(1, client.restingHeartRateCalls)
+    }
+
+    @Test
+    fun exportWorkout_returnsNull_whenWritePermissionMissing() = runTest {
+        val factory = FakeClientFactory()
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission()),
+            ),
+            factory = factory,
+        )
+
+        val exportedId = manager.exportWorkout(session = workoutSession(), sets = completedSets())
+
+        assertNull(exportedId)
+        assertEquals(0, factory.createCount)
+    }
+
+    @Test
+    fun exportWorkout_returnsNull_whenHealthConnectUnavailable() = runTest {
+        val factory = FakeClientFactory()
+        val manager = managerWith(
+            status = HealthConnectStatus(HealthConnectAvailability.NotSupported, emptySet()),
+            factory = factory,
+        )
+
+        val exportedId = manager.exportWorkout(session = workoutSession(), sets = completedSets())
+
+        assertNull(exportedId)
+        assertEquals(0, factory.createCount)
+    }
+
+    private fun managerWith(
+        status: HealthConnectStatus,
+        factory: FakeClientFactory,
+    ) = HealthConnectManager(
+        context = context,
+        statusReader = { status },
+        clientFactory = { factory.create() },
+    )
+
+    private fun workoutSession() = WorkoutSessionEntity(
+        id = "session-1",
+        routineId = null,
+        startedAtEpochMillis = 1_700_000_000_000,
+        endedAtEpochMillis = 1_700_003_600_000,
+        notes = "Push day",
+        healthConnectRecordId = null,
+        healthConnectLastExportedAtEpochMillis = null,
+    )
+
+    private fun completedSets() = listOf(
+        WorkoutSetEntity(
+            id = "set-1",
+            sessionId = "session-1",
+            exerciseId = "bench",
+            sortOrder = 0,
+            reps = 5,
+            weightKg = 100.0,
+            durationSeconds = null,
+            distanceMeters = null,
+            rpe = 8.0,
+            notes = null,
+            completed = true,
+        ),
+    )
+
+    private fun readStepsPermission() = HealthPermission.getReadPermission(StepsRecord::class)
+
+    private fun readHeartRatePermission() = HealthPermission.getReadPermission(HeartRateRecord::class)
+
+    private class FakeClientFactory(
+        private val client: FakeHealthConnectClientAdapter = FakeHealthConnectClientAdapter(),
+    ) {
+        var createCount: Int = 0
+            private set
+
+        fun create(): HealthConnectClientAdapter {
+            createCount += 1
+            return client
+        }
+    }
+
+    private class FakeHealthConnectClientAdapter(
+        private val steps: Long? = null,
+        private val activeCaloriesKcal: Double? = null,
+        private val latestWeightKg: Double? = null,
+        private val restingHeartRateBpm: Long? = null,
+        private val insertedRecordId: String? = "exported-record-id",
+    ) : HealthConnectClientAdapter {
+        var stepsCalls: Int = 0
+            private set
+        var activeCaloriesCalls: Int = 0
+            private set
+        var latestWeightCalls: Int = 0
+            private set
+        var restingHeartRateCalls: Int = 0
+            private set
+        var insertCalls: Int = 0
+            private set
+
+        override suspend fun aggregateSteps(range: HealthConnectTimeRange): Long? {
+            stepsCalls += 1
+            return steps
+        }
+
+        override suspend fun aggregateActiveCalories(range: HealthConnectTimeRange): Double? {
+            activeCaloriesCalls += 1
+            return activeCaloriesKcal
+        }
+
+        override suspend fun readLatestWeight(range: HealthConnectTimeRange): Double? {
+            latestWeightCalls += 1
+            return latestWeightKg
+        }
+
+        override suspend fun readLowestHeartRate(range: HealthConnectTimeRange): Long? {
+            restingHeartRateCalls += 1
+            return restingHeartRateBpm
+        }
+
+        override suspend fun insertExerciseSession(record: ExerciseSessionRecord): String? {
+            insertCalls += 1
+            return insertedRecordId
+        }
+    }
+}
