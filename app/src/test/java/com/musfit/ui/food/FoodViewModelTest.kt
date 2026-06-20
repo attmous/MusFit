@@ -3,14 +3,21 @@ package com.musfit.ui.food
 import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.ProductDataQuality
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.data.repository.FoodDiary
+import com.musfit.data.repository.FoodDiaryEntry
+import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
+import com.musfit.data.repository.QuickCalorieLogInput
+import com.musfit.data.repository.SavedFoodItem
+import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -361,6 +368,160 @@ class FoodViewModelTest {
         assertNull(repository.savedLog)
     }
 
+    @Test
+    fun state_loadsDiarySectionsAndSavedFoods() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(
+                        caloriesKcal = 250.0,
+                        proteinGrams = 20.0,
+                        carbsGrams = 25.0,
+                        fatGrams = 8.0,
+                    ),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = "Kitchen",
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 120.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 8.0,
+                                    fatGrams = 2.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                        ),
+                        FoodDiaryMeal(
+                            type = "snacks",
+                            entries = emptyList(),
+                            totals = NutritionTotals(130.0, 0.0, 17.0, 6.0),
+                        ),
+                    ),
+                ),
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 200.0,
+                        nutritionPer100g = FoodNutrition(
+                            caloriesKcal = 60.0,
+                            proteinGrams = 10.0,
+                            carbsGrams = 4.0,
+                            fatGrams = 1.0,
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+
+        assertEquals(250.0, state.eatenCaloriesKcal, 0.01)
+        assertEquals(1833.0, state.remainingCaloriesKcal, 0.01)
+        assertEquals(listOf("Breakfast", "Lunch", "Dinner", "Snacks"), state.mealSections.map { it.title })
+        assertEquals(120.0, state.mealSections.first { it.id == "breakfast" }.caloriesKcal, 0.01)
+        assertEquals("Greek yogurt", state.mealSections.first { it.id == "breakfast" }.entries.single().name)
+        assertTrue(state.mealSections.first { it.id == "lunch" }.entries.isEmpty())
+        assertEquals("Greek yogurt", state.savedFoods.single().name)
+        assertEquals(120.0, state.savedFoods.single().caloriesPerServingKcal, 0.01)
+    }
+
+    @Test
+    fun openAddFood_selectsMealAndSavedMode() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.openAddFood("lunch")
+
+        with(viewModel.state.value) {
+            assertTrue(isAddPanelVisible)
+            assertEquals("lunch", mealType)
+            assertEquals("Lunch", selectedMealTitle)
+            assertEquals(FoodAddMode.Saved, addMode)
+        }
+    }
+
+    @Test
+    fun logSavedFood_logsSelectedFoodIntoSelectedMeal() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openAddFood("dinner")
+        viewModel.onSavedFoodQuantityChanged("75")
+        viewModel.logSavedFood("food-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("food-1", repository.savedFoodLog?.foodId)
+        assertEquals("dinner", repository.savedFoodLog?.mealType)
+        assertEquals(75.0, repository.savedFoodLog?.quantityGrams ?: 0.0, 0.01)
+        assertEquals("Logged food", viewModel.state.value.message)
+        assertFalse(viewModel.state.value.isAddPanelVisible)
+    }
+
+    @Test
+    fun quickLog_logsCaloriesIntoSelectedMeal() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openAddFood("snacks")
+        viewModel.selectAddMode(FoodAddMode.Quick)
+        viewModel.onQuickCaloriesChanged("320")
+        viewModel.onQuickProteinChanged("22")
+        viewModel.onQuickCarbsChanged("36")
+        viewModel.onQuickFatChanged("9")
+        viewModel.quickLog()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("snacks", repository.quickLog?.mealType)
+        assertEquals(320.0, repository.quickLog?.caloriesKcal ?: 0.0, 0.01)
+        assertEquals(22.0, repository.quickLog?.proteinGrams ?: 0.0, 0.01)
+        assertEquals(36.0, repository.quickLog?.carbsGrams ?: 0.0, 0.01)
+        assertEquals(9.0, repository.quickLog?.fatGrams ?: 0.0, 0.01)
+        assertEquals("Logged quick calories", viewModel.state.value.message)
+        assertFalse(viewModel.state.value.isAddPanelVisible)
+    }
+
+    @Test
+    fun logFood_afterOpeningMealUsesSelectedMeal() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openAddFood("lunch")
+        viewModel.onProductNameChanged("Oats")
+        viewModel.onCaloriesChanged("380")
+        viewModel.onProteinChanged("13")
+        viewModel.onCarbsChanged("67")
+        viewModel.onFatChanged("7")
+        viewModel.onQuantityChanged("50")
+        viewModel.logFood()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("lunch", repository.savedLog?.mealType)
+        assertEquals("Logged food", viewModel.state.value.message)
+    }
+
     private class FakeProductProvider(
         private val result: ProductLookupResult = foundProduct(),
     ) : FoodProductProvider {
@@ -392,8 +553,15 @@ class FoodViewModelTest {
         }
     }
 
-    private class FakeFoodRepository : FoodRepository {
+    private class FakeFoodRepository(
+        diary: FoodDiary = emptyFoodDiary(),
+        savedFoods: List<SavedFoodItem> = emptyList(),
+    ) : FoodRepository {
+        private val diaryFlow = MutableStateFlow(diary)
+        private val savedFoodsFlow = MutableStateFlow(savedFoods)
         var savedLog: FoodLogInput? = null
+        var savedFoodLog: SavedFoodLogInput? = null
+        var quickLog: QuickCalorieLogInput? = null
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -411,6 +579,22 @@ class FoodViewModelTest {
 
         override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
             flowOf(NutritionTotals(0.0, 0.0, 0.0, 0.0))
+
+        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
+            diaryFlow
+
+        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
+            savedFoodsFlow
+
+        override suspend fun logSavedFood(input: SavedFoodLogInput): String {
+            savedFoodLog = input
+            return "meal-item-1"
+        }
+
+        override suspend fun quickLog(input: QuickCalorieLogInput): String {
+            quickLog = input
+            return "meal-item-1"
+        }
     }
 
     private class BlockingFoodRepository : FoodRepository {
@@ -435,6 +619,22 @@ class FoodViewModelTest {
         override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
             flowOf(NutritionTotals(0.0, 0.0, 0.0, 0.0))
 
+        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
+            flowOf(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
+
+        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
+            flowOf(emptyList())
+
+        override suspend fun logSavedFood(input: SavedFoodLogInput): String {
+            saveCalls += 1
+            return saveResult.await()
+        }
+
+        override suspend fun quickLog(input: QuickCalorieLogInput): String {
+            saveCalls += 1
+            return saveResult.await()
+        }
+
         fun completeSave(value: String = "food-1") {
             saveResult.complete(value)
         }
@@ -456,3 +656,9 @@ private fun foundProduct(
     quality = ProductDataQuality.Complete,
     rawJson = "{}",
 )
+
+private fun emptyFoodDiary(): FoodDiary =
+    FoodDiary(
+        totals = NutritionTotals(0.0, 0.0, 0.0, 0.0),
+        meals = emptyList(),
+    )

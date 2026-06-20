@@ -1,10 +1,14 @@
 package com.musfit.ui.today
 
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.QuickCalorieLogInput
+import com.musfit.data.repository.SavedFoodItem
+import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
 import com.musfit.data.repository.WorkoutForExport
@@ -105,6 +109,16 @@ class TodayViewModelTest {
             observedDates += date
             return MutableStateFlow(NutritionTotals(600.0, 45.0, 70.0, 18.0))
         }
+
+        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
+            MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
+
+        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
+            MutableStateFlow(emptyList())
+
+        override suspend fun logSavedFood(input: SavedFoodLogInput): String = "meal-item-1"
+
+        override suspend fun quickLog(input: QuickCalorieLogInput): String = "meal-item-1"
     }
 
     private class FakeTrainingRepository : TrainingRepository {

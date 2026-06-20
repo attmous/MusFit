@@ -15,6 +15,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -251,6 +252,135 @@ class LocalFoodRepositoryTest {
         assertEquals(170.0, mealItems.single().quantityGrams, 0.01)
         assertEquals(103.7, totals.caloriesKcal, 0.01)
         assertEquals(17.85, totals.proteinGrams, 0.01)
+    }
+
+    @Test
+    fun observeSavedFoods_returnsReusableFoodDatabaseItems() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Oats",
+                brand = "Pantry",
+                nutritionPer100g = nutrition(calories = 380.0, protein = 13.0, carbs = 67.0, fat = 7.0),
+                servingGrams = 100.0,
+                mealType = "breakfast",
+                quantityGrams = 50.0,
+                date = date,
+            ),
+        )
+
+        val savedFoods = repository.observeSavedFoods().first()
+
+        assertEquals(1, savedFoods.size)
+        assertEquals("Oats", savedFoods.single().name)
+        assertEquals("Pantry", savedFoods.single().brand)
+        assertEquals(100.0, savedFoods.single().defaultServingGrams, 0.01)
+        assertEquals(380.0, savedFoods.single().nutritionPer100g.caloriesKcal, 0.01)
+    }
+
+    @Test
+    fun observeFoodDiary_groupsLoggedFoodsByMealAndCalculatesSectionTotals() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Oats",
+                brand = null,
+                nutritionPer100g = nutrition(calories = 380.0, protein = 13.0, carbs = 67.0, fat = 7.0),
+                servingGrams = 100.0,
+                mealType = "breakfast",
+                quantityGrams = 50.0,
+                date = date,
+            ),
+        )
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Rice bowl",
+                brand = null,
+                nutritionPer100g = nutrition(calories = 180.0, protein = 6.0, carbs = 32.0, fat = 4.0),
+                servingGrams = 100.0,
+                mealType = "lunch",
+                quantityGrams = 200.0,
+                date = date,
+            ),
+        )
+
+        val diary = repository.observeFoodDiary(date).first()
+
+        assertEquals(550.0, diary.totals.caloriesKcal, 0.01)
+        assertEquals(18.5, diary.totals.proteinGrams, 0.01)
+        assertEquals(listOf("breakfast", "lunch"), diary.meals.map { it.type })
+        assertEquals(190.0, diary.meals.first { it.type == "breakfast" }.totals.caloriesKcal, 0.01)
+        assertEquals("Oats", diary.meals.first { it.type == "breakfast" }.entries.single().name)
+        assertEquals(360.0, diary.meals.first { it.type == "lunch" }.totals.caloriesKcal, 0.01)
+        assertEquals(200.0, diary.meals.first { it.type == "lunch" }.entries.single().quantityGrams, 0.01)
+    }
+
+    @Test
+    fun logSavedFood_logsExistingFoodWithoutCreatingDuplicateSavedFood() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Greek yogurt",
+                brand = "Kitchen",
+                nutritionPer100g = nutrition(calories = 60.0, protein = 10.0, carbs = 4.0, fat = 1.0),
+                servingGrams = 150.0,
+                mealType = "breakfast",
+                quantityGrams = 150.0,
+                date = date,
+            ),
+        )
+        val savedFood = repository.observeSavedFoods().first().single()
+
+        repository.logSavedFood(
+            SavedFoodLogInput(
+                foodId = savedFood.id,
+                mealType = "snack",
+                quantityGrams = 75.0,
+                date = date,
+            ),
+        )
+
+        val savedFoods = repository.observeSavedFoods().first()
+        val diary = repository.observeFoodDiary(date).first()
+        val snack = diary.meals.first { it.type == "snack" }
+
+        assertEquals(1, savedFoods.size)
+        assertEquals(savedFood.id, snack.entries.single().foodId)
+        assertEquals(45.0, snack.totals.caloriesKcal, 0.01)
+    }
+
+    @Test
+    fun quickLog_persistsCaloriesWithoutFullFoodDetails() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+
+        repository.quickLog(
+            QuickCalorieLogInput(
+                mealType = "dinner",
+                caloriesKcal = 450.0,
+                proteinGrams = 25.0,
+                carbsGrams = 40.0,
+                fatGrams = 15.0,
+                date = date,
+            ),
+        )
+
+        val diary = repository.observeFoodDiary(date).first()
+        val savedFoods = repository.observeSavedFoods().first()
+        val dinner = diary.meals.single()
+
+        assertEquals("dinner", dinner.type)
+        assertEquals("Quick calories", dinner.entries.single().name)
+        assertEquals(450.0, dinner.totals.caloriesKcal, 0.01)
+        assertEquals(25.0, diary.totals.proteinGrams, 0.01)
+        assertTrue(savedFoods.isEmpty())
     }
 
     private fun foundProduct(

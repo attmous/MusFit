@@ -20,6 +20,21 @@ data class MealNutritionRow(
     val fatPer100g: Double,
 )
 
+data class FoodDiaryEntryRow(
+    val mealId: String,
+    val mealType: String,
+    val mealItemId: String,
+    val foodId: String,
+    val foodName: String,
+    val brand: String?,
+    val quantityGrams: Double,
+    val caloriesPer100g: Double,
+    val proteinPer100g: Double,
+    val carbsPer100g: Double,
+    val fatPer100g: Double,
+    val createdAtEpochMillis: Long,
+)
+
 @Dao
 interface FoodDao {
     @Query("SELECT * FROM foods ORDER BY name")
@@ -52,6 +67,27 @@ interface FoodDao {
             "WHERE meals.dateEpochDay = :dateEpochDay",
     )
     fun observeMealNutritionRowsForDate(dateEpochDay: Long): Flow<List<MealNutritionRow>>
+
+    @Query(
+        "SELECT meals.id AS mealId, " +
+            "meals.type AS mealType, " +
+            "meal_items.id AS mealItemId, " +
+            "foods.id AS foodId, " +
+            "foods.name AS foodName, " +
+            "foods.brand AS brand, " +
+            "meal_items.quantityGrams AS quantityGrams, " +
+            "foods.caloriesPer100g AS caloriesPer100g, " +
+            "foods.proteinPer100g AS proteinPer100g, " +
+            "foods.carbsPer100g AS carbsPer100g, " +
+            "foods.fatPer100g AS fatPer100g, " +
+            "meals.createdAtEpochMillis AS createdAtEpochMillis " +
+            "FROM meal_items " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.id = meal_items.foodId " +
+            "WHERE meals.dateEpochDay = :dateEpochDay " +
+            "ORDER BY meals.createdAtEpochMillis, meal_items.id",
+    )
+    fun observeFoodDiaryEntryRowsForDate(dateEpochDay: Long): Flow<List<FoodDiaryEntryRow>>
 
     @Query("SELECT * FROM barcode_products WHERE barcode = :barcode LIMIT 1")
     suspend fun getBarcodeProduct(barcode: String): BarcodeProductEntity?
