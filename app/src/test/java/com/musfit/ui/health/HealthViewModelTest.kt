@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
@@ -39,6 +40,7 @@ class HealthViewModelTest {
 
         assertEquals("Available", viewModel.state.value.availabilityLabel)
         assertEquals(1, viewModel.state.value.grantedPermissionCount)
+        assertEquals(setOf("steps"), viewModel.state.value.requestablePermissions)
     }
 
     @Test
@@ -63,21 +65,99 @@ class HealthViewModelTest {
         )
     }
 
+    @Test
+    fun refreshStatus_showsEnableSyncMessageWhenNoPermissionsGranted() = runTest {
+        val viewModel = HealthViewModel(
+            FakeHealthConnectGateway(
+                status = HealthConnectStatus(
+                    availability = HealthConnectAvailability.Available,
+                    grantedPermissions = emptySet(),
+                ),
+                requestablePermissions = setOf("steps", "weight"),
+            ),
+        )
+
+        viewModel.refreshStatus()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            "No Health Connect permissions are granted. Tap Enable Health Connect sync to choose what MusFit can access.",
+            viewModel.state.value.message,
+        )
+        assertEquals(setOf("steps", "weight"), viewModel.state.value.requestablePermissions)
+    }
+
+    @Test
+    fun refreshStatus_showsPartialGrantMessageWhenSomePermissionsGranted() = runTest {
+        val viewModel = HealthViewModel(
+            FakeHealthConnectGateway(
+                status = HealthConnectStatus(
+                    availability = HealthConnectAvailability.Available,
+                    grantedPermissions = setOf("steps"),
+                ),
+                requestablePermissions = setOf("steps", "weight"),
+            ),
+        )
+
+        viewModel.refreshStatus()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            "Some Health Connect permissions are granted. Tap Enable Health Connect sync to review or add access.",
+            viewModel.state.value.message,
+        )
+    }
+
+    @Test
+    fun refreshStatus_publishesStableErrorStateWhenGatewayFails() = runTest {
+        val viewModel = HealthViewModel(
+            FakeHealthConnectGateway(
+                statusException = IllegalStateException("boom"),
+            ),
+        )
+
+        viewModel.refreshStatus()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Unknown", viewModel.state.value.availabilityLabel)
+        assertEquals(0, viewModel.state.value.grantedPermissionCount)
+        assertTrue(viewModel.state.value.requestablePermissions.isEmpty())
+        assertEquals(
+            "Unable to refresh Health Connect status right now. Try again from the Health tab.",
+            viewModel.state.value.message,
+        )
+    }
+
     private class FakeHealthConnectGateway : HealthConnectGateway {
         constructor(
             status: HealthConnectStatus = HealthConnectStatus(
                 availability = HealthConnectAvailability.Available,
                 grantedPermissions = setOf("steps"),
             ),
+            requestablePermissions: Set<String> = setOf("steps"),
+            statusException: Throwable? = null,
+            requestablePermissionsException: Throwable? = null,
         ) {
             this.status = status
+            this.requestablePermissions = requestablePermissions
+            this.statusException = statusException
+            this.requestablePermissionsException = requestablePermissionsException
         }
 
         private val status: HealthConnectStatus
+        private val requestablePermissions: Set<String>
+        private val statusException: Throwable?
+        private val requestablePermissionsException: Throwable?
 
-        override suspend fun status() = status
+        override suspend fun status(): HealthConnectStatus {
+            statusException?.let { throw it }
+            return status
+        }
 
-        override suspend fun requestablePermissions(): Set<String> = setOf("steps")
+        override suspend fun requestablePermissions(): Set<String> {
+            requestablePermissionsException?.let { throw it }
+            return requestablePermissions
+        }
 
         override suspend fun readDailySummary(date: LocalDate) = ImportedDailyHealthSummary(
             steps = 1200,

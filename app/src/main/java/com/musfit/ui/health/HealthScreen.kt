@@ -1,5 +1,6 @@
 package com.musfit.ui.health
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,11 +16,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 @Composable
 fun HealthScreen(viewModel: HealthViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract(),
+    ) {
+        viewModel.refreshStatus()
+    }
 
     LaunchedEffect(Unit) {
         viewModel.refreshStatus()
@@ -58,6 +65,17 @@ fun HealthScreen(viewModel: HealthViewModel = hiltViewModel()) {
             text = state.message,
             style = MaterialTheme.typography.bodyMedium,
         )
+        Button(
+            onClick = {
+                if (state.requestablePermissions.isNotEmpty()) {
+                    permissionLauncher.launch(state.requestablePermissions)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = state.requestablePermissions.isNotEmpty(),
+        ) {
+            Text(text = "Enable Health Connect sync")
+        }
         Button(
             onClick = viewModel::refreshStatus,
             modifier = Modifier.fillMaxWidth(),
