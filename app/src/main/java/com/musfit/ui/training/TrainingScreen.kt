@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.musfit.domain.model.WorkoutSetInput
 import java.util.Locale
 
 @Composable
@@ -110,7 +111,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = viewModel()) {
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = set.exerciseId,
+                            text = set.displayExerciseLabel(),
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         Text(
@@ -130,3 +131,6 @@ private fun Double.formatKg(): String =
     } else {
         String.format(Locale.US, "%.2f", this)
     }
+
+private fun WorkoutSetInput.displayExerciseLabel(): String =
+    exerciseId.takeUnless { it.isBlank() || it == "custom" } ?: "Custom exercise"

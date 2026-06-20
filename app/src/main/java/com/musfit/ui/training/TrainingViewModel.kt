@@ -37,6 +37,7 @@ class TrainingViewModel : ViewModel() {
         val currentState = state.value
         val reps = currentState.reps.toIntOrNull() ?: return
         val weightKg = currentState.weightKg.toDoubleOrNull() ?: return
+        if (reps <= 0 || weightKg <= 0.0) return
 
         val nextSets = currentState.sets + WorkoutSetInput(
             exerciseId = currentState.exerciseName.trim().ifBlank { "custom" },
