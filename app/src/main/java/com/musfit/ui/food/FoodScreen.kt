@@ -63,6 +63,7 @@ fun FoodScreen(
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val selectedMealDetail = state.selectedMealDetail()
 
     LaunchedEffect(scannedBarcode) {
         if (!scannedBarcode.isNullOrBlank()) {
@@ -77,54 +78,64 @@ fun FoodScreen(
             .fillMaxSize()
             .background(FoodBackground),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            FoodSummaryHeader(
-                state = state,
-                onQuickAddClick = {
-                    viewModel.openAddFood("snacks")
-                    viewModel.selectAddMode(FoodAddMode.Quick)
-                },
+        if (selectedMealDetail != null) {
+            MealDetailScreen(
+                meal = selectedMealDetail,
+                onBackClick = viewModel::closeMealDetail,
+                onAddFoodClick = viewModel::openAddFoodFromMealDetail,
+                onEntryClick = viewModel::openDiaryEntryEditor,
             )
-
+        } else {
             Column(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                MacroProgressRow(state.macroProgress)
+                FoodSummaryHeader(
+                    state = state,
+                    onQuickAddClick = {
+                        viewModel.openAddFood("snacks")
+                        viewModel.selectAddMode(FoodAddMode.Quick)
+                    },
+                )
 
-                state.message?.let { message ->
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(8.dp),
-                    ) {
-                        Text(
-                            text = message,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    MacroProgressRow(state.macroProgress)
+
+                    state.message?.let { message ->
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Text(
+                                text = message,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+
+                    SectionTitle("Meal diary")
+                    state.mealSections.forEach { meal ->
+                        MealSectionCard(
+                            meal = meal,
+                            onMealClick = { viewModel.openMealDetail(meal.id) },
+                            onAddClick = { viewModel.openAddFood(meal.id) },
+                            onEntryClick = viewModel::openDiaryEntryEditor,
                         )
                     }
-                }
 
-                SectionTitle("Meal diary")
-                state.mealSections.forEach { meal ->
-                    MealSectionCard(
-                        meal = meal,
-                        onAddClick = { viewModel.openAddFood(meal.id) },
-                        onEntryClick = viewModel::openDiaryEntryEditor,
+                    FoodDatabasePreview(
+                        savedFoods = state.savedFoods,
+                        onOpenClick = viewModel::openFoodDatabase,
                     )
                 }
-
-                FoodDatabasePreview(
-                    savedFoods = state.savedFoods,
-                    onOpenClick = viewModel::openFoodDatabase,
-                )
             }
         }
 
@@ -418,8 +429,221 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
+private fun MealDetailScreen(
+    meal: FoodMealSectionUiState,
+    onBackClick: () -> Unit,
+    onAddFoodClick: () -> Unit,
+    onEntryClick: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(
+                onClick = onBackClick,
+                modifier = Modifier.size(48.dp),
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text("<", style = MaterialTheme.typography.titleLarge)
+            }
+            Text(
+                text = meal.title.uppercase(),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Surface(
+            onClick = onAddFoodClick,
+            color = Color.White,
+            shape = RoundedCornerShape(8.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Food, meal or brand",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFF706D6A),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "+",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = ActionGreen,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
+        }
+
+        MealDetailMacroCard(meal)
+
+        SectionTitle("Logged items")
+        if (meal.entries.isEmpty()) {
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "No food logged yet",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "Add food to build this meal.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF706D6A),
+                    )
+                }
+            }
+        } else {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(8.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    meal.entries.forEachIndexed { index, entry ->
+                        if (index > 0) {
+                            HorizontalDivider(color = Color(0xFFEDE8E4))
+                        }
+                        DiaryEntryRow(
+                            entry = entry,
+                            onClick = { onEntryClick(entry.id) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Meal intake",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "${meal.caloriesKcal.roundToInt()} kcal",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = HeaderInk,
+                )
+            }
+
+            ProgressBar(
+                progress = (meal.caloriesKcal / 833.0).toFloat().coerceIn(0f, 1f),
+                color = ActionGreen,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                MealMacroMetric(
+                    label = "Carbs",
+                    grams = meal.carbsGrams,
+                    goalGrams = 260.0,
+                    color = MacroColors[0],
+                    modifier = Modifier.weight(1f),
+                )
+                MealMacroMetric(
+                    label = "Protein",
+                    grams = meal.proteinGrams,
+                    goalGrams = 104.0,
+                    color = MacroColors[1],
+                    modifier = Modifier.weight(1f),
+                )
+                MealMacroMetric(
+                    label = "Fat",
+                    grams = meal.fatGrams,
+                    goalGrams = 69.0,
+                    color = MacroColors[2],
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MealMacroMetric(
+    label: String,
+    grams: Double,
+    goalGrams: Double,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        ProgressBar(
+            progress = (grams / goalGrams).toFloat().coerceIn(0f, 1f),
+            color = color,
+        )
+        Text(
+            text = "${grams.roundToInt()} g / ${goalGrams.roundToInt()} g",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF706D6A),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
 private fun MealSectionCard(
     meal: FoodMealSectionUiState,
+    onMealClick: () -> Unit,
     onAddClick: () -> Unit,
     onEntryClick: (String) -> Unit,
 ) {
@@ -435,31 +659,38 @@ private fun MealSectionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
+                Surface(
+                    onClick = onMealClick,
+                    color = Color.Transparent,
+                    shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    MealInitial(title = meal.title)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = meal.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = if (meal.caloriesKcal > 0.0) {
-                                "${meal.caloriesKcal.roundToInt()} kcal logged"
-                            } else {
-                                meal.recommendation
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF6D6864),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    Row(
+                        modifier = Modifier.padding(end = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MealInitial(title = meal.title)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = meal.title,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = if (meal.caloriesKcal > 0.0) {
+                                    "${meal.caloriesKcal.roundToInt()} kcal logged"
+                                } else {
+                                    meal.recommendation
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF6D6864),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
 
@@ -1489,6 +1720,11 @@ private fun FoodUiState.filteredDatabaseFoods(): List<SavedFoodUiState> {
             food.brand.orEmpty().lowercase().contains(query)
     }
 }
+
+private fun FoodUiState.selectedMealDetail(): FoodMealSectionUiState? =
+    selectedMealDetailId?.let { selectedId ->
+        mealSections.firstOrNull { meal -> meal.id == selectedId }
+    }
 
 private val FoodAddMode.label: String
     get() =

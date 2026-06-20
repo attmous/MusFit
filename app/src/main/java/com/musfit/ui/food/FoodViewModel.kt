@@ -62,6 +62,9 @@ data class FoodMealSectionUiState(
     val title: String,
     val recommendation: String,
     val caloriesKcal: Double,
+    val proteinGrams: Double = 0.0,
+    val carbsGrams: Double = 0.0,
+    val fatGrams: Double = 0.0,
     val entries: List<FoodMealEntryUiState>,
 )
 
@@ -99,6 +102,7 @@ data class FoodUiState(
     val remainingCaloriesKcal: Double = CALORIE_GOAL_KCAL,
     val macroProgress: List<FoodMacroProgressUiState> = emptyMacroProgress(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
+    val selectedMealDetailId: String? = null,
     val savedFoods: List<SavedFoodUiState> = emptyList(),
     val isAddPanelVisible: Boolean = false,
     val sheetMode: FoodSheetMode? = null,
@@ -178,6 +182,29 @@ class FoodViewModel @Inject constructor(
 
     fun selectAddMode(mode: FoodAddMode) {
         mutableState.update { it.copy(addMode = mode, message = null) }
+    }
+
+    fun openMealDetail(mealType: String) {
+        mutableState.update {
+            it.copy(
+                selectedMealDetailId = mealType.normalizedMealType(),
+                message = null,
+            )
+        }
+    }
+
+    fun closeMealDetail() {
+        mutableState.update {
+            it.copy(
+                selectedMealDetailId = null,
+                message = null,
+            )
+        }
+    }
+
+    fun openAddFoodFromMealDetail() {
+        val selectedMealType = state.value.selectedMealDetailId ?: return
+        openAddFood(selectedMealType)
     }
 
     fun openFoodDatabase() {
@@ -881,6 +908,9 @@ private fun FoodDiary.toMealSections(): List<FoodMealSectionUiState> {
             title = definition.title,
             recommendation = definition.recommendation,
             caloriesKcal = meal?.totals?.caloriesKcal ?: 0.0,
+            proteinGrams = meal?.totals?.proteinGrams ?: 0.0,
+            carbsGrams = meal?.totals?.carbsGrams ?: 0.0,
+            fatGrams = meal?.totals?.fatGrams ?: 0.0,
             entries = meal?.entries.orEmpty().map { entry ->
                 FoodMealEntryUiState(
                     id = entry.id,
@@ -930,6 +960,9 @@ private fun emptyMealSections(): List<FoodMealSectionUiState> =
             title = definition.title,
             recommendation = definition.recommendation,
             caloriesKcal = 0.0,
+            proteinGrams = 0.0,
+            carbsGrams = 0.0,
+            fatGrams = 0.0,
             entries = emptyList(),
         )
     }

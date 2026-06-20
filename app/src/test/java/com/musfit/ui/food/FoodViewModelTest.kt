@@ -440,6 +440,87 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun openMealDetail_selectsMealAndExposesMealMacroTotals() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(360.0, 30.0, 24.0, 6.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = null,
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 120.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 8.0,
+                                    fatGrams = 2.0,
+                                ),
+                                FoodDiaryEntry(
+                                    id = "entry-2",
+                                    foodId = "food-2",
+                                    name = "Banana",
+                                    brand = null,
+                                    quantityGrams = 118.0,
+                                    caloriesKcal = 105.0,
+                                    proteinGrams = 1.3,
+                                    carbsGrams = 27.0,
+                                    fatGrams = 0.4,
+                                ),
+                            ),
+                            totals = NutritionTotals(225.0, 21.3, 35.0, 2.4),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openMealDetail("breakfast")
+
+        val state = viewModel.state.value
+        val selectedMeal = state.mealSections.first { it.id == state.selectedMealDetailId }
+        assertEquals("breakfast", state.selectedMealDetailId)
+        assertEquals("Breakfast", selectedMeal.title)
+        assertEquals(225.0, selectedMeal.caloriesKcal, 0.01)
+        assertEquals(21.3, selectedMeal.proteinGrams, 0.01)
+        assertEquals(35.0, selectedMeal.carbsGrams, 0.01)
+        assertEquals(2.4, selectedMeal.fatGrams, 0.01)
+        assertEquals(listOf("Greek yogurt", "Banana"), selectedMeal.entries.map { it.name })
+
+        viewModel.closeMealDetail()
+
+        assertNull(viewModel.state.value.selectedMealDetailId)
+    }
+
+    @Test
+    fun openAddFoodFromMealDetail_usesSelectedMeal() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.openMealDetail("lunch")
+        viewModel.openAddFoodFromMealDetail()
+
+        with(viewModel.state.value) {
+            assertEquals("lunch", selectedMealDetailId)
+            assertTrue(isAddPanelVisible)
+            assertEquals(FoodSheetMode.AddFood, sheetMode)
+            assertEquals("lunch", mealType)
+            assertEquals("Lunch", selectedMealTitle)
+            assertEquals(FoodAddMode.Saved, addMode)
+        }
+    }
+
+    @Test
     fun openAddFood_selectsMealAndSavedMode() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(),
