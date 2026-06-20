@@ -125,6 +125,25 @@ class HealthConnectManagerTest {
         assertEquals(0, factory.createCount)
     }
 
+    @Test
+    fun exportWorkout_insertsExerciseSession_andReturnsInsertedId_whenWritePermissionGranted() = runTest {
+        val client = FakeHealthConnectClientAdapter(insertedRecordId = "health-connect-record-123")
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(writeExercisePermission()),
+            ),
+            factory = factory,
+        )
+
+        val exportedId = manager.exportWorkout(session = workoutSession(), sets = completedSets())
+
+        assertEquals("health-connect-record-123", exportedId)
+        assertEquals(1, factory.createCount)
+        assertEquals(1, client.insertCalls)
+    }
+
     private fun managerWith(
         status: HealthConnectStatus,
         factory: FakeClientFactory,
@@ -166,6 +185,9 @@ class HealthConnectManagerTest {
 
     private fun readRestingHeartRatePermission() =
         HealthPermission.getReadPermission(RestingHeartRateRecord::class)
+
+    private fun writeExercisePermission() =
+        HealthPermission.getWritePermission(ExerciseSessionRecord::class)
 
     private class FakeClientFactory(
         private val client: FakeHealthConnectClientAdapter = FakeHealthConnectClientAdapter(),

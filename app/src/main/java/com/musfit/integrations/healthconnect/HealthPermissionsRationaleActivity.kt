@@ -18,7 +18,7 @@ class HealthPermissionsRationaleActivity : ComponentActivity() {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text(text = "MusFit Health Connect access")
                     Text(
-                        text = "MusFit reads steps, active calories, body weight, and heart rate " +
+                        text = "MusFit reads steps, active calories, body weight, and resting heart rate " +
                             "when you grant access. MusFit writes workouts you log in the app. " +
                             "Data stays on this device in the MVP.",
                     )
