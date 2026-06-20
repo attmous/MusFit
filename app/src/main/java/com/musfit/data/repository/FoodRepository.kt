@@ -1,5 +1,7 @@
 package com.musfit.data.repository
 
+import androidx.room.withTransaction
+import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.FoodEntity
@@ -21,6 +23,7 @@ interface FoodRepository {
 }
 
 class LocalFoodRepository @Inject constructor(
+    private val database: MusFitDatabase,
     private val foodDao: FoodDao,
 ) : FoodRepository {
     override suspend fun saveConfirmedProduct(
@@ -28,53 +31,63 @@ class LocalFoodRepository @Inject constructor(
         editedName: String,
         editedBrand: String?,
         editedNutrition: FoodNutrition,
-    ): String {
-        val existingBarcodeProduct = foodDao.getBarcodeProduct(result.barcode)
-        val foodId = existingBarcodeProduct?.linkedFoodId ?: UUID.randomUUID().toString()
-        val existingFood = foodDao.getFood(foodId)
-        val now = System.currentTimeMillis()
-        val servingGrams = result.servingQuantityGrams ?: 100.0
-        val resolvedName = editedName.ifBlank { result.name }
-        val resolvedBrand = editedBrand?.trim()?.takeIf { it.isNotEmpty() }
+    ): String =
+        database.withTransaction {
+            val existingBarcodeProduct = foodDao.getBarcodeProduct(result.barcode)
+            val existingFood = existingBarcodeProduct?.linkedFoodId?.let { linkedFoodId ->
+                foodDao.getFood(linkedFoodId)
+            }
+            val now = System.currentTimeMillis()
+            val servingGrams = result.servingQuantityGrams ?: 100.0
+            val resolvedName = editedName.ifBlank { result.name }
+            val resolvedBrand = editedBrand?.trim()?.takeIf { it.isNotEmpty() }
+            val shouldReuseExistingFood =
+                existingFood?.matchesLocalSnapshot(
+                    name = resolvedName,
+                    brand = resolvedBrand,
+                    servingGrams = servingGrams,
+                    nutrition = editedNutrition,
+                ) == true
+            val foodId = if (shouldReuseExistingFood) existingFood.id else UUID.randomUUID().toString()
 
-        foodDao.upsertFood(
-            FoodEntity(
-                id = foodId,
-                name = resolvedName,
-                brand = resolvedBrand,
-                defaultServingGrams = servingGrams,
-                caloriesPer100g = editedNutrition.caloriesKcal,
-                proteinPer100g = editedNutrition.proteinGrams,
-                carbsPer100g = editedNutrition.carbsGrams,
-                fatPer100g = editedNutrition.fatGrams,
-                createdAtEpochMillis = existingFood?.createdAtEpochMillis ?: now,
-                updatedAtEpochMillis = now,
-            ),
-        )
-        foodDao.upsertServing(
-            FoodServingEntity(
-                id = defaultServingId(foodId),
-                foodId = foodId,
-                label = servingLabel(servingGrams),
-                grams = servingGrams,
-            ),
-        )
-        foodDao.upsertBarcodeProduct(
-            BarcodeProductEntity(
-                id = existingBarcodeProduct?.id ?: UUID.randomUUID().toString(),
-                barcode = result.barcode,
-                provider = OPEN_FOOD_FACTS_PROVIDER,
-                providerProductName = result.name,
-                providerBrand = result.brand,
-                rawJson = result.rawJson,
-                quality = result.quality.asStorageValue(),
-                linkedFoodId = foodId,
-                fetchedAtEpochMillis = now,
-            ),
-        )
+            foodDao.upsertFood(
+                FoodEntity(
+                    id = foodId,
+                    name = resolvedName,
+                    brand = resolvedBrand,
+                    defaultServingGrams = servingGrams,
+                    caloriesPer100g = editedNutrition.caloriesKcal,
+                    proteinPer100g = editedNutrition.proteinGrams,
+                    carbsPer100g = editedNutrition.carbsGrams,
+                    fatPer100g = editedNutrition.fatGrams,
+                    createdAtEpochMillis = existingFood?.takeIf { shouldReuseExistingFood }?.createdAtEpochMillis ?: now,
+                    updatedAtEpochMillis = now,
+                ),
+            )
+            foodDao.upsertServing(
+                FoodServingEntity(
+                    id = defaultServingId(foodId),
+                    foodId = foodId,
+                    label = servingLabel(servingGrams),
+                    grams = servingGrams,
+                ),
+            )
+            foodDao.upsertBarcodeProduct(
+                BarcodeProductEntity(
+                    id = existingBarcodeProduct?.id ?: UUID.randomUUID().toString(),
+                    barcode = result.barcode,
+                    provider = OPEN_FOOD_FACTS_PROVIDER,
+                    providerProductName = result.name,
+                    providerBrand = result.brand,
+                    rawJson = result.rawJson,
+                    quality = result.quality.asStorageValue(),
+                    linkedFoodId = foodId,
+                    fetchedAtEpochMillis = now,
+                ),
+            )
 
-        return foodId
-    }
+            foodId
+        }
 
     private fun servingLabel(servingGrams: Double): String {
         val rounded = servingGrams.toLong()
@@ -92,6 +105,20 @@ class LocalFoodRepository @Inject constructor(
         }
 
     private fun defaultServingId(foodId: String): String = "$foodId:default-serving"
+
+    private fun FoodEntity.matchesLocalSnapshot(
+        name: String,
+        brand: String?,
+        servingGrams: Double,
+        nutrition: FoodNutrition,
+    ): Boolean =
+        this.name == name &&
+            this.brand == brand &&
+            defaultServingGrams == servingGrams &&
+            caloriesPer100g == nutrition.caloriesKcal &&
+            proteinPer100g == nutrition.proteinGrams &&
+            carbsPer100g == nutrition.carbsGrams &&
+            fatPer100g == nutrition.fatGrams
 
     private companion object {
         const val OPEN_FOOD_FACTS_PROVIDER = "open_food_facts"

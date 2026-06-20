@@ -1,5 +1,4 @@
 package com.musfit.core.di
-
 import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.OpenFoodFactsApi
 import com.musfit.data.remote.food.OpenFoodFactsProductProvider
@@ -31,7 +30,7 @@ object NetworkProvidesModule {
         OkHttpClient.Builder()
             .addInterceptor(
                 HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BASIC
+                    level = HttpLoggingInterceptor.Level.NONE
                 },
             )
             .build()
