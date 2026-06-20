@@ -31,6 +31,9 @@ interface HealthDao {
     @Query("SELECT * FROM health_connect_sync_state WHERE key = 'health_connect' LIMIT 1")
     fun observeHealthConnectSyncState(): Flow<HealthConnectSyncStateEntity?>
 
+    @Query("SELECT * FROM health_connect_sync_state WHERE key = 'health_connect' LIMIT 1")
+    suspend fun getHealthConnectSyncState(): HealthConnectSyncStateEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertBodyMetric(metric: BodyMetricEntity)
 

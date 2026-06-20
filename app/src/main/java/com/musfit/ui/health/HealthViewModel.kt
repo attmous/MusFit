@@ -2,14 +2,16 @@ package com.musfit.ui.health
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.musfit.data.repository.HealthRepository
 import com.musfit.domain.health.HealthConnectAvailability
-import com.musfit.integrations.healthconnect.HealthConnectGateway
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.util.Locale
 import javax.inject.Inject
 
 data class HealthUiState(
@@ -23,7 +25,7 @@ data class HealthUiState(
 
 @HiltViewModel
 class HealthViewModel @Inject constructor(
-    private val gateway: HealthConnectGateway,
+    private val repository: HealthRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HealthUiState())
     val state: StateFlow<HealthUiState> = mutableState.asStateFlow()
@@ -31,8 +33,8 @@ class HealthViewModel @Inject constructor(
     fun refreshStatus() {
         viewModelScope.launch {
             runCatching {
-                val status = gateway.status()
-                val requestablePermissions = gateway.requestablePermissions()
+                val status = repository.status()
+                val requestablePermissions = repository.requestablePermissions()
                 val launchablePermissions = if (status.availability == HealthConnectAvailability.Available) {
                     requestablePermissions
                 } else {
@@ -63,7 +65,62 @@ class HealthViewModel @Inject constructor(
             }
         }
     }
+
+    fun importToday() {
+        viewModelScope.launch {
+            runCatching {
+                repository.importDailySummary(LocalDate.now())
+            }.onSuccess { summary ->
+                mutableState.update {
+                    it.copy(message = summary.importMessage())
+                }
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(message = error.message ?: "Unable to import from Health Connect.")
+                }
+            }
+        }
+    }
+
+    fun exportLatestWorkout() {
+        viewModelScope.launch {
+            runCatching {
+                repository.exportLatestWorkout()
+            }.onSuccess { recordId ->
+                mutableState.update {
+                    it.copy(
+                        message = if (recordId != null) {
+                            "Exported latest workout to Health Connect."
+                        } else {
+                            "No workout was exported. Check permissions and log a workout first."
+                        },
+                    )
+                }
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(message = error.message ?: "Unable to export workout to Health Connect.")
+                }
+            }
+        }
+    }
 }
+
+private fun com.musfit.domain.health.ImportedDailyHealthSummary.importMessage(): String {
+    val stepsText = steps?.let { "$it steps" } ?: "health data"
+    val caloriesText = activeCaloriesKcal?.let { "${it.formatMetric()} kcal" }
+    return if (caloriesText != null) {
+        "Imported $stepsText and $caloriesText from Health Connect."
+    } else {
+        "Imported $stepsText from Health Connect."
+    }
+}
+
+private fun Double.formatMetric(): String =
+    if (this % 1.0 == 0.0) {
+        toInt().toString()
+    } else {
+        String.format(Locale.US, "%.1f", this)
+    }
 
 private fun HealthConnectAvailability.label(): String = when (this) {
     HealthConnectAvailability.Available -> "Available"

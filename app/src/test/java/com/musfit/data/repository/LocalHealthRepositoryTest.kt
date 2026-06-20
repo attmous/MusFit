@@ -1,0 +1,151 @@
+package com.musfit.data.repository
+
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.entity.ExerciseEntity
+import com.musfit.data.local.entity.WorkoutSessionEntity
+import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.integrations.healthconnect.HealthConnectGateway
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import java.time.LocalDate
+
+@RunWith(RobolectricTestRunner::class)
+class LocalHealthRepositoryTest {
+    private lateinit var database: MusFitDatabase
+    private lateinit var gateway: FakeHealthConnectGateway
+    private lateinit var repository: LocalHealthRepository
+
+    @Before
+    fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        database =
+            Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
+        gateway = FakeHealthConnectGateway()
+        repository = LocalHealthRepository(
+            gateway = gateway,
+            healthDao = database.healthDao(),
+            trainingDao = database.trainingDao(),
+            clock = { 1_000L },
+        )
+    }
+
+    @After
+    fun tearDown() {
+        database.close()
+    }
+
+    @Test
+    fun importDailySummary_persistsSummaryAndSyncState() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+
+        repository.importDailySummary(date)
+
+        val summary = database.healthDao().observeDailySummary(date.toEpochDay()).first()
+        val syncState = database.healthDao().observeHealthConnectSyncState().first()
+
+        assertEquals(1234L, summary?.steps)
+        assertEquals(250.0, summary?.activeCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(82.5, summary?.latestWeightKg ?: 0.0, 0.01)
+        assertEquals(58L, summary?.restingHeartRateBpm)
+        assertEquals(1_000L, summary?.updatedAtEpochMillis)
+        assertEquals(1_000L, syncState?.lastImportAtEpochMillis)
+        assertEquals(true, syncState?.isAvailable)
+    }
+
+    @Test
+    fun exportLatestWorkout_exportsPersistedWorkoutAndMarksSession() = runTest {
+        database.trainingDao().upsertExercise(
+            ExerciseEntity(
+                id = "exercise-1",
+                name = "Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "",
+                isCustom = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-1",
+                routineId = null,
+                startedAtEpochMillis = 500L,
+                endedAtEpochMillis = 900L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-1",
+                sessionId = "session-1",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+
+        val recordId = repository.exportLatestWorkout()
+
+        val savedSession = database.trainingDao().getWorkoutSession("session-1")
+        val syncState = database.healthDao().observeHealthConnectSyncState().first()
+
+        assertEquals("record-id", recordId)
+        assertEquals("session-1", gateway.exportedSession?.id)
+        assertEquals(1, gateway.exportedSets.size)
+        assertEquals("record-id", savedSession?.healthConnectRecordId)
+        assertEquals(1_000L, savedSession?.healthConnectLastExportedAtEpochMillis)
+        assertNotNull(syncState?.lastExportAtEpochMillis)
+    }
+
+    private class FakeHealthConnectGateway : HealthConnectGateway {
+        var exportedSession: WorkoutSessionEntity? = null
+        var exportedSets: List<WorkoutSetEntity> = emptyList()
+
+        override suspend fun status(): HealthConnectStatus =
+            HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf("steps"),
+            )
+
+        override suspend fun requestablePermissions(): Set<String> = setOf("steps")
+
+        override suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary =
+            ImportedDailyHealthSummary(
+                steps = 1234L,
+                activeCaloriesKcal = 250.0,
+                latestWeightKg = 82.5,
+                restingHeartRateBpm = 58L,
+            )
+
+        override suspend fun exportWorkout(
+            session: WorkoutSessionEntity,
+            sets: List<WorkoutSetEntity>,
+        ): String {
+            exportedSession = session
+            exportedSets = sets
+            return "record-id"
+        }
+    }
+}

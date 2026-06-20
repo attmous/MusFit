@@ -13,11 +13,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.util.Locale
 
 @Composable
-fun TodayScreen(viewModel: TodayViewModel = viewModel()) {
+fun TodayScreen(viewModel: TodayViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
 
     Column(

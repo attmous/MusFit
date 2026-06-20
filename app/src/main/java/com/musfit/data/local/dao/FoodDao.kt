@@ -12,6 +12,14 @@ import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
 import kotlinx.coroutines.flow.Flow
 
+data class MealNutritionRow(
+    val quantityGrams: Double,
+    val caloriesPer100g: Double,
+    val proteinPer100g: Double,
+    val carbsPer100g: Double,
+    val fatPer100g: Double,
+)
+
 @Dao
 interface FoodDao {
     @Query("SELECT * FROM foods ORDER BY name")
@@ -31,6 +39,19 @@ interface FoodDao {
 
     @Query("SELECT * FROM meal_items WHERE mealId = :mealId")
     fun observeMealItems(mealId: String): Flow<List<MealItemEntity>>
+
+    @Query(
+        "SELECT meal_items.quantityGrams AS quantityGrams, " +
+            "foods.caloriesPer100g AS caloriesPer100g, " +
+            "foods.proteinPer100g AS proteinPer100g, " +
+            "foods.carbsPer100g AS carbsPer100g, " +
+            "foods.fatPer100g AS fatPer100g " +
+            "FROM meal_items " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.id = meal_items.foodId " +
+            "WHERE meals.dateEpochDay = :dateEpochDay",
+    )
+    fun observeMealNutritionRowsForDate(dateEpochDay: Long): Flow<List<MealNutritionRow>>
 
     @Query("SELECT * FROM barcode_products WHERE barcode = :barcode LIMIT 1")
     suspend fun getBarcodeProduct(barcode: String): BarcodeProductEntity?

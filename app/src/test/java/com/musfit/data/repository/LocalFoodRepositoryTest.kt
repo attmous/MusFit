@@ -19,6 +19,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
 class LocalFoodRepositoryTest {
@@ -186,6 +187,70 @@ class LocalFoodRepositoryTest {
         assertEquals(1, newServings.size)
         assertEquals("200 g", newServings.single().label)
         assertEquals(200.0, newServings.single().grams, 0.01)
+    }
+
+    @Test
+    fun logFood_persistsManualFoodMealItemAndDailyTotals() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Oats",
+                brand = "Pantry",
+                nutritionPer100g = nutrition(calories = 380.0, protein = 13.0, carbs = 67.0, fat = 7.0),
+                servingGrams = 100.0,
+                mealType = "breakfast",
+                quantityGrams = 50.0,
+                date = date,
+            ),
+        )
+
+        val meals = database.foodDao().observeMealsForDate(date.toEpochDay()).first()
+        val mealItems = database.foodDao().observeMealItems(meals.single().id).first()
+        val foods = database.foodDao().observeFoods().first()
+        val totals = repository.observeDailyNutrition(date).first()
+
+        assertEquals("breakfast", meals.single().type)
+        assertEquals("Oats", foods.single().name)
+        assertEquals("Pantry", foods.single().brand)
+        assertEquals(50.0, mealItems.single().quantityGrams, 0.01)
+        assertEquals(190.0, totals.caloriesKcal, 0.01)
+        assertEquals(6.5, totals.proteinGrams, 0.01)
+        assertEquals(33.5, totals.carbsGrams, 0.01)
+        assertEquals(3.5, totals.fatGrams, 0.01)
+    }
+
+    @Test
+    fun logFood_persistsConfirmedBarcodeFoodMealItemAndDailyTotals() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val result = foundProduct()
+
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = result,
+                barcode = result.barcode,
+                name = "Edited Yogurt",
+                brand = null,
+                nutritionPer100g = nutrition(calories = 61.0, protein = 10.5, carbs = 4.0, fat = 0.5),
+                servingGrams = 170.0,
+                mealType = "snack",
+                quantityGrams = 170.0,
+                date = date,
+            ),
+        )
+
+        val meals = database.foodDao().observeMealsForDate(date.toEpochDay()).first()
+        val mealItems = database.foodDao().observeMealItems(meals.single().id).first()
+        val barcodeProduct = database.foodDao().getBarcodeProduct(result.barcode)
+        val totals = repository.observeDailyNutrition(date).first()
+
+        assertEquals("snack", meals.single().type)
+        assertEquals(barcodeProduct?.linkedFoodId, mealItems.single().foodId)
+        assertEquals(170.0, mealItems.single().quantityGrams, 0.01)
+        assertEquals(103.7, totals.caloriesKcal, 0.01)
+        assertEquals(17.85, totals.proteinGrams, 0.01)
     }
 
     private fun foundProduct(

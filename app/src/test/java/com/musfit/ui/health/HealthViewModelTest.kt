@@ -1,11 +1,14 @@
 package com.musfit.ui.health
 
+import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.repository.HealthRepository
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
-import com.musfit.integrations.healthconnect.HealthConnectGateway
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -33,7 +36,7 @@ class HealthViewModelTest {
 
     @Test
     fun refreshStatus_showsAvailableWhenGatewayAvailable() = runTest {
-        val viewModel = HealthViewModel(FakeHealthConnectGateway())
+        val viewModel = HealthViewModel(FakeHealthRepository())
 
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
@@ -47,7 +50,7 @@ class HealthViewModelTest {
     @Test
     fun refreshStatus_showsInstallMessageWhenGatewayUnavailable() = runTest {
         val viewModel = HealthViewModel(
-            FakeHealthConnectGateway(
+            FakeHealthRepository(
                 status = HealthConnectStatus(
                     availability = HealthConnectAvailability.NotInstalled,
                     grantedPermissions = emptySet(),
@@ -72,7 +75,7 @@ class HealthViewModelTest {
     @Test
     fun refreshStatus_hidesPermissionLauncherWhenGatewayNotSupported() = runTest {
         val viewModel = HealthViewModel(
-            FakeHealthConnectGateway(
+            FakeHealthRepository(
                 status = HealthConnectStatus(
                     availability = HealthConnectAvailability.NotSupported,
                     grantedPermissions = emptySet(),
@@ -93,7 +96,7 @@ class HealthViewModelTest {
     @Test
     fun refreshStatus_showsEnableSyncMessageWhenNoPermissionsGranted() = runTest {
         val viewModel = HealthViewModel(
-            FakeHealthConnectGateway(
+            FakeHealthRepository(
                 status = HealthConnectStatus(
                     availability = HealthConnectAvailability.Available,
                     grantedPermissions = emptySet(),
@@ -113,63 +116,54 @@ class HealthViewModelTest {
     }
 
     @Test
-    fun refreshStatus_showsPartialGrantMessageWhenSomePermissionsGranted() = runTest {
-        val viewModel = HealthViewModel(
-            FakeHealthConnectGateway(
-                status = HealthConnectStatus(
-                    availability = HealthConnectAvailability.Available,
-                    grantedPermissions = setOf("steps"),
-                ),
-                requestablePermissions = setOf("steps", "weight"),
-            ),
-        )
+    fun importToday_persistsAndReportsImportedSummary() = runTest {
+        val repository = FakeHealthRepository()
+        val viewModel = HealthViewModel(repository)
 
-        viewModel.refreshStatus()
+        viewModel.importToday()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(
-            "Some Health Connect permissions are granted. Tap Enable Health Connect sync to review or add access.",
-            viewModel.state.value.message,
-        )
+        assertEquals(LocalDate.now(), repository.importedDate)
+        assertEquals("Imported 1200 steps and 100 kcal from Health Connect.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun exportLatestWorkout_reportsExportedWorkoutRecord() = runTest {
+        val repository = FakeHealthRepository(exportedRecordId = "record-id")
+        val viewModel = HealthViewModel(repository)
+
+        viewModel.exportLatestWorkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, repository.exportCalls)
+        assertEquals("Exported latest workout to Health Connect.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun exportLatestWorkout_reportsNoWorkoutWhenRepositoryReturnsNull() = runTest {
+        val repository = FakeHealthRepository(exportedRecordId = null)
+        val viewModel = HealthViewModel(repository)
+
+        viewModel.exportLatestWorkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("No workout was exported. Check permissions and log a workout first.", viewModel.state.value.message)
     }
 
     @Test
     fun refreshStatus_resetsStaleSuccessStateAfterFailure() = runTest {
-        var failNextRefresh = false
-        val gateway = object : HealthConnectGateway {
-            override suspend fun status(): HealthConnectStatus {
-                if (failNextRefresh) throw IllegalStateException("boom")
-                return HealthConnectStatus(
-                    availability = HealthConnectAvailability.Available,
-                    grantedPermissions = setOf("steps"),
-                )
-            }
-
-            override suspend fun requestablePermissions(): Set<String> = setOf("steps", "weight")
-
-            override suspend fun readDailySummary(date: LocalDate) = ImportedDailyHealthSummary(
-                steps = 1200,
-                activeCaloriesKcal = 100.0,
-                latestWeightKg = null,
-                restingHeartRateBpm = null,
-            )
-
-            override suspend fun exportWorkout(
-                session: com.musfit.data.local.entity.WorkoutSessionEntity,
-                sets: List<com.musfit.data.local.entity.WorkoutSetEntity>,
-            ): String? = "record-id"
-        }
-        val viewModel = HealthViewModel(gateway)
+        val repository = FakeHealthRepository()
+        val viewModel = HealthViewModel(repository)
 
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("Available", viewModel.state.value.availabilityLabel)
         assertEquals(1, viewModel.state.value.grantedPermissionCount)
-        assertEquals(setOf("steps", "weight"), viewModel.state.value.requestablePermissions)
+        assertEquals(setOf("steps"), viewModel.state.value.requestablePermissions)
         assertEquals(true, viewModel.state.value.canRequestPermissions)
 
-        failNextRefresh = true
+        repository.statusException = IllegalStateException("boom")
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
 
@@ -184,47 +178,41 @@ class HealthViewModelTest {
         )
     }
 
-    private class FakeHealthConnectGateway : HealthConnectGateway {
-        constructor(
-            status: HealthConnectStatus = HealthConnectStatus(
-                availability = HealthConnectAvailability.Available,
-                grantedPermissions = setOf("steps"),
-            ),
-            requestablePermissions: Set<String> = setOf("steps"),
-            statusException: Throwable? = null,
-            requestablePermissionsException: Throwable? = null,
-        ) {
-            this.status = status
-            this.requestablePermissions = requestablePermissions
-            this.statusException = statusException
-            this.requestablePermissionsException = requestablePermissionsException
-        }
-
-        private val status: HealthConnectStatus
-        private val requestablePermissions: Set<String>
-        private val statusException: Throwable?
-        private val requestablePermissionsException: Throwable?
+    private class FakeHealthRepository(
+        private var status: HealthConnectStatus = HealthConnectStatus(
+            availability = HealthConnectAvailability.Available,
+            grantedPermissions = setOf("steps"),
+        ),
+        private val requestablePermissions: Set<String> = setOf("steps"),
+        private val exportedRecordId: String? = "record-id",
+    ) : HealthRepository {
+        var statusException: Throwable? = null
+        var importedDate: LocalDate? = null
+        var exportCalls = 0
 
         override suspend fun status(): HealthConnectStatus {
             statusException?.let { throw it }
             return status
         }
 
-        override suspend fun requestablePermissions(): Set<String> {
-            requestablePermissionsException?.let { throw it }
-            return requestablePermissions
+        override suspend fun requestablePermissions(): Set<String> = requestablePermissions
+
+        override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> =
+            flowOf(null)
+
+        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary {
+            importedDate = date
+            return ImportedDailyHealthSummary(
+                steps = 1200,
+                activeCaloriesKcal = 100.0,
+                latestWeightKg = null,
+                restingHeartRateBpm = null,
+            )
         }
 
-        override suspend fun readDailySummary(date: LocalDate) = ImportedDailyHealthSummary(
-            steps = 1200,
-            activeCaloriesKcal = 100.0,
-            latestWeightKg = null,
-            restingHeartRateBpm = null,
-        )
-
-        override suspend fun exportWorkout(
-            session: com.musfit.data.local.entity.WorkoutSessionEntity,
-            sets: List<com.musfit.data.local.entity.WorkoutSetEntity>,
-        ): String? = "record-id"
+        override suspend fun exportLatestWorkout(): String? {
+            exportCalls += 1
+            return exportedRecordId
+        }
     }
 }

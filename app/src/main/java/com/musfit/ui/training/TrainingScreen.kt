@@ -19,12 +19,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.musfit.domain.model.WorkoutSetInput
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.musfit.data.repository.LoggedWorkoutSet
 import java.util.Locale
 
 @Composable
-fun TrainingScreen(viewModel: TrainingViewModel = viewModel()) {
+fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
 
     Column(
@@ -132,5 +132,5 @@ private fun Double.formatKg(): String =
         String.format(Locale.US, "%.2f", this)
     }
 
-private fun WorkoutSetInput.displayExerciseLabel(): String =
-    exerciseId.takeUnless { it.isBlank() || it == "custom" } ?: "Custom exercise"
+private fun LoggedWorkoutSet.displayExerciseLabel(): String =
+    exerciseName.takeUnless { it.isBlank() } ?: "Custom exercise"

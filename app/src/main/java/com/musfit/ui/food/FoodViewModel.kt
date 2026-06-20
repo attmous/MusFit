@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.domain.model.FoodNutrition
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import javax.inject.Inject
 
 data class FoodUiState(
@@ -27,6 +29,8 @@ data class FoodUiState(
     val proteinPer100g: String = "",
     val carbsPer100g: String = "",
     val fatPer100g: String = "",
+    val mealType: String = "breakfast",
+    val quantityGrams: String = "100",
     val lookupResult: ProductLookupResult.Found? = null,
 )
 
@@ -80,6 +84,14 @@ class FoodViewModel @Inject constructor(
 
     fun onFatChanged(value: String) {
         mutableState.update { it.copy(fatPer100g = value, message = null) }
+    }
+
+    fun onMealTypeChanged(value: String) {
+        mutableState.update { it.copy(mealType = value, message = null) }
+    }
+
+    fun onQuantityChanged(value: String) {
+        mutableState.update { it.copy(quantityGrams = value.sanitizeDecimalInput(), message = null) }
     }
 
     fun lookupBarcode() {
@@ -146,19 +158,26 @@ class FoodViewModel @Inject constructor(
         }
     }
 
-    fun saveProduct() {
+    fun saveProduct() = logFood()
+
+    fun logFood() {
         val currentState = state.value
-        val result = currentState.lookupResult
-        if (result == null) {
-            mutableState.update { it.copy(message = "Look up a product before saving") }
+        if (currentState.isSaving) {
             return
         }
-        if (currentState.isSaving) {
+        val productName = currentState.productName.trim()
+        if (productName.isBlank()) {
+            mutableState.update { it.copy(message = "Enter a food name") }
             return
         }
         val editedNutrition = currentState.toEditedNutritionOrNull()
         if (editedNutrition == null) {
             mutableState.update { it.copy(message = "Enter valid nutrition values") }
+            return
+        }
+        val quantityGrams = currentState.quantityGrams.parsePositiveNumberOrNull()
+        if (quantityGrams == null) {
+            mutableState.update { it.copy(message = "Enter a valid amount") }
             return
         }
 
@@ -177,16 +196,23 @@ class FoodViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                repository.saveConfirmedProduct(
-                    result = result,
-                    editedName = currentState.productName,
-                    editedBrand = currentState.brand.ifBlank { null },
-                    editedNutrition = editedNutrition,
+                repository.logFood(
+                    FoodLogInput(
+                        lookupResult = currentState.lookupResult,
+                        barcode = currentState.barcode.takeIf { it.isNotBlank() },
+                        name = productName,
+                        brand = currentState.brand.ifBlank { null },
+                        nutritionPer100g = editedNutrition,
+                        servingGrams = currentState.lookupResult?.servingQuantityGrams ?: quantityGrams,
+                        mealType = currentState.mealType,
+                        quantityGrams = quantityGrams,
+                        date = LocalDate.now(),
+                    ),
                 )
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = "Saved food",
+                        message = "Logged food",
                         lookupResult = null,
                     )
                 }
@@ -222,6 +248,31 @@ class FoodViewModel @Inject constructor(
         trim()
             .takeIf { it.isNotEmpty() }
             ?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it >= 0.0 }
+
+    private fun String.parsePositiveNumberOrNull(): Double? =
+        trim()
+            .takeIf { it.isNotEmpty() }
+            ?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it > 0.0 }
+
+    private fun String.sanitizeDecimalInput(): String {
+        val trimmed = trim()
+        val builder = StringBuilder(trimmed.length)
+        var dotSeen = false
+
+        for (char in trimmed) {
+            when {
+                char.isDigit() -> builder.append(char)
+                char == '.' && !dotSeen -> {
+                    builder.append(char)
+                    dotSeen = true
+                }
+            }
+        }
+
+        return builder.toString()
+    }
 
     private fun FoodUiState.clearedEditableFields(): FoodUiState =
         copy(

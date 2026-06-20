@@ -3,11 +3,15 @@ package com.musfit.ui.food
 import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.ProductDataQuality
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.domain.model.FoodNutrition
+import com.musfit.domain.model.NutritionTotals
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -19,6 +23,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FoodViewModelTest {
@@ -78,12 +83,16 @@ class FoodViewModelTest {
         viewModel.onProteinChanged("10.5")
         viewModel.onCarbsChanged("4.0")
         viewModel.onFatChanged("0.5")
-        viewModel.saveProduct()
+        viewModel.onMealTypeChanged("snack")
+        viewModel.onQuantityChanged("170")
+        viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Saved food", viewModel.state.value.message)
-        assertEquals("Edited Yogurt", repository.savedName)
-        assertNull(repository.savedBrand)
+        assertEquals("Logged food", viewModel.state.value.message)
+        assertEquals("Edited Yogurt", repository.savedLog?.name)
+        assertNull(repository.savedLog?.brand)
+        assertEquals("snack", repository.savedLog?.mealType)
+        assertEquals(170.0, repository.savedLog?.quantityGrams ?: 0.0, 0.01)
         assertEquals(
             FoodNutrition(
                 caloriesKcal = 61.0,
@@ -91,8 +100,35 @@ class FoodViewModelTest {
                 carbsGrams = 4.0,
                 fatGrams = 0.5,
             ),
-            repository.savedNutrition,
+            repository.savedLog?.nutritionPer100g,
         )
+    }
+
+    @Test
+    fun logFood_withoutLookup_logsManualMealEntry() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(result = ProductLookupResult.NotFound("")),
+            repository = repository,
+        )
+
+        viewModel.onProductNameChanged("Oats")
+        viewModel.onBrandChanged("Pantry")
+        viewModel.onCaloriesChanged("380")
+        viewModel.onProteinChanged("13")
+        viewModel.onCarbsChanged("67")
+        viewModel.onFatChanged("7")
+        viewModel.onMealTypeChanged("breakfast")
+        viewModel.onQuantityChanged("50")
+        viewModel.logFood()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Logged food", viewModel.state.value.message)
+        assertNull(repository.savedLog?.lookupResult)
+        assertEquals("Oats", repository.savedLog?.name)
+        assertEquals("Pantry", repository.savedLog?.brand)
+        assertEquals("breakfast", repository.savedLog?.mealType)
+        assertEquals(50.0, repository.savedLog?.quantityGrams ?: 0.0, 0.01)
     }
 
     @Test
@@ -227,7 +263,7 @@ class FoodViewModelTest {
         viewModel.onProteinChanged("0")
         viewModel.onCarbsChanged("0")
         viewModel.onFatChanged("0")
-        viewModel.saveProduct()
+        viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(
@@ -237,7 +273,7 @@ class FoodViewModelTest {
                 carbsGrams = 0.0,
                 fatGrams = 0.0,
             ),
-            repository.savedNutrition,
+            repository.savedLog?.nutritionPer100g,
         )
     }
 
@@ -253,8 +289,8 @@ class FoodViewModelTest {
         viewModel.lookupBarcode()
         dispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.saveProduct()
-        viewModel.saveProduct()
+        viewModel.logFood()
+        viewModel.logFood()
         dispatcher.scheduler.runCurrent()
 
         assertEquals(1, repository.saveCalls)
@@ -262,7 +298,7 @@ class FoodViewModelTest {
         repository.completeSave()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Saved food", viewModel.state.value.message)
+        assertEquals("Logged food", viewModel.state.value.message)
     }
 
     @Test
@@ -278,11 +314,11 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.onCaloriesChanged("..")
-        viewModel.saveProduct()
+        viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("Enter valid nutrition values", viewModel.state.value.message)
-        assertNull(repository.savedNutrition)
+        assertNull(repository.savedLog)
     }
 
     @Test
@@ -298,11 +334,31 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.onProteinChanged("")
-        viewModel.saveProduct()
+        viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("Enter valid nutrition values", viewModel.state.value.message)
-        assertNull(repository.savedNutrition)
+        assertNull(repository.savedLog)
+    }
+
+    @Test
+    fun logFood_withNegativeNutrition_setsValidationMessageAndDoesNotSave() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.onBarcodeChanged("12345")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onCaloriesChanged("-100")
+        viewModel.logFood()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Enter valid nutrition values", viewModel.state.value.message)
+        assertNull(repository.savedLog)
     }
 
     private class FakeProductProvider(
@@ -337,9 +393,7 @@ class FoodViewModelTest {
     }
 
     private class FakeFoodRepository : FoodRepository {
-        var savedName: String? = null
-        var savedBrand: String? = null
-        var savedNutrition: FoodNutrition? = null
+        var savedLog: FoodLogInput? = null
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -347,11 +401,16 @@ class FoodViewModelTest {
             editedBrand: String?,
             editedNutrition: FoodNutrition,
         ): String {
-            savedName = editedName
-            savedBrand = editedBrand
-            savedNutrition = editedNutrition
             return "food-1"
         }
+
+        override suspend fun logFood(input: FoodLogInput): String {
+            savedLog = input
+            return "meal-item-1"
+        }
+
+        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
+            flowOf(NutritionTotals(0.0, 0.0, 0.0, 0.0))
     }
 
     private class BlockingFoodRepository : FoodRepository {
@@ -367,6 +426,14 @@ class FoodViewModelTest {
             saveCalls += 1
             return saveResult.await()
         }
+
+        override suspend fun logFood(input: FoodLogInput): String {
+            saveCalls += 1
+            return saveResult.await()
+        }
+
+        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
+            flowOf(NutritionTotals(0.0, 0.0, 0.0, 0.0))
 
         fun completeSave(value: String = "food-1") {
             saveResult.complete(value)

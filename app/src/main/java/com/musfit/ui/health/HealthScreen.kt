@@ -82,6 +82,18 @@ fun HealthScreen(viewModel: HealthViewModel = hiltViewModel()) {
         ) {
             Text(text = "Refresh status")
         }
+        Button(
+            onClick = viewModel::importToday,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(text = "Import today")
+        }
+        Button(
+            onClick = viewModel::exportLatestWorkout,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(text = "Export latest workout")
+        }
     }
 }
 

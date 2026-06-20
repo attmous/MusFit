@@ -102,6 +102,28 @@ fun FoodScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = state.mealType,
+                onValueChange = viewModel::onMealTypeChanged,
+                label = { Text("Meal") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+
+            OutlinedTextField(
+                value = state.quantityGrams,
+                onValueChange = viewModel::onQuantityChanged,
+                label = { Text("Amount (g)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+        }
+
         Text(
             text = "Per 100 g",
             style = MaterialTheme.typography.titleMedium,
@@ -129,11 +151,11 @@ fun FoodScreen(
         )
 
         Button(
-            onClick = viewModel::saveProduct,
-            enabled = state.lookupResult != null && !state.isLoading && !state.isSaving,
+            onClick = viewModel::logFood,
+            enabled = !state.isLoading && !state.isSaving,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (state.isSaving) "Saving" else "Save food")
+            Text(if (state.isSaving) "Logging" else "Log food")
         }
     }
 }

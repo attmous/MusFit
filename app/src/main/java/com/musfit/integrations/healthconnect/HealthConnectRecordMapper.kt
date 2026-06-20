@@ -5,12 +5,13 @@ import androidx.health.connect.client.records.metadata.Metadata
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import java.time.Instant
-import java.time.ZoneOffset
+import java.time.ZoneId
 
 object HealthConnectRecordMapper {
     fun toExerciseSessionRecord(
         session: WorkoutSessionEntity,
         sets: List<WorkoutSetEntity>,
+        zoneId: ZoneId = ZoneId.systemDefault(),
     ): ExerciseSessionRecord {
         val startInstant = Instant.ofEpochMilli(session.startedAtEpochMillis)
         val endInstant = Instant.ofEpochMilli(
@@ -19,9 +20,9 @@ object HealthConnectRecordMapper {
         val completedSetCount = sets.count { it.completed }
         return ExerciseSessionRecord(
             startTime = startInstant,
-            startZoneOffset = ZoneOffset.UTC,
+            startZoneOffset = zoneId.rules.getOffset(startInstant),
             endTime = endInstant,
-            endZoneOffset = ZoneOffset.UTC,
+            endZoneOffset = zoneId.rules.getOffset(endInstant),
             metadata = Metadata.manualEntry(),
             exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
             title = "MusFit workout: $completedSetCount completed sets",
