@@ -5,7 +5,7 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
-import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.request.AggregateRequest
@@ -43,7 +43,7 @@ class HealthConnectManager @Inject constructor(
         READ_STEPS_PERMISSION,
         READ_WEIGHT_PERMISSION,
         READ_ACTIVE_CALORIES_PERMISSION,
-        READ_HEART_RATE_PERMISSION,
+        READ_RESTING_HEART_RATE_PERMISSION,
         WRITE_EXERCISE_PERMISSION,
     )
 
@@ -61,9 +61,9 @@ class HealthConnectManager @Inject constructor(
         val canReadSteps = READ_STEPS_PERMISSION in grantedPermissions
         val canReadActiveCalories = READ_ACTIVE_CALORIES_PERMISSION in grantedPermissions
         val canReadWeight = READ_WEIGHT_PERMISSION in grantedPermissions
-        val canReadHeartRate = READ_HEART_RATE_PERMISSION in grantedPermissions
+        val canReadRestingHeartRate = READ_RESTING_HEART_RATE_PERMISSION in grantedPermissions
 
-        if (!canReadSteps && !canReadActiveCalories && !canReadWeight && !canReadHeartRate) {
+        if (!canReadSteps && !canReadActiveCalories && !canReadWeight && !canReadRestingHeartRate) {
             return EMPTY_SUMMARY
         }
 
@@ -88,8 +88,8 @@ class HealthConnectManager @Inject constructor(
             null
         }
 
-        val lowestHeartRate = if (canReadHeartRate) {
-            runCatching { client.readLowestHeartRate(range) }.getOrNull()
+        val restingHeartRate = if (canReadRestingHeartRate) {
+            runCatching { client.readLatestRestingHeartRate(range) }.getOrNull()
         } else {
             null
         }
@@ -98,7 +98,7 @@ class HealthConnectManager @Inject constructor(
             steps = steps,
             activeCaloriesKcal = activeCalories,
             latestWeightKg = latestWeight,
-            restingHeartRateBpm = lowestHeartRate,
+            restingHeartRateBpm = restingHeartRate,
         )
     }
 
@@ -127,7 +127,8 @@ class HealthConnectManager @Inject constructor(
         val READ_WEIGHT_PERMISSION = HealthPermission.getReadPermission(WeightRecord::class)
         val READ_ACTIVE_CALORIES_PERMISSION =
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
-        val READ_HEART_RATE_PERMISSION = HealthPermission.getReadPermission(HeartRateRecord::class)
+        val READ_RESTING_HEART_RATE_PERMISSION =
+            HealthPermission.getReadPermission(RestingHeartRateRecord::class)
         val WRITE_EXERCISE_PERMISSION =
             HealthPermission.getWritePermission(ExerciseSessionRecord::class)
         val EMPTY_SUMMARY = ImportedDailyHealthSummary(
@@ -181,7 +182,7 @@ internal interface HealthConnectClientAdapter {
 
     suspend fun readLatestWeight(range: HealthConnectTimeRange): Double?
 
-    suspend fun readLowestHeartRate(range: HealthConnectTimeRange): Long?
+    suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long?
 
     suspend fun insertExerciseSession(record: ExerciseSessionRecord): String?
 }
@@ -212,15 +213,13 @@ private class DefaultHealthConnectClientAdapter(
             ),
         ).records.maxByOrNull { it.time }?.weight?.inKilograms
 
-    override suspend fun readLowestHeartRate(range: HealthConnectTimeRange): Long? =
+    override suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long? =
         client.readRecords(
             ReadRecordsRequest(
-                recordType = HeartRateRecord::class,
+                recordType = RestingHeartRateRecord::class,
                 timeRangeFilter = range.asTimeRangeFilter(),
             ),
-        ).records
-            .flatMap { it.samples }
-            .minOfOrNull { it.beatsPerMinute }
+        ).records.maxByOrNull { it.time }?.beatsPerMinute
 
     override suspend fun insertExerciseSession(record: ExerciseSessionRecord): String? =
         client.insertRecords(listOf(record)).recordIdsList.firstOrNull()

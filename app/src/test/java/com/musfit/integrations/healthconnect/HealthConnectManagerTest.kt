@@ -5,6 +5,7 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.test.core.app.ApplicationProvider
@@ -61,7 +62,7 @@ class HealthConnectManagerTest {
                 availability = HealthConnectAvailability.Available,
                 grantedPermissions = setOf(
                     readStepsPermission(),
-                    readHeartRatePermission(),
+                    readRestingHeartRatePermission(),
                 ),
             ),
             factory = factory,
@@ -78,6 +79,19 @@ class HealthConnectManagerTest {
         assertEquals(0, client.activeCaloriesCalls)
         assertEquals(0, client.latestWeightCalls)
         assertEquals(1, client.restingHeartRateCalls)
+    }
+
+    @Test
+    fun requestablePermissions_usesRestingHeartRateReadPermission_notGenericHeartRate() = runTest {
+        val manager = managerWith(
+            status = HealthConnectStatus(HealthConnectAvailability.NotInstalled, emptySet()),
+            factory = FakeClientFactory(),
+        )
+
+        val permissions = manager.requestablePermissions()
+
+        assertEquals(true, readRestingHeartRatePermission() in permissions)
+        assertEquals(false, readHeartRatePermission() in permissions)
     }
 
     @Test
@@ -150,6 +164,9 @@ class HealthConnectManagerTest {
 
     private fun readHeartRatePermission() = HealthPermission.getReadPermission(HeartRateRecord::class)
 
+    private fun readRestingHeartRatePermission() =
+        HealthPermission.getReadPermission(RestingHeartRateRecord::class)
+
     private class FakeClientFactory(
         private val client: FakeHealthConnectClientAdapter = FakeHealthConnectClientAdapter(),
     ) {
@@ -195,7 +212,7 @@ class HealthConnectManagerTest {
             return latestWeightKg
         }
 
-        override suspend fun readLowestHeartRate(range: HealthConnectTimeRange): Long? {
+        override suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long? {
             restingHeartRateCalls += 1
             return restingHeartRateBpm
         }
