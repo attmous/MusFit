@@ -2,9 +2,11 @@ package com.musfit.ui.food
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.annotation.OptIn
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -37,6 +39,7 @@ import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
+@OptIn(ExperimentalGetImage::class)
 @Composable
 fun BarcodeScannerScreen(
     onBarcodeDetected: (String) -> Unit,
