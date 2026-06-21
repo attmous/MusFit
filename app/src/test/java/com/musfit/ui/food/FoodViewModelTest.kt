@@ -158,6 +158,32 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun lookupBarcode_exposesServingChoicesAndSelectionUpdatesAmount() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(
+                result = foundProduct(
+                    servingQuantityGrams = 170.0,
+                    nutrition = FoodNutrition(59.0, 10.0, 3.6, 0.4),
+                ),
+            ),
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.onBarcodeChanged("123456")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val initialChoices = viewModel.state.value.amountServingChoices
+        assertEquals(listOf("100 g", "Serving 170 g"), initialChoices.map { it.label })
+
+        val per100gChoice = initialChoices.first { it.grams == 100.0 }
+        viewModel.onAmountServingChoiceSelected(per100gChoice.id)
+
+        assertEquals("100", viewModel.state.value.quantityGrams)
+        assertEquals(59.0, viewModel.state.value.amountNutritionPreview?.caloriesKcal ?: 0.0, 0.01)
+    }
+
+    @Test
     fun logFood_withoutLookup_logsManualMealEntry() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(
@@ -375,6 +401,34 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun saveScannedProductToDatabase_savesEditedLookupWithoutLoggingMeal() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.onBarcodeChanged("12345")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onProductNameChanged("Edited yogurt")
+        viewModel.onBrandChanged("")
+        viewModel.onCaloriesChanged("61")
+        viewModel.onProteinChanged("10.5")
+        viewModel.onCarbsChanged("4")
+        viewModel.onFatChanged("0.5")
+        viewModel.saveScannedProductToDatabase()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Saved product to database", viewModel.state.value.message)
+        assertEquals("Edited yogurt", repository.confirmedProductSave?.editedName)
+        assertNull(repository.confirmedProductSave?.editedBrand)
+        assertEquals(61.0, repository.confirmedProductSave?.editedNutrition?.caloriesKcal ?: 0.0, 0.01)
+        assertNull(repository.savedLog)
+    }
+
+    @Test
     fun saveProduct_withBlankNutritionText_setsValidationMessageAndDoesNotSave() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(
@@ -517,6 +571,12 @@ class FoodViewModelTest {
                                 ),
                             ),
                             totals = NutritionTotals(225.0, 21.3, 35.0, 2.4),
+                            detailTotals = NutritionDetails(
+                                fiberGrams = 4.5,
+                                sugarGrams = 17.0,
+                                saturatedFatGrams = 1.2,
+                                sodiumMilligrams = 96.0,
+                            ),
                         ),
                     ),
                 ),
@@ -537,6 +597,10 @@ class FoodViewModelTest {
         assertEquals(21.3, selectedMeal.proteinGrams, 0.01)
         assertEquals(35.0, selectedMeal.carbsGrams, 0.01)
         assertEquals(2.4, selectedMeal.fatGrams, 0.01)
+        assertEquals(4.5, selectedMeal.fiberGrams, 0.01)
+        assertEquals(17.0, selectedMeal.sugarGrams, 0.01)
+        assertEquals(1.2, selectedMeal.saturatedFatGrams, 0.01)
+        assertEquals(96.0, selectedMeal.sodiumMilligrams, 0.01)
         assertEquals(listOf("Greek yogurt", "Banana"), selectedMeal.entries.map { it.name })
 
         viewModel.closeMealDetail()
@@ -1390,6 +1454,13 @@ class FoodViewModelTest {
         val date: LocalDate,
     )
 
+    private data class ConfirmedProductSaveCall(
+        val result: ProductLookupResult.Found,
+        val editedName: String,
+        val editedBrand: String?,
+        val editedNutrition: FoodNutrition,
+    )
+
     private class FakeProductProvider(
         private val result: ProductLookupResult = foundProduct(),
         private val searchResult: ProductSearchResult = ProductSearchResult.Success("", emptyList()),
@@ -1468,6 +1539,7 @@ class FoodViewModelTest {
         var logRecipeCall: LogRecipeCall? = null
         var deletedRecipeId: String? = null
         var starterFoodsSeeded = false
+        var confirmedProductSave: ConfirmedProductSaveCall? = null
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -1475,6 +1547,12 @@ class FoodViewModelTest {
             editedBrand: String?,
             editedNutrition: FoodNutrition,
         ): String {
+            confirmedProductSave = ConfirmedProductSaveCall(
+                result = result,
+                editedName = editedName,
+                editedBrand = editedBrand,
+                editedNutrition = editedNutrition,
+            )
             return "food-1"
         }
 

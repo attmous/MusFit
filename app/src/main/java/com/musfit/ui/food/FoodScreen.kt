@@ -166,6 +166,7 @@ fun FoodScreen(
                         onProductNameChanged = viewModel::onProductNameChanged,
                         onBrandChanged = viewModel::onBrandChanged,
                         onQuantityChanged = viewModel::onQuantityChanged,
+                        onAmountServingChoiceSelected = viewModel::onAmountServingChoiceSelected,
                         onCaloriesChanged = viewModel::onCaloriesChanged,
                         onProteinChanged = viewModel::onProteinChanged,
                         onCarbsChanged = viewModel::onCarbsChanged,
@@ -174,6 +175,7 @@ fun FoodScreen(
                         onLookupClick = viewModel::lookupBarcode,
                         onScanClick = onScanClick,
                         onLogFoodClick = viewModel::logFood,
+                        onSaveProductClick = viewModel::saveScannedProductToDatabase,
                         onQuickCaloriesChanged = viewModel::onQuickCaloriesChanged,
                         onQuickProteinChanged = viewModel::onQuickProteinChanged,
                         onQuickCarbsChanged = viewModel::onQuickCarbsChanged,
@@ -763,7 +765,83 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                     modifier = Modifier.weight(1f),
                 )
             }
+
+            if (
+                meal.fiberGrams > 0.0 ||
+                meal.sugarGrams > 0.0 ||
+                meal.saturatedFatGrams > 0.0 ||
+                meal.sodiumMilligrams > 0.0
+            ) {
+                HorizontalDivider(color = Color(0xFFEDE8E4))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MealDetailNutritionLine(
+                        firstLabel = "Fiber",
+                        firstValue = "${meal.fiberGrams.formatNutritionDisplay()} g",
+                        secondLabel = "Sugar",
+                        secondValue = "${meal.sugarGrams.formatNutritionDisplay()} g",
+                    )
+                    MealDetailNutritionLine(
+                        firstLabel = "Sat fat",
+                        firstValue = "${meal.saturatedFatGrams.formatNutritionDisplay()} g",
+                        secondLabel = "Sodium",
+                        secondValue = "${meal.sodiumMilligrams.roundToInt()} mg",
+                    )
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun MealDetailNutritionLine(
+    firstLabel: String,
+    firstValue: String,
+    secondLabel: String,
+    secondValue: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        MealDetailNutritionValue(
+            label = firstLabel,
+            value = firstValue,
+            modifier = Modifier.weight(1f),
+        )
+        MealDetailNutritionValue(
+            label = secondLabel,
+            value = secondValue,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun MealDetailNutritionValue(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF706D6A),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = HeaderInk,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -951,6 +1029,13 @@ private fun DiaryEntryRow(
                     text = "${entry.quantityGrams.roundToInt()} g",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF706D6A),
+                )
+                Text(
+                    text = "P ${entry.proteinGrams.formatNutritionDisplay()} g | C ${entry.carbsGrams.formatNutritionDisplay()} g | F ${entry.fatGrams.formatNutritionDisplay()} g",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF706D6A),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Text(
@@ -2003,6 +2088,7 @@ private fun AddFoodPanel(
     onProductNameChanged: (String) -> Unit,
     onBrandChanged: (String) -> Unit,
     onQuantityChanged: (String) -> Unit,
+    onAmountServingChoiceSelected: (String) -> Unit,
     onCaloriesChanged: (String) -> Unit,
     onProteinChanged: (String) -> Unit,
     onCarbsChanged: (String) -> Unit,
@@ -2011,6 +2097,7 @@ private fun AddFoodPanel(
     onLookupClick: () -> Unit,
     onScanClick: () -> Unit,
     onLogFoodClick: () -> Unit,
+    onSaveProductClick: () -> Unit,
     onQuickCaloriesChanged: (String) -> Unit,
     onQuickProteinChanged: (String) -> Unit,
     onQuickCarbsChanged: (String) -> Unit,
@@ -2093,6 +2180,7 @@ private fun AddFoodPanel(
                     onProductNameChanged = onProductNameChanged,
                     onBrandChanged = onBrandChanged,
                     onQuantityChanged = onQuantityChanged,
+                    onAmountServingChoiceSelected = onAmountServingChoiceSelected,
                     onCaloriesChanged = onCaloriesChanged,
                     onProteinChanged = onProteinChanged,
                     onCarbsChanged = onCarbsChanged,
@@ -2109,11 +2197,13 @@ private fun AddFoodPanel(
                     onProductNameChanged = onProductNameChanged,
                     onBrandChanged = onBrandChanged,
                     onQuantityChanged = onQuantityChanged,
+                    onAmountServingChoiceSelected = onAmountServingChoiceSelected,
                     onCaloriesChanged = onCaloriesChanged,
                     onProteinChanged = onProteinChanged,
                     onCarbsChanged = onCarbsChanged,
                     onFatChanged = onFatChanged,
                     onLogFoodClick = onLogFoodClick,
+                    onSaveProductClick = onSaveProductClick,
                 )
 
             FoodAddMode.Quick ->
@@ -2343,6 +2433,7 @@ private fun ManualFoodForm(
     onProductNameChanged: (String) -> Unit,
     onBrandChanged: (String) -> Unit,
     onQuantityChanged: (String) -> Unit,
+    onAmountServingChoiceSelected: (String) -> Unit,
     onCaloriesChanged: (String) -> Unit,
     onProteinChanged: (String) -> Unit,
     onCarbsChanged: (String) -> Unit,
@@ -2355,6 +2446,7 @@ private fun ManualFoodForm(
             onProductNameChanged = onProductNameChanged,
             onBrandChanged = onBrandChanged,
             onQuantityChanged = onQuantityChanged,
+            onAmountServingChoiceSelected = onAmountServingChoiceSelected,
         )
         NutritionFields(
             state = state,
@@ -2383,11 +2475,13 @@ private fun BarcodeFoodForm(
     onProductNameChanged: (String) -> Unit,
     onBrandChanged: (String) -> Unit,
     onQuantityChanged: (String) -> Unit,
+    onAmountServingChoiceSelected: (String) -> Unit,
     onCaloriesChanged: (String) -> Unit,
     onProteinChanged: (String) -> Unit,
     onCarbsChanged: (String) -> Unit,
     onFatChanged: (String) -> Unit,
     onLogFoodClick: () -> Unit,
+    onSaveProductClick: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
@@ -2420,11 +2514,16 @@ private fun BarcodeFoodForm(
             Text("Scan barcode")
         }
 
+        if (state.lookupResult != null) {
+            BarcodeLookupSummary(state = state)
+        }
+
         ProductFields(
             state = state,
             onProductNameChanged = onProductNameChanged,
             onBrandChanged = onBrandChanged,
             onQuantityChanged = onQuantityChanged,
+            onAmountServingChoiceSelected = onAmountServingChoiceSelected,
         )
         NutritionFields(
             state = state,
@@ -2433,13 +2532,70 @@ private fun BarcodeFoodForm(
             onCarbsChanged = onCarbsChanged,
             onFatChanged = onFatChanged,
         )
-        Button(
-            onClick = onLogFoodClick,
-            enabled = !state.isLoading && !state.isSaving,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+        if (state.lookupResult != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onSaveProductClick,
+                    enabled = !state.isLoading && !state.isSaving,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (state.isSaving) "Saving" else "Save product")
+                }
+                Button(
+                    onClick = onLogFoodClick,
+                    enabled = !state.isLoading && !state.isSaving,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+                ) {
+                    Text(if (state.isSaving) "Logging" else "Log food")
+                }
+            }
+        } else {
+            Button(
+                onClick = onLogFoodClick,
+                enabled = !state.isLoading && !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+            ) {
+                Text(if (state.isSaving) "Logging" else "Log barcode food")
+            }
+        }
+    }
+}
+
+@Composable
+private fun BarcodeLookupSummary(
+    state: FoodUiState,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFFF4FBF1),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(if (state.isSaving) "Logging" else "Log barcode food")
+            Text(
+                text = "Product loaded",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF164A2A),
+            )
+            Text(
+                text = listOfNotNull(
+                    state.productName.takeIf { it.isNotBlank() },
+                    state.brand.takeIf { it.isNotBlank() },
+                    state.barcode.takeIf { it.isNotBlank() },
+                ).joinToString(" - "),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF706D6A),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -2450,6 +2606,7 @@ private fun ProductFields(
     onProductNameChanged: (String) -> Unit,
     onBrandChanged: (String) -> Unit,
     onQuantityChanged: (String) -> Unit,
+    onAmountServingChoiceSelected: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
@@ -2478,6 +2635,21 @@ private fun ProductFields(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(1f),
             )
+        }
+        if (state.amountServingChoices.isNotEmpty()) {
+            val selectedAmount = state.quantityGrams.toDoubleOrNull()
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                state.amountServingChoices.forEach { choice ->
+                    FilterChip(
+                        selected = selectedAmount == choice.grams,
+                        onClick = { onAmountServingChoiceSelected(choice.id) },
+                        label = { Text(choice.label) },
+                    )
+                }
+            }
         }
     }
 }

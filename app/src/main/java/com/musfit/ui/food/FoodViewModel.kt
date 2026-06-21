@@ -84,6 +84,10 @@ data class FoodMealSectionUiState(
     val proteinGrams: Double = 0.0,
     val carbsGrams: Double = 0.0,
     val fatGrams: Double = 0.0,
+    val fiberGrams: Double = 0.0,
+    val sugarGrams: Double = 0.0,
+    val saturatedFatGrams: Double = 0.0,
+    val sodiumMilligrams: Double = 0.0,
     val entries: List<FoodMealEntryUiState>,
 )
 
@@ -173,6 +177,12 @@ data class FoodAmountNutritionPreviewUiState(
     val fatGrams: Double,
 )
 
+data class FoodAmountServingChoiceUiState(
+    val id: String,
+    val label: String,
+    val grams: Double,
+)
+
 data class FoodUiState(
     val barcode: String = "",
     val selectedDate: LocalDate = LocalDate.now(),
@@ -188,6 +198,7 @@ data class FoodUiState(
     val mealType: String = "breakfast",
     val quantityGrams: String = "100",
     val amountNutritionPreview: FoodAmountNutritionPreviewUiState? = null,
+    val amountServingChoices: List<FoodAmountServingChoiceUiState> = emptyList(),
     val lookupResult: ProductLookupResult.Found? = null,
     val calorieGoalKcal: Double = CALORIE_GOAL_KCAL,
     val proteinGoalGrams: Double = PROTEIN_GOAL_GRAMS,
@@ -1219,6 +1230,20 @@ class FoodViewModel @Inject constructor(
         }
     }
 
+    fun onAmountServingChoiceSelected(choiceId: String) {
+        mutableState.update { currentState ->
+            val choice = currentState.amountServingChoices.firstOrNull { it.id == choiceId }
+            if (choice == null) {
+                currentState.copy(message = "Serving choice not found")
+            } else {
+                currentState.copy(
+                    quantityGrams = choice.grams.formatInputNumber(),
+                    message = null,
+                ).withAmountNutritionPreview()
+            }
+        }
+    }
+
     fun onSavedFoodQuantityChanged(value: String) {
         mutableState.update { it.copy(savedFoodQuantityGrams = value.sanitizeDecimalInput(), message = null) }
     }
@@ -1275,6 +1300,7 @@ class FoodViewModel @Inject constructor(
                                         ?.takeIf { it.isFinite() && it > 0.0 }
                                         ?: 100.0
                                     ).formatInputNumber(),
+                                amountServingChoices = result.toAmountServingChoices(),
                                 lookupResult = result,
                                 message = null,
                             ).withAmountNutritionPreview()
@@ -1291,6 +1317,7 @@ class FoodViewModel @Inject constructor(
                                 barcode = barcode,
                                 productName = "Barcode $barcode",
                                 quantityGrams = "100",
+                                amountServingChoices = defaultAmountServingChoices(),
                                 message = "Product not found. Add details to create it.",
                             )
                         }
@@ -1312,6 +1339,55 @@ class FoodViewModel @Inject constructor(
     }
 
     fun saveProduct() = logFood()
+
+    fun saveScannedProductToDatabase() {
+        val currentState = state.value
+        val result = currentState.lookupResult
+        if (result == null) {
+            mutableState.update { it.copy(message = "Lookup a product first") }
+            return
+        }
+        val productName = currentState.productName.trim()
+        if (productName.isBlank()) {
+            mutableState.update { it.copy(message = "Enter a food name") }
+            return
+        }
+        val editedNutrition = currentState.toEditedNutritionOrNull()
+        if (editedNutrition == null) {
+            mutableState.update { it.copy(message = "Enter valid nutrition values") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.saveConfirmedProduct(
+                    result = result,
+                    editedName = productName,
+                    editedBrand = currentState.brand.ifBlank { null },
+                    editedNutrition = editedNutrition,
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = "Saved product to database",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to save product",
+                    )
+                }
+            }
+        }
+    }
 
     fun logFood() {
         val currentState = state.value
@@ -1919,6 +1995,7 @@ class FoodViewModel @Inject constructor(
             carbsPer100g = "",
             fatPer100g = "",
             amountNutritionPreview = null,
+            amountServingChoices = emptyList(),
             lookupResult = null,
         )
 }
@@ -2004,6 +2081,10 @@ private fun FoodDiary.toMealSections(): List<FoodMealSectionUiState> {
             proteinGrams = meal?.totals?.proteinGrams ?: 0.0,
             carbsGrams = meal?.totals?.carbsGrams ?: 0.0,
             fatGrams = meal?.totals?.fatGrams ?: 0.0,
+            fiberGrams = meal?.detailTotals?.fiberGrams ?: 0.0,
+            sugarGrams = meal?.detailTotals?.sugarGrams ?: 0.0,
+            saturatedFatGrams = meal?.detailTotals?.saturatedFatGrams ?: 0.0,
+            sodiumMilligrams = meal?.detailTotals?.sodiumMilligrams ?: 0.0,
             entries = meal?.entries.orEmpty().map { entry ->
                 FoodMealEntryUiState(
                     id = entry.id,
@@ -2084,6 +2165,23 @@ private fun Recipe.toUiState(): RecipeUiState =
             )
         },
     )
+
+private fun defaultAmountServingChoices(): List<FoodAmountServingChoiceUiState> =
+    listOf(FoodAmountServingChoiceUiState("per-100g", "100 g", 100.0))
+
+private fun ProductLookupResult.Found.toAmountServingChoices(): List<FoodAmountServingChoiceUiState> {
+    val choices = mutableListOf<FoodAmountServingChoiceUiState>()
+    choices += defaultAmountServingChoices()
+    val servingGrams = servingQuantityGrams?.takeIf { it.isFinite() && it > 0.0 }
+    if (servingGrams != null && servingGrams != 100.0) {
+        choices += FoodAmountServingChoiceUiState(
+            id = "serving",
+            label = "Serving ${servingGrams.formatInputNumber()} g",
+            grams = servingGrams,
+        )
+    }
+    return choices
+}
 
 private fun ProductLookupResult.Found.toOnlineUiState(): OnlineFoodResultUiState =
     OnlineFoodResultUiState(
