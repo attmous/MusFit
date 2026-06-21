@@ -760,7 +760,7 @@ class LocalFoodRepository @Inject constructor(
                     barcode = normalizedBarcode,
                     category = input.category?.trim()?.takeIf { it.isNotEmpty() },
                     isFavorite = input.isFavorite,
-                    imageUrl = input.imageUrl,
+                    imageUrl = input.imageUrl ?: existingFood?.imageUrl,
                     fiberPer100g = input.nutritionDetailsPer100g.fiberGrams,
                     sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
                     saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,

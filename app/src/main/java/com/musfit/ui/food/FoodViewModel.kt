@@ -152,6 +152,7 @@ data class FoodMealEntryUiState(
     val carbsContribution: Double = 0.0,
     val fatContribution: Double = 0.0,
     val isPlanned: Boolean = false,
+    val imageUrl: String? = null,
 )
 
 data class FoodMealSectionUiState(
@@ -236,6 +237,7 @@ data class SavedFoodUiState(
     val potassiumMgPer100g: Double = 0.0,
     val calciumMgPer100g: Double = 0.0,
     val ironMgPer100g: Double = 0.0,
+    val imageUrl: String? = null,
     val vitaminDMcgPer100g: Double = 0.0,
     val vitaminCMgPer100g: Double = 0.0,
     val magnesiumMgPer100g: Double = 0.0,
@@ -4170,6 +4172,7 @@ private fun FoodDiary.toMealSections(
                     carbsContribution = entry.carbsGrams.fractionOf(totals?.carbsGrams ?: 0.0),
                     fatContribution = entry.fatGrams.fractionOf(totals?.fatGrams ?: 0.0),
                     isPlanned = entry.status == FoodDiaryEntryStatus.Planned,
+                    imageUrl = entry.imageUrl,
                 )
             },
         )
@@ -4187,6 +4190,7 @@ private fun SavedFoodItem.toUiState(): SavedFoodUiState {
     val servingMultiplier = defaultServingGrams / 100.0
     return SavedFoodUiState(
         id = id,
+        imageUrl = imageUrl,
         name = name,
         brand = brand,
         defaultServingGrams = defaultServingGrams,
@@ -4460,6 +4464,7 @@ private fun OnlineFoodResultUiState.toSavedFoodUpsertInput(): SavedFoodUpsertInp
         name = name,
         brand = brand,
         defaultServingGrams = servingQuantityGrams ?: 100.0,
+        imageUrl = imageUrl,
         nutritionPer100g = FoodNutrition(
             caloriesKcal = caloriesPer100g,
             proteinGrams = proteinPer100g,
