@@ -1760,6 +1760,32 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun toggleFavoriteMealTemplateUpdatesRepositoryAndUiState() = runTest {
+        val repository =
+            FakeFoodRepository(
+                templates = listOf(
+                    MealTemplate(
+                        id = "template-1",
+                        name = "Usual breakfast",
+                        mealType = "breakfast",
+                        isFavorite = false,
+                        items = listOf(MealTemplateItem("food-1", "Oats", null, 40.0)),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.mealTemplates.single().isFavorite)
+
+        viewModel.toggleFavoriteMealTemplate("template-1", true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("template-1" to true, repository.favoriteTemplateToggle)
+        assertEquals("Template added to favorites", viewModel.state.value.message)
+    }
+
+    @Test
     fun recipeManagementLoadsRecipeForEditAndDeletesRecipe() = runTest {
         val repository =
             FakeFoodRepository(
@@ -2017,6 +2043,7 @@ class FoodViewModelTest {
         var renameTemplateCall: RenameTemplateCall? = null
         var duplicatedTemplateId: String? = null
         var deletedTemplateId: String? = null
+        var favoriteTemplateToggle: Pair<String, Boolean>? = null
         var recipeUpsert: RecipeUpsertInput? = null
         var logRecipeCall: LogRecipeCall? = null
         var deletedRecipeId: String? = null
@@ -2127,6 +2154,10 @@ class FoodViewModelTest {
 
         override suspend fun deleteMealTemplate(templateId: String) {
             deletedTemplateId = templateId
+        }
+
+        override suspend fun toggleFavoriteMealTemplate(templateId: String, isFavorite: Boolean) {
+            favoriteTemplateToggle = templateId to isFavorite
         }
 
         override suspend fun copyDiaryEntry(mealItemId: String, mealType: String, date: LocalDate): String {

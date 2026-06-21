@@ -53,6 +53,7 @@ data class MealTemplateItemRow(
     val templateName: String,
     val templateMealType: String,
     val templateCreatedAtEpochMillis: Long,
+    val templateIsFavorite: Boolean,
     val itemId: String,
     val foodId: String,
     val foodName: String,
@@ -217,6 +218,7 @@ interface FoodDao {
             "meal_templates.name AS templateName, " +
             "meal_templates.mealType AS templateMealType, " +
             "meal_templates.createdAtEpochMillis AS templateCreatedAtEpochMillis, " +
+            "meal_templates.isFavorite AS templateIsFavorite, " +
             "meal_template_items.id AS itemId, " +
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
@@ -235,6 +237,7 @@ interface FoodDao {
             "meal_templates.name AS templateName, " +
             "meal_templates.mealType AS templateMealType, " +
             "meal_templates.createdAtEpochMillis AS templateCreatedAtEpochMillis, " +
+            "meal_templates.isFavorite AS templateIsFavorite, " +
             "meal_template_items.id AS itemId, " +
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
@@ -264,6 +267,17 @@ interface FoodDao {
         templateId: String,
         name: String,
         mealType: String,
+        updatedAtEpochMillis: Long,
+    ): Int
+
+    @Query(
+        "UPDATE meal_templates " +
+            "SET isFavorite = :isFavorite, updatedAtEpochMillis = :updatedAtEpochMillis " +
+            "WHERE id = :templateId",
+    )
+    suspend fun updateMealTemplateFavorite(
+        templateId: String,
+        isFavorite: Boolean,
         updatedAtEpochMillis: Long,
     ): Int
 

@@ -169,6 +169,7 @@ data class MealTemplate(
     val id: String,
     val name: String,
     val mealType: String,
+    val isFavorite: Boolean = false,
     val items: List<MealTemplateItem>,
 )
 
@@ -255,6 +256,8 @@ interface FoodRepository {
     suspend fun duplicateMealTemplate(templateId: String, name: String): String = ""
 
     suspend fun deleteMealTemplate(templateId: String) = Unit
+
+    suspend fun toggleFavoriteMealTemplate(templateId: String, isFavorite: Boolean) = Unit
 
     suspend fun copyDiaryEntry(mealItemId: String, mealType: String, date: LocalDate): String = ""
 
@@ -636,6 +639,7 @@ class LocalFoodRepository @Inject constructor(
                     mealType = source.mealType,
                     createdAtEpochMillis = now,
                     updatedAtEpochMillis = now,
+                    isFavorite = source.isFavorite,
                 ),
             )
             rows.sortedBy { it.sortOrder }.forEachIndexed { index, row ->
@@ -658,6 +662,18 @@ class LocalFoodRepository @Inject constructor(
         database.withTransaction {
             val deletedCount = foodDao.deleteMealTemplateById(templateId)
             check(deletedCount > 0) { "Template not found" }
+        }
+    }
+
+    override suspend fun toggleFavoriteMealTemplate(templateId: String, isFavorite: Boolean) {
+        require(templateId.isNotBlank()) { "Template id is required" }
+        database.withTransaction {
+            val updatedCount = foodDao.updateMealTemplateFavorite(
+                templateId = templateId,
+                isFavorite = isFavorite,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+            check(updatedCount > 0) { "Template not found" }
         }
     }
 
@@ -1227,6 +1243,7 @@ private fun List<MealTemplateItemRow>.toMealTemplates(): List<MealTemplate> =
             id = first.templateId,
             name = first.templateName,
             mealType = first.templateMealType,
+            isFavorite = first.templateIsFavorite,
             items = rows.sortedBy { it.sortOrder }.map { row ->
                 MealTemplateItem(
                     foodId = row.foodId,

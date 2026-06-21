@@ -164,6 +164,7 @@ data class MealTemplateUiState(
     val id: String,
     val name: String,
     val mealType: String,
+    val isFavorite: Boolean = false,
     val itemSummary: String,
 )
 
@@ -723,6 +724,27 @@ class FoodViewModel @Inject constructor(
                 throw error
             } catch (error: Exception) {
                 mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to delete template") }
+            }
+        }
+    }
+
+    fun toggleFavoriteMealTemplate(templateId: String, isFavorite: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.toggleFavoriteMealTemplate(templateId, isFavorite)
+                mutableState.update {
+                    it.copy(
+                        message = if (isFavorite) {
+                            "Template added to favorites"
+                        } else {
+                            "Template removed from favorites"
+                        },
+                    )
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(message = error.message ?: "Failed to update template favorite") }
             }
         }
     }
@@ -2478,6 +2500,7 @@ private fun MealTemplate.toUiState(): MealTemplateUiState =
         id = id,
         name = name,
         mealType = mealType,
+        isFavorite = isFavorite,
         itemSummary = items.joinToString { item -> "${item.foodName} ${item.quantityGrams.formatInputNumber()}g" },
     )
 

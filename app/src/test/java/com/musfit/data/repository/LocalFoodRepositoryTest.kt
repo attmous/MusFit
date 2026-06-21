@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -692,6 +693,33 @@ class LocalFoodRepositoryTest {
         assertEquals(listOf("lunch"), targetDiary.meals.map { it.type })
         assertEquals(293.7, targetDiary.totals.caloriesKcal, 0.01)
         assertEquals(listOf("Oats", "Yogurt"), targetDiary.meals.single().entries.map { it.name })
+    }
+
+    @Test
+    fun toggleFavoriteMealTemplate_persistsFavoriteState() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val foodId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Eggs",
+                    brand = null,
+                    defaultServingGrams = 100.0,
+                    nutritionPer100g = nutrition(calories = 143.0, protein = 12.6, carbs = 0.7, fat = 9.5),
+                ),
+            )
+        repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 100.0, date))
+        val templateId = repository.saveMealAsTemplate(date, "breakfast", "Protein breakfast")
+
+        repository.toggleFavoriteMealTemplate(templateId, true)
+        val favorited = repository.observeMealTemplates().first().single()
+
+        assertTrue(favorited.isFavorite)
+
+        repository.toggleFavoriteMealTemplate(templateId, false)
+        val unfavorited = repository.observeMealTemplates().first().single()
+
+        assertFalse(unfavorited.isFavorite)
     }
 
     @Test

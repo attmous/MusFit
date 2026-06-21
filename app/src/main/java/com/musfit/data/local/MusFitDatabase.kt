@@ -45,7 +45,7 @@ import com.musfit.data.local.entity.WorkoutSetEntity
         DailyHealthSummaryEntity::class,
         HealthConnectSyncStateEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {

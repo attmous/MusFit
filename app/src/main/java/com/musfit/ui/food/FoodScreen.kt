@@ -163,6 +163,7 @@ fun FoodScreen(
                         onSavedFoodServingSelected = viewModel::onSavedFoodServingSelected,
                         onKeepAddingChanged = viewModel::onKeepAddingFoodsChanged,
                         onTemplateClick = viewModel::logMealTemplate,
+                        onTemplateFavoriteClick = viewModel::toggleFavoriteMealTemplate,
                         onRecipeClick = viewModel::logRecipe,
                         onRecipeServingsChanged = viewModel::onRecipeServingsToLogChanged,
                         onProductNameChanged = viewModel::onProductNameChanged,
@@ -307,6 +308,7 @@ fun FoodScreen(
                         onEditClick = viewModel::openMealTemplateEditor,
                         onDuplicateClick = viewModel::duplicateMealTemplate,
                         onDeleteClick = viewModel::deleteMealTemplate,
+                        onFavoriteClick = viewModel::toggleFavoriteMealTemplate,
                         onNameChanged = viewModel::onTemplateNameChanged,
                         onMealTypeChanged = viewModel::onTemplateMealTypeChanged,
                         onSaveEditClick = viewModel::saveMealTemplateEdits,
@@ -2381,6 +2383,7 @@ private fun MealTemplatesPanel(
     onEditClick: (String) -> Unit,
     onDuplicateClick: (String) -> Unit,
     onDeleteClick: (String) -> Unit,
+    onFavoriteClick: (String, Boolean) -> Unit,
     onNameChanged: (String) -> Unit,
     onMealTypeChanged: (String) -> Unit,
     onSaveEditClick: () -> Unit,
@@ -2434,10 +2437,16 @@ private fun MealTemplatesPanel(
                         Column {
                             Text(template.name, fontWeight = FontWeight.SemiBold)
                             Text(template.itemSummary, color = Color(0xFF706D6A), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (template.isFavorite) {
+                                Text("Favorite", color = ActionGreen, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            }
                         }
                         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { onTemplateClick(template.id) }) {
                                 Text("Log")
+                            }
+                            OutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
+                                Text(if (template.isFavorite) "Starred" else "Star")
                             }
                             OutlinedButton(onClick = { onEditClick(template.id) }) {
                                 Text("Edit")
@@ -2469,6 +2478,7 @@ private fun AddFoodPanel(
     onSavedFoodServingSelected: (String, Double) -> Unit,
     onKeepAddingChanged: (Boolean) -> Unit,
     onTemplateClick: (String) -> Unit,
+    onTemplateFavoriteClick: (String, Boolean) -> Unit,
     onRecipeClick: (String) -> Unit,
     onRecipeServingsChanged: (String) -> Unit,
     onProductNameChanged: (String) -> Unit,
@@ -2557,6 +2567,7 @@ private fun AddFoodPanel(
                     TemplateQuickList(
                         templates = state.mealTemplates,
                         onTemplateClick = onTemplateClick,
+                        onFavoriteClick = onTemplateFavoriteClick,
                     )
                     RecipeQuickList(
                         state = state,
@@ -2735,6 +2746,7 @@ private fun SavedFoodPickerRow(
 private fun TemplateQuickList(
     templates: List<MealTemplateUiState>,
     onTemplateClick: (String) -> Unit,
+    onFavoriteClick: (String, Boolean) -> Unit,
 ) {
     if (templates.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2757,10 +2769,24 @@ private fun TemplateQuickList(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(template.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(template.itemSummary, style = MaterialTheme.typography.bodySmall, color = Color(0xFF706D6A), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            listOfNotNull(
+                                template.itemSummary,
+                                if (template.isFavorite) "Favorite" else null,
+                            ).joinToString(" - "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF706D6A),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
-                    OutlinedButton(onClick = { onTemplateClick(template.id) }) {
-                        Text("Log")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
+                            Text(if (template.isFavorite) "Starred" else "Star")
+                        }
+                        OutlinedButton(onClick = { onTemplateClick(template.id) }) {
+                            Text("Log")
+                        }
                     }
                 }
             }
