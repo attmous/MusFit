@@ -19,6 +19,7 @@ import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.MealTemplateItemInput
 import com.musfit.data.repository.MealTemplateUpdateInput
+import com.musfit.data.repository.ManualShoppingListItemInput
 import com.musfit.data.repository.NutritionDetails
 import com.musfit.data.repository.QuickCalorieLogInput
 import com.musfit.data.repository.QuickCaloriePreset
@@ -29,6 +30,8 @@ import com.musfit.data.repository.RecipeUpsertInput
 import com.musfit.data.repository.SavedFoodItem
 import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.SavedFoodUpsertInput
+import com.musfit.data.repository.ShoppingListGroup
+import com.musfit.data.repository.ShoppingListItem
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -62,6 +65,7 @@ enum class FoodSheetMode {
     RecipeEditor,
     MealTemplates,
     MealSettings,
+    ShoppingList,
 }
 
 enum class MealDetailSortMode {
@@ -147,6 +151,21 @@ data class FoodPlanDayUiState(
     val plannedCaloriesKcal: Double,
     val loggedEntryCount: Int,
     val plannedEntryCount: Int,
+)
+
+data class ShoppingListItemUiState(
+    val id: String,
+    val name: String,
+    val category: String,
+    val quantityGrams: Double,
+    val quantityLabel: String,
+    val isChecked: Boolean,
+    val isManual: Boolean,
+)
+
+data class ShoppingListGroupUiState(
+    val category: String,
+    val items: List<ShoppingListItemUiState>,
 )
 
 data class FoodMealDefinitionUiState(
@@ -352,6 +371,12 @@ data class FoodUiState(
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
     val weeklyPlan: List<FoodPlanDayUiState> = emptyList(),
     val isPlanningMode: Boolean = false,
+    val shoppingListGroups: List<ShoppingListGroupUiState> = emptyList(),
+    val shoppingStartDateInput: String = LocalDate.now().toString(),
+    val shoppingEndDateInput: String = LocalDate.now().plusDays(6).toString(),
+    val manualShoppingNameInput: String = "",
+    val manualShoppingCategoryInput: String = "",
+    val manualShoppingQuantityInput: String = "1",
     val mealDefinitions: List<FoodMealDefinitionUiState> = defaultMealDefinitionUiStates(),
     val selectedMealDetailId: String? = null,
     val mealDetailSortMode: MealDetailSortMode = MealDetailSortMode.Logged,
@@ -588,6 +613,13 @@ class FoodViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            repository.observeShoppingList().collect { groups ->
+                mutableState.update { currentState ->
+                    currentState.copy(shoppingListGroups = groups.map { it.toUiState() })
+                }
+            }
+        }
+        viewModelScope.launch {
             repository.observeCustomMealDefinitions().collect { definitions ->
                 mutableState.update { currentState ->
                     val mealDefinitions = definitions.toMealDefinitionUiStates()
@@ -767,6 +799,131 @@ class FoodViewModel @Inject constructor(
                 customMealSortOrderInput = it.nextMealSortOrder().toString(),
                 message = null,
             )
+        }
+    }
+
+    fun openShoppingList() {
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.ShoppingList,
+                message = null,
+            )
+        }
+    }
+
+    fun onShoppingStartDateChanged(value: String) {
+        mutableState.update { it.copy(shoppingStartDateInput = value.trim(), message = null) }
+    }
+
+    fun onShoppingEndDateChanged(value: String) {
+        mutableState.update { it.copy(shoppingEndDateInput = value.trim(), message = null) }
+    }
+
+    fun onManualShoppingNameChanged(value: String) {
+        mutableState.update { it.copy(manualShoppingNameInput = value, message = null) }
+    }
+
+    fun onManualShoppingCategoryChanged(value: String) {
+        mutableState.update { it.copy(manualShoppingCategoryInput = value, message = null) }
+    }
+
+    fun onManualShoppingQuantityChanged(value: String) {
+        mutableState.update { it.copy(manualShoppingQuantityInput = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun generateShoppingList() {
+        val currentState = state.value
+        val startDate = currentState.shoppingStartDateInput.parseDateOrNull()
+        val endDate = currentState.shoppingEndDateInput.parseDateOrNull()
+        if (startDate == null || endDate == null) {
+            mutableState.update { it.copy(message = "Enter dates as yyyy-MM-dd") }
+            return
+        }
+        if (endDate.isBefore(startDate)) {
+            mutableState.update { it.copy(message = "End date must be after start date") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val groups = repository.generateShoppingList(startDate, endDate)
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        shoppingListGroups = groups.map { group -> group.toUiState() },
+                        message = "Shopping list generated",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.message ?: "Failed to generate shopping list")
+                }
+            }
+        }
+    }
+
+    fun addManualShoppingListItem() {
+        val currentState = state.value
+        val name = currentState.manualShoppingNameInput.trim()
+        val quantity = currentState.manualShoppingQuantityInput.parsePositiveNumberOrNull()
+        if (name.isBlank()) {
+            mutableState.update { it.copy(message = "Enter an item name") }
+            return
+        }
+        if (quantity == null) {
+            mutableState.update { it.copy(message = "Enter a valid quantity") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.addManualShoppingListItem(
+                    ManualShoppingListItemInput(
+                        name = name,
+                        category = currentState.manualShoppingCategoryInput.trim(),
+                        quantityGrams = quantity,
+                    ),
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        manualShoppingNameInput = "",
+                        manualShoppingCategoryInput = "",
+                        manualShoppingQuantityInput = "1",
+                        message = "Added shopping item",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.message ?: "Failed to add shopping item")
+                }
+            }
+        }
+    }
+
+    fun toggleShoppingListItem(itemId: String, isChecked: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.toggleShoppingListItem(itemId, isChecked)
+                mutableState.update { it.copy(message = "Updated shopping item") }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(message = error.message ?: "Failed to update shopping item") }
+            }
         }
     }
 
@@ -3455,6 +3612,23 @@ private fun FoodPlanDay.toUiState(): FoodPlanDayUiState =
         plannedEntryCount = plannedEntryCount,
     )
 
+private fun ShoppingListGroup.toUiState(): ShoppingListGroupUiState =
+    ShoppingListGroupUiState(
+        category = category,
+        items = items.map { it.toUiState() },
+    )
+
+private fun ShoppingListItem.toUiState(): ShoppingListItemUiState =
+    ShoppingListItemUiState(
+        id = id,
+        name = name,
+        category = category,
+        quantityGrams = quantityGrams,
+        quantityLabel = "${quantityGrams.formatInputNumber()} g",
+        isChecked = isChecked,
+        isManual = isManual,
+    )
+
 private fun SavedFoodItem.sourceLabel(): String =
     when {
         category.equals("Nutrition label", ignoreCase = true) -> "Label"
@@ -3892,6 +4066,9 @@ private fun String.parseNonNegativeNumberOrZero(): Double? {
     }
     return trimmed.toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0.0 }
 }
+
+private fun String.parseDateOrNull(): LocalDate? =
+    runCatching { LocalDate.parse(trim()) }.getOrNull()
 
 private fun String.sanitizeDecimalInput(): String {
     val trimmed = trim()

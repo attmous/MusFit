@@ -100,6 +100,23 @@ data class MealItemEntity(
 )
 
 @Entity(
+    tableName = "shopping_list_items",
+    indices = [Index("category"), Index(value = ["sourceKey"], unique = true)],
+)
+data class ShoppingListItemEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val category: String,
+    val quantityGrams: Double,
+    val isChecked: Boolean,
+    val isManual: Boolean,
+    val sourceKey: String?,
+    val sortOrder: Int,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
+@Entity(
     tableName = "barcode_products",
     foreignKeys = [
         ForeignKey(

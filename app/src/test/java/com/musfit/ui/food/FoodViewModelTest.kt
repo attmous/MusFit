@@ -20,6 +20,7 @@ import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.MealTemplateItemInput
 import com.musfit.data.repository.MealTemplateItem
 import com.musfit.data.repository.MealTemplateUpdateInput
+import com.musfit.data.repository.ManualShoppingListItemInput
 import com.musfit.data.repository.NutritionDetails
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.QuickCalorieLogInput
@@ -32,6 +33,8 @@ import com.musfit.data.repository.RecipeUpsertInput
 import com.musfit.data.repository.SavedFoodItem
 import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.SavedFoodUpsertInput
+import com.musfit.data.repository.ShoppingListGroup
+import com.musfit.data.repository.ShoppingListItem
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import kotlinx.coroutines.CompletableDeferred
@@ -1812,6 +1815,63 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun shoppingListGeneratesAddsManualItemAndTogglesCheckedState() = runTest {
+        val startDate = LocalDate.of(2026, 6, 22)
+        val endDate = LocalDate.of(2026, 6, 24)
+        val repository =
+            FakeFoodRepository(
+                shoppingGroups = listOf(
+                    ShoppingListGroup(
+                        category = "Grains",
+                        items = listOf(
+                            ShoppingListItem(
+                                id = "shopping-1",
+                                name = "Rice",
+                                category = "Grains",
+                                quantityGrams = 200.0,
+                                isChecked = false,
+                                isManual = false,
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openShoppingList()
+        viewModel.onShoppingStartDateChanged(startDate.toString())
+        viewModel.onShoppingEndDateChanged(endDate.toString())
+        viewModel.generateShoppingList()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodSheetMode.ShoppingList, viewModel.state.value.sheetMode)
+        assertEquals(GenerateShoppingListCall(startDate, endDate), repository.generateShoppingListCall)
+        assertEquals("Rice", viewModel.state.value.shoppingListGroups.single().items.single().name)
+
+        viewModel.onManualShoppingNameChanged("Sparkling water")
+        viewModel.onManualShoppingCategoryChanged("Drinks")
+        viewModel.onManualShoppingQuantityChanged("1000")
+        viewModel.addManualShoppingListItem()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            ManualShoppingListItemInput(
+                name = "Sparkling water",
+                category = "Drinks",
+                quantityGrams = 1000.0,
+            ),
+            repository.manualShoppingListItem,
+        )
+
+        viewModel.toggleShoppingListItem("shopping-1", true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("shopping-1" to true, repository.toggledShoppingItem)
+        assertEquals("Updated shopping item", viewModel.state.value.message)
+    }
+
+    @Test
     fun logMealTemplate_logsTemplateIntoSelectedMealAndDate() = runTest {
         val repository =
             FakeFoodRepository(
@@ -2688,6 +2748,11 @@ class FoodViewModelTest {
         val status: FoodDiaryEntryStatus,
     )
 
+    private data class GenerateShoppingListCall(
+        val startDate: LocalDate,
+        val endDate: LocalDate,
+    )
+
     private data class SaveTemplateCall(
         val date: LocalDate,
         val mealType: String,
@@ -2785,6 +2850,7 @@ class FoodViewModelTest {
         quickCaloriePresets: List<QuickCaloriePreset> = emptyList(),
         customMealDefinitions: List<FoodMealDefinition> = emptyList(),
         weeklyPlan: List<FoodPlanDay> = emptyList(),
+        shoppingGroups: List<ShoppingListGroup> = emptyList(),
         foodGoal: FoodGoal = FoodGoal(
             dailyCaloriesKcal = 2083.0,
             proteinGrams = 104.0,
@@ -2805,6 +2871,7 @@ class FoodViewModelTest {
         private val quickCaloriePresetsFlow = MutableStateFlow(quickCaloriePresets)
         private val customMealDefinitionsFlow = MutableStateFlow(customMealDefinitions)
         private val weeklyPlanFlow = MutableStateFlow(weeklyPlan)
+        private val shoppingGroupsFlow = MutableStateFlow(shoppingGroups)
         private val foodGoalFlow = MutableStateFlow(foodGoal)
         var savedLog: FoodLogInput? = null
         var savedFoodLog: SavedFoodLogInput? = null
@@ -2839,6 +2906,9 @@ class FoodViewModelTest {
         var starterFoodsSeeded = false
         var confirmedProductSave: ConfirmedProductSaveCall? = null
         var markedLoggedEntryId: String? = null
+        var generateShoppingListCall: GenerateShoppingListCall? = null
+        var manualShoppingListItem: ManualShoppingListItemInput? = null
+        var toggledShoppingItem: Pair<String, Boolean>? = null
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -2889,6 +2959,23 @@ class FoodViewModelTest {
 
         override fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> =
             weeklyPlanFlow
+
+        override fun observeShoppingList(): Flow<List<ShoppingListGroup>> =
+            shoppingGroupsFlow
+
+        override suspend fun generateShoppingList(startDate: LocalDate, endDate: LocalDate): List<ShoppingListGroup> {
+            generateShoppingListCall = GenerateShoppingListCall(startDate, endDate)
+            return shoppingGroupsFlow.value
+        }
+
+        override suspend fun addManualShoppingListItem(input: ManualShoppingListItemInput): String {
+            manualShoppingListItem = input
+            return "shopping-manual"
+        }
+
+        override suspend fun toggleShoppingListItem(itemId: String, isChecked: Boolean) {
+            toggledShoppingItem = itemId to isChecked
+        }
 
         override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> =
             quickCaloriePresetsFlow

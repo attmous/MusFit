@@ -17,6 +17,7 @@ import com.musfit.data.local.entity.MealTemplateItemEntity
 import com.musfit.data.local.entity.QuickCaloriePresetEntity
 import com.musfit.data.local.entity.RecipeEntity
 import com.musfit.data.local.entity.RecipeIngredientEntity
+import com.musfit.data.local.entity.ShoppingListItemEntity
 import kotlinx.coroutines.flow.Flow
 
 data class MealNutritionRow(
@@ -45,6 +46,7 @@ data class FoodDiaryEntryRow(
     val foodId: String,
     val foodName: String,
     val brand: String?,
+    val foodCategory: String?,
     val quantityGrams: Double,
     val status: String,
     val caloriesPer100g: Double,
@@ -92,6 +94,7 @@ data class RecipeIngredientRow(
     val foodId: String,
     val foodName: String,
     val brand: String?,
+    val foodCategory: String?,
     val quantityGrams: Double,
     val unitLabel: String,
     val unitGrams: Double,
@@ -196,6 +199,7 @@ interface FoodDao {
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
+            "foods.category AS foodCategory, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -229,6 +233,7 @@ interface FoodDao {
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
+            "foods.category AS foodCategory, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -262,6 +267,41 @@ interface FoodDao {
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
+            "foods.category AS foodCategory, " +
+            "meal_items.quantityGrams AS quantityGrams, " +
+            "meal_items.status AS status, " +
+            "foods.caloriesPer100g AS caloriesPer100g, " +
+            "foods.proteinPer100g AS proteinPer100g, " +
+            "foods.carbsPer100g AS carbsPer100g, " +
+            "foods.fatPer100g AS fatPer100g, " +
+            "foods.fiberPer100g AS fiberPer100g, " +
+            "foods.sugarPer100g AS sugarPer100g, " +
+            "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
+            "foods.potassiumMgPer100g AS potassiumMgPer100g, " +
+            "foods.calciumMgPer100g AS calciumMgPer100g, " +
+            "foods.ironMgPer100g AS ironMgPer100g, " +
+            "foods.vitaminDMcgPer100g AS vitaminDMcgPer100g, " +
+            "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
+            "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
+            "meals.createdAtEpochMillis AS createdAtEpochMillis " +
+            "FROM meal_items " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.id = meal_items.foodId " +
+            "WHERE meals.dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
+            "ORDER BY meals.dateEpochDay, meals.createdAtEpochMillis, meal_items.id",
+    )
+    suspend fun getFoodDiaryEntryRowsForDateRange(startEpochDay: Long, endEpochDay: Long): List<FoodDiaryEntryRow>
+
+    @Query(
+        "SELECT meals.id AS mealId, " +
+            "meals.dateEpochDay AS dateEpochDay, " +
+            "meals.type AS mealType, " +
+            "meal_items.id AS mealItemId, " +
+            "foods.id AS foodId, " +
+            "foods.name AS foodName, " +
+            "foods.brand AS brand, " +
+            "foods.category AS foodCategory, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -295,6 +335,7 @@ interface FoodDao {
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
+            "foods.category AS foodCategory, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -343,6 +384,30 @@ interface FoodDao {
 
     @Query("SELECT * FROM quick_calorie_presets WHERE id = :presetId LIMIT 1")
     suspend fun getQuickCaloriePreset(presetId: String): QuickCaloriePresetEntity?
+
+    @Query(
+        "SELECT * FROM shopping_list_items " +
+            "ORDER BY isChecked ASC, category COLLATE NOCASE, sortOrder ASC, name COLLATE NOCASE",
+    )
+    fun observeShoppingListItems(): Flow<List<ShoppingListItemEntity>>
+
+    @Query(
+        "SELECT * FROM shopping_list_items " +
+            "ORDER BY isChecked ASC, category COLLATE NOCASE, sortOrder ASC, name COLLATE NOCASE",
+    )
+    suspend fun getShoppingListItems(): List<ShoppingListItemEntity>
+
+    @Query("SELECT * FROM shopping_list_items WHERE isManual = 0")
+    suspend fun getGeneratedShoppingListItems(): List<ShoppingListItemEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertShoppingListItem(item: ShoppingListItemEntity)
+
+    @Query("UPDATE shopping_list_items SET isChecked = :isChecked, updatedAtEpochMillis = :updatedAtEpochMillis WHERE id = :itemId")
+    suspend fun updateShoppingListItemChecked(itemId: String, isChecked: Boolean, updatedAtEpochMillis: Long): Int
+
+    @Query("DELETE FROM shopping_list_items WHERE id = :itemId")
+    suspend fun deleteShoppingListItemById(itemId: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertQuickCaloriePreset(preset: QuickCaloriePresetEntity)
@@ -449,6 +514,7 @@ interface FoodDao {
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
+            "foods.category AS foodCategory, " +
             "recipe_ingredients.quantityGrams AS quantityGrams, " +
             "recipe_ingredients.unitLabel AS unitLabel, " +
             "recipe_ingredients.unitGrams AS unitGrams, " +
@@ -489,6 +555,7 @@ interface FoodDao {
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
+            "foods.category AS foodCategory, " +
             "recipe_ingredients.quantityGrams AS quantityGrams, " +
             "recipe_ingredients.unitLabel AS unitLabel, " +
             "recipe_ingredients.unitGrams AS unitGrams, " +
@@ -518,6 +585,9 @@ interface FoodDao {
 
     @Query("SELECT * FROM recipes WHERE id = :recipeId LIMIT 1")
     suspend fun getRecipe(recipeId: String): RecipeEntity?
+
+    @Query("SELECT * FROM recipes WHERE lower(name) = lower(:name) ORDER BY updatedAtEpochMillis DESC LIMIT 1")
+    suspend fun getRecipeByName(name: String): RecipeEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRecipe(recipe: RecipeEntity)

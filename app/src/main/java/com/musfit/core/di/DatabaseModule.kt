@@ -32,6 +32,7 @@ object DatabaseModule {
                 MIGRATION_7_8,
                 MIGRATION_8_9,
                 MIGRATION_9_10,
+                MIGRATION_10_11,
             )
             .build()
 
@@ -221,6 +222,30 @@ object DatabaseModule {
         object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE meal_items ADD COLUMN status TEXT NOT NULL DEFAULT 'logged'")
+            }
+        }
+
+    private val MIGRATION_10_11 =
+        object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS shopping_list_items (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        quantityGrams REAL NOT NULL,
+                        isChecked INTEGER NOT NULL,
+                        isManual INTEGER NOT NULL,
+                        sourceKey TEXT,
+                        sortOrder INTEGER NOT NULL,
+                        createdAtEpochMillis INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_shopping_list_items_category ON shopping_list_items(category)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_shopping_list_items_sourceKey ON shopping_list_items(sourceKey)")
             }
         }
 }

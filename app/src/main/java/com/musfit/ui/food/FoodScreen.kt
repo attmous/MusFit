@@ -115,6 +115,7 @@ fun FoodScreen(
                     onTemplatesClick = viewModel::openMealTemplates,
                     onRecipeClick = viewModel::openRecipeEditor,
                     onMealsClick = viewModel::openMealSettings,
+                    onShoppingClick = viewModel::openShoppingList,
                     onPlanningModeClick = viewModel::togglePlanningMode,
                     onCopyDayToTomorrowClick = viewModel::copySelectedDayToTomorrow,
                 )
@@ -356,6 +357,19 @@ fun FoodScreen(
                         onSortOrderChanged = viewModel::onCustomMealSortOrderChanged,
                         onSaveClick = viewModel::saveCustomMealDefinition,
                     )
+
+                FoodSheetMode.ShoppingList ->
+                    ShoppingListPanel(
+                        state = state,
+                        onStartDateChanged = viewModel::onShoppingStartDateChanged,
+                        onEndDateChanged = viewModel::onShoppingEndDateChanged,
+                        onGenerateClick = viewModel::generateShoppingList,
+                        onManualNameChanged = viewModel::onManualShoppingNameChanged,
+                        onManualCategoryChanged = viewModel::onManualShoppingCategoryChanged,
+                        onManualQuantityChanged = viewModel::onManualShoppingQuantityChanged,
+                        onAddManualClick = viewModel::addManualShoppingListItem,
+                        onToggleItem = viewModel::toggleShoppingListItem,
+                    )
             }
         }
     }
@@ -372,6 +386,7 @@ private fun FoodSummaryHeader(
     onTemplatesClick: () -> Unit,
     onRecipeClick: () -> Unit,
     onMealsClick: () -> Unit,
+    onShoppingClick: () -> Unit,
     onPlanningModeClick: () -> Unit,
     onCopyDayToTomorrowClick: () -> Unit,
 ) {
@@ -425,6 +440,7 @@ private fun FoodSummaryHeader(
                 OutlinedButton(onClick = onMealsClick) { Text("Meals") }
                 OutlinedButton(onClick = onTemplatesClick) { Text("Templates") }
                 OutlinedButton(onClick = onRecipeClick) { Text("Recipe") }
+                OutlinedButton(onClick = onShoppingClick) { Text("Shopping") }
                 OutlinedButton(onClick = onPlanningModeClick) { Text(if (state.isPlanningMode) "Planning on" else "Plan") }
                 OutlinedButton(onClick = onCopyDayToTomorrowClick, enabled = !state.isSaving) { Text("Copy day") }
             }
@@ -1532,6 +1548,155 @@ private fun SavedFoodSummaryRow(food: SavedFoodUiState) {
             fontWeight = FontWeight.SemiBold,
             color = Color(0xFF315847),
         )
+    }
+}
+
+@Composable
+private fun ShoppingListPanel(
+    state: FoodUiState,
+    onStartDateChanged: (String) -> Unit,
+    onEndDateChanged: (String) -> Unit,
+    onGenerateClick: () -> Unit,
+    onManualNameChanged: (String) -> Unit,
+    onManualCategoryChanged: (String) -> Unit,
+    onManualQuantityChanged: (String) -> Unit,
+    onAddManualClick: () -> Unit,
+    onToggleItem: (String, Boolean) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 640.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text("Shopping list", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+
+        Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = state.shoppingStartDateInput,
+                        onValueChange = onStartDateChanged,
+                        label = { Text("Start") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = state.shoppingEndDateInput,
+                        onValueChange = onEndDateChanged,
+                        label = { Text("End") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Button(
+                    onClick = onGenerateClick,
+                    enabled = !state.isSaving,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+                ) {
+                    Text(if (state.isSaving) "Generating" else "Generate from plan")
+                }
+            }
+        }
+
+        Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Manual item", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = state.manualShoppingNameInput,
+                    onValueChange = onManualNameChanged,
+                    label = { Text("Item") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = state.manualShoppingCategoryInput,
+                        onValueChange = onManualCategoryChanged,
+                        label = { Text("Category") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = state.manualShoppingQuantityInput,
+                        onValueChange = onManualQuantityChanged,
+                        label = { Text("g") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                OutlinedButton(onClick = onAddManualClick, enabled = !state.isSaving, modifier = Modifier.fillMaxWidth()) {
+                    Text("Add item")
+                }
+            }
+        }
+
+        state.message?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        if (state.shoppingListGroups.isEmpty()) {
+            Text(
+                text = "No shopping items yet",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF706D6A),
+            )
+        } else {
+            state.shoppingListGroups.forEach { group ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = group.category,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF315847),
+                    )
+                    group.items.forEach { item ->
+                        Surface(color = Color.White, shape = RoundedCornerShape(8.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = buildList {
+                                            add(item.quantityLabel)
+                                            if (item.isManual) add("Manual")
+                                        }.joinToString(" - "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF706D6A),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                FilterChip(
+                                    selected = item.isChecked,
+                                    onClick = { onToggleItem(item.id, !item.isChecked) },
+                                    label = { Text(if (item.isChecked) "Checked" else "Needed") },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

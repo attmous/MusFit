@@ -19,6 +19,7 @@ import com.musfit.data.local.entity.MealTemplateItemEntity
 import com.musfit.data.local.entity.QuickCaloriePresetEntity
 import com.musfit.data.local.entity.RecipeEntity
 import com.musfit.data.local.entity.RecipeIngredientEntity
+import com.musfit.data.local.entity.ShoppingListItemEntity
 import com.musfit.data.remote.food.ProductDataQuality
 import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.domain.model.FoodNutrition
@@ -184,6 +185,26 @@ data class FoodPlanDay(
     val plannedEntryCount: Int,
 )
 
+data class ShoppingListItem(
+    val id: String,
+    val name: String,
+    val category: String,
+    val quantityGrams: Double,
+    val isChecked: Boolean,
+    val isManual: Boolean,
+)
+
+data class ShoppingListGroup(
+    val category: String,
+    val items: List<ShoppingListItem>,
+)
+
+data class ManualShoppingListItemInput(
+    val name: String,
+    val category: String?,
+    val quantityGrams: Double,
+)
+
 enum class FoodGoalMode {
     Balanced,
     HighProtein,
@@ -307,6 +328,8 @@ interface FoodRepository {
 
     fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> = flowOf(emptyList())
 
+    fun observeShoppingList(): Flow<List<ShoppingListGroup>> = flowOf(emptyList())
+
     fun observeSavedFoods(): Flow<List<SavedFoodItem>>
 
     suspend fun getFoodDetail(foodId: String): SavedFoodItem? = null
@@ -377,6 +400,12 @@ interface FoodRepository {
     suspend fun copyDiaryEntry(mealItemId: String, mealType: String, date: LocalDate): String = ""
 
     suspend fun markDiaryEntryLogged(mealItemId: String) = Unit
+
+    suspend fun generateShoppingList(startDate: LocalDate, endDate: LocalDate): List<ShoppingListGroup> = emptyList()
+
+    suspend fun addManualShoppingListItem(input: ManualShoppingListItemInput): String = ""
+
+    suspend fun toggleShoppingListItem(itemId: String, isChecked: Boolean) = Unit
 
     fun observeRecipes(): Flow<List<Recipe>> = flowOf(emptyList())
 
@@ -988,6 +1017,80 @@ class LocalFoodRepository @Inject constructor(
         }
     }
 
+    override fun observeShoppingList(): Flow<List<ShoppingListGroup>> =
+        foodDao.observeShoppingListItems().map { items -> items.toShoppingListGroups() }
+
+    override suspend fun generateShoppingList(startDate: LocalDate, endDate: LocalDate): List<ShoppingListGroup> {
+        require(!endDate.isBefore(startDate)) { "End date must be on or after start date" }
+        return database.withTransaction {
+            val plannedRows =
+                foodDao.getFoodDiaryEntryRowsForDateRange(startDate.toEpochDay(), endDate.toEpochDay())
+                    .filter { row -> row.status.toFoodDiaryEntryStatus() == FoodDiaryEntryStatus.Planned }
+            val generatedRows = plannedRows.toShoppingListGeneratedRows()
+            val generatedByKey = generatedRows.associateBy { row -> row.sourceKey }
+            val existingGenerated = foodDao.getGeneratedShoppingListItems().associateBy { item -> item.sourceKey }
+            val now = System.currentTimeMillis()
+
+            generatedRows
+                .sortedWith(compareBy<ShoppingListGeneratedRow> { it.category.lowercase(Locale.US) }.thenBy { it.name.lowercase(Locale.US) })
+                .forEachIndexed { index, row ->
+                    val existing = existingGenerated[row.sourceKey]
+                    foodDao.upsertShoppingListItem(
+                        ShoppingListItemEntity(
+                            id = existing?.id ?: UUID.randomUUID().toString(),
+                            name = row.name,
+                            category = row.category,
+                            quantityGrams = row.quantityGrams,
+                            isChecked = existing?.isChecked ?: false,
+                            isManual = false,
+                            sourceKey = row.sourceKey,
+                            sortOrder = index,
+                            createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
+                            updatedAtEpochMillis = now,
+                        ),
+                    )
+                }
+
+            existingGenerated
+                .filterKeys { sourceKey -> sourceKey !in generatedByKey.keys }
+                .values
+                .forEach { staleItem -> foodDao.deleteShoppingListItemById(staleItem.id) }
+
+            foodDao.getShoppingListItems().toShoppingListGroups()
+        }
+    }
+
+    override suspend fun addManualShoppingListItem(input: ManualShoppingListItemInput): String {
+        input.requireValid()
+        return database.withTransaction {
+            val now = System.currentTimeMillis()
+            val itemId = UUID.randomUUID().toString()
+            foodDao.upsertShoppingListItem(
+                ShoppingListItemEntity(
+                    id = itemId,
+                    name = input.name.trim(),
+                    category = input.category.normalizedShoppingCategory(),
+                    quantityGrams = input.quantityGrams,
+                    isChecked = false,
+                    isManual = true,
+                    sourceKey = null,
+                    sortOrder = Int.MAX_VALUE,
+                    createdAtEpochMillis = now,
+                    updatedAtEpochMillis = now,
+                ),
+            )
+            itemId
+        }
+    }
+
+    override suspend fun toggleShoppingListItem(itemId: String, isChecked: Boolean) {
+        require(itemId.isNotBlank()) { "Shopping item id is required" }
+        database.withTransaction {
+            val updatedCount = foodDao.updateShoppingListItemChecked(itemId, isChecked, System.currentTimeMillis())
+            check(updatedCount > 0) { "Shopping item not found" }
+        }
+    }
+
     override fun observeRecipes(): Flow<List<Recipe>> =
         foodDao.observeRecipeRows().map { rows ->
             rows.toRecipes()
@@ -1219,6 +1322,52 @@ class LocalFoodRepository @Inject constructor(
         )
 
         return mealItemId
+    }
+
+    private suspend fun List<FoodDiaryEntryRow>.toShoppingListGeneratedRows(): List<ShoppingListGeneratedRow> {
+        val generatedBySourceKey = linkedMapOf<String, ShoppingListGeneratedRow>()
+
+        suspend fun addFood(foodId: String, name: String, category: String?, quantityGrams: Double) {
+            val sourceKey = "food:$foodId"
+            val normalizedCategory = category.normalizedShoppingCategory()
+            val existing = generatedBySourceKey[sourceKey]
+            generatedBySourceKey[sourceKey] =
+                if (existing == null) {
+                    ShoppingListGeneratedRow(
+                        sourceKey = sourceKey,
+                        name = name,
+                        category = normalizedCategory,
+                        quantityGrams = quantityGrams,
+                    )
+                } else {
+                    existing.copy(quantityGrams = existing.quantityGrams + quantityGrams)
+                }
+        }
+
+        forEach { row ->
+            val recipe = if (row.brand == RECIPE_BRAND) foodDao.getRecipeByName(row.foodName) else null
+            val recipeRows = recipe?.let { foodDao.getRecipeRows(it.id) }.orEmpty()
+            if (recipe != null && recipeRows.isNotEmpty()) {
+                val scale = row.quantityGrams / recipe.resolvedCookedYieldGrams(recipeRows)
+                recipeRows.forEach { ingredient ->
+                    addFood(
+                        foodId = ingredient.foodId,
+                        name = ingredient.foodName,
+                        category = ingredient.foodCategory,
+                        quantityGrams = ingredient.quantityGrams * scale,
+                    )
+                }
+            } else {
+                addFood(
+                    foodId = row.foodId,
+                    name = row.foodName,
+                    category = row.foodCategory,
+                    quantityGrams = row.quantityGrams,
+                )
+            }
+        }
+
+        return generatedBySourceKey.values.toList()
     }
 
     private suspend fun upsertConfirmedFood(
@@ -1484,6 +1633,11 @@ private fun MealTemplateUpdateInput.requireValid() {
     }
 }
 
+private fun ManualShoppingListItemInput.requireValid() {
+    require(name.isNotBlank()) { "Shopping item name is required" }
+    require(quantityGrams.isFinite() && quantityGrams > 0.0) { "Shopping item amount must be positive" }
+}
+
 private fun RecipeUpsertInput.requireValid() {
     require(name.isNotBlank()) { "Recipe name is required" }
     require(servingGrams.isFinite() && servingGrams > 0.0) { "Recipe serving size must be positive" }
@@ -1651,6 +1805,38 @@ private fun List<FoodDiaryEntry>.calculateDetailTotals(): NutritionDetails =
         vitaminCMilligrams = sumOf { it.nutritionDetails.vitaminCMilligrams },
         magnesiumMilligrams = sumOf { it.nutritionDetails.magnesiumMilligrams },
     )
+
+private data class ShoppingListGeneratedRow(
+    val sourceKey: String,
+    val name: String,
+    val category: String,
+    val quantityGrams: Double,
+)
+
+private fun List<ShoppingListItemEntity>.toShoppingListGroups(): List<ShoppingListGroup> =
+    groupBy { item -> item.category.normalizedShoppingCategory() }
+        .map { (category, items) ->
+            ShoppingListGroup(
+                category = category,
+                items = items
+                    .sortedWith(compareBy<ShoppingListItemEntity> { it.isChecked }.thenBy { it.name.lowercase(Locale.US) })
+                    .map { it.toShoppingListItem() },
+            )
+        }
+        .sortedBy { group -> group.category.lowercase(Locale.US) }
+
+private fun ShoppingListItemEntity.toShoppingListItem(): ShoppingListItem =
+    ShoppingListItem(
+        id = id,
+        name = name,
+        category = category.normalizedShoppingCategory(),
+        quantityGrams = quantityGrams,
+        isChecked = isChecked,
+        isManual = isManual,
+    )
+
+private fun String?.normalizedShoppingCategory(): String =
+    this?.trim()?.takeIf { it.isNotEmpty() } ?: "Other"
 
 private fun FoodDiaryEntryStatus.asStorageValue(): String =
     when (this) {

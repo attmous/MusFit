@@ -916,6 +916,105 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun generateShoppingList_groupsPlannedFoodsAndPreservesCheckedState() = runTest {
+        val startDate = LocalDate.of(2026, 6, 22)
+        val endDate = startDate.plusDays(2)
+        val riceId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Rice",
+                    brand = null,
+                    defaultServingGrams = 100.0,
+                    nutritionPer100g = nutrition(calories = 180.0, protein = 6.0, carbs = 32.0, fat = 4.0),
+                    category = "Grains",
+                ),
+            )
+        repository.planSavedFood(SavedFoodLogInput(riceId, "dinner", 200.0, startDate))
+
+        val generated = repository.generateShoppingList(startDate, endDate)
+        val rice = generated.single { it.category == "Grains" }.items.single()
+
+        assertEquals("Rice", rice.name)
+        assertEquals("Grains", rice.category)
+        assertEquals(200.0, rice.quantityGrams, 0.01)
+        assertFalse(rice.isChecked)
+        assertFalse(rice.isManual)
+
+        repository.toggleShoppingListItem(rice.id, true)
+        repository.generateShoppingList(startDate, endDate)
+        val regenerated = repository.observeShoppingList().first().single { it.category == "Grains" }.items.single()
+
+        assertTrue(regenerated.isChecked)
+        assertEquals(200.0, regenerated.quantityGrams, 0.01)
+    }
+
+    @Test
+    fun generateShoppingList_expandsPlannedRecipeIngredientsAndKeepsManualItems() = runTest {
+        val sourceDate = LocalDate.of(2026, 6, 20)
+        val planDate = sourceDate.plusDays(1)
+        val chickenId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Chicken",
+                    brand = null,
+                    defaultServingGrams = 150.0,
+                    nutritionPer100g = nutrition(calories = 165.0, protein = 31.0, carbs = 0.0, fat = 3.6),
+                    category = "Protein",
+                ),
+            )
+        val riceId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Rice",
+                    brand = null,
+                    defaultServingGrams = 100.0,
+                    nutritionPer100g = nutrition(calories = 180.0, protein = 6.0, carbs = 32.0, fat = 4.0),
+                    category = "Grains",
+                ),
+            )
+        val recipeId =
+            repository.upsertRecipe(
+                RecipeUpsertInput(
+                    recipeId = null,
+                    name = "Chicken bowl",
+                    category = "Dinner",
+                    servingName = "Bowl",
+                    servingGrams = 300.0,
+                    servings = 2.0,
+                    cookedYieldGrams = 600.0,
+                    ingredients = listOf(
+                        RecipeIngredientInput(chickenId, 300.0),
+                        RecipeIngredientInput(riceId, 200.0),
+                    ),
+                ),
+            )
+        repository.logRecipe(recipeId, "dinner", servings = 1.0, date = sourceDate)
+        repository.copyDay(sourceDate, planDate, FoodDiaryEntryStatus.Planned)
+        repository.addManualShoppingListItem(
+            ManualShoppingListItemInput(
+                name = "Sparkling water",
+                category = "Drinks",
+                quantityGrams = 1000.0,
+            ),
+        )
+
+        val generated = repository.generateShoppingList(planDate, planDate)
+
+        val protein = generated.single { it.category == "Protein" }.items.single()
+        val grains = generated.single { it.category == "Grains" }.items.single()
+        val drinks = generated.single { it.category == "Drinks" }.items.single()
+        assertEquals("Chicken", protein.name)
+        assertEquals(150.0, protein.quantityGrams, 0.01)
+        assertEquals("Rice", grains.name)
+        assertEquals(100.0, grains.quantityGrams, 0.01)
+        assertEquals("Sparkling water", drinks.name)
+        assertTrue(drinks.isManual)
+    }
+
+    @Test
     fun upsertRecipeAndLogRecipePortion_calculatesRecipeNutrition() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         val chickenId =
