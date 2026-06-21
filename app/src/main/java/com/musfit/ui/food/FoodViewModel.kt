@@ -7,6 +7,7 @@ import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.remote.food.ProductSearchResult
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.FoodDiary
+import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodDiaryEntryStatus
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
@@ -99,6 +100,18 @@ data class FoodMicronutrientUiState(
     val label: String,
     val value: Double,
     val unit: String,
+)
+
+enum class FoodInsightTone {
+    Positive,
+    Warning,
+    Neutral,
+}
+
+data class FoodInsightUiState(
+    val title: String,
+    val body: String,
+    val tone: FoodInsightTone,
 )
 
 data class FoodMealEntryUiState(
@@ -374,6 +387,7 @@ data class FoodUiState(
     val macroProgress: List<FoodMacroProgressUiState> = emptyMacroProgress(),
     val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyAdvancedNutritionProgress(),
     val micronutrients: List<FoodMicronutrientUiState> = emptyMicronutrients(),
+    val dailyInsights: List<FoodInsightUiState> = emptyDailyInsights(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
     val weeklyPlan: List<FoodPlanDayUiState> = emptyList(),
     val isPlanningMode: Boolean = false,
@@ -3670,6 +3684,7 @@ private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
             sodiumGoalMilligrams = sodiumGoalMilligrams,
         ),
         micronutrients = diary.detailTotals.toMicronutrients(),
+        dailyInsights = buildDailyInsights(diary),
         mealSections = diary.toMealSections(
             mealDefinitions = mealDefinitions,
             useNetCarbs = useNetCarbs,
@@ -3754,6 +3769,110 @@ private fun FoodHealthConnectSyncResult.toFoodHealthConnectMessage(): String {
     val waterText = if (hydrationRecordCount > 0) " and water" else ""
     return "Synced $mealText$waterText to Health Connect"
 }
+
+private fun FoodUiState.buildDailyInsights(diary: FoodDiary): List<FoodInsightUiState> {
+    if (diary.totals.caloriesKcal <= 0.0) {
+        return listOf(
+            FoodInsightUiState(
+                title = "Start with a meal",
+                body = "Log a meal, favorite, or quick calories to see today clearly.",
+                tone = FoodInsightTone.Neutral,
+            ),
+        )
+    }
+
+    val insights = mutableListOf<FoodInsightUiState>()
+    if (diary.detailTotals.sodiumMilligrams > sodiumGoalMilligrams) {
+        insights += FoodInsightUiState(
+            title = "Sodium is high",
+            body = "You are over ${sodiumGoalMilligrams.formatInputNumber()} mg. Choose lower-sodium foods next.",
+            tone = FoodInsightTone.Warning,
+        )
+    }
+    if (diary.totals.proteinGrams < proteinGoalGrams * 0.5) {
+        val remainingProtein = (proteinGoalGrams - diary.totals.proteinGrams).coerceAtLeast(0.0)
+        insights += FoodInsightUiState(
+            title = "Protein is low",
+            body = "Add about ${remainingProtein.coerceAtMost(35.0).formatInputNumber()} g protein to move toward goal.",
+            tone = FoodInsightTone.Warning,
+        )
+    }
+    if (diary.detailTotals.fiberGrams < fiberGoalGrams * 0.5) {
+        val remainingFiber = (fiberGoalGrams - diary.detailTotals.fiberGrams).coerceAtLeast(0.0)
+        insights += FoodInsightUiState(
+            title = "Fiber is below target",
+            body = "Add ${remainingFiber.coerceAtMost(10.0).formatInputNumber()} g fiber with fruit, oats, beans, or veg.",
+            tone = FoodInsightTone.Warning,
+        )
+    }
+
+    val balancedMeal = diary.meals.firstOrNull { meal -> meal.isBalancedLoggedMeal() }
+    if (balancedMeal != null) {
+        insights += FoodInsightUiState(
+            title = "${balancedMeal.type.mealTitle()} was balanced",
+            body = "Good protein and fiber for this meal.",
+            tone = FoodInsightTone.Positive,
+        )
+    } else if (diary.isBalancedDay(this)) {
+        insights += FoodInsightUiState(
+            title = "Balanced day",
+            body = "Calories, protein, fiber, and sodium are aligned with your goals.",
+            tone = FoodInsightTone.Positive,
+        )
+    }
+
+    val proteinRemaining = (proteinGoalGrams - diary.totals.proteinGrams).coerceAtLeast(0.0)
+    val fiberRemaining = (fiberGoalGrams - diary.detailTotals.fiberGrams).coerceAtLeast(0.0)
+    val caloriesRemaining = (calorieGoalKcal - diary.totals.caloriesKcal).coerceAtLeast(0.0)
+    when {
+        proteinRemaining >= 25.0 ->
+            insights += FoodInsightUiState(
+                title = "Add protein next",
+                body = "A lean protein serving would close the biggest gap.",
+                tone = FoodInsightTone.Neutral,
+            )
+
+        fiberRemaining >= 8.0 ->
+            insights += FoodInsightUiState(
+                title = "Add fiber next",
+                body = "A high-fiber side would improve today quickly.",
+                tone = FoodInsightTone.Neutral,
+            )
+
+        caloriesRemaining >= 300.0 ->
+            insights += FoodInsightUiState(
+                title = "Add a balanced meal",
+                body = "Use protein plus carbs or veg to finish the day cleanly.",
+                tone = FoodInsightTone.Neutral,
+            )
+    }
+
+    return insights
+        .distinctBy { insight -> insight.title }
+        .ifEmpty {
+            listOf(
+                FoodInsightUiState(
+                    title = "Food is on track",
+                    body = "Today is balanced against your current goals.",
+                    tone = FoodInsightTone.Positive,
+                ),
+            )
+        }
+        .take(3)
+}
+
+private fun FoodDiaryMeal.isBalancedLoggedMeal(): Boolean =
+    entries.any { entry -> entry.status == FoodDiaryEntryStatus.Logged } &&
+        totals.caloriesKcal in 250.0..800.0 &&
+        totals.proteinGrams >= 20.0 &&
+        detailTotals.fiberGrams >= 5.0
+
+private fun FoodDiary.isBalancedDay(state: FoodUiState): Boolean =
+    totals.caloriesKcal >= state.calorieGoalKcal * 0.85 &&
+        totals.caloriesKcal <= state.calorieGoalKcal * 1.05 &&
+        totals.proteinGrams >= state.proteinGoalGrams * 0.9 &&
+        detailTotals.fiberGrams >= state.fiberGoalGrams * 0.8 &&
+        detailTotals.sodiumMilligrams <= state.sodiumGoalMilligrams
 
 fun FoodUiState.selectedMealDetailForDisplay(): FoodMealSectionUiState? =
     selectedMealDetailId
@@ -4321,6 +4440,15 @@ private fun emptyAdvancedNutritionProgress(): List<FoodNutrientProgressUiState> 
 
 private fun emptyMicronutrients(): List<FoodMicronutrientUiState> =
     NutritionDetails().toMicronutrients()
+
+private fun emptyDailyInsights(): List<FoodInsightUiState> =
+    listOf(
+        FoodInsightUiState(
+            title = "Start with a meal",
+            body = "Log a meal, favorite, or quick calories to see today clearly.",
+            tone = FoodInsightTone.Neutral,
+        ),
+    )
 
 private fun String.normalizedMealType(): String {
     val normalized = trim().lowercase()

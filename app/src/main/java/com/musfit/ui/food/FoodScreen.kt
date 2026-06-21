@@ -134,6 +134,7 @@ fun FoodScreen(
                     WeeklyPlanStrip(state.weeklyPlan)
                     MacroProgressRow(state.macroProgress)
                     AdvancedNutritionProgressRow(state.advancedNutritionProgress)
+                    DailyInsightsSection(state.dailyInsights)
                     MicronutrientRow(state.micronutrients)
                     WaterTrackerCard(
                         state = state,
@@ -661,6 +662,69 @@ private fun MacroProgressCard(
                 progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
                 color = color,
             )
+        }
+    }
+}
+
+@Composable
+private fun DailyInsightsSection(insights: List<FoodInsightUiState>) {
+    if (insights.isEmpty()) {
+        return
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Insights",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = HeaderInk,
+        )
+        insights.forEach { insight ->
+            DailyInsightCard(insight)
+        }
+    }
+}
+
+@Composable
+private fun DailyInsightCard(insight: FoodInsightUiState) {
+    val accent = when (insight.tone) {
+        FoodInsightTone.Positive -> ActionGreen
+        FoodInsightTone.Warning -> Color(0xFFE56E4F)
+        FoodInsightTone.Neutral -> Color(0xFF5C6BC0)
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.White,
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 42.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accent),
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = insight.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = HeaderInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = insight.body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF706D6A),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

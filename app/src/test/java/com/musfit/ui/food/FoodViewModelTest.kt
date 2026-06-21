@@ -90,6 +90,86 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun dailyInsightsHighlightProteinFiberAndNextProtein() = runTest {
+        val breakfastDetails = NutritionDetails(fiberGrams = 4.0, sodiumMilligrams = 600.0)
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(600.0, 20.0, 80.0, 15.0),
+                    detailTotals = breakfastDetails,
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Toast",
+                                    brand = null,
+                                    quantityGrams = 100.0,
+                                    caloriesKcal = 600.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 80.0,
+                                    fatGrams = 15.0,
+                                    nutritionDetails = breakfastDetails,
+                                ),
+                            ),
+                            totals = NutritionTotals(600.0, 20.0, 80.0, 15.0),
+                            detailTotals = breakfastDetails,
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf("Protein is low", "Fiber is below target", "Add protein next"),
+            viewModel.state.value.dailyInsights.map { it.title },
+        )
+    }
+
+    @Test
+    fun dailyInsightsWarnForHighSodiumAndRecognizeBalancedMeal() = runTest {
+        val breakfastDetails = NutritionDetails(fiberGrams = 6.0, sodiumMilligrams = 500.0)
+        val dayDetails = NutritionDetails(fiberGrams = 30.0, sodiumMilligrams = 2800.0)
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(1900.0, 110.0, 210.0, 55.0),
+                    detailTotals = dayDetails,
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Yogurt bowl",
+                                    brand = null,
+                                    quantityGrams = 300.0,
+                                    caloriesKcal = 450.0,
+                                    proteinGrams = 32.0,
+                                    carbsGrams = 45.0,
+                                    fatGrams = 12.0,
+                                    nutritionDetails = breakfastDetails,
+                                ),
+                            ),
+                            totals = NutritionTotals(450.0, 32.0, 45.0, 12.0),
+                            detailTotals = breakfastDetails,
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val insightTitles = viewModel.state.value.dailyInsights.map { it.title }
+        assertTrue("Sodium is high" in insightTitles)
+        assertTrue("Breakfast was balanced" in insightTitles)
+    }
+
+    @Test
     fun lookupBarcode_populatesEditableResultAndSaveUsesEdits() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(
