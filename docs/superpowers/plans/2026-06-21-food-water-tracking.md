@@ -79,6 +79,6 @@
 
 - [x] Run focused Food ViewModel and repository tests.
 - [x] Run `. .\.superpowers\sdd\android-env.ps1` then `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain`.
-- [ ] Commit as `feat: add food water tracking`.
-- [ ] Push to `origin/master`.
-- [ ] Check `adb devices`; install only if a device is connected.
+- [x] Commit as `feat: add food water tracking`.
+- [x] Push to `origin/master`.
+- [x] Check `adb devices`; install only if a device is connected.
