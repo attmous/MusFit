@@ -3,6 +3,7 @@ package com.musfit.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,7 +43,7 @@ fun AppNavGraph() {
                             }
                         },
                         label = { Text(destination.label) },
-                        icon = { Text(destination.label.first().toString()) },
+                        icon = { Icon(destination.icon, contentDescription = destination.label) },
                     )
                 }
             }
