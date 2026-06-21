@@ -53,6 +53,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -132,6 +134,25 @@ fun FoodScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     WeeklyPlanStrip(state.weeklyPlan)
+                    if (state.isFoodDiaryEmpty) {
+                        EmptyDiaryStartCard(
+                            actions = state.emptyDiaryActions,
+                            onActionClick = { actionType ->
+                                when (actionType) {
+                                    EmptyDiaryActionType.Breakfast -> viewModel.openAddFood("breakfast")
+                                    EmptyDiaryActionType.Barcode -> {
+                                        viewModel.openAddFood("snacks")
+                                        viewModel.selectAddMode(FoodAddMode.Barcode)
+                                        onScanClick()
+                                    }
+                                    EmptyDiaryActionType.Ai -> {
+                                        viewModel.openAddFood("snacks")
+                                        viewModel.selectAddMode(FoodAddMode.Ai)
+                                    }
+                                }
+                            },
+                        )
+                    }
                     MacroProgressRow(state.macroProgress)
                     AdvancedNutritionProgressRow(state.advancedNutritionProgress)
                     DayRatingCard(state.dayRating)
@@ -663,6 +684,50 @@ private fun MacroProgressCard(
                 progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
                 color = color,
             )
+        }
+    }
+}
+
+@Composable
+private fun EmptyDiaryStartCard(
+    actions: List<EmptyDiaryActionUiState>,
+    onActionClick: (EmptyDiaryActionType) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.White,
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Build today's food",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = HeaderInk,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                actions.forEach { action ->
+                    OutlinedButton(
+                        onClick = { onActionClick(action.type) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics { contentDescription = action.accessibilityLabel },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            text = action.label,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
         }
     }
 }

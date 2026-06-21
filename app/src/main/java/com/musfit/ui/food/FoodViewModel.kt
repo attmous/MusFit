@@ -121,6 +121,18 @@ data class FoodRatingUiState(
     val tone: FoodInsightTone,
 )
 
+enum class EmptyDiaryActionType {
+    Breakfast,
+    Barcode,
+    Ai,
+}
+
+data class EmptyDiaryActionUiState(
+    val type: EmptyDiaryActionType,
+    val label: String,
+    val accessibilityLabel: String,
+)
+
 data class FoodMealEntryUiState(
     val id: String,
     val foodId: String,
@@ -397,6 +409,8 @@ data class FoodUiState(
     val micronutrients: List<FoodMicronutrientUiState> = emptyMicronutrients(),
     val dailyInsights: List<FoodInsightUiState> = emptyDailyInsights(),
     val dayRating: FoodRatingUiState = emptyFoodRating(),
+    val isFoodDiaryEmpty: Boolean = true,
+    val emptyDiaryActions: List<EmptyDiaryActionUiState> = defaultEmptyDiaryActions(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
     val weeklyPlan: List<FoodPlanDayUiState> = emptyList(),
     val isPlanningMode: Boolean = false,
@@ -3695,6 +3709,8 @@ private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
         micronutrients = diary.detailTotals.toMicronutrients(),
         dailyInsights = buildDailyInsights(diary),
         dayRating = buildDayRating(diary),
+        isFoodDiaryEmpty = diary.isEmptyLoggedDiary(),
+        emptyDiaryActions = if (diary.isEmptyLoggedDiary()) defaultEmptyDiaryActions() else emptyList(),
         mealSections = diary.toMealSections(
             mealDefinitions = mealDefinitions,
             useNetCarbs = useNetCarbs,
@@ -3883,6 +3899,11 @@ private fun FoodDiary.isBalancedDay(state: FoodUiState): Boolean =
         totals.proteinGrams >= state.proteinGoalGrams * 0.9 &&
         detailTotals.fiberGrams >= state.fiberGoalGrams * 0.8 &&
         detailTotals.sodiumMilligrams <= state.sodiumGoalMilligrams
+
+private fun FoodDiary.isEmptyLoggedDiary(): Boolean =
+    meals
+        .flatMap { meal -> meal.entries }
+        .none { entry -> entry.status == FoodDiaryEntryStatus.Logged }
 
 private fun FoodUiState.buildDayRating(diary: FoodDiary): FoodRatingUiState {
     if (diary.totals.caloriesKcal <= 0.0) {
@@ -4571,6 +4592,25 @@ private fun emptyFoodRating(): FoodRatingUiState =
         reason = "Log food to rate today.",
         suggestion = "Start with a meal or favorite.",
         tone = FoodInsightTone.Neutral,
+    )
+
+private fun defaultEmptyDiaryActions(): List<EmptyDiaryActionUiState> =
+    listOf(
+        EmptyDiaryActionUiState(
+            type = EmptyDiaryActionType.Breakfast,
+            label = "Add breakfast",
+            accessibilityLabel = "Add breakfast to food diary",
+        ),
+        EmptyDiaryActionUiState(
+            type = EmptyDiaryActionType.Barcode,
+            label = "Scan barcode",
+            accessibilityLabel = "Scan barcode to add food",
+        ),
+        EmptyDiaryActionUiState(
+            type = EmptyDiaryActionType.Ai,
+            label = "AI log",
+            accessibilityLabel = "Create AI food draft",
+        ),
     )
 
 private fun String.normalizedMealType(): String {

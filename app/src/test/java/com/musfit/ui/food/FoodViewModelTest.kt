@@ -90,6 +90,55 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun emptyFoodDiaryShowsPolishedStartActions() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(diary = emptyFoodDiary()),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.isFoodDiaryEmpty)
+        assertEquals(
+            listOf("Add breakfast", "Scan barcode", "AI log"),
+            viewModel.state.value.emptyDiaryActions.map { it.label },
+        )
+    }
+
+    @Test
+    fun loggedFoodHidesEmptyDiaryStartActions() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(150.0, 12.0, 18.0, 4.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Yogurt",
+                                    brand = null,
+                                    quantityGrams = 170.0,
+                                    caloriesKcal = 150.0,
+                                    proteinGrams = 12.0,
+                                    carbsGrams = 18.0,
+                                    fatGrams = 4.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(150.0, 12.0, 18.0, 4.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.isFoodDiaryEmpty)
+        assertTrue(viewModel.state.value.emptyDiaryActions.isEmpty())
+    }
+
+    @Test
     fun dailyInsightsHighlightProteinFiberAndNextProtein() = runTest {
         val breakfastDetails = NutritionDetails(fiberGrams = 4.0, sodiumMilligrams = 600.0)
         val repository =
