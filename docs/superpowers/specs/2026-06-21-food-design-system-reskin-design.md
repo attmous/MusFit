@@ -83,10 +83,9 @@ New/changed files under `app/src/main/java/com/musfit/ui/theme/`:
   `macroColors: List<Color>` for index-based access; a `lightMusFitColors` instance; and
   `val LocalMusFitColors = staticCompositionLocalOf<MusFitColors> { error("MusFitColors not provided") }`.
   The data class is the dark-ready seam — a future `darkMusFitColors` is added here with no call-site changes.
-- **`Type.kt`** — an M3 `Typography` with intentional roles and weights (replaces ad-hoc `FontWeight`). Indicative
-  scale (final sizes settled in the plan): `displayMedium` 36/Bold (ring number), `headlineSmall` 22/Bold,
-  `titleLarge` 18/Bold (meal titles), `titleSmall` 14/Bold, `bodyLarge` 16/Medium, `bodyMedium` 14/Regular,
-  `bodySmall` 12/Regular, `labelLarge` 13/SemiBold, `labelSmall` 11/SemiBold.
+- **`Type.kt`** — an explicit M3 `Typography` that **matches the current Material 3 default metrics**, so no text
+  reflows in Slice 1. This establishes a single seam for type; the intentional type scale and the removal of
+  ad-hoc `FontWeight` land in Slice 2, where layout changes are expected and welcome.
 - **`Spacing.kt`** — `data class MusFitSpacing(xs=4, sm=8, md=12, lg=16, xl=20, xxl=24)` (`Dp`) + `LocalMusFitSpacing`.
 - **`Shape.kt`** — M3 `Shapes` with radius tokens: small 8, medium 12, large 16 (+ a `pill`/`CircleShape` convention
   for fully-rounded elements).
@@ -114,8 +113,10 @@ Mechanical, section-by-section substitution — **layout, composable structure, 
   `outline`; card whites to `surface`; the beige background to `background`.
 - Replace the header `Brush.linearGradient(listOf(0xFFEFFF72, 0xFF63EF69, 0xFFB8F56A))` with
   `Brush.linearGradient(MusFitTheme.colors.brandGradient)`; header text uses `brandInk`.
-- Replace ad-hoc `fontWeight`/`fontSize` with the appropriate `MaterialTheme.typography` role; replace magic `dp`
-  paddings/spacings with `MusFitTheme.spacing.*`.
+- Replace `RoundedCornerShape(8.dp)` with `MusFitTheme.shapes.small` (identical 8dp radius — layout-safe).
+  **Spacing and typography tokens are created and wired in this slice but applied to `FoodScreen` in Slice 2**:
+  remapping the screen's many non-scale `dp` values, or swapping in a new type scale, would reflow the layout,
+  which Slice 1 forbids. Text typography is left exactly as-is.
 - The `ModalBottomSheet` `containerColor = Color.White` becomes `MusFitTheme.colors.surface`.
 - **Macro index integrity:** today `MacroColors[0]`→Carbs, `[1]`→Protein, `[2]`→Fat (used by
   `MacroProgressRow` and `MealItemContributionBars`). The replacement `macroColors` list **must preserve this order**:
@@ -164,7 +165,7 @@ This is a presentation-only refactor, so verification is build + visual, not new
 
 - Token layer (`Color`, `MusFitColors`, `Type`, `Spacing`, `Shape`, `Theme`) implemented and provided by
   `MusFitTheme`.
-- `FoodScreen.kt` references only tokens — zero hardcoded colors, no local palette, no ad-hoc font weights/sizes
-  where a type role exists.
+- `FoodScreen.kt` has **zero hardcoded colors** and no local palette; corner shapes use `MusFitTheme.shapes`.
+  (Typography/spacing application and the resulting `FontWeight`/`dp` cleanup are Slice 2.)
 - Verification steps above pass; before/after screenshots captured.
 - No behavior change; all existing tests green.
