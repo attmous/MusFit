@@ -170,6 +170,87 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun ratingsMarkBalancedDayAndMealAsGreat() = runTest {
+        val breakfastDetails = NutritionDetails(fiberGrams = 7.0, sodiumMilligrams = 450.0)
+        val dayDetails = NutritionDetails(fiberGrams = 32.0, sodiumMilligrams = 1800.0)
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(2000.0, 108.0, 230.0, 62.0),
+                    detailTotals = dayDetails,
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Protein oats",
+                                    brand = null,
+                                    quantityGrams = 300.0,
+                                    caloriesKcal = 520.0,
+                                    proteinGrams = 34.0,
+                                    carbsGrams = 58.0,
+                                    fatGrams = 14.0,
+                                    nutritionDetails = breakfastDetails,
+                                ),
+                            ),
+                            totals = NutritionTotals(520.0, 34.0, 58.0, 14.0),
+                            detailTotals = breakfastDetails,
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Great", viewModel.state.value.dayRating.label)
+        assertEquals("Great", viewModel.state.value.mealSections.first { it.id == "breakfast" }.rating?.label)
+    }
+
+    @Test
+    fun ratingsExplainHighSodiumAndLowProtein() = runTest {
+        val breakfastDetails = NutritionDetails(fiberGrams = 1.0, sodiumMilligrams = 1000.0)
+        val dayDetails = NutritionDetails(fiberGrams = 10.0, sodiumMilligrams = 3200.0)
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(1800.0, 30.0, 240.0, 60.0),
+                    detailTotals = dayDetails,
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Pastry",
+                                    brand = null,
+                                    quantityGrams = 150.0,
+                                    caloriesKcal = 500.0,
+                                    proteinGrams = 8.0,
+                                    carbsGrams = 70.0,
+                                    fatGrams = 18.0,
+                                    nutritionDetails = breakfastDetails,
+                                ),
+                            ),
+                            totals = NutritionTotals(500.0, 8.0, 70.0, 18.0),
+                            detailTotals = breakfastDetails,
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Needs work", viewModel.state.value.dayRating.label)
+        assertTrue(viewModel.state.value.dayRating.reason.contains("sodium"))
+        val breakfastRating = requireNotNull(viewModel.state.value.mealSections.first { it.id == "breakfast" }.rating)
+        assertEquals("Needs work", breakfastRating.label)
+        assertTrue(breakfastRating.reason.contains("Protein"))
+    }
+
+    @Test
     fun lookupBarcode_populatesEditableResultAndSaveUsesEdits() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(

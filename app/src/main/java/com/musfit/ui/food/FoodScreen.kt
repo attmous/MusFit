@@ -134,6 +134,7 @@ fun FoodScreen(
                     WeeklyPlanStrip(state.weeklyPlan)
                     MacroProgressRow(state.macroProgress)
                     AdvancedNutritionProgressRow(state.advancedNutritionProgress)
+                    DayRatingCard(state.dayRating)
                     DailyInsightsSection(state.dailyInsights)
                     MicronutrientRow(state.micronutrients)
                     WaterTrackerCard(
@@ -667,6 +668,51 @@ private fun MacroProgressCard(
 }
 
 @Composable
+private fun DayRatingCard(rating: FoodRatingUiState) {
+    val accent = rating.tone.ratingColor()
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.White,
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Day rating",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = HeaderInk,
+                    )
+                    Text(
+                        text = rating.reason,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF706D6A),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                RatingPill(rating)
+            }
+            Text(
+                text = rating.suggestion,
+                style = MaterialTheme.typography.bodySmall,
+                color = accent,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 private fun DailyInsightsSection(insights: List<FoodInsightUiState>) {
     if (insights.isEmpty()) {
         return
@@ -687,11 +733,7 @@ private fun DailyInsightsSection(insights: List<FoodInsightUiState>) {
 
 @Composable
 private fun DailyInsightCard(insight: FoodInsightUiState) {
-    val accent = when (insight.tone) {
-        FoodInsightTone.Positive -> ActionGreen
-        FoodInsightTone.Warning -> Color(0xFFE56E4F)
-        FoodInsightTone.Neutral -> Color(0xFF5C6BC0)
-    }
+    val accent = insight.tone.ratingColor()
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.White,
@@ -728,6 +770,30 @@ private fun DailyInsightCard(insight: FoodInsightUiState) {
         }
     }
 }
+
+@Composable
+private fun RatingPill(rating: FoodRatingUiState) {
+    Surface(
+        color = rating.tone.ratingColor().copy(alpha = 0.14f),
+        shape = RoundedCornerShape(999.dp),
+    ) {
+        Text(
+            text = rating.label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = rating.tone.ratingColor(),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            maxLines = 1,
+        )
+    }
+}
+
+private fun FoodInsightTone.ratingColor(): Color =
+    when (this) {
+        FoodInsightTone.Positive -> ActionGreen
+        FoodInsightTone.Warning -> Color(0xFFE56E4F)
+        FoodInsightTone.Neutral -> Color(0xFF5C6BC0)
+    }
 
 @Composable
 private fun AdvancedNutritionProgressRow(nutrients: List<FoodNutrientProgressUiState>) {
@@ -1346,12 +1412,15 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(
-                    text = "${meal.caloriesKcal.roundToInt()} kcal",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = HeaderInk,
-                )
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    meal.rating?.let { rating -> RatingPill(rating) }
+                    Text(
+                        text = "${meal.caloriesKcal.roundToInt()} kcal",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = HeaderInk,
+                    )
+                }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1538,6 +1607,10 @@ private fun MealSectionCard(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
+                            meal.rating?.let { rating ->
+                                Spacer(modifier = Modifier.height(6.dp))
+                                RatingPill(rating)
+                            }
                         }
                     }
                 }
