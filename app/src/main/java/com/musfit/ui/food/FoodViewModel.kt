@@ -199,6 +199,20 @@ data class QuickCaloriePresetUiState(
     val isFavorite: Boolean,
 )
 
+enum class FavoriteAddItemType {
+    Food,
+    MealTemplate,
+    Recipe,
+    QuickLog,
+}
+
+data class FavoriteAddItemUiState(
+    val id: String,
+    val type: FavoriteAddItemType,
+    val title: String,
+    val subtitle: String,
+)
+
 data class DeletedDiaryEntrySnapshot(
     val foodId: String,
     val mealType: String,
@@ -325,7 +339,78 @@ data class FoodUiState(
     val recipeIngredients: List<RecipeIngredientDraftUiState> = emptyList(),
     val recipeServingsToLog: String = "1",
     val lastDeletedDiaryEntry: DeletedDiaryEntrySnapshot? = null,
-)
+) {
+    val favoriteAddItems: List<FavoriteAddItemUiState>
+        get() =
+            buildList {
+                savedFoods
+                    .filter { it.isFavorite }
+                    .forEach { food ->
+                        add(
+                            FavoriteAddItemUiState(
+                                id = food.id,
+                                type = FavoriteAddItemType.Food,
+                                title = food.name,
+                                subtitle = listOfNotNull(
+                                    "Food",
+                                    food.brand,
+                                    "${food.caloriesPerServingKcal.formatInputNumber()} kcal",
+                                ).joinToString(" - "),
+                            ),
+                        )
+                    }
+                mealTemplates
+                    .filter { it.isFavorite }
+                    .forEach { template ->
+                        add(
+                            FavoriteAddItemUiState(
+                                id = template.id,
+                                type = FavoriteAddItemType.MealTemplate,
+                                title = template.name,
+                                subtitle = listOf(
+                                    "Meal",
+                                    template.mealType,
+                                    template.itemSummary.ifBlank { "Saved template" },
+                                ).joinToString(" - "),
+                            ),
+                        )
+                    }
+                recipes
+                    .filter { it.isFavorite }
+                    .forEach { recipe ->
+                        add(
+                            FavoriteAddItemUiState(
+                                id = recipe.id,
+                                type = FavoriteAddItemType.Recipe,
+                                title = recipe.name,
+                                subtitle = listOf(
+                                    "Recipe",
+                                    "${recipe.caloriesPerServingKcal.formatInputNumber()} kcal",
+                                    "${recipe.proteinPerServingGrams.formatInputNumber()} g protein",
+                                ).joinToString(" - "),
+                            ),
+                        )
+                    }
+                quickCaloriePresets
+                    .filter { it.isFavorite }
+                    .forEach { preset ->
+                        add(
+                            FavoriteAddItemUiState(
+                                id = preset.id,
+                                type = FavoriteAddItemType.QuickLog,
+                                title = preset.name,
+                                subtitle = listOf(
+                                    "Quick log",
+                                    "${preset.caloriesKcal.formatInputNumber()} kcal",
+                                    "P ${preset.proteinGrams.formatInputNumber()}",
+                                    "C ${preset.carbsGrams.formatInputNumber()}",
+                                    "F ${preset.fatGrams.formatInputNumber()}",
+                                ).joinToString(" - "),
+                            ),
+                        )
+                    }
+            }
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel

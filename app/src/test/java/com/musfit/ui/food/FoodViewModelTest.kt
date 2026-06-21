@@ -971,6 +971,99 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun addFlowFavoritesExposeOnlyFavoriteItemsAcrossFoodTemplatesRecipesAndQuickLogs() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-fav",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        isFavorite = true,
+                    ),
+                    SavedFoodItem(
+                        id = "food-other",
+                        name = "Plain rice",
+                        brand = null,
+                        defaultServingGrams = 100.0,
+                        nutritionPer100g = FoodNutrition(130.0, 2.7, 28.0, 0.3),
+                        isFavorite = false,
+                    ),
+                ),
+                templates = listOf(
+                    MealTemplate(
+                        id = "template-fav",
+                        name = "Usual breakfast",
+                        mealType = "breakfast",
+                        isFavorite = true,
+                        items = listOf(MealTemplateItem("food-fav", "Greek yogurt", "Kitchen", 170.0)),
+                    ),
+                    MealTemplate(
+                        id = "template-other",
+                        name = "Plain lunch",
+                        mealType = "lunch",
+                        isFavorite = false,
+                        items = listOf(MealTemplateItem("food-other", "Plain rice", null, 100.0)),
+                    ),
+                ),
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-fav",
+                        name = "Chicken bowl",
+                        category = "Dinner",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        isFavorite = true,
+                        ingredients = listOf(RecipeIngredient("food-fav", "Greek yogurt", "Kitchen", 170.0)),
+                        nutritionPerServing = FoodNutrition(420.0, 38.0, 42.0, 11.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+                quickCaloriePresets = listOf(
+                    QuickCaloriePreset(
+                        id = "quick-fav",
+                        name = "Protein snack",
+                        caloriesKcal = 320.0,
+                        proteinGrams = 22.0,
+                        carbsGrams = 36.0,
+                        fatGrams = 9.0,
+                        isFavorite = true,
+                    ),
+                    QuickCaloriePreset(
+                        id = "quick-other",
+                        name = "Old snack",
+                        caloriesKcal = 120.0,
+                        proteinGrams = 2.0,
+                        carbsGrams = 20.0,
+                        fatGrams = 3.0,
+                        isFavorite = false,
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val favorites = viewModel.state.value.favoriteAddItems
+
+        assertEquals(
+            listOf(
+                FavoriteAddItemType.Food,
+                FavoriteAddItemType.MealTemplate,
+                FavoriteAddItemType.Recipe,
+                FavoriteAddItemType.QuickLog,
+            ),
+            favorites.map { it.type },
+        )
+        assertEquals(
+            listOf("Greek yogurt", "Usual breakfast", "Chicken bowl", "Protein snack"),
+            favorites.map { it.title },
+        )
+        assertEquals(listOf("food-fav", "template-fav", "recipe-fav", "quick-fav"), favorites.map { it.id })
+    }
+
+    @Test
     fun logFood_afterOpeningMealUsesSelectedMeal() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(

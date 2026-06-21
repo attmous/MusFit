@@ -2578,6 +2578,15 @@ private fun AddFoodPanel(
             )
         }
 
+        FavoriteAddSection(
+            items = state.favoriteAddItems,
+            isSaving = state.isSaving,
+            onFoodClick = onSavedFoodClick,
+            onTemplateClick = onTemplateClick,
+            onRecipeClick = onRecipeClick,
+            onQuickLogClick = onFavoriteQuickLogClick,
+        )
+
         when (state.addMode) {
             FoodAddMode.Saved ->
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -2644,6 +2653,67 @@ private fun AddFoodPanel(
                     onFavoriteQuickLogClick = onFavoriteQuickLogClick,
                     onFavoriteQuickLogFavoriteClick = onFavoriteQuickLogFavoriteClick,
                 )
+        }
+    }
+}
+
+@Composable
+private fun FavoriteAddSection(
+    items: List<FavoriteAddItemUiState>,
+    isSaving: Boolean,
+    onFoodClick: (String) -> Unit,
+    onTemplateClick: (String) -> Unit,
+    onRecipeClick: (String) -> Unit,
+    onQuickLogClick: (String) -> Unit,
+) {
+    if (items.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Favorites",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        items.forEach { item ->
+            Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = item.subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF706D6A),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            when (item.type) {
+                                FavoriteAddItemType.Food -> onFoodClick(item.id)
+                                FavoriteAddItemType.MealTemplate -> onTemplateClick(item.id)
+                                FavoriteAddItemType.Recipe -> onRecipeClick(item.id)
+                                FavoriteAddItemType.QuickLog -> onQuickLogClick(item.id)
+                            }
+                        },
+                        enabled = !isSaving,
+                        colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+                    ) {
+                        Text(if (isSaving) "Adding" else "Add")
+                    }
+                }
+            }
         }
     }
 }
