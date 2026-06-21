@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -128,6 +129,35 @@ class LocalTrainingRepositoryTest {
         assertEquals(500.0, firstDaySummary.totalVolumeKg, 0.01)
         assertEquals(1, nextDaySummary.completedSetCount)
         assertEquals(360.0, nextDaySummary.totalVolumeKg, 0.01)
+    }
+
+    @Test
+    fun seedStarterTrainingData_importsExercisesAndRoutinesOnce() = runTest {
+        repository.seedStarterTrainingData()
+        repository.seedStarterTrainingData()
+
+        val exercises = repository.observeExercises().first()
+        val routines = repository.observeRoutineSummaries().first()
+
+        assertTrue(exercises.any { it.name == "Barbell Bench Press" && !it.isCustom })
+        assertTrue(exercises.any { it.name == "Back Squat" && it.equipment == "barbell" })
+        assertTrue(routines.any { it.name == "Full Body A" && it.isStarter })
+        assertTrue(routines.any { it.name == "Push" && it.exerciseCount >= 4 })
+        assertEquals(exercises.map { it.id }.distinct().size, exercises.size)
+        assertEquals(routines.map { it.id }.distinct().size, routines.size)
+    }
+
+    @Test
+    fun observeExercises_filtersBySearchMuscleAndEquipment() = runTest {
+        repository.seedStarterTrainingData()
+
+        val bench = repository.observeExercises(query = "bench").first()
+        val quads = repository.observeExercises(muscle = "quads").first()
+        val dumbbell = repository.observeExercises(equipment = "dumbbell").first()
+
+        assertTrue(bench.all { it.name.contains("Bench", ignoreCase = true) })
+        assertTrue(quads.any { it.name == "Back Squat" })
+        assertTrue(dumbbell.any { it.name == "Incline Dumbbell Press" })
     }
 
     private companion object {

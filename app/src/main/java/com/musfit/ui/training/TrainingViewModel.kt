@@ -2,7 +2,10 @@ package com.musfit.ui.training
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.musfit.data.repository.ActiveWorkoutSummary
+import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.WorkoutCalculator
@@ -10,17 +13,31 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class TrainingSection {
+    Routines,
+    Exercises,
+    History,
+    Progress,
+}
+
 data class TrainingUiState(
+    val selectedSection: TrainingSection = TrainingSection.Routines,
+    val routines: List<RoutineSummary> = emptyList(),
+    val exercises: List<ExerciseSummary> = emptyList(),
+    val activeWorkoutSummary: ActiveWorkoutSummary? = null,
+    val exerciseSearchQuery: String = "",
     val exerciseName: String = "",
     val reps: String = "",
     val weightKg: String = "",
     val sets: List<LoggedWorkoutSet> = emptyList(),
     val totalVolumeKg: Double = 0.0,
     val bestEstimatedOneRepMaxKg: Double = 0.0,
+    val message: String? = null,
 )
 
 @HiltViewModel
@@ -29,6 +46,37 @@ class TrainingViewModel @Inject constructor(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(TrainingUiState())
     val state: StateFlow<TrainingUiState> = mutableState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            repository.seedStarterTrainingData()
+        }
+        viewModelScope.launch {
+            combine(
+                repository.observeRoutineSummaries(),
+                repository.observeExercises(),
+                repository.observeActiveWorkoutSummary(),
+            ) { routines, exercises, activeWorkout ->
+                Triple(routines, exercises, activeWorkout)
+            }.collect { (routines, exercises, activeWorkout) ->
+                mutableState.update {
+                    it.copy(
+                        routines = routines,
+                        exercises = exercises,
+                        activeWorkoutSummary = activeWorkout,
+                    )
+                }
+            }
+        }
+    }
+
+    fun selectSection(section: TrainingSection) {
+        mutableState.update { it.copy(selectedSection = section) }
+    }
+
+    fun resumeActiveWorkout() {
+        mutableState.update { it.copy(message = "Active workout resume is not wired yet.") }
+    }
 
     fun onExerciseChanged(value: String) {
         mutableState.update { it.copy(exerciseName = value) }

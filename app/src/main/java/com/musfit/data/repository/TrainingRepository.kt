@@ -2,13 +2,18 @@ package com.musfit.data.repository
 
 import androidx.room.withTransaction
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.dao.ActiveWorkoutSummaryRow
+import com.musfit.data.local.dao.RoutineSummaryRow
 import com.musfit.data.local.dao.TrainingDao
 import com.musfit.data.local.entity.ExerciseEntity
+import com.musfit.data.local.entity.RoutineEntity
+import com.musfit.data.local.entity.RoutineExerciseEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.WorkoutCalculator
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
@@ -35,6 +40,32 @@ data class WorkoutForExport(
     val sets: List<WorkoutSetEntity>,
 )
 
+data class ExerciseSummary(
+    val id: String,
+    val name: String,
+    val category: String,
+    val equipment: String?,
+    val targetMuscles: String,
+    val isCustom: Boolean,
+)
+
+data class RoutineSummary(
+    val id: String,
+    val name: String,
+    val notes: String?,
+    val exerciseCount: Int,
+    val targetSetCount: Int,
+    val isStarter: Boolean,
+)
+
+data class ActiveWorkoutSummary(
+    val sessionId: String,
+    val title: String,
+    val startedAtEpochMillis: Long,
+    val completedSetCount: Int,
+    val totalVolumeKg: Double,
+)
+
 interface TrainingRepository {
     suspend fun addCompletedSet(
         exerciseName: String,
@@ -44,9 +75,21 @@ interface TrainingRepository {
 
     suspend fun setCompletion(setId: String, completed: Boolean)
 
+    fun observeExercises(
+        query: String = "",
+        muscle: String? = null,
+        equipment: String? = null,
+    ): Flow<List<ExerciseSummary>> = flowOf(emptyList())
+
+    fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = flowOf(emptyList())
+
+    fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = flowOf(null)
+
     fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary>
 
     suspend fun getLatestWorkoutForExport(): WorkoutForExport?
+
+    suspend fun seedStarterTrainingData() = Unit
 
     suspend fun markWorkoutExported(
         sessionId: String,
@@ -98,6 +141,7 @@ class LocalTrainingRepository @Inject constructor(
                 sessionId = session.id,
                 exerciseId = exercise.id,
                 sortOrder = nextSortOrder,
+                setType = SET_TYPE_WORKING,
                 reps = reps,
                 weightKg = weightKg,
                 durationSeconds = null,
@@ -107,7 +151,6 @@ class LocalTrainingRepository @Inject constructor(
                 completed = true,
             )
 
-            trainingDao.upsertWorkoutSession(session.copy(endedAtEpochMillis = now))
             trainingDao.upsertWorkoutSet(set)
 
             LoggedWorkoutSet(
@@ -123,6 +166,20 @@ class LocalTrainingRepository @Inject constructor(
     override suspend fun setCompletion(setId: String, completed: Boolean) {
         trainingDao.updateWorkoutSetCompletion(setId, completed)
     }
+
+    override fun observeExercises(
+        query: String,
+        muscle: String?,
+        equipment: String?,
+    ): Flow<List<ExerciseSummary>> =
+        trainingDao.observeExercisesFiltered(query.trim(), muscle, equipment)
+            .map { exercises -> exercises.map { it.toSummary() } }
+
+    override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> =
+        trainingDao.observeRoutineSummaries().map { rows -> rows.map { it.toSummary() } }
+
+    override fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> =
+        trainingDao.observeActiveWorkoutSummary().map { row -> row?.toSummary() }
 
     override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> {
         val range = date.dayRange()
@@ -159,6 +216,53 @@ class LocalTrainingRepository @Inject constructor(
         return if (sets.isEmpty()) null else WorkoutForExport(session = session, sets = sets)
     }
 
+    override suspend fun seedStarterTrainingData() {
+        database.withTransaction {
+            if (trainingDao.getExerciseByName("Barbell Bench Press") != null) {
+                return@withTransaction
+            }
+            val now = clock()
+            trainingDao.upsertExercises(
+                TrainingStarterData.exercises.map {
+                    ExerciseEntity(
+                        id = it.id,
+                        name = it.name,
+                        category = "strength",
+                        equipment = it.equipment,
+                        targetMuscles = it.targetMuscles,
+                        isCustom = false,
+                    )
+                },
+            )
+            trainingDao.upsertRoutines(
+                TrainingStarterData.routines.map {
+                    RoutineEntity(
+                        id = it.id,
+                        name = it.name,
+                        notes = it.notes,
+                        createdAtEpochMillis = now,
+                        updatedAtEpochMillis = now,
+                        isStarter = true,
+                    )
+                },
+            )
+            trainingDao.upsertRoutineExercises(
+                TrainingStarterData.routines.flatMap { routine ->
+                    routine.exercises.mapIndexed { index, exercise ->
+                        RoutineExerciseEntity(
+                            id = "${routine.id}-${exercise.exerciseId}",
+                            routineId = routine.id,
+                            exerciseId = exercise.exerciseId,
+                            sortOrder = index,
+                            targetSets = exercise.targetSets,
+                            targetReps = exercise.targetReps,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
     override suspend fun markWorkoutExported(
         sessionId: String,
         recordId: String,
@@ -182,8 +286,10 @@ class LocalTrainingRepository @Inject constructor(
         val session = WorkoutSessionEntity(
             id = UUID.randomUUID().toString(),
             routineId = null,
+            title = DEFAULT_WORKOUT_TITLE,
+            status = WORKOUT_STATUS_ACTIVE,
             startedAtEpochMillis = now,
-            endedAtEpochMillis = now,
+            endedAtEpochMillis = null,
             notes = null,
             healthConnectRecordId = null,
             healthConnectLastExportedAtEpochMillis = null,
@@ -195,6 +301,12 @@ class LocalTrainingRepository @Inject constructor(
 
     private companion object {
         const val DEFAULT_EXERCISE_NAME = "Custom exercise"
+        const val WORKOUT_STATUS_ACTIVE = "active"
+        const val WORKOUT_STATUS_COMPLETED = "completed"
+        const val WORKOUT_STATUS_DISCARDED = "discarded"
+        const val SET_TYPE_WORKING = "working"
+        const val SET_TYPE_WARM_UP = "warmup"
+        const val DEFAULT_WORKOUT_TITLE = "Blank workout"
     }
 }
 
@@ -202,6 +314,35 @@ private data class DayRange(
     val startEpochMillis: Long,
     val endEpochMillis: Long,
 )
+
+private fun ExerciseEntity.toSummary(): ExerciseSummary =
+    ExerciseSummary(
+        id = id,
+        name = name,
+        category = category,
+        equipment = equipment,
+        targetMuscles = targetMuscles,
+        isCustom = isCustom,
+    )
+
+private fun RoutineSummaryRow.toSummary(): RoutineSummary =
+    RoutineSummary(
+        id = id,
+        name = name,
+        notes = notes,
+        exerciseCount = exerciseCount,
+        targetSetCount = targetSetCount,
+        isStarter = isStarter,
+    )
+
+private fun ActiveWorkoutSummaryRow.toSummary(): ActiveWorkoutSummary =
+    ActiveWorkoutSummary(
+        sessionId = sessionId,
+        title = title ?: "Blank workout",
+        startedAtEpochMillis = startedAtEpochMillis,
+        completedSetCount = completedSetCount,
+        totalVolumeKg = totalVolumeKg,
+    )
 
 private fun LocalDate.dayRange(zoneId: ZoneId = ZoneId.systemDefault()): DayRange =
     DayRange(

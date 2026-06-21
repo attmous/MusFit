@@ -1,12 +1,16 @@
 package com.musfit.ui.training
 
 import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.ActiveWorkoutSummary
+import com.musfit.data.repository.ExerciseSummary
+import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
 import com.musfit.data.repository.WorkoutForExport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -156,13 +160,53 @@ class TrainingViewModelTest {
         assertEquals(480.0, state.totalVolumeKg, 0.01)
     }
 
+    @Test
+    fun initialState_isRoutinesFirstAndSeedsStarterTrainingData() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+
+        assertEquals(TrainingSection.Routines, state.selectedSection)
+        assertEquals(1, repository.seedCalls)
+        assertEquals(listOf("Full Body A"), state.routines.map { it.name })
+        assertEquals(listOf("Barbell Bench Press"), state.exercises.map { it.name })
+    }
+
     private class FakeTrainingRepository : TrainingRepository {
         var addCalls = 0
+        var seedCalls = 0
         var savedExerciseName: String? = null
         var savedReps: Int? = null
         var savedWeightKg: Double? = null
         var updatedSetId: String? = null
         var updatedCompleted: Boolean? = null
+        private val routinesFlow = MutableStateFlow(
+            listOf(
+                RoutineSummary(
+                    id = "routine-full-body-a",
+                    name = "Full Body A",
+                    notes = "Starter routine",
+                    exerciseCount = 5,
+                    targetSetCount = 15,
+                    isStarter = true,
+                ),
+            ),
+        )
+        private val exercisesFlow = MutableStateFlow(
+            listOf(
+                ExerciseSummary(
+                    id = "exercise-bench-press",
+                    name = "Barbell Bench Press",
+                    category = "strength",
+                    equipment = "barbell",
+                    targetMuscles = "chest,triceps,shoulders",
+                    isCustom = false,
+                ),
+            ),
+        )
+        private val activeWorkoutFlow = MutableStateFlow<ActiveWorkoutSummary?>(null)
 
         override suspend fun addCompletedSet(
             exerciseName: String,
@@ -185,6 +229,20 @@ class TrainingViewModelTest {
         override suspend fun setCompletion(setId: String, completed: Boolean) {
             updatedSetId = setId
             updatedCompleted = completed
+        }
+
+        override fun observeExercises(
+            query: String,
+            muscle: String?,
+            equipment: String?,
+        ): Flow<List<ExerciseSummary>> = exercisesFlow
+
+        override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = routinesFlow
+
+        override fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = activeWorkoutFlow
+
+        override suspend fun seedStarterTrainingData() {
+            seedCalls += 1
         }
 
         override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> =
