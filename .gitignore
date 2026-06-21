@@ -7,3 +7,4 @@ app/build/
 captures/
 .DS_Store
 .superpowers/
+.worktrees/
