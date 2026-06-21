@@ -65,7 +65,7 @@ fun FoodScreen(
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
-    val selectedMealDetail = state.selectedMealDetail()
+    val selectedMealDetail = state.selectedMealDetailForDisplay()
 
     LaunchedEffect(scannedBarcode) {
         if (!scannedBarcode.isNullOrBlank()) {
@@ -83,12 +83,14 @@ fun FoodScreen(
         if (selectedMealDetail != null) {
             MealDetailScreen(
                 meal = selectedMealDetail,
+                sortMode = state.mealDetailSortMode,
                 message = state.message,
                 canUndoDelete = state.lastDeletedDiaryEntry != null,
                 onBackClick = viewModel::closeMealDetail,
                 onAddFoodClick = viewModel::openAddFoodFromMealDetail,
                 onCopyYesterdayClick = viewModel::copySelectedMealFromYesterday,
                 onSaveTemplateClick = { viewModel.saveSelectedMealAsTemplate("${selectedMealDetail.title} template") },
+                onSortModeChanged = viewModel::onMealDetailSortChanged,
                 onEntryClick = viewModel::openDiaryEntryEditor,
                 onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
             )
@@ -558,12 +560,14 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun MealDetailScreen(
     meal: FoodMealSectionUiState,
+    sortMode: MealDetailSortMode,
     message: String?,
     canUndoDelete: Boolean,
     onBackClick: () -> Unit,
     onAddFoodClick: () -> Unit,
     onCopyYesterdayClick: () -> Unit,
     onSaveTemplateClick: () -> Unit,
+    onSortModeChanged: (MealDetailSortMode) -> Unit,
     onEntryClick: (String) -> Unit,
     onUndoDeleteClick: () -> Unit,
 ) {
@@ -647,6 +651,12 @@ private fun MealDetailScreen(
         MealDetailMacroCard(meal)
 
         SectionTitle("Logged items")
+        if (meal.entries.isNotEmpty()) {
+            MealDetailSortChips(
+                selectedSortMode = sortMode,
+                onSortModeChanged = onSortModeChanged,
+            )
+        }
         if (meal.entries.isEmpty()) {
             Surface(
                 color = Color.White,
@@ -687,6 +697,25 @@ private fun MealDetailScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MealDetailSortChips(
+    selectedSortMode: MealDetailSortMode,
+    onSortModeChanged: (MealDetailSortMode) -> Unit,
+) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        MealDetailSortChoices.forEach { choice ->
+            FilterChip(
+                selected = selectedSortMode == choice,
+                onClick = { onSortModeChanged(choice) },
+                label = { Text(choice.label) },
+            )
         }
     }
 }
@@ -3180,11 +3209,6 @@ private fun FoodUiState.filteredDatabaseFoods(): List<SavedFoodUiState> {
     }
 }
 
-private fun FoodUiState.selectedMealDetail(): FoodMealSectionUiState? =
-    selectedMealDetailId?.let { selectedId ->
-        mealSections.firstOrNull { meal -> meal.id == selectedId }
-    }
-
 private val FoodAddMode.label: String
     get() =
         when (this) {
@@ -3192,6 +3216,23 @@ private val FoodAddMode.label: String
             FoodAddMode.Manual -> "Manual"
             FoodAddMode.Barcode -> "Barcode"
             FoodAddMode.Quick -> "Quick"
+        }
+
+private val MealDetailSortChoices =
+    listOf(
+        MealDetailSortMode.Logged,
+        MealDetailSortMode.Calories,
+        MealDetailSortMode.Protein,
+        MealDetailSortMode.Name,
+    )
+
+private val MealDetailSortMode.label: String
+    get() =
+        when (this) {
+            MealDetailSortMode.Logged -> "Logged"
+            MealDetailSortMode.Calories -> "Calories"
+            MealDetailSortMode.Protein -> "Protein"
+            MealDetailSortMode.Name -> "Name"
         }
 
 private val FoodBackground = Color(0xFFF0ECE7)

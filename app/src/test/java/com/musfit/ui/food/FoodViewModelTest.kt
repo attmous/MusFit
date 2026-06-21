@@ -691,6 +691,86 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun mealDetailSortMode_sortsSelectedMealItemsForDisplay() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(405.0, 35.3, 36.0, 12.4),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = null,
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 120.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 8.0,
+                                    fatGrams = 2.0,
+                                ),
+                                FoodDiaryEntry(
+                                    id = "entry-2",
+                                    foodId = "food-2",
+                                    name = "Banana",
+                                    brand = null,
+                                    quantityGrams = 118.0,
+                                    caloriesKcal = 105.0,
+                                    proteinGrams = 1.3,
+                                    carbsGrams = 27.0,
+                                    fatGrams = 0.4,
+                                ),
+                                FoodDiaryEntry(
+                                    id = "entry-3",
+                                    foodId = "food-3",
+                                    name = "Eggs",
+                                    brand = null,
+                                    quantityGrams = 100.0,
+                                    caloriesKcal = 180.0,
+                                    proteinGrams = 14.0,
+                                    carbsGrams = 1.0,
+                                    fatGrams = 10.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(405.0, 35.3, 36.0, 12.4),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openMealDetail("breakfast")
+
+        assertEquals(
+            listOf("Greek yogurt", "Banana", "Eggs"),
+            viewModel.state.value.selectedMealDetailForDisplay()?.entries?.map { it.name },
+        )
+
+        viewModel.onMealDetailSortChanged(MealDetailSortMode.Calories)
+        assertEquals(
+            listOf("Eggs", "Greek yogurt", "Banana"),
+            viewModel.state.value.selectedMealDetailForDisplay()?.entries?.map { it.name },
+        )
+
+        viewModel.onMealDetailSortChanged(MealDetailSortMode.Protein)
+        assertEquals(
+            listOf("Greek yogurt", "Eggs", "Banana"),
+            viewModel.state.value.selectedMealDetailForDisplay()?.entries?.map { it.name },
+        )
+
+        viewModel.onMealDetailSortChanged(MealDetailSortMode.Name)
+        assertEquals(
+            listOf("Banana", "Eggs", "Greek yogurt"),
+            viewModel.state.value.selectedMealDetailForDisplay()?.entries?.map { it.name },
+        )
+    }
+
+    @Test
     fun openAddFoodFromMealDetail_usesSelectedMeal() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(),

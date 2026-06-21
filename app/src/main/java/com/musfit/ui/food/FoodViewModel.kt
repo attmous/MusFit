@@ -55,6 +55,13 @@ enum class FoodSheetMode {
     MealTemplates,
 }
 
+enum class MealDetailSortMode {
+    Logged,
+    Calories,
+    Protein,
+    Name,
+}
+
 data class FoodMacroProgressUiState(
     val label: String,
     val currentGrams: Double,
@@ -224,6 +231,7 @@ data class FoodUiState(
     val macroProgress: List<FoodMacroProgressUiState> = emptyMacroProgress(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
     val selectedMealDetailId: String? = null,
+    val mealDetailSortMode: MealDetailSortMode = MealDetailSortMode.Logged,
     val savedFoods: List<SavedFoodUiState> = emptyList(),
     val duplicateFoodGroups: List<FoodDuplicateGroupUiState> = emptyList(),
     val mealTemplates: List<MealTemplateUiState> = emptyList(),
@@ -422,6 +430,15 @@ class FoodViewModel @Inject constructor(
         mutableState.update {
             it.copy(
                 selectedMealDetailId = null,
+                message = null,
+            )
+        }
+    }
+
+    fun onMealDetailSortChanged(sortMode: MealDetailSortMode) {
+        mutableState.update {
+            it.copy(
+                mealDetailSortMode = sortMode,
                 message = null,
             )
         }
@@ -2301,6 +2318,22 @@ private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
         goalModeInput = goal.mode,
         goalIncludeTrainingInput = goal.includeTrainingCalories,
     )
+
+fun FoodUiState.selectedMealDetailForDisplay(): FoodMealSectionUiState? =
+    selectedMealDetailId
+        ?.let { selectedId -> mealSections.firstOrNull { meal -> meal.id == selectedId } }
+        ?.sortedForDetail(mealDetailSortMode)
+
+private fun FoodMealSectionUiState.sortedForDetail(sortMode: MealDetailSortMode): FoodMealSectionUiState {
+    val sortedEntries =
+        when (sortMode) {
+            MealDetailSortMode.Logged -> entries
+            MealDetailSortMode.Calories -> entries.sortedByDescending { entry -> entry.caloriesKcal }
+            MealDetailSortMode.Protein -> entries.sortedByDescending { entry -> entry.proteinGrams }
+            MealDetailSortMode.Name -> entries.sortedBy { entry -> entry.name.lowercase() }
+        }
+    return copy(entries = sortedEntries)
+}
 
 private fun FoodDiary.toMealSections(): List<FoodMealSectionUiState> {
     val mealsByType = meals.associateBy { it.type.normalizedMealType() }
