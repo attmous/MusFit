@@ -22,9 +22,3 @@ val MacroProtein = Color(0xFF0D9488)
 val MacroCarbs = Color(0xFFF59E0B)
 val MacroFat = Color(0xFF6D5BD0)
 val PositiveContainer = Color(0xFFE7F4EC)
-
-// Legacy theme colors — still referenced by Theme.kt until Task 3 rewrites it; removed there.
-val MusFitGreen = Color(0xFF2E7D5B)
-val MusFitBlue = Color(0xFF2563EB)
-val MusFitInk = Color(0xFF1F2937)
-val MusFitSurface = Color(0xFFF7F8FA)
