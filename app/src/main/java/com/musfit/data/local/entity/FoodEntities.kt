@@ -96,6 +96,7 @@ data class MealItemEntity(
     val mealId: String,
     val foodId: String,
     val quantityGrams: Double,
+    @ColumnInfo(defaultValue = "'logged'") val status: String = "logged",
 )
 
 @Entity(

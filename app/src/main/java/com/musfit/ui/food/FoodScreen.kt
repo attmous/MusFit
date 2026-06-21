@@ -115,12 +115,15 @@ fun FoodScreen(
                     onTemplatesClick = viewModel::openMealTemplates,
                     onRecipeClick = viewModel::openRecipeEditor,
                     onMealsClick = viewModel::openMealSettings,
+                    onPlanningModeClick = viewModel::togglePlanningMode,
+                    onCopyDayToTomorrowClick = viewModel::copySelectedDayToTomorrow,
                 )
 
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    WeeklyPlanStrip(state.weeklyPlan)
                     MacroProgressRow(state.macroProgress)
                     AdvancedNutritionProgressRow(state.advancedNutritionProgress)
                     MicronutrientRow(state.micronutrients)
@@ -233,6 +236,7 @@ fun FoodScreen(
                         onCopyTomorrowClick = {
                             viewModel.copyDiaryEntryTo(state.editingDiaryEntryMealType, state.selectedDate.plusDays(1))
                         },
+                        onMarkLoggedClick = viewModel::markDiaryEntryLogged,
                     )
 
                 FoodSheetMode.SavedFoodEditor ->
@@ -368,6 +372,8 @@ private fun FoodSummaryHeader(
     onTemplatesClick: () -> Unit,
     onRecipeClick: () -> Unit,
     onMealsClick: () -> Unit,
+    onPlanningModeClick: () -> Unit,
+    onCopyDayToTomorrowClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -419,6 +425,8 @@ private fun FoodSummaryHeader(
                 OutlinedButton(onClick = onMealsClick) { Text("Meals") }
                 OutlinedButton(onClick = onTemplatesClick) { Text("Templates") }
                 OutlinedButton(onClick = onRecipeClick) { Text("Recipe") }
+                OutlinedButton(onClick = onPlanningModeClick) { Text(if (state.isPlanningMode) "Planning on" else "Plan") }
+                OutlinedButton(onClick = onCopyDayToTomorrowClick, enabled = !state.isSaving) { Text("Copy day") }
             }
 
             Row(
@@ -454,6 +462,47 @@ private fun SummarySideMetric(
             style = MaterialTheme.typography.headlineSmall,
             color = HeaderInk,
         )
+    }
+}
+
+@Composable
+private fun WeeklyPlanStrip(planDays: List<FoodPlanDayUiState>) {
+    if (planDays.isEmpty()) {
+        return
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        planDays.forEach { day ->
+            Card(
+                modifier = Modifier.width(112.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(8.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(day.dayLabel, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "${day.loggedCaloriesKcal.roundToInt()} logged",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF706D6A),
+                        maxLines = 1,
+                    )
+                    Text(
+                        "${day.plannedCaloriesKcal.roundToInt()} planned",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF315847),
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1196,11 +1245,7 @@ private fun MealSectionCard(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = if (meal.caloriesKcal > 0.0) {
-                                    "${meal.caloriesKcal.roundToInt()} kcal logged"
-                                } else {
-                                    meal.recommendation
-                                },
+                                text = meal.summaryLabel(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Color(0xFF6D6864),
                                 maxLines = 1,
@@ -1237,6 +1282,15 @@ private fun MealSectionCard(
         }
     }
 }
+
+private fun FoodMealSectionUiState.summaryLabel(): String =
+    when {
+        caloriesKcal > 0.0 && plannedCaloriesKcal > 0.0 ->
+            "${caloriesKcal.roundToInt()} logged | ${plannedCaloriesKcal.roundToInt()} planned"
+        caloriesKcal > 0.0 -> "${caloriesKcal.roundToInt()} kcal logged"
+        plannedCaloriesKcal > 0.0 -> "${plannedCaloriesKcal.roundToInt()} kcal planned"
+        else -> recommendation
+    }
 
 @Composable
 private fun MealInitial(title: String) {
@@ -1303,11 +1357,21 @@ private fun DiaryEntryRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = "${entry.quantityGrams.roundToInt()} g",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF706D6A),
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${entry.quantityGrams.roundToInt()} g",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF706D6A),
+                    )
+                    if (entry.isPlanned) {
+                        Text(
+                            text = "Planned",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF315847),
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
                 Text(
                     text = "P ${entry.proteinGrams.formatNutritionDisplay()} g | C ${entry.carbsGrams.formatNutritionDisplay()} g | F ${entry.fatGrams.formatNutritionDisplay()} g",
                     style = MaterialTheme.typography.bodySmall,
@@ -1865,6 +1929,7 @@ private fun DiaryEntryEditorPanel(
     onDeleteClick: () -> Unit,
     onCopyToMealClick: (String) -> Unit,
     onCopyTomorrowClick: () -> Unit,
+    onMarkLoggedClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1975,6 +2040,16 @@ private fun DiaryEntryEditorPanel(
             colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
         ) {
             Text(if (state.isSaving) "Saving" else "Save changes")
+        }
+
+        if (state.editingDiaryEntryIsPlanned) {
+            OutlinedButton(
+                onClick = onMarkLoggedClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Mark logged")
+            }
         }
 
         Text("Copy item", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)

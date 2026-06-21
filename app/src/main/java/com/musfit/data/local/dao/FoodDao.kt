@@ -39,12 +39,14 @@ data class MealNutritionRow(
 
 data class FoodDiaryEntryRow(
     val mealId: String,
+    val dateEpochDay: Long,
     val mealType: String,
     val mealItemId: String,
     val foodId: String,
     val foodName: String,
     val brand: String?,
     val quantityGrams: Double,
+    val status: String,
     val caloriesPer100g: Double,
     val proteinPer100g: Double,
     val carbsPer100g: Double,
@@ -182,18 +184,20 @@ interface FoodDao {
             "FROM meal_items " +
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
             "INNER JOIN foods ON foods.id = meal_items.foodId " +
-            "WHERE meals.dateEpochDay = :dateEpochDay",
+            "WHERE meals.dateEpochDay = :dateEpochDay AND meal_items.status = 'logged'",
     )
     fun observeMealNutritionRowsForDate(dateEpochDay: Long): Flow<List<MealNutritionRow>>
 
     @Query(
         "SELECT meals.id AS mealId, " +
+            "meals.dateEpochDay AS dateEpochDay, " +
             "meals.type AS mealType, " +
             "meal_items.id AS mealItemId, " +
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "meal_items.quantityGrams AS quantityGrams, " +
+            "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
             "foods.proteinPer100g AS proteinPer100g, " +
             "foods.carbsPer100g AS carbsPer100g, " +
@@ -219,12 +223,80 @@ interface FoodDao {
 
     @Query(
         "SELECT meals.id AS mealId, " +
+            "meals.dateEpochDay AS dateEpochDay, " +
             "meals.type AS mealType, " +
             "meal_items.id AS mealItemId, " +
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "meal_items.quantityGrams AS quantityGrams, " +
+            "meal_items.status AS status, " +
+            "foods.caloriesPer100g AS caloriesPer100g, " +
+            "foods.proteinPer100g AS proteinPer100g, " +
+            "foods.carbsPer100g AS carbsPer100g, " +
+            "foods.fatPer100g AS fatPer100g, " +
+            "foods.fiberPer100g AS fiberPer100g, " +
+            "foods.sugarPer100g AS sugarPer100g, " +
+            "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
+            "foods.potassiumMgPer100g AS potassiumMgPer100g, " +
+            "foods.calciumMgPer100g AS calciumMgPer100g, " +
+            "foods.ironMgPer100g AS ironMgPer100g, " +
+            "foods.vitaminDMcgPer100g AS vitaminDMcgPer100g, " +
+            "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
+            "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
+            "meals.createdAtEpochMillis AS createdAtEpochMillis " +
+            "FROM meal_items " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.id = meal_items.foodId " +
+            "WHERE meals.dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
+            "ORDER BY meals.dateEpochDay, meals.createdAtEpochMillis, meal_items.id",
+    )
+    fun observeFoodDiaryEntryRowsForDateRange(startEpochDay: Long, endEpochDay: Long): Flow<List<FoodDiaryEntryRow>>
+
+    @Query(
+        "SELECT meals.id AS mealId, " +
+            "meals.dateEpochDay AS dateEpochDay, " +
+            "meals.type AS mealType, " +
+            "meal_items.id AS mealItemId, " +
+            "foods.id AS foodId, " +
+            "foods.name AS foodName, " +
+            "foods.brand AS brand, " +
+            "meal_items.quantityGrams AS quantityGrams, " +
+            "meal_items.status AS status, " +
+            "foods.caloriesPer100g AS caloriesPer100g, " +
+            "foods.proteinPer100g AS proteinPer100g, " +
+            "foods.carbsPer100g AS carbsPer100g, " +
+            "foods.fatPer100g AS fatPer100g, " +
+            "foods.fiberPer100g AS fiberPer100g, " +
+            "foods.sugarPer100g AS sugarPer100g, " +
+            "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
+            "foods.potassiumMgPer100g AS potassiumMgPer100g, " +
+            "foods.calciumMgPer100g AS calciumMgPer100g, " +
+            "foods.ironMgPer100g AS ironMgPer100g, " +
+            "foods.vitaminDMcgPer100g AS vitaminDMcgPer100g, " +
+            "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
+            "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
+            "meals.createdAtEpochMillis AS createdAtEpochMillis " +
+            "FROM meal_items " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.id = meal_items.foodId " +
+            "WHERE meals.dateEpochDay = :dateEpochDay " +
+            "ORDER BY meals.createdAtEpochMillis, meal_items.id",
+    )
+    suspend fun getFoodDiaryEntryRowsForDate(dateEpochDay: Long): List<FoodDiaryEntryRow>
+
+    @Query(
+        "SELECT meals.id AS mealId, " +
+            "meals.dateEpochDay AS dateEpochDay, " +
+            "meals.type AS mealType, " +
+            "meal_items.id AS mealItemId, " +
+            "foods.id AS foodId, " +
+            "foods.name AS foodName, " +
+            "foods.brand AS brand, " +
+            "meal_items.quantityGrams AS quantityGrams, " +
+            "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
             "foods.proteinPer100g AS proteinPer100g, " +
             "foods.carbsPer100g AS carbsPer100g, " +
@@ -490,6 +562,9 @@ interface FoodDao {
 
     @Query("DELETE FROM meal_items WHERE id = :mealItemId")
     suspend fun deleteMealItemById(mealItemId: String): Int
+
+    @Query("UPDATE meal_items SET status = :status WHERE id = :mealItemId")
+    suspend fun updateMealItemStatus(mealItemId: String, status: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertFood(food: FoodEntity)

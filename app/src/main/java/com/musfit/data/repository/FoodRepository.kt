@@ -86,6 +86,11 @@ data class QuickCalorieLogInput(
     val date: LocalDate,
 )
 
+enum class FoodDiaryEntryStatus {
+    Logged,
+    Planned,
+}
+
 data class QuickCaloriePresetInput(
     val name: String,
     val caloriesKcal: Double,
@@ -151,6 +156,7 @@ data class FoodDiaryEntry(
     val carbsGrams: Double,
     val fatGrams: Double,
     val nutritionDetails: NutritionDetails = NutritionDetails(),
+    val status: FoodDiaryEntryStatus = FoodDiaryEntryStatus.Logged,
 )
 
 data class FoodDiaryMeal(
@@ -158,12 +164,24 @@ data class FoodDiaryMeal(
     val entries: List<FoodDiaryEntry>,
     val totals: NutritionTotals,
     val detailTotals: NutritionDetails = NutritionDetails(),
+    val plannedTotals: NutritionTotals = NutritionTotals(0.0, 0.0, 0.0, 0.0),
+    val plannedDetailTotals: NutritionDetails = NutritionDetails(),
 )
 
 data class FoodDiary(
     val totals: NutritionTotals,
     val meals: List<FoodDiaryMeal>,
     val detailTotals: NutritionDetails = NutritionDetails(),
+    val plannedTotals: NutritionTotals = NutritionTotals(0.0, 0.0, 0.0, 0.0),
+    val plannedDetailTotals: NutritionDetails = NutritionDetails(),
+)
+
+data class FoodPlanDay(
+    val date: LocalDate,
+    val loggedTotals: NutritionTotals,
+    val plannedTotals: NutritionTotals,
+    val loggedEntryCount: Int,
+    val plannedEntryCount: Int,
 )
 
 enum class FoodGoalMode {
@@ -287,11 +305,15 @@ interface FoodRepository {
 
     fun observeFoodDiary(date: LocalDate): Flow<FoodDiary>
 
+    fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> = flowOf(emptyList())
+
     fun observeSavedFoods(): Flow<List<SavedFoodItem>>
 
     suspend fun getFoodDetail(foodId: String): SavedFoodItem? = null
 
     suspend fun logSavedFood(input: SavedFoodLogInput): String
+
+    suspend fun planSavedFood(input: SavedFoodLogInput): String = ""
 
     suspend fun quickLog(input: QuickCalorieLogInput): String
 
@@ -329,7 +351,18 @@ interface FoodRepository {
 
     suspend fun logMealTemplate(templateId: String, mealType: String, date: LocalDate): List<String> = emptyList()
 
-    suspend fun copyMeal(fromDate: LocalDate, toDate: LocalDate, mealType: String): List<String> = emptyList()
+    suspend fun copyMeal(
+        fromDate: LocalDate,
+        toDate: LocalDate,
+        mealType: String,
+        status: FoodDiaryEntryStatus = FoodDiaryEntryStatus.Logged,
+    ): List<String> = emptyList()
+
+    suspend fun copyDay(
+        fromDate: LocalDate,
+        toDate: LocalDate,
+        status: FoodDiaryEntryStatus = FoodDiaryEntryStatus.Logged,
+    ): List<String> = emptyList()
 
     suspend fun renameMealTemplate(templateId: String, name: String, mealType: String) = Unit
 
@@ -342,6 +375,8 @@ interface FoodRepository {
     suspend fun toggleFavoriteMealTemplate(templateId: String, isFavorite: Boolean) = Unit
 
     suspend fun copyDiaryEntry(mealItemId: String, mealType: String, date: LocalDate): String = ""
+
+    suspend fun markDiaryEntryLogged(mealItemId: String) = Unit
 
     fun observeRecipes(): Flow<List<Recipe>> = flowOf(emptyList())
 
@@ -433,6 +468,16 @@ class LocalFoodRepository @Inject constructor(
             rows.toFoodDiary()
         }
 
+    override fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> {
+        val endDate = startDate.plusDays(6)
+        return foodDao.observeFoodDiaryEntryRowsForDateRange(
+            startEpochDay = startDate.toEpochDay(),
+            endEpochDay = endDate.toEpochDay(),
+        ).map { rows ->
+            rows.toFoodPlanDays(startDate)
+        }
+    }
+
     override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
         foodDao.observeFoods().map { foods ->
             foods
@@ -453,6 +498,21 @@ class LocalFoodRepository @Inject constructor(
                 quantityGrams = input.quantityGrams,
                 date = input.date,
                 now = System.currentTimeMillis(),
+            )
+        }
+    }
+
+    override suspend fun planSavedFood(input: SavedFoodLogInput): String {
+        input.requireValid()
+        return database.withTransaction {
+            foodDao.getFood(input.foodId) ?: error("Saved food not found")
+            insertMealItem(
+                foodId = input.foodId,
+                mealType = input.mealType,
+                quantityGrams = input.quantityGrams,
+                date = input.date,
+                now = System.currentTimeMillis(),
+                status = FoodDiaryEntryStatus.Planned,
             )
         }
     }
@@ -767,7 +827,12 @@ class LocalFoodRepository @Inject constructor(
         }
     }
 
-    override suspend fun copyMeal(fromDate: LocalDate, toDate: LocalDate, mealType: String): List<String> {
+    override suspend fun copyMeal(
+        fromDate: LocalDate,
+        toDate: LocalDate,
+        mealType: String,
+        status: FoodDiaryEntryStatus,
+    ): List<String> {
         val normalizedMealType = mealType.trim().ifBlank { DEFAULT_MEAL_TYPE }
         return database.withTransaction {
             val rows = foodDao.getFoodDiaryEntryRowsForDateAndMeal(fromDate.toEpochDay(), normalizedMealType)
@@ -781,10 +846,29 @@ class LocalFoodRepository @Inject constructor(
                     quantityGrams = row.quantityGrams,
                     date = toDate,
                     now = now + index,
+                    status = status,
                 )
             }
         }
     }
+
+    override suspend fun copyDay(fromDate: LocalDate, toDate: LocalDate, status: FoodDiaryEntryStatus): List<String> =
+        database.withTransaction {
+            val rows = foodDao.getFoodDiaryEntryRowsForDate(fromDate.toEpochDay())
+            require(rows.isNotEmpty()) { "Source day has no food" }
+            val now = System.currentTimeMillis()
+            rows.sortedWith(compareBy<FoodDiaryEntryRow> { it.createdAtEpochMillis }.thenBy { it.foodName })
+                .mapIndexed { index, row ->
+                    insertMealItem(
+                        foodId = row.foodId,
+                        mealType = row.mealType,
+                        quantityGrams = row.quantityGrams,
+                        date = toDate,
+                        now = now + index,
+                        status = status,
+                    )
+                }
+        }
 
     override suspend fun renameMealTemplate(templateId: String, name: String, mealType: String) {
         require(templateId.isNotBlank()) { "Template id is required" }
@@ -893,6 +977,14 @@ class LocalFoodRepository @Inject constructor(
                 date = date,
                 now = System.currentTimeMillis(),
             )
+        }
+    }
+
+    override suspend fun markDiaryEntryLogged(mealItemId: String) {
+        require(mealItemId.isNotBlank()) { "Diary item id is required" }
+        database.withTransaction {
+            val updatedCount = foodDao.updateMealItemStatus(mealItemId, FoodDiaryEntryStatus.Logged.asStorageValue())
+            check(updatedCount > 0) { "Diary item not found" }
         }
     }
 
@@ -1101,6 +1193,7 @@ class LocalFoodRepository @Inject constructor(
         quantityGrams: Double,
         date: LocalDate,
         now: Long,
+        status: FoodDiaryEntryStatus = FoodDiaryEntryStatus.Logged,
     ): String {
         val mealId = UUID.randomUUID().toString()
         val mealItemId = UUID.randomUUID().toString()
@@ -1121,6 +1214,7 @@ class LocalFoodRepository @Inject constructor(
                 mealId = mealId,
                 foodId = foodId,
                 quantityGrams = quantityGrams,
+                status = status.asStorageValue(),
             ),
         )
 
@@ -1467,19 +1561,27 @@ private fun List<FoodDiaryEntryRow>.toFoodDiary(): FoodDiary {
     val entriesByMeal = groupBy { it.mealType }
     val meals = entriesByMeal.map { (mealType, mealRows) ->
         val entries = mealRows.map { row -> row.toDiaryEntry() }
+        val loggedEntries = entries.filter { entry -> entry.status == FoodDiaryEntryStatus.Logged }
+        val plannedEntries = entries.filter { entry -> entry.status == FoodDiaryEntryStatus.Planned }
         FoodDiaryMeal(
             type = mealType,
             entries = entries,
-            totals = entries.calculateTotals(),
-            detailTotals = entries.calculateDetailTotals(),
+            totals = loggedEntries.calculateTotals(),
+            detailTotals = loggedEntries.calculateDetailTotals(),
+            plannedTotals = plannedEntries.calculateTotals(),
+            plannedDetailTotals = plannedEntries.calculateDetailTotals(),
         )
     }
 
     val allEntries = meals.flatMap { it.entries }
+    val loggedEntries = allEntries.filter { entry -> entry.status == FoodDiaryEntryStatus.Logged }
+    val plannedEntries = allEntries.filter { entry -> entry.status == FoodDiaryEntryStatus.Planned }
     return FoodDiary(
-        totals = allEntries.calculateTotals(),
+        totals = loggedEntries.calculateTotals(),
         meals = meals,
-        detailTotals = allEntries.calculateDetailTotals(),
+        detailTotals = loggedEntries.calculateDetailTotals(),
+        plannedTotals = plannedEntries.calculateTotals(),
+        plannedDetailTotals = plannedEntries.calculateDetailTotals(),
     )
 }
 
@@ -1507,7 +1609,25 @@ private fun FoodDiaryEntryRow.toDiaryEntry(): FoodDiaryEntry {
             vitaminCMilligrams = vitaminCMgPer100g * multiplier,
             magnesiumMilligrams = magnesiumMgPer100g * multiplier,
         ),
+        status = status.toFoodDiaryEntryStatus(),
     )
+}
+
+private fun List<FoodDiaryEntryRow>.toFoodPlanDays(startDate: LocalDate): List<FoodPlanDay> {
+    val rowsByDate = groupBy { row -> row.dateEpochDay }
+    return (0L..6L).map { offset ->
+        val date = startDate.plusDays(offset)
+        val entries = rowsByDate[date.toEpochDay()].orEmpty().map { row -> row.toDiaryEntry() }
+        val loggedEntries = entries.filter { entry -> entry.status == FoodDiaryEntryStatus.Logged }
+        val plannedEntries = entries.filter { entry -> entry.status == FoodDiaryEntryStatus.Planned }
+        FoodPlanDay(
+            date = date,
+            loggedTotals = loggedEntries.calculateTotals(),
+            plannedTotals = plannedEntries.calculateTotals(),
+            loggedEntryCount = loggedEntries.size,
+            plannedEntryCount = plannedEntries.size,
+        )
+    }
 }
 
 private fun List<FoodDiaryEntry>.calculateTotals(): NutritionTotals =
@@ -1531,6 +1651,18 @@ private fun List<FoodDiaryEntry>.calculateDetailTotals(): NutritionDetails =
         vitaminCMilligrams = sumOf { it.nutritionDetails.vitaminCMilligrams },
         magnesiumMilligrams = sumOf { it.nutritionDetails.magnesiumMilligrams },
     )
+
+private fun FoodDiaryEntryStatus.asStorageValue(): String =
+    when (this) {
+        FoodDiaryEntryStatus.Logged -> "logged"
+        FoodDiaryEntryStatus.Planned -> "planned"
+    }
+
+private fun String.toFoodDiaryEntryStatus(): FoodDiaryEntryStatus =
+    when (lowercase(Locale.US)) {
+        "planned" -> FoodDiaryEntryStatus.Planned
+        else -> FoodDiaryEntryStatus.Logged
+    }
 
 private fun FoodEntity.toSavedFoodItem(servings: List<FoodServingEntity>): SavedFoodItem =
     SavedFoodItem(

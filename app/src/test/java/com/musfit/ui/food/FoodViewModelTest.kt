@@ -6,12 +6,14 @@ import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.remote.food.ProductSearchResult
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodDiaryEntry
+import com.musfit.data.repository.FoodDiaryEntryStatus
 import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodMealDefinition
 import com.musfit.data.repository.FoodMealDefinitionInput
+import com.musfit.data.repository.FoodPlanDay
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.FoodServingOption
 import com.musfit.data.repository.MealTemplate
@@ -1739,6 +1741,77 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun planningModePlansFoodShowsWeeklyPlanAndMarksEntryLogged() = runTest {
+        val targetDate = LocalDate.now().plusDays(1)
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(0.0, 0.0, 0.0, 0.0),
+                    plannedTotals = NutritionTotals(59.0, 10.0, 3.6, 0.4),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = "Example Dairy",
+                                    quantityGrams = 100.0,
+                                    caloriesKcal = 59.0,
+                                    proteinGrams = 10.0,
+                                    carbsGrams = 3.6,
+                                    fatGrams = 0.4,
+                                    status = FoodDiaryEntryStatus.Planned,
+                                ),
+                            ),
+                            totals = NutritionTotals(0.0, 0.0, 0.0, 0.0),
+                            plannedTotals = NutritionTotals(59.0, 10.0, 3.6, 0.4),
+                        ),
+                    ),
+                ),
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Example Dairy",
+                        defaultServingGrams = 100.0,
+                        nutritionPer100g = FoodNutrition(59.0, 10.0, 3.6, 0.4),
+                    ),
+                ),
+                weeklyPlan = listOf(
+                    FoodPlanDay(
+                        date = targetDate,
+                        loggedTotals = NutritionTotals(0.0, 0.0, 0.0, 0.0),
+                        plannedTotals = NutritionTotals(59.0, 10.0, 3.6, 0.4),
+                        loggedEntryCount = 0,
+                        plannedEntryCount = 1,
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.goToNextDay()
+        viewModel.togglePlanningMode()
+        viewModel.openAddFood("breakfast")
+        viewModel.logSavedFood("food-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.isPlanningMode)
+        assertEquals(SavedFoodLogInput("food-1", "breakfast", 100.0, targetDate), repository.plannedFoodLog)
+        assertEquals(59.0, viewModel.state.value.weeklyPlan.single().plannedCaloriesKcal, 0.01)
+        assertTrue(viewModel.state.value.mealSections.single { it.id == "breakfast" }.entries.single().isPlanned)
+
+        viewModel.openDiaryEntryEditor("entry-1")
+        viewModel.markDiaryEntryLogged()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("entry-1", repository.markedLoggedEntryId)
+        assertEquals("Logged planned food", viewModel.state.value.message)
+    }
+
+    @Test
     fun logMealTemplate_logsTemplateIntoSelectedMealAndDate() = runTest {
         val repository =
             FakeFoodRepository(
@@ -2606,6 +2679,13 @@ class FoodViewModelTest {
         val fromDate: LocalDate,
         val toDate: LocalDate,
         val mealType: String,
+        val status: FoodDiaryEntryStatus = FoodDiaryEntryStatus.Logged,
+    )
+
+    private data class CopyDayCall(
+        val fromDate: LocalDate,
+        val toDate: LocalDate,
+        val status: FoodDiaryEntryStatus,
     )
 
     private data class SaveTemplateCall(
@@ -2704,6 +2784,7 @@ class FoodViewModelTest {
         recipes: List<Recipe> = emptyList(),
         quickCaloriePresets: List<QuickCaloriePreset> = emptyList(),
         customMealDefinitions: List<FoodMealDefinition> = emptyList(),
+        weeklyPlan: List<FoodPlanDay> = emptyList(),
         foodGoal: FoodGoal = FoodGoal(
             dailyCaloriesKcal = 2083.0,
             proteinGrams = 104.0,
@@ -2723,9 +2804,11 @@ class FoodViewModelTest {
         private val recipesFlow = MutableStateFlow(recipes)
         private val quickCaloriePresetsFlow = MutableStateFlow(quickCaloriePresets)
         private val customMealDefinitionsFlow = MutableStateFlow(customMealDefinitions)
+        private val weeklyPlanFlow = MutableStateFlow(weeklyPlan)
         private val foodGoalFlow = MutableStateFlow(foodGoal)
         var savedLog: FoodLogInput? = null
         var savedFoodLog: SavedFoodLogInput? = null
+        var plannedFoodLog: SavedFoodLogInput? = null
         var quickLog: QuickCalorieLogInput? = null
         var favoriteQuickLogSave: QuickCaloriePresetInput? = null
         var favoriteQuickLogToggle: Pair<String, Boolean>? = null
@@ -2739,6 +2822,7 @@ class FoodViewModelTest {
         var favoriteToggle: Pair<String, Boolean>? = null
         var foodGoalUpdate: FoodGoal? = null
         var copyMealCall: CopyMealCall? = null
+        var copyDayCall: CopyDayCall? = null
         var copyDiaryEntryCall: CopyDiaryEntryCall? = null
         var saveTemplateCall: SaveTemplateCall? = null
         var logTemplateCall: LogTemplateCall? = null
@@ -2754,6 +2838,7 @@ class FoodViewModelTest {
         var favoriteRecipeToggle: Pair<String, Boolean>? = null
         var starterFoodsSeeded = false
         var confirmedProductSave: ConfirmedProductSaveCall? = null
+        var markedLoggedEntryId: String? = null
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -2792,10 +2877,18 @@ class FoodViewModelTest {
             return "meal-item-1"
         }
 
+        override suspend fun planSavedFood(input: SavedFoodLogInput): String {
+            plannedFoodLog = input
+            return "entry-1"
+        }
+
         override suspend fun quickLog(input: QuickCalorieLogInput): String {
             quickLog = input
             return "meal-item-1"
         }
+
+        override fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> =
+            weeklyPlanFlow
 
         override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> =
             quickCaloriePresetsFlow
@@ -2868,8 +2961,18 @@ class FoodViewModelTest {
             return listOf("meal-item-1")
         }
 
-        override suspend fun copyMeal(fromDate: LocalDate, toDate: LocalDate, mealType: String): List<String> {
-            copyMealCall = CopyMealCall(fromDate, toDate, mealType)
+        override suspend fun copyMeal(
+            fromDate: LocalDate,
+            toDate: LocalDate,
+            mealType: String,
+            status: FoodDiaryEntryStatus,
+        ): List<String> {
+            copyMealCall = CopyMealCall(fromDate, toDate, mealType, status)
+            return listOf("meal-item-1")
+        }
+
+        override suspend fun copyDay(fromDate: LocalDate, toDate: LocalDate, status: FoodDiaryEntryStatus): List<String> {
+            copyDayCall = CopyDayCall(fromDate, toDate, status)
             return listOf("meal-item-1")
         }
 
@@ -2898,6 +3001,10 @@ class FoodViewModelTest {
         override suspend fun copyDiaryEntry(mealItemId: String, mealType: String, date: LocalDate): String {
             copyDiaryEntryCall = CopyDiaryEntryCall(mealItemId, mealType, date)
             return "meal-item-copy"
+        }
+
+        override suspend fun markDiaryEntryLogged(mealItemId: String) {
+            markedLoggedEntryId = mealItemId
         }
 
         override fun observeRecipes(): Flow<List<Recipe>> =

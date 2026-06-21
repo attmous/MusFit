@@ -7,11 +7,13 @@ import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.remote.food.ProductSearchResult
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.FoodDiary
+import com.musfit.data.repository.FoodDiaryEntryStatus
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodMealDefinition
 import com.musfit.data.repository.FoodMealDefinitionInput
+import com.musfit.data.repository.FoodPlanDay
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.MealTemplate
@@ -107,6 +109,7 @@ data class FoodMealEntryUiState(
     val proteinContribution: Double = 0.0,
     val carbsContribution: Double = 0.0,
     val fatContribution: Double = 0.0,
+    val isPlanned: Boolean = false,
 )
 
 data class FoodMealSectionUiState(
@@ -128,9 +131,22 @@ data class FoodMealSectionUiState(
     val sugarGrams: Double = 0.0,
     val saturatedFatGrams: Double = 0.0,
     val sodiumMilligrams: Double = 0.0,
+    val plannedCaloriesKcal: Double = 0.0,
+    val plannedProteinGrams: Double = 0.0,
+    val plannedCarbsGrams: Double = 0.0,
+    val plannedFatGrams: Double = 0.0,
     val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyList(),
     val micronutrients: List<FoodMicronutrientUiState> = emptyList(),
     val entries: List<FoodMealEntryUiState>,
+)
+
+data class FoodPlanDayUiState(
+    val date: LocalDate,
+    val dayLabel: String,
+    val loggedCaloriesKcal: Double,
+    val plannedCaloriesKcal: Double,
+    val loggedEntryCount: Int,
+    val plannedEntryCount: Int,
 )
 
 data class FoodMealDefinitionUiState(
@@ -334,6 +350,8 @@ data class FoodUiState(
     val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyAdvancedNutritionProgress(),
     val micronutrients: List<FoodMicronutrientUiState> = emptyMicronutrients(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
+    val weeklyPlan: List<FoodPlanDayUiState> = emptyList(),
+    val isPlanningMode: Boolean = false,
     val mealDefinitions: List<FoodMealDefinitionUiState> = defaultMealDefinitionUiStates(),
     val selectedMealDetailId: String? = null,
     val mealDetailSortMode: MealDetailSortMode = MealDetailSortMode.Logged,
@@ -371,6 +389,7 @@ data class FoodUiState(
     val editingDiaryEntryPreviewProteinGrams: Double = 0.0,
     val editingDiaryEntryPreviewCarbsGrams: Double = 0.0,
     val editingDiaryEntryPreviewFatGrams: Double = 0.0,
+    val editingDiaryEntryIsPlanned: Boolean = false,
     val editingSavedFoodId: String? = null,
     val savedFoodName: String = "",
     val savedFoodBrand: String = "",
@@ -523,6 +542,15 @@ class FoodViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            selectedDateFlow.flatMapLatest { date ->
+                repository.observeFoodPlan(date)
+            }.collect { planDays ->
+                mutableState.update { currentState ->
+                    currentState.copy(weeklyPlan = planDays.map { it.toUiState() })
+                }
+            }
+        }
+        viewModelScope.launch {
             repository.observeSavedFoods().collect { savedFoods ->
                 mutableState.update { currentState ->
                     val foodStates = savedFoods.map { it.toUiState() }
@@ -595,6 +623,47 @@ class FoodViewModel @Inject constructor(
         }
     }
 
+    fun togglePlanningMode() {
+        mutableState.update { currentState ->
+            currentState.copy(
+                isPlanningMode = !currentState.isPlanningMode,
+                message = null,
+            )
+        }
+    }
+
+    fun copySelectedDayToTomorrow() {
+        val currentState = state.value
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.copyDay(
+                    fromDate = currentState.selectedDate,
+                    toDate = currentState.selectedDate.plusDays(1),
+                    status = FoodDiaryEntryStatus.Planned,
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = "Planned tomorrow from this day",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to copy day",
+                    )
+                }
+            }
+        }
+    }
+
     fun openAddFood(mealType: String) {
         val normalizedMealType = mealType.normalizedMealType()
         mutableState.update { currentState ->
@@ -616,6 +685,7 @@ class FoodViewModel @Inject constructor(
                 sheetMode = null,
                 message = null,
                 editingDiaryEntryId = null,
+                editingDiaryEntryIsPlanned = false,
                 editingSavedFoodId = null,
                 editingTemplateId = null,
                 editingRecipeId = null,
@@ -1207,6 +1277,7 @@ class FoodViewModel @Inject constructor(
                 editingDiaryEntryPreviewProteinGrams = entry.proteinGrams,
                 editingDiaryEntryPreviewCarbsGrams = entry.carbsGrams,
                 editingDiaryEntryPreviewFatGrams = entry.fatGrams,
+                editingDiaryEntryIsPlanned = entry.isPlanned,
             )
         }
     }
@@ -1278,6 +1349,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = false,
                         sheetMode = null,
                         editingDiaryEntryId = null,
+                        editingDiaryEntryIsPlanned = false,
                         message = "Updated diary item",
                     )
                 }
@@ -1327,6 +1399,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = false,
                         sheetMode = null,
                         editingDiaryEntryId = null,
+                        editingDiaryEntryIsPlanned = false,
                         lastDeletedDiaryEntry = deletedSnapshot,
                         message = "Deleted diary item",
                     )
@@ -1411,6 +1484,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = false,
                         sheetMode = null,
                         editingDiaryEntryId = null,
+                        editingDiaryEntryIsPlanned = false,
                         message = "Copied diary item",
                     )
                 }
@@ -1422,6 +1496,48 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         message = error.message ?: "Failed to copy diary item",
+                    )
+                }
+            }
+        }
+    }
+
+    fun markDiaryEntryLogged() {
+        val currentState = state.value
+        val mealItemId = currentState.editingDiaryEntryId
+        if (mealItemId == null) {
+            mutableState.update { it.copy(message = "Choose a diary item") }
+            return
+        }
+        if (!currentState.editingDiaryEntryIsPlanned) {
+            mutableState.update { it.copy(message = "Diary item is already logged") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.markDiaryEntryLogged(mealItemId)
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = false,
+                        sheetMode = null,
+                        editingDiaryEntryId = null,
+                        editingDiaryEntryIsPlanned = false,
+                        message = "Logged planned food",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to log planned food",
                     )
                 }
             }
@@ -2195,19 +2311,22 @@ class FoodViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                repository.logSavedFood(
-                    SavedFoodLogInput(
-                        foodId = foodId,
-                        mealType = currentState.mealType,
-                        quantityGrams = quantityGrams,
-                        date = currentState.selectedDate,
-                    ),
+                val input = SavedFoodLogInput(
+                    foodId = foodId,
+                    mealType = currentState.mealType,
+                    quantityGrams = quantityGrams,
+                    date = currentState.selectedDate,
                 )
+                if (currentState.isPlanningMode) {
+                    repository.planSavedFood(input)
+                } else {
+                    repository.logSavedFood(input)
+                }
                 mutableState.update {
                     it.copy(
                         isSaving = false,
                         isAddPanelVisible = currentState.keepAddingFoods,
-                        message = "Logged food",
+                        message = if (currentState.isPlanningMode) "Planned food" else "Logged food",
                     )
                 }
             } catch (error: CancellationException) {
@@ -3242,6 +3361,10 @@ private fun FoodDiary.toMealSections(
             sugarGrams = detailTotals.sugarGrams,
             saturatedFatGrams = detailTotals.saturatedFatGrams,
             sodiumMilligrams = detailTotals.sodiumMilligrams,
+            plannedCaloriesKcal = meal?.plannedTotals?.caloriesKcal ?: 0.0,
+            plannedProteinGrams = meal?.plannedTotals?.proteinGrams ?: 0.0,
+            plannedCarbsGrams = meal?.plannedTotals?.carbsGrams ?: 0.0,
+            plannedFatGrams = meal?.plannedTotals?.fatGrams ?: 0.0,
             advancedNutritionProgress = detailTotals.toAdvancedNutritionProgress(
                 fiberGoalGrams = fiberGoalGrams,
                 sugarGoalGrams = sugarGoalGrams,
@@ -3268,6 +3391,7 @@ private fun FoodDiary.toMealSections(
                     proteinContribution = entry.proteinGrams.fractionOf(totals?.proteinGrams ?: 0.0),
                     carbsContribution = entry.carbsGrams.fractionOf(totals?.carbsGrams ?: 0.0),
                     fatContribution = entry.fatGrams.fractionOf(totals?.fatGrams ?: 0.0),
+                    isPlanned = entry.status == FoodDiaryEntryStatus.Planned,
                 )
             },
         )
@@ -3320,6 +3444,16 @@ private fun SavedFoodItem.toUiState(): SavedFoodUiState {
         },
     )
 }
+
+private fun FoodPlanDay.toUiState(): FoodPlanDayUiState =
+    FoodPlanDayUiState(
+        date = date,
+        dayLabel = date.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.titlecase() },
+        loggedCaloriesKcal = loggedTotals.caloriesKcal,
+        plannedCaloriesKcal = plannedTotals.caloriesKcal,
+        loggedEntryCount = loggedEntryCount,
+        plannedEntryCount = plannedEntryCount,
+    )
 
 private fun SavedFoodItem.sourceLabel(): String =
     when {

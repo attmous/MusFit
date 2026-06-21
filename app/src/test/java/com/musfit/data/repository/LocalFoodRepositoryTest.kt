@@ -847,6 +847,75 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun planSavedFood_keepsLoggedTotalsSeparateAndCanBecomeLogged() = runTest {
+        val targetDate = LocalDate.of(2026, 6, 22)
+        val foodId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Rice",
+                    brand = null,
+                    defaultServingGrams = 100.0,
+                    nutritionPer100g = nutrition(calories = 180.0, protein = 6.0, carbs = 32.0, fat = 4.0),
+                ),
+            )
+
+        val plannedEntryId = repository.planSavedFood(SavedFoodLogInput(foodId, "dinner", 200.0, targetDate))
+        val plannedDiary = repository.observeFoodDiary(targetDate).first()
+
+        assertEquals(0.0, plannedDiary.totals.caloriesKcal, 0.01)
+        assertEquals(360.0, plannedDiary.plannedTotals.caloriesKcal, 0.01)
+        assertEquals(FoodDiaryEntryStatus.Planned, plannedDiary.meals.single().entries.single().status)
+
+        repository.markDiaryEntryLogged(plannedEntryId)
+        val loggedDiary = repository.observeFoodDiary(targetDate).first()
+
+        assertEquals(360.0, loggedDiary.totals.caloriesKcal, 0.01)
+        assertEquals(0.0, loggedDiary.plannedTotals.caloriesKcal, 0.01)
+        assertEquals(FoodDiaryEntryStatus.Logged, loggedDiary.meals.single().entries.single().status)
+    }
+
+    @Test
+    fun copyDay_canCopyAllMealsAsPlannedEntries() = runTest {
+        val sourceDate = LocalDate.of(2026, 6, 20)
+        val targetDate = sourceDate.plusDays(2)
+        val oatsId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Oats",
+                    brand = null,
+                    defaultServingGrams = 40.0,
+                    nutritionPer100g = nutrition(calories = 389.0, protein = 16.9, carbs = 66.3, fat = 6.9),
+                ),
+            )
+        val chickenId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Chicken",
+                    brand = null,
+                    defaultServingGrams = 150.0,
+                    nutritionPer100g = nutrition(calories = 165.0, protein = 31.0, carbs = 0.0, fat = 3.6),
+                ),
+            )
+        repository.logSavedFood(SavedFoodLogInput(oatsId, "breakfast", 40.0, sourceDate))
+        repository.logSavedFood(SavedFoodLogInput(chickenId, "lunch", 150.0, sourceDate))
+
+        repository.copyDay(sourceDate, targetDate, FoodDiaryEntryStatus.Planned)
+
+        val targetDiary = repository.observeFoodDiary(targetDate).first()
+
+        assertEquals(0.0, targetDiary.totals.caloriesKcal, 0.01)
+        assertEquals(403.1, targetDiary.plannedTotals.caloriesKcal, 0.01)
+        assertEquals(listOf("breakfast", "lunch"), targetDiary.meals.map { it.type }.sorted())
+        assertEquals(
+            listOf(FoodDiaryEntryStatus.Planned, FoodDiaryEntryStatus.Planned),
+            targetDiary.meals.flatMap { it.entries }.map { it.status },
+        )
+    }
+
+    @Test
     fun upsertRecipeAndLogRecipePortion_calculatesRecipeNutrition() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         val chickenId =
