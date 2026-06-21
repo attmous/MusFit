@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.entity.ExerciseEntity
+import com.musfit.data.local.entity.WorkoutSessionEntity
+import com.musfit.data.local.entity.WorkoutSetEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -86,7 +89,7 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
-    fun getLatestWorkoutForExport_returnsPersistedSessionWithSets() = runTest {
+    fun getLatestWorkoutForExport_returnsNullWhenOnlyActiveWorkoutExists() = runTest {
         repository.addCompletedSet(
             exerciseName = "Deadlift",
             reps = 2,
@@ -95,9 +98,7 @@ class LocalTrainingRepositoryTest {
 
         val workout = repository.getLatestWorkoutForExport()
 
-        assertNotNull(workout)
-        assertEquals(1, workout?.sets?.size)
-        assertEquals(2, workout?.sets?.single()?.reps)
+        assertEquals(null, workout)
     }
 
     @Test
@@ -158,6 +159,118 @@ class LocalTrainingRepositoryTest {
         assertTrue(bench.all { it.name.contains("Bench", ignoreCase = true) })
         assertTrue(quads.any { it.name == "Back Squat" })
         assertTrue(dumbbell.any { it.name == "Incline Dumbbell Press" })
+    }
+
+    @Test
+    fun seedStarterTrainingData_whenCustomStarterExerciseExists_seedsRemainingCatalogWithoutDuplicates() = runTest {
+        val customBenchPress =
+            ExerciseEntity(
+                id = "custom-bench-press",
+                name = "Barbell Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "chest",
+                isCustom = true,
+            )
+        database.trainingDao().upsertExercise(customBenchPress)
+
+        repository.seedStarterTrainingData()
+
+        val exercises = repository.observeExercises().first()
+        val routines = repository.observeRoutineSummaries().first()
+        val pushRoutineExercises = database.trainingDao().getRoutineExercises("starter-routine-push")
+        val matchingBenchPressExercises = exercises.filter { it.name == "Barbell Bench Press" }
+
+        assertEquals(TrainingStarterData.exercises.map { it.name }.sorted(), exercises.map { it.name }.sorted())
+        assertEquals(1, matchingBenchPressExercises.size)
+        assertTrue(matchingBenchPressExercises.single().isCustom)
+        assertEquals(customBenchPress.id, matchingBenchPressExercises.single().id)
+        assertEquals(TrainingStarterData.routines.map { it.id }.sorted(), routines.map { it.id }.sorted())
+        assertEquals(
+            TrainingStarterData.routines.first { it.id == "starter-routine-push" }.exercises.size,
+            pushRoutineExercises.size,
+        )
+        assertTrue(pushRoutineExercises.any { it.exerciseId == customBenchPress.id })
+    }
+
+    @Test
+    fun getLatestWorkoutForExport_skipsActiveSessionAndReturnsLatestCompletedWorkout() = runTest {
+        val exercise =
+            ExerciseEntity(
+                id = "exercise-deadlift",
+                name = "Deadlift",
+                category = "strength",
+                equipment = "barbell",
+                targetMuscles = "back,glutes,hamstrings",
+                isCustom = false,
+            )
+        val completedSession =
+            WorkoutSessionEntity(
+                id = "session-completed",
+                routineId = null,
+                title = "Completed workout",
+                status = "completed",
+                startedAtEpochMillis = WORKOUT_START.toEpochMilli(),
+                endedAtEpochMillis = WORKOUT_START.plusSeconds(1800).toEpochMilli(),
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+        val activeSession =
+            WorkoutSessionEntity(
+                id = "session-active",
+                routineId = null,
+                title = "Active workout",
+                status = "active",
+                startedAtEpochMillis = WORKOUT_START.plusSeconds(3600).toEpochMilli(),
+                endedAtEpochMillis = null,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+
+        database.trainingDao().upsertExercise(exercise)
+        database.trainingDao().upsertWorkoutSession(completedSession)
+        database.trainingDao().upsertWorkoutSession(activeSession)
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-completed",
+                sessionId = completedSession.id,
+                exerciseId = exercise.id,
+                sortOrder = 0,
+                setType = "working",
+                reps = 2,
+                weightKg = 160.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-active",
+                sessionId = activeSession.id,
+                exerciseId = exercise.id,
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+
+        val workout = repository.getLatestWorkoutForExport()
+
+        assertNotNull(workout)
+        assertEquals(completedSession.id, workout?.session?.id)
+        assertEquals("completed", workout?.session?.status)
+        assertEquals(listOf("set-completed"), workout?.sets?.map { it.id })
     }
 
     private companion object {

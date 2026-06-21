@@ -6,9 +6,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -50,6 +53,21 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 }
             }
         }
+        QuickSetLoggerCard(
+            state = state,
+            onExerciseChanged = viewModel::onExerciseChanged,
+            onRepsChanged = viewModel::onRepsChanged,
+            onWeightChanged = viewModel::onWeightChanged,
+            onAddSet = viewModel::addSet,
+            onToggleSetCompletion = viewModel::toggleSetCompletion,
+        )
+        state.message?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             TrainingSection.entries.forEachIndexed { index, section ->
                 SegmentedButton(
@@ -66,6 +84,74 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
             TrainingSection.Exercises -> ExerciseListPreview(state.exercises)
             TrainingSection.History -> Text("Finish a workout to build history.")
             TrainingSection.Progress -> Text("Complete workouts to see progress.")
+        }
+    }
+}
+
+@Composable
+private fun QuickSetLoggerCard(
+    state: TrainingUiState,
+    onExerciseChanged: (String) -> Unit,
+    onRepsChanged: (String) -> Unit,
+    onWeightChanged: (String) -> Unit,
+    onAddSet: () -> Unit,
+    onToggleSetCompletion: (Int) -> Unit,
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(text = "Quick set", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "Temporary logger for simple sets until the full workout flow lands.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedTextField(
+                value = state.exerciseName,
+                onValueChange = onExerciseChanged,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Exercise") },
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = state.reps,
+                onValueChange = onRepsChanged,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Reps") },
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = state.weightKg,
+                onValueChange = onWeightChanged,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Weight (kg)") },
+                singleLine = true,
+            )
+            Button(
+                onClick = onAddSet,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Log set")
+            }
+            Text(
+                text = "Volume ${state.totalVolumeKg.formatKg()} kg | Best 1RM ${state.bestEstimatedOneRepMaxKg.formatKg()} kg",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            state.sets.forEachIndexed { index, set ->
+                ListItem(
+                    headlineContent = { Text("${set.exerciseName} | ${set.weightKg.formatKg()} kg x ${set.reps}") },
+                    supportingContent = {
+                        Text(if (set.completed) "Included in totals" else "Excluded from totals")
+                    },
+                    trailingContent = {
+                        Checkbox(
+                            checked = set.completed,
+                            onCheckedChange = { onToggleSetCompletion(index) },
+                        )
+                    },
+                )
+            }
         }
     }
 }

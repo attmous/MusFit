@@ -97,6 +97,17 @@ interface TrainingDao {
     @Query("SELECT * FROM workout_sessions ORDER BY startedAtEpochMillis DESC LIMIT 1")
     suspend fun getLatestWorkoutSession(): WorkoutSessionEntity?
 
+    @Query(
+        """
+        SELECT *
+        FROM workout_sessions
+        WHERE status = 'completed'
+        ORDER BY startedAtEpochMillis DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun getLatestCompletedWorkoutSession(): WorkoutSessionEntity?
+
     @Query("SELECT * FROM routine_exercises WHERE routineId = :routineId ORDER BY sortOrder")
     fun observeRoutineExercises(routineId: String): Flow<List<RoutineExerciseEntity>>
 

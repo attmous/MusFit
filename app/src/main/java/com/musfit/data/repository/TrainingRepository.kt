@@ -211,29 +211,31 @@ class LocalTrainingRepository @Inject constructor(
     }
 
     override suspend fun getLatestWorkoutForExport(): WorkoutForExport? {
-        val session = trainingDao.getLatestWorkoutSession() ?: return null
+        val session = trainingDao.getLatestCompletedWorkoutSession() ?: return null
         val sets = trainingDao.getWorkoutSets(session.id)
         return if (sets.isEmpty()) null else WorkoutForExport(session = session, sets = sets)
     }
 
     override suspend fun seedStarterTrainingData() {
         database.withTransaction {
-            if (trainingDao.getExerciseByName("Barbell Bench Press") != null) {
-                return@withTransaction
-            }
             val now = clock()
-            trainingDao.upsertExercises(
-                TrainingStarterData.exercises.map {
-                    ExerciseEntity(
-                        id = it.id,
-                        name = it.name,
-                        category = "strength",
-                        equipment = it.equipment,
-                        targetMuscles = it.targetMuscles,
-                        isCustom = false,
-                    )
-                },
-            )
+            val resolvedExerciseIds =
+                TrainingStarterData.exercises.associate { definition ->
+                    val existingExercise = trainingDao.getExerciseByName(definition.name)
+                    if (existingExercise == null) {
+                        trainingDao.upsertExercise(
+                            ExerciseEntity(
+                                id = definition.id,
+                                name = definition.name,
+                                category = "strength",
+                                equipment = definition.equipment,
+                                targetMuscles = definition.targetMuscles,
+                                isCustom = false,
+                            ),
+                        )
+                    }
+                    definition.id to (existingExercise?.id ?: definition.id)
+                }
             trainingDao.upsertRoutines(
                 TrainingStarterData.routines.map {
                     RoutineEntity(
@@ -252,7 +254,7 @@ class LocalTrainingRepository @Inject constructor(
                         RoutineExerciseEntity(
                             id = "${routine.id}-${exercise.exerciseId}",
                             routineId = routine.id,
-                            exerciseId = exercise.exerciseId,
+                            exerciseId = resolvedExerciseIds.getValue(exercise.exerciseId),
                             sortOrder = index,
                             targetSets = exercise.targetSets,
                             targetReps = exercise.targetReps,

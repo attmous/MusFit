@@ -174,6 +174,16 @@ class TrainingViewModelTest {
         assertEquals(listOf("Barbell Bench Press"), state.exercises.map { it.name })
     }
 
+    @Test
+    fun resumeActiveWorkout_updatesVisibleMessageState() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.resumeActiveWorkout()
+
+        assertEquals("Active workout resume is not wired yet.", viewModel.state.value.message)
+    }
+
     private class FakeTrainingRepository : TrainingRepository {
         var addCalls = 0
         var seedCalls = 0
