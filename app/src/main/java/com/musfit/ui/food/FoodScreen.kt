@@ -80,6 +80,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import kotlin.math.roundToInt
@@ -1852,6 +1855,33 @@ private fun MealInitial(title: String) {
 }
 
 @Composable
+private fun FoodThumb(
+    imageUrl: String?,
+    fallback: ImageVector,
+    modifier: Modifier = Modifier,
+    size: Dp = 46.dp,
+) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(MusFitTheme.shapes.medium)
+            .background(MusFitTheme.colors.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (imageUrl.isNullOrBlank()) {
+            Icon(imageVector = fallback, contentDescription = null, tint = MusFitTheme.colors.brand)
+        } else {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
+    }
+}
+
+@Composable
 private fun FoodAvatar(
     text: String,
     color: Color = MusFitTheme.colors.surfaceVariant,
@@ -1890,6 +1920,11 @@ private fun DiaryEntryRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            FoodThumb(
+                imageUrl = entry.imageUrl,
+                fallback = Icons.Outlined.Restaurant,
+                modifier = Modifier.padding(end = 12.dp),
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = entry.name,
@@ -2380,7 +2415,7 @@ private fun OnlineFoodResultRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            FoodAvatar(text = result.name, color = MusFitTheme.colors.brand.copy(alpha = 0.28f))
+            FoodThumb(imageUrl = result.imageUrl, fallback = Icons.Outlined.Restaurant)
             Column(modifier = Modifier.weight(1f)) {
                 Text(result.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -2467,6 +2502,7 @@ private fun SavedFoodDatabaseRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            FoodThumb(imageUrl = food.imageUrl, fallback = Icons.Outlined.Restaurant)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = food.name,
