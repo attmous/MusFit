@@ -10,6 +10,8 @@ import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
+import com.musfit.data.repository.FoodMealDefinition
+import com.musfit.data.repository.FoodMealDefinitionInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.MealTemplate
@@ -55,6 +57,7 @@ enum class FoodSheetMode {
     GoalEditor,
     RecipeEditor,
     MealTemplates,
+    MealSettings,
 }
 
 enum class MealDetailSortMode {
@@ -105,6 +108,15 @@ data class FoodMealSectionUiState(
     val saturatedFatGrams: Double = 0.0,
     val sodiumMilligrams: Double = 0.0,
     val entries: List<FoodMealEntryUiState>,
+)
+
+data class FoodMealDefinitionUiState(
+    val id: String,
+    val title: String,
+    val timeMinutes: Int?,
+    val timeLabel: String,
+    val sortOrder: Int,
+    val isDefault: Boolean,
 )
 
 data class SavedFoodUiState(
@@ -264,6 +276,7 @@ data class FoodUiState(
     val remainingCaloriesKcal: Double = CALORIE_GOAL_KCAL,
     val macroProgress: List<FoodMacroProgressUiState> = emptyMacroProgress(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
+    val mealDefinitions: List<FoodMealDefinitionUiState> = defaultMealDefinitionUiStates(),
     val selectedMealDetailId: String? = null,
     val mealDetailSortMode: MealDetailSortMode = MealDetailSortMode.Logged,
     val savedFoods: List<SavedFoodUiState> = emptyList(),
@@ -338,6 +351,10 @@ data class FoodUiState(
     val recipeIngredientQuantityGrams: String = "100",
     val recipeIngredients: List<RecipeIngredientDraftUiState> = emptyList(),
     val recipeServingsToLog: String = "1",
+    val editingMealDefinitionId: String? = null,
+    val customMealNameInput: String = "",
+    val customMealTimeInput: String = "",
+    val customMealSortOrderInput: String = "",
     val lastDeletedDiaryEntry: DeletedDiaryEntrySnapshot? = null,
 ) {
     val favoriteAddItems: List<FavoriteAddItemUiState>
@@ -422,12 +439,14 @@ class FoodViewModel @Inject constructor(
     private val mutableState = MutableStateFlow(FoodUiState())
     val state: StateFlow<FoodUiState> = mutableState.asStateFlow()
     private var lookupJob: Job? = null
+    private var currentDiary: FoodDiary = emptyFoodDiary()
 
     init {
         viewModelScope.launch {
             selectedDateFlow.flatMapLatest { date ->
                 repository.observeFoodDiary(date)
             }.collect { diary ->
+                currentDiary = diary
                 mutableState.update { currentState -> currentState.withDiary(diary) }
             }
         }
@@ -468,6 +487,17 @@ class FoodViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            repository.observeCustomMealDefinitions().collect { definitions ->
+                mutableState.update { currentState ->
+                    val mealDefinitions = definitions.toMealDefinitionUiStates()
+                    val updatedState = currentState.copy(mealDefinitions = mealDefinitions)
+                    updatedState
+                        .copy(selectedMealTitle = updatedState.mealTitleFor(updatedState.mealType))
+                        .withDiary(currentDiary)
+                }
+            }
+        }
     }
 
     fun goToPreviousDay() {
@@ -495,12 +525,12 @@ class FoodViewModel @Inject constructor(
 
     fun openAddFood(mealType: String) {
         val normalizedMealType = mealType.normalizedMealType()
-        mutableState.update {
-            it.copy(
+        mutableState.update { currentState ->
+            currentState.copy(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.AddFood,
                 mealType = normalizedMealType,
-                selectedMealTitle = normalizedMealType.mealTitle(),
+                selectedMealTitle = currentState.mealTitleFor(normalizedMealType),
                 addMode = FoodAddMode.Saved,
                 message = null,
             )
@@ -517,6 +547,7 @@ class FoodViewModel @Inject constructor(
                 editingSavedFoodId = null,
                 editingTemplateId = null,
                 editingRecipeId = null,
+                editingMealDefinitionId = null,
                 selectedSavedFoodDetail = null,
             )
         }
@@ -581,6 +612,110 @@ class FoodViewModel @Inject constructor(
 
     fun openMealTemplates() {
         mutableState.update { it.copy(isAddPanelVisible = true, sheetMode = FoodSheetMode.MealTemplates, message = null) }
+    }
+
+    fun openMealSettings() {
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.MealSettings,
+                editingMealDefinitionId = null,
+                customMealNameInput = "",
+                customMealTimeInput = "",
+                customMealSortOrderInput = it.nextMealSortOrder().toString(),
+                message = null,
+            )
+        }
+    }
+
+    fun openMealDefinitionEditor(mealId: String) {
+        val meal = state.value.mealDefinitions.firstOrNull { it.id == mealId.normalizedMealType() }
+        if (meal == null) {
+            mutableState.update { it.copy(message = "Meal not found") }
+            return
+        }
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.MealSettings,
+                editingMealDefinitionId = meal.id,
+                customMealNameInput = meal.title,
+                customMealTimeInput = meal.timeMinutes?.toMealTimeLabel().orEmpty(),
+                customMealSortOrderInput = meal.sortOrder.toString(),
+                message = null,
+            )
+        }
+    }
+
+    fun onCustomMealNameChanged(value: String) {
+        mutableState.update { it.copy(customMealNameInput = value, message = null) }
+    }
+
+    fun onCustomMealTimeChanged(value: String) {
+        mutableState.update { it.copy(customMealTimeInput = value.take(5), message = null) }
+    }
+
+    fun onCustomMealSortOrderChanged(value: String) {
+        mutableState.update { it.copy(customMealSortOrderInput = value.filter(Char::isDigit), message = null) }
+    }
+
+    fun saveCustomMealDefinition() {
+        val currentState = state.value
+        val mealName = currentState.customMealNameInput.trim()
+        if (mealName.isBlank()) {
+            mutableState.update { it.copy(message = "Enter a meal name") }
+            return
+        }
+        val timeMinutes = currentState.customMealTimeInput.parseMealTimeMinutesOrNull()
+        if (currentState.customMealTimeInput.isNotBlank() && timeMinutes == null) {
+            mutableState.update { it.copy(message = "Enter meal time as HH:mm") }
+            return
+        }
+        val sortOrder = currentState.customMealSortOrderInput.toIntOrNull()
+        if (sortOrder == null) {
+            mutableState.update { it.copy(message = "Enter a meal order") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.upsertCustomMealDefinition(
+                    FoodMealDefinitionInput(
+                        mealId = currentState.editingMealDefinitionId,
+                        name = mealName,
+                        timeMinutes = timeMinutes,
+                        sortOrder = sortOrder,
+                    ),
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        editingMealDefinitionId = null,
+                        customMealNameInput = "",
+                        customMealTimeInput = "",
+                        customMealSortOrderInput = it.nextMealSortOrder().toString(),
+                        message = if (currentState.editingMealDefinitionId == null) {
+                            "Saved custom meal"
+                        } else {
+                            "Saved meal"
+                        },
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to save meal",
+                    )
+                }
+            }
+        }
     }
 
     fun openRecipeEditor(recipeId: String? = null) {
@@ -1559,7 +1694,7 @@ class FoodViewModel @Inject constructor(
         mutableState.update {
             it.copy(
                 mealType = value,
-                selectedMealTitle = value.normalizedMealType().mealTitle(),
+                selectedMealTitle = it.mealTitleFor(value),
                 message = null,
             )
         }
@@ -2498,15 +2633,19 @@ private data class MealDefinition(
     val title: String,
     val recommendation: String,
     val calorieTargetKcal: Double,
+    val sortOrder: Int,
+    val timeMinutes: Int? = null,
 )
 
 private val mealDefinitions =
     listOf(
-        MealDefinition("breakfast", "Breakfast", "Recommended 417 - 625 kcal", 625.0),
-        MealDefinition("lunch", "Lunch", "Recommended 625 - 833 kcal", 833.0),
-        MealDefinition("dinner", "Dinner", "Recommended 625 - 833 kcal", 833.0),
-        MealDefinition("snacks", "Snacks", "Recommended 104 - 208 kcal", 208.0),
+        MealDefinition("breakfast", "Breakfast", "Recommended 417 - 625 kcal", 625.0, sortOrder = 0),
+        MealDefinition("lunch", "Lunch", "Recommended 625 - 833 kcal", 833.0, sortOrder = 10),
+        MealDefinition("dinner", "Dinner", "Recommended 625 - 833 kcal", 833.0, sortOrder = 20),
+        MealDefinition("snacks", "Snacks", "Recommended 104 - 208 kcal", 208.0, sortOrder = 30),
     )
+
+private val defaultMealDefinitionIds = mealDefinitions.map { it.id }.toSet()
 
 private const val CALORIE_GOAL_KCAL = 2083.0
 private const val CARBS_GOAL_GRAMS = 260.0
@@ -2526,7 +2665,7 @@ private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
             proteinGoalGrams = proteinGoalGrams,
             fatGoalGrams = fatGoalGrams,
         ),
-        mealSections = diary.toMealSections(),
+        mealSections = diary.toMealSections(mealDefinitions),
     )
 
 private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
@@ -2579,18 +2718,35 @@ private fun FoodMealSectionUiState.sortedForDetail(sortMode: MealDetailSortMode)
     return copy(entries = sortedEntries)
 }
 
-private fun FoodDiary.toMealSections(): List<FoodMealSectionUiState> {
+private fun FoodDiary.toMealSections(mealDefinitions: List<FoodMealDefinitionUiState>): List<FoodMealSectionUiState> {
     val mealsByType = meals.associateBy { it.type.normalizedMealType() }
-    return mealDefinitions.map { definition ->
+    val unknownMealDefinitions =
+        mealsByType.keys
+            .filterNot { mealType -> mealDefinitions.any { it.id == mealType } }
+            .mapIndexed { index, mealType ->
+                FoodMealDefinitionUiState(
+                    id = mealType,
+                    title = mealType.mealTitle(),
+                    timeMinutes = null,
+                    timeLabel = "No time",
+                    sortOrder = 100 + index,
+                    isDefault = false,
+                )
+            }
+
+    return (mealDefinitions + unknownMealDefinitions).map { definition ->
         val meal = mealsByType[definition.id]
         val totals = meal?.totals
+        val defaultDefinition = mealDefinitions.firstOrNull { it.id == definition.id }
         FoodMealSectionUiState(
             id = definition.id,
             title = definition.title,
-            recommendation = definition.recommendation,
+            recommendation = definition.timeMinutes?.toMealTimeLabel()
+                ?: defaultDefinition?.recommendation()
+                ?: "Custom meal",
             caloriesKcal = totals?.caloriesKcal ?: 0.0,
-            calorieTargetKcal = definition.calorieTargetKcal,
-            calorieProgress = (totals?.caloriesKcal ?: 0.0).fractionOf(definition.calorieTargetKcal),
+            calorieTargetKcal = definition.calorieTargetKcal(),
+            calorieProgress = (totals?.caloriesKcal ?: 0.0).fractionOf(definition.calorieTargetKcal()),
             proteinGrams = totals?.proteinGrams ?: 0.0,
             carbsGrams = totals?.carbsGrams ?: 0.0,
             fatGrams = totals?.fatGrams ?: 0.0,
@@ -2867,6 +3023,71 @@ private fun emptyMealSections(): List<FoodMealSectionUiState> =
         )
     }
 
+private fun emptyFoodDiary(): FoodDiary =
+    FoodDiary(
+        totals = NutritionTotals(0.0, 0.0, 0.0, 0.0),
+        meals = emptyList(),
+    )
+
+private fun defaultMealDefinitionUiStates(): List<FoodMealDefinitionUiState> =
+    mealDefinitions.map { definition -> definition.toUiState() }
+
+private fun List<FoodMealDefinition>.toMealDefinitionUiStates(): List<FoodMealDefinitionUiState> {
+    val overridesById = associate { definition ->
+        definition.id.normalizedMealType() to definition.toUiState()
+    }
+    val defaultDefinitions =
+        mealDefinitions.map { defaultDefinition ->
+            overridesById[defaultDefinition.id]
+                ?.copy(isDefault = true)
+                ?: defaultDefinition.toUiState()
+        }
+    val customDefinitions =
+        overridesById.values.filterNot { definition -> definition.id in defaultMealDefinitionIds }
+
+    return (defaultDefinitions + customDefinitions)
+        .distinctBy { definition -> definition.id }
+        .sortedWith(compareBy<FoodMealDefinitionUiState> { it.sortOrder }.thenBy { it.title.lowercase() })
+}
+
+private fun MealDefinition.toUiState(): FoodMealDefinitionUiState =
+    FoodMealDefinitionUiState(
+        id = id,
+        title = title,
+        timeMinutes = timeMinutes,
+        timeLabel = timeMinutes?.toMealTimeLabel() ?: "No time",
+        sortOrder = sortOrder,
+        isDefault = true,
+    )
+
+private fun FoodMealDefinition.toUiState(): FoodMealDefinitionUiState {
+    val mealId = id.normalizedMealType()
+    return FoodMealDefinitionUiState(
+        id = mealId,
+        title = name,
+        timeMinutes = timeMinutes,
+        timeLabel = timeMinutes?.toMealTimeLabel() ?: "No time",
+        sortOrder = sortOrder,
+        isDefault = mealId in defaultMealDefinitionIds,
+    )
+}
+
+private fun FoodMealDefinitionUiState.recommendation(): String =
+    timeMinutes?.toMealTimeLabel()
+        ?: mealDefinitions.firstOrNull { it.id == id }?.recommendation
+        ?: "Custom meal"
+
+private fun FoodMealDefinitionUiState.calorieTargetKcal(): Double =
+    mealDefinitions.firstOrNull { it.id == id }?.calorieTargetKcal
+        ?: (CALORIE_GOAL_KCAL / 4.0)
+
+private fun FoodUiState.mealTitleFor(mealType: String): String =
+    mealDefinitions.firstOrNull { it.id == mealType.normalizedMealType() }?.title
+        ?: mealType.mealTitle()
+
+private fun FoodUiState.nextMealSortOrder(): Int =
+    (mealDefinitions.maxOfOrNull { it.sortOrder } ?: 30) + 10
+
 private fun emptyMacroProgress(): List<FoodMacroProgressUiState> =
     NutritionTotals(0.0, 0.0, 0.0, 0.0).toMacroProgress()
 
@@ -2880,7 +3101,31 @@ private fun String.normalizedMealType(): String {
 
 private fun String.mealTitle(): String =
     mealDefinitions.firstOrNull { it.id == normalizedMealType() }?.title
-        ?: trim().replaceFirstChar { char -> char.uppercase() }.ifBlank { "Meal" }
+        ?: trim()
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .split(" ")
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word ->
+                word.lowercase().replaceFirstChar { char -> char.uppercase() }
+            }
+            .ifBlank { "Meal" }
+
+private fun String.parseMealTimeMinutesOrNull(): Int? {
+    val parts = trim().split(":")
+    if (parts.size != 2) {
+        return null
+    }
+    val hour = parts[0].toIntOrNull() ?: return null
+    val minute = parts[1].toIntOrNull() ?: return null
+    if (hour !in 0..23 || minute !in 0..59) {
+        return null
+    }
+    return hour * 60 + minute
+}
+
+private fun Int.toMealTimeLabel(): String =
+    "${(this / 60).toString().padStart(2, '0')}:${(this % 60).toString().padStart(2, '0')}"
 
 private fun String.parseNutritionValue(): Double? =
     trim()

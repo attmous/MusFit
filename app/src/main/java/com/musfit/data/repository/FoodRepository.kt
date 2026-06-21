@@ -11,6 +11,7 @@ import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
 import com.musfit.data.local.entity.FoodServingEntity
+import com.musfit.data.local.entity.MealDefinitionEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
 import com.musfit.data.local.entity.MealTemplateEntity
@@ -193,6 +194,20 @@ data class MealTemplate(
     val items: List<MealTemplateItem>,
 )
 
+data class FoodMealDefinitionInput(
+    val mealId: String?,
+    val name: String,
+    val timeMinutes: Int?,
+    val sortOrder: Int,
+)
+
+data class FoodMealDefinition(
+    val id: String,
+    val name: String,
+    val timeMinutes: Int?,
+    val sortOrder: Int,
+)
+
 data class RecipeIngredientInput(
     val foodId: String,
     val quantityGrams: Double,
@@ -273,6 +288,10 @@ interface FoodRepository {
     suspend fun updateFoodGoal(goal: FoodGoal) = Unit
 
     fun observeMealTemplates(): Flow<List<MealTemplate>> = flowOf(emptyList())
+
+    fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>> = flowOf(emptyList())
+
+    suspend fun upsertCustomMealDefinition(input: FoodMealDefinitionInput): String = ""
 
     suspend fun saveMealAsTemplate(date: LocalDate, mealType: String, name: String): String = ""
 
@@ -616,6 +635,36 @@ class LocalFoodRepository @Inject constructor(
     override suspend fun updateFoodGoal(goal: FoodGoal) {
         goal.requireValid()
         foodDao.upsertFoodGoal(goal.toEntity(System.currentTimeMillis()))
+    }
+
+    override fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>> =
+        foodDao.observeMealDefinitions().map { definitions ->
+            definitions.map { it.toFoodMealDefinition() }
+        }
+
+    override suspend fun upsertCustomMealDefinition(input: FoodMealDefinitionInput): String {
+        input.requireValid()
+        return database.withTransaction {
+            val now = System.currentTimeMillis()
+            val mealId =
+                input.mealId
+                    ?.normalizedMealDefinitionId()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: input.name.generatedMealDefinitionId()
+            val existing = foodDao.getMealDefinition(mealId)
+
+            foodDao.upsertMealDefinition(
+                MealDefinitionEntity(
+                    id = mealId,
+                    name = input.name.trim(),
+                    timeMinutes = input.timeMinutes,
+                    sortOrder = input.sortOrder,
+                    createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
+                    updatedAtEpochMillis = now,
+                ),
+            )
+            mealId
+        }
     }
 
     override fun observeMealTemplates(): Flow<List<MealTemplate>> =
@@ -1159,6 +1208,14 @@ private fun QuickCaloriePresetInput.requireValid() {
     require(fatGrams.isNonNegativeFinite())
 }
 
+private fun FoodMealDefinitionInput.requireValid() {
+    require(name.isNotBlank()) { "Meal name is required" }
+    timeMinutes?.let { minutes ->
+        require(minutes in 0..1439) { "Meal time must be within the day" }
+    }
+    require(sortOrder >= 0) { "Meal order must be zero or greater" }
+}
+
 private fun DiaryEntryUpdateInput.requireValid() {
     require(mealItemId.isNotBlank()) { "Diary item id is required" }
     require(mealType.isNotBlank()) { "Meal type is required" }
@@ -1227,6 +1284,14 @@ private fun QuickCaloriePresetEntity.toQuickCaloriePreset(): QuickCaloriePreset 
         carbsGrams = carbsGrams,
         fatGrams = fatGrams,
         isFavorite = isFavorite,
+    )
+
+private fun MealDefinitionEntity.toFoodMealDefinition(): FoodMealDefinition =
+    FoodMealDefinition(
+        id = id,
+        name = name,
+        timeMinutes = timeMinutes,
+        sortOrder = sortOrder,
     )
 
 private fun MealNutritionRow.toMealItemInput(): MealItemInput =
@@ -1432,6 +1497,21 @@ private operator fun NutritionDetails.times(multiplier: Double): NutritionDetail
         saturatedFatGrams = saturatedFatGrams * multiplier,
         sodiumMilligrams = sodiumMilligrams * multiplier,
     )
+
+private fun String.normalizedMealDefinitionId(): String {
+    val normalized = trim().lowercase(Locale.US)
+    return when (normalized) {
+        "snack" -> "snacks"
+        else -> normalized
+    }
+}
+
+private fun String.generatedMealDefinitionId(): String =
+    trim()
+        .lowercase(Locale.US)
+        .replace(Regex("[^a-z0-9]+"), "_")
+        .trim('_')
+        .ifBlank { "meal_${UUID.randomUUID()}" }
 
 private fun Double.formatFoodNumber(): String {
     val longValue = toLong()

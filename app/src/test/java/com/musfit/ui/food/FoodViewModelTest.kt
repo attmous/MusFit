@@ -10,6 +10,8 @@ import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
+import com.musfit.data.repository.FoodMealDefinition
+import com.musfit.data.repository.FoodMealDefinitionInput
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.FoodServingOption
 import com.musfit.data.repository.MealTemplate
@@ -833,6 +835,96 @@ class FoodViewModelTest {
         assertEquals(0.20, oats.proteinContribution, 0.01)
         assertEquals(0.60, oats.carbsContribution, 0.01)
         assertEquals(0.50, oats.fatContribution, 0.01)
+    }
+
+    @Test
+    fun customMealDefinitionsAppearInDiaryAndAddFlow() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(180.0, 20.0, 12.0, 6.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "pre_workout",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Protein shake",
+                                    brand = null,
+                                    quantityGrams = 300.0,
+                                    caloriesKcal = 180.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 12.0,
+                                    fatGrams = 6.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(180.0, 20.0, 12.0, 6.0),
+                        ),
+                    ),
+                ),
+                customMealDefinitions = listOf(
+                    FoodMealDefinition(
+                        id = "pre_workout",
+                        name = "Pre-workout",
+                        timeMinutes = 16 * 60 + 30,
+                        sortOrder = 1,
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf("Breakfast", "Pre-workout", "Lunch", "Dinner", "Snacks"),
+            viewModel.state.value.mealSections.map { it.title },
+        )
+        val customMeal = viewModel.state.value.mealSections.first { it.id == "pre_workout" }
+        assertEquals("16:30", customMeal.recommendation)
+        assertEquals("Protein shake", customMeal.entries.single().name)
+
+        viewModel.openAddFood("pre_workout")
+
+        assertEquals("pre_workout", viewModel.state.value.mealType)
+        assertEquals("Pre-workout", viewModel.state.value.selectedMealTitle)
+    }
+
+    @Test
+    fun saveCustomMealDefinitionDelegatesToRepositoryAndShowsMessage() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+
+        viewModel.openMealSettings()
+        viewModel.onCustomMealNameChanged("Post-workout")
+        viewModel.onCustomMealTimeChanged("18:45")
+        viewModel.saveCustomMealDefinition()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val input = requireNotNull(repository.customMealDefinitionUpsert)
+        assertEquals("Post-workout", input.name)
+        assertEquals(18 * 60 + 45, input.timeMinutes)
+        assertEquals("Saved custom meal", viewModel.state.value.message)
+    }
+
+    @Test
+    fun editMealDefinitionDelegatesExplicitIdNameTimeAndSortOrder() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+
+        viewModel.openMealSettings()
+        viewModel.openMealDefinitionEditor("breakfast")
+        viewModel.onCustomMealNameChanged("Morning")
+        viewModel.onCustomMealTimeChanged("07:30")
+        viewModel.onCustomMealSortOrderChanged("12")
+        viewModel.saveCustomMealDefinition()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val input = requireNotNull(repository.customMealDefinitionUpsert)
+        assertEquals("breakfast", input.mealId)
+        assertEquals("Morning", input.name)
+        assertEquals(7 * 60 + 30, input.timeMinutes)
+        assertEquals(12, input.sortOrder)
+        assertEquals("Saved meal", viewModel.state.value.message)
     }
 
     @Test
@@ -2192,6 +2284,7 @@ class FoodViewModelTest {
         templates: List<MealTemplate> = emptyList(),
         recipes: List<Recipe> = emptyList(),
         quickCaloriePresets: List<QuickCaloriePreset> = emptyList(),
+        customMealDefinitions: List<FoodMealDefinition> = emptyList(),
         foodGoal: FoodGoal = FoodGoal(
             dailyCaloriesKcal = 2083.0,
             proteinGrams = 104.0,
@@ -2210,6 +2303,7 @@ class FoodViewModelTest {
         private val templatesFlow = MutableStateFlow(templates)
         private val recipesFlow = MutableStateFlow(recipes)
         private val quickCaloriePresetsFlow = MutableStateFlow(quickCaloriePresets)
+        private val customMealDefinitionsFlow = MutableStateFlow(customMealDefinitions)
         private val foodGoalFlow = MutableStateFlow(foodGoal)
         var savedLog: FoodLogInput? = null
         var savedFoodLog: SavedFoodLogInput? = null
@@ -2217,6 +2311,7 @@ class FoodViewModelTest {
         var favoriteQuickLogSave: QuickCaloriePresetInput? = null
         var favoriteQuickLogToggle: Pair<String, Boolean>? = null
         var logFavoriteQuickLogCall: LogFavoriteQuickLogCall? = null
+        var customMealDefinitionUpsert: FoodMealDefinitionInput? = null
         var diaryEntryUpdate: DiaryEntryUpdateInput? = null
         var deletedDiaryEntryId: String? = null
         var savedFoodUpsert: SavedFoodUpsertInput? = null
@@ -2296,6 +2391,14 @@ class FoodViewModelTest {
         override suspend fun logFavoriteQuickLog(presetId: String, mealType: String, date: LocalDate): String {
             logFavoriteQuickLogCall = LogFavoriteQuickLogCall(presetId, mealType, date)
             return "meal-item-1"
+        }
+
+        override fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>> =
+            customMealDefinitionsFlow
+
+        override suspend fun upsertCustomMealDefinition(input: FoodMealDefinitionInput): String {
+            customMealDefinitionUpsert = input
+            return input.mealId ?: "custom-meal-1"
         }
 
         override suspend fun updateDiaryEntry(input: DiaryEntryUpdateInput) {

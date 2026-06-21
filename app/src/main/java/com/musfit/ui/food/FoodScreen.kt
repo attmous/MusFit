@@ -114,6 +114,7 @@ fun FoodScreen(
                     onGoalClick = viewModel::openGoalEditor,
                     onTemplatesClick = viewModel::openMealTemplates,
                     onRecipeClick = viewModel::openRecipeEditor,
+                    onMealsClick = viewModel::openMealSettings,
                 )
 
                 Column(
@@ -318,6 +319,16 @@ fun FoodScreen(
                         onMealTypeChanged = viewModel::onTemplateMealTypeChanged,
                         onSaveEditClick = viewModel::saveMealTemplateEdits,
                     )
+
+                FoodSheetMode.MealSettings ->
+                    MealSettingsPanel(
+                        state = state,
+                        onEditClick = viewModel::openMealDefinitionEditor,
+                        onNameChanged = viewModel::onCustomMealNameChanged,
+                        onTimeChanged = viewModel::onCustomMealTimeChanged,
+                        onSortOrderChanged = viewModel::onCustomMealSortOrderChanged,
+                        onSaveClick = viewModel::saveCustomMealDefinition,
+                    )
             }
         }
     }
@@ -333,6 +344,7 @@ private fun FoodSummaryHeader(
     onGoalClick: () -> Unit,
     onTemplatesClick: () -> Unit,
     onRecipeClick: () -> Unit,
+    onMealsClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -381,6 +393,7 @@ private fun FoodSummaryHeader(
                 OutlinedButton(onClick = onTodayClick) { Text("Today") }
                 OutlinedButton(onClick = onNextDayClick) { Text(">") }
                 OutlinedButton(onClick = onGoalClick) { Text("Goals") }
+                OutlinedButton(onClick = onMealsClick) { Text("Meals") }
                 OutlinedButton(onClick = onTemplatesClick) { Text("Templates") }
                 OutlinedButton(onClick = onRecipeClick) { Text("Recipe") }
             }
@@ -1683,6 +1696,7 @@ private fun DiaryEntryEditorPanel(
 
         MealTypeChips(
             selectedMealType = state.editingDiaryEntryMealType,
+            mealDefinitions = state.mealDefinitions,
             onMealChanged = onMealChanged,
         )
 
@@ -1773,12 +1787,12 @@ private fun DiaryEntryEditorPanel(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FoodMealChoices.forEach { choice ->
+            state.mealDefinitions.forEach { choice ->
                 OutlinedButton(
                     onClick = { onCopyToMealClick(choice.id) },
                     enabled = !state.isSaving,
                 ) {
-                    Text(choice.label)
+                    Text(choice.title)
                 }
             }
             OutlinedButton(
@@ -1803,19 +1817,115 @@ private fun DiaryEntryEditorPanel(
 @Composable
 private fun MealTypeChips(
     selectedMealType: String,
+    mealDefinitions: List<FoodMealDefinitionUiState>,
     onMealChanged: (String) -> Unit,
 ) {
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        FoodMealChoices.forEach { choice ->
+        mealDefinitions.forEach { choice ->
             FilterChip(
                 selected = selectedMealType == choice.id,
                 onClick = { onMealChanged(choice.id) },
-                label = { Text(choice.label) },
+                label = { Text(choice.title) },
             )
         }
+    }
+}
+
+@Composable
+private fun MealSettingsPanel(
+    state: FoodUiState,
+    onEditClick: (String) -> Unit,
+    onNameChanged: (String) -> Unit,
+    onTimeChanged: (String) -> Unit,
+    onSortOrderChanged: (String) -> Unit,
+    onSaveClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 580.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text("Meal settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+
+        state.mealDefinitions.forEach { meal ->
+            Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(meal.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            listOf(
+                                if (meal.isDefault) "Default" else "Custom",
+                                meal.timeLabel,
+                                "Order ${meal.sortOrder}",
+                            ).joinToString(" - "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF706D6A),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    OutlinedButton(onClick = { onEditClick(meal.id) }) {
+                        Text("Edit")
+                    }
+                }
+            }
+        }
+
+        Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    if (state.editingMealDefinitionId == null) "Add custom meal" else "Edit meal",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                OutlinedTextField(
+                    value = state.customMealNameInput,
+                    onValueChange = onNameChanged,
+                    label = { Text("Meal name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = state.customMealTimeInput,
+                        onValueChange = onTimeChanged,
+                        label = { Text("Time HH:mm") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = state.customMealSortOrderInput,
+                        onValueChange = onSortOrderChanged,
+                        label = { Text("Order") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Button(
+                    onClick = onSaveClick,
+                    enabled = !state.isSaving,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+                ) {
+                    Text(if (state.isSaving) "Saving" else "Save meal")
+                }
+            }
+        }
+
+        state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
 }
 
@@ -2429,6 +2539,7 @@ private fun MealTemplatesPanel(
                     )
                     MealTypeChips(
                         selectedMealType = state.templateMealTypeInput,
+                        mealDefinitions = state.mealDefinitions,
                         onMealChanged = onMealTypeChanged,
                     )
                     Button(
@@ -3448,19 +3559,6 @@ private fun Double.formatNutritionDisplay(): String {
         "$whole.$decimal"
     }
 }
-
-private data class FoodMealChoice(
-    val id: String,
-    val label: String,
-)
-
-private val FoodMealChoices =
-    listOf(
-        FoodMealChoice("breakfast", "Breakfast"),
-        FoodMealChoice("lunch", "Lunch"),
-        FoodMealChoice("dinner", "Dinner"),
-        FoodMealChoice("snacks", "Snacks"),
-    )
 
 private fun FoodUiState.filteredDatabaseFoods(): List<SavedFoodUiState> {
     val query = foodDatabaseQuery.trim().lowercase()

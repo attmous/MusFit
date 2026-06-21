@@ -417,6 +417,47 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun upsertCustomMealDefinition_persistsMealNameTimeAndSortOrder() = runTest {
+        val mealId =
+            repository.upsertCustomMealDefinition(
+                FoodMealDefinitionInput(
+                    mealId = null,
+                    name = "Pre-workout",
+                    timeMinutes = 16 * 60 + 30,
+                    sortOrder = 1,
+                ),
+            )
+
+        val meal = repository.observeCustomMealDefinitions().first().single()
+
+        assertEquals(mealId, meal.id)
+        assertEquals("Pre-workout", meal.name)
+        assertEquals(16 * 60 + 30, meal.timeMinutes)
+        assertEquals(1, meal.sortOrder)
+    }
+
+    @Test
+    fun upsertCustomMealDefinition_preservesExplicitMealIdForRenamedDefaultMeal() = runTest {
+        val mealId =
+            repository.upsertCustomMealDefinition(
+                FoodMealDefinitionInput(
+                    mealId = "breakfast",
+                    name = "Morning",
+                    timeMinutes = 8 * 60,
+                    sortOrder = 12,
+                ),
+            )
+
+        val meal = repository.observeCustomMealDefinitions().first().single()
+
+        assertEquals("breakfast", mealId)
+        assertEquals("breakfast", meal.id)
+        assertEquals("Morning", meal.name)
+        assertEquals(8 * 60, meal.timeMinutes)
+        assertEquals(12, meal.sortOrder)
+    }
+
+    @Test
     fun updateDiaryEntry_changesQuantityAndMealWithoutDuplicatingSavedFood() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         val mealItemId =

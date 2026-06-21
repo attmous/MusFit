@@ -10,6 +10,7 @@ import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
 import com.musfit.data.local.entity.FoodServingEntity
 import com.musfit.data.local.entity.MealEntity
+import com.musfit.data.local.entity.MealDefinitionEntity
 import com.musfit.data.local.entity.MealItemEntity
 import com.musfit.data.local.entity.MealTemplateEntity
 import com.musfit.data.local.entity.MealTemplateItemEntity
@@ -126,6 +127,15 @@ interface FoodDao {
 
     @Query("SELECT * FROM meals WHERE dateEpochDay = :dateEpochDay AND type = :mealType ORDER BY createdAtEpochMillis")
     suspend fun getMealsForDateAndType(dateEpochDay: Long, mealType: String): List<MealEntity>
+
+    @Query("SELECT * FROM meal_definitions ORDER BY sortOrder, name")
+    fun observeMealDefinitions(): Flow<List<MealDefinitionEntity>>
+
+    @Query("SELECT * FROM meal_definitions WHERE id = :mealId LIMIT 1")
+    suspend fun getMealDefinition(mealId: String): MealDefinitionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMealDefinition(definition: MealDefinitionEntity)
 
     @Query("SELECT * FROM meal_items WHERE mealId = :mealId")
     fun observeMealItems(mealId: String): Flow<List<MealItemEntity>>

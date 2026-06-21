@@ -13,6 +13,7 @@ import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
 import com.musfit.data.local.entity.FoodServingEntity
 import com.musfit.data.local.entity.HealthConnectSyncStateEntity
+import com.musfit.data.local.entity.MealDefinitionEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
 import com.musfit.data.local.entity.MealTemplateEntity
@@ -30,6 +31,7 @@ import com.musfit.data.local.entity.WorkoutSetEntity
         FoodEntity::class,
         FoodServingEntity::class,
         MealEntity::class,
+        MealDefinitionEntity::class,
         MealItemEntity::class,
         BarcodeProductEntity::class,
         FoodGoalEntity::class,
@@ -47,7 +49,7 @@ import com.musfit.data.local.entity.WorkoutSetEntity
         DailyHealthSummaryEntity::class,
         HealthConnectSyncStateEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {

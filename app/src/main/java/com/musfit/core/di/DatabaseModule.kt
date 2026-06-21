@@ -22,7 +22,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MusFitDatabase =
         Room.databaseBuilder(context, MusFitDatabase::class.java, "musfit.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .build()
 
     @Provides
@@ -153,6 +153,25 @@ object DatabaseModule {
                     )
                     """.trimIndent(),
                 )
+            }
+        }
+
+    private val MIGRATION_5_6 =
+        object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS meal_definitions (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        timeMinutes INTEGER,
+                        sortOrder INTEGER NOT NULL,
+                        createdAtEpochMillis INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_meal_definitions_sortOrder ON meal_definitions(sortOrder)")
             }
         }
 }

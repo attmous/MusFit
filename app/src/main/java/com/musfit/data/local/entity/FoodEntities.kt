@@ -57,6 +57,16 @@ data class MealEntity(
     val updatedAtEpochMillis: Long,
 )
 
+@Entity(tableName = "meal_definitions", indices = [Index("sortOrder")])
+data class MealDefinitionEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val timeMinutes: Int?,
+    val sortOrder: Int,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
 @Entity(
     tableName = "meal_items",
     foreignKeys = [
