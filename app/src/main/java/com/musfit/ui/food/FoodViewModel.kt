@@ -436,6 +436,7 @@ data class FoodUiState(
     val selectedMealDetailId: String? = null,
     val mealDetailSortMode: MealDetailSortMode = MealDetailSortMode.Logged,
     val savedFoods: List<SavedFoodUiState> = emptyList(),
+    val visibleSavedFoods: List<SavedFoodUiState> = emptyList(),
     val duplicateFoodGroups: List<FoodDuplicateGroupUiState> = emptyList(),
     val mealTemplates: List<MealTemplateUiState> = emptyList(),
     val recipes: List<RecipeUiState> = emptyList(),
@@ -651,6 +652,7 @@ class FoodViewModel @Inject constructor(
                     val foodStates = savedFoods.map { it.toUiState() }
                     currentState.copy(
                         savedFoods = foodStates,
+                        visibleSavedFoods = foodStates.filterForDatabaseQuery(currentState.foodDatabaseQuery),
                         duplicateFoodGroups = foodStates.toDuplicateFoodGroups(),
                     )
                 }
@@ -1337,7 +1339,13 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onFoodDatabaseQueryChanged(value: String) {
-        mutableState.update { it.copy(foodDatabaseQuery = value, message = null) }
+        mutableState.update {
+            it.copy(
+                foodDatabaseQuery = value,
+                visibleSavedFoods = it.savedFoods.filterForDatabaseQuery(value),
+                message = null,
+            )
+        }
     }
 
     fun searchOnlineFoods() {
@@ -1348,28 +1356,41 @@ class FoodViewModel @Inject constructor(
         }
         viewModelScope.launch {
             mutableState.update { it.copy(isSearchingFoods = true, message = null) }
-            when (val result = provider.searchProducts(query, pageSize = 12)) {
-                is ProductSearchResult.Success -> {
-                    mutableState.update { currentState ->
-                        if (currentState.foodDatabaseQuery.trim() != query) {
-                            currentState.copy(isSearchingFoods = false)
-                        } else {
-                            currentState.copy(
+            try {
+                when (val result = provider.searchProducts(query, pageSize = 12)) {
+                    is ProductSearchResult.Success -> {
+                        mutableState.update { currentState ->
+                            if (currentState.foodDatabaseQuery.trim() != query) {
+                                currentState.copy(isSearchingFoods = false)
+                            } else {
+                                currentState.copy(
+                                    isSearchingFoods = false,
+                                    onlineFoodResults = result.products.map { it.toOnlineUiState() },
+                                    message = if (result.products.isEmpty()) "No online foods found" else null,
+                                )
+                            }
+                        }
+                    }
+                    is ProductSearchResult.Failed -> {
+                        mutableState.update {
+                            it.copy(
                                 isSearchingFoods = false,
-                                onlineFoodResults = result.products.map { it.toOnlineUiState() },
-                                message = if (result.products.isEmpty()) "No online foods found" else null,
+                                onlineFoodResults = emptyList(),
+                                message = result.message,
                             )
                         }
                     }
                 }
-                is ProductSearchResult.Failed -> {
-                    mutableState.update {
-                        it.copy(
-                            isSearchingFoods = false,
-                            onlineFoodResults = emptyList(),
-                            message = result.message,
-                        )
-                    }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSearchingFoods = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSearchingFoods = false,
+                        onlineFoodResults = emptyList(),
+                        message = "Online food search failed",
+                    )
                 }
             }
         }
@@ -4224,6 +4245,18 @@ private fun SavedFoodUiState.toRecipeIngredientServingChoices(): List<RecipeIngr
         }
     return choices.distinctBy { choice -> choice.id }
 }
+
+private fun List<SavedFoodUiState>.filterForDatabaseQuery(query: String): List<SavedFoodUiState> {
+    val normalizedQuery = query.trim().lowercase()
+    if (normalizedQuery.isBlank()) {
+        return this
+    }
+    return filter { food -> food.matchesDatabaseQuery(normalizedQuery) }
+}
+
+private fun SavedFoodUiState.matchesDatabaseQuery(query: String): Boolean =
+    listOf(name, brand.orEmpty(), barcode.orEmpty(), category.orEmpty())
+        .any { value -> value.lowercase().contains(query) }
 
 private fun List<SavedFoodUiState>.toDuplicateFoodGroups(): List<FoodDuplicateGroupUiState> {
     val groups = mutableListOf<FoodDuplicateGroupUiState>()

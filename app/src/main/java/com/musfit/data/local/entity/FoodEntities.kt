@@ -6,7 +6,16 @@ import androidx.room.Index
 import androidx.room.ColumnInfo
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "foods", indices = [Index("barcode")])
+@Entity(
+    tableName = "foods",
+    indices = [
+        Index("barcode"),
+        Index("name"),
+        Index("brand"),
+        Index("category"),
+        Index("isFavorite"),
+    ],
+)
 data class FoodEntity(
     @PrimaryKey val id: String,
     val name: String,

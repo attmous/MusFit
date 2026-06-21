@@ -35,6 +35,7 @@ object DatabaseModule {
                 MIGRATION_10_11,
                 MIGRATION_11_12,
                 MIGRATION_12_13,
+                MIGRATION_13_14,
             )
             .build()
 
@@ -283,6 +284,16 @@ object DatabaseModule {
                     )
                     """.trimIndent(),
                 )
+            }
+        }
+
+    private val MIGRATION_13_14 =
+        object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_foods_name ON foods(name)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_foods_brand ON foods(brand)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_foods_category ON foods(category)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_foods_isFavorite ON foods(isFavorite)")
             }
         }
 }

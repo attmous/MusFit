@@ -1707,6 +1707,46 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun foodDatabaseQueryFiltersVisibleSavedFoodsByNameBrandBarcodeAndCategory() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-oats",
+                        name = "Rolled oats",
+                        brand = "Pantry",
+                        defaultServingGrams = 100.0,
+                        nutritionPer100g = FoodNutrition(379.0, 13.0, 68.0, 6.5),
+                        barcode = "1112223334445",
+                        category = "Grains",
+                    ),
+                    SavedFoodItem(
+                        id = "food-yogurt",
+                        name = "Greek yogurt",
+                        brand = "DairyCo",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        barcode = "5556667778889",
+                        category = "Dairy",
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("Rolled oats", "Greek yogurt"), viewModel.state.value.visibleSavedFoods.map { it.name })
+
+        viewModel.onFoodDatabaseQueryChanged("dairyco")
+        assertEquals(listOf("Greek yogurt"), viewModel.state.value.visibleSavedFoods.map { it.name })
+
+        viewModel.onFoodDatabaseQueryChanged("111222")
+        assertEquals(listOf("Rolled oats"), viewModel.state.value.visibleSavedFoods.map { it.name })
+
+        viewModel.onFoodDatabaseQueryChanged("grains")
+        assertEquals(listOf("Rolled oats"), viewModel.state.value.visibleSavedFoods.map { it.name })
+    }
+
+    @Test
     fun saveSavedFood_upsertsEditorValuesAndReturnsToDatabase() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(
@@ -2561,6 +2601,24 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun searchOnlineFoodsHandlesUnexpectedProviderFailure() = runTest {
+        val viewModel =
+            FoodViewModel(
+                provider = ThrowingSearchProductProvider(),
+                repository = FakeFoodRepository(),
+            )
+
+        viewModel.openFoodDatabase()
+        viewModel.onFoodDatabaseQueryChanged("banana")
+        viewModel.searchOnlineFoods()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.isSearchingFoods)
+        assertTrue(viewModel.state.value.onlineFoodResults.isEmpty())
+        assertEquals("Online food search failed", viewModel.state.value.message)
+    }
+
+    @Test
     fun selectingSavedFoodServing_updatesAmountUsedForLogging() = runTest {
         val repository =
             FakeFoodRepository(
@@ -3203,6 +3261,14 @@ class FoodViewModelTest {
         fun completeWith(barcode: String, value: ProductLookupResult) {
             resultsByBarcode.getOrPut(barcode) { CompletableDeferred() }.complete(value)
         }
+    }
+
+    private class ThrowingSearchProductProvider : FoodProductProvider {
+        override suspend fun lookupBarcode(barcode: String): ProductLookupResult =
+            ProductLookupResult.NotFound(barcode)
+
+        override suspend fun searchProducts(query: String, pageSize: Int): ProductSearchResult =
+            throw IllegalStateException("network unavailable")
     }
 
     private class FakeFoodRepository(

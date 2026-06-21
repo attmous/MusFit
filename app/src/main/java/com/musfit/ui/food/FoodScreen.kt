@@ -2123,7 +2123,7 @@ private fun FoodDatabasePanel(
     onMergeDuplicateFoodsClick: (String, List<String>) -> Unit,
     onFavoriteClick: (String, Boolean) -> Unit,
 ) {
-    val foods = state.filteredDatabaseFoods()
+    val foods = state.visibleSavedFoods
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -4721,17 +4721,6 @@ private val FoodGoalMode.label: String
             FoodGoalMode.WeightLoss -> "Weight loss"
             FoodGoalMode.Custom -> "Custom"
         }
-
-private fun FoodUiState.filteredDatabaseFoods(): List<SavedFoodUiState> {
-    val query = foodDatabaseQuery.trim().lowercase()
-    if (query.isBlank()) {
-        return savedFoods
-    }
-    return savedFoods.filter { food ->
-        food.name.lowercase().contains(query) ||
-            food.brand.orEmpty().lowercase().contains(query)
-    }
-}
 
 private val FoodAddMode.label: String
     get() =
