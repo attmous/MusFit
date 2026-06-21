@@ -282,16 +282,22 @@ class LocalTrainingRepository @Inject constructor(
     private suspend fun currentOrNewSession(now: Long): WorkoutSessionEntity {
         val existingSession = activeSessionId?.let { trainingDao.getWorkoutSession(it) }
         if (existingSession != null && existingSession.startedAtEpochMillis.isSameDayAs(now)) {
-            return existingSession
+            val completedSession =
+                existingSession.copy(
+                    status = WORKOUT_STATUS_COMPLETED,
+                    endedAtEpochMillis = now,
+                )
+            trainingDao.upsertWorkoutSession(completedSession)
+            return completedSession
         }
 
         val session = WorkoutSessionEntity(
             id = UUID.randomUUID().toString(),
             routineId = null,
             title = DEFAULT_WORKOUT_TITLE,
-            status = WORKOUT_STATUS_ACTIVE,
+            status = WORKOUT_STATUS_COMPLETED,
             startedAtEpochMillis = now,
-            endedAtEpochMillis = null,
+            endedAtEpochMillis = now,
             notes = null,
             healthConnectRecordId = null,
             healthConnectLastExportedAtEpochMillis = null,

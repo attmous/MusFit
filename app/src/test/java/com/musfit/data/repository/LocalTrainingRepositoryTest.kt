@@ -89,7 +89,7 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
-    fun getLatestWorkoutForExport_returnsNullWhenOnlyActiveWorkoutExists() = runTest {
+    fun addCompletedSet_createsCompletedSessionExportableFromQuickLoggerPath() = runTest {
         repository.addCompletedSet(
             exerciseName = "Deadlift",
             reps = 2,
@@ -98,7 +98,9 @@ class LocalTrainingRepositoryTest {
 
         val workout = repository.getLatestWorkoutForExport()
 
-        assertEquals(null, workout)
+        assertNotNull(workout)
+        assertEquals("completed", workout?.session?.status)
+        assertEquals(1, workout?.sets?.size)
     }
 
     @Test

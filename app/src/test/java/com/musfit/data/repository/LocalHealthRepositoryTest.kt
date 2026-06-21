@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -85,6 +86,8 @@ class LocalHealthRepositoryTest {
             WorkoutSessionEntity(
                 id = "session-1",
                 routineId = null,
+                title = "Bench workout",
+                status = "completed",
                 startedAtEpochMillis = 500L,
                 endedAtEpochMillis = 900L,
                 notes = null,
@@ -98,6 +101,7 @@ class LocalHealthRepositoryTest {
                 sessionId = "session-1",
                 exerciseId = "exercise-1",
                 sortOrder = 0,
+                setType = "working",
                 reps = 5,
                 weightKg = 100.0,
                 durationSeconds = null,
@@ -119,6 +123,85 @@ class LocalHealthRepositoryTest {
         assertEquals("record-id", savedSession?.healthConnectRecordId)
         assertEquals(1_000L, savedSession?.healthConnectLastExportedAtEpochMillis)
         assertNotNull(syncState?.lastExportAtEpochMillis)
+    }
+
+    @Test
+    fun exportLatestWorkout_skipsActiveSessionAndExportsLatestCompletedWorkout() = runTest {
+        database.trainingDao().upsertExercise(
+            ExerciseEntity(
+                id = "exercise-1",
+                name = "Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "",
+                isCustom = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-completed",
+                routineId = null,
+                title = "Completed workout",
+                status = "completed",
+                startedAtEpochMillis = 500L,
+                endedAtEpochMillis = 900L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-active",
+                routineId = null,
+                title = "Active workout",
+                status = "active",
+                startedAtEpochMillis = 950L,
+                endedAtEpochMillis = null,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-completed",
+                sessionId = "session-completed",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-active",
+                sessionId = "session-active",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 3,
+                weightKg = 120.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+
+        val recordId = repository.exportLatestWorkout()
+
+        assertEquals("record-id", recordId)
+        assertEquals("session-completed", gateway.exportedSession?.id)
+        assertEquals(listOf("set-completed"), gateway.exportedSets.map { it.id })
+        assertNull(database.trainingDao().getWorkoutSession("session-active")?.healthConnectRecordId)
     }
 
     private class FakeHealthConnectGateway : HealthConnectGateway {

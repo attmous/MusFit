@@ -103,10 +103,6 @@ private fun QuickSetLoggerCard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(text = "Quick set", style = MaterialTheme.typography.titleMedium)
-            Text(
-                text = "Temporary logger for simple sets until the full workout flow lands.",
-                style = MaterialTheme.typography.bodySmall,
-            )
             OutlinedTextField(
                 value = state.exerciseName,
                 onValueChange = onExerciseChanged,
