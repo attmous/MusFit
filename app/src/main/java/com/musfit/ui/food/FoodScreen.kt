@@ -550,7 +550,7 @@ private fun WeeklyPlanStrip(planDays: List<FoodPlanDayUiState>) {
             Card(
                 modifier = Modifier.width(112.dp),
                 colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-                shape = RoundedCornerShape(8.dp),
+                shape = MusFitTheme.shapes.small,
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Column(
@@ -659,7 +659,7 @@ private fun MacroProgressCard(
     Card(
         modifier = modifier.height(98.dp),
         colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -697,7 +697,7 @@ private fun EmptyDiaryStartCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -739,7 +739,7 @@ private fun DayRatingCard(rating: FoodRatingUiState) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -803,7 +803,7 @@ private fun DailyInsightCard(insight: FoodInsightUiState) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -944,7 +944,7 @@ private fun AdvancedNutritionProgressCard(
     Surface(
         modifier = modifier.height(82.dp),
         color = MusFitTheme.colors.surface,
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -1028,7 +1028,7 @@ private fun WaterTrackerCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -1121,7 +1121,7 @@ private fun FoodHealthConnectSyncCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -1199,7 +1199,7 @@ private fun MicronutrientCard(
     Surface(
         modifier = modifier.height(68.dp),
         color = MusFitTheme.colors.surfaceVariant,
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -1233,14 +1233,14 @@ private fun ProgressBar(
         modifier = modifier
             .fillMaxWidth()
             .height(8.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(MusFitTheme.shapes.small)
             .background(color.copy(alpha = 0.18f)),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(progress)
                 .height(8.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(MusFitTheme.shapes.small)
                 .background(color),
         )
     }
@@ -1320,7 +1320,7 @@ private fun MealDetailScreen(
         Surface(
             onClick = onAddFoodClick,
             color = MusFitTheme.colors.surface,
-            shape = RoundedCornerShape(8.dp),
+            shape = MusFitTheme.shapes.small,
         ) {
             Row(
                 modifier = Modifier
@@ -1359,7 +1359,7 @@ private fun MealDetailScreen(
         if (meal.entries.isEmpty()) {
             Surface(
                 color = MusFitTheme.colors.surface,
-                shape = RoundedCornerShape(8.dp),
+                shape = MusFitTheme.shapes.small,
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -1381,7 +1381,7 @@ private fun MealDetailScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-                shape = RoundedCornerShape(8.dp),
+                shape = MusFitTheme.shapes.small,
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
@@ -1430,7 +1430,7 @@ private fun MessageBanner(
 
     Surface(
         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Row(
             modifier = Modifier
@@ -1462,7 +1462,7 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -1638,7 +1638,7 @@ private fun MealSectionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -1650,7 +1650,7 @@ private fun MealSectionCard(
                 Surface(
                     onClick = onMealClick,
                     color = Color.Transparent,
-                    shape = RoundedCornerShape(8.dp),
+                    shape = MusFitTheme.shapes.small,
                     modifier = Modifier.weight(1f),
                 ) {
                     Row(
@@ -1767,7 +1767,7 @@ private fun DiaryEntryRow(
     Surface(
         onClick = onClick,
         color = Color.Transparent,
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Row(
             modifier = Modifier
@@ -1908,7 +1908,7 @@ private fun FoodDatabasePreview(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-            shape = RoundedCornerShape(8.dp),
+            shape = MusFitTheme.shapes.small,
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
             Column(
@@ -1985,7 +1985,7 @@ private fun ShoppingListPanel(
     ) {
         Text("Shopping list", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
-        Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+        Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
@@ -2014,7 +2014,7 @@ private fun ShoppingListPanel(
             }
         }
 
-        Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+        Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Manual item", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
@@ -2071,7 +2071,7 @@ private fun ShoppingListPanel(
                         color = MusFitTheme.colors.brand,
                     )
                     group.items.forEach { item ->
-                        Surface(color = MusFitTheme.colors.surface, shape = RoundedCornerShape(8.dp)) {
+                        Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.small) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2227,7 +2227,7 @@ private fun FoodDatabasePanel(
         if (foods.isEmpty()) {
             Surface(
                 color = MusFitTheme.colors.surfaceVariant,
-                shape = RoundedCornerShape(8.dp),
+                shape = MusFitTheme.shapes.small,
             ) {
                 Text(
                     text = if (state.foodDatabaseQuery.isBlank()) "No saved foods yet" else "No matching foods",
@@ -2257,7 +2257,7 @@ private fun OnlineFoodResultRow(
 ) {
     Surface(
         color = MusFitTheme.colors.positiveContainer,
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Row(
             modifier = Modifier
@@ -2300,7 +2300,7 @@ private fun DuplicateFoodGroupsSection(
         duplicateGroups.forEach { group ->
             Surface(
                 color = MusFitTheme.colors.surfaceVariant,
-                shape = RoundedCornerShape(8.dp),
+                shape = MusFitTheme.shapes.small,
             ) {
                 Row(
                     modifier = Modifier
@@ -2344,7 +2344,7 @@ private fun SavedFoodDatabaseRow(
 ) {
     Surface(
         color = MusFitTheme.colors.surfaceVariant,
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Row(
             modifier = Modifier
@@ -2429,7 +2429,7 @@ private fun FoodDetailPanel(
             }
         }
 
-        Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+        Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Nutrition facts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 NutritionFactRow("Calories", "${food.caloriesPer100g.roundToInt()} kcal", "per 100 g")
@@ -2701,7 +2701,7 @@ private fun MealSettingsPanel(
         Text("Meal settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
         state.mealDefinitions.forEach { meal ->
-            Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+            Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2730,7 +2730,7 @@ private fun MealSettingsPanel(
             }
         }
 
-        Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+        Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     if (state.editingMealDefinitionId == null) "Add custom meal" else "Edit meal",
@@ -3342,7 +3342,7 @@ private fun RecipeEditorPanel(
         if (state.recipes.isNotEmpty() && state.editingRecipeId == null) {
             Text("Saved recipes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             state.recipes.forEach { recipe ->
-                Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+                Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -3442,7 +3442,7 @@ private fun RecipeEditorPanel(
             }
         }
         state.recipeIngredients.forEach { ingredient ->
-            Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+            Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3509,7 +3509,7 @@ private fun MealTemplatesPanel(
     ) {
         Text("Meal templates", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         if (state.editingTemplateId != null) {
-            Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+            Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Edit template", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     OutlinedTextField(
@@ -3589,7 +3589,7 @@ private fun MealTemplatesPanel(
             Text("No meal templates yet", color = MusFitTheme.colors.onSurfaceVariant)
         } else {
             state.mealTemplates.forEach { template ->
-                Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+                Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -3839,7 +3839,7 @@ private fun FavoriteAddSection(
             fontWeight = FontWeight.Bold,
         )
         items.forEach { item ->
-            Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+            Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3949,7 +3949,7 @@ private fun SavedFoodPickerRow(
 ) {
     Surface(
         color = MusFitTheme.colors.surfaceVariant,
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
     ) {
         Column(
             modifier = Modifier
@@ -4020,7 +4020,7 @@ private fun TemplateQuickList(
         templates.forEach { template ->
             Surface(
                 color = MusFitTheme.colors.surfaceVariant,
-                shape = RoundedCornerShape(8.dp),
+                shape = MusFitTheme.shapes.small,
             ) {
                 Row(
                     modifier = Modifier
@@ -4081,7 +4081,7 @@ private fun RecipeQuickList(
         state.recipes.forEach { recipe ->
             Surface(
                 color = MusFitTheme.colors.surfaceVariant,
-                shape = RoundedCornerShape(8.dp),
+                shape = MusFitTheme.shapes.small,
             ) {
                 Row(
                     modifier = Modifier
@@ -4172,7 +4172,7 @@ private fun AiLoggingForm(
         if (state.aiLoggingHasDraft) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
+                shape = MusFitTheme.shapes.small,
                 color = MusFitTheme.colors.positiveContainer,
             ) {
                 Text(
@@ -4362,7 +4362,7 @@ private fun BarcodeLookupSummary(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
         color = MusFitTheme.colors.positiveContainer,
     ) {
         Column(
@@ -4504,7 +4504,7 @@ private fun AmountNutritionPreview(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
+        shape = MusFitTheme.shapes.small,
         color = MusFitTheme.colors.positiveContainer,
     ) {
         Column(
@@ -4592,7 +4592,7 @@ private fun QuickCalorieForm(
         if (state.quickCaloriePresets.isNotEmpty()) {
             Text("Favorite quick logs", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             state.quickCaloriePresets.forEach { preset ->
-                Surface(color = MusFitTheme.colors.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+                Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
