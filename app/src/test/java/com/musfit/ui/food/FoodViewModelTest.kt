@@ -1833,6 +1833,50 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun saveSavedFood_preservesServingOptionsWhenEditingExistingFood() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(
+                            caloriesKcal = 61.0,
+                            proteinGrams = 10.0,
+                            carbsGrams = 4.0,
+                            fatGrams = 1.0,
+                        ),
+                        servingName = "Cup",
+                        servings = listOf(
+                            FoodServingOption("serving-1", "Cup", 170.0),
+                            FoodServingOption("serving-2", "Half cup", 85.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openSavedFoodEditor("food-1")
+        viewModel.onSavedFoodNameChanged("Greek yogurt plain")
+        viewModel.saveSavedFood()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                FoodServingInput("Cup", 170.0),
+                FoodServingInput("Half cup", 85.0),
+            ),
+            repository.savedFoodUpsert?.servings,
+        )
+    }
+
+    @Test
     fun duplicateSavedFood_createsEditableCopyWithoutBarcode() = runTest {
         val repository =
             FakeFoodRepository(

@@ -2222,6 +2222,7 @@ class FoodViewModel @Inject constructor(
                         barcode = currentState.savedFoodBarcode.ifBlank { null },
                         category = currentState.savedFoodCategory.ifBlank { null },
                         isFavorite = currentState.savedFoodIsFavorite,
+                        servings = currentState.savedFoodServingInputsForUpsert(servingGrams),
                     ),
                 )
                 mutableState.update {
@@ -3538,6 +3539,39 @@ class FoodViewModel @Inject constructor(
             vitaminCMilligrams = vitaminC,
             magnesiumMilligrams = magnesium,
         )
+    }
+
+    private fun FoodUiState.savedFoodServingInputsForUpsert(servingGrams: Double): List<FoodServingInput> {
+        val existingFood =
+            editingSavedFoodId?.let { foodId -> savedFoods.firstOrNull { savedFood -> savedFood.id == foodId } }
+                ?: return emptyList()
+        if (existingFood.servings.isEmpty()) {
+            return emptyList()
+        }
+
+        val currentServingLabel =
+            savedFoodServingName.ifBlank {
+                existingFood.servingName ?: "${servingGrams.formatInputNumber()} g"
+            }
+        var updatedDefaultServing = false
+        val servingInputs = existingFood.servings.map { serving ->
+            val isExistingDefaultServing =
+                serving.grams == existingFood.defaultServingGrams ||
+                    existingFood.servingName?.let { serving.label == it } == true
+
+            if (isExistingDefaultServing && !updatedDefaultServing) {
+                updatedDefaultServing = true
+                FoodServingInput(currentServingLabel, servingGrams)
+            } else {
+                FoodServingInput(serving.label, serving.grams)
+            }
+        }
+
+        return if (updatedDefaultServing) {
+            servingInputs
+        } else {
+            listOf(FoodServingInput(currentServingLabel, servingGrams)) + servingInputs
+        }
     }
 
     private fun FoodUiState.withAmountNutritionPreview(): FoodUiState {

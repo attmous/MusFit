@@ -16,6 +16,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.Locale
 
 object HealthConnectRecordMapper {
     fun toExerciseSessionRecord(
@@ -44,6 +45,7 @@ object HealthConnectRecordMapper {
         date: LocalDate,
         meal: HealthConnectFoodMealExport,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        clientRecordVersion: Long = System.currentTimeMillis(),
     ): NutritionRecord {
         val startInstant = date
             .atTime(meal.mealStartTime())
@@ -55,7 +57,10 @@ object HealthConnectRecordMapper {
             startZoneOffset = zoneId.rules.getOffset(startInstant),
             endTime = endInstant,
             endZoneOffset = zoneId.rules.getOffset(endInstant),
-            metadata = Metadata.manualEntry(),
+            metadata = Metadata.manualEntry(
+                date.toNutritionClientRecordId(meal.mealType),
+                clientRecordVersion,
+            ),
             energy = meal.caloriesKcal.coerceAtLeast(0.0).kilocalories,
             protein = meal.proteinGrams.positiveOrNull()?.grams,
             totalCarbohydrate = meal.carbsGrams.positiveOrNull()?.grams,
@@ -79,6 +84,7 @@ object HealthConnectRecordMapper {
         date: LocalDate,
         milliliters: Double,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        clientRecordVersion: Long = System.currentTimeMillis(),
     ): HydrationRecord {
         val startInstant = date.atTime(LocalTime.NOON).atZone(zoneId).toInstant()
         val endInstant = startInstant.plusSeconds(60)
@@ -88,9 +94,26 @@ object HealthConnectRecordMapper {
             endTime = endInstant,
             endZoneOffset = zoneId.rules.getOffset(endInstant),
             volume = milliliters.coerceAtLeast(0.0).milliliters,
-            metadata = Metadata.manualEntry(),
+            metadata = Metadata.manualEntry(
+                date.toHydrationClientRecordId(),
+                clientRecordVersion,
+            ),
         )
     }
+}
+
+private fun LocalDate.toNutritionClientRecordId(mealType: String): String =
+    "musfit-food-nutrition-$this-${mealType.toClientRecordToken()}"
+
+private fun LocalDate.toHydrationClientRecordId(): String =
+    "musfit-food-hydration-$this"
+
+private fun String.toClientRecordToken(): String {
+    val token = trim()
+        .lowercase(Locale.US)
+        .replace(Regex("[^a-z0-9]+"), "-")
+        .trim('-')
+    return token.ifBlank { "meal" }
 }
 
 private fun HealthConnectFoodMealExport.mealStartTime(): LocalTime =

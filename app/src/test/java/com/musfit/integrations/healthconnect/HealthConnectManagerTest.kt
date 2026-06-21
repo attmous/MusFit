@@ -193,6 +193,17 @@ class HealthConnectManagerTest {
         assertEquals(1, client.insertNutritionCalls)
         assertEquals(1, client.insertHydrationCalls)
         assertEquals(2, client.insertedNutritionRecords.size)
+        assertEquals(
+            listOf(
+                "musfit-food-nutrition-2026-06-20-breakfast",
+                "musfit-food-nutrition-2026-06-20-snacks",
+            ),
+            client.insertedNutritionRecords.map { record -> record.metadata.clientRecordId },
+        )
+        assertEquals(
+            "musfit-food-hydration-2026-06-20",
+            client.insertedHydrationRecord?.metadata?.clientRecordId,
+        )
     }
 
     private fun managerWith(
@@ -315,6 +326,8 @@ class HealthConnectManagerTest {
             private set
         var insertedNutritionRecords: List<NutritionRecord> = emptyList()
             private set
+        var insertedHydrationRecord: HydrationRecord? = null
+            private set
 
         override suspend fun aggregateSteps(range: HealthConnectTimeRange): Long? {
             stepsCalls += 1
@@ -349,6 +362,7 @@ class HealthConnectManagerTest {
 
         override suspend fun insertHydrationRecord(record: HydrationRecord): String? {
             insertHydrationCalls += 1
+            insertedHydrationRecord = record
             return "hydration-record-id"
         }
     }
