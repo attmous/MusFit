@@ -82,6 +82,10 @@ data class FoodMealEntryUiState(
     val sugarGrams: Double = 0.0,
     val saturatedFatGrams: Double = 0.0,
     val sodiumMilligrams: Double = 0.0,
+    val calorieContribution: Double = 0.0,
+    val proteinContribution: Double = 0.0,
+    val carbsContribution: Double = 0.0,
+    val fatContribution: Double = 0.0,
 )
 
 data class FoodMealSectionUiState(
@@ -89,6 +93,8 @@ data class FoodMealSectionUiState(
     val title: String,
     val recommendation: String,
     val caloriesKcal: Double,
+    val calorieTargetKcal: Double,
+    val calorieProgress: Double,
     val proteinGrams: Double = 0.0,
     val carbsGrams: Double = 0.0,
     val fatGrams: Double = 0.0,
@@ -2254,14 +2260,15 @@ private data class MealDefinition(
     val id: String,
     val title: String,
     val recommendation: String,
+    val calorieTargetKcal: Double,
 )
 
 private val mealDefinitions =
     listOf(
-        MealDefinition("breakfast", "Breakfast", "Recommended 417 - 625 kcal"),
-        MealDefinition("lunch", "Lunch", "Recommended 625 - 833 kcal"),
-        MealDefinition("dinner", "Dinner", "Recommended 625 - 833 kcal"),
-        MealDefinition("snacks", "Snacks", "Recommended 104 - 208 kcal"),
+        MealDefinition("breakfast", "Breakfast", "Recommended 417 - 625 kcal", 625.0),
+        MealDefinition("lunch", "Lunch", "Recommended 625 - 833 kcal", 833.0),
+        MealDefinition("dinner", "Dinner", "Recommended 625 - 833 kcal", 833.0),
+        MealDefinition("snacks", "Snacks", "Recommended 104 - 208 kcal", 208.0),
     )
 
 private const val CALORIE_GOAL_KCAL = 2083.0
@@ -2339,14 +2346,17 @@ private fun FoodDiary.toMealSections(): List<FoodMealSectionUiState> {
     val mealsByType = meals.associateBy { it.type.normalizedMealType() }
     return mealDefinitions.map { definition ->
         val meal = mealsByType[definition.id]
+        val totals = meal?.totals
         FoodMealSectionUiState(
             id = definition.id,
             title = definition.title,
             recommendation = definition.recommendation,
-            caloriesKcal = meal?.totals?.caloriesKcal ?: 0.0,
-            proteinGrams = meal?.totals?.proteinGrams ?: 0.0,
-            carbsGrams = meal?.totals?.carbsGrams ?: 0.0,
-            fatGrams = meal?.totals?.fatGrams ?: 0.0,
+            caloriesKcal = totals?.caloriesKcal ?: 0.0,
+            calorieTargetKcal = definition.calorieTargetKcal,
+            calorieProgress = (totals?.caloriesKcal ?: 0.0).fractionOf(definition.calorieTargetKcal),
+            proteinGrams = totals?.proteinGrams ?: 0.0,
+            carbsGrams = totals?.carbsGrams ?: 0.0,
+            fatGrams = totals?.fatGrams ?: 0.0,
             fiberGrams = meal?.detailTotals?.fiberGrams ?: 0.0,
             sugarGrams = meal?.detailTotals?.sugarGrams ?: 0.0,
             saturatedFatGrams = meal?.detailTotals?.saturatedFatGrams ?: 0.0,
@@ -2366,11 +2376,22 @@ private fun FoodDiary.toMealSections(): List<FoodMealSectionUiState> {
                     sugarGrams = entry.nutritionDetails.sugarGrams,
                     saturatedFatGrams = entry.nutritionDetails.saturatedFatGrams,
                     sodiumMilligrams = entry.nutritionDetails.sodiumMilligrams,
+                    calorieContribution = entry.caloriesKcal.fractionOf(totals?.caloriesKcal ?: 0.0),
+                    proteinContribution = entry.proteinGrams.fractionOf(totals?.proteinGrams ?: 0.0),
+                    carbsContribution = entry.carbsGrams.fractionOf(totals?.carbsGrams ?: 0.0),
+                    fatContribution = entry.fatGrams.fractionOf(totals?.fatGrams ?: 0.0),
                 )
             },
         )
     }
 }
+
+private fun Double.fractionOf(total: Double): Double =
+    if (isFinite() && total.isFinite() && total > 0.0) {
+        (this / total).coerceIn(0.0, 1.0)
+    } else {
+        0.0
+    }
 
 private fun SavedFoodItem.toUiState(): SavedFoodUiState {
     val servingMultiplier = defaultServingGrams / 100.0
@@ -2587,6 +2608,8 @@ private fun emptyMealSections(): List<FoodMealSectionUiState> =
             title = definition.title,
             recommendation = definition.recommendation,
             caloriesKcal = 0.0,
+            calorieTargetKcal = definition.calorieTargetKcal,
+            calorieProgress = 0.0,
             proteinGrams = 0.0,
             carbsGrams = 0.0,
             fatGrams = 0.0,

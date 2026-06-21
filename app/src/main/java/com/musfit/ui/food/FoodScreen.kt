@@ -529,9 +529,10 @@ private fun MacroProgressCard(
 private fun ProgressBar(
     progress: Float,
     color: Color,
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(8.dp)
             .clip(RoundedCornerShape(8.dp))
@@ -692,6 +693,7 @@ private fun MealDetailScreen(
                         }
                         DiaryEntryRow(
                             entry = entry,
+                            showContributions = true,
                             onClick = { onEntryClick(entry.id) },
                         )
                     }
@@ -787,10 +789,17 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                 )
             }
 
-            ProgressBar(
-                progress = (meal.caloriesKcal / 833.0).toFloat().coerceIn(0f, 1f),
-                color = ActionGreen,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ProgressBar(
+                    progress = meal.calorieProgress.toFloat(),
+                    color = ActionGreen,
+                )
+                Text(
+                    text = "Target ${meal.calorieTargetKcal.roundToInt()} kcal",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF706D6A),
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1056,6 +1065,7 @@ private fun FoodAvatar(
 @Composable
 private fun DiaryEntryRow(
     entry: FoodMealEntryUiState,
+    showContributions: Boolean = false,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -1090,6 +1100,9 @@ private fun DiaryEntryRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (showContributions) {
+                    MealItemContributionBars(entry = entry)
+                }
             }
             Text(
                 text = "${entry.caloriesKcal.roundToInt()} kcal",
@@ -1098,6 +1111,73 @@ private fun DiaryEntryRow(
                 fontWeight = FontWeight.SemiBold,
             )
         }
+    }
+}
+
+@Composable
+private fun MealItemContributionBars(entry: FoodMealEntryUiState) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, end = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        MealItemContributionBar(
+            label = "Calories",
+            progress = entry.calorieContribution,
+            color = ActionGreen,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            MealItemContributionBar(
+                label = "P",
+                progress = entry.proteinContribution,
+                color = MacroColors[1],
+                modifier = Modifier.weight(1f),
+            )
+            MealItemContributionBar(
+                label = "C",
+                progress = entry.carbsContribution,
+                color = MacroColors[0],
+                modifier = Modifier.weight(1f),
+            )
+            MealItemContributionBar(
+                label = "F",
+                progress = entry.fatContribution,
+                color = MacroColors[2],
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MealItemContributionBar(
+    label: String,
+    progress: Double,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF706D6A),
+            modifier = Modifier.width(46.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        ProgressBar(
+            progress = progress.toFloat().coerceIn(0f, 1f),
+            color = color,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 

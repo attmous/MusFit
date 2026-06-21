@@ -771,6 +771,69 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun mealDetail_exposesCalorieProgressAndItemContributions() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(312.5, 25.0, 50.0, 10.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = null,
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 200.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 20.0,
+                                    fatGrams = 5.0,
+                                ),
+                                FoodDiaryEntry(
+                                    id = "entry-2",
+                                    foodId = "food-2",
+                                    name = "Banana oats",
+                                    brand = null,
+                                    quantityGrams = 150.0,
+                                    caloriesKcal = 112.5,
+                                    proteinGrams = 5.0,
+                                    carbsGrams = 30.0,
+                                    fatGrams = 5.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(312.5, 25.0, 50.0, 10.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openMealDetail("breakfast")
+
+        val meal = requireNotNull(viewModel.state.value.selectedMealDetailForDisplay())
+        assertEquals(625.0, meal.calorieTargetKcal, 0.01)
+        assertEquals(0.5, meal.calorieProgress, 0.01)
+
+        val yogurt = meal.entries.first { it.id == "entry-1" }
+        assertEquals(0.64, yogurt.calorieContribution, 0.01)
+        assertEquals(0.80, yogurt.proteinContribution, 0.01)
+        assertEquals(0.40, yogurt.carbsContribution, 0.01)
+        assertEquals(0.50, yogurt.fatContribution, 0.01)
+
+        val oats = meal.entries.first { it.id == "entry-2" }
+        assertEquals(0.36, oats.calorieContribution, 0.01)
+        assertEquals(0.20, oats.proteinContribution, 0.01)
+        assertEquals(0.60, oats.carbsContribution, 0.01)
+        assertEquals(0.50, oats.fatContribution, 0.01)
+    }
+
+    @Test
     fun openAddFoodFromMealDetail_usesSelectedMeal() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(),
