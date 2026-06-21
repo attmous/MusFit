@@ -167,6 +167,7 @@ data class RecipeEntity(
     val servingGrams: Double,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
+    @ColumnInfo(defaultValue = "0") val isFavorite: Boolean = false,
 )
 
 @Entity(

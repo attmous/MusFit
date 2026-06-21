@@ -200,6 +200,7 @@ data class Recipe(
     val category: String?,
     val servingName: String,
     val servingGrams: Double,
+    val isFavorite: Boolean = false,
     val ingredients: List<RecipeIngredient>,
     val nutritionPerServing: FoodNutrition,
     val detailNutritionPerServing: NutritionDetails,
@@ -268,6 +269,8 @@ interface FoodRepository {
     suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String = ""
 
     suspend fun deleteRecipe(recipeId: String) = Unit
+
+    suspend fun toggleFavoriteRecipe(recipeId: String, isFavorite: Boolean) = Unit
 
     suspend fun seedStarterFoods() = Unit
 }
@@ -711,6 +714,7 @@ class LocalFoodRepository @Inject constructor(
                     servingGrams = input.servingGrams,
                     createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
                     updatedAtEpochMillis = now,
+                    isFavorite = existing?.isFavorite ?: false,
                 ),
             )
             foodDao.deleteRecipeIngredients(recipeId)
@@ -778,6 +782,18 @@ class LocalFoodRepository @Inject constructor(
         database.withTransaction {
             val deletedCount = foodDao.deleteRecipeById(recipeId)
             check(deletedCount > 0) { "Recipe not found" }
+        }
+    }
+
+    override suspend fun toggleFavoriteRecipe(recipeId: String, isFavorite: Boolean) {
+        require(recipeId.isNotBlank()) { "Recipe id is required" }
+        database.withTransaction {
+            val updatedCount = foodDao.updateRecipeFavorite(
+                recipeId = recipeId,
+                isFavorite = isFavorite,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+            check(updatedCount > 0) { "Recipe not found" }
         }
     }
 
@@ -1268,6 +1284,7 @@ private fun List<RecipeIngredientRow>.toRecipes(): List<Recipe> =
             category = first.recipeCategory,
             servingName = first.recipeServingName,
             servingGrams = first.recipeServingGrams,
+            isFavorite = first.recipeIsFavorite,
             ingredients = rows.sortedBy { it.sortOrder }.map { row ->
                 RecipeIngredient(
                     foodId = row.foodId,

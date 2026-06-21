@@ -174,6 +174,7 @@ data class RecipeUiState(
     val category: String?,
     val servingName: String,
     val servingGrams: Double,
+    val isFavorite: Boolean = false,
     val caloriesPerServingKcal: Double,
     val proteinPerServingGrams: Double,
     val itemSummary: String,
@@ -2130,6 +2131,27 @@ class FoodViewModel @Inject constructor(
         }
     }
 
+    fun toggleFavoriteRecipe(recipeId: String, isFavorite: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.toggleFavoriteRecipe(recipeId, isFavorite)
+                mutableState.update {
+                    it.copy(
+                        message = if (isFavorite) {
+                            "Recipe added to favorites"
+                        } else {
+                            "Recipe removed from favorites"
+                        },
+                    )
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(message = error.message ?: "Failed to update recipe favorite") }
+            }
+        }
+    }
+
     fun logRecipe(recipeId: String) {
         val currentState = state.value
         val servings = currentState.recipeServingsToLog.parsePositiveNumberOrNull()
@@ -2511,6 +2533,7 @@ private fun Recipe.toUiState(): RecipeUiState =
         category = category,
         servingName = servingName,
         servingGrams = servingGrams,
+        isFavorite = isFavorite,
         caloriesPerServingKcal = nutritionPerServing.caloriesKcal,
         proteinPerServingGrams = nutritionPerServing.proteinGrams,
         itemSummary = ingredients.joinToString { ingredient -> ingredient.foodName },

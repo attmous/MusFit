@@ -69,6 +69,7 @@ data class RecipeIngredientRow(
     val recipeServingName: String,
     val recipeServingGrams: Double,
     val recipeCreatedAtEpochMillis: Long,
+    val recipeIsFavorite: Boolean,
     val ingredientId: String,
     val foodId: String,
     val foodName: String,
@@ -297,6 +298,7 @@ interface FoodDao {
             "recipes.servingName AS recipeServingName, " +
             "recipes.servingGrams AS recipeServingGrams, " +
             "recipes.createdAtEpochMillis AS recipeCreatedAtEpochMillis, " +
+            "recipes.isFavorite AS recipeIsFavorite, " +
             "recipe_ingredients.id AS ingredientId, " +
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
@@ -325,6 +327,7 @@ interface FoodDao {
             "recipes.servingName AS recipeServingName, " +
             "recipes.servingGrams AS recipeServingGrams, " +
             "recipes.createdAtEpochMillis AS recipeCreatedAtEpochMillis, " +
+            "recipes.isFavorite AS recipeIsFavorite, " +
             "recipe_ingredients.id AS ingredientId, " +
             "foods.id AS foodId, " +
             "foods.name AS foodName, " +
@@ -352,6 +355,17 @@ interface FoodDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRecipe(recipe: RecipeEntity)
+
+    @Query(
+        "UPDATE recipes " +
+            "SET isFavorite = :isFavorite, updatedAtEpochMillis = :updatedAtEpochMillis " +
+            "WHERE id = :recipeId",
+    )
+    suspend fun updateRecipeFavorite(
+        recipeId: String,
+        isFavorite: Boolean,
+        updatedAtEpochMillis: Long,
+    ): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRecipeIngredient(ingredient: RecipeIngredientEntity)

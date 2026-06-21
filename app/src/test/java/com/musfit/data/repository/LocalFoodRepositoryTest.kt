@@ -799,6 +799,41 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun toggleFavoriteRecipe_persistsFavoriteState() = runTest {
+        val chickenId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Chicken",
+                    brand = null,
+                    defaultServingGrams = 150.0,
+                    nutritionPer100g = nutrition(calories = 165.0, protein = 31.0, carbs = 0.0, fat = 3.6),
+                ),
+            )
+        val recipeId =
+            repository.upsertRecipe(
+                RecipeUpsertInput(
+                    recipeId = null,
+                    name = "Chicken bowl",
+                    category = "Dinner",
+                    servingName = "Bowl",
+                    servingGrams = 350.0,
+                    ingredients = listOf(RecipeIngredientInput(chickenId, quantityGrams = 150.0)),
+                ),
+            )
+
+        repository.toggleFavoriteRecipe(recipeId, true)
+        val favorited = repository.observeRecipes().first().single()
+
+        assertTrue(favorited.isFavorite)
+
+        repository.toggleFavoriteRecipe(recipeId, false)
+        val unfavorited = repository.observeRecipes().first().single()
+
+        assertFalse(unfavorited.isFavorite)
+    }
+
+    @Test
     fun confirmedProductPersistsAdvancedNutritionCategoryAndSearchServing() = runTest {
         val result =
             foundProduct(

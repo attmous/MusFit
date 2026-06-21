@@ -165,6 +165,7 @@ fun FoodScreen(
                         onTemplateClick = viewModel::logMealTemplate,
                         onTemplateFavoriteClick = viewModel::toggleFavoriteMealTemplate,
                         onRecipeClick = viewModel::logRecipe,
+                        onRecipeFavoriteClick = viewModel::toggleFavoriteRecipe,
                         onRecipeServingsChanged = viewModel::onRecipeServingsToLogChanged,
                         onProductNameChanged = viewModel::onProductNameChanged,
                         onBrandChanged = viewModel::onBrandChanged,
@@ -297,6 +298,7 @@ fun FoodScreen(
                         onIngredientQuantityChanged = viewModel::onRecipeIngredientQuantityChanged,
                         onAddIngredientClick = viewModel::addRecipeIngredient,
                         onEditRecipeClick = { recipeId -> viewModel.openRecipeEditor(recipeId) },
+                        onFavoriteClick = viewModel::toggleFavoriteRecipe,
                         onSaveClick = viewModel::saveRecipe,
                         onDeleteClick = { state.editingRecipeId?.let(viewModel::deleteRecipe) },
                     )
@@ -2271,6 +2273,7 @@ private fun RecipeEditorPanel(
     onIngredientQuantityChanged: (String) -> Unit,
     onAddIngredientClick: () -> Unit,
     onEditRecipeClick: (String) -> Unit,
+    onFavoriteClick: (String, Boolean) -> Unit,
     onSaveClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
@@ -2296,10 +2299,23 @@ private fun RecipeEditorPanel(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(recipe.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(recipe.itemSummary, color = Color(0xFF706D6A), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                listOfNotNull(
+                                    recipe.itemSummary,
+                                    if (recipe.isFavorite) "Favorite" else null,
+                                ).joinToString(" - "),
+                                color = Color(0xFF706D6A),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                        OutlinedButton(onClick = { onEditRecipeClick(recipe.id) }) {
-                            Text("Edit")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
+                                Text(if (recipe.isFavorite) "Starred" else "Star")
+                            }
+                            OutlinedButton(onClick = { onEditRecipeClick(recipe.id) }) {
+                                Text("Edit")
+                            }
                         }
                     }
                 }
@@ -2480,6 +2496,7 @@ private fun AddFoodPanel(
     onTemplateClick: (String) -> Unit,
     onTemplateFavoriteClick: (String, Boolean) -> Unit,
     onRecipeClick: (String) -> Unit,
+    onRecipeFavoriteClick: (String, Boolean) -> Unit,
     onRecipeServingsChanged: (String) -> Unit,
     onProductNameChanged: (String) -> Unit,
     onBrandChanged: (String) -> Unit,
@@ -2573,6 +2590,7 @@ private fun AddFoodPanel(
                         state = state,
                         onRecipeServingsChanged = onRecipeServingsChanged,
                         onRecipeClick = onRecipeClick,
+                        onFavoriteClick = onRecipeFavoriteClick,
                     )
                 }
 
@@ -2799,6 +2817,7 @@ private fun RecipeQuickList(
     state: FoodUiState,
     onRecipeServingsChanged: (String) -> Unit,
     onRecipeClick: (String) -> Unit,
+    onFavoriteClick: (String, Boolean) -> Unit,
 ) {
     if (state.recipes.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2830,13 +2849,22 @@ private fun RecipeQuickList(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(recipe.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
-                            text = "${recipe.caloriesPerServingKcal.roundToInt()} kcal - ${recipe.proteinPerServingGrams.roundToInt()} g protein",
+                            text = listOfNotNull(
+                                "${recipe.caloriesPerServingKcal.roundToInt()} kcal",
+                                "${recipe.proteinPerServingGrams.roundToInt()} g protein",
+                                if (recipe.isFavorite) "Favorite" else null,
+                            ).joinToString(" - "),
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFF706D6A),
                         )
                     }
-                    OutlinedButton(onClick = { onRecipeClick(recipe.id) }) {
-                        Text("Log")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
+                            Text(if (recipe.isFavorite) "Starred" else "Star")
+                        }
+                        OutlinedButton(onClick = { onRecipeClick(recipe.id) }) {
+                            Text("Log")
+                        }
                     }
                 }
             }

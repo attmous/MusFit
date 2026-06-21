@@ -1827,6 +1827,36 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun toggleFavoriteRecipeUpdatesRepositoryAndUiState() = runTest {
+        val repository =
+            FakeFoodRepository(
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Dinner",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        isFavorite = false,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 150.0)),
+                        nutritionPerServing = FoodNutrition(250.0, 35.0, 20.0, 5.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.recipes.single().isFavorite)
+
+        viewModel.toggleFavoriteRecipe("recipe-1", true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("recipe-1" to true, repository.favoriteRecipeToggle)
+        assertEquals("Recipe added to favorites", viewModel.state.value.message)
+    }
+
+    @Test
     fun diaryEntryCanBeCopiedToAnotherMealAndDate() = runTest {
         val repository =
             FakeFoodRepository(
@@ -2047,6 +2077,7 @@ class FoodViewModelTest {
         var recipeUpsert: RecipeUpsertInput? = null
         var logRecipeCall: LogRecipeCall? = null
         var deletedRecipeId: String? = null
+        var favoriteRecipeToggle: Pair<String, Boolean>? = null
         var starterFoodsSeeded = false
         var confirmedProductSave: ConfirmedProductSaveCall? = null
 
@@ -2180,6 +2211,10 @@ class FoodViewModelTest {
 
         override suspend fun deleteRecipe(recipeId: String) {
             deletedRecipeId = recipeId
+        }
+
+        override suspend fun toggleFavoriteRecipe(recipeId: String, isFavorite: Boolean) {
+            favoriteRecipeToggle = recipeId to isFavorite
         }
 
         override suspend fun seedStarterFoods() {
