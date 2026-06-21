@@ -161,9 +161,12 @@ data class FoodDiary(
 )
 
 enum class FoodGoalMode {
-    LoseWeight,
-    Maintain,
+    Balanced,
+    HighProtein,
+    KetoLowCarb,
     MuscleGain,
+    WeightLoss,
+    Custom,
 }
 
 data class FoodGoal(
@@ -332,7 +335,7 @@ val DEFAULT_REPOSITORY_FOOD_GOAL =
         sugarGrams = 50.0,
         saturatedFatGrams = 20.0,
         sodiumMilligrams = 2300.0,
-        mode = FoodGoalMode.Maintain,
+        mode = FoodGoalMode.Balanced,
         includeTrainingCalories = false,
     )
 
@@ -1122,7 +1125,7 @@ class LocalFoodRepository @Inject constructor(
                 sugarGrams = 50.0,
                 saturatedFatGrams = 20.0,
                 sodiumMilligrams = 2300.0,
-                mode = FoodGoalMode.Maintain,
+                mode = FoodGoalMode.Balanced,
                 includeTrainingCalories = false,
             )
 
@@ -1414,9 +1417,16 @@ private fun FoodGoalEntity.toFoodGoal(): FoodGoal =
         sugarGrams = sugarGrams,
         saturatedFatGrams = saturatedFatGrams,
         sodiumMilligrams = sodiumMilligrams,
-        mode = runCatching { FoodGoalMode.valueOf(mode) }.getOrDefault(FoodGoalMode.Maintain),
+        mode = mode.toFoodGoalMode(),
         includeTrainingCalories = includeTrainingCalories,
     )
+
+private fun String.toFoodGoalMode(): FoodGoalMode =
+    when (this) {
+        "Maintain" -> FoodGoalMode.Balanced
+        "LoseWeight" -> FoodGoalMode.WeightLoss
+        else -> runCatching { FoodGoalMode.valueOf(this) }.getOrDefault(FoodGoalMode.Balanced)
+    }
 
 private fun List<MealTemplateItemRow>.toMealTemplates(): List<MealTemplate> =
     groupBy { it.templateId }.map { (_, rows) ->

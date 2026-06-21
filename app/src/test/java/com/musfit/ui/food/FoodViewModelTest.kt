@@ -1717,17 +1717,79 @@ class FoodViewModelTest {
         viewModel.onGoalSugarChanged("60")
         viewModel.onGoalSaturatedFatChanged("22")
         viewModel.onGoalSodiumChanged("2300")
-        viewModel.onGoalModeChanged(FoodGoalMode.MuscleGain)
+        viewModel.onGoalModeChanged(FoodGoalMode.Custom)
         viewModel.onGoalIncludeTrainingChanged(true)
         viewModel.saveFoodGoal()
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(2400.0, repository.foodGoalUpdate?.dailyCaloriesKcal ?: 0.0, 0.01)
         assertEquals(180.0, repository.foodGoalUpdate?.proteinGrams ?: 0.0, 0.01)
-        assertEquals(FoodGoalMode.MuscleGain, repository.foodGoalUpdate?.mode)
+        assertEquals(FoodGoalMode.Custom, repository.foodGoalUpdate?.mode)
         assertTrue(repository.foodGoalUpdate?.includeTrainingCalories == true)
         assertEquals(2400.0, viewModel.state.value.calorieGoalKcal, 0.01)
         assertEquals("Updated nutrition goals", viewModel.state.value.message)
+    }
+
+    @Test
+    fun selectingHighProteinGoalModeFillsPresetTargetsAndSavesThem() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+
+        viewModel.openGoalEditor()
+        viewModel.onGoalModeChanged(FoodGoalMode.HighProtein)
+        viewModel.saveFoodGoal()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodGoalMode.HighProtein, repository.foodGoalUpdate?.mode)
+        assertEquals(2083.0, repository.foodGoalUpdate?.dailyCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(156.0, repository.foodGoalUpdate?.proteinGrams ?: 0.0, 0.01)
+        assertEquals(208.0, repository.foodGoalUpdate?.carbsGrams ?: 0.0, 0.01)
+        assertEquals(69.0, repository.foodGoalUpdate?.fatGrams ?: 0.0, 0.01)
+        assertEquals(156.0, viewModel.state.value.proteinGoalGrams, 0.01)
+    }
+
+    @Test
+    fun manualGoalOverrideSwitchesModeToCustomAndPersistsOverride() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+
+        viewModel.openGoalEditor()
+        viewModel.onGoalModeChanged(FoodGoalMode.WeightLoss)
+        viewModel.onGoalCaloriesChanged("1900")
+        viewModel.saveFoodGoal()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodGoalMode.Custom, repository.foodGoalUpdate?.mode)
+        assertEquals(1900.0, repository.foodGoalUpdate?.dailyCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(1900.0, viewModel.state.value.calorieGoalKcal, 0.01)
+    }
+
+    @Test
+    fun diaryProgressUsesSelectedGoalModeTargets() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(
+                        caloriesKcal = 500.0,
+                        proteinGrams = 50.0,
+                        carbsGrams = 80.0,
+                        fatGrams = 20.0,
+                    ),
+                    meals = emptyList(),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openGoalEditor()
+        viewModel.onGoalModeChanged(FoodGoalMode.HighProtein)
+        viewModel.saveFoodGoal()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val proteinProgress = viewModel.state.value.macroProgress.first { it.label == "Protein" }
+        assertEquals(50.0, proteinProgress.currentGrams, 0.01)
+        assertEquals(156.0, proteinProgress.goalGrams, 0.01)
+        assertEquals(1583.0, viewModel.state.value.remainingCaloriesKcal, 0.01)
     }
 
     @Test
@@ -2294,7 +2356,7 @@ class FoodViewModelTest {
             sugarGrams = 50.0,
             saturatedFatGrams = 20.0,
             sodiumMilligrams = 2300.0,
-            mode = FoodGoalMode.Maintain,
+            mode = FoodGoalMode.Balanced,
             includeTrainingCalories = false,
         ),
     ) : FoodRepository {

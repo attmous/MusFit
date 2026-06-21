@@ -2351,7 +2351,7 @@ private fun GoalEditorPanel(
                 FilterChip(
                     selected = state.goalModeInput == mode,
                     onClick = { onModeChanged(mode) },
-                    label = { Text(mode.name) },
+                    label = { Text(mode.label) },
                 )
             }
         }
@@ -3559,6 +3559,17 @@ private fun Double.formatNutritionDisplay(): String {
         "$whole.$decimal"
     }
 }
+
+private val FoodGoalMode.label: String
+    get() =
+        when (this) {
+            FoodGoalMode.Balanced -> "Balanced"
+            FoodGoalMode.HighProtein -> "High protein"
+            FoodGoalMode.KetoLowCarb -> "Keto / low carb"
+            FoodGoalMode.MuscleGain -> "Muscle gain"
+            FoodGoalMode.WeightLoss -> "Weight loss"
+            FoodGoalMode.Custom -> "Custom"
+        }
 
 private fun FoodUiState.filteredDatabaseFoods(): List<SavedFoodUiState> {
     val query = foodDatabaseQuery.trim().lowercase()

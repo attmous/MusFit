@@ -270,7 +270,7 @@ data class FoodUiState(
     val sugarGoalGrams: Double = SUGAR_GOAL_GRAMS,
     val saturatedFatGoalGrams: Double = SATURATED_FAT_GOAL_GRAMS,
     val sodiumGoalMilligrams: Double = SODIUM_GOAL_MILLIGRAMS,
-    val goalMode: FoodGoalMode = FoodGoalMode.Maintain,
+    val goalMode: FoodGoalMode = FoodGoalMode.Balanced,
     val includeTrainingCalories: Boolean = false,
     val eatenCaloriesKcal: Double = 0.0,
     val remainingCaloriesKcal: Double = CALORIE_GOAL_KCAL,
@@ -340,7 +340,7 @@ data class FoodUiState(
     val goalSugarGramsInput: String = SUGAR_GOAL_GRAMS.formatInputNumber(),
     val goalSaturatedFatGramsInput: String = SATURATED_FAT_GOAL_GRAMS.formatInputNumber(),
     val goalSodiumMgInput: String = SODIUM_GOAL_MILLIGRAMS.formatInputNumber(),
-    val goalModeInput: FoodGoalMode = FoodGoalMode.Maintain,
+    val goalModeInput: FoodGoalMode = FoodGoalMode.Balanced,
     val goalIncludeTrainingInput: Boolean = false,
     val editingRecipeId: String? = null,
     val recipeName: String = "",
@@ -2240,39 +2240,57 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onGoalCaloriesChanged(value: String) {
-        mutableState.update { it.copy(goalCaloriesKcalInput = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(goalCaloriesKcalInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
     }
 
     fun onGoalProteinChanged(value: String) {
-        mutableState.update { it.copy(goalProteinGramsInput = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(goalProteinGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
     }
 
     fun onGoalCarbsChanged(value: String) {
-        mutableState.update { it.copy(goalCarbsGramsInput = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(goalCarbsGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
     }
 
     fun onGoalFatChanged(value: String) {
-        mutableState.update { it.copy(goalFatGramsInput = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(goalFatGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
     }
 
     fun onGoalFiberChanged(value: String) {
-        mutableState.update { it.copy(goalFiberGramsInput = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(goalFiberGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
     }
 
     fun onGoalSugarChanged(value: String) {
-        mutableState.update { it.copy(goalSugarGramsInput = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(goalSugarGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
     }
 
     fun onGoalSaturatedFatChanged(value: String) {
-        mutableState.update { it.copy(goalSaturatedFatGramsInput = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(goalSaturatedFatGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
     }
 
     fun onGoalSodiumChanged(value: String) {
-        mutableState.update { it.copy(goalSodiumMgInput = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(goalSodiumMgInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
     }
 
     fun onGoalModeChanged(value: FoodGoalMode) {
-        mutableState.update { it.copy(goalModeInput = value, message = null) }
+        mutableState.update { currentState ->
+            val preset = value.goalPreset()
+            if (preset == null) {
+                currentState.copy(goalModeInput = value, message = null)
+            } else {
+                currentState.copy(
+                    goalModeInput = value,
+                    goalCaloriesKcalInput = preset.dailyCaloriesKcal.formatInputNumber(),
+                    goalProteinGramsInput = preset.proteinGrams.formatInputNumber(),
+                    goalCarbsGramsInput = preset.carbsGrams.formatInputNumber(),
+                    goalFatGramsInput = preset.fatGrams.formatInputNumber(),
+                    goalFiberGramsInput = preset.fiberGrams.formatInputNumber(),
+                    goalSugarGramsInput = preset.sugarGrams.formatInputNumber(),
+                    goalSaturatedFatGramsInput = preset.saturatedFatGrams.formatInputNumber(),
+                    goalSodiumMgInput = preset.sodiumMilligrams.formatInputNumber(),
+                    message = null,
+                )
+            }
+        }
     }
 
     fun onGoalIncludeTrainingChanged(value: Boolean) {
@@ -2637,6 +2655,17 @@ private data class MealDefinition(
     val timeMinutes: Int? = null,
 )
 
+private data class GoalPreset(
+    val dailyCaloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+    val fiberGrams: Double = FIBER_GOAL_GRAMS,
+    val sugarGrams: Double = SUGAR_GOAL_GRAMS,
+    val saturatedFatGrams: Double = SATURATED_FAT_GOAL_GRAMS,
+    val sodiumMilligrams: Double = SODIUM_GOAL_MILLIGRAMS,
+)
+
 private val mealDefinitions =
     listOf(
         MealDefinition("breakfast", "Breakfast", "Recommended 417 - 625 kcal", 625.0, sortOrder = 0),
@@ -2655,6 +2684,57 @@ private const val FIBER_GOAL_GRAMS = 30.0
 private const val SUGAR_GOAL_GRAMS = 50.0
 private const val SATURATED_FAT_GOAL_GRAMS = 20.0
 private const val SODIUM_GOAL_MILLIGRAMS = 2300.0
+
+private fun FoodGoalMode.goalPreset(): GoalPreset? =
+    when (this) {
+        FoodGoalMode.Balanced ->
+            GoalPreset(
+                dailyCaloriesKcal = CALORIE_GOAL_KCAL,
+                proteinGrams = PROTEIN_GOAL_GRAMS,
+                carbsGrams = CARBS_GOAL_GRAMS,
+                fatGrams = FAT_GOAL_GRAMS,
+            )
+
+        FoodGoalMode.HighProtein ->
+            GoalPreset(
+                dailyCaloriesKcal = CALORIE_GOAL_KCAL,
+                proteinGrams = 156.0,
+                carbsGrams = 208.0,
+                fatGrams = 69.0,
+            )
+
+        FoodGoalMode.KetoLowCarb ->
+            GoalPreset(
+                dailyCaloriesKcal = CALORIE_GOAL_KCAL,
+                proteinGrams = 130.0,
+                carbsGrams = 52.0,
+                fatGrams = 150.0,
+                fiberGrams = 25.0,
+                sugarGrams = 25.0,
+            )
+
+        FoodGoalMode.MuscleGain ->
+            GoalPreset(
+                dailyCaloriesKcal = 2400.0,
+                proteinGrams = 150.0,
+                carbsGrams = 300.0,
+                fatGrams = 67.0,
+                fiberGrams = 35.0,
+                sugarGrams = 60.0,
+            )
+
+        FoodGoalMode.WeightLoss ->
+            GoalPreset(
+                dailyCaloriesKcal = 1800.0,
+                proteinGrams = 135.0,
+                carbsGrams = 180.0,
+                fatGrams = 60.0,
+                fiberGrams = 35.0,
+                sugarGrams = 40.0,
+            )
+
+        FoodGoalMode.Custom -> null
+    }
 
 private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
     copy(

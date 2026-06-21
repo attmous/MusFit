@@ -713,7 +713,7 @@ class LocalFoodRepositoryTest {
                 sugarGrams = 60.0,
                 saturatedFatGrams = 22.0,
                 sodiumMilligrams = 2300.0,
-                mode = FoodGoalMode.MuscleGain,
+                mode = FoodGoalMode.HighProtein,
                 includeTrainingCalories = true,
             ),
         )
@@ -723,7 +723,7 @@ class LocalFoodRepositoryTest {
         assertEquals(2400.0, goal.dailyCaloriesKcal, 0.01)
         assertEquals(180.0, goal.proteinGrams, 0.01)
         assertEquals(35.0, goal.fiberGrams, 0.01)
-        assertEquals(FoodGoalMode.MuscleGain, goal.mode)
+        assertEquals(FoodGoalMode.HighProtein, goal.mode)
         assertTrue(goal.includeTrainingCalories)
     }
 
