@@ -670,6 +670,12 @@ class LocalFoodRepositoryTest {
                     sugarGrams = 3.6,
                     saturatedFatGrams = 0.6,
                     sodiumMilligrams = 36.0,
+                    potassiumMilligrams = 141.0,
+                    calciumMilligrams = 110.0,
+                    ironMilligrams = 0.1,
+                    vitaminDMicrograms = 0.2,
+                    vitaminCMilligrams = 1.0,
+                    magnesiumMilligrams = 11.0,
                 ),
                 servingName = "Cup",
                 barcode = "400000000001",
@@ -697,8 +703,26 @@ class LocalFoodRepositoryTest {
         assertEquals(3.6, food.nutritionDetailsPer100g.sugarGrams, 0.01)
         assertEquals(0.6, food.nutritionDetailsPer100g.saturatedFatGrams, 0.01)
         assertEquals(36.0, food.nutritionDetailsPer100g.sodiumMilligrams, 0.01)
+        assertEquals(141.0, food.nutritionDetailsPer100g.potassiumMilligrams, 0.01)
+        assertEquals(110.0, food.nutritionDetailsPer100g.calciumMilligrams, 0.01)
+        assertEquals(0.1, food.nutritionDetailsPer100g.ironMilligrams, 0.01)
+        assertEquals(0.2, food.nutritionDetailsPer100g.vitaminDMicrograms, 0.01)
+        assertEquals(1.0, food.nutritionDetailsPer100g.vitaminCMilligrams, 0.01)
+        assertEquals(11.0, food.nutritionDetailsPer100g.magnesiumMilligrams, 0.01)
         assertEquals(listOf("Cup", "Small bowl"), food.servings.map { it.label })
         assertEquals(125.0, food.servings.single { it.label == "Small bowl" }.grams, 0.01)
+
+        val date = LocalDate.of(2026, 6, 21)
+        repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 85.0, date))
+
+        val diary = repository.observeFoodDiary(date).first()
+
+        assertEquals(119.85, diary.detailTotals.potassiumMilligrams, 0.01)
+        assertEquals(93.5, diary.detailTotals.calciumMilligrams, 0.01)
+        assertEquals(0.085, diary.detailTotals.ironMilligrams, 0.01)
+        assertEquals(0.17, diary.detailTotals.vitaminDMicrograms, 0.01)
+        assertEquals(0.85, diary.detailTotals.vitaminCMilligrams, 0.01)
+        assertEquals(9.35, diary.detailTotals.magnesiumMilligrams, 0.01)
     }
 
     @Test

@@ -81,6 +81,12 @@ data class FoodNutrientProgressUiState(
     val isLimit: Boolean,
 )
 
+data class FoodMicronutrientUiState(
+    val label: String,
+    val value: Double,
+    val unit: String,
+)
+
 data class FoodMealEntryUiState(
     val id: String,
     val foodId: String,
@@ -121,6 +127,7 @@ data class FoodMealSectionUiState(
     val saturatedFatGrams: Double = 0.0,
     val sodiumMilligrams: Double = 0.0,
     val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyList(),
+    val micronutrients: List<FoodMicronutrientUiState> = emptyList(),
     val entries: List<FoodMealEntryUiState>,
 )
 
@@ -150,6 +157,12 @@ data class SavedFoodUiState(
     val sugarPer100g: Double = 0.0,
     val saturatedFatPer100g: Double = 0.0,
     val sodiumMgPer100g: Double = 0.0,
+    val potassiumMgPer100g: Double = 0.0,
+    val calciumMgPer100g: Double = 0.0,
+    val ironMgPer100g: Double = 0.0,
+    val vitaminDMcgPer100g: Double = 0.0,
+    val vitaminCMgPer100g: Double = 0.0,
+    val magnesiumMgPer100g: Double = 0.0,
     val servingName: String? = null,
     val barcode: String? = null,
     val category: String? = null,
@@ -184,6 +197,12 @@ data class OnlineFoodResultUiState(
     val sugarPer100g: Double,
     val saturatedFatPer100g: Double,
     val sodiumMgPer100g: Double,
+    val potassiumMgPer100g: Double,
+    val calciumMgPer100g: Double,
+    val ironMgPer100g: Double,
+    val vitaminDMcgPer100g: Double,
+    val vitaminCMgPer100g: Double,
+    val magnesiumMgPer100g: Double,
     val category: String?,
     val imageUrl: String?,
 )
@@ -291,6 +310,7 @@ data class FoodUiState(
     val remainingCaloriesKcal: Double = CALORIE_GOAL_KCAL,
     val macroProgress: List<FoodMacroProgressUiState> = emptyMacroProgress(),
     val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyAdvancedNutritionProgress(),
+    val micronutrients: List<FoodMicronutrientUiState> = emptyMicronutrients(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
     val mealDefinitions: List<FoodMealDefinitionUiState> = defaultMealDefinitionUiStates(),
     val selectedMealDetailId: String? = null,
@@ -341,6 +361,12 @@ data class FoodUiState(
     val savedFoodSugarPer100g: String = "",
     val savedFoodSaturatedFatPer100g: String = "",
     val savedFoodSodiumMgPer100g: String = "",
+    val savedFoodPotassiumMgPer100g: String = "",
+    val savedFoodCalciumMgPer100g: String = "",
+    val savedFoodIronMgPer100g: String = "",
+    val savedFoodVitaminDMcgPer100g: String = "",
+    val savedFoodVitaminCMgPer100g: String = "",
+    val savedFoodMagnesiumMgPer100g: String = "",
     val savedFoodServingName: String = "",
     val savedFoodBarcode: String = "",
     val savedFoodCategory: String = "",
@@ -1281,6 +1307,12 @@ class FoodViewModel @Inject constructor(
                 savedFoodSugarPer100g = "",
                 savedFoodSaturatedFatPer100g = "",
                 savedFoodSodiumMgPer100g = "",
+                savedFoodPotassiumMgPer100g = "",
+                savedFoodCalciumMgPer100g = "",
+                savedFoodIronMgPer100g = "",
+                savedFoodVitaminDMcgPer100g = "",
+                savedFoodVitaminCMgPer100g = "",
+                savedFoodMagnesiumMgPer100g = "",
                 savedFoodServingName = "",
                 savedFoodBarcode = "",
                 savedFoodCategory = "",
@@ -1308,6 +1340,12 @@ class FoodViewModel @Inject constructor(
                 savedFoodSugarPer100g = "",
                 savedFoodSaturatedFatPer100g = "",
                 savedFoodSodiumMgPer100g = "",
+                savedFoodPotassiumMgPer100g = "",
+                savedFoodCalciumMgPer100g = "",
+                savedFoodIronMgPer100g = "",
+                savedFoodVitaminDMcgPer100g = "",
+                savedFoodVitaminCMgPer100g = "",
+                savedFoodMagnesiumMgPer100g = "",
                 savedFoodServingName = "Label serving",
                 savedFoodBarcode = "",
                 savedFoodCategory = "Nutrition label",
@@ -1341,6 +1379,12 @@ class FoodViewModel @Inject constructor(
                 savedFoodSugarPer100g = savedFood.sugarPer100g.formatInputNumber(),
                 savedFoodSaturatedFatPer100g = savedFood.saturatedFatPer100g.formatInputNumber(),
                 savedFoodSodiumMgPer100g = savedFood.sodiumMgPer100g.formatInputNumber(),
+                savedFoodPotassiumMgPer100g = savedFood.potassiumMgPer100g.formatInputNumber(),
+                savedFoodCalciumMgPer100g = savedFood.calciumMgPer100g.formatInputNumber(),
+                savedFoodIronMgPer100g = savedFood.ironMgPer100g.formatInputNumber(),
+                savedFoodVitaminDMcgPer100g = savedFood.vitaminDMcgPer100g.formatInputNumber(),
+                savedFoodVitaminCMgPer100g = savedFood.vitaminCMgPer100g.formatInputNumber(),
+                savedFoodMagnesiumMgPer100g = savedFood.magnesiumMgPer100g.formatInputNumber(),
                 savedFoodServingName = savedFood.servingName.orEmpty(),
                 savedFoodBarcode = savedFood.barcode.orEmpty(),
                 savedFoodCategory = savedFood.category.orEmpty(),
@@ -1392,6 +1436,30 @@ class FoodViewModel @Inject constructor(
 
     fun onSavedFoodSodiumChanged(value: String) {
         mutableState.update { it.copy(savedFoodSodiumMgPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodPotassiumChanged(value: String) {
+        mutableState.update { it.copy(savedFoodPotassiumMgPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodCalciumChanged(value: String) {
+        mutableState.update { it.copy(savedFoodCalciumMgPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodIronChanged(value: String) {
+        mutableState.update { it.copy(savedFoodIronMgPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodVitaminDChanged(value: String) {
+        mutableState.update { it.copy(savedFoodVitaminDMcgPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodVitaminCChanged(value: String) {
+        mutableState.update { it.copy(savedFoodVitaminCMgPer100g = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun onSavedFoodMagnesiumChanged(value: String) {
+        mutableState.update { it.copy(savedFoodMagnesiumMgPer100g = value.sanitizeDecimalInput(), message = null) }
     }
 
     fun onSavedFoodServingNameChanged(value: String) {
@@ -1548,6 +1616,12 @@ class FoodViewModel @Inject constructor(
                             sugarGrams = savedFood.sugarPer100g,
                             saturatedFatGrams = savedFood.saturatedFatPer100g,
                             sodiumMilligrams = savedFood.sodiumMgPer100g,
+                            potassiumMilligrams = savedFood.potassiumMgPer100g,
+                            calciumMilligrams = savedFood.calciumMgPer100g,
+                            ironMilligrams = savedFood.ironMgPer100g,
+                            vitaminDMicrograms = savedFood.vitaminDMcgPer100g,
+                            vitaminCMilligrams = savedFood.vitaminCMgPer100g,
+                            magnesiumMilligrams = savedFood.magnesiumMgPer100g,
                         ),
                         servingName = savedFood.servingName,
                         barcode = null,
@@ -2607,12 +2681,24 @@ class FoodViewModel @Inject constructor(
         val sugar = savedFoodSugarPer100g.parseNonNegativeNumberOrZero() ?: return null
         val saturatedFat = savedFoodSaturatedFatPer100g.parseNonNegativeNumberOrZero() ?: return null
         val sodium = savedFoodSodiumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val potassium = savedFoodPotassiumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val calcium = savedFoodCalciumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val iron = savedFoodIronMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val vitaminD = savedFoodVitaminDMcgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val vitaminC = savedFoodVitaminCMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val magnesium = savedFoodMagnesiumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
 
         return NutritionDetails(
             fiberGrams = fiber,
             sugarGrams = sugar,
             saturatedFatGrams = saturatedFat,
             sodiumMilligrams = sodium,
+            potassiumMilligrams = potassium,
+            calciumMilligrams = calcium,
+            ironMilligrams = iron,
+            vitaminDMicrograms = vitaminD,
+            vitaminCMilligrams = vitaminC,
+            magnesiumMilligrams = magnesium,
         )
     }
 
@@ -2777,6 +2863,7 @@ private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
             saturatedFatGoalGrams = saturatedFatGoalGrams,
             sodiumGoalMilligrams = sodiumGoalMilligrams,
         ),
+        micronutrients = diary.detailTotals.toMicronutrients(),
         mealSections = diary.toMealSections(
             mealDefinitions = mealDefinitions,
             useNetCarbs = useNetCarbs,
@@ -2897,6 +2984,7 @@ private fun FoodDiary.toMealSections(
                 saturatedFatGoalGrams = saturatedFatGoalGrams,
                 sodiumGoalMilligrams = sodiumGoalMilligrams,
             ),
+            micronutrients = detailTotals.toMicronutrients(),
             entries = meal?.entries.orEmpty().map { entry ->
                 FoodMealEntryUiState(
                     id = entry.id,
@@ -2948,6 +3036,12 @@ private fun SavedFoodItem.toUiState(): SavedFoodUiState {
         sugarPer100g = nutritionDetailsPer100g.sugarGrams,
         saturatedFatPer100g = nutritionDetailsPer100g.saturatedFatGrams,
         sodiumMgPer100g = nutritionDetailsPer100g.sodiumMilligrams,
+        potassiumMgPer100g = nutritionDetailsPer100g.potassiumMilligrams,
+        calciumMgPer100g = nutritionDetailsPer100g.calciumMilligrams,
+        ironMgPer100g = nutritionDetailsPer100g.ironMilligrams,
+        vitaminDMcgPer100g = nutritionDetailsPer100g.vitaminDMicrograms,
+        vitaminCMgPer100g = nutritionDetailsPer100g.vitaminCMilligrams,
+        magnesiumMgPer100g = nutritionDetailsPer100g.magnesiumMilligrams,
         servingName = servingName,
         barcode = barcode,
         category = category,
@@ -3106,6 +3200,12 @@ private fun ProductLookupResult.Found.toOnlineUiState(): OnlineFoodResultUiState
         sugarPer100g = nutritionDetailsPer100g.sugarGrams,
         saturatedFatPer100g = nutritionDetailsPer100g.saturatedFatGrams,
         sodiumMgPer100g = nutritionDetailsPer100g.sodiumMilligrams,
+        potassiumMgPer100g = nutritionDetailsPer100g.potassiumMilligrams,
+        calciumMgPer100g = nutritionDetailsPer100g.calciumMilligrams,
+        ironMgPer100g = nutritionDetailsPer100g.ironMilligrams,
+        vitaminDMcgPer100g = nutritionDetailsPer100g.vitaminDMicrograms,
+        vitaminCMgPer100g = nutritionDetailsPer100g.vitaminCMilligrams,
+        magnesiumMgPer100g = nutritionDetailsPer100g.magnesiumMilligrams,
         category = category,
         imageUrl = imageUrl,
     )
@@ -3127,6 +3227,12 @@ private fun OnlineFoodResultUiState.toSavedFoodUpsertInput(): SavedFoodUpsertInp
             sugarGrams = sugarPer100g,
             saturatedFatGrams = saturatedFatPer100g,
             sodiumMilligrams = sodiumMgPer100g,
+            potassiumMilligrams = potassiumMgPer100g,
+            calciumMilligrams = calciumMgPer100g,
+            ironMilligrams = ironMgPer100g,
+            vitaminDMicrograms = vitaminDMcgPer100g,
+            vitaminCMilligrams = vitaminCMgPer100g,
+            magnesiumMilligrams = magnesiumMgPer100g,
         ),
         servingName = servingQuantityGrams?.formatInputNumber()?.let { "$it g" },
         barcode = barcode,
@@ -3191,6 +3297,17 @@ private fun NutritionDetails.toAdvancedNutritionProgress(
             unit = "mg",
             isLimit = true,
         ),
+    )
+
+private fun NutritionDetails.toMicronutrients(): List<FoodMicronutrientUiState> =
+    listOf(
+        FoodMicronutrientUiState("Sodium", sodiumMilligrams, "mg"),
+        FoodMicronutrientUiState("Potassium", potassiumMilligrams, "mg"),
+        FoodMicronutrientUiState("Calcium", calciumMilligrams, "mg"),
+        FoodMicronutrientUiState("Iron", ironMilligrams, "mg"),
+        FoodMicronutrientUiState("Vitamin D", vitaminDMicrograms, "mcg"),
+        FoodMicronutrientUiState("Vitamin C", vitaminCMilligrams, "mg"),
+        FoodMicronutrientUiState("Magnesium", magnesiumMilligrams, "mg"),
     )
 
 private fun emptyMealSections(): List<FoodMealSectionUiState> =
@@ -3279,6 +3396,9 @@ private fun emptyMacroProgress(): List<FoodMacroProgressUiState> =
 
 private fun emptyAdvancedNutritionProgress(): List<FoodNutrientProgressUiState> =
     NutritionDetails().toAdvancedNutritionProgress()
+
+private fun emptyMicronutrients(): List<FoodMicronutrientUiState> =
+    NutritionDetails().toMicronutrients()
 
 private fun String.normalizedMealType(): String {
     val normalized = trim().lowercase()

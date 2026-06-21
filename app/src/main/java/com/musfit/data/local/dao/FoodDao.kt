@@ -29,6 +29,12 @@ data class MealNutritionRow(
     val sugarPer100g: Double,
     val saturatedFatPer100g: Double,
     val sodiumMgPer100g: Double,
+    val potassiumMgPer100g: Double,
+    val calciumMgPer100g: Double,
+    val ironMgPer100g: Double,
+    val vitaminDMcgPer100g: Double,
+    val vitaminCMgPer100g: Double,
+    val magnesiumMgPer100g: Double,
 )
 
 data class FoodDiaryEntryRow(
@@ -47,6 +53,12 @@ data class FoodDiaryEntryRow(
     val sugarPer100g: Double,
     val saturatedFatPer100g: Double,
     val sodiumMgPer100g: Double,
+    val potassiumMgPer100g: Double,
+    val calciumMgPer100g: Double,
+    val ironMgPer100g: Double,
+    val vitaminDMcgPer100g: Double,
+    val vitaminCMgPer100g: Double,
+    val magnesiumMgPer100g: Double,
     val createdAtEpochMillis: Long,
 )
 
@@ -86,6 +98,12 @@ data class RecipeIngredientRow(
     val sugarPer100g: Double,
     val saturatedFatPer100g: Double,
     val sodiumMgPer100g: Double,
+    val potassiumMgPer100g: Double,
+    val calciumMgPer100g: Double,
+    val ironMgPer100g: Double,
+    val vitaminDMcgPer100g: Double,
+    val vitaminCMgPer100g: Double,
+    val magnesiumMgPer100g: Double,
 )
 
 @Dao
@@ -149,7 +167,13 @@ interface FoodDao {
             "foods.fiberPer100g AS fiberPer100g, " +
             "foods.sugarPer100g AS sugarPer100g, " +
             "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
-            "foods.sodiumMgPer100g AS sodiumMgPer100g " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
+            "foods.potassiumMgPer100g AS potassiumMgPer100g, " +
+            "foods.calciumMgPer100g AS calciumMgPer100g, " +
+            "foods.ironMgPer100g AS ironMgPer100g, " +
+            "foods.vitaminDMcgPer100g AS vitaminDMcgPer100g, " +
+            "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
+            "foods.magnesiumMgPer100g AS magnesiumMgPer100g " +
             "FROM meal_items " +
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
             "INNER JOIN foods ON foods.id = meal_items.foodId " +
@@ -173,6 +197,12 @@ interface FoodDao {
             "foods.sugarPer100g AS sugarPer100g, " +
             "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
             "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
+            "foods.potassiumMgPer100g AS potassiumMgPer100g, " +
+            "foods.calciumMgPer100g AS calciumMgPer100g, " +
+            "foods.ironMgPer100g AS ironMgPer100g, " +
+            "foods.vitaminDMcgPer100g AS vitaminDMcgPer100g, " +
+            "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
+            "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
             "meals.createdAtEpochMillis AS createdAtEpochMillis " +
             "FROM meal_items " +
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
@@ -198,6 +228,12 @@ interface FoodDao {
             "foods.sugarPer100g AS sugarPer100g, " +
             "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
             "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
+            "foods.potassiumMgPer100g AS potassiumMgPer100g, " +
+            "foods.calciumMgPer100g AS calciumMgPer100g, " +
+            "foods.ironMgPer100g AS ironMgPer100g, " +
+            "foods.vitaminDMcgPer100g AS vitaminDMcgPer100g, " +
+            "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
+            "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
             "meals.createdAtEpochMillis AS createdAtEpochMillis " +
             "FROM meal_items " +
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
@@ -343,7 +379,13 @@ interface FoodDao {
             "foods.fiberPer100g AS fiberPer100g, " +
             "foods.sugarPer100g AS sugarPer100g, " +
             "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
-            "foods.sodiumMgPer100g AS sodiumMgPer100g " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
+            "foods.potassiumMgPer100g AS potassiumMgPer100g, " +
+            "foods.calciumMgPer100g AS calciumMgPer100g, " +
+            "foods.ironMgPer100g AS ironMgPer100g, " +
+            "foods.vitaminDMcgPer100g AS vitaminDMcgPer100g, " +
+            "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
+            "foods.magnesiumMgPer100g AS magnesiumMgPer100g " +
             "FROM recipe_ingredients " +
             "INNER JOIN recipes ON recipes.id = recipe_ingredients.recipeId " +
             "INNER JOIN foods ON foods.id = recipe_ingredients.foodId " +
@@ -372,7 +414,13 @@ interface FoodDao {
             "foods.fiberPer100g AS fiberPer100g, " +
             "foods.sugarPer100g AS sugarPer100g, " +
             "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
-            "foods.sodiumMgPer100g AS sodiumMgPer100g " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
+            "foods.potassiumMgPer100g AS potassiumMgPer100g, " +
+            "foods.calciumMgPer100g AS calciumMgPer100g, " +
+            "foods.ironMgPer100g AS ironMgPer100g, " +
+            "foods.vitaminDMcgPer100g AS vitaminDMcgPer100g, " +
+            "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
+            "foods.magnesiumMgPer100g AS magnesiumMgPer100g " +
             "FROM recipe_ingredients " +
             "INNER JOIN recipes ON recipes.id = recipe_ingredients.recipeId " +
             "INNER JOIN foods ON foods.id = recipe_ingredients.foodId " +

@@ -29,6 +29,12 @@ data class OpenFoodFactsNutriments(
     @param:Json(name = "sugars_100g") val sugars100g: Double? = null,
     @param:Json(name = "saturated-fat_100g") val saturatedFat100g: Double? = null,
     @param:Json(name = "sodium_100g") val sodium100g: Double? = null,
+    @param:Json(name = "potassium_100g") val potassium100g: Double? = null,
+    @param:Json(name = "calcium_100g") val calcium100g: Double? = null,
+    @param:Json(name = "iron_100g") val iron100g: Double? = null,
+    @param:Json(name = "vitamin-d_100g") val vitaminD100g: Double? = null,
+    @param:Json(name = "vitamin-c_100g") val vitaminC100g: Double? = null,
+    @param:Json(name = "magnesium_100g") val magnesium100g: Double? = null,
 )
 
 @JsonClass(generateAdapter = false)

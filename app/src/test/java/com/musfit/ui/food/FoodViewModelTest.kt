@@ -695,6 +695,62 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun micronutrientsExposeCompactDayAndMealRows() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(420.0, 32.0, 48.0, 12.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = emptyList(),
+                            totals = NutritionTotals(420.0, 32.0, 48.0, 12.0),
+                            detailTotals = NutritionDetails(
+                                sodiumMilligrams = 510.0,
+                                potassiumMilligrams = 700.0,
+                                calciumMilligrams = 220.0,
+                                ironMilligrams = 4.2,
+                                vitaminDMicrograms = 2.5,
+                                vitaminCMilligrams = 18.0,
+                                magnesiumMilligrams = 95.0,
+                            ),
+                        ),
+                    ),
+                    detailTotals = NutritionDetails(
+                        sodiumMilligrams = 510.0,
+                        potassiumMilligrams = 700.0,
+                        calciumMilligrams = 220.0,
+                        ironMilligrams = 4.2,
+                        vitaminDMicrograms = 2.5,
+                        vitaminCMilligrams = 18.0,
+                        magnesiumMilligrams = 95.0,
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val dayMicronutrients = viewModel.state.value.micronutrients.associateBy { it.label }
+
+        assertEquals(510.0, requireNotNull(dayMicronutrients["Sodium"]).value, 0.01)
+        assertEquals("mg", requireNotNull(dayMicronutrients["Sodium"]).unit)
+        assertEquals(700.0, requireNotNull(dayMicronutrients["Potassium"]).value, 0.01)
+        assertEquals(2.5, requireNotNull(dayMicronutrients["Vitamin D"]).value, 0.01)
+        assertEquals("mcg", requireNotNull(dayMicronutrients["Vitamin D"]).unit)
+        assertEquals(95.0, requireNotNull(dayMicronutrients["Magnesium"]).value, 0.01)
+
+        viewModel.openMealDetail("breakfast")
+
+        val mealMicronutrients = requireNotNull(viewModel.state.value.selectedMealDetailForDisplay())
+            .micronutrients
+            .associateBy { it.label }
+
+        assertEquals(220.0, requireNotNull(mealMicronutrients["Calcium"]).value, 0.01)
+        assertEquals(4.2, requireNotNull(mealMicronutrients["Iron"]).value, 0.01)
+        assertEquals(18.0, requireNotNull(mealMicronutrients["Vitamin C"]).value, 0.01)
+    }
+
+    @Test
     fun mealDetailSortMode_sortsSelectedMealItemsForDisplay() = runTest {
         val repository =
             FakeFoodRepository(
@@ -1444,6 +1500,12 @@ class FoodViewModelTest {
         viewModel.onSavedFoodProteinChanged("31")
         viewModel.onSavedFoodCarbsChanged("0")
         viewModel.onSavedFoodFatChanged("3.6")
+        viewModel.onSavedFoodPotassiumChanged("256")
+        viewModel.onSavedFoodCalciumChanged("15")
+        viewModel.onSavedFoodIronChanged("0.7")
+        viewModel.onSavedFoodVitaminDChanged("0.2")
+        viewModel.onSavedFoodVitaminCChanged("0")
+        viewModel.onSavedFoodMagnesiumChanged("29")
         viewModel.saveSavedFood()
         dispatcher.scheduler.advanceUntilIdle()
 
@@ -1458,6 +1520,14 @@ class FoodViewModelTest {
                     proteinGrams = 31.0,
                     carbsGrams = 0.0,
                     fatGrams = 3.6,
+                ),
+                nutritionDetailsPer100g = NutritionDetails(
+                    potassiumMilligrams = 256.0,
+                    calciumMilligrams = 15.0,
+                    ironMilligrams = 0.7,
+                    vitaminDMicrograms = 0.2,
+                    vitaminCMilligrams = 0.0,
+                    magnesiumMilligrams = 29.0,
                 ),
             ),
             repository.savedFoodUpsert,

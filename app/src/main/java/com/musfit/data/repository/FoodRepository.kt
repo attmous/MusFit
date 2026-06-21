@@ -38,6 +38,12 @@ data class NutritionDetails(
     val sugarGrams: Double = 0.0,
     val saturatedFatGrams: Double = 0.0,
     val sodiumMilligrams: Double = 0.0,
+    val potassiumMilligrams: Double = 0.0,
+    val calciumMilligrams: Double = 0.0,
+    val ironMilligrams: Double = 0.0,
+    val vitaminDMicrograms: Double = 0.0,
+    val vitaminCMilligrams: Double = 0.0,
+    val magnesiumMilligrams: Double = 0.0,
 )
 
 data class FoodServingInput(
@@ -574,6 +580,12 @@ class LocalFoodRepository @Inject constructor(
                     sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
                     saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,
                     sodiumMgPer100g = input.nutritionDetailsPer100g.sodiumMilligrams,
+                    potassiumMgPer100g = input.nutritionDetailsPer100g.potassiumMilligrams,
+                    calciumMgPer100g = input.nutritionDetailsPer100g.calciumMilligrams,
+                    ironMgPer100g = input.nutritionDetailsPer100g.ironMilligrams,
+                    vitaminDMcgPer100g = input.nutritionDetailsPer100g.vitaminDMicrograms,
+                    vitaminCMgPer100g = input.nutritionDetailsPer100g.vitaminCMilligrams,
+                    magnesiumMgPer100g = input.nutritionDetailsPer100g.magnesiumMilligrams,
                 ),
             )
             replaceServings(foodId, input.resolvedServings())
@@ -900,6 +912,12 @@ class LocalFoodRepository @Inject constructor(
                     sugarPer100g = per100gDetails.sugarGrams,
                     saturatedFatPer100g = per100gDetails.saturatedFatGrams,
                     sodiumMgPer100g = per100gDetails.sodiumMilligrams,
+                    potassiumMgPer100g = per100gDetails.potassiumMilligrams,
+                    calciumMgPer100g = per100gDetails.calciumMilligrams,
+                    ironMgPer100g = per100gDetails.ironMilligrams,
+                    vitaminDMcgPer100g = per100gDetails.vitaminDMicrograms,
+                    vitaminCMgPer100g = per100gDetails.vitaminCMilligrams,
+                    magnesiumMgPer100g = per100gDetails.magnesiumMilligrams,
                 ),
             )
             replaceServings(foodId, listOf(FoodServingInput(recipe.servingName, recipe.servingGrams)))
@@ -965,6 +983,12 @@ class LocalFoodRepository @Inject constructor(
                 sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
                 saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,
                 sodiumMgPer100g = input.nutritionDetailsPer100g.sodiumMilligrams,
+                potassiumMgPer100g = input.nutritionDetailsPer100g.potassiumMilligrams,
+                calciumMgPer100g = input.nutritionDetailsPer100g.calciumMilligrams,
+                ironMgPer100g = input.nutritionDetailsPer100g.ironMilligrams,
+                vitaminDMcgPer100g = input.nutritionDetailsPer100g.vitaminDMicrograms,
+                vitaminCMgPer100g = input.nutritionDetailsPer100g.vitaminCMilligrams,
+                magnesiumMgPer100g = input.nutritionDetailsPer100g.magnesiumMilligrams,
             ),
         )
         replaceServings(foodId, listOf(FoodServingInput(servingLabel(servingGrams), servingGrams)))
@@ -1047,6 +1071,12 @@ class LocalFoodRepository @Inject constructor(
                 sugarPer100g = editedNutritionDetails.sugarGrams,
                 saturatedFatPer100g = editedNutritionDetails.saturatedFatGrams,
                 sodiumMgPer100g = editedNutritionDetails.sodiumMilligrams,
+                potassiumMgPer100g = editedNutritionDetails.potassiumMilligrams,
+                calciumMgPer100g = editedNutritionDetails.calciumMilligrams,
+                ironMgPer100g = editedNutritionDetails.ironMilligrams,
+                vitaminDMcgPer100g = editedNutritionDetails.vitaminDMicrograms,
+                vitaminCMgPer100g = editedNutritionDetails.vitaminCMilligrams,
+                magnesiumMgPer100g = editedNutritionDetails.magnesiumMilligrams,
             ),
         )
         replaceServings(foodId, listOf(FoodServingInput(servingLabel(servingGrams), servingGrams)))
@@ -1272,6 +1302,12 @@ private fun NutritionDetails.requireValid() {
     require(sugarGrams.isNonNegativeFinite())
     require(saturatedFatGrams.isNonNegativeFinite())
     require(sodiumMilligrams.isNonNegativeFinite())
+    require(potassiumMilligrams.isNonNegativeFinite())
+    require(calciumMilligrams.isNonNegativeFinite())
+    require(ironMilligrams.isNonNegativeFinite())
+    require(vitaminDMicrograms.isNonNegativeFinite())
+    require(vitaminCMilligrams.isNonNegativeFinite())
+    require(magnesiumMilligrams.isNonNegativeFinite())
 }
 
 private fun SavedFoodUpsertInput.resolvedServings(): List<FoodServingInput> =
@@ -1349,6 +1385,12 @@ private fun FoodDiaryEntryRow.toDiaryEntry(): FoodDiaryEntry {
             sugarGrams = sugarPer100g * multiplier,
             saturatedFatGrams = saturatedFatPer100g * multiplier,
             sodiumMilligrams = sodiumMgPer100g * multiplier,
+            potassiumMilligrams = potassiumMgPer100g * multiplier,
+            calciumMilligrams = calciumMgPer100g * multiplier,
+            ironMilligrams = ironMgPer100g * multiplier,
+            vitaminDMicrograms = vitaminDMcgPer100g * multiplier,
+            vitaminCMilligrams = vitaminCMgPer100g * multiplier,
+            magnesiumMilligrams = magnesiumMgPer100g * multiplier,
         ),
     )
 }
@@ -1367,6 +1409,12 @@ private fun List<FoodDiaryEntry>.calculateDetailTotals(): NutritionDetails =
         sugarGrams = sumOf { it.nutritionDetails.sugarGrams },
         saturatedFatGrams = sumOf { it.nutritionDetails.saturatedFatGrams },
         sodiumMilligrams = sumOf { it.nutritionDetails.sodiumMilligrams },
+        potassiumMilligrams = sumOf { it.nutritionDetails.potassiumMilligrams },
+        calciumMilligrams = sumOf { it.nutritionDetails.calciumMilligrams },
+        ironMilligrams = sumOf { it.nutritionDetails.ironMilligrams },
+        vitaminDMicrograms = sumOf { it.nutritionDetails.vitaminDMicrograms },
+        vitaminCMilligrams = sumOf { it.nutritionDetails.vitaminCMilligrams },
+        magnesiumMilligrams = sumOf { it.nutritionDetails.magnesiumMilligrams },
     )
 
 private fun FoodEntity.toSavedFoodItem(servings: List<FoodServingEntity>): SavedFoodItem =
@@ -1386,6 +1434,12 @@ private fun FoodEntity.toSavedFoodItem(servings: List<FoodServingEntity>): Saved
             sugarGrams = sugarPer100g,
             saturatedFatGrams = saturatedFatPer100g,
             sodiumMilligrams = sodiumMgPer100g,
+            potassiumMilligrams = potassiumMgPer100g,
+            calciumMilligrams = calciumMgPer100g,
+            ironMilligrams = ironMgPer100g,
+            vitaminDMicrograms = vitaminDMcgPer100g,
+            vitaminCMilligrams = vitaminCMgPer100g,
+            magnesiumMilligrams = magnesiumMgPer100g,
         ),
         servingName = servingName,
         barcode = barcode,
@@ -1493,8 +1547,25 @@ private fun List<RecipeIngredientRow>.calculateRecipeDetailsPer100g(totalRecipeG
     val totalSugar = sumOf { it.sugarPer100g * it.quantityGrams / 100.0 }
     val totalSaturatedFat = sumOf { it.saturatedFatPer100g * it.quantityGrams / 100.0 }
     val totalSodium = sumOf { it.sodiumMgPer100g * it.quantityGrams / 100.0 }
+    val totalPotassium = sumOf { it.potassiumMgPer100g * it.quantityGrams / 100.0 }
+    val totalCalcium = sumOf { it.calciumMgPer100g * it.quantityGrams / 100.0 }
+    val totalIron = sumOf { it.ironMgPer100g * it.quantityGrams / 100.0 }
+    val totalVitaminD = sumOf { it.vitaminDMcgPer100g * it.quantityGrams / 100.0 }
+    val totalVitaminC = sumOf { it.vitaminCMgPer100g * it.quantityGrams / 100.0 }
+    val totalMagnesium = sumOf { it.magnesiumMgPer100g * it.quantityGrams / 100.0 }
     val multiplier = 100.0 / totalRecipeGrams
-    return NutritionDetails(totalFiber * multiplier, totalSugar * multiplier, totalSaturatedFat * multiplier, totalSodium * multiplier)
+    return NutritionDetails(
+        fiberGrams = totalFiber * multiplier,
+        sugarGrams = totalSugar * multiplier,
+        saturatedFatGrams = totalSaturatedFat * multiplier,
+        sodiumMilligrams = totalSodium * multiplier,
+        potassiumMilligrams = totalPotassium * multiplier,
+        calciumMilligrams = totalCalcium * multiplier,
+        ironMilligrams = totalIron * multiplier,
+        vitaminDMicrograms = totalVitaminD * multiplier,
+        vitaminCMilligrams = totalVitaminC * multiplier,
+        magnesiumMilligrams = totalMagnesium * multiplier,
+    )
 }
 
 private operator fun FoodNutrition.times(multiplier: Double): FoodNutrition =
@@ -1511,6 +1582,12 @@ private operator fun NutritionDetails.times(multiplier: Double): NutritionDetail
         sugarGrams = sugarGrams * multiplier,
         saturatedFatGrams = saturatedFatGrams * multiplier,
         sodiumMilligrams = sodiumMilligrams * multiplier,
+        potassiumMilligrams = potassiumMilligrams * multiplier,
+        calciumMilligrams = calciumMilligrams * multiplier,
+        ironMilligrams = ironMilligrams * multiplier,
+        vitaminDMicrograms = vitaminDMicrograms * multiplier,
+        vitaminCMilligrams = vitaminCMilligrams * multiplier,
+        magnesiumMilligrams = magnesiumMilligrams * multiplier,
     )
 
 private fun String.normalizedMealDefinitionId(): String {

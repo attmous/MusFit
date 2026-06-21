@@ -26,6 +26,12 @@ data class FoodEntity(
     @ColumnInfo(defaultValue = "0") val sugarPer100g: Double = 0.0,
     @ColumnInfo(defaultValue = "0") val saturatedFatPer100g: Double = 0.0,
     @ColumnInfo(defaultValue = "0") val sodiumMgPer100g: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val potassiumMgPer100g: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val calciumMgPer100g: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val ironMgPer100g: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val vitaminDMcgPer100g: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val vitaminCMgPer100g: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val magnesiumMgPer100g: Double = 0.0,
 )
 
 @Entity(

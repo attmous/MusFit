@@ -29,6 +29,7 @@ object DatabaseModule {
                 MIGRATION_4_5,
                 MIGRATION_5_6,
                 MIGRATION_6_7,
+                MIGRATION_7_8,
             )
             .build()
 
@@ -186,6 +187,18 @@ object DatabaseModule {
         object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE food_goals ADD COLUMN useNetCarbs INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+    private val MIGRATION_7_8 =
+        object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE foods ADD COLUMN potassiumMgPer100g REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE foods ADD COLUMN calciumMgPer100g REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE foods ADD COLUMN ironMgPer100g REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE foods ADD COLUMN vitaminDMcgPer100g REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE foods ADD COLUMN vitaminCMgPer100g REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE foods ADD COLUMN magnesiumMgPer100g REAL NOT NULL DEFAULT 0")
             }
         }
 }

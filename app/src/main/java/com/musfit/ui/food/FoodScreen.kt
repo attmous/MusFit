@@ -123,6 +123,7 @@ fun FoodScreen(
                 ) {
                     MacroProgressRow(state.macroProgress)
                     AdvancedNutritionProgressRow(state.advancedNutritionProgress)
+                    MicronutrientRow(state.micronutrients)
 
                     MessageBanner(
                         message = state.message,
@@ -248,6 +249,12 @@ fun FoodScreen(
                         onSugarChanged = viewModel::onSavedFoodSugarChanged,
                         onSaturatedFatChanged = viewModel::onSavedFoodSaturatedFatChanged,
                         onSodiumChanged = viewModel::onSavedFoodSodiumChanged,
+                        onPotassiumChanged = viewModel::onSavedFoodPotassiumChanged,
+                        onCalciumChanged = viewModel::onSavedFoodCalciumChanged,
+                        onIronChanged = viewModel::onSavedFoodIronChanged,
+                        onVitaminDChanged = viewModel::onSavedFoodVitaminDChanged,
+                        onVitaminCChanged = viewModel::onSavedFoodVitaminCChanged,
+                        onMagnesiumChanged = viewModel::onSavedFoodMagnesiumChanged,
                         onServingNameChanged = viewModel::onSavedFoodServingNameChanged,
                         onBarcodeChanged = viewModel::onSavedFoodBarcodeChanged,
                         onCategoryChanged = viewModel::onSavedFoodCategoryChanged,
@@ -271,6 +278,12 @@ fun FoodScreen(
                         onSugarChanged = viewModel::onSavedFoodSugarChanged,
                         onSaturatedFatChanged = viewModel::onSavedFoodSaturatedFatChanged,
                         onSodiumChanged = viewModel::onSavedFoodSodiumChanged,
+                        onPotassiumChanged = viewModel::onSavedFoodPotassiumChanged,
+                        onCalciumChanged = viewModel::onSavedFoodCalciumChanged,
+                        onIronChanged = viewModel::onSavedFoodIronChanged,
+                        onVitaminDChanged = viewModel::onSavedFoodVitaminDChanged,
+                        onVitaminCChanged = viewModel::onSavedFoodVitaminCChanged,
+                        onMagnesiumChanged = viewModel::onSavedFoodMagnesiumChanged,
                         onServingNameChanged = viewModel::onSavedFoodServingNameChanged,
                         onCategoryChanged = viewModel::onSavedFoodCategoryChanged,
                         onSaveClick = viewModel::saveSavedFood,
@@ -655,6 +668,85 @@ private fun AdvancedNutritionProgressCard(
 }
 
 @Composable
+private fun MicronutrientRow(micronutrients: List<FoodMicronutrientUiState>) {
+    if (micronutrients.isEmpty()) {
+        return
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        micronutrients.forEach { micronutrient ->
+            MicronutrientCard(
+                micronutrient = micronutrient,
+                modifier = Modifier.width(126.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MicronutrientGrid(micronutrients: List<FoodMicronutrientUiState>) {
+    if (micronutrients.isEmpty()) {
+        return
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        micronutrients.chunked(2).forEach { rowNutrients ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                rowNutrients.forEach { micronutrient ->
+                    MicronutrientCard(
+                        micronutrient = micronutrient,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (rowNutrients.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MicronutrientCard(
+    micronutrient: FoodMicronutrientUiState,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.height(68.dp),
+        color = Color(0xFFF7F4F1),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = micronutrient.label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${micronutrient.value.formatMicronutrientDisplay()} ${micronutrient.unit}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF67615D),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 private fun ProgressBar(
     progress: Float,
     color: Color,
@@ -960,6 +1052,10 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
             if (meal.advancedNutritionProgress.isNotEmpty()) {
                 HorizontalDivider(color = Color(0xFFEDE8E4))
                 AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
+            }
+            if (meal.micronutrients.isNotEmpty()) {
+                HorizontalDivider(color = Color(0xFFEDE8E4))
+                MicronutrientGrid(meal.micronutrients)
             }
         }
     }
@@ -2034,6 +2130,12 @@ private fun SavedFoodEditorPanel(
     onSugarChanged: (String) -> Unit,
     onSaturatedFatChanged: (String) -> Unit,
     onSodiumChanged: (String) -> Unit,
+    onPotassiumChanged: (String) -> Unit,
+    onCalciumChanged: (String) -> Unit,
+    onIronChanged: (String) -> Unit,
+    onVitaminDChanged: (String) -> Unit,
+    onVitaminCChanged: (String) -> Unit,
+    onMagnesiumChanged: (String) -> Unit,
     onServingNameChanged: (String) -> Unit,
     onBarcodeChanged: (String) -> Unit,
     onCategoryChanged: (String) -> Unit,
@@ -2141,6 +2243,12 @@ private fun SavedFoodEditorPanel(
             onSugarChanged = onSugarChanged,
             onSaturatedFatChanged = onSaturatedFatChanged,
             onSodiumChanged = onSodiumChanged,
+            onPotassiumChanged = onPotassiumChanged,
+            onCalciumChanged = onCalciumChanged,
+            onIronChanged = onIronChanged,
+            onVitaminDChanged = onVitaminDChanged,
+            onVitaminCChanged = onVitaminCChanged,
+            onMagnesiumChanged = onMagnesiumChanged,
         )
 
         state.message?.let { message ->
@@ -2195,6 +2303,12 @@ private fun NutritionLabelScanPanel(
     onSugarChanged: (String) -> Unit,
     onSaturatedFatChanged: (String) -> Unit,
     onSodiumChanged: (String) -> Unit,
+    onPotassiumChanged: (String) -> Unit,
+    onCalciumChanged: (String) -> Unit,
+    onIronChanged: (String) -> Unit,
+    onVitaminDChanged: (String) -> Unit,
+    onVitaminCChanged: (String) -> Unit,
+    onMagnesiumChanged: (String) -> Unit,
     onServingNameChanged: (String) -> Unit,
     onCategoryChanged: (String) -> Unit,
     onSaveClick: () -> Unit,
@@ -2287,6 +2401,12 @@ private fun NutritionLabelScanPanel(
             onSugarChanged = onSugarChanged,
             onSaturatedFatChanged = onSaturatedFatChanged,
             onSodiumChanged = onSodiumChanged,
+            onPotassiumChanged = onPotassiumChanged,
+            onCalciumChanged = onCalciumChanged,
+            onIronChanged = onIronChanged,
+            onVitaminDChanged = onVitaminDChanged,
+            onVitaminCChanged = onVitaminCChanged,
+            onMagnesiumChanged = onMagnesiumChanged,
         )
 
         state.message?.let { message ->
@@ -2319,6 +2439,12 @@ private fun SavedFoodNutritionFields(
     onSugarChanged: (String) -> Unit,
     onSaturatedFatChanged: (String) -> Unit,
     onSodiumChanged: (String) -> Unit,
+    onPotassiumChanged: (String) -> Unit,
+    onCalciumChanged: (String) -> Unit,
+    onIronChanged: (String) -> Unit,
+    onVitaminDChanged: (String) -> Unit,
+    onVitaminCChanged: (String) -> Unit,
+    onMagnesiumChanged: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -2391,6 +2517,57 @@ private fun SavedFoodNutritionFields(
                 label = "Sodium mg",
                 value = state.savedFoodSodiumMgPer100g,
                 onValueChange = onSodiumChanged,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SmallNumberField(
+                label = "Potassium mg",
+                value = state.savedFoodPotassiumMgPer100g,
+                onValueChange = onPotassiumChanged,
+                modifier = Modifier.weight(1f),
+            )
+            SmallNumberField(
+                label = "Calcium mg",
+                value = state.savedFoodCalciumMgPer100g,
+                onValueChange = onCalciumChanged,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SmallNumberField(
+                label = "Iron mg",
+                value = state.savedFoodIronMgPer100g,
+                onValueChange = onIronChanged,
+                modifier = Modifier.weight(1f),
+            )
+            SmallNumberField(
+                label = "Vit D mcg",
+                value = state.savedFoodVitaminDMcgPer100g,
+                onValueChange = onVitaminDChanged,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SmallNumberField(
+                label = "Vit C mg",
+                value = state.savedFoodVitaminCMgPer100g,
+                onValueChange = onVitaminCChanged,
+                modifier = Modifier.weight(1f),
+            )
+            SmallNumberField(
+                label = "Magnesium mg",
+                value = state.savedFoodMagnesiumMgPer100g,
+                onValueChange = onMagnesiumChanged,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -3659,6 +3836,13 @@ private fun Double.formatNutritionDisplay(): String {
         "$whole.$decimal"
     }
 }
+
+private fun Double.formatMicronutrientDisplay(): String =
+    if (this < 10.0 && this != roundToInt().toDouble()) {
+        formatNutritionDisplay()
+    } else {
+        roundToInt().toString()
+    }
 
 private val FoodGoalMode.label: String
     get() =

@@ -33,6 +33,12 @@ class OpenFoodFactsProductProviderTest {
                                 sugars100g = 3.6,
                                 saturatedFat100g = 0.1,
                                 sodium100g = 0.036,
+                                potassium100g = 0.141,
+                                calcium100g = 0.12,
+                                iron100g = 0.0002,
+                                vitaminD100g = 0.000001,
+                                vitaminC100g = 0.002,
+                                magnesium100g = 0.011,
                             ),
                         categories = "Dairy",
                         imageUrl = "https://images.openfoodfacts.org/yogurt.jpg",
@@ -52,6 +58,12 @@ class OpenFoodFactsProductProviderTest {
         assertEquals(3.6, found.nutritionDetailsPer100g.sugarGrams, 0.01)
         assertEquals(0.1, found.nutritionDetailsPer100g.saturatedFatGrams, 0.01)
         assertEquals(36.0, found.nutritionDetailsPer100g.sodiumMilligrams, 0.01)
+        assertEquals(141.0, found.nutritionDetailsPer100g.potassiumMilligrams, 0.01)
+        assertEquals(120.0, found.nutritionDetailsPer100g.calciumMilligrams, 0.01)
+        assertEquals(0.2, found.nutritionDetailsPer100g.ironMilligrams, 0.01)
+        assertEquals(1.0, found.nutritionDetailsPer100g.vitaminDMicrograms, 0.01)
+        assertEquals(2.0, found.nutritionDetailsPer100g.vitaminCMilligrams, 0.01)
+        assertEquals(11.0, found.nutritionDetailsPer100g.magnesiumMilligrams, 0.01)
         assertEquals("Dairy", found.category)
         assertEquals("https://images.openfoodfacts.org/yogurt.jpg", found.imageUrl)
     }

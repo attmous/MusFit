@@ -148,6 +148,12 @@ class OpenFoodFactsProductProvider @Inject constructor(
                 sugarGrams = this?.sugars100g ?: 0.0,
                 saturatedFatGrams = this?.saturatedFat100g ?: 0.0,
                 sodiumMilligrams = (this?.sodium100g ?: 0.0) * 1000.0,
+                potassiumMilligrams = (this?.potassium100g ?: 0.0) * 1000.0,
+                calciumMilligrams = (this?.calcium100g ?: 0.0) * 1000.0,
+                ironMilligrams = (this?.iron100g ?: 0.0) * 1000.0,
+                vitaminDMicrograms = (this?.vitaminD100g ?: 0.0) * 1_000_000.0,
+                vitaminCMilligrams = (this?.vitaminC100g ?: 0.0) * 1000.0,
+                magnesiumMilligrams = (this?.magnesium100g ?: 0.0) * 1000.0,
             )
     }
 }
