@@ -214,6 +214,10 @@ fun FoodScreen(
                         onLookupClick = viewModel::lookupBarcode,
                         onScanClick = onScanClick,
                         onNutritionLabelScanClick = viewModel::openNutritionLabelScan,
+                        onAiTextChanged = viewModel::onAiLoggingTextChanged,
+                        onAiTextDraftClick = viewModel::generateAiTextFoodDraft,
+                        onAiVoiceClick = viewModel::startAiVoiceLoggingPlaceholder,
+                        onAiPhotoClick = viewModel::startAiPhotoLoggingPlaceholder,
                         onLogFoodClick = viewModel::logFood,
                         onSaveProductClick = viewModel::saveScannedProductToDatabase,
                         onQuickCaloriesChanged = viewModel::onQuickCaloriesChanged,
@@ -3447,6 +3451,10 @@ private fun AddFoodPanel(
     onLookupClick: () -> Unit,
     onScanClick: () -> Unit,
     onNutritionLabelScanClick: () -> Unit,
+    onAiTextChanged: (String) -> Unit,
+    onAiTextDraftClick: () -> Unit,
+    onAiVoiceClick: () -> Unit,
+    onAiPhotoClick: () -> Unit,
     onLogFoodClick: () -> Unit,
     onSaveProductClick: () -> Unit,
     onQuickCaloriesChanged: (String) -> Unit,
@@ -3586,6 +3594,24 @@ private fun AddFoodPanel(
                     onQuickSaveFavoriteClick = onQuickSaveFavoriteClick,
                     onFavoriteQuickLogClick = onFavoriteQuickLogClick,
                     onFavoriteQuickLogFavoriteClick = onFavoriteQuickLogFavoriteClick,
+                )
+
+            FoodAddMode.Ai ->
+                AiLoggingForm(
+                    state = state,
+                    onAiTextChanged = onAiTextChanged,
+                    onAiTextDraftClick = onAiTextDraftClick,
+                    onAiVoiceClick = onAiVoiceClick,
+                    onAiPhotoClick = onAiPhotoClick,
+                    onProductNameChanged = onProductNameChanged,
+                    onBrandChanged = onBrandChanged,
+                    onQuantityChanged = onQuantityChanged,
+                    onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+                    onCaloriesChanged = onCaloriesChanged,
+                    onProteinChanged = onProteinChanged,
+                    onCarbsChanged = onCarbsChanged,
+                    onFatChanged = onFatChanged,
+                    onLogFoodClick = onLogFoodClick,
                 )
         }
     }
@@ -3882,6 +3908,97 @@ private fun RecipeQuickList(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AiLoggingForm(
+    state: FoodUiState,
+    onAiTextChanged: (String) -> Unit,
+    onAiTextDraftClick: () -> Unit,
+    onAiVoiceClick: () -> Unit,
+    onAiPhotoClick: () -> Unit,
+    onProductNameChanged: (String) -> Unit,
+    onBrandChanged: (String) -> Unit,
+    onQuantityChanged: (String) -> Unit,
+    onAmountServingChoiceSelected: (String) -> Unit,
+    onCaloriesChanged: (String) -> Unit,
+    onProteinChanged: (String) -> Unit,
+    onCarbsChanged: (String) -> Unit,
+    onFatChanged: (String) -> Unit,
+    onLogFoodClick: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedTextField(
+            value = state.aiLoggingText,
+            onValueChange = onAiTextChanged,
+            label = { Text("Describe meal") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = onAiTextDraftClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+            ) {
+                Text("Review text", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            OutlinedButton(
+                onClick = onAiVoiceClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Voice", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            OutlinedButton(
+                onClick = onAiPhotoClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Photo", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+
+        if (state.aiLoggingHasDraft) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFFF4FBF1),
+            ) {
+                Text(
+                    text = "${state.aiLoggingDraftSourceLabel ?: "AI"} draft",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF164A2A),
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            ProductFields(
+                state = state,
+                onProductNameChanged = onProductNameChanged,
+                onBrandChanged = onBrandChanged,
+                onQuantityChanged = onQuantityChanged,
+                onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+            )
+            NutritionFields(
+                state = state,
+                onCaloriesChanged = onCaloriesChanged,
+                onProteinChanged = onProteinChanged,
+                onCarbsChanged = onCarbsChanged,
+                onFatChanged = onFatChanged,
+            )
+            Button(
+                onClick = onLogFoodClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+            ) {
+                Text(if (state.isSaving) "Logging" else "Log reviewed food")
             }
         }
     }
@@ -4421,6 +4538,7 @@ private val FoodAddMode.label: String
             FoodAddMode.Manual -> "Manual"
             FoodAddMode.Barcode -> "Barcode"
             FoodAddMode.Quick -> "Quick"
+            FoodAddMode.Ai -> "AI"
         }
 
 private val MealDetailSortChoices =

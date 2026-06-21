@@ -2781,6 +2781,53 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun aiTextLoggingCreatesEditableDraftWithoutSavingUntilReviewed() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+
+        viewModel.selectAddMode(FoodAddMode.Ai)
+        viewModel.onAiLoggingTextChanged("2 eggs and toast")
+        viewModel.generateAiTextFoodDraft()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(repository.savedLog)
+        assertTrue(viewModel.state.value.aiLoggingHasDraft)
+        assertEquals("2 eggs and toast", viewModel.state.value.productName)
+        assertEquals("250", viewModel.state.value.caloriesPer100g)
+        assertEquals("Review AI suggestion before logging.", viewModel.state.value.message)
+
+        viewModel.onCaloriesChanged("360")
+        viewModel.logFood()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Logged food", viewModel.state.value.message)
+        assertEquals("2 eggs and toast", repository.savedLog?.name)
+        assertEquals(360.0, repository.savedLog?.nutritionPer100g?.caloriesKcal ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun aiVoiceAndPhotoPlaceholdersCreateReviewDraftsWithoutSaving() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+
+        viewModel.startAiVoiceLoggingPlaceholder()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(repository.savedLog)
+        assertTrue(viewModel.state.value.aiLoggingHasDraft)
+        assertEquals("Voice draft", viewModel.state.value.productName)
+        assertEquals("Voice placeholder ready. Review before logging.", viewModel.state.value.message)
+
+        viewModel.startAiPhotoLoggingPlaceholder()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(repository.savedLog)
+        assertTrue(viewModel.state.value.aiLoggingHasDraft)
+        assertEquals("Photo draft", viewModel.state.value.productName)
+        assertEquals("Photo placeholder ready. Review before logging.", viewModel.state.value.message)
+    }
+
+    @Test
     fun foodHealthConnectSyncRefreshToggleAndSyncUsesSelectedDate() = runTest {
         val repository =
             FakeFoodRepository(

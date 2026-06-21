@@ -57,6 +57,7 @@ enum class FoodAddMode {
     Manual,
     Barcode,
     Quick,
+    Ai,
 }
 
 enum class FoodSheetMode {
@@ -415,6 +416,9 @@ data class FoodUiState(
     val quickProteinGrams: String = "",
     val quickCarbsGrams: String = "",
     val quickFatGrams: String = "",
+    val aiLoggingText: String = "",
+    val aiLoggingHasDraft: Boolean = false,
+    val aiLoggingDraftSourceLabel: String? = null,
     val keepAddingFoods: Boolean = false,
     val foodDatabaseQuery: String = "",
     val editingDiaryEntryId: String? = null,
@@ -920,6 +924,50 @@ class FoodViewModel @Inject constructor(
 
     fun selectAddMode(mode: FoodAddMode) {
         mutableState.update { it.copy(addMode = mode, message = null) }
+    }
+
+    fun onAiLoggingTextChanged(value: String) {
+        mutableState.update {
+            it.copy(
+                aiLoggingText = value,
+                message = null,
+            )
+        }
+    }
+
+    fun generateAiTextFoodDraft() {
+        val text = state.value.aiLoggingText.trim()
+        if (text.isBlank()) {
+            mutableState.update { it.copy(message = "Describe what you ate") }
+            return
+        }
+        mutableState.update {
+            it.withAiLoggingDraft(
+                name = text.take(80),
+                sourceLabel = "Text",
+                message = "Review AI suggestion before logging.",
+            )
+        }
+    }
+
+    fun startAiVoiceLoggingPlaceholder() {
+        mutableState.update {
+            it.withAiLoggingDraft(
+                name = "Voice draft",
+                sourceLabel = "Voice",
+                message = "Voice placeholder ready. Review before logging.",
+            )
+        }
+    }
+
+    fun startAiPhotoLoggingPlaceholder() {
+        mutableState.update {
+            it.withAiLoggingDraft(
+                name = "Photo draft",
+                sourceLabel = "Photo",
+                message = "Photo placeholder ready. Review before logging.",
+            )
+        }
     }
 
     fun onKeepAddingFoodsChanged(value: Boolean) {
@@ -3474,6 +3522,29 @@ class FoodViewModel @Inject constructor(
         )
     }
 
+    private fun FoodUiState.withAiLoggingDraft(
+        name: String,
+        sourceLabel: String,
+        message: String,
+    ): FoodUiState =
+        copy(
+            isAddPanelVisible = true,
+            sheetMode = FoodSheetMode.AddFood,
+            addMode = FoodAddMode.Ai,
+            productName = name,
+            brand = "",
+            quantityGrams = "100",
+            caloriesPer100g = "250",
+            proteinPer100g = "12",
+            carbsPer100g = "30",
+            fatPer100g = "8",
+            amountServingChoices = defaultAmountServingChoices(),
+            lookupResult = null,
+            aiLoggingHasDraft = true,
+            aiLoggingDraftSourceLabel = sourceLabel,
+            message = message,
+        ).withAmountNutritionPreview()
+
     private fun FoodUiState.clearedEditableFields(): FoodUiState =
         copy(
             productName = "",
@@ -3485,6 +3556,8 @@ class FoodViewModel @Inject constructor(
             amountNutritionPreview = null,
             amountServingChoices = emptyList(),
             lookupResult = null,
+            aiLoggingHasDraft = false,
+            aiLoggingDraftSourceLabel = null,
         )
 }
 
