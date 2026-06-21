@@ -123,6 +123,41 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun lookupBarcode_previewsNutritionForEditedAmount() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(
+                result = foundProduct(
+                    servingQuantityGrams = 170.0,
+                    nutrition = FoodNutrition(
+                        caloriesKcal = 59.0,
+                        proteinGrams = 10.0,
+                        carbsGrams = 3.6,
+                        fatGrams = 0.4,
+                    ),
+                ),
+            ),
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.onBarcodeChanged("123456")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("170", viewModel.state.value.quantityGrams)
+        assertEquals(100.3, viewModel.state.value.amountNutritionPreview?.caloriesKcal ?: 0.0, 0.01)
+        assertEquals(17.0, viewModel.state.value.amountNutritionPreview?.proteinGrams ?: 0.0, 0.01)
+        assertEquals(6.12, viewModel.state.value.amountNutritionPreview?.carbsGrams ?: 0.0, 0.01)
+        assertEquals(0.68, viewModel.state.value.amountNutritionPreview?.fatGrams ?: 0.0, 0.01)
+
+        viewModel.onQuantityChanged("250")
+
+        assertEquals(147.5, viewModel.state.value.amountNutritionPreview?.caloriesKcal ?: 0.0, 0.01)
+        assertEquals(25.0, viewModel.state.value.amountNutritionPreview?.proteinGrams ?: 0.0, 0.01)
+        assertEquals(9.0, viewModel.state.value.amountNutritionPreview?.carbsGrams ?: 0.0, 0.01)
+        assertEquals(1.0, viewModel.state.value.amountNutritionPreview?.fatGrams ?: 0.0, 0.01)
+    }
+
+    @Test
     fun logFood_withoutLookup_logsManualMealEntry() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(

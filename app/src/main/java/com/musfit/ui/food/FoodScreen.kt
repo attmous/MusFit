@@ -2530,6 +2530,87 @@ private fun NutritionFields(
                 modifier = Modifier.weight(1f),
             )
         }
+        state.amountNutritionPreview?.let { preview ->
+            AmountNutritionPreview(preview = preview)
+        }
+    }
+}
+
+@Composable
+private fun AmountNutritionPreview(
+    preview: FoodAmountNutritionPreviewUiState,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFFF4FBF1),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "For ${preview.quantityGrams.formatNutritionDisplay()} g",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF164A2A),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AmountNutritionMetric(
+                    label = "Calories",
+                    value = "${preview.caloriesKcal.roundToInt()} kcal",
+                    modifier = Modifier.weight(1f),
+                )
+                AmountNutritionMetric(
+                    label = "Protein",
+                    value = "${preview.proteinGrams.formatNutritionDisplay()} g",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AmountNutritionMetric(
+                    label = "Carbs",
+                    value = "${preview.carbsGrams.formatNutritionDisplay()} g",
+                    modifier = Modifier.weight(1f),
+                )
+                AmountNutritionMetric(
+                    label = "Fat",
+                    value = "${preview.fatGrams.formatNutritionDisplay()} g",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AmountNutritionMetric(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF706D6A),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF151514),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -2600,6 +2681,17 @@ private fun SmallNumberField(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         modifier = modifier,
     )
+}
+
+private fun Double.formatNutritionDisplay(): String {
+    val tenths = (this * 10.0).roundToInt()
+    val whole = tenths / 10
+    val decimal = tenths % 10
+    return if (decimal == 0) {
+        whole.toString()
+    } else {
+        "$whole.$decimal"
+    }
 }
 
 private data class FoodMealChoice(

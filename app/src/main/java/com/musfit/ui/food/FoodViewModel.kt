@@ -165,6 +165,14 @@ data class DeletedDiaryEntrySnapshot(
     val quantityGrams: Double,
 )
 
+data class FoodAmountNutritionPreviewUiState(
+    val quantityGrams: Double,
+    val caloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+)
+
 data class FoodUiState(
     val barcode: String = "",
     val selectedDate: LocalDate = LocalDate.now(),
@@ -179,6 +187,7 @@ data class FoodUiState(
     val fatPer100g: String = "",
     val mealType: String = "breakfast",
     val quantityGrams: String = "100",
+    val amountNutritionPreview: FoodAmountNutritionPreviewUiState? = null,
     val lookupResult: ProductLookupResult.Found? = null,
     val calorieGoalKcal: Double = CALORIE_GOAL_KCAL,
     val proteinGoalGrams: Double = PROTEIN_GOAL_GRAMS,
@@ -1171,19 +1180,27 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onCaloriesChanged(value: String) {
-        mutableState.update { it.copy(caloriesPer100g = value, message = null) }
+        mutableState.update {
+            it.copy(caloriesPer100g = value, message = null).withAmountNutritionPreview()
+        }
     }
 
     fun onProteinChanged(value: String) {
-        mutableState.update { it.copy(proteinPer100g = value, message = null) }
+        mutableState.update {
+            it.copy(proteinPer100g = value, message = null).withAmountNutritionPreview()
+        }
     }
 
     fun onCarbsChanged(value: String) {
-        mutableState.update { it.copy(carbsPer100g = value, message = null) }
+        mutableState.update {
+            it.copy(carbsPer100g = value, message = null).withAmountNutritionPreview()
+        }
     }
 
     fun onFatChanged(value: String) {
-        mutableState.update { it.copy(fatPer100g = value, message = null) }
+        mutableState.update {
+            it.copy(fatPer100g = value, message = null).withAmountNutritionPreview()
+        }
     }
 
     fun onMealTypeChanged(value: String) {
@@ -1197,7 +1214,9 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onQuantityChanged(value: String) {
-        mutableState.update { it.copy(quantityGrams = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update {
+            it.copy(quantityGrams = value.sanitizeDecimalInput(), message = null).withAmountNutritionPreview()
+        }
     }
 
     fun onSavedFoodQuantityChanged(value: String) {
@@ -1251,9 +1270,14 @@ class FoodViewModel @Inject constructor(
                                 proteinPer100g = result.nutritionPer100g.proteinGrams.toString(),
                                 carbsPer100g = result.nutritionPer100g.carbsGrams.toString(),
                                 fatPer100g = result.nutritionPer100g.fatGrams.toString(),
+                                quantityGrams = (
+                                    result.servingQuantityGrams
+                                        ?.takeIf { it.isFinite() && it > 0.0 }
+                                        ?: 100.0
+                                    ).formatInputNumber(),
                                 lookupResult = result,
                                 message = null,
-                            )
+                            ).withAmountNutritionPreview()
                         }
                     }
 
@@ -1867,6 +1891,25 @@ class FoodViewModel @Inject constructor(
         )
     }
 
+    private fun FoodUiState.withAmountNutritionPreview(): FoodUiState {
+        val quantity = quantityGrams.parsePositiveNumberOrNull()
+        val nutrition = toEditedNutritionOrNull()
+        val preview = if (quantity != null && nutrition != null) {
+            val scale = quantity / 100.0
+            FoodAmountNutritionPreviewUiState(
+                quantityGrams = quantity,
+                caloriesKcal = nutrition.caloriesKcal * scale,
+                proteinGrams = nutrition.proteinGrams * scale,
+                carbsGrams = nutrition.carbsGrams * scale,
+                fatGrams = nutrition.fatGrams * scale,
+            )
+        } else {
+            null
+        }
+
+        return copy(amountNutritionPreview = preview)
+    }
+
     private fun FoodUiState.clearedEditableFields(): FoodUiState =
         copy(
             productName = "",
@@ -1875,6 +1918,7 @@ class FoodViewModel @Inject constructor(
             proteinPer100g = "",
             carbsPer100g = "",
             fatPer100g = "",
+            amountNutritionPreview = null,
             lookupResult = null,
         )
 }
