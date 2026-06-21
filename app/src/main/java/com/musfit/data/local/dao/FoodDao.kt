@@ -49,6 +49,7 @@ data class FoodDiaryEntryRow(
     val foodName: String,
     val brand: String?,
     val foodCategory: String?,
+    val imageUrl: String?,
     val quantityGrams: Double,
     val status: String,
     val caloriesPer100g: Double,
@@ -202,6 +203,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -236,6 +238,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -270,6 +273,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -304,6 +308,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -338,6 +343,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
