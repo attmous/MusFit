@@ -530,6 +530,194 @@ class LocalFoodRepositoryTest {
         assertEquals(1, repository.observeSavedFoods().first().size)
     }
 
+    @Test
+    fun upsertSavedFood_storesAdvancedFoodDetailsServingsAndPreventsDuplicates() = runTest {
+        val input =
+            SavedFoodUpsertInput(
+                foodId = null,
+                name = "Greek yogurt",
+                brand = "Kitchen",
+                defaultServingGrams = 170.0,
+                nutritionPer100g = nutrition(calories = 61.0, protein = 10.0, carbs = 4.0, fat = 1.0),
+                nutritionDetailsPer100g = NutritionDetails(
+                    fiberGrams = 0.2,
+                    sugarGrams = 3.6,
+                    saturatedFatGrams = 0.6,
+                    sodiumMilligrams = 36.0,
+                ),
+                servingName = "Cup",
+                barcode = "400000000001",
+                category = "Dairy",
+                isFavorite = true,
+                servings = listOf(
+                    FoodServingInput(label = "Cup", grams = 170.0),
+                    FoodServingInput(label = "Small bowl", grams = 125.0),
+                ),
+            )
+
+        val foodId = repository.upsertSavedFood(input)
+        val duplicateFoodId = repository.upsertSavedFood(input.copy(foodId = null))
+
+        val food = repository.getFoodDetail(foodId)!!
+
+        assertEquals(foodId, duplicateFoodId)
+        assertEquals("Greek yogurt", food.name)
+        assertEquals("Kitchen", food.brand)
+        assertEquals("Dairy", food.category)
+        assertEquals("400000000001", food.barcode)
+        assertEquals("Cup", food.servingName)
+        assertTrue(food.isFavorite)
+        assertEquals(0.2, food.nutritionDetailsPer100g.fiberGrams, 0.01)
+        assertEquals(3.6, food.nutritionDetailsPer100g.sugarGrams, 0.01)
+        assertEquals(0.6, food.nutritionDetailsPer100g.saturatedFatGrams, 0.01)
+        assertEquals(36.0, food.nutritionDetailsPer100g.sodiumMilligrams, 0.01)
+        assertEquals(listOf("Cup", "Small bowl"), food.servings.map { it.label })
+        assertEquals(125.0, food.servings.single { it.label == "Small bowl" }.grams, 0.01)
+    }
+
+    @Test
+    fun foodGoal_roundTripsUserTargetsAndMode() = runTest {
+        repository.updateFoodGoal(
+            FoodGoal(
+                dailyCaloriesKcal = 2400.0,
+                proteinGrams = 180.0,
+                carbsGrams = 250.0,
+                fatGrams = 80.0,
+                fiberGrams = 35.0,
+                sugarGrams = 60.0,
+                saturatedFatGrams = 22.0,
+                sodiumMilligrams = 2300.0,
+                mode = FoodGoalMode.MuscleGain,
+                includeTrainingCalories = true,
+            ),
+        )
+
+        val goal = repository.observeFoodGoal().first()
+
+        assertEquals(2400.0, goal.dailyCaloriesKcal, 0.01)
+        assertEquals(180.0, goal.proteinGrams, 0.01)
+        assertEquals(35.0, goal.fiberGrams, 0.01)
+        assertEquals(FoodGoalMode.MuscleGain, goal.mode)
+        assertTrue(goal.includeTrainingCalories)
+    }
+
+    @Test
+    fun saveMealAsTemplateAndLogTemplate_reusesMealItemsOnAnotherDay() = runTest {
+        val sourceDate = LocalDate.of(2026, 6, 20)
+        val targetDate = sourceDate.plusDays(1)
+        val oatsId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Oats",
+                    brand = null,
+                    defaultServingGrams = 50.0,
+                    nutritionPer100g = nutrition(calories = 380.0, protein = 13.0, carbs = 67.0, fat = 7.0),
+                ),
+            )
+        val yogurtId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Yogurt",
+                    brand = null,
+                    defaultServingGrams = 170.0,
+                    nutritionPer100g = nutrition(calories = 61.0, protein = 10.0, carbs = 4.0, fat = 1.0),
+                ),
+            )
+        repository.logSavedFood(SavedFoodLogInput(oatsId, "breakfast", 50.0, sourceDate))
+        repository.logSavedFood(SavedFoodLogInput(yogurtId, "breakfast", 170.0, sourceDate))
+
+        val templateId = repository.saveMealAsTemplate(sourceDate, "breakfast", "Usual breakfast")
+        repository.logMealTemplate(templateId, "lunch", targetDate)
+
+        val template = repository.observeMealTemplates().first().single()
+        val targetDiary = repository.observeFoodDiary(targetDate).first()
+
+        assertEquals("Usual breakfast", template.name)
+        assertEquals("breakfast", template.mealType)
+        assertEquals(listOf("Oats", "Yogurt"), template.items.map { it.foodName })
+        assertEquals(listOf("lunch"), targetDiary.meals.map { it.type })
+        assertEquals(293.7, targetDiary.totals.caloriesKcal, 0.01)
+        assertEquals(listOf("Oats", "Yogurt"), targetDiary.meals.single().entries.map { it.name })
+    }
+
+    @Test
+    fun copyMeal_copiesMealItemsBetweenDates() = runTest {
+        val sourceDate = LocalDate.of(2026, 6, 20)
+        val targetDate = sourceDate.plusDays(1)
+        val foodId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Rice",
+                    brand = null,
+                    defaultServingGrams = 100.0,
+                    nutritionPer100g = nutrition(calories = 180.0, protein = 6.0, carbs = 32.0, fat = 4.0),
+                ),
+            )
+        repository.logSavedFood(SavedFoodLogInput(foodId, "dinner", 200.0, sourceDate))
+
+        repository.copyMeal(sourceDate, targetDate, "dinner")
+
+        val targetDiary = repository.observeFoodDiary(targetDate).first()
+
+        assertEquals(360.0, targetDiary.totals.caloriesKcal, 0.01)
+        assertEquals("Rice", targetDiary.meals.single().entries.single().name)
+        assertEquals(200.0, targetDiary.meals.single().entries.single().quantityGrams, 0.01)
+    }
+
+    @Test
+    fun upsertRecipeAndLogRecipePortion_calculatesRecipeNutrition() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val chickenId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Chicken",
+                    brand = null,
+                    defaultServingGrams = 150.0,
+                    nutritionPer100g = nutrition(calories = 165.0, protein = 31.0, carbs = 0.0, fat = 3.6),
+                ),
+            )
+        val riceId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Rice",
+                    brand = null,
+                    defaultServingGrams = 100.0,
+                    nutritionPer100g = nutrition(calories = 180.0, protein = 6.0, carbs = 32.0, fat = 4.0),
+                ),
+            )
+
+        val recipeId =
+            repository.upsertRecipe(
+                RecipeUpsertInput(
+                    recipeId = null,
+                    name = "Chicken rice bowl",
+                    category = "Dinner",
+                    servingName = "Bowl",
+                    servingGrams = 350.0,
+                    ingredients = listOf(
+                        RecipeIngredientInput(chickenId, quantityGrams = 150.0),
+                        RecipeIngredientInput(riceId, quantityGrams = 200.0),
+                    ),
+                ),
+            )
+        repository.logRecipe(recipeId, mealType = "dinner", servings = 0.5, date = date)
+
+        val recipe = repository.observeRecipes().first().single()
+        val dinner = repository.observeFoodDiary(date).first().meals.single()
+
+        assertEquals("Chicken rice bowl", recipe.name)
+        assertEquals(2, recipe.ingredients.size)
+        assertEquals(303.75, dinner.totals.caloriesKcal, 0.01)
+        assertEquals(29.25, dinner.totals.proteinGrams, 0.01)
+        assertEquals("Chicken rice bowl", dinner.entries.single().name)
+        assertEquals(175.0, dinner.entries.single().quantityGrams, 0.01)
+    }
+
     private fun foundProduct(
         barcode: String = "1234567890123",
         name: String = "Greek Yogurt",

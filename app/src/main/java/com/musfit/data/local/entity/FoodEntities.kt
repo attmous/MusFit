@@ -3,9 +3,10 @@ package com.musfit.data.local.entity
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import androidx.room.ColumnInfo
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "foods")
+@Entity(tableName = "foods", indices = [Index("barcode")])
 data class FoodEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -17,6 +18,14 @@ data class FoodEntity(
     val fatPer100g: Double,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
+    val servingName: String? = null,
+    val barcode: String? = null,
+    val category: String? = null,
+    @ColumnInfo(defaultValue = "0") val isFavorite: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val fiberPer100g: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val sugarPer100g: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val saturatedFatPer100g: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val sodiumMgPer100g: Double = 0.0,
 )
 
 @Entity(
@@ -95,4 +104,92 @@ data class BarcodeProductEntity(
     val quality: String,
     val linkedFoodId: String?,
     val fetchedAtEpochMillis: Long,
+)
+
+@Entity(tableName = "food_goals")
+data class FoodGoalEntity(
+    @PrimaryKey val id: String,
+    val dailyCaloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+    val fiberGrams: Double,
+    val sugarGrams: Double,
+    val saturatedFatGrams: Double,
+    val sodiumMilligrams: Double,
+    val mode: String,
+    val includeTrainingCalories: Boolean,
+    val updatedAtEpochMillis: Long,
+)
+
+@Entity(tableName = "meal_templates")
+data class MealTemplateEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val mealType: String,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
+@Entity(
+    tableName = "meal_template_items",
+    foreignKeys = [
+        ForeignKey(
+            entity = MealTemplateEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["templateId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = FoodEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["foodId"],
+            onDelete = ForeignKey.RESTRICT,
+        ),
+    ],
+    indices = [Index("templateId"), Index("foodId")],
+)
+data class MealTemplateItemEntity(
+    @PrimaryKey val id: String,
+    val templateId: String,
+    val foodId: String,
+    val quantityGrams: Double,
+    val sortOrder: Int,
+)
+
+@Entity(tableName = "recipes")
+data class RecipeEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val category: String?,
+    val servingName: String,
+    val servingGrams: Double,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
+@Entity(
+    tableName = "recipe_ingredients",
+    foreignKeys = [
+        ForeignKey(
+            entity = RecipeEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["recipeId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = FoodEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["foodId"],
+            onDelete = ForeignKey.RESTRICT,
+        ),
+    ],
+    indices = [Index("recipeId"), Index("foodId")],
+)
+data class RecipeIngredientEntity(
+    @PrimaryKey val id: String,
+    val recipeId: String,
+    val foodId: String,
+    val quantityGrams: Double,
+    val sortOrder: Int,
 )

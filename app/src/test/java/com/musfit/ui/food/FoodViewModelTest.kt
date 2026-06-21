@@ -6,10 +6,18 @@ import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodDiaryEntry
 import com.musfit.data.repository.FoodDiaryMeal
+import com.musfit.data.repository.FoodGoal
+import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
+import com.musfit.data.repository.MealTemplate
+import com.musfit.data.repository.MealTemplateItem
+import com.musfit.data.repository.NutritionDetails
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.QuickCalorieLogInput
 import com.musfit.data.repository.DiaryEntryUpdateInput
+import com.musfit.data.repository.Recipe
+import com.musfit.data.repository.RecipeIngredient
+import com.musfit.data.repository.RecipeUpsertInput
 import com.musfit.data.repository.SavedFoodItem
 import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.SavedFoodUpsertInput
@@ -822,6 +830,280 @@ class FoodViewModelTest {
         assertEquals("Deleted food", viewModel.state.value.message)
     }
 
+    @Test
+    fun dateNavigation_updatesSelectedDateAndLogsAgainstThatDate() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.goToPreviousDay()
+        viewModel.openAddFood("breakfast")
+        viewModel.selectAddMode(FoodAddMode.Quick)
+        viewModel.onQuickCaloriesChanged("250")
+        viewModel.quickLog()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(LocalDate.now().minusDays(1), viewModel.state.value.selectedDate)
+        assertEquals(LocalDate.now().minusDays(1), repository.quickLog?.date)
+
+        viewModel.goToToday()
+
+        assertEquals(LocalDate.now(), viewModel.state.value.selectedDate)
+    }
+
+    @Test
+    fun copyMealFromYesterdayAndSaveTemplate_useSelectedMealAndDate() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openMealDetail("breakfast")
+        viewModel.copySelectedMealFromYesterday()
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.saveSelectedMealAsTemplate("Usual breakfast")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            CopyMealCall(
+                fromDate = LocalDate.now().minusDays(1),
+                toDate = LocalDate.now(),
+                mealType = "breakfast",
+            ),
+            repository.copyMealCall,
+        )
+        assertEquals(
+            SaveTemplateCall(
+                date = LocalDate.now(),
+                mealType = "breakfast",
+                name = "Usual breakfast",
+            ),
+            repository.saveTemplateCall,
+        )
+    }
+
+    @Test
+    fun logMealTemplate_logsTemplateIntoSelectedMealAndDate() = runTest {
+        val repository =
+            FakeFoodRepository(
+                templates = listOf(
+                    MealTemplate(
+                        id = "template-1",
+                        name = "Usual breakfast",
+                        mealType = "breakfast",
+                        items = listOf(MealTemplateItem("food-1", "Oats", null, 50.0)),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAddFood("lunch")
+        viewModel.logMealTemplate("template-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            LogTemplateCall(
+                templateId = "template-1",
+                mealType = "lunch",
+                date = LocalDate.now(),
+            ),
+            repository.logTemplateCall,
+        )
+        assertEquals("Logged meal template", viewModel.state.value.message)
+    }
+
+    @Test
+    fun saveFoodGoal_updatesRepositoryAndLocalGoalState() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openGoalEditor()
+        viewModel.onGoalCaloriesChanged("2400")
+        viewModel.onGoalProteinChanged("180")
+        viewModel.onGoalCarbsChanged("250")
+        viewModel.onGoalFatChanged("80")
+        viewModel.onGoalFiberChanged("35")
+        viewModel.onGoalSugarChanged("60")
+        viewModel.onGoalSaturatedFatChanged("22")
+        viewModel.onGoalSodiumChanged("2300")
+        viewModel.onGoalModeChanged(FoodGoalMode.MuscleGain)
+        viewModel.onGoalIncludeTrainingChanged(true)
+        viewModel.saveFoodGoal()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(2400.0, repository.foodGoalUpdate?.dailyCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(180.0, repository.foodGoalUpdate?.proteinGrams ?: 0.0, 0.01)
+        assertEquals(FoodGoalMode.MuscleGain, repository.foodGoalUpdate?.mode)
+        assertTrue(repository.foodGoalUpdate?.includeTrainingCalories == true)
+        assertEquals(2400.0, viewModel.state.value.calorieGoalKcal, 0.01)
+        assertEquals("Updated nutrition goals", viewModel.state.value.message)
+    }
+
+    @Test
+    fun deleteDiaryEntryCanBeUndoneByReloggingFood() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = null,
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 120.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 8.0,
+                                    fatGrams = 2.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openDiaryEntryEditor("entry-1")
+        viewModel.deleteDiaryEntry()
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.undoDeleteDiaryEntry()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("entry-1", repository.deletedDiaryEntryId)
+        assertEquals(
+            SavedFoodLogInput(
+                foodId = "food-1",
+                mealType = "breakfast",
+                quantityGrams = 200.0,
+                date = LocalDate.now(),
+            ),
+            repository.savedFoodLog,
+        )
+        assertEquals("Restored diary item", viewModel.state.value.message)
+    }
+
+    @Test
+    fun keepAddingSavedFoodsLeavesAddPanelOpen() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openAddFood("dinner")
+        viewModel.onKeepAddingFoodsChanged(true)
+        viewModel.logSavedFood("food-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.isAddPanelVisible)
+        assertEquals("Logged food", viewModel.state.value.message)
+    }
+
+    @Test
+    fun saveRecipeAndLogRecipe_useEditorIngredientsAndSelectedMeal() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Chicken",
+                        brand = null,
+                        defaultServingGrams = 150.0,
+                        nutritionPer100g = FoodNutrition(165.0, 31.0, 0.0, 3.6),
+                    ),
+                ),
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Dinner",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 150.0)),
+                        nutritionPerServing = FoodNutrition(250.0, 35.0, 20.0, 5.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeEditor()
+        viewModel.onRecipeNameChanged("Chicken bowl")
+        viewModel.onRecipeCategoryChanged("Dinner")
+        viewModel.onRecipeServingNameChanged("Bowl")
+        viewModel.onRecipeServingGramsChanged("350")
+        viewModel.onRecipeIngredientFoodChanged("food-1")
+        viewModel.onRecipeIngredientQuantityChanged("150")
+        viewModel.addRecipeIngredient()
+        viewModel.saveRecipe()
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openAddFood("dinner")
+        viewModel.logRecipe("recipe-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Chicken bowl", repository.recipeUpsert?.name)
+        assertEquals(listOf("food-1"), repository.recipeUpsert?.ingredients?.map { it.foodId })
+        assertEquals(150.0, repository.recipeUpsert?.ingredients?.single()?.quantityGrams ?: 0.0, 0.01)
+        assertEquals(
+            LogRecipeCall(
+                recipeId = "recipe-1",
+                mealType = "dinner",
+                servings = 1.0,
+                date = LocalDate.now(),
+            ),
+            repository.logRecipeCall,
+        )
+        assertEquals("Logged recipe", viewModel.state.value.message)
+    }
+
+    private data class CopyMealCall(
+        val fromDate: LocalDate,
+        val toDate: LocalDate,
+        val mealType: String,
+    )
+
+    private data class SaveTemplateCall(
+        val date: LocalDate,
+        val mealType: String,
+        val name: String,
+    )
+
+    private data class LogTemplateCall(
+        val templateId: String,
+        val mealType: String,
+        val date: LocalDate,
+    )
+
+    private data class LogRecipeCall(
+        val recipeId: String,
+        val mealType: String,
+        val servings: Double,
+        val date: LocalDate,
+    )
+
     private class FakeProductProvider(
         private val result: ProductLookupResult = foundProduct(),
     ) : FoodProductProvider {
@@ -856,9 +1138,26 @@ class FoodViewModelTest {
     private class FakeFoodRepository(
         diary: FoodDiary = emptyFoodDiary(),
         savedFoods: List<SavedFoodItem> = emptyList(),
+        templates: List<MealTemplate> = emptyList(),
+        recipes: List<Recipe> = emptyList(),
+        foodGoal: FoodGoal = FoodGoal(
+            dailyCaloriesKcal = 2083.0,
+            proteinGrams = 104.0,
+            carbsGrams = 260.0,
+            fatGrams = 69.0,
+            fiberGrams = 30.0,
+            sugarGrams = 50.0,
+            saturatedFatGrams = 20.0,
+            sodiumMilligrams = 2300.0,
+            mode = FoodGoalMode.Maintain,
+            includeTrainingCalories = false,
+        ),
     ) : FoodRepository {
         private val diaryFlow = MutableStateFlow(diary)
         private val savedFoodsFlow = MutableStateFlow(savedFoods)
+        private val templatesFlow = MutableStateFlow(templates)
+        private val recipesFlow = MutableStateFlow(recipes)
+        private val foodGoalFlow = MutableStateFlow(foodGoal)
         var savedLog: FoodLogInput? = null
         var savedFoodLog: SavedFoodLogInput? = null
         var quickLog: QuickCalorieLogInput? = null
@@ -866,6 +1165,14 @@ class FoodViewModelTest {
         var deletedDiaryEntryId: String? = null
         var savedFoodUpsert: SavedFoodUpsertInput? = null
         var deletedSavedFoodId: String? = null
+        var favoriteToggle: Pair<String, Boolean>? = null
+        var foodGoalUpdate: FoodGoal? = null
+        var copyMealCall: CopyMealCall? = null
+        var saveTemplateCall: SaveTemplateCall? = null
+        var logTemplateCall: LogTemplateCall? = null
+        var recipeUpsert: RecipeUpsertInput? = null
+        var logRecipeCall: LogRecipeCall? = null
+        var starterFoodsSeeded = false
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -889,6 +1196,9 @@ class FoodViewModelTest {
 
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
             savedFoodsFlow
+
+        override suspend fun getFoodDetail(foodId: String): SavedFoodItem? =
+            savedFoodsFlow.value.firstOrNull { it.id == foodId }
 
         override suspend fun logSavedFood(input: SavedFoodLogInput): String {
             savedFoodLog = input
@@ -915,6 +1225,53 @@ class FoodViewModelTest {
 
         override suspend fun deleteSavedFood(foodId: String) {
             deletedSavedFoodId = foodId
+        }
+
+        override suspend fun toggleFavoriteFood(foodId: String, isFavorite: Boolean) {
+            favoriteToggle = foodId to isFavorite
+        }
+
+        override fun observeFoodGoal(): Flow<FoodGoal> =
+            foodGoalFlow
+
+        override suspend fun updateFoodGoal(goal: FoodGoal) {
+            foodGoalUpdate = goal
+            foodGoalFlow.value = goal
+        }
+
+        override fun observeMealTemplates(): Flow<List<MealTemplate>> =
+            templatesFlow
+
+        override suspend fun saveMealAsTemplate(date: LocalDate, mealType: String, name: String): String {
+            saveTemplateCall = SaveTemplateCall(date, mealType, name)
+            return "template-1"
+        }
+
+        override suspend fun logMealTemplate(templateId: String, mealType: String, date: LocalDate): List<String> {
+            logTemplateCall = LogTemplateCall(templateId, mealType, date)
+            return listOf("meal-item-1")
+        }
+
+        override suspend fun copyMeal(fromDate: LocalDate, toDate: LocalDate, mealType: String): List<String> {
+            copyMealCall = CopyMealCall(fromDate, toDate, mealType)
+            return listOf("meal-item-1")
+        }
+
+        override fun observeRecipes(): Flow<List<Recipe>> =
+            recipesFlow
+
+        override suspend fun upsertRecipe(input: RecipeUpsertInput): String {
+            recipeUpsert = input
+            return input.recipeId ?: "recipe-1"
+        }
+
+        override suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String {
+            logRecipeCall = LogRecipeCall(recipeId, mealType, servings, date)
+            return "meal-item-1"
+        }
+
+        override suspend fun seedStarterFoods() {
+            starterFoodsSeeded = true
         }
     }
 

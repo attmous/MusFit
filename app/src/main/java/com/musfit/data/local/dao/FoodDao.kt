@@ -7,9 +7,14 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.FoodEntity
+import com.musfit.data.local.entity.FoodGoalEntity
 import com.musfit.data.local.entity.FoodServingEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
+import com.musfit.data.local.entity.MealTemplateEntity
+import com.musfit.data.local.entity.MealTemplateItemEntity
+import com.musfit.data.local.entity.RecipeEntity
+import com.musfit.data.local.entity.RecipeIngredientEntity
 import kotlinx.coroutines.flow.Flow
 
 data class MealNutritionRow(
@@ -18,6 +23,10 @@ data class MealNutritionRow(
     val proteinPer100g: Double,
     val carbsPer100g: Double,
     val fatPer100g: Double,
+    val fiberPer100g: Double,
+    val sugarPer100g: Double,
+    val saturatedFatPer100g: Double,
+    val sodiumMgPer100g: Double,
 )
 
 data class FoodDiaryEntryRow(
@@ -32,7 +41,47 @@ data class FoodDiaryEntryRow(
     val proteinPer100g: Double,
     val carbsPer100g: Double,
     val fatPer100g: Double,
+    val fiberPer100g: Double,
+    val sugarPer100g: Double,
+    val saturatedFatPer100g: Double,
+    val sodiumMgPer100g: Double,
     val createdAtEpochMillis: Long,
+)
+
+data class MealTemplateItemRow(
+    val templateId: String,
+    val templateName: String,
+    val templateMealType: String,
+    val templateCreatedAtEpochMillis: Long,
+    val itemId: String,
+    val foodId: String,
+    val foodName: String,
+    val brand: String?,
+    val quantityGrams: Double,
+    val sortOrder: Int,
+)
+
+data class RecipeIngredientRow(
+    val recipeId: String,
+    val recipeName: String,
+    val recipeCategory: String?,
+    val recipeServingName: String,
+    val recipeServingGrams: Double,
+    val recipeCreatedAtEpochMillis: Long,
+    val ingredientId: String,
+    val foodId: String,
+    val foodName: String,
+    val brand: String?,
+    val quantityGrams: Double,
+    val sortOrder: Int,
+    val caloriesPer100g: Double,
+    val proteinPer100g: Double,
+    val carbsPer100g: Double,
+    val fatPer100g: Double,
+    val fiberPer100g: Double,
+    val sugarPer100g: Double,
+    val saturatedFatPer100g: Double,
+    val sodiumMgPer100g: Double,
 )
 
 @Dao
@@ -49,6 +98,17 @@ interface FoodDao {
     @Query("SELECT * FROM foods WHERE id = :foodId LIMIT 1")
     suspend fun getFood(foodId: String): FoodEntity?
 
+    @Query("SELECT * FROM foods WHERE barcode = :barcode LIMIT 1")
+    suspend fun getFoodByBarcode(barcode: String): FoodEntity?
+
+    @Query(
+        "SELECT * FROM foods " +
+            "WHERE lower(name) = lower(:name) " +
+            "AND ((brand IS NULL AND :brand IS NULL) OR lower(brand) = lower(:brand)) " +
+            "LIMIT 1",
+    )
+    suspend fun getFoodByNameAndBrand(name: String, brand: String?): FoodEntity?
+
     @Query("SELECT * FROM meals WHERE id = :mealId LIMIT 1")
     suspend fun getMeal(mealId: String): MealEntity?
 
@@ -61,6 +121,9 @@ interface FoodDao {
     @Query("SELECT * FROM meals WHERE dateEpochDay = :dateEpochDay ORDER BY createdAtEpochMillis")
     fun observeMealsForDate(dateEpochDay: Long): Flow<List<MealEntity>>
 
+    @Query("SELECT * FROM meals WHERE dateEpochDay = :dateEpochDay AND type = :mealType ORDER BY createdAtEpochMillis")
+    suspend fun getMealsForDateAndType(dateEpochDay: Long, mealType: String): List<MealEntity>
+
     @Query("SELECT * FROM meal_items WHERE mealId = :mealId")
     fun observeMealItems(mealId: String): Flow<List<MealItemEntity>>
 
@@ -69,7 +132,11 @@ interface FoodDao {
             "foods.caloriesPer100g AS caloriesPer100g, " +
             "foods.proteinPer100g AS proteinPer100g, " +
             "foods.carbsPer100g AS carbsPer100g, " +
-            "foods.fatPer100g AS fatPer100g " +
+            "foods.fatPer100g AS fatPer100g, " +
+            "foods.fiberPer100g AS fiberPer100g, " +
+            "foods.sugarPer100g AS sugarPer100g, " +
+            "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g " +
             "FROM meal_items " +
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
             "INNER JOIN foods ON foods.id = meal_items.foodId " +
@@ -89,6 +156,10 @@ interface FoodDao {
             "foods.proteinPer100g AS proteinPer100g, " +
             "foods.carbsPer100g AS carbsPer100g, " +
             "foods.fatPer100g AS fatPer100g, " +
+            "foods.fiberPer100g AS fiberPer100g, " +
+            "foods.sugarPer100g AS sugarPer100g, " +
+            "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
             "meals.createdAtEpochMillis AS createdAtEpochMillis " +
             "FROM meal_items " +
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
@@ -98,6 +169,31 @@ interface FoodDao {
     )
     fun observeFoodDiaryEntryRowsForDate(dateEpochDay: Long): Flow<List<FoodDiaryEntryRow>>
 
+    @Query(
+        "SELECT meals.id AS mealId, " +
+            "meals.type AS mealType, " +
+            "meal_items.id AS mealItemId, " +
+            "foods.id AS foodId, " +
+            "foods.name AS foodName, " +
+            "foods.brand AS brand, " +
+            "meal_items.quantityGrams AS quantityGrams, " +
+            "foods.caloriesPer100g AS caloriesPer100g, " +
+            "foods.proteinPer100g AS proteinPer100g, " +
+            "foods.carbsPer100g AS carbsPer100g, " +
+            "foods.fatPer100g AS fatPer100g, " +
+            "foods.fiberPer100g AS fiberPer100g, " +
+            "foods.sugarPer100g AS sugarPer100g, " +
+            "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g, " +
+            "meals.createdAtEpochMillis AS createdAtEpochMillis " +
+            "FROM meal_items " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.id = meal_items.foodId " +
+            "WHERE meals.dateEpochDay = :dateEpochDay AND meals.type = :mealType " +
+            "ORDER BY meals.createdAtEpochMillis, meal_items.id",
+    )
+    suspend fun getFoodDiaryEntryRowsForDateAndMeal(dateEpochDay: Long, mealType: String): List<FoodDiaryEntryRow>
+
     @Query("SELECT * FROM barcode_products WHERE barcode = :barcode LIMIT 1")
     suspend fun getBarcodeProduct(barcode: String): BarcodeProductEntity?
 
@@ -106,6 +202,136 @@ interface FoodDao {
 
     @Query("SELECT * FROM barcode_products WHERE linkedFoodId = :foodId ORDER BY fetchedAtEpochMillis DESC")
     fun observeBarcodeProducts(foodId: String): Flow<List<BarcodeProductEntity>>
+
+    @Query("SELECT * FROM food_goals WHERE id = :id LIMIT 1")
+    fun observeFoodGoal(id: String): Flow<FoodGoalEntity?>
+
+    @Query("SELECT * FROM food_goals WHERE id = :id LIMIT 1")
+    suspend fun getFoodGoal(id: String): FoodGoalEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertFoodGoal(goal: FoodGoalEntity)
+
+    @Query(
+        "SELECT meal_templates.id AS templateId, " +
+            "meal_templates.name AS templateName, " +
+            "meal_templates.mealType AS templateMealType, " +
+            "meal_templates.createdAtEpochMillis AS templateCreatedAtEpochMillis, " +
+            "meal_template_items.id AS itemId, " +
+            "foods.id AS foodId, " +
+            "foods.name AS foodName, " +
+            "foods.brand AS brand, " +
+            "meal_template_items.quantityGrams AS quantityGrams, " +
+            "meal_template_items.sortOrder AS sortOrder " +
+            "FROM meal_template_items " +
+            "INNER JOIN meal_templates ON meal_templates.id = meal_template_items.templateId " +
+            "INNER JOIN foods ON foods.id = meal_template_items.foodId " +
+            "ORDER BY meal_templates.createdAtEpochMillis DESC, meal_template_items.sortOrder",
+    )
+    fun observeMealTemplateRows(): Flow<List<MealTemplateItemRow>>
+
+    @Query(
+        "SELECT meal_templates.id AS templateId, " +
+            "meal_templates.name AS templateName, " +
+            "meal_templates.mealType AS templateMealType, " +
+            "meal_templates.createdAtEpochMillis AS templateCreatedAtEpochMillis, " +
+            "meal_template_items.id AS itemId, " +
+            "foods.id AS foodId, " +
+            "foods.name AS foodName, " +
+            "foods.brand AS brand, " +
+            "meal_template_items.quantityGrams AS quantityGrams, " +
+            "meal_template_items.sortOrder AS sortOrder " +
+            "FROM meal_template_items " +
+            "INNER JOIN meal_templates ON meal_templates.id = meal_template_items.templateId " +
+            "INNER JOIN foods ON foods.id = meal_template_items.foodId " +
+            "WHERE meal_templates.id = :templateId " +
+            "ORDER BY meal_template_items.sortOrder",
+    )
+    suspend fun getMealTemplateRows(templateId: String): List<MealTemplateItemRow>
+
+    @Query("SELECT * FROM meal_templates WHERE id = :templateId LIMIT 1")
+    suspend fun getMealTemplate(templateId: String): MealTemplateEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMealTemplate(template: MealTemplateEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMealTemplateItem(item: MealTemplateItemEntity)
+
+    @Query("DELETE FROM meal_template_items WHERE templateId = :templateId")
+    suspend fun deleteMealTemplateItems(templateId: String)
+
+    @Query(
+        "SELECT recipes.id AS recipeId, " +
+            "recipes.name AS recipeName, " +
+            "recipes.category AS recipeCategory, " +
+            "recipes.servingName AS recipeServingName, " +
+            "recipes.servingGrams AS recipeServingGrams, " +
+            "recipes.createdAtEpochMillis AS recipeCreatedAtEpochMillis, " +
+            "recipe_ingredients.id AS ingredientId, " +
+            "foods.id AS foodId, " +
+            "foods.name AS foodName, " +
+            "foods.brand AS brand, " +
+            "recipe_ingredients.quantityGrams AS quantityGrams, " +
+            "recipe_ingredients.sortOrder AS sortOrder, " +
+            "foods.caloriesPer100g AS caloriesPer100g, " +
+            "foods.proteinPer100g AS proteinPer100g, " +
+            "foods.carbsPer100g AS carbsPer100g, " +
+            "foods.fatPer100g AS fatPer100g, " +
+            "foods.fiberPer100g AS fiberPer100g, " +
+            "foods.sugarPer100g AS sugarPer100g, " +
+            "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g " +
+            "FROM recipe_ingredients " +
+            "INNER JOIN recipes ON recipes.id = recipe_ingredients.recipeId " +
+            "INNER JOIN foods ON foods.id = recipe_ingredients.foodId " +
+            "ORDER BY recipes.createdAtEpochMillis DESC, recipe_ingredients.sortOrder",
+    )
+    fun observeRecipeRows(): Flow<List<RecipeIngredientRow>>
+
+    @Query(
+        "SELECT recipes.id AS recipeId, " +
+            "recipes.name AS recipeName, " +
+            "recipes.category AS recipeCategory, " +
+            "recipes.servingName AS recipeServingName, " +
+            "recipes.servingGrams AS recipeServingGrams, " +
+            "recipes.createdAtEpochMillis AS recipeCreatedAtEpochMillis, " +
+            "recipe_ingredients.id AS ingredientId, " +
+            "foods.id AS foodId, " +
+            "foods.name AS foodName, " +
+            "foods.brand AS brand, " +
+            "recipe_ingredients.quantityGrams AS quantityGrams, " +
+            "recipe_ingredients.sortOrder AS sortOrder, " +
+            "foods.caloriesPer100g AS caloriesPer100g, " +
+            "foods.proteinPer100g AS proteinPer100g, " +
+            "foods.carbsPer100g AS carbsPer100g, " +
+            "foods.fatPer100g AS fatPer100g, " +
+            "foods.fiberPer100g AS fiberPer100g, " +
+            "foods.sugarPer100g AS sugarPer100g, " +
+            "foods.saturatedFatPer100g AS saturatedFatPer100g, " +
+            "foods.sodiumMgPer100g AS sodiumMgPer100g " +
+            "FROM recipe_ingredients " +
+            "INNER JOIN recipes ON recipes.id = recipe_ingredients.recipeId " +
+            "INNER JOIN foods ON foods.id = recipe_ingredients.foodId " +
+            "WHERE recipes.id = :recipeId " +
+            "ORDER BY recipe_ingredients.sortOrder",
+    )
+    suspend fun getRecipeRows(recipeId: String): List<RecipeIngredientRow>
+
+    @Query("SELECT * FROM recipes WHERE id = :recipeId LIMIT 1")
+    suspend fun getRecipe(recipeId: String): RecipeEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRecipe(recipe: RecipeEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRecipeIngredient(ingredient: RecipeIngredientEntity)
+
+    @Query("DELETE FROM recipe_ingredients WHERE recipeId = :recipeId")
+    suspend fun deleteRecipeIngredients(recipeId: String)
+
+    @Query("DELETE FROM food_servings WHERE foodId = :foodId")
+    suspend fun deleteServingsForFood(foodId: String)
 
     @Delete
     suspend fun deleteFood(food: FoodEntity)
