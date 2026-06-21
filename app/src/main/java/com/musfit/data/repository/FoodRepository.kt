@@ -180,6 +180,7 @@ data class FoodGoal(
     val sodiumMilligrams: Double,
     val mode: FoodGoalMode,
     val includeTrainingCalories: Boolean,
+    val useNetCarbs: Boolean = false,
 )
 
 data class MealTemplateItem(
@@ -337,6 +338,7 @@ val DEFAULT_REPOSITORY_FOOD_GOAL =
         sodiumMilligrams = 2300.0,
         mode = FoodGoalMode.Balanced,
         includeTrainingCalories = false,
+        useNetCarbs = false,
     )
 
 class LocalFoodRepository @Inject constructor(
@@ -1127,6 +1129,7 @@ class LocalFoodRepository @Inject constructor(
                 sodiumMilligrams = 2300.0,
                 mode = FoodGoalMode.Balanced,
                 includeTrainingCalories = false,
+                useNetCarbs = false,
             )
 
         val STARTER_FOODS =
@@ -1404,6 +1407,7 @@ private fun FoodGoal.toEntity(now: Long): FoodGoalEntity =
         sodiumMilligrams = sodiumMilligrams,
         mode = mode.name,
         includeTrainingCalories = includeTrainingCalories,
+        useNetCarbs = useNetCarbs,
         updatedAtEpochMillis = now,
     )
 
@@ -1419,6 +1423,7 @@ private fun FoodGoalEntity.toFoodGoal(): FoodGoal =
         sodiumMilligrams = sodiumMilligrams,
         mode = mode.toFoodGoalMode(),
         includeTrainingCalories = includeTrainingCalories,
+        useNetCarbs = useNetCarbs,
     )
 
 private fun String.toFoodGoalMode(): FoodGoalMode =

@@ -73,6 +73,14 @@ data class FoodMacroProgressUiState(
     val goalGrams: Double,
 )
 
+data class FoodNutrientProgressUiState(
+    val label: String,
+    val currentValue: Double,
+    val goalValue: Double,
+    val unit: String,
+    val isLimit: Boolean,
+)
+
 data class FoodMealEntryUiState(
     val id: String,
     val foodId: String,
@@ -102,11 +110,17 @@ data class FoodMealSectionUiState(
     val calorieProgress: Double,
     val proteinGrams: Double = 0.0,
     val carbsGrams: Double = 0.0,
+    val carbsLabel: String = "Carbs",
+    val effectiveCarbsGrams: Double = carbsGrams,
     val fatGrams: Double = 0.0,
+    val proteinGoalGrams: Double = PROTEIN_GOAL_GRAMS,
+    val carbsGoalGrams: Double = CARBS_GOAL_GRAMS,
+    val fatGoalGrams: Double = FAT_GOAL_GRAMS,
     val fiberGrams: Double = 0.0,
     val sugarGrams: Double = 0.0,
     val saturatedFatGrams: Double = 0.0,
     val sodiumMilligrams: Double = 0.0,
+    val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyList(),
     val entries: List<FoodMealEntryUiState>,
 )
 
@@ -272,9 +286,11 @@ data class FoodUiState(
     val sodiumGoalMilligrams: Double = SODIUM_GOAL_MILLIGRAMS,
     val goalMode: FoodGoalMode = FoodGoalMode.Balanced,
     val includeTrainingCalories: Boolean = false,
+    val useNetCarbs: Boolean = false,
     val eatenCaloriesKcal: Double = 0.0,
     val remainingCaloriesKcal: Double = CALORIE_GOAL_KCAL,
     val macroProgress: List<FoodMacroProgressUiState> = emptyMacroProgress(),
+    val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyAdvancedNutritionProgress(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
     val mealDefinitions: List<FoodMealDefinitionUiState> = defaultMealDefinitionUiStates(),
     val selectedMealDetailId: String? = null,
@@ -342,6 +358,7 @@ data class FoodUiState(
     val goalSodiumMgInput: String = SODIUM_GOAL_MILLIGRAMS.formatInputNumber(),
     val goalModeInput: FoodGoalMode = FoodGoalMode.Balanced,
     val goalIncludeTrainingInput: Boolean = false,
+    val goalUseNetCarbsInput: Boolean = false,
     val editingRecipeId: String? = null,
     val recipeName: String = "",
     val recipeCategory: String = "",
@@ -463,7 +480,7 @@ class FoodViewModel @Inject constructor(
         }
         viewModelScope.launch {
             repository.observeFoodGoal().collect { goal ->
-                mutableState.update { currentState -> currentState.withFoodGoal(goal) }
+                mutableState.update { currentState -> currentState.withFoodGoal(goal).withDiary(currentDiary) }
             }
         }
         viewModelScope.launch {
@@ -2297,6 +2314,10 @@ class FoodViewModel @Inject constructor(
         mutableState.update { it.copy(goalIncludeTrainingInput = value, message = null) }
     }
 
+    fun onGoalUseNetCarbsChanged(value: Boolean) {
+        mutableState.update { it.copy(goalUseNetCarbsInput = value, message = null) }
+    }
+
     fun saveFoodGoal() {
         val currentState = state.value
         val goal =
@@ -2314,6 +2335,7 @@ class FoodViewModel @Inject constructor(
                 sodiumMilligrams = currentState.goalSodiumMgInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
                 mode = currentState.goalModeInput,
                 includeTrainingCalories = currentState.goalIncludeTrainingInput,
+                useNetCarbs = currentState.goalUseNetCarbsInput,
             )
         if (!markSaving()) {
             return
@@ -2322,12 +2344,14 @@ class FoodViewModel @Inject constructor(
             try {
                 repository.updateFoodGoal(goal)
                 mutableState.update {
-                    it.withFoodGoal(goal).copy(
-                        isSaving = false,
-                        isAddPanelVisible = false,
-                        sheetMode = null,
-                        message = "Updated nutrition goals",
-                    )
+                    it.withFoodGoal(goal)
+                        .withDiary(currentDiary)
+                        .copy(
+                            isSaving = false,
+                            isAddPanelVisible = false,
+                            sheetMode = null,
+                            message = "Updated nutrition goals",
+                        )
                 }
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
@@ -2744,8 +2768,26 @@ private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
             carbsGoalGrams = carbsGoalGrams,
             proteinGoalGrams = proteinGoalGrams,
             fatGoalGrams = fatGoalGrams,
+            fiberGrams = diary.detailTotals.fiberGrams,
+            useNetCarbs = useNetCarbs,
         ),
-        mealSections = diary.toMealSections(mealDefinitions),
+        advancedNutritionProgress = diary.detailTotals.toAdvancedNutritionProgress(
+            fiberGoalGrams = fiberGoalGrams,
+            sugarGoalGrams = sugarGoalGrams,
+            saturatedFatGoalGrams = saturatedFatGoalGrams,
+            sodiumGoalMilligrams = sodiumGoalMilligrams,
+        ),
+        mealSections = diary.toMealSections(
+            mealDefinitions = mealDefinitions,
+            useNetCarbs = useNetCarbs,
+            carbsGoalGrams = carbsGoalGrams,
+            proteinGoalGrams = proteinGoalGrams,
+            fatGoalGrams = fatGoalGrams,
+            fiberGoalGrams = fiberGoalGrams,
+            sugarGoalGrams = sugarGoalGrams,
+            saturatedFatGoalGrams = saturatedFatGoalGrams,
+            sodiumGoalMilligrams = sodiumGoalMilligrams,
+        ),
     )
 
 private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
@@ -2760,16 +2802,8 @@ private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
         sodiumGoalMilligrams = goal.sodiumMilligrams,
         goalMode = goal.mode,
         includeTrainingCalories = goal.includeTrainingCalories,
+        useNetCarbs = goal.useNetCarbs,
         remainingCaloriesKcal = goal.dailyCaloriesKcal - eatenCaloriesKcal,
-        macroProgress = NutritionTotals(eatenCaloriesKcal, proteinGoalGrams, carbsGoalGrams, fatGoalGrams).copy(
-            proteinGrams = macroProgress.firstOrNull { it.label == "Protein" }?.currentGrams ?: 0.0,
-            carbsGrams = macroProgress.firstOrNull { it.label == "Carbs" }?.currentGrams ?: 0.0,
-            fatGrams = macroProgress.firstOrNull { it.label == "Fat" }?.currentGrams ?: 0.0,
-        ).toMacroProgress(
-            carbsGoalGrams = goal.carbsGrams,
-            proteinGoalGrams = goal.proteinGrams,
-            fatGoalGrams = goal.fatGrams,
-        ),
         goalCaloriesKcalInput = goal.dailyCaloriesKcal.formatInputNumber(),
         goalProteinGramsInput = goal.proteinGrams.formatInputNumber(),
         goalCarbsGramsInput = goal.carbsGrams.formatInputNumber(),
@@ -2780,6 +2814,7 @@ private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
         goalSodiumMgInput = goal.sodiumMilligrams.formatInputNumber(),
         goalModeInput = goal.mode,
         goalIncludeTrainingInput = goal.includeTrainingCalories,
+        goalUseNetCarbsInput = goal.useNetCarbs,
     )
 
 fun FoodUiState.selectedMealDetailForDisplay(): FoodMealSectionUiState? =
@@ -2798,7 +2833,17 @@ private fun FoodMealSectionUiState.sortedForDetail(sortMode: MealDetailSortMode)
     return copy(entries = sortedEntries)
 }
 
-private fun FoodDiary.toMealSections(mealDefinitions: List<FoodMealDefinitionUiState>): List<FoodMealSectionUiState> {
+private fun FoodDiary.toMealSections(
+    mealDefinitions: List<FoodMealDefinitionUiState>,
+    useNetCarbs: Boolean,
+    carbsGoalGrams: Double,
+    proteinGoalGrams: Double,
+    fatGoalGrams: Double,
+    fiberGoalGrams: Double,
+    sugarGoalGrams: Double,
+    saturatedFatGoalGrams: Double,
+    sodiumGoalMilligrams: Double,
+): List<FoodMealSectionUiState> {
     val mealsByType = meals.associateBy { it.type.normalizedMealType() }
     val unknownMealDefinitions =
         mealsByType.keys
@@ -2817,6 +2862,13 @@ private fun FoodDiary.toMealSections(mealDefinitions: List<FoodMealDefinitionUiS
     return (mealDefinitions + unknownMealDefinitions).map { definition ->
         val meal = mealsByType[definition.id]
         val totals = meal?.totals
+        val detailTotals = meal?.detailTotals ?: NutritionDetails()
+        val effectiveCarbsGrams =
+            if (useNetCarbs) {
+                ((totals?.carbsGrams ?: 0.0) - detailTotals.fiberGrams).coerceAtLeast(0.0)
+            } else {
+                totals?.carbsGrams ?: 0.0
+            }
         val defaultDefinition = mealDefinitions.firstOrNull { it.id == definition.id }
         FoodMealSectionUiState(
             id = definition.id,
@@ -2829,11 +2881,22 @@ private fun FoodDiary.toMealSections(mealDefinitions: List<FoodMealDefinitionUiS
             calorieProgress = (totals?.caloriesKcal ?: 0.0).fractionOf(definition.calorieTargetKcal()),
             proteinGrams = totals?.proteinGrams ?: 0.0,
             carbsGrams = totals?.carbsGrams ?: 0.0,
+            carbsLabel = if (useNetCarbs) "Net carbs" else "Carbs",
+            effectiveCarbsGrams = effectiveCarbsGrams,
             fatGrams = totals?.fatGrams ?: 0.0,
-            fiberGrams = meal?.detailTotals?.fiberGrams ?: 0.0,
-            sugarGrams = meal?.detailTotals?.sugarGrams ?: 0.0,
-            saturatedFatGrams = meal?.detailTotals?.saturatedFatGrams ?: 0.0,
-            sodiumMilligrams = meal?.detailTotals?.sodiumMilligrams ?: 0.0,
+            proteinGoalGrams = proteinGoalGrams,
+            carbsGoalGrams = carbsGoalGrams,
+            fatGoalGrams = fatGoalGrams,
+            fiberGrams = detailTotals.fiberGrams,
+            sugarGrams = detailTotals.sugarGrams,
+            saturatedFatGrams = detailTotals.saturatedFatGrams,
+            sodiumMilligrams = detailTotals.sodiumMilligrams,
+            advancedNutritionProgress = detailTotals.toAdvancedNutritionProgress(
+                fiberGoalGrams = fiberGoalGrams,
+                sugarGoalGrams = sugarGoalGrams,
+                saturatedFatGoalGrams = saturatedFatGoalGrams,
+                sodiumGoalMilligrams = sodiumGoalMilligrams,
+            ),
             entries = meal?.entries.orEmpty().map { entry ->
                 FoodMealEntryUiState(
                     id = entry.id,
@@ -3080,11 +3143,54 @@ private fun NutritionTotals.toMacroProgress(
     carbsGoalGrams: Double = CARBS_GOAL_GRAMS,
     proteinGoalGrams: Double = PROTEIN_GOAL_GRAMS,
     fatGoalGrams: Double = FAT_GOAL_GRAMS,
+    fiberGrams: Double = 0.0,
+    useNetCarbs: Boolean = false,
 ): List<FoodMacroProgressUiState> =
     listOf(
-        FoodMacroProgressUiState("Carbs", carbsGrams, carbsGoalGrams),
+        FoodMacroProgressUiState(
+            label = if (useNetCarbs) "Net carbs" else "Carbs",
+            currentGrams = if (useNetCarbs) (carbsGrams - fiberGrams).coerceAtLeast(0.0) else carbsGrams,
+            goalGrams = carbsGoalGrams,
+        ),
         FoodMacroProgressUiState("Protein", proteinGrams, proteinGoalGrams),
         FoodMacroProgressUiState("Fat", fatGrams, fatGoalGrams),
+    )
+
+private fun NutritionDetails.toAdvancedNutritionProgress(
+    fiberGoalGrams: Double = FIBER_GOAL_GRAMS,
+    sugarGoalGrams: Double = SUGAR_GOAL_GRAMS,
+    saturatedFatGoalGrams: Double = SATURATED_FAT_GOAL_GRAMS,
+    sodiumGoalMilligrams: Double = SODIUM_GOAL_MILLIGRAMS,
+): List<FoodNutrientProgressUiState> =
+    listOf(
+        FoodNutrientProgressUiState(
+            label = "Fiber",
+            currentValue = fiberGrams,
+            goalValue = fiberGoalGrams,
+            unit = "g",
+            isLimit = false,
+        ),
+        FoodNutrientProgressUiState(
+            label = "Sugar",
+            currentValue = sugarGrams,
+            goalValue = sugarGoalGrams,
+            unit = "g",
+            isLimit = true,
+        ),
+        FoodNutrientProgressUiState(
+            label = "Sat fat",
+            currentValue = saturatedFatGrams,
+            goalValue = saturatedFatGoalGrams,
+            unit = "g",
+            isLimit = true,
+        ),
+        FoodNutrientProgressUiState(
+            label = "Sodium",
+            currentValue = sodiumMilligrams,
+            goalValue = sodiumGoalMilligrams,
+            unit = "mg",
+            isLimit = true,
+        ),
     )
 
 private fun emptyMealSections(): List<FoodMealSectionUiState> =
@@ -3170,6 +3276,9 @@ private fun FoodUiState.nextMealSortOrder(): Int =
 
 private fun emptyMacroProgress(): List<FoodMacroProgressUiState> =
     NutritionTotals(0.0, 0.0, 0.0, 0.0).toMacroProgress()
+
+private fun emptyAdvancedNutritionProgress(): List<FoodNutrientProgressUiState> =
+    NutritionDetails().toAdvancedNutritionProgress()
 
 private fun String.normalizedMealType(): String {
     val normalized = trim().lowercase()

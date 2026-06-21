@@ -122,6 +122,7 @@ fun FoodScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     MacroProgressRow(state.macroProgress)
+                    AdvancedNutritionProgressRow(state.advancedNutritionProgress)
 
                     MessageBanner(
                         message = state.message,
@@ -288,6 +289,7 @@ fun FoodScreen(
                         onSodiumChanged = viewModel::onGoalSodiumChanged,
                         onModeChanged = viewModel::onGoalModeChanged,
                         onTrainingChanged = viewModel::onGoalIncludeTrainingChanged,
+                        onNetCarbsChanged = viewModel::onGoalUseNetCarbsChanged,
                         onSaveClick = viewModel::saveFoodGoal,
                     )
 
@@ -541,6 +543,113 @@ private fun MacroProgressCard(
                 progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
                 color = color,
             )
+        }
+    }
+}
+
+@Composable
+private fun AdvancedNutritionProgressRow(nutrients: List<FoodNutrientProgressUiState>) {
+    if (nutrients.isEmpty()) {
+        return
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        nutrients.forEach { nutrient ->
+            AdvancedNutritionProgressCard(
+                nutrient = nutrient,
+                modifier = Modifier.width(138.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdvancedNutritionProgressColumn(nutrients: List<FoodNutrientProgressUiState>) {
+    if (nutrients.isEmpty()) {
+        return
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        nutrients.chunked(2).forEach { rowNutrients ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                rowNutrients.forEach { nutrient ->
+                    AdvancedNutritionProgressCard(
+                        nutrient = nutrient,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (rowNutrients.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdvancedNutritionProgressCard(
+    nutrient: FoodNutrientProgressUiState,
+    modifier: Modifier = Modifier,
+) {
+    val goal = nutrient.goalValue.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+    val progress = if (goal > 0.0) {
+        (nutrient.currentValue / goal).toFloat().coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val color =
+        when {
+            nutrient.isLimit && nutrient.currentValue > nutrient.goalValue -> Color(0xFFE56E4F)
+            nutrient.isLimit -> Color(0xFF99A7FF)
+            nutrient.currentValue >= nutrient.goalValue -> ActionGreen
+            else -> Color(0xFFFF91B4)
+        }
+    val currentText =
+        if (nutrient.unit == "mg") {
+            nutrient.currentValue.roundToInt().toString()
+        } else {
+            nutrient.currentValue.formatNutritionDisplay()
+        }
+    val goalText =
+        if (nutrient.unit == "mg") {
+            nutrient.goalValue.roundToInt().toString()
+        } else {
+            nutrient.goalValue.formatNutritionDisplay()
+        }
+    val separator = if (nutrient.isLimit) "/" else "/"
+
+    Surface(
+        modifier = modifier.height(82.dp),
+        color = Color.White,
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = nutrient.label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "$currentText$separator$goalText ${nutrient.unit}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF67615D),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            ProgressBar(progress = progress, color = color)
         }
     }
 }
@@ -826,49 +935,31 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 MealMacroMetric(
-                    label = "Carbs",
-                    grams = meal.carbsGrams,
-                    goalGrams = 260.0,
+                    label = meal.carbsLabel,
+                    grams = meal.effectiveCarbsGrams,
+                    goalGrams = meal.carbsGoalGrams,
                     color = MacroColors[0],
                     modifier = Modifier.weight(1f),
                 )
                 MealMacroMetric(
                     label = "Protein",
                     grams = meal.proteinGrams,
-                    goalGrams = 104.0,
+                    goalGrams = meal.proteinGoalGrams,
                     color = MacroColors[1],
                     modifier = Modifier.weight(1f),
                 )
                 MealMacroMetric(
                     label = "Fat",
                     grams = meal.fatGrams,
-                    goalGrams = 69.0,
+                    goalGrams = meal.fatGoalGrams,
                     color = MacroColors[2],
                     modifier = Modifier.weight(1f),
                 )
             }
 
-            if (
-                meal.fiberGrams > 0.0 ||
-                meal.sugarGrams > 0.0 ||
-                meal.saturatedFatGrams > 0.0 ||
-                meal.sodiumMilligrams > 0.0
-            ) {
+            if (meal.advancedNutritionProgress.isNotEmpty()) {
                 HorizontalDivider(color = Color(0xFFEDE8E4))
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MealDetailNutritionLine(
-                        firstLabel = "Fiber",
-                        firstValue = "${meal.fiberGrams.formatNutritionDisplay()} g",
-                        secondLabel = "Sugar",
-                        secondValue = "${meal.sugarGrams.formatNutritionDisplay()} g",
-                    )
-                    MealDetailNutritionLine(
-                        firstLabel = "Sat fat",
-                        firstValue = "${meal.saturatedFatGrams.formatNutritionDisplay()} g",
-                        secondLabel = "Sodium",
-                        secondValue = "${meal.sodiumMilligrams.roundToInt()} mg",
-                    )
-                }
+                AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
             }
         }
     }
@@ -2319,6 +2410,7 @@ private fun GoalEditorPanel(
     onSodiumChanged: (String) -> Unit,
     onModeChanged: (FoodGoalMode) -> Unit,
     onTrainingChanged: (Boolean) -> Unit,
+    onNetCarbsChanged: (Boolean) -> Unit,
     onSaveClick: () -> Unit,
 ) {
     Column(
@@ -2354,6 +2446,14 @@ private fun GoalEditorPanel(
                     label = { Text(mode.label) },
                 )
             }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Net carbs", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            Switch(checked = state.goalUseNetCarbsInput, onCheckedChange = onNetCarbsChanged)
         }
         Row(
             modifier = Modifier.fillMaxWidth(),

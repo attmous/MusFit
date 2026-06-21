@@ -1793,6 +1793,135 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun netCarbsGoalTogglePersistsAndSubtractsFiberFromDiaryCarbs() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(
+                        caloriesKcal = 700.0,
+                        proteinGrams = 42.0,
+                        carbsGrams = 90.0,
+                        fatGrams = 21.0,
+                    ),
+                    meals = emptyList(),
+                    detailTotals = NutritionDetails(fiberGrams = 24.0),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Carbs", viewModel.state.value.macroProgress.first().label)
+
+        viewModel.openGoalEditor()
+        viewModel.onGoalUseNetCarbsChanged(true)
+        viewModel.saveFoodGoal()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val carbProgress = viewModel.state.value.macroProgress.first { it.label == "Net carbs" }
+        assertTrue(repository.foodGoalUpdate?.useNetCarbs == true)
+        assertTrue(viewModel.state.value.useNetCarbs)
+        assertTrue(viewModel.state.value.goalUseNetCarbsInput)
+        assertEquals(66.0, carbProgress.currentGrams, 0.01)
+        assertEquals(260.0, carbProgress.goalGrams, 0.01)
+    }
+
+    @Test
+    fun diaryAdvancedNutritionProgressUsesGoalsAndLimits() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(
+                        caloriesKcal = 900.0,
+                        proteinGrams = 70.0,
+                        carbsGrams = 120.0,
+                        fatGrams = 30.0,
+                    ),
+                    meals = emptyList(),
+                    detailTotals = NutritionDetails(
+                        fiberGrams = 18.0,
+                        sugarGrams = 62.0,
+                        saturatedFatGrams = 12.0,
+                        sodiumMilligrams = 1800.0,
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val nutrients = viewModel.state.value.advancedNutritionProgress.associateBy { it.label }
+
+        with(requireNotNull(nutrients["Fiber"])) {
+            assertEquals(18.0, currentValue, 0.01)
+            assertEquals(30.0, goalValue, 0.01)
+            assertEquals("g", unit)
+            assertFalse(isLimit)
+        }
+        with(requireNotNull(nutrients["Sugar"])) {
+            assertEquals(62.0, currentValue, 0.01)
+            assertEquals(50.0, goalValue, 0.01)
+            assertEquals("g", unit)
+            assertTrue(isLimit)
+        }
+        with(requireNotNull(nutrients["Sat fat"])) {
+            assertEquals(12.0, currentValue, 0.01)
+            assertEquals(20.0, goalValue, 0.01)
+            assertEquals("g", unit)
+            assertTrue(isLimit)
+        }
+        with(requireNotNull(nutrients["Sodium"])) {
+            assertEquals(1800.0, currentValue, 0.01)
+            assertEquals(2300.0, goalValue, 0.01)
+            assertEquals("mg", unit)
+            assertTrue(isLimit)
+        }
+    }
+
+    @Test
+    fun mealDetailAdvancedNutritionProgressUsesMealTotalsAndGoals() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(480.0, 35.0, 50.0, 14.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = emptyList(),
+                            totals = NutritionTotals(480.0, 35.0, 50.0, 14.0),
+                            detailTotals = NutritionDetails(
+                                fiberGrams = 9.0,
+                                sugarGrams = 16.0,
+                                saturatedFatGrams = 4.0,
+                                sodiumMilligrams = 610.0,
+                            ),
+                        ),
+                    ),
+                    detailTotals = NutritionDetails(
+                        fiberGrams = 9.0,
+                        sugarGrams = 16.0,
+                        saturatedFatGrams = 4.0,
+                        sodiumMilligrams = 610.0,
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openMealDetail("breakfast")
+
+        val meal = requireNotNull(viewModel.state.value.selectedMealDetailForDisplay())
+        val nutrients = meal.advancedNutritionProgress.associateBy { it.label }
+
+        assertEquals(9.0, requireNotNull(nutrients["Fiber"]).currentValue, 0.01)
+        assertEquals(30.0, requireNotNull(nutrients["Fiber"]).goalValue, 0.01)
+        assertFalse(requireNotNull(nutrients["Fiber"]).isLimit)
+        assertEquals(16.0, requireNotNull(nutrients["Sugar"]).currentValue, 0.01)
+        assertEquals(50.0, requireNotNull(nutrients["Sugar"]).goalValue, 0.01)
+        assertTrue(requireNotNull(nutrients["Sugar"]).isLimit)
+        assertEquals(610.0, requireNotNull(nutrients["Sodium"]).currentValue, 0.01)
+        assertEquals(2300.0, requireNotNull(nutrients["Sodium"]).goalValue, 0.01)
+    }
+
+    @Test
     fun deleteDiaryEntryCanBeUndoneByReloggingFood() = runTest {
         val repository =
             FakeFoodRepository(

@@ -715,6 +715,7 @@ class LocalFoodRepositoryTest {
                 sodiumMilligrams = 2300.0,
                 mode = FoodGoalMode.HighProtein,
                 includeTrainingCalories = true,
+                useNetCarbs = true,
             ),
         )
 
@@ -725,6 +726,7 @@ class LocalFoodRepositoryTest {
         assertEquals(35.0, goal.fiberGrams, 0.01)
         assertEquals(FoodGoalMode.HighProtein, goal.mode)
         assertTrue(goal.includeTrainingCalories)
+        assertTrue(goal.useNetCarbs)
     }
 
     @Test

@@ -129,6 +129,7 @@ data class FoodGoalEntity(
     val sodiumMilligrams: Double,
     val mode: String,
     val includeTrainingCalories: Boolean,
+    @ColumnInfo(defaultValue = "0") val useNetCarbs: Boolean = false,
     val updatedAtEpochMillis: Long,
 )
 
