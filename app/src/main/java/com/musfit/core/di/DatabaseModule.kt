@@ -30,6 +30,7 @@ object DatabaseModule {
                 MIGRATION_5_6,
                 MIGRATION_6_7,
                 MIGRATION_7_8,
+                MIGRATION_8_9,
             )
             .build()
 
@@ -199,6 +200,19 @@ object DatabaseModule {
                 db.execSQL("ALTER TABLE foods ADD COLUMN vitaminDMcgPer100g REAL NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE foods ADD COLUMN vitaminCMgPer100g REAL NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE foods ADD COLUMN magnesiumMgPer100g REAL NOT NULL DEFAULT 0")
+            }
+        }
+
+    private val MIGRATION_8_9 =
+        object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE recipes ADD COLUMN servings REAL NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE recipes ADD COLUMN cookedYieldGrams REAL NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE recipes SET cookedYieldGrams = servingGrams WHERE cookedYieldGrams = 0")
+                db.execSQL("ALTER TABLE recipe_ingredients ADD COLUMN unitLabel TEXT NOT NULL DEFAULT 'g'")
+                db.execSQL("ALTER TABLE recipe_ingredients ADD COLUMN unitGrams REAL NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE recipe_ingredients ADD COLUMN unitQuantity REAL NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE recipe_ingredients SET unitQuantity = quantityGrams WHERE unitQuantity = 0")
             }
         }
 }

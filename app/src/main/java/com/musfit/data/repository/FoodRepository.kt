@@ -221,6 +221,9 @@ data class FoodMealDefinition(
 data class RecipeIngredientInput(
     val foodId: String,
     val quantityGrams: Double,
+    val unitLabel: String = "g",
+    val unitGrams: Double = 1.0,
+    val unitQuantity: Double = quantityGrams,
 )
 
 data class RecipeUpsertInput(
@@ -229,6 +232,8 @@ data class RecipeUpsertInput(
     val category: String?,
     val servingName: String,
     val servingGrams: Double,
+    val servings: Double = 1.0,
+    val cookedYieldGrams: Double = servingGrams,
     val ingredients: List<RecipeIngredientInput>,
 )
 
@@ -237,6 +242,9 @@ data class RecipeIngredient(
     val foodName: String,
     val brand: String?,
     val quantityGrams: Double,
+    val unitLabel: String = "g",
+    val unitGrams: Double = 1.0,
+    val unitQuantity: Double = quantityGrams,
 )
 
 data class Recipe(
@@ -245,6 +253,8 @@ data class Recipe(
     val category: String?,
     val servingName: String,
     val servingGrams: Double,
+    val servings: Double = 1.0,
+    val cookedYieldGrams: Double = servingGrams,
     val isFavorite: Boolean = false,
     val ingredients: List<RecipeIngredient>,
     val nutritionPerServing: FoodNutrition,
@@ -324,6 +334,8 @@ interface FoodRepository {
     suspend fun upsertRecipe(input: RecipeUpsertInput): String = ""
 
     suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String = ""
+
+    suspend fun duplicateRecipe(recipeId: String, name: String): String = ""
 
     suspend fun deleteRecipe(recipeId: String) = Unit
 
@@ -860,6 +872,8 @@ class LocalFoodRepository @Inject constructor(
                     category = input.category?.trim()?.takeIf { it.isNotEmpty() },
                     servingName = input.servingName.trim().ifBlank { "Serving" },
                     servingGrams = input.servingGrams,
+                    servings = input.servings,
+                    cookedYieldGrams = input.cookedYieldGrams,
                     createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
                     updatedAtEpochMillis = now,
                     isFavorite = existing?.isFavorite ?: false,
@@ -874,6 +888,9 @@ class LocalFoodRepository @Inject constructor(
                         recipeId = recipeId,
                         foodId = ingredient.foodId,
                         quantityGrams = ingredient.quantityGrams,
+                        unitLabel = ingredient.unitLabel.trim().ifBlank { "g" },
+                        unitGrams = ingredient.unitGrams,
+                        unitQuantity = ingredient.unitQuantity,
                         sortOrder = index,
                     ),
                 )
@@ -889,7 +906,7 @@ class LocalFoodRepository @Inject constructor(
             val recipe = foodDao.getRecipe(recipeId) ?: error("Recipe not found")
             val rows = foodDao.getRecipeRows(recipeId)
             require(rows.isNotEmpty()) { "Recipe has no ingredients" }
-            val fullRecipeGrams = rows.sumOf { it.quantityGrams }.takeIf { it > 0.0 } ?: recipe.servingGrams
+            val fullRecipeGrams = recipe.resolvedCookedYieldGrams(rows)
             val per100gNutrition = rows.calculateRecipeNutritionPer100g(fullRecipeGrams)
             val per100gDetails = rows.calculateRecipeDetailsPer100g(fullRecipeGrams)
             val now = System.currentTimeMillis()
@@ -928,6 +945,47 @@ class LocalFoodRepository @Inject constructor(
                 date = date,
                 now = now,
             )
+        }
+    }
+
+    override suspend fun duplicateRecipe(recipeId: String, name: String): String {
+        require(recipeId.isNotBlank()) { "Recipe id is required" }
+        require(name.isNotBlank()) { "Recipe name is required" }
+        return database.withTransaction {
+            val source = foodDao.getRecipe(recipeId) ?: error("Recipe not found")
+            val rows = foodDao.getRecipeRows(recipeId)
+            require(rows.isNotEmpty()) { "Recipe has no ingredients" }
+            val now = System.currentTimeMillis()
+            val duplicateId = UUID.randomUUID().toString()
+            foodDao.upsertRecipe(
+                RecipeEntity(
+                    id = duplicateId,
+                    name = name.trim(),
+                    category = source.category,
+                    servingName = source.servingName,
+                    servingGrams = source.servingGrams,
+                    servings = source.servings,
+                    cookedYieldGrams = source.cookedYieldGrams,
+                    createdAtEpochMillis = now,
+                    updatedAtEpochMillis = now,
+                    isFavorite = source.isFavorite,
+                ),
+            )
+            rows.sortedBy { it.sortOrder }.forEachIndexed { index, row ->
+                foodDao.upsertRecipeIngredient(
+                    RecipeIngredientEntity(
+                        id = UUID.randomUUID().toString(),
+                        recipeId = duplicateId,
+                        foodId = row.foodId,
+                        quantityGrams = row.quantityGrams,
+                        unitLabel = row.unitLabel,
+                        unitGrams = row.unitGrams,
+                        unitQuantity = row.unitQuantity,
+                        sortOrder = index,
+                    ),
+                )
+            }
+            duplicateId
         }
     }
 
@@ -1283,10 +1341,15 @@ private fun FoodGoal.requireValid() {
 private fun RecipeUpsertInput.requireValid() {
     require(name.isNotBlank()) { "Recipe name is required" }
     require(servingGrams.isFinite() && servingGrams > 0.0) { "Recipe serving size must be positive" }
+    require(servings.isFinite() && servings > 0.0) { "Recipe servings must be positive" }
+    require(cookedYieldGrams.isFinite() && cookedYieldGrams > 0.0) { "Cooked yield must be positive" }
     require(ingredients.isNotEmpty()) { "Recipe needs at least one ingredient" }
     ingredients.forEach {
         require(it.foodId.isNotBlank()) { "Ingredient food is required" }
         require(it.quantityGrams.isFinite() && it.quantityGrams > 0.0) { "Ingredient quantity must be positive" }
+        require(it.unitLabel.isNotBlank()) { "Ingredient unit is required" }
+        require(it.unitGrams.isFinite() && it.unitGrams > 0.0) { "Ingredient unit grams must be positive" }
+        require(it.unitQuantity.isFinite() && it.unitQuantity > 0.0) { "Ingredient unit quantity must be positive" }
     }
 }
 
@@ -1509,7 +1572,7 @@ private fun List<MealTemplateItemRow>.toMealTemplates(): List<MealTemplate> =
 private fun List<RecipeIngredientRow>.toRecipes(): List<Recipe> =
     groupBy { it.recipeId }.map { (_, rows) ->
         val first = rows.first()
-        val fullRecipeGrams = rows.sumOf { it.quantityGrams }.takeIf { it > 0.0 } ?: first.recipeServingGrams
+        val fullRecipeGrams = first.resolvedCookedYieldGrams(rows)
         val per100gNutrition = rows.calculateRecipeNutritionPer100g(fullRecipeGrams)
         val per100gDetails = rows.calculateRecipeDetailsPer100g(fullRecipeGrams)
         val servingMultiplier = first.recipeServingGrams / 100.0
@@ -1519,6 +1582,8 @@ private fun List<RecipeIngredientRow>.toRecipes(): List<Recipe> =
             category = first.recipeCategory,
             servingName = first.recipeServingName,
             servingGrams = first.recipeServingGrams,
+            servings = first.recipeServings,
+            cookedYieldGrams = fullRecipeGrams,
             isFavorite = first.recipeIsFavorite,
             ingredients = rows.sortedBy { it.sortOrder }.map { row ->
                 RecipeIngredient(
@@ -1526,12 +1591,25 @@ private fun List<RecipeIngredientRow>.toRecipes(): List<Recipe> =
                     foodName = row.foodName,
                     brand = row.brand,
                     quantityGrams = row.quantityGrams,
+                    unitLabel = row.unitLabel,
+                    unitGrams = row.unitGrams,
+                    unitQuantity = row.unitQuantity.takeIf { it > 0.0 } ?: row.quantityGrams,
                 )
             },
             nutritionPerServing = per100gNutrition * servingMultiplier,
             detailNutritionPerServing = per100gDetails * servingMultiplier,
         )
     }
+
+private fun RecipeEntity.resolvedCookedYieldGrams(rows: List<RecipeIngredientRow>): Double =
+    cookedYieldGrams.takeIf { it.isFinite() && it > 0.0 }
+        ?: rows.sumOf { it.quantityGrams }.takeIf { it > 0.0 }
+        ?: servingGrams
+
+private fun RecipeIngredientRow.resolvedCookedYieldGrams(rows: List<RecipeIngredientRow>): Double =
+    recipeCookedYieldGrams.takeIf { it.isFinite() && it > 0.0 }
+        ?: rows.sumOf { it.quantityGrams }.takeIf { it > 0.0 }
+        ?: recipeServingGrams
 
 private fun List<RecipeIngredientRow>.calculateRecipeNutritionPer100g(totalRecipeGrams: Double): FoodNutrition {
     val totalCalories = sumOf { it.caloriesPer100g * it.quantityGrams / 100.0 }

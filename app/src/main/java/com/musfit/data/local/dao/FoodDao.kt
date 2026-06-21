@@ -82,6 +82,8 @@ data class RecipeIngredientRow(
     val recipeCategory: String?,
     val recipeServingName: String,
     val recipeServingGrams: Double,
+    val recipeServings: Double,
+    val recipeCookedYieldGrams: Double,
     val recipeCreatedAtEpochMillis: Long,
     val recipeIsFavorite: Boolean,
     val ingredientId: String,
@@ -89,6 +91,9 @@ data class RecipeIngredientRow(
     val foodName: String,
     val brand: String?,
     val quantityGrams: Double,
+    val unitLabel: String,
+    val unitGrams: Double,
+    val unitQuantity: Double,
     val sortOrder: Int,
     val caloriesPer100g: Double,
     val proteinPer100g: Double,
@@ -364,6 +369,8 @@ interface FoodDao {
             "recipes.category AS recipeCategory, " +
             "recipes.servingName AS recipeServingName, " +
             "recipes.servingGrams AS recipeServingGrams, " +
+            "recipes.servings AS recipeServings, " +
+            "recipes.cookedYieldGrams AS recipeCookedYieldGrams, " +
             "recipes.createdAtEpochMillis AS recipeCreatedAtEpochMillis, " +
             "recipes.isFavorite AS recipeIsFavorite, " +
             "recipe_ingredients.id AS ingredientId, " +
@@ -371,6 +378,9 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "recipe_ingredients.quantityGrams AS quantityGrams, " +
+            "recipe_ingredients.unitLabel AS unitLabel, " +
+            "recipe_ingredients.unitGrams AS unitGrams, " +
+            "recipe_ingredients.unitQuantity AS unitQuantity, " +
             "recipe_ingredients.sortOrder AS sortOrder, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
             "foods.proteinPer100g AS proteinPer100g, " +
@@ -399,6 +409,8 @@ interface FoodDao {
             "recipes.category AS recipeCategory, " +
             "recipes.servingName AS recipeServingName, " +
             "recipes.servingGrams AS recipeServingGrams, " +
+            "recipes.servings AS recipeServings, " +
+            "recipes.cookedYieldGrams AS recipeCookedYieldGrams, " +
             "recipes.createdAtEpochMillis AS recipeCreatedAtEpochMillis, " +
             "recipes.isFavorite AS recipeIsFavorite, " +
             "recipe_ingredients.id AS ingredientId, " +
@@ -406,6 +418,9 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "recipe_ingredients.quantityGrams AS quantityGrams, " +
+            "recipe_ingredients.unitLabel AS unitLabel, " +
+            "recipe_ingredients.unitGrams AS unitGrams, " +
+            "recipe_ingredients.unitQuantity AS unitQuantity, " +
             "recipe_ingredients.sortOrder AS sortOrder, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
             "foods.proteinPer100g AS proteinPer100g, " +

@@ -2327,6 +2327,89 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun recipeEditorUsesIngredientServingChoicesAndCookedYieldInputs() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Protein powder",
+                        brand = null,
+                        defaultServingGrams = 60.0,
+                        nutritionPer100g = FoodNutrition(400.0, 70.0, 12.0, 8.0),
+                        servingName = "Serving",
+                        servings = listOf(
+                            FoodServingOption(id = "serving-scoop", label = "Scoop", grams = 30.0),
+                            FoodServingOption(id = "serving-package", label = "Package", grams = 120.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeEditor()
+        viewModel.onRecipeNameChanged("Protein bites")
+        viewModel.onRecipeServingNameChanged("Bite")
+        viewModel.onRecipeServingsCountChanged("8")
+        viewModel.onRecipeCookedYieldGramsChanged("240")
+        viewModel.onRecipeIngredientFoodChanged("food-1")
+
+        assertEquals(
+            listOf("g", "Serving", "Scoop", "Package"),
+            viewModel.state.value.recipeIngredientServingChoices.map { it.label },
+        )
+
+        viewModel.onRecipeIngredientServingChoiceSelected("serving-scoop")
+        viewModel.onRecipeIngredientQuantityChanged("2")
+        viewModel.addRecipeIngredient()
+        viewModel.saveRecipe()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val recipe = requireNotNull(repository.recipeUpsert)
+        val ingredient = recipe.ingredients.single()
+        assertEquals("Protein bites", recipe.name)
+        assertEquals("Bite", recipe.servingName)
+        assertEquals(8.0, recipe.servings, 0.01)
+        assertEquals(240.0, recipe.cookedYieldGrams, 0.01)
+        assertEquals(30.0, recipe.servingGrams, 0.01)
+        assertEquals("food-1", ingredient.foodId)
+        assertEquals(60.0, ingredient.quantityGrams, 0.01)
+        assertEquals("Scoop", ingredient.unitLabel)
+        assertEquals(30.0, ingredient.unitGrams, 0.01)
+        assertEquals(2.0, ingredient.unitQuantity, 0.01)
+    }
+
+    @Test
+    fun duplicateRecipeCallsRepositoryWithCopyName() = runTest {
+        val repository =
+            FakeFoodRepository(
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Dinner",
+                        servingName = "Bowl",
+                        servingGrams = 180.0,
+                        servings = 4.0,
+                        cookedYieldGrams = 720.0,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 300.0)),
+                        nutritionPerServing = FoodNutrition(250.0, 35.0, 20.0, 5.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.duplicateRecipe("recipe-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DuplicateRecipeCall("recipe-1", "Chicken bowl copy"), repository.duplicateRecipeCall)
+        assertEquals("Duplicated recipe", viewModel.state.value.message)
+    }
+
+    @Test
     fun toggleFavoriteRecipeUpdatesRepositoryAndUiState() = runTest {
         val repository =
             FakeFoodRepository(
@@ -2474,6 +2557,11 @@ class FoodViewModelTest {
         val date: LocalDate,
     )
 
+    private data class DuplicateRecipeCall(
+        val recipeId: String,
+        val name: String,
+    )
+
     private data class LogFavoriteQuickLogCall(
         val presetId: String,
         val mealType: String,
@@ -2590,6 +2678,7 @@ class FoodViewModelTest {
         var favoriteTemplateToggle: Pair<String, Boolean>? = null
         var recipeUpsert: RecipeUpsertInput? = null
         var logRecipeCall: LogRecipeCall? = null
+        var duplicateRecipeCall: DuplicateRecipeCall? = null
         var deletedRecipeId: String? = null
         var favoriteRecipeToggle: Pair<String, Boolean>? = null
         var starterFoodsSeeded = false
@@ -2746,6 +2835,11 @@ class FoodViewModelTest {
         override suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String {
             logRecipeCall = LogRecipeCall(recipeId, mealType, servings, date)
             return "meal-item-1"
+        }
+
+        override suspend fun duplicateRecipe(recipeId: String, name: String): String {
+            duplicateRecipeCall = DuplicateRecipeCall(recipeId, name)
+            return "recipe-copy"
         }
 
         override suspend fun deleteRecipe(recipeId: String) {

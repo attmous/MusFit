@@ -221,9 +221,13 @@ data class RecipeUiState(
     val category: String?,
     val servingName: String,
     val servingGrams: Double,
+    val servings: Double,
+    val cookedYieldGrams: Double,
     val isFavorite: Boolean = false,
     val caloriesPerServingKcal: Double,
     val proteinPerServingGrams: Double,
+    val carbsPerServingGrams: Double,
+    val fatPerServingGrams: Double,
     val itemSummary: String,
     val ingredients: List<RecipeIngredientDraftUiState> = emptyList(),
 )
@@ -232,6 +236,15 @@ data class RecipeIngredientDraftUiState(
     val foodId: String,
     val foodName: String,
     val quantityGrams: Double,
+    val unitLabel: String = "g",
+    val unitGrams: Double = 1.0,
+    val unitQuantity: Double = quantityGrams,
+)
+
+data class RecipeIngredientServingChoiceUiState(
+    val id: String,
+    val label: String,
+    val grams: Double,
 )
 
 data class QuickCaloriePresetUiState(
@@ -390,7 +403,11 @@ data class FoodUiState(
     val recipeCategory: String = "",
     val recipeServingName: String = "Serving",
     val recipeServingGrams: String = "100",
+    val recipeServingsCount: String = "1",
+    val recipeCookedYieldGrams: String = "100",
     val recipeIngredientFoodId: String = "",
+    val recipeIngredientServingChoiceId: String = "g",
+    val recipeIngredientServingChoices: List<RecipeIngredientServingChoiceUiState> = emptyList(),
     val recipeIngredientQuantityGrams: String = "100",
     val recipeIngredients: List<RecipeIngredientDraftUiState> = emptyList(),
     val recipeServingsToLog: String = "1",
@@ -773,6 +790,12 @@ class FoodViewModel @Inject constructor(
                     recipeCategory = "",
                     recipeServingName = "Serving",
                     recipeServingGrams = "100",
+                    recipeServingsCount = "1",
+                    recipeCookedYieldGrams = "100",
+                    recipeIngredientFoodId = "",
+                    recipeIngredientServingChoiceId = "g",
+                    recipeIngredientServingChoices = emptyList(),
+                    recipeIngredientQuantityGrams = "100",
                     recipeIngredients = emptyList(),
                     message = null,
                 )
@@ -785,6 +808,12 @@ class FoodViewModel @Inject constructor(
                     recipeCategory = recipe.category.orEmpty(),
                     recipeServingName = recipe.servingName,
                     recipeServingGrams = recipe.servingGrams.formatInputNumber(),
+                    recipeServingsCount = recipe.servings.formatInputNumber(),
+                    recipeCookedYieldGrams = recipe.cookedYieldGrams.formatInputNumber(),
+                    recipeIngredientFoodId = "",
+                    recipeIngredientServingChoiceId = "g",
+                    recipeIngredientServingChoices = emptyList(),
+                    recipeIngredientQuantityGrams = "100",
                     recipeIngredients = recipe.ingredients,
                     message = null,
                 )
@@ -2458,11 +2487,76 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onRecipeServingGramsChanged(value: String) {
-        mutableState.update { it.copy(recipeServingGrams = value.sanitizeDecimalInput(), message = null) }
+        val sanitized = value.sanitizeDecimalInput()
+        mutableState.update {
+            it.copy(
+                recipeServingGrams = sanitized,
+                recipeCookedYieldGrams = if (it.recipeServingsCount.parsePositiveNumberOrNull() == 1.0) {
+                    sanitized
+                } else {
+                    it.recipeCookedYieldGrams
+                },
+                message = null,
+            )
+        }
+    }
+
+    fun onRecipeServingsCountChanged(value: String) {
+        val sanitized = value.sanitizeDecimalInput()
+        mutableState.update {
+            val cookedYield = it.recipeCookedYieldGrams.parsePositiveNumberOrNull()
+            val servings = sanitized.parsePositiveNumberOrNull()
+            it.copy(
+                recipeServingsCount = sanitized,
+                recipeServingGrams = if (cookedYield != null && servings != null) {
+                    (cookedYield / servings).formatInputNumber()
+                } else {
+                    it.recipeServingGrams
+                },
+                message = null,
+            )
+        }
+    }
+
+    fun onRecipeCookedYieldGramsChanged(value: String) {
+        val sanitized = value.sanitizeDecimalInput()
+        mutableState.update {
+            val cookedYield = sanitized.parsePositiveNumberOrNull()
+            val servings = it.recipeServingsCount.parsePositiveNumberOrNull()
+            it.copy(
+                recipeCookedYieldGrams = sanitized,
+                recipeServingGrams = if (cookedYield != null && servings != null) {
+                    (cookedYield / servings).formatInputNumber()
+                } else {
+                    it.recipeServingGrams
+                },
+                message = null,
+            )
+        }
     }
 
     fun onRecipeIngredientFoodChanged(value: String) {
-        mutableState.update { it.copy(recipeIngredientFoodId = value, message = null) }
+        val food = state.value.savedFoods.firstOrNull { it.id == value }
+        val choices = food?.toRecipeIngredientServingChoices().orEmpty()
+        mutableState.update {
+            it.copy(
+                recipeIngredientFoodId = value,
+                recipeIngredientServingChoiceId = choices.firstOrNull()?.id ?: "g",
+                recipeIngredientServingChoices = choices,
+                message = null,
+            )
+        }
+    }
+
+    fun onRecipeIngredientServingChoiceSelected(choiceId: String) {
+        val choice = state.value.recipeIngredientServingChoices.firstOrNull { it.id == choiceId } ?: return
+        mutableState.update {
+            it.copy(
+                recipeIngredientServingChoiceId = choice.id,
+                recipeIngredientQuantityGrams = if (choice.id == "g") it.recipeIngredientQuantityGrams else "1",
+                message = null,
+            )
+        }
     }
 
     fun onRecipeIngredientQuantityChanged(value: String) {
@@ -2485,10 +2579,23 @@ class FoodViewModel @Inject constructor(
             mutableState.update { it.copy(message = "Enter ingredient amount") }
             return
         }
+        val servingChoice =
+            currentState.recipeIngredientServingChoices.firstOrNull { it.id == currentState.recipeIngredientServingChoiceId }
+                ?: RecipeIngredientServingChoiceUiState(id = "g", label = "g", grams = 1.0)
+        val quantityGrams = quantity * servingChoice.grams
         mutableState.update {
             it.copy(
-                recipeIngredients = it.recipeIngredients + RecipeIngredientDraftUiState(food.id, food.name, quantity),
+                recipeIngredients = it.recipeIngredients + RecipeIngredientDraftUiState(
+                    foodId = food.id,
+                    foodName = food.name,
+                    quantityGrams = quantityGrams,
+                    unitLabel = servingChoice.label,
+                    unitGrams = servingChoice.grams,
+                    unitQuantity = quantity,
+                ),
                 recipeIngredientFoodId = "",
+                recipeIngredientServingChoiceId = "g",
+                recipeIngredientServingChoices = emptyList(),
                 recipeIngredientQuantityGrams = "100",
                 message = null,
             )
@@ -2497,8 +2604,20 @@ class FoodViewModel @Inject constructor(
 
     fun saveRecipe() {
         val currentState = state.value
-        val servingGrams = currentState.recipeServingGrams.parsePositiveNumberOrNull()
-        if (currentState.recipeName.isBlank() || servingGrams == null || currentState.recipeIngredients.isEmpty()) {
+        val servings = currentState.recipeServingsCount.parsePositiveNumberOrNull()
+        val cookedYieldGrams = currentState.recipeCookedYieldGrams.parsePositiveNumberOrNull()
+        val servingGrams = if (servings != null && cookedYieldGrams != null) {
+            cookedYieldGrams / servings
+        } else {
+            currentState.recipeServingGrams.parsePositiveNumberOrNull()
+        }
+        if (
+            currentState.recipeName.isBlank() ||
+            servingGrams == null ||
+            servings == null ||
+            cookedYieldGrams == null ||
+            currentState.recipeIngredients.isEmpty()
+        ) {
             mutableState.update { it.copy(message = "Complete the recipe") }
             return
         }
@@ -2514,10 +2633,15 @@ class FoodViewModel @Inject constructor(
                         category = currentState.recipeCategory.ifBlank { null },
                         servingName = currentState.recipeServingName.ifBlank { "Serving" },
                         servingGrams = servingGrams,
+                        servings = servings,
+                        cookedYieldGrams = cookedYieldGrams,
                         ingredients = currentState.recipeIngredients.map { ingredient ->
                             RecipeIngredientInput(
                                 foodId = ingredient.foodId,
                                 quantityGrams = ingredient.quantityGrams,
+                                unitLabel = ingredient.unitLabel,
+                                unitGrams = ingredient.unitGrams,
+                                unitQuantity = ingredient.unitQuantity,
                             )
                         },
                     ),
@@ -2532,6 +2656,12 @@ class FoodViewModel @Inject constructor(
                         recipeCategory = "",
                         recipeServingName = "Serving",
                         recipeServingGrams = "100",
+                        recipeServingsCount = "1",
+                        recipeCookedYieldGrams = "100",
+                        recipeIngredientFoodId = "",
+                        recipeIngredientServingChoiceId = "g",
+                        recipeIngredientServingChoices = emptyList(),
+                        recipeIngredientQuantityGrams = "100",
                         recipeIngredients = emptyList(),
                         message = "Saved recipe",
                     )
@@ -2592,6 +2722,30 @@ class FoodViewModel @Inject constructor(
                 throw error
             } catch (error: Exception) {
                 mutableState.update { it.copy(message = error.message ?: "Failed to update recipe favorite") }
+            }
+        }
+    }
+
+    fun duplicateRecipe(recipeId: String) {
+        val recipe = state.value.recipes.firstOrNull { it.id == recipeId }
+        val copyName = "${recipe?.name ?: "Recipe"} copy"
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.duplicateRecipe(recipeId, copyName)
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = "Duplicated recipe",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to duplicate recipe") }
             }
         }
     }
@@ -3064,6 +3218,29 @@ private fun SavedFoodItem.sourceLabel(): String =
         else -> "Manual"
     }
 
+private fun SavedFoodUiState.toRecipeIngredientServingChoices(): List<RecipeIngredientServingChoiceUiState> {
+    val choices = mutableListOf(
+        RecipeIngredientServingChoiceUiState(id = "g", label = "g", grams = 1.0),
+    )
+    defaultServingGrams.takeIf { it.isFinite() && it > 0.0 }?.let { grams ->
+        choices += RecipeIngredientServingChoiceUiState(
+            id = "default-serving",
+            label = servingName?.takeIf { it.isNotBlank() } ?: "${grams.formatInputNumber()} g",
+            grams = grams,
+        )
+    }
+    servings
+        .filter { serving -> serving.grams.isFinite() && serving.grams > 0.0 && serving.label.isNotBlank() }
+        .forEach { serving ->
+            choices += RecipeIngredientServingChoiceUiState(
+                id = serving.id,
+                label = serving.label,
+                grams = serving.grams,
+            )
+        }
+    return choices.distinctBy { choice -> choice.id }
+}
+
 private fun List<SavedFoodUiState>.toDuplicateFoodGroups(): List<FoodDuplicateGroupUiState> {
     val groups = mutableListOf<FoodDuplicateGroupUiState>()
     val groupedFoodIds = mutableSetOf<String>()
@@ -3119,15 +3296,24 @@ private fun Recipe.toUiState(): RecipeUiState =
         category = category,
         servingName = servingName,
         servingGrams = servingGrams,
+        servings = servings,
+        cookedYieldGrams = cookedYieldGrams,
         isFavorite = isFavorite,
         caloriesPerServingKcal = nutritionPerServing.caloriesKcal,
         proteinPerServingGrams = nutritionPerServing.proteinGrams,
-        itemSummary = ingredients.joinToString { ingredient -> ingredient.foodName },
+        carbsPerServingGrams = nutritionPerServing.carbsGrams,
+        fatPerServingGrams = nutritionPerServing.fatGrams,
+        itemSummary = ingredients.joinToString { ingredient ->
+            "${ingredient.foodName} ${ingredient.unitQuantity.formatInputNumber()} ${ingredient.unitLabel}"
+        },
         ingredients = ingredients.map { ingredient ->
             RecipeIngredientDraftUiState(
                 foodId = ingredient.foodId,
                 foodName = ingredient.foodName,
                 quantityGrams = ingredient.quantityGrams,
+                unitLabel = ingredient.unitLabel,
+                unitGrams = ingredient.unitGrams,
+                unitQuantity = ingredient.unitQuantity,
             )
         },
     )

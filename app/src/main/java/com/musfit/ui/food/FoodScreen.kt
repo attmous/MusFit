@@ -312,11 +312,14 @@ fun FoodScreen(
                         onNameChanged = viewModel::onRecipeNameChanged,
                         onCategoryChanged = viewModel::onRecipeCategoryChanged,
                         onServingNameChanged = viewModel::onRecipeServingNameChanged,
-                        onServingGramsChanged = viewModel::onRecipeServingGramsChanged,
+                        onServingsCountChanged = viewModel::onRecipeServingsCountChanged,
+                        onCookedYieldChanged = viewModel::onRecipeCookedYieldGramsChanged,
                         onIngredientFoodChanged = viewModel::onRecipeIngredientFoodChanged,
+                        onIngredientServingChoiceSelected = viewModel::onRecipeIngredientServingChoiceSelected,
                         onIngredientQuantityChanged = viewModel::onRecipeIngredientQuantityChanged,
                         onAddIngredientClick = viewModel::addRecipeIngredient,
                         onEditRecipeClick = { recipeId -> viewModel.openRecipeEditor(recipeId) },
+                        onDuplicateRecipeClick = viewModel::duplicateRecipe,
                         onFavoriteClick = viewModel::toggleFavoriteRecipe,
                         onSaveClick = viewModel::saveRecipe,
                         onDeleteClick = { state.editingRecipeId?.let(viewModel::deleteRecipe) },
@@ -2658,11 +2661,14 @@ private fun RecipeEditorPanel(
     onNameChanged: (String) -> Unit,
     onCategoryChanged: (String) -> Unit,
     onServingNameChanged: (String) -> Unit,
-    onServingGramsChanged: (String) -> Unit,
+    onServingsCountChanged: (String) -> Unit,
+    onCookedYieldChanged: (String) -> Unit,
     onIngredientFoodChanged: (String) -> Unit,
+    onIngredientServingChoiceSelected: (String) -> Unit,
     onIngredientQuantityChanged: (String) -> Unit,
     onAddIngredientClick: () -> Unit,
     onEditRecipeClick: (String) -> Unit,
+    onDuplicateRecipeClick: (String) -> Unit,
     onFavoriteClick: (String, Boolean) -> Unit,
     onSaveClick: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -2692,6 +2698,8 @@ private fun RecipeEditorPanel(
                             Text(
                                 listOfNotNull(
                                     recipe.itemSummary,
+                                    "${recipe.servings.formatNutritionDisplay()} servings",
+                                    "${recipe.cookedYieldGrams.formatNutritionDisplay()} g yield",
                                     if (recipe.isFavorite) "Favorite" else null,
                                 ).joinToString(" - "),
                                 color = Color(0xFF706D6A),
@@ -2699,12 +2707,15 @@ private fun RecipeEditorPanel(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
                             OutlinedButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
                                 Text(if (recipe.isFavorite) "Starred" else "Star")
                             }
                             OutlinedButton(onClick = { onEditRecipeClick(recipe.id) }) {
                                 Text("Edit")
+                            }
+                            OutlinedButton(onClick = { onDuplicateRecipeClick(recipe.id) }) {
+                                Text("Copy")
                             }
                         }
                     }
@@ -2716,13 +2727,28 @@ private fun RecipeEditorPanel(
             OutlinedTextField(state.recipeCategory, onCategoryChanged, label = { Text("Category") }, singleLine = true, modifier = Modifier.weight(1f))
             OutlinedTextField(state.recipeServingName, onServingNameChanged, label = { Text("Serving") }, singleLine = true, modifier = Modifier.weight(1f))
         }
-        OutlinedTextField(
-            state.recipeServingGrams,
-            onServingGramsChanged,
-            label = { Text("Serving grams") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth(),
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                state.recipeServingsCount,
+                onServingsCountChanged,
+                label = { Text("Servings") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                state.recipeCookedYieldGrams,
+                onCookedYieldChanged,
+                label = { Text("Cooked yield g") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Text(
+            text = "${state.recipeServingGrams.ifBlank { "0" }} g per ${state.recipeServingName.ifBlank { "serving" }}",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF706D6A),
         )
         Text("Ingredients", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2734,11 +2760,22 @@ private fun RecipeEditorPanel(
                 )
             }
         }
+        if (state.recipeIngredientServingChoices.isNotEmpty()) {
+            Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                state.recipeIngredientServingChoices.forEach { choice ->
+                    FilterChip(
+                        selected = state.recipeIngredientServingChoiceId == choice.id,
+                        onClick = { onIngredientServingChoiceSelected(choice.id) },
+                        label = { Text(choice.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    )
+                }
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 state.recipeIngredientQuantityGrams,
                 onIngredientQuantityChanged,
-                label = { Text("Ingredient g") },
+                label = { Text("Amount") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(1f),
@@ -2756,7 +2793,13 @@ private fun RecipeEditorPanel(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(ingredient.foodName, fontWeight = FontWeight.SemiBold)
-                    Text("${ingredient.quantityGrams.roundToInt()} g", color = Color(0xFF706D6A))
+                    Text(
+                        text = listOf(
+                            "${ingredient.unitQuantity.formatNutritionDisplay()} ${ingredient.unitLabel}",
+                            "${ingredient.quantityGrams.roundToInt()} g",
+                        ).joinToString(" - "),
+                        color = Color(0xFF706D6A),
+                    )
                 }
             }
         }
@@ -3318,7 +3361,9 @@ private fun RecipeQuickList(
                         Text(
                             text = listOfNotNull(
                                 "${recipe.caloriesPerServingKcal.roundToInt()} kcal",
-                                "${recipe.proteinPerServingGrams.roundToInt()} g protein",
+                                "P ${recipe.proteinPerServingGrams.roundToInt()}g",
+                                "C ${recipe.carbsPerServingGrams.roundToInt()}g",
+                                "F ${recipe.fatPerServingGrams.roundToInt()}g",
                                 if (recipe.isFavorite) "Favorite" else null,
                             ).joinToString(" - "),
                             style = MaterialTheme.typography.bodySmall,

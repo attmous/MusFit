@@ -195,6 +195,8 @@ data class RecipeEntity(
     val category: String?,
     val servingName: String,
     val servingGrams: Double,
+    @ColumnInfo(defaultValue = "1") val servings: Double = 1.0,
+    @ColumnInfo(defaultValue = "0") val cookedYieldGrams: Double = 0.0,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
     @ColumnInfo(defaultValue = "0") val isFavorite: Boolean = false,
@@ -223,5 +225,8 @@ data class RecipeIngredientEntity(
     val recipeId: String,
     val foodId: String,
     val quantityGrams: Double,
+    @ColumnInfo(defaultValue = "'g'") val unitLabel: String = "g",
+    @ColumnInfo(defaultValue = "1") val unitGrams: Double = 1.0,
+    @ColumnInfo(defaultValue = "0") val unitQuantity: Double = 0.0,
     val sortOrder: Int,
 )

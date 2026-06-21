@@ -898,6 +898,83 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun upsertRecipeWithCookedYieldAndServingUnits_calculatesPerServingNutritionAndLogsFraction() = runTest {
+        val date = LocalDate.of(2026, 6, 21)
+        val chickenId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Chicken",
+                    brand = null,
+                    defaultServingGrams = 150.0,
+                    nutritionPer100g = nutrition(calories = 165.0, protein = 31.0, carbs = 0.0, fat = 3.6),
+                    servingName = "Serving",
+                    servings = listOf(FoodServingInput(label = "Serving", grams = 150.0)),
+                ),
+            )
+        val riceId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Rice",
+                    brand = null,
+                    defaultServingGrams = 100.0,
+                    nutritionPer100g = nutrition(calories = 180.0, protein = 6.0, carbs = 32.0, fat = 4.0),
+                    servingName = "Cup",
+                    servings = listOf(FoodServingInput(label = "Cup", grams = 100.0)),
+                ),
+            )
+
+        val recipeId =
+            repository.upsertRecipe(
+                RecipeUpsertInput(
+                    recipeId = null,
+                    name = "Meal prep bowl",
+                    category = "Dinner",
+                    servingName = "Bowl",
+                    servingGrams = 180.0,
+                    servings = 4.0,
+                    cookedYieldGrams = 720.0,
+                    ingredients = listOf(
+                        RecipeIngredientInput(
+                            foodId = chickenId,
+                            quantityGrams = 300.0,
+                            unitLabel = "Serving",
+                            unitGrams = 150.0,
+                            unitQuantity = 2.0,
+                        ),
+                        RecipeIngredientInput(
+                            foodId = riceId,
+                            quantityGrams = 200.0,
+                            unitLabel = "Cup",
+                            unitGrams = 100.0,
+                            unitQuantity = 2.0,
+                        ),
+                    ),
+                ),
+            )
+        repository.logRecipe(recipeId, mealType = "dinner", servings = 0.5, date = date)
+
+        val recipe = repository.observeRecipes().first().single()
+        val dinner = repository.observeFoodDiary(date).first().meals.single()
+
+        assertEquals(4.0, recipe.servings, 0.01)
+        assertEquals(720.0, recipe.cookedYieldGrams, 0.01)
+        assertEquals(180.0, recipe.servingGrams, 0.01)
+        assertEquals(213.75, recipe.nutritionPerServing.caloriesKcal, 0.01)
+        assertEquals(26.25, recipe.nutritionPerServing.proteinGrams, 0.01)
+        assertEquals("Serving", recipe.ingredients.first { it.foodId == chickenId }.unitLabel)
+        assertEquals(150.0, recipe.ingredients.first { it.foodId == chickenId }.unitGrams, 0.01)
+        assertEquals(2.0, recipe.ingredients.first { it.foodId == chickenId }.unitQuantity, 0.01)
+        assertEquals("Cup", recipe.ingredients.first { it.foodId == riceId }.unitLabel)
+        assertEquals(100.0, recipe.ingredients.first { it.foodId == riceId }.unitGrams, 0.01)
+        assertEquals(2.0, recipe.ingredients.first { it.foodId == riceId }.unitQuantity, 0.01)
+        assertEquals(106.875, dinner.totals.caloriesKcal, 0.01)
+        assertEquals(13.125, dinner.totals.proteinGrams, 0.01)
+        assertEquals(90.0, dinner.entries.single().quantityGrams, 0.01)
+    }
+
+    @Test
     fun toggleFavoriteRecipe_persistsFavoriteState() = runTest {
         val chickenId =
             repository.upsertSavedFood(
@@ -930,6 +1007,60 @@ class LocalFoodRepositoryTest {
         val unfavorited = repository.observeRecipes().first().single()
 
         assertFalse(unfavorited.isFavorite)
+    }
+
+    @Test
+    fun duplicateRecipe_copiesIngredientsYieldServingsAndFavoriteState() = runTest {
+        val chickenId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Chicken",
+                    brand = null,
+                    defaultServingGrams = 150.0,
+                    nutritionPer100g = nutrition(calories = 165.0, protein = 31.0, carbs = 0.0, fat = 3.6),
+                ),
+            )
+        val recipeId =
+            repository.upsertRecipe(
+                RecipeUpsertInput(
+                    recipeId = null,
+                    name = "Chicken tray bake",
+                    category = "Dinner",
+                    servingName = "Plate",
+                    servingGrams = 200.0,
+                    servings = 3.0,
+                    cookedYieldGrams = 600.0,
+                    ingredients = listOf(
+                        RecipeIngredientInput(
+                            foodId = chickenId,
+                            quantityGrams = 300.0,
+                            unitLabel = "Serving",
+                            unitGrams = 150.0,
+                            unitQuantity = 2.0,
+                        ),
+                    ),
+                ),
+            )
+        repository.toggleFavoriteRecipe(recipeId, true)
+
+        val duplicateId = repository.duplicateRecipe(recipeId, "Chicken tray bake copy")
+        val recipes = repository.observeRecipes().first()
+        val duplicate = recipes.single { it.id == duplicateId }
+
+        assertTrue(duplicate.id != recipeId)
+        assertEquals("Chicken tray bake copy", duplicate.name)
+        assertEquals("Dinner", duplicate.category)
+        assertEquals("Plate", duplicate.servingName)
+        assertEquals(200.0, duplicate.servingGrams, 0.01)
+        assertEquals(3.0, duplicate.servings, 0.01)
+        assertEquals(600.0, duplicate.cookedYieldGrams, 0.01)
+        assertTrue(duplicate.isFavorite)
+        assertEquals(chickenId, duplicate.ingredients.single().foodId)
+        assertEquals(300.0, duplicate.ingredients.single().quantityGrams, 0.01)
+        assertEquals("Serving", duplicate.ingredients.single().unitLabel)
+        assertEquals(150.0, duplicate.ingredients.single().unitGrams, 0.01)
+        assertEquals(2.0, duplicate.ingredients.single().unitQuantity, 0.01)
     }
 
     @Test
