@@ -529,6 +529,23 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun saveConfirmedProduct_persistsImageUrl_andExposesItOnSavedFoods() = runTest {
+        val result = foundProduct().copy(imageUrl = "https://images.test/egg.jpg")
+
+        repository.saveConfirmedProduct(
+            result = result,
+            editedName = "Egg",
+            editedBrand = "",
+            editedNutrition = nutrition(calories = 155.0, protein = 13.0, carbs = 1.0, fat = 11.0),
+        )
+
+        val savedEntity = database.foodDao().observeFoods().first().single()
+        assertEquals("https://images.test/egg.jpg", savedEntity.imageUrl)
+        val savedFood = repository.observeSavedFoods().first().single()
+        assertEquals("https://images.test/egg.jpg", savedFood.imageUrl)
+    }
+
+    @Test
     fun upsertSavedFood_createsAndUpdatesReusableDatabaseFood() = runTest {
         val foodId =
             repository.upsertSavedFood(

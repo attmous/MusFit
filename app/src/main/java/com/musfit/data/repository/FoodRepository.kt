@@ -144,6 +144,7 @@ data class SavedFoodUpsertInput(
     val category: String? = null,
     val isFavorite: Boolean = false,
     val servings: List<FoodServingInput> = emptyList(),
+    val imageUrl: String? = null,
 )
 
 data class SavedFoodItem(
@@ -158,6 +159,7 @@ data class SavedFoodItem(
     val category: String? = null,
     val isFavorite: Boolean = false,
     val servings: List<FoodServingOption> = emptyList(),
+    val imageUrl: String? = null,
 )
 
 data class FoodDiaryEntry(
@@ -172,6 +174,7 @@ data class FoodDiaryEntry(
     val fatGrams: Double,
     val nutritionDetails: NutritionDetails = NutritionDetails(),
     val status: FoodDiaryEntryStatus = FoodDiaryEntryStatus.Logged,
+    val imageUrl: String? = null,
 )
 
 data class FoodDiaryMeal(
@@ -757,6 +760,7 @@ class LocalFoodRepository @Inject constructor(
                     barcode = normalizedBarcode,
                     category = input.category?.trim()?.takeIf { it.isNotEmpty() },
                     isFavorite = input.isFavorite,
+                    imageUrl = input.imageUrl,
                     fiberPer100g = input.nutritionDetailsPer100g.fiberGrams,
                     sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
                     saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,
@@ -1485,6 +1489,7 @@ class LocalFoodRepository @Inject constructor(
                 updatedAtEpochMillis = now,
                 servingName = servingLabel(servingGrams),
                 barcode = normalizedBarcode,
+                imageUrl = input.lookupResult?.imageUrl?.trim()?.takeIf { it.isNotEmpty() },
                 fiberPer100g = input.nutritionDetailsPer100g.fiberGrams,
                 sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
                 saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,
@@ -1620,6 +1625,7 @@ class LocalFoodRepository @Inject constructor(
                 updatedAtEpochMillis = now,
                 servingName = servingLabel(servingGrams),
                 barcode = result.barcode,
+                imageUrl = result.imageUrl,
                 category = category?.trim()?.takeIf { it.isNotEmpty() },
                 fiberPer100g = editedNutritionDetails.fiberGrams,
                 sugarPer100g = editedNutritionDetails.sugarGrams,
@@ -2056,6 +2062,7 @@ private fun FoodDiaryEntryRow.toDiaryEntry(): FoodDiaryEntry {
     return FoodDiaryEntry(
         id = mealItemId,
         foodId = foodId,
+        imageUrl = imageUrl,
         name = foodName,
         brand = brand,
         quantityGrams = quantityGrams,
@@ -2165,6 +2172,7 @@ private fun String.toFoodDiaryEntryStatus(): FoodDiaryEntryStatus =
 private fun FoodEntity.toSavedFoodItem(servings: List<FoodServingEntity>): SavedFoodItem =
     SavedFoodItem(
         id = id,
+        imageUrl = imageUrl,
         name = name,
         brand = brand,
         defaultServingGrams = defaultServingGrams,
