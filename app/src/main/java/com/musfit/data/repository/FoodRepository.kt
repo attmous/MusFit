@@ -20,6 +20,7 @@ import com.musfit.data.local.entity.QuickCaloriePresetEntity
 import com.musfit.data.local.entity.RecipeEntity
 import com.musfit.data.local.entity.RecipeIngredientEntity
 import com.musfit.data.local.entity.ShoppingListItemEntity
+import com.musfit.data.local.entity.WaterEntryEntity
 import com.musfit.data.remote.food.ProductDataQuality
 import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.domain.model.FoodNutrition
@@ -27,12 +28,15 @@ import com.musfit.domain.model.MealItemInput
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.nutrition.NutritionCalculator
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
+
+const val DEFAULT_WATER_GOAL_MILLILITERS = 2000.0
 
 data class NutritionDetails(
     val fiberGrams: Double = 0.0,
@@ -205,6 +209,17 @@ data class ManualShoppingListItemInput(
     val quantityGrams: Double,
 )
 
+data class WaterLogInput(
+    val date: LocalDate,
+    val amountMilliliters: Double,
+)
+
+data class FoodWaterSummary(
+    val date: LocalDate,
+    val consumedMilliliters: Double,
+    val goalMilliliters: Double,
+)
+
 enum class FoodGoalMode {
     Balanced,
     HighProtein,
@@ -226,6 +241,7 @@ data class FoodGoal(
     val mode: FoodGoalMode,
     val includeTrainingCalories: Boolean,
     val useNetCarbs: Boolean = false,
+    val waterGoalMilliliters: Double = DEFAULT_WATER_GOAL_MILLILITERS,
 )
 
 data class MealTemplateItem(
@@ -407,6 +423,13 @@ interface FoodRepository {
 
     suspend fun toggleShoppingListItem(itemId: String, isChecked: Boolean) = Unit
 
+    fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
+        flowOf(FoodWaterSummary(date, 0.0, DEFAULT_WATER_GOAL_MILLILITERS))
+
+    suspend fun logWater(input: WaterLogInput): String = ""
+
+    suspend fun updateWaterGoal(goalMilliliters: Double) = Unit
+
     fun observeRecipes(): Flow<List<Recipe>> = flowOf(emptyList())
 
     suspend fun upsertRecipe(input: RecipeUpsertInput): String = ""
@@ -435,6 +458,7 @@ val DEFAULT_REPOSITORY_FOOD_GOAL =
         mode = FoodGoalMode.Balanced,
         includeTrainingCalories = false,
         useNetCarbs = false,
+        waterGoalMilliliters = DEFAULT_WATER_GOAL_MILLILITERS,
     )
 
 class LocalFoodRepository @Inject constructor(
@@ -767,6 +791,46 @@ class LocalFoodRepository @Inject constructor(
     override suspend fun updateFoodGoal(goal: FoodGoal) {
         goal.requireValid()
         foodDao.upsertFoodGoal(goal.toEntity(System.currentTimeMillis()))
+    }
+
+    override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
+        combine(
+            foodDao.observeWaterTotalForDate(date.toEpochDay()),
+            observeFoodGoal(),
+        ) { consumedMilliliters, goal ->
+            FoodWaterSummary(
+                date = date,
+                consumedMilliliters = consumedMilliliters,
+                goalMilliliters = goal.waterGoalMilliliters,
+            )
+        }
+
+    override suspend fun logWater(input: WaterLogInput): String {
+        input.requireValid()
+        return database.withTransaction {
+            val entryId = UUID.randomUUID().toString()
+            foodDao.insertWaterEntry(
+                WaterEntryEntity(
+                    id = entryId,
+                    dateEpochDay = input.date.toEpochDay(),
+                    amountMilliliters = input.amountMilliliters,
+                    createdAtEpochMillis = System.currentTimeMillis(),
+                ),
+            )
+            entryId
+        }
+    }
+
+    override suspend fun updateWaterGoal(goalMilliliters: Double) {
+        require(goalMilliliters.isFinite() && goalMilliliters > 0.0) { "Water goal must be positive" }
+        database.withTransaction {
+            val currentGoal = foodDao.getFoodGoal(DEFAULT_GOAL_ID)?.toFoodGoal() ?: DEFAULT_FOOD_GOAL
+            foodDao.upsertFoodGoal(
+                currentGoal
+                    .copy(waterGoalMilliliters = goalMilliliters)
+                    .toEntity(System.currentTimeMillis()),
+            )
+        }
     }
 
     override fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>> =
@@ -1503,6 +1567,7 @@ class LocalFoodRepository @Inject constructor(
                 mode = FoodGoalMode.Balanced,
                 includeTrainingCalories = false,
                 useNetCarbs = false,
+                waterGoalMilliliters = DEFAULT_WATER_GOAL_MILLILITERS,
             )
 
         val STARTER_FOODS =
@@ -1621,6 +1686,7 @@ private fun FoodGoal.requireValid() {
     require(sugarGrams.isNonNegativeFinite())
     require(saturatedFatGrams.isNonNegativeFinite())
     require(sodiumMilligrams.isNonNegativeFinite())
+    require(waterGoalMilliliters.isFinite() && waterGoalMilliliters > 0.0) { "Water goal must be positive" }
 }
 
 private fun MealTemplateUpdateInput.requireValid() {
@@ -1636,6 +1702,10 @@ private fun MealTemplateUpdateInput.requireValid() {
 private fun ManualShoppingListItemInput.requireValid() {
     require(name.isNotBlank()) { "Shopping item name is required" }
     require(quantityGrams.isFinite() && quantityGrams > 0.0) { "Shopping item amount must be positive" }
+}
+
+private fun WaterLogInput.requireValid() {
+    require(amountMilliliters.isFinite() && amountMilliliters > 0.0) { "Water amount must be positive" }
 }
 
 private fun RecipeUpsertInput.requireValid() {
@@ -1895,6 +1965,7 @@ private fun FoodGoal.toEntity(now: Long): FoodGoalEntity =
         mode = mode.name,
         includeTrainingCalories = includeTrainingCalories,
         useNetCarbs = useNetCarbs,
+        waterGoalMilliliters = waterGoalMilliliters,
         updatedAtEpochMillis = now,
     )
 
@@ -1911,6 +1982,7 @@ private fun FoodGoalEntity.toFoodGoal(): FoodGoal =
         mode = mode.toFoodGoalMode(),
         includeTrainingCalories = includeTrainingCalories,
         useNetCarbs = useNetCarbs,
+        waterGoalMilliliters = waterGoalMilliliters,
     )
 
 private fun String.toFoodGoalMode(): FoodGoalMode =

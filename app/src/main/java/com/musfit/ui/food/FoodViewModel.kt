@@ -16,6 +16,7 @@ import com.musfit.data.repository.FoodMealDefinitionInput
 import com.musfit.data.repository.FoodPlanDay
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodServingInput
+import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.MealTemplateItemInput
 import com.musfit.data.repository.MealTemplateUpdateInput
@@ -32,6 +33,7 @@ import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.ShoppingListGroup
 import com.musfit.data.repository.ShoppingListItem
+import com.musfit.data.repository.WaterLogInput
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -371,6 +373,11 @@ data class FoodUiState(
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
     val weeklyPlan: List<FoodPlanDayUiState> = emptyList(),
     val isPlanningMode: Boolean = false,
+    val waterConsumedMilliliters: Double = 0.0,
+    val waterGoalMilliliters: Double = WATER_GOAL_MILLILITERS,
+    val waterProgress: Double = 0.0,
+    val waterCustomAmountInput: String = "",
+    val waterGoalInput: String = WATER_GOAL_MILLILITERS.formatInputNumber(),
     val shoppingListGroups: List<ShoppingListGroupUiState> = emptyList(),
     val shoppingStartDateInput: String = LocalDate.now().toString(),
     val shoppingEndDateInput: String = LocalDate.now().plusDays(6).toString(),
@@ -576,6 +583,13 @@ class FoodViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            selectedDateFlow.flatMapLatest { date ->
+                repository.observeWaterSummary(date)
+            }.collect { summary ->
+                mutableState.update { currentState -> currentState.withWaterSummary(summary) }
+            }
+        }
+        viewModelScope.launch {
             repository.observeSavedFoods().collect { savedFoods ->
                 mutableState.update { currentState ->
                     val foodStates = savedFoods.map { it.toUiState() }
@@ -692,6 +706,87 @@ class FoodViewModel @Inject constructor(
                         message = error.message ?: "Failed to copy day",
                     )
                 }
+            }
+        }
+    }
+
+    fun logQuickWater(amountMilliliters: Double) {
+        logWaterAmount(amountMilliliters, clearCustomAmount = false)
+    }
+
+    fun onWaterCustomAmountChanged(value: String) {
+        mutableState.update { it.copy(waterCustomAmountInput = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun logCustomWater() {
+        val amount = state.value.waterCustomAmountInput.parsePositiveNumberOrNull()
+        if (amount == null) {
+            mutableState.update { it.copy(message = "Enter a valid water amount") }
+            return
+        }
+        logWaterAmount(amount, clearCustomAmount = true)
+    }
+
+    fun onWaterGoalChanged(value: String) {
+        mutableState.update { it.copy(waterGoalInput = value.sanitizeDecimalInput(), message = null) }
+    }
+
+    fun saveWaterGoal() {
+        val goalMilliliters = state.value.waterGoalInput.parsePositiveNumberOrNull()
+        if (goalMilliliters == null) {
+            mutableState.update { it.copy(message = "Enter a valid water goal") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.updateWaterGoal(goalMilliliters)
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        waterGoalMilliliters = goalMilliliters,
+                        waterProgress = it.waterConsumedMilliliters.fractionOf(goalMilliliters),
+                        waterGoalInput = goalMilliliters.formatInputNumber(),
+                        message = "Updated water goal",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to update water goal") }
+            }
+        }
+    }
+
+    private fun logWaterAmount(amountMilliliters: Double, clearCustomAmount: Boolean) {
+        if (!amountMilliliters.isFinite() || amountMilliliters <= 0.0) {
+            mutableState.update { it.copy(message = "Enter a valid water amount") }
+            return
+        }
+        val date = state.value.selectedDate
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.logWater(WaterLogInput(date = date, amountMilliliters = amountMilliliters))
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        waterCustomAmountInput = if (clearCustomAmount) "" else it.waterCustomAmountInput,
+                        message = "Added ${amountMilliliters.formatInputNumber()} ml water",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to log water") }
             }
         }
     }
@@ -2825,6 +2920,7 @@ class FoodViewModel @Inject constructor(
                 mode = currentState.goalModeInput,
                 includeTrainingCalories = currentState.goalIncludeTrainingInput,
                 useNetCarbs = currentState.goalUseNetCarbsInput,
+                waterGoalMilliliters = currentState.waterGoalMilliliters,
             )
         if (!markSaving()) {
             return
@@ -3334,6 +3430,7 @@ private const val FIBER_GOAL_GRAMS = 30.0
 private const val SUGAR_GOAL_GRAMS = 50.0
 private const val SATURATED_FAT_GOAL_GRAMS = 20.0
 private const val SODIUM_GOAL_MILLIGRAMS = 2300.0
+private const val WATER_GOAL_MILLILITERS = 2000.0
 
 private fun FoodGoalMode.goalPreset(): GoalPreset? =
     when (this) {
@@ -3442,6 +3539,17 @@ private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
         goalModeInput = goal.mode,
         goalIncludeTrainingInput = goal.includeTrainingCalories,
         goalUseNetCarbsInput = goal.useNetCarbs,
+        waterGoalMilliliters = goal.waterGoalMilliliters,
+        waterProgress = waterConsumedMilliliters.fractionOf(goal.waterGoalMilliliters),
+        waterGoalInput = goal.waterGoalMilliliters.formatInputNumber(),
+    )
+
+private fun FoodUiState.withWaterSummary(summary: FoodWaterSummary): FoodUiState =
+    copy(
+        waterConsumedMilliliters = summary.consumedMilliliters,
+        waterGoalMilliliters = summary.goalMilliliters,
+        waterProgress = summary.consumedMilliliters.fractionOf(summary.goalMilliliters),
+        waterGoalInput = summary.goalMilliliters.formatInputNumber(),
     )
 
 fun FoodUiState.selectedMealDetailForDisplay(): FoodMealSectionUiState? =

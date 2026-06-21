@@ -1015,6 +1015,26 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun waterTracking_persistsDailyTotalAndGoal() = runTest {
+        val date = LocalDate.of(2026, 6, 22)
+        val otherDate = date.plusDays(1)
+
+        repository.logWater(WaterLogInput(date = date, amountMilliliters = 250.0))
+        repository.logWater(WaterLogInput(date = date, amountMilliliters = 500.0))
+        repository.logWater(WaterLogInput(date = otherDate, amountMilliliters = 1000.0))
+        repository.updateWaterGoal(2400.0)
+
+        val summary = repository.observeWaterSummary(date).first()
+        val otherSummary = repository.observeWaterSummary(otherDate).first()
+
+        assertEquals(date, summary.date)
+        assertEquals(750.0, summary.consumedMilliliters, 0.01)
+        assertEquals(2400.0, summary.goalMilliliters, 0.01)
+        assertEquals(1000.0, otherSummary.consumedMilliliters, 0.01)
+        assertEquals(2400.0, otherSummary.goalMilliliters, 0.01)
+    }
+
+    @Test
     fun upsertRecipeAndLogRecipePortion_calculatesRecipeNutrition() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         val chickenId =

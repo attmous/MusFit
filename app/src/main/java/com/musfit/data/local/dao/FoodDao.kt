@@ -18,6 +18,7 @@ import com.musfit.data.local.entity.QuickCaloriePresetEntity
 import com.musfit.data.local.entity.RecipeEntity
 import com.musfit.data.local.entity.RecipeIngredientEntity
 import com.musfit.data.local.entity.ShoppingListItemEntity
+import com.musfit.data.local.entity.WaterEntryEntity
 import kotlinx.coroutines.flow.Flow
 
 data class MealNutritionRow(
@@ -378,6 +379,12 @@ interface FoodDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertFoodGoal(goal: FoodGoalEntity)
+
+    @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE dateEpochDay = :dateEpochDay")
+    fun observeWaterTotalForDate(dateEpochDay: Long): Flow<Double>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWaterEntry(entry: WaterEntryEntity)
 
     @Query("SELECT * FROM quick_calorie_presets ORDER BY isFavorite DESC, updatedAtEpochMillis DESC, name")
     fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePresetEntity>>

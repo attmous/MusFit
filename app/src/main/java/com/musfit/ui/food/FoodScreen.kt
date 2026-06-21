@@ -128,6 +128,14 @@ fun FoodScreen(
                     MacroProgressRow(state.macroProgress)
                     AdvancedNutritionProgressRow(state.advancedNutritionProgress)
                     MicronutrientRow(state.micronutrients)
+                    WaterTrackerCard(
+                        state = state,
+                        onQuickWaterClick = viewModel::logQuickWater,
+                        onCustomAmountChanged = viewModel::onWaterCustomAmountChanged,
+                        onCustomAddClick = viewModel::logCustomWater,
+                        onGoalChanged = viewModel::onWaterGoalChanged,
+                        onGoalSaveClick = viewModel::saveWaterGoal,
+                    )
 
                     MessageBanner(
                         message = state.message,
@@ -781,6 +789,100 @@ private fun MicronutrientGrid(micronutrients: List<FoodMicronutrientUiState>) {
                 }
                 if (rowNutrients.size == 1) {
                     Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WaterTrackerCard(
+    state: FoodUiState,
+    onQuickWaterClick: (Double) -> Unit,
+    onCustomAmountChanged: (String) -> Unit,
+    onCustomAddClick: () -> Unit,
+    onGoalChanged: (String) -> Unit,
+    onGoalSaveClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Water", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "${state.waterConsumedMilliliters.roundToInt()} / ${state.waterGoalMilliliters.roundToInt()} ml",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF706D6A),
+                    )
+                }
+                Text(
+                    "${(state.waterProgress * 100).roundToInt()}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF315847),
+                )
+            }
+
+            ProgressBar(progress = state.waterProgress.toFloat().coerceIn(0f, 1f), color = Color(0xFF4AA3FF))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { onQuickWaterClick(250.0) },
+                    enabled = !state.isSaving,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("250 ml")
+                }
+                OutlinedButton(
+                    onClick = { onQuickWaterClick(500.0) },
+                    enabled = !state.isSaving,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("500 ml")
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = state.waterCustomAmountInput,
+                    onValueChange = onCustomAmountChanged,
+                    label = { Text("Custom ml") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                Button(
+                    onClick = onCustomAddClick,
+                    enabled = !state.isSaving,
+                    colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+                ) {
+                    Text("Add")
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = state.waterGoalInput,
+                    onValueChange = onGoalChanged,
+                    label = { Text("Goal ml") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedButton(onClick = onGoalSaveClick, enabled = !state.isSaving) {
+                    Text("Save")
                 }
             }
         }

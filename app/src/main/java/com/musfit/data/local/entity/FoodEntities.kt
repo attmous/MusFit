@@ -116,6 +116,14 @@ data class ShoppingListItemEntity(
     val updatedAtEpochMillis: Long,
 )
 
+@Entity(tableName = "water_entries", indices = [Index("dateEpochDay")])
+data class WaterEntryEntity(
+    @PrimaryKey val id: String,
+    val dateEpochDay: Long,
+    val amountMilliliters: Double,
+    val createdAtEpochMillis: Long,
+)
+
 @Entity(
     tableName = "barcode_products",
     foreignKeys = [
@@ -154,6 +162,7 @@ data class FoodGoalEntity(
     val mode: String,
     val includeTrainingCalories: Boolean,
     @ColumnInfo(defaultValue = "0") val useNetCarbs: Boolean = false,
+    @ColumnInfo(defaultValue = "2000") val waterGoalMilliliters: Double = 2000.0,
     val updatedAtEpochMillis: Long,
 )
 

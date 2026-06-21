@@ -33,6 +33,7 @@ object DatabaseModule {
                 MIGRATION_8_9,
                 MIGRATION_9_10,
                 MIGRATION_10_11,
+                MIGRATION_11_12,
             )
             .build()
 
@@ -246,6 +247,24 @@ object DatabaseModule {
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_shopping_list_items_category ON shopping_list_items(category)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_shopping_list_items_sourceKey ON shopping_list_items(sourceKey)")
+            }
+        }
+
+    private val MIGRATION_11_12 =
+        object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE food_goals ADD COLUMN waterGoalMilliliters REAL NOT NULL DEFAULT 2000")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS water_entries (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        dateEpochDay INTEGER NOT NULL,
+                        amountMilliliters REAL NOT NULL,
+                        createdAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_water_entries_dateEpochDay ON water_entries(dateEpochDay)")
             }
         }
 }

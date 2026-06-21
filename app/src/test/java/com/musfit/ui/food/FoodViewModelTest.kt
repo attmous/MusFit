@@ -16,6 +16,7 @@ import com.musfit.data.repository.FoodMealDefinitionInput
 import com.musfit.data.repository.FoodPlanDay
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.FoodServingOption
+import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.MealTemplateItemInput
 import com.musfit.data.repository.MealTemplateItem
@@ -35,6 +36,7 @@ import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.ShoppingListGroup
 import com.musfit.data.repository.ShoppingListItem
+import com.musfit.data.repository.WaterLogInput
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import kotlinx.coroutines.CompletableDeferred
@@ -1872,6 +1874,46 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun waterTrackingLogsQuickCustomAmountAndUpdatesGoal() = runTest {
+        val today = LocalDate.now()
+        val repository =
+            FakeFoodRepository(
+                waterSummary = FoodWaterSummary(
+                    date = today,
+                    consumedMilliliters = 750.0,
+                    goalMilliliters = 2000.0,
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(750.0, viewModel.state.value.waterConsumedMilliliters, 0.01)
+        assertEquals(2000.0, viewModel.state.value.waterGoalMilliliters, 0.01)
+        assertEquals(0.375, viewModel.state.value.waterProgress, 0.01)
+        assertEquals("2000", viewModel.state.value.waterGoalInput)
+
+        viewModel.logQuickWater(250.0)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(WaterLogInput(today, 250.0), repository.waterLogInput)
+        assertEquals("Added 250 ml water", viewModel.state.value.message)
+
+        viewModel.onWaterCustomAmountChanged("333")
+        viewModel.logCustomWater()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(WaterLogInput(today, 333.0), repository.waterLogInput)
+        assertEquals("", viewModel.state.value.waterCustomAmountInput)
+
+        viewModel.onWaterGoalChanged("2400")
+        viewModel.saveWaterGoal()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(2400.0, repository.waterGoalMilliliters ?: -1.0, 0.01)
+        assertEquals("Updated water goal", viewModel.state.value.message)
+    }
+
+    @Test
     fun logMealTemplate_logsTemplateIntoSelectedMealAndDate() = runTest {
         val repository =
             FakeFoodRepository(
@@ -2851,6 +2893,7 @@ class FoodViewModelTest {
         customMealDefinitions: List<FoodMealDefinition> = emptyList(),
         weeklyPlan: List<FoodPlanDay> = emptyList(),
         shoppingGroups: List<ShoppingListGroup> = emptyList(),
+        waterSummary: FoodWaterSummary = FoodWaterSummary(LocalDate.now(), 0.0, 2000.0),
         foodGoal: FoodGoal = FoodGoal(
             dailyCaloriesKcal = 2083.0,
             proteinGrams = 104.0,
@@ -2872,6 +2915,7 @@ class FoodViewModelTest {
         private val customMealDefinitionsFlow = MutableStateFlow(customMealDefinitions)
         private val weeklyPlanFlow = MutableStateFlow(weeklyPlan)
         private val shoppingGroupsFlow = MutableStateFlow(shoppingGroups)
+        private val waterSummaryFlow = MutableStateFlow(waterSummary)
         private val foodGoalFlow = MutableStateFlow(foodGoal)
         var savedLog: FoodLogInput? = null
         var savedFoodLog: SavedFoodLogInput? = null
@@ -2909,6 +2953,8 @@ class FoodViewModelTest {
         var generateShoppingListCall: GenerateShoppingListCall? = null
         var manualShoppingListItem: ManualShoppingListItemInput? = null
         var toggledShoppingItem: Pair<String, Boolean>? = null
+        var waterLogInput: WaterLogInput? = null
+        var waterGoalMilliliters: Double? = null
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -2975,6 +3021,19 @@ class FoodViewModelTest {
 
         override suspend fun toggleShoppingListItem(itemId: String, isChecked: Boolean) {
             toggledShoppingItem = itemId to isChecked
+        }
+
+        override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
+            waterSummaryFlow
+
+        override suspend fun logWater(input: WaterLogInput): String {
+            waterLogInput = input
+            return "water-1"
+        }
+
+        override suspend fun updateWaterGoal(goalMilliliters: Double) {
+            waterGoalMilliliters = goalMilliliters
+            waterSummaryFlow.value = waterSummaryFlow.value.copy(goalMilliliters = goalMilliliters)
         }
 
         override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> =
