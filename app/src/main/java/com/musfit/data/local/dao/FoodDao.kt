@@ -255,11 +255,26 @@ interface FoodDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMealTemplate(template: MealTemplateEntity)
 
+    @Query(
+        "UPDATE meal_templates " +
+            "SET name = :name, mealType = :mealType, updatedAtEpochMillis = :updatedAtEpochMillis " +
+            "WHERE id = :templateId",
+    )
+    suspend fun updateMealTemplateMetadata(
+        templateId: String,
+        name: String,
+        mealType: String,
+        updatedAtEpochMillis: Long,
+    ): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMealTemplateItem(item: MealTemplateItemEntity)
 
     @Query("DELETE FROM meal_template_items WHERE templateId = :templateId")
     suspend fun deleteMealTemplateItems(templateId: String)
+
+    @Query("DELETE FROM meal_templates WHERE id = :templateId")
+    suspend fun deleteMealTemplateById(templateId: String): Int
 
     @Query(
         "SELECT recipes.id AS recipeId, " +
@@ -329,6 +344,9 @@ interface FoodDao {
 
     @Query("DELETE FROM recipe_ingredients WHERE recipeId = :recipeId")
     suspend fun deleteRecipeIngredients(recipeId: String)
+
+    @Query("DELETE FROM recipes WHERE id = :recipeId")
+    suspend fun deleteRecipeById(recipeId: String): Int
 
     @Query("DELETE FROM food_servings WHERE foodId = :foodId")
     suspend fun deleteServingsForFood(foodId: String)

@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.data.remote.food.ProductSearchResult
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
+import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.NutritionDetails
 import com.musfit.data.repository.QuickCalorieLogInput
@@ -44,6 +46,7 @@ enum class FoodAddMode {
 enum class FoodSheetMode {
     AddFood,
     FoodDatabase,
+    FoodDetail,
     DiaryEntryEditor,
     SavedFoodEditor,
     GoalEditor,
@@ -114,6 +117,23 @@ data class SavedFoodServingUiState(
     val grams: Double,
 )
 
+data class OnlineFoodResultUiState(
+    val barcode: String,
+    val name: String,
+    val brand: String?,
+    val servingQuantityGrams: Double?,
+    val caloriesPer100g: Double,
+    val proteinPer100g: Double,
+    val carbsPer100g: Double,
+    val fatPer100g: Double,
+    val fiberPer100g: Double,
+    val sugarPer100g: Double,
+    val saturatedFatPer100g: Double,
+    val sodiumMgPer100g: Double,
+    val category: String?,
+    val imageUrl: String?,
+)
+
 data class MealTemplateUiState(
     val id: String,
     val name: String,
@@ -130,6 +150,7 @@ data class RecipeUiState(
     val caloriesPerServingKcal: Double,
     val proteinPerServingGrams: Double,
     val itemSummary: String,
+    val ingredients: List<RecipeIngredientDraftUiState> = emptyList(),
 )
 
 data class RecipeIngredientDraftUiState(
@@ -177,11 +198,15 @@ data class FoodUiState(
     val savedFoods: List<SavedFoodUiState> = emptyList(),
     val mealTemplates: List<MealTemplateUiState> = emptyList(),
     val recipes: List<RecipeUiState> = emptyList(),
+    val onlineFoodResults: List<OnlineFoodResultUiState> = emptyList(),
+    val isSearchingFoods: Boolean = false,
     val isAddPanelVisible: Boolean = false,
     val sheetMode: FoodSheetMode? = null,
     val selectedMealTitle: String = "Breakfast",
     val addMode: FoodAddMode = FoodAddMode.Saved,
     val savedFoodQuantityGrams: String = "100",
+    val selectedSavedFoodDetail: SavedFoodUiState? = null,
+    val selectedSavedFoodServingGramsByFoodId: Map<String, Double> = emptyMap(),
     val quickCaloriesKcal: String = "",
     val quickProteinGrams: String = "",
     val quickCarbsGrams: String = "",
@@ -209,6 +234,9 @@ data class FoodUiState(
     val savedFoodBarcode: String = "",
     val savedFoodCategory: String = "",
     val savedFoodIsFavorite: Boolean = false,
+    val editingTemplateId: String? = null,
+    val templateNameInput: String = "",
+    val templateMealTypeInput: String = "breakfast",
     val goalCaloriesKcalInput: String = CALORIE_GOAL_KCAL.formatInputNumber(),
     val goalProteinGramsInput: String = PROTEIN_GOAL_GRAMS.formatInputNumber(),
     val goalCarbsGramsInput: String = CARBS_GOAL_GRAMS.formatInputNumber(),
@@ -219,6 +247,7 @@ data class FoodUiState(
     val goalSodiumMgInput: String = SODIUM_GOAL_MILLIGRAMS.formatInputNumber(),
     val goalModeInput: FoodGoalMode = FoodGoalMode.Maintain,
     val goalIncludeTrainingInput: Boolean = false,
+    val editingRecipeId: String? = null,
     val recipeName: String = "",
     val recipeCategory: String = "",
     val recipeServingName: String = "Serving",
@@ -322,6 +351,9 @@ class FoodViewModel @Inject constructor(
                 message = null,
                 editingDiaryEntryId = null,
                 editingSavedFoodId = null,
+                editingTemplateId = null,
+                editingRecipeId = null,
+                selectedSavedFoodDetail = null,
             )
         }
     }
@@ -365,6 +397,7 @@ class FoodViewModel @Inject constructor(
                 message = null,
                 editingDiaryEntryId = null,
                 editingSavedFoodId = null,
+                selectedSavedFoodDetail = null,
             )
         }
     }
@@ -377,12 +410,255 @@ class FoodViewModel @Inject constructor(
         mutableState.update { it.copy(isAddPanelVisible = true, sheetMode = FoodSheetMode.MealTemplates, message = null) }
     }
 
-    fun openRecipeEditor() {
-        mutableState.update { it.copy(isAddPanelVisible = true, sheetMode = FoodSheetMode.RecipeEditor, message = null) }
+    fun openRecipeEditor(recipeId: String? = null) {
+        val recipe = recipeId?.let { id -> state.value.recipes.firstOrNull { it.id == id } }
+        mutableState.update {
+            if (recipe == null) {
+                it.copy(
+                    isAddPanelVisible = true,
+                    sheetMode = FoodSheetMode.RecipeEditor,
+                    editingRecipeId = null,
+                    recipeName = "",
+                    recipeCategory = "",
+                    recipeServingName = "Serving",
+                    recipeServingGrams = "100",
+                    recipeIngredients = emptyList(),
+                    message = null,
+                )
+            } else {
+                it.copy(
+                    isAddPanelVisible = true,
+                    sheetMode = FoodSheetMode.RecipeEditor,
+                    editingRecipeId = recipe.id,
+                    recipeName = recipe.name,
+                    recipeCategory = recipe.category.orEmpty(),
+                    recipeServingName = recipe.servingName,
+                    recipeServingGrams = recipe.servingGrams.formatInputNumber(),
+                    recipeIngredients = recipe.ingredients,
+                    message = null,
+                )
+            }
+        }
     }
 
     fun onFoodDatabaseQueryChanged(value: String) {
         mutableState.update { it.copy(foodDatabaseQuery = value, message = null) }
+    }
+
+    fun searchOnlineFoods() {
+        val query = state.value.foodDatabaseQuery.trim()
+        if (query.length < 2) {
+            mutableState.update { it.copy(message = "Enter at least 2 characters", onlineFoodResults = emptyList()) }
+            return
+        }
+        viewModelScope.launch {
+            mutableState.update { it.copy(isSearchingFoods = true, message = null) }
+            when (val result = provider.searchProducts(query, pageSize = 12)) {
+                is ProductSearchResult.Success -> {
+                    mutableState.update { currentState ->
+                        if (currentState.foodDatabaseQuery.trim() != query) {
+                            currentState.copy(isSearchingFoods = false)
+                        } else {
+                            currentState.copy(
+                                isSearchingFoods = false,
+                                onlineFoodResults = result.products.map { it.toOnlineUiState() },
+                                message = if (result.products.isEmpty()) "No online foods found" else null,
+                            )
+                        }
+                    }
+                }
+                is ProductSearchResult.Failed -> {
+                    mutableState.update {
+                        it.copy(
+                            isSearchingFoods = false,
+                            onlineFoodResults = emptyList(),
+                            message = result.message,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun saveOnlineFoodResult(barcode: String) {
+        val currentState = state.value
+        val result = currentState.onlineFoodResults.firstOrNull { it.barcode == barcode }
+        if (result == null) {
+            mutableState.update { it.copy(message = "Online food not found") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.upsertSavedFood(result.toSavedFoodUpsertInput())
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        sheetMode = FoodSheetMode.FoodDatabase,
+                        message = "Saved online food",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to save online food",
+                    )
+                }
+            }
+        }
+    }
+
+    fun openSavedFoodDetail(foodId: String) {
+        val savedFood = state.value.savedFoods.firstOrNull { it.id == foodId }
+        if (savedFood == null) {
+            mutableState.update { it.copy(message = "Saved food not found") }
+            return
+        }
+
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.FoodDetail,
+                selectedSavedFoodDetail = savedFood,
+                message = null,
+            )
+        }
+    }
+
+    fun onSavedFoodServingSelected(foodId: String, grams: Double) {
+        if (!grams.isFinite() || grams <= 0.0) {
+            mutableState.update { it.copy(message = "Enter a valid amount") }
+            return
+        }
+        mutableState.update {
+            it.copy(
+                selectedSavedFoodServingGramsByFoodId = it.selectedSavedFoodServingGramsByFoodId + (foodId to grams),
+                savedFoodQuantityGrams = grams.formatInputNumber(),
+                message = null,
+            )
+        }
+    }
+
+    fun openMealTemplateEditor(templateId: String) {
+        val template = state.value.mealTemplates.firstOrNull { it.id == templateId }
+        if (template == null) {
+            mutableState.update { it.copy(message = "Template not found") }
+            return
+        }
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.MealTemplates,
+                editingTemplateId = template.id,
+                templateNameInput = template.name,
+                templateMealTypeInput = template.mealType,
+                message = null,
+            )
+        }
+    }
+
+    fun onTemplateNameChanged(value: String) {
+        mutableState.update { it.copy(templateNameInput = value, message = null) }
+    }
+
+    fun onTemplateMealTypeChanged(value: String) {
+        mutableState.update { it.copy(templateMealTypeInput = value.normalizedMealType(), message = null) }
+    }
+
+    fun saveMealTemplateEdits() {
+        val currentState = state.value
+        val templateId = currentState.editingTemplateId
+        if (templateId == null) {
+            mutableState.update { it.copy(message = "Choose a template") }
+            return
+        }
+        if (currentState.templateNameInput.isBlank()) {
+            mutableState.update { it.copy(message = "Enter a template name") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.renameMealTemplate(
+                    templateId = templateId,
+                    name = currentState.templateNameInput,
+                    mealType = currentState.templateMealTypeInput,
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        editingTemplateId = null,
+                        templateNameInput = "",
+                        message = "Updated meal template",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to update template",
+                    )
+                }
+            }
+        }
+    }
+
+    fun duplicateMealTemplate(templateId: String) {
+        val template = state.value.mealTemplates.firstOrNull { it.id == templateId }
+        if (template == null) {
+            mutableState.update { it.copy(message = "Template not found") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.duplicateMealTemplate(templateId, "${template.name} copy")
+                mutableState.update { it.copy(isSaving = false, message = "Duplicated meal template") }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to duplicate template") }
+            }
+        }
+    }
+
+    fun deleteMealTemplate(templateId: String) {
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.deleteMealTemplate(templateId)
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        editingTemplateId = null,
+                        templateNameInput = "",
+                        message = "Deleted meal template",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to delete template") }
+            }
+        }
     }
 
     fun openDiaryEntryEditor(entryId: String) {
@@ -566,6 +842,47 @@ class FoodViewModel @Inject constructor(
         }
     }
 
+    fun copyDiaryEntryTo(mealType: String, date: LocalDate) {
+        val currentState = state.value
+        val mealItemId = currentState.editingDiaryEntryId
+        if (mealItemId == null) {
+            mutableState.update { it.copy(message = "Choose a diary item") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.copyDiaryEntry(
+                    mealItemId = mealItemId,
+                    mealType = mealType.normalizedMealType(),
+                    date = date,
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = false,
+                        sheetMode = null,
+                        editingDiaryEntryId = null,
+                        message = "Copied diary item",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to copy diary item",
+                    )
+                }
+            }
+        }
+    }
+
     fun openNewSavedFoodEditor() {
         mutableState.update {
             it.copy(
@@ -588,6 +905,7 @@ class FoodViewModel @Inject constructor(
                 savedFoodBarcode = "",
                 savedFoodCategory = "",
                 savedFoodIsFavorite = false,
+                selectedSavedFoodDetail = null,
             )
         }
     }
@@ -620,6 +938,7 @@ class FoodViewModel @Inject constructor(
                 savedFoodBarcode = savedFood.barcode.orEmpty(),
                 savedFoodCategory = savedFood.category.orEmpty(),
                 savedFoodIsFavorite = savedFood.isFavorite,
+                selectedSavedFoodDetail = null,
             )
         }
     }
@@ -945,7 +1264,10 @@ class FoodViewModel @Inject constructor(
                         } else {
                             currentState.clearedEditableFields().copy(
                                 isLoading = false,
-                                message = "Product not found",
+                                barcode = barcode,
+                                productName = "Barcode $barcode",
+                                quantityGrams = "100",
+                                message = "Product not found. Add details to create it.",
                             )
                         }
                     }
@@ -1000,6 +1322,7 @@ class FoodViewModel @Inject constructor(
                         name = productName,
                         brand = currentState.brand.ifBlank { null },
                         nutritionPer100g = editedNutrition,
+                        nutritionDetailsPer100g = currentState.lookupResult?.nutritionDetailsPer100g ?: NutritionDetails(),
                         servingGrams = currentState.lookupResult?.servingQuantityGrams ?: quantityGrams,
                         mealType = currentState.mealType,
                         quantityGrams = quantityGrams,
@@ -1384,7 +1707,7 @@ class FoodViewModel @Inject constructor(
             try {
                 repository.upsertRecipe(
                     RecipeUpsertInput(
-                        recipeId = null,
+                        recipeId = currentState.editingRecipeId,
                         name = currentState.recipeName,
                         category = currentState.recipeCategory.ifBlank { null },
                         servingName = currentState.recipeServingName.ifBlank { "Serving" },
@@ -1402,6 +1725,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = false,
                         sheetMode = null,
+                        editingRecipeId = null,
                         recipeName = "",
                         recipeCategory = "",
                         recipeServingName = "Serving",
@@ -1420,6 +1744,31 @@ class FoodViewModel @Inject constructor(
                         message = error.message ?: "Failed to save recipe",
                     )
                 }
+            }
+        }
+    }
+
+    fun deleteRecipe(recipeId: String) {
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.deleteRecipe(recipeId)
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = false,
+                        sheetMode = null,
+                        editingRecipeId = null,
+                        message = "Deleted recipe",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to delete recipe") }
             }
         }
     }
@@ -1683,6 +2032,60 @@ private fun Recipe.toUiState(): RecipeUiState =
         caloriesPerServingKcal = nutritionPerServing.caloriesKcal,
         proteinPerServingGrams = nutritionPerServing.proteinGrams,
         itemSummary = ingredients.joinToString { ingredient -> ingredient.foodName },
+        ingredients = ingredients.map { ingredient ->
+            RecipeIngredientDraftUiState(
+                foodId = ingredient.foodId,
+                foodName = ingredient.foodName,
+                quantityGrams = ingredient.quantityGrams,
+            )
+        },
+    )
+
+private fun ProductLookupResult.Found.toOnlineUiState(): OnlineFoodResultUiState =
+    OnlineFoodResultUiState(
+        barcode = barcode,
+        name = name,
+        brand = brand,
+        servingQuantityGrams = servingQuantityGrams,
+        caloriesPer100g = nutritionPer100g.caloriesKcal,
+        proteinPer100g = nutritionPer100g.proteinGrams,
+        carbsPer100g = nutritionPer100g.carbsGrams,
+        fatPer100g = nutritionPer100g.fatGrams,
+        fiberPer100g = nutritionDetailsPer100g.fiberGrams,
+        sugarPer100g = nutritionDetailsPer100g.sugarGrams,
+        saturatedFatPer100g = nutritionDetailsPer100g.saturatedFatGrams,
+        sodiumMgPer100g = nutritionDetailsPer100g.sodiumMilligrams,
+        category = category,
+        imageUrl = imageUrl,
+    )
+
+private fun OnlineFoodResultUiState.toSavedFoodUpsertInput(): SavedFoodUpsertInput =
+    SavedFoodUpsertInput(
+        foodId = null,
+        name = name,
+        brand = brand,
+        defaultServingGrams = servingQuantityGrams ?: 100.0,
+        nutritionPer100g = FoodNutrition(
+            caloriesKcal = caloriesPer100g,
+            proteinGrams = proteinPer100g,
+            carbsGrams = carbsPer100g,
+            fatGrams = fatPer100g,
+        ),
+        nutritionDetailsPer100g = NutritionDetails(
+            fiberGrams = fiberPer100g,
+            sugarGrams = sugarPer100g,
+            saturatedFatGrams = saturatedFatPer100g,
+            sodiumMilligrams = sodiumMgPer100g,
+        ),
+        servingName = servingQuantityGrams?.formatInputNumber()?.let { "$it g" },
+        barcode = barcode,
+        category = category,
+        servings = listOfNotNull(
+            FoodServingInput("100 g", 100.0),
+            servingQuantityGrams?.takeIf { it > 0.0 && it != 100.0 }?.let { grams ->
+                FoodServingInput("${grams.formatInputNumber()} g", grams)
+            },
+        ),
     )
 
 private fun NutritionTotals.toMacroProgress(

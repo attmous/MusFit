@@ -3,6 +3,7 @@ package com.musfit.ui.food
 import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.ProductDataQuality
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.data.remote.food.ProductSearchResult
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodDiaryEntry
 import com.musfit.data.repository.FoodDiaryMeal
@@ -210,7 +211,7 @@ class FoodViewModelTest {
         viewModel.lookupBarcode()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Product not found", viewModel.state.value.message)
+        assertEquals("Product not found. Add details to create it.", viewModel.state.value.message)
         assertNull(viewModel.state.value.lookupResult)
     }
 
@@ -1079,6 +1080,244 @@ class FoodViewModelTest {
         assertEquals("Logged recipe", viewModel.state.value.message)
     }
 
+    @Test
+    fun searchOnlineFoods_exposesRemoteResultsAndSavingResultCreatesSavedFood() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel =
+            FoodViewModel(
+                provider = FakeProductProvider(
+                    searchResult = ProductSearchResult.Success(
+                        query = "oats",
+                        products = listOf(
+                            foundProduct(
+                                barcode = "5000108236832",
+                                name = "Oats so simple",
+                                brand = "Quaker",
+                                nutrition = FoodNutrition(379.0, 8.9, 68.0, 6.4),
+                            ).copy(
+                                nutritionDetailsPer100g = NutritionDetails(
+                                    fiberGrams = 7.2,
+                                    sugarGrams = 19.0,
+                                    saturatedFatGrams = 1.2,
+                                    sodiumMilligrams = 20.0,
+                                ),
+                                category = "Breakfast cereals",
+                                imageUrl = "https://images.openfoodfacts.org/oats.jpg",
+                            ),
+                        ),
+                    ),
+                ),
+                repository = repository,
+            )
+
+        viewModel.openFoodDatabase()
+        viewModel.onFoodDatabaseQueryChanged("oats")
+        viewModel.searchOnlineFoods()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Oats so simple", viewModel.state.value.onlineFoodResults.single().name)
+        assertEquals("Quaker", viewModel.state.value.onlineFoodResults.single().brand)
+        assertEquals(379.0, viewModel.state.value.onlineFoodResults.single().caloriesPer100g, 0.01)
+
+        viewModel.saveOnlineFoodResult("5000108236832")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Saved online food", viewModel.state.value.message)
+        assertEquals("Oats so simple", repository.savedFoodUpsert?.name)
+        assertEquals("5000108236832", repository.savedFoodUpsert?.barcode)
+        assertEquals("Breakfast cereals", repository.savedFoodUpsert?.category)
+        assertEquals(7.2, repository.savedFoodUpsert?.nutritionDetailsPer100g?.fiberGrams ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun selectingSavedFoodServing_updatesAmountUsedForLogging() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = null,
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        servings = listOf(
+                            com.musfit.data.repository.FoodServingOption("serving-1", "Cup", 170.0),
+                            com.musfit.data.repository.FoodServingOption("serving-2", "Half cup", 85.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAddFood("breakfast")
+        viewModel.onSavedFoodServingSelected("food-1", 85.0)
+        viewModel.logSavedFood("food-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("85", viewModel.state.value.savedFoodQuantityGrams)
+        assertEquals(85.0, repository.savedFoodLog?.quantityGrams ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun foodDetailOpensReadOnlyNutritionBeforeEditing() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        nutritionDetailsPer100g = NutritionDetails(fiberGrams = 0.2, sugarGrams = 3.6),
+                        category = "Dairy",
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openSavedFoodDetail("food-1")
+
+        assertEquals(FoodSheetMode.FoodDetail, viewModel.state.value.sheetMode)
+        assertEquals("Greek yogurt", viewModel.state.value.selectedSavedFoodDetail?.name)
+        assertEquals("Dairy", viewModel.state.value.selectedSavedFoodDetail?.category)
+        assertEquals(3.6, viewModel.state.value.selectedSavedFoodDetail?.sugarPer100g ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun templateManagementRenamesDuplicatesAndDeletesFromViewModel() = runTest {
+        val repository =
+            FakeFoodRepository(
+                templates = listOf(
+                    MealTemplate(
+                        id = "template-1",
+                        name = "Usual breakfast",
+                        mealType = "breakfast",
+                        items = listOf(MealTemplateItem("food-1", "Oats", null, 40.0)),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openMealTemplateEditor("template-1")
+        viewModel.onTemplateNameChanged("Gym breakfast")
+        viewModel.onTemplateMealTypeChanged("snacks")
+        viewModel.saveMealTemplateEdits()
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.duplicateMealTemplate("template-1")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.deleteMealTemplate("template-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("template-1" to "Gym breakfast", repository.renameTemplateCall?.let { it.templateId to it.name })
+        assertEquals("snacks", repository.renameTemplateCall?.mealType)
+        assertEquals("template-1", repository.duplicatedTemplateId)
+        assertEquals("template-1", repository.deletedTemplateId)
+    }
+
+    @Test
+    fun recipeManagementLoadsRecipeForEditAndDeletesRecipe() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Chicken",
+                        brand = null,
+                        defaultServingGrams = 150.0,
+                        nutritionPer100g = FoodNutrition(165.0, 31.0, 0.0, 3.6),
+                    ),
+                ),
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Dinner",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 150.0)),
+                        nutritionPerServing = FoodNutrition(250.0, 35.0, 20.0, 5.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeEditor("recipe-1")
+        viewModel.onRecipeNameChanged("Chicken power bowl")
+        viewModel.saveRecipe()
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.deleteRecipe("recipe-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("recipe-1", repository.recipeUpsert?.recipeId)
+        assertEquals("Chicken power bowl", repository.recipeUpsert?.name)
+        assertEquals("recipe-1", repository.deletedRecipeId)
+    }
+
+    @Test
+    fun diaryEntryCanBeCopiedToAnotherMealAndDate() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = null,
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 120.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 8.0,
+                                    fatGrams = 2.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openDiaryEntryEditor("entry-1")
+        viewModel.copyDiaryEntryTo("dinner", viewModel.state.value.selectedDate.plusDays(1))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            CopyDiaryEntryCall("entry-1", "dinner", LocalDate.now().plusDays(1)),
+            repository.copyDiaryEntryCall,
+        )
+        assertEquals("Copied diary item", viewModel.state.value.message)
+    }
+
+    @Test
+    fun barcodeNotFoundKeepsBarcodeAndPrefillsCreateFlow() = runTest {
+        val viewModel =
+            FoodViewModel(
+                provider = FakeProductProvider(result = ProductLookupResult.NotFound("999")),
+                repository = FakeFoodRepository(),
+            )
+
+        viewModel.onBarcodeChanged("999")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("999", viewModel.state.value.barcode)
+        assertEquals("Barcode 999", viewModel.state.value.productName)
+        assertEquals("100", viewModel.state.value.quantityGrams)
+        assertEquals("Product not found. Add details to create it.", viewModel.state.value.message)
+    }
+
     private data class CopyMealCall(
         val fromDate: LocalDate,
         val toDate: LocalDate,
@@ -1104,14 +1343,30 @@ class FoodViewModelTest {
         val date: LocalDate,
     )
 
+    private data class RenameTemplateCall(
+        val templateId: String,
+        val name: String,
+        val mealType: String,
+    )
+
+    private data class CopyDiaryEntryCall(
+        val mealItemId: String,
+        val mealType: String,
+        val date: LocalDate,
+    )
+
     private class FakeProductProvider(
         private val result: ProductLookupResult = foundProduct(),
+        private val searchResult: ProductSearchResult = ProductSearchResult.Success("", emptyList()),
     ) : FoodProductProvider {
         override suspend fun lookupBarcode(barcode: String): ProductLookupResult =
             when (result) {
                 is ProductLookupResult.Found -> result.copy(barcode = barcode)
                 else -> result
             }
+
+        override suspend fun searchProducts(query: String, pageSize: Int): ProductSearchResult =
+            searchResult
     }
 
     private class BlockingProductProvider : FoodProductProvider {
@@ -1168,10 +1423,15 @@ class FoodViewModelTest {
         var favoriteToggle: Pair<String, Boolean>? = null
         var foodGoalUpdate: FoodGoal? = null
         var copyMealCall: CopyMealCall? = null
+        var copyDiaryEntryCall: CopyDiaryEntryCall? = null
         var saveTemplateCall: SaveTemplateCall? = null
         var logTemplateCall: LogTemplateCall? = null
+        var renameTemplateCall: RenameTemplateCall? = null
+        var duplicatedTemplateId: String? = null
+        var deletedTemplateId: String? = null
         var recipeUpsert: RecipeUpsertInput? = null
         var logRecipeCall: LogRecipeCall? = null
+        var deletedRecipeId: String? = null
         var starterFoodsSeeded = false
 
         override suspend fun saveConfirmedProduct(
@@ -1257,6 +1517,24 @@ class FoodViewModelTest {
             return listOf("meal-item-1")
         }
 
+        override suspend fun renameMealTemplate(templateId: String, name: String, mealType: String) {
+            renameTemplateCall = RenameTemplateCall(templateId, name, mealType)
+        }
+
+        override suspend fun duplicateMealTemplate(templateId: String, name: String): String {
+            duplicatedTemplateId = templateId
+            return "template-copy"
+        }
+
+        override suspend fun deleteMealTemplate(templateId: String) {
+            deletedTemplateId = templateId
+        }
+
+        override suspend fun copyDiaryEntry(mealItemId: String, mealType: String, date: LocalDate): String {
+            copyDiaryEntryCall = CopyDiaryEntryCall(mealItemId, mealType, date)
+            return "meal-item-copy"
+        }
+
         override fun observeRecipes(): Flow<List<Recipe>> =
             recipesFlow
 
@@ -1268,6 +1546,10 @@ class FoodViewModelTest {
         override suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String {
             logRecipeCall = LogRecipeCall(recipeId, mealType, servings, date)
             return "meal-item-1"
+        }
+
+        override suspend fun deleteRecipe(recipeId: String) {
+            deletedRecipeId = recipeId
         }
 
         override suspend fun seedStarterFoods() {

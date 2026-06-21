@@ -1,9 +1,13 @@
 package com.musfit.data.remote.food
 
+import com.musfit.data.repository.NutritionDetails
 import com.musfit.domain.model.FoodNutrition
 
 interface FoodProductProvider {
     suspend fun lookupBarcode(barcode: String): ProductLookupResult
+
+    suspend fun searchProducts(query: String, pageSize: Int = 20): ProductSearchResult =
+        ProductSearchResult.Failed(query = query, message = "Food search is unavailable")
 }
 
 sealed interface ProductLookupResult {
@@ -13,6 +17,9 @@ sealed interface ProductLookupResult {
         val brand: String?,
         val servingQuantityGrams: Double?,
         val nutritionPer100g: FoodNutrition,
+        val nutritionDetailsPer100g: NutritionDetails = NutritionDetails(),
+        val category: String? = null,
+        val imageUrl: String? = null,
         val quality: ProductDataQuality,
         val rawJson: String,
     ) : ProductLookupResult
@@ -30,4 +37,16 @@ sealed interface ProductLookupResult {
 enum class ProductDataQuality {
     Complete,
     Incomplete,
+}
+
+sealed interface ProductSearchResult {
+    data class Success(
+        val query: String,
+        val products: List<ProductLookupResult.Found>,
+    ) : ProductSearchResult
+
+    data class Failed(
+        val query: String,
+        val message: String,
+    ) : ProductSearchResult
 }

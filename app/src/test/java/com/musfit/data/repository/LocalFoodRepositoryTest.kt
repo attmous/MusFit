@@ -718,6 +718,122 @@ class LocalFoodRepositoryTest {
         assertEquals(175.0, dinner.entries.single().quantityGrams, 0.01)
     }
 
+    @Test
+    fun confirmedProductPersistsAdvancedNutritionCategoryAndSearchServing() = runTest {
+        val result =
+            foundProduct(
+                barcode = "5000108236832",
+                name = "Oats so simple",
+                brand = "Quaker",
+                servingQuantityGrams = null,
+                rawJson = """{"code":"5000108236832"}""",
+            ).copy(
+                nutritionDetailsPer100g = NutritionDetails(
+                    fiberGrams = 7.2,
+                    sugarGrams = 19.0,
+                    saturatedFatGrams = 1.2,
+                    sodiumMilligrams = 20.0,
+                ),
+                category = "Breakfast cereals",
+                imageUrl = "https://images.openfoodfacts.org/oats.jpg",
+            )
+
+        val foodId =
+            repository.saveConfirmedProduct(
+                result = result,
+                editedName = result.name,
+                editedBrand = result.brand,
+                editedNutrition = result.nutritionPer100g,
+            )
+
+        val savedFood = repository.getFoodDetail(foodId)!!
+
+        assertEquals("Breakfast cereals", savedFood.category)
+        assertEquals("5000108236832", savedFood.barcode)
+        assertEquals(7.2, savedFood.nutritionDetailsPer100g.fiberGrams, 0.01)
+        assertEquals(19.0, savedFood.nutritionDetailsPer100g.sugarGrams, 0.01)
+        assertEquals(1.2, savedFood.nutritionDetailsPer100g.saturatedFatGrams, 0.01)
+        assertEquals(20.0, savedFood.nutritionDetailsPer100g.sodiumMilligrams, 0.01)
+        assertEquals(100.0, savedFood.defaultServingGrams, 0.01)
+        assertEquals(listOf("100 g"), savedFood.servings.map { it.label })
+    }
+
+    @Test
+    fun templateManagement_renamesDuplicatesAndDeletesTemplates() = runTest {
+        val sourceDate = LocalDate.of(2026, 6, 20)
+        val foodId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Oats",
+                    brand = null,
+                    defaultServingGrams = 40.0,
+                    nutritionPer100g = nutrition(calories = 389.0, protein = 16.9, carbs = 66.3, fat = 6.9),
+                ),
+            )
+        repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 40.0, sourceDate))
+        val templateId = repository.saveMealAsTemplate(sourceDate, "breakfast", "Old breakfast")
+
+        repository.renameMealTemplate(templateId, "Workout breakfast", "snacks")
+        val duplicateId = repository.duplicateMealTemplate(templateId, "Workout breakfast copy")
+        repository.deleteMealTemplate(templateId)
+
+        val templates = repository.observeMealTemplates().first()
+
+        assertEquals(listOf(duplicateId), templates.map { it.id })
+        assertEquals("Workout breakfast copy", templates.single().name)
+        assertEquals("snacks", templates.single().mealType)
+        assertEquals("Oats", templates.single().items.single().foodName)
+        assertEquals(40.0, templates.single().items.single().quantityGrams, 0.01)
+    }
+
+    @Test
+    fun recipeManagement_updatesDeletesAndCopiesDiaryEntries() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val chickenId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Chicken",
+                    brand = null,
+                    defaultServingGrams = 150.0,
+                    nutritionPer100g = nutrition(calories = 165.0, protein = 31.0, carbs = 0.0, fat = 3.6),
+                ),
+            )
+        val recipeId =
+            repository.upsertRecipe(
+                RecipeUpsertInput(
+                    recipeId = null,
+                    name = "Chicken bowl",
+                    category = "Dinner",
+                    servingName = "Bowl",
+                    servingGrams = 300.0,
+                    ingredients = listOf(RecipeIngredientInput(chickenId, 150.0)),
+                ),
+            )
+
+        repository.upsertRecipe(
+            RecipeUpsertInput(
+                recipeId = recipeId,
+                name = "Chicken power bowl",
+                category = "Lunch",
+                servingName = "Plate",
+                servingGrams = 320.0,
+                ingredients = listOf(RecipeIngredientInput(chickenId, 200.0)),
+            ),
+        )
+        val mealItemId = repository.logSavedFood(SavedFoodLogInput(chickenId, "lunch", 150.0, date))
+        repository.copyDiaryEntry(mealItemId, "dinner", date.plusDays(1))
+        repository.deleteRecipe(recipeId)
+
+        val targetDiary = repository.observeFoodDiary(date.plusDays(1)).first()
+
+        assertTrue(repository.observeRecipes().first().isEmpty())
+        assertEquals("dinner", targetDiary.meals.single().type)
+        assertEquals("Chicken", targetDiary.meals.single().entries.single().name)
+        assertEquals(150.0, targetDiary.meals.single().entries.single().quantityGrams, 0.01)
+    }
+
     private fun foundProduct(
         barcode: String = "1234567890123",
         name: String = "Greek Yogurt",
@@ -730,6 +846,9 @@ class LocalFoodRepositoryTest {
         brand = brand,
         servingQuantityGrams = servingQuantityGrams,
         nutritionPer100g = nutrition(calories = 59.0, protein = 10.0, carbs = 3.6, fat = 0.4),
+        nutritionDetailsPer100g = NutritionDetails(),
+        category = null,
+        imageUrl = null,
         quality = ProductDataQuality.Complete,
         rawJson = rawJson,
     )

@@ -55,6 +55,7 @@ data class FoodLogInput(
     val name: String,
     val brand: String?,
     val nutritionPer100g: FoodNutrition,
+    val nutritionDetailsPer100g: NutritionDetails = NutritionDetails(),
     val servingGrams: Double?,
     val mealType: String,
     val quantityGrams: Double,
@@ -247,11 +248,21 @@ interface FoodRepository {
 
     suspend fun copyMeal(fromDate: LocalDate, toDate: LocalDate, mealType: String): List<String> = emptyList()
 
+    suspend fun renameMealTemplate(templateId: String, name: String, mealType: String) = Unit
+
+    suspend fun duplicateMealTemplate(templateId: String, name: String): String = ""
+
+    suspend fun deleteMealTemplate(templateId: String) = Unit
+
+    suspend fun copyDiaryEntry(mealItemId: String, mealType: String, date: LocalDate): String = ""
+
     fun observeRecipes(): Flow<List<Recipe>> = flowOf(emptyList())
 
     suspend fun upsertRecipe(input: RecipeUpsertInput): String = ""
 
     suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String = ""
+
+    suspend fun deleteRecipe(recipeId: String) = Unit
 
     suspend fun seedStarterFoods() = Unit
 }
@@ -286,7 +297,9 @@ class LocalFoodRepository @Inject constructor(
                 editedName = editedName,
                 editedBrand = editedBrand,
                 editedNutrition = editedNutrition,
+                editedNutritionDetails = result.nutritionDetailsPer100g,
                 servingGrams = result.servingQuantityGrams ?: 100.0,
+                category = result.category,
                 now = System.currentTimeMillis(),
             )
         }
@@ -301,7 +314,9 @@ class LocalFoodRepository @Inject constructor(
                     editedName = input.name,
                     editedBrand = input.brand,
                     editedNutrition = input.nutritionPer100g,
+                    editedNutritionDetails = result.nutritionDetailsPer100g,
                     servingGrams = input.servingGrams ?: result.servingQuantityGrams ?: 100.0,
+                    category = result.category,
                     now = now,
                 )
             } ?: upsertManualFood(input, now)
@@ -563,6 +578,75 @@ class LocalFoodRepository @Inject constructor(
         }
     }
 
+    override suspend fun renameMealTemplate(templateId: String, name: String, mealType: String) {
+        require(templateId.isNotBlank()) { "Template id is required" }
+        require(name.isNotBlank()) { "Template name is required" }
+        database.withTransaction {
+            val updatedCount = foodDao.updateMealTemplateMetadata(
+                templateId = templateId,
+                name = name.trim(),
+                mealType = mealType.trim().ifBlank { DEFAULT_MEAL_TYPE },
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+            check(updatedCount > 0) { "Template not found" }
+        }
+    }
+
+    override suspend fun duplicateMealTemplate(templateId: String, name: String): String {
+        require(templateId.isNotBlank()) { "Template id is required" }
+        require(name.isNotBlank()) { "Template name is required" }
+        return database.withTransaction {
+            val source = foodDao.getMealTemplate(templateId) ?: error("Template not found")
+            val rows = foodDao.getMealTemplateRows(templateId)
+            require(rows.isNotEmpty()) { "Template has no food" }
+            val now = System.currentTimeMillis()
+            val duplicateId = UUID.randomUUID().toString()
+            foodDao.upsertMealTemplate(
+                MealTemplateEntity(
+                    id = duplicateId,
+                    name = name.trim(),
+                    mealType = source.mealType,
+                    createdAtEpochMillis = now,
+                    updatedAtEpochMillis = now,
+                ),
+            )
+            rows.sortedBy { it.sortOrder }.forEachIndexed { index, row ->
+                foodDao.upsertMealTemplateItem(
+                    MealTemplateItemEntity(
+                        id = UUID.randomUUID().toString(),
+                        templateId = duplicateId,
+                        foodId = row.foodId,
+                        quantityGrams = row.quantityGrams,
+                        sortOrder = index,
+                    ),
+                )
+            }
+            duplicateId
+        }
+    }
+
+    override suspend fun deleteMealTemplate(templateId: String) {
+        require(templateId.isNotBlank()) { "Template id is required" }
+        database.withTransaction {
+            val deletedCount = foodDao.deleteMealTemplateById(templateId)
+            check(deletedCount > 0) { "Template not found" }
+        }
+    }
+
+    override suspend fun copyDiaryEntry(mealItemId: String, mealType: String, date: LocalDate): String {
+        require(mealItemId.isNotBlank()) { "Diary item id is required" }
+        return database.withTransaction {
+            val item = foodDao.getMealItem(mealItemId) ?: error("Diary item not found")
+            insertMealItem(
+                foodId = item.foodId,
+                mealType = mealType,
+                quantityGrams = item.quantityGrams,
+                date = date,
+                now = System.currentTimeMillis(),
+            )
+        }
+    }
+
     override fun observeRecipes(): Flow<List<Recipe>> =
         foodDao.observeRecipeRows().map { rows ->
             rows.toRecipes()
@@ -645,6 +729,14 @@ class LocalFoodRepository @Inject constructor(
         }
     }
 
+    override suspend fun deleteRecipe(recipeId: String) {
+        require(recipeId.isNotBlank()) { "Recipe id is required" }
+        database.withTransaction {
+            val deletedCount = foodDao.deleteRecipeById(recipeId)
+            check(deletedCount > 0) { "Recipe not found" }
+        }
+    }
+
     override suspend fun seedStarterFoods() {
         database.withTransaction {
             STARTER_FOODS.forEach { input ->
@@ -673,6 +765,10 @@ class LocalFoodRepository @Inject constructor(
                 updatedAtEpochMillis = now,
                 servingName = servingLabel(servingGrams),
                 barcode = normalizedBarcode,
+                fiberPer100g = input.nutritionDetailsPer100g.fiberGrams,
+                sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
+                saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,
+                sodiumMgPer100g = input.nutritionDetailsPer100g.sodiumMilligrams,
             ),
         )
         replaceServings(foodId, listOf(FoodServingInput(servingLabel(servingGrams), servingGrams)))
@@ -716,7 +812,9 @@ class LocalFoodRepository @Inject constructor(
         editedName: String,
         editedBrand: String?,
         editedNutrition: FoodNutrition,
+        editedNutritionDetails: NutritionDetails,
         servingGrams: Double,
+        category: String?,
         now: Long,
     ): String {
         val existingBarcodeProduct = foodDao.getBarcodeProduct(result.barcode)
@@ -748,6 +846,11 @@ class LocalFoodRepository @Inject constructor(
                 updatedAtEpochMillis = now,
                 servingName = servingLabel(servingGrams),
                 barcode = result.barcode,
+                category = category?.trim()?.takeIf { it.isNotEmpty() },
+                fiberPer100g = editedNutritionDetails.fiberGrams,
+                sugarPer100g = editedNutritionDetails.sugarGrams,
+                saturatedFatPer100g = editedNutritionDetails.saturatedFatGrams,
+                sodiumMgPer100g = editedNutritionDetails.sodiumMilligrams,
             ),
         )
         replaceServings(foodId, listOf(FoodServingInput(servingLabel(servingGrams), servingGrams)))

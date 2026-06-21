@@ -158,6 +158,7 @@ fun FoodScreen(
                         onModeSelected = viewModel::selectAddMode,
                         onSavedQuantityChanged = viewModel::onSavedFoodQuantityChanged,
                         onSavedFoodClick = viewModel::logSavedFood,
+                        onSavedFoodServingSelected = viewModel::onSavedFoodServingSelected,
                         onKeepAddingChanged = viewModel::onKeepAddingFoodsChanged,
                         onTemplateClick = viewModel::logMealTemplate,
                         onRecipeClick = viewModel::logRecipe,
@@ -184,10 +185,25 @@ fun FoodScreen(
                     FoodDatabasePanel(
                         state = state,
                         onSearchChanged = viewModel::onFoodDatabaseQueryChanged,
+                        onSearchOnlineClick = viewModel::searchOnlineFoods,
                         onNewFoodClick = viewModel::openNewSavedFoodEditor,
+                        onOpenFoodDetailClick = viewModel::openSavedFoodDetail,
                         onEditFoodClick = viewModel::openSavedFoodEditor,
+                        onSaveOnlineFoodClick = viewModel::saveOnlineFoodResult,
                         onImportStarterFoodsClick = viewModel::seedStarterFoods,
                         onFavoriteClick = viewModel::toggleFavoriteFood,
+                    )
+
+                FoodSheetMode.FoodDetail ->
+                    FoodDetailPanel(
+                        state = state,
+                        onEditClick = { state.selectedSavedFoodDetail?.id?.let(viewModel::openSavedFoodEditor) },
+                        onLogClick = { state.selectedSavedFoodDetail?.id?.let(viewModel::logSavedFood) },
+                        onFavoriteClick = {
+                            state.selectedSavedFoodDetail?.let { food ->
+                                viewModel.toggleFavoriteFood(food.id, !food.isFavorite)
+                            }
+                        },
                     )
 
                 FoodSheetMode.DiaryEntryEditor ->
@@ -197,6 +213,10 @@ fun FoodScreen(
                         onQuantityChanged = viewModel::onDiaryEntryQuantityChanged,
                         onSaveClick = viewModel::saveDiaryEntry,
                         onDeleteClick = viewModel::deleteDiaryEntry,
+                        onCopyToMealClick = { mealType -> viewModel.copyDiaryEntryTo(mealType, state.selectedDate) },
+                        onCopyTomorrowClick = {
+                            viewModel.copyDiaryEntryTo(state.editingDiaryEntryMealType, state.selectedDate.plusDays(1))
+                        },
                     )
 
                 FoodSheetMode.SavedFoodEditor ->
@@ -247,13 +267,21 @@ fun FoodScreen(
                         onIngredientFoodChanged = viewModel::onRecipeIngredientFoodChanged,
                         onIngredientQuantityChanged = viewModel::onRecipeIngredientQuantityChanged,
                         onAddIngredientClick = viewModel::addRecipeIngredient,
+                        onEditRecipeClick = { recipeId -> viewModel.openRecipeEditor(recipeId) },
                         onSaveClick = viewModel::saveRecipe,
+                        onDeleteClick = { state.editingRecipeId?.let(viewModel::deleteRecipe) },
                     )
 
                 FoodSheetMode.MealTemplates ->
                     MealTemplatesPanel(
                         state = state,
                         onTemplateClick = viewModel::logMealTemplate,
+                        onEditClick = viewModel::openMealTemplateEditor,
+                        onDuplicateClick = viewModel::duplicateMealTemplate,
+                        onDeleteClick = viewModel::deleteMealTemplate,
+                        onNameChanged = viewModel::onTemplateNameChanged,
+                        onMealTypeChanged = viewModel::onTemplateMealTypeChanged,
+                        onSaveEditClick = viewModel::saveMealTemplateEdits,
                     )
             }
         }
@@ -874,6 +902,27 @@ private fun MealInitial(title: String) {
 }
 
 @Composable
+private fun FoodAvatar(
+    text: String,
+    color: Color = Color(0xFFF6F2EF),
+) {
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(color),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text.firstOrNull()?.uppercase().orEmpty(),
+            style = MaterialTheme.typography.titleMedium,
+            color = HeaderInk,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
 private fun DiaryEntryRow(
     entry: FoodMealEntryUiState,
     onClick: () -> Unit,
@@ -993,8 +1042,11 @@ private fun SavedFoodSummaryRow(food: SavedFoodUiState) {
 private fun FoodDatabasePanel(
     state: FoodUiState,
     onSearchChanged: (String) -> Unit,
+    onSearchOnlineClick: () -> Unit,
     onNewFoodClick: () -> Unit,
+    onOpenFoodDetailClick: (String) -> Unit,
     onEditFoodClick: (String) -> Unit,
+    onSaveOnlineFoodClick: (String) -> Unit,
     onImportStarterFoodsClick: () -> Unit,
     onFavoriteClick: (String, Boolean) -> Unit,
 ) {
@@ -1044,6 +1096,15 @@ private fun FoodDatabasePanel(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        Button(
+            onClick = onSearchOnlineClick,
+            enabled = !state.isSearchingFoods && !state.isSaving,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+        ) {
+            Text(if (state.isSearchingFoods) "Searching" else "Search online foods")
+        }
+
         state.message?.let { message ->
             Text(
                 text = message,
@@ -1051,6 +1112,29 @@ private fun FoodDatabasePanel(
                 color = MaterialTheme.colorScheme.primary,
             )
         }
+
+        if (state.onlineFoodResults.isNotEmpty()) {
+            Text(
+                text = "Online results",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF315847),
+            )
+            state.onlineFoodResults.forEach { result ->
+                OnlineFoodResultRow(
+                    result = result,
+                    isSaving = state.isSaving,
+                    onSaveClick = { onSaveOnlineFoodClick(result.barcode) },
+                )
+            }
+        }
+
+        Text(
+            text = "Saved foods",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF315847),
+        )
 
         if (foods.isEmpty()) {
             Surface(
@@ -1068,6 +1152,7 @@ private fun FoodDatabasePanel(
             foods.forEach { food ->
                 SavedFoodDatabaseRow(
                     food = food,
+                    onDetailClick = { onOpenFoodDetailClick(food.id) },
                     onEditClick = { onEditFoodClick(food.id) },
                     onFavoriteClick = { onFavoriteClick(food.id, !food.isFavorite) },
                 )
@@ -1077,8 +1162,44 @@ private fun FoodDatabasePanel(
 }
 
 @Composable
+private fun OnlineFoodResultRow(
+    result: OnlineFoodResultUiState,
+    isSaving: Boolean,
+    onSaveClick: () -> Unit,
+) {
+    Surface(
+        color = Color(0xFFEFFAF0),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FoodAvatar(text = result.name, color = ActionGreen.copy(alpha = 0.28f))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(result.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = listOfNotNull(result.brand, result.category, "${result.caloriesPer100g.roundToInt()} kcal / 100g").joinToString(" - "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF706D6A),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            OutlinedButton(onClick = onSaveClick, enabled = !isSaving) {
+                Text("Save")
+            }
+        }
+    }
+}
+
+@Composable
 private fun SavedFoodDatabaseRow(
     food: SavedFoodUiState,
+    onDetailClick: () -> Unit,
     onEditClick: () -> Unit,
     onFavoriteClick: () -> Unit,
 ) {
@@ -1117,11 +1238,121 @@ private fun SavedFoodDatabaseRow(
                 OutlinedButton(onClick = onFavoriteClick) {
                     Text(if (food.isFavorite) "Starred" else "Star")
                 }
+                OutlinedButton(onClick = onDetailClick) {
+                    Text("Detail")
+                }
                 OutlinedButton(onClick = onEditClick) {
                     Text("Edit")
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FoodDetailPanel(
+    state: FoodUiState,
+    onEditClick: () -> Unit,
+    onLogClick: () -> Unit,
+    onFavoriteClick: () -> Unit,
+) {
+    val food = state.selectedSavedFoodDetail
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 640.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        if (food == null) {
+            Text("Food not found", style = MaterialTheme.typography.titleMedium)
+            return@Column
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FoodAvatar(text = food.name, color = ActionGreen.copy(alpha = 0.24f))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(food.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    listOfNotNull(food.brand, food.category, food.barcode?.let { "Barcode $it" }).joinToString(" - ")
+                        .ifBlank { "${food.defaultServingGrams.roundToInt()} g serving" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF706D6A),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Nutrition facts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                NutritionFactRow("Calories", "${food.caloriesPer100g.roundToInt()} kcal", "per 100 g")
+                NutritionFactRow("Protein", "${food.proteinPer100g.roundToInt()} g", "per 100 g")
+                NutritionFactRow("Carbs", "${food.carbsPer100g.roundToInt()} g", "per 100 g")
+                NutritionFactRow("Fat", "${food.fatPer100g.roundToInt()} g", "per 100 g")
+                NutritionFactRow("Fiber", "${food.fiberPer100g.roundToInt()} g", "per 100 g")
+                NutritionFactRow("Sugar", "${food.sugarPer100g.roundToInt()} g", "per 100 g")
+                NutritionFactRow("Sat fat", "${food.saturatedFatPer100g.roundToInt()} g", "per 100 g")
+                NutritionFactRow("Sodium", "${food.sodiumMgPer100g.roundToInt()} mg", "per 100 g")
+            }
+        }
+
+        if (food.servings.isNotEmpty()) {
+            Text("Servings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                food.servings.forEach { serving ->
+                    FilterChip(
+                        selected = false,
+                        onClick = {},
+                        label = { Text("${serving.label} ${serving.grams.roundToInt()}g") },
+                    )
+                }
+            }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onLogClick,
+                enabled = !state.isSaving,
+                colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Log")
+            }
+            OutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(1f)) {
+                Text(if (food.isFavorite) "Unstar" else "Star")
+            }
+            OutlinedButton(onClick = onEditClick, modifier = Modifier.weight(1f)) {
+                Text("Edit")
+            }
+        }
+
+        state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+    }
+}
+
+@Composable
+private fun NutritionFactRow(
+    label: String,
+    value: String,
+    unit: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            Text(unit, style = MaterialTheme.typography.bodySmall, color = Color(0xFF706D6A))
+        }
+        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = HeaderInk)
     }
 }
 
@@ -1132,6 +1363,8 @@ private fun DiaryEntryEditorPanel(
     onQuantityChanged: (String) -> Unit,
     onSaveClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    onCopyToMealClick: (String) -> Unit,
+    onCopyTomorrowClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1191,6 +1424,27 @@ private fun DiaryEntryEditorPanel(
             colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
         ) {
             Text(if (state.isSaving) "Saving" else "Save changes")
+        }
+
+        Text("Copy item", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FoodMealChoices.forEach { choice ->
+                OutlinedButton(
+                    onClick = { onCopyToMealClick(choice.id) },
+                    enabled = !state.isSaving,
+                ) {
+                    Text(choice.label)
+                }
+            }
+            OutlinedButton(
+                onClick = onCopyTomorrowClick,
+                enabled = !state.isSaving,
+            ) {
+                Text("Tomorrow")
+            }
         }
 
         OutlinedButton(
@@ -1543,7 +1797,9 @@ private fun RecipeEditorPanel(
     onIngredientFoodChanged: (String) -> Unit,
     onIngredientQuantityChanged: (String) -> Unit,
     onAddIngredientClick: () -> Unit,
+    onEditRecipeClick: (String) -> Unit,
     onSaveClick: () -> Unit,
+    onDeleteClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1553,7 +1809,29 @@ private fun RecipeEditorPanel(
             .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Recipe", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(if (state.editingRecipeId == null) "Recipe" else "Edit recipe", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        if (state.recipes.isNotEmpty() && state.editingRecipeId == null) {
+            Text("Saved recipes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            state.recipes.forEach { recipe ->
+                Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(recipe.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(recipe.itemSummary, color = Color(0xFF706D6A), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        OutlinedButton(onClick = { onEditRecipeClick(recipe.id) }) {
+                            Text("Edit")
+                        }
+                    }
+                }
+            }
+        }
         OutlinedTextField(state.recipeName, onNameChanged, label = { Text("Recipe name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(state.recipeCategory, onCategoryChanged, label = { Text("Category") }, singleLine = true, modifier = Modifier.weight(1f))
@@ -1612,6 +1890,16 @@ private fun RecipeEditorPanel(
         ) {
             Text(if (state.isSaving) "Saving" else "Save recipe")
         }
+        if (state.editingRecipeId != null) {
+            OutlinedButton(
+                onClick = onDeleteClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text("Delete recipe")
+            }
+        }
     }
 }
 
@@ -1619,6 +1907,12 @@ private fun RecipeEditorPanel(
 private fun MealTemplatesPanel(
     state: FoodUiState,
     onTemplateClick: (String) -> Unit,
+    onEditClick: (String) -> Unit,
+    onDuplicateClick: (String) -> Unit,
+    onDeleteClick: (String) -> Unit,
+    onNameChanged: (String) -> Unit,
+    onMealTypeChanged: (String) -> Unit,
+    onSaveEditClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1629,29 +1923,69 @@ private fun MealTemplatesPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text("Meal templates", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        if (state.editingTemplateId != null) {
+            Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Edit template", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(
+                        value = state.templateNameInput,
+                        onValueChange = onNameChanged,
+                        label = { Text("Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    MealTypeChips(
+                        selectedMealType = state.templateMealTypeInput,
+                        onMealChanged = onMealTypeChanged,
+                    )
+                    Button(
+                        onClick = onSaveEditClick,
+                        enabled = !state.isSaving,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+                    ) {
+                        Text(if (state.isSaving) "Saving" else "Save template")
+                    }
+                }
+            }
+        }
         if (state.mealTemplates.isEmpty()) {
             Text("No meal templates yet", color = Color(0xFF706D6A))
         } else {
             state.mealTemplates.forEach { template ->
                 Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column {
                             Text(template.name, fontWeight = FontWeight.SemiBold)
                             Text(template.itemSummary, color = Color(0xFF706D6A), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        OutlinedButton(onClick = { onTemplateClick(template.id) }) {
-                            Text("Log")
+                        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { onTemplateClick(template.id) }) {
+                                Text("Log")
+                            }
+                            OutlinedButton(onClick = { onEditClick(template.id) }) {
+                                Text("Edit")
+                            }
+                            OutlinedButton(onClick = { onDuplicateClick(template.id) }) {
+                                Text("Duplicate")
+                            }
+                            OutlinedButton(
+                                onClick = { onDeleteClick(template.id) },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            ) {
+                                Text("Delete")
+                            }
                         }
                     }
                 }
             }
         }
+        state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
 }
 
@@ -1661,6 +1995,7 @@ private fun AddFoodPanel(
     onModeSelected: (FoodAddMode) -> Unit,
     onSavedQuantityChanged: (String) -> Unit,
     onSavedFoodClick: (String) -> Unit,
+    onSavedFoodServingSelected: (String, Double) -> Unit,
     onKeepAddingChanged: (Boolean) -> Unit,
     onTemplateClick: (String) -> Unit,
     onRecipeClick: (String) -> Unit,
@@ -1739,6 +2074,7 @@ private fun AddFoodPanel(
                         state = state,
                         onQuantityChanged = onSavedQuantityChanged,
                         onSavedFoodClick = onSavedFoodClick,
+                        onServingSelected = onSavedFoodServingSelected,
                     )
                     TemplateQuickList(
                         templates = state.mealTemplates,
@@ -1817,6 +2153,7 @@ private fun SavedFoodPicker(
     state: FoodUiState,
     onQuantityChanged: (String) -> Unit,
     onSavedFoodClick: (String) -> Unit,
+    onServingSelected: (String, Double) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
@@ -1839,6 +2176,8 @@ private fun SavedFoodPicker(
                 SavedFoodPickerRow(
                     food = food,
                     isSaving = state.isSaving,
+                    selectedServingGrams = state.selectedSavedFoodServingGramsByFoodId[food.id],
+                    onServingSelected = { grams -> onServingSelected(food.id, grams) },
                     onClick = { onSavedFoodClick(food.id) },
                 )
             }
@@ -1850,39 +2189,62 @@ private fun SavedFoodPicker(
 private fun SavedFoodPickerRow(
     food: SavedFoodUiState,
     isSaving: Boolean,
+    selectedServingGrams: Double?,
+    onServingSelected: (Double) -> Unit,
     onClick: () -> Unit,
 ) {
     Surface(
         color = Color(0xFFF7F4F1),
         shape = RoundedCornerShape(8.dp),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = food.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "${food.defaultServingGrams.roundToInt()} g - ${food.caloriesPerServingKcal.roundToInt()} kcal",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF706D6A),
-                )
-            }
-            Button(
-                onClick = onClick,
-                enabled = !isSaving,
-                colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(if (isSaving) "Adding" else "Add")
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = food.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${food.defaultServingGrams.roundToInt()} g - ${food.caloriesPerServingKcal.roundToInt()} kcal",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF706D6A),
+                    )
+                }
+                Button(
+                    onClick = onClick,
+                    enabled = !isSaving,
+                    colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+                ) {
+                    Text(if (isSaving) "Adding" else "Add")
+                }
+            }
+
+            val servingOptions = food.servings.ifEmpty {
+                listOf(SavedFoodServingUiState("${food.id}:default", food.servingName ?: "${food.defaultServingGrams.roundToInt()} g", food.defaultServingGrams))
+            }
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                servingOptions.forEach { serving ->
+                    FilterChip(
+                        selected = selectedServingGrams == serving.grams,
+                        onClick = { onServingSelected(serving.grams) },
+                        label = { Text(serving.label) },
+                    )
+                }
             }
         }
     }
