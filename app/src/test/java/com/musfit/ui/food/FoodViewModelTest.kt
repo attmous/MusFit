@@ -15,7 +15,9 @@ import com.musfit.data.repository.FoodMealDefinitionInput
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.FoodServingOption
 import com.musfit.data.repository.MealTemplate
+import com.musfit.data.repository.MealTemplateItemInput
 import com.musfit.data.repository.MealTemplateItem
+import com.musfit.data.repository.MealTemplateUpdateInput
 import com.musfit.data.repository.NutritionDetails
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.QuickCalorieLogInput
@@ -2260,6 +2262,74 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun mealTemplateEditorEditsRemovesAddsItemsAndSavesTemplateUpdate() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Oats",
+                        brand = null,
+                        defaultServingGrams = 40.0,
+                        nutritionPer100g = FoodNutrition(389.0, 16.9, 66.3, 6.9),
+                    ),
+                    SavedFoodItem(
+                        id = "food-2",
+                        name = "Yogurt",
+                        brand = null,
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                    ),
+                    SavedFoodItem(
+                        id = "food-3",
+                        name = "Eggs",
+                        brand = null,
+                        defaultServingGrams = 100.0,
+                        nutritionPer100g = FoodNutrition(143.0, 12.6, 0.7, 9.5),
+                    ),
+                ),
+                templates = listOf(
+                    MealTemplate(
+                        id = "template-1",
+                        name = "Usual breakfast",
+                        mealType = "breakfast",
+                        items = listOf(
+                            MealTemplateItem("food-1", "Oats", null, 40.0),
+                            MealTemplateItem("food-2", "Yogurt", null, 170.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openMealTemplateEditor("template-1")
+        viewModel.onTemplateNameChanged("Gym breakfast")
+        viewModel.onTemplateMealTypeChanged("snacks")
+        viewModel.onTemplateDraftItemQuantityChanged(0, "60")
+        viewModel.removeTemplateDraftItem(1)
+        viewModel.onTemplateItemFoodChanged("food-3")
+        viewModel.onTemplateNewItemQuantityChanged("200")
+        viewModel.addTemplateItem()
+        viewModel.saveMealTemplateEdits()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            MealTemplateUpdateInput(
+                templateId = "template-1",
+                name = "Gym breakfast",
+                mealType = "snacks",
+                items = listOf(
+                    MealTemplateItemInput("food-1", 60.0),
+                    MealTemplateItemInput("food-3", 200.0),
+                ),
+            ),
+            repository.templateUpdate,
+        )
+        assertEquals("Updated meal template", viewModel.state.value.message)
+    }
+
+    @Test
     fun toggleFavoriteMealTemplateUpdatesRepositoryAndUiState() = runTest {
         val repository =
             FakeFoodRepository(
@@ -2673,6 +2743,7 @@ class FoodViewModelTest {
         var saveTemplateCall: SaveTemplateCall? = null
         var logTemplateCall: LogTemplateCall? = null
         var renameTemplateCall: RenameTemplateCall? = null
+        var templateUpdate: MealTemplateUpdateInput? = null
         var duplicatedTemplateId: String? = null
         var deletedTemplateId: String? = null
         var favoriteTemplateToggle: Pair<String, Boolean>? = null
@@ -2804,6 +2875,11 @@ class FoodViewModelTest {
 
         override suspend fun renameMealTemplate(templateId: String, name: String, mealType: String) {
             renameTemplateCall = RenameTemplateCall(templateId, name, mealType)
+        }
+
+        override suspend fun updateMealTemplate(input: MealTemplateUpdateInput) {
+            templateUpdate = input
+            renameTemplateCall = RenameTemplateCall(input.templateId, input.name, input.mealType)
         }
 
         override suspend fun duplicateMealTemplate(templateId: String, name: String): String {

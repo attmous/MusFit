@@ -1133,6 +1133,69 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun updateMealTemplate_replacesItemsAndLogUsesEditedRows() = runTest {
+        val sourceDate = LocalDate.of(2026, 6, 20)
+        val targetDate = sourceDate.plusDays(1)
+        val oatsId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Oats",
+                    brand = null,
+                    defaultServingGrams = 50.0,
+                    nutritionPer100g = nutrition(calories = 380.0, protein = 13.0, carbs = 67.0, fat = 7.0),
+                ),
+            )
+        val yogurtId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Yogurt",
+                    brand = null,
+                    defaultServingGrams = 170.0,
+                    nutritionPer100g = nutrition(calories = 61.0, protein = 10.0, carbs = 4.0, fat = 1.0),
+                ),
+            )
+        val eggsId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Eggs",
+                    brand = null,
+                    defaultServingGrams = 100.0,
+                    nutritionPer100g = nutrition(calories = 143.0, protein = 12.6, carbs = 0.7, fat = 9.5),
+                ),
+            )
+        repository.logSavedFood(SavedFoodLogInput(oatsId, "breakfast", 50.0, sourceDate))
+        repository.logSavedFood(SavedFoodLogInput(yogurtId, "breakfast", 170.0, sourceDate))
+        val templateId = repository.saveMealAsTemplate(sourceDate, "breakfast", "Old breakfast")
+
+        repository.updateMealTemplate(
+            MealTemplateUpdateInput(
+                templateId = templateId,
+                name = "Training breakfast",
+                mealType = "snacks",
+                items = listOf(
+                    MealTemplateItemInput(foodId = yogurtId, quantityGrams = 100.0),
+                    MealTemplateItemInput(foodId = eggsId, quantityGrams = 200.0),
+                ),
+            ),
+        )
+        repository.logMealTemplate(templateId, mealType = "dinner", date = targetDate)
+
+        val template = repository.observeMealTemplates().first().single()
+        val dinner = repository.observeFoodDiary(targetDate).first().meals.single()
+
+        assertEquals("Training breakfast", template.name)
+        assertEquals("snacks", template.mealType)
+        assertEquals(listOf("Yogurt", "Eggs"), template.items.map { it.foodName })
+        assertEquals(listOf(100.0, 200.0), template.items.map { it.quantityGrams })
+        assertEquals("dinner", dinner.type)
+        assertEquals(listOf("Yogurt", "Eggs"), dinner.entries.map { it.name })
+        assertEquals(listOf(100.0, 200.0), dinner.entries.map { it.quantityGrams })
+    }
+
+    @Test
     fun recipeManagement_updatesDeletesAndCopiesDiaryEntries() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         val chickenId =

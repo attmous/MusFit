@@ -196,6 +196,18 @@ data class MealTemplateItem(
     val quantityGrams: Double,
 )
 
+data class MealTemplateItemInput(
+    val foodId: String,
+    val quantityGrams: Double,
+)
+
+data class MealTemplateUpdateInput(
+    val templateId: String,
+    val name: String,
+    val mealType: String,
+    val items: List<MealTemplateItemInput>,
+)
+
 data class MealTemplate(
     val id: String,
     val name: String,
@@ -320,6 +332,8 @@ interface FoodRepository {
     suspend fun copyMeal(fromDate: LocalDate, toDate: LocalDate, mealType: String): List<String> = emptyList()
 
     suspend fun renameMealTemplate(templateId: String, name: String, mealType: String) = Unit
+
+    suspend fun updateMealTemplate(input: MealTemplateUpdateInput) = Unit
 
     suspend fun duplicateMealTemplate(templateId: String, name: String): String = ""
 
@@ -783,6 +797,34 @@ class LocalFoodRepository @Inject constructor(
                 updatedAtEpochMillis = System.currentTimeMillis(),
             )
             check(updatedCount > 0) { "Template not found" }
+        }
+    }
+
+    override suspend fun updateMealTemplate(input: MealTemplateUpdateInput) {
+        input.requireValid()
+        database.withTransaction {
+            foodDao.getMealTemplate(input.templateId) ?: error("Template not found")
+            val now = System.currentTimeMillis()
+            val updatedCount = foodDao.updateMealTemplateMetadata(
+                templateId = input.templateId,
+                name = input.name.trim(),
+                mealType = input.mealType.trim().ifBlank { DEFAULT_MEAL_TYPE },
+                updatedAtEpochMillis = now,
+            )
+            check(updatedCount > 0) { "Template not found" }
+            foodDao.deleteMealTemplateItems(input.templateId)
+            input.items.forEachIndexed { index, item ->
+                foodDao.getFood(item.foodId) ?: error("Template item food not found")
+                foodDao.upsertMealTemplateItem(
+                    MealTemplateItemEntity(
+                        id = UUID.randomUUID().toString(),
+                        templateId = input.templateId,
+                        foodId = item.foodId,
+                        quantityGrams = item.quantityGrams,
+                        sortOrder = index,
+                    ),
+                )
+            }
         }
     }
 
@@ -1336,6 +1378,16 @@ private fun FoodGoal.requireValid() {
     require(sugarGrams.isNonNegativeFinite())
     require(saturatedFatGrams.isNonNegativeFinite())
     require(sodiumMilligrams.isNonNegativeFinite())
+}
+
+private fun MealTemplateUpdateInput.requireValid() {
+    require(templateId.isNotBlank()) { "Template id is required" }
+    require(name.isNotBlank()) { "Template name is required" }
+    require(items.isNotEmpty()) { "Template needs at least one food" }
+    items.forEach { item ->
+        require(item.foodId.isNotBlank()) { "Template item food is required" }
+        require(item.quantityGrams.isFinite() && item.quantityGrams > 0.0) { "Template item quantity must be positive" }
+    }
 }
 
 private fun RecipeUpsertInput.requireValid() {

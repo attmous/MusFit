@@ -335,6 +335,11 @@ fun FoodScreen(
                         onFavoriteClick = viewModel::toggleFavoriteMealTemplate,
                         onNameChanged = viewModel::onTemplateNameChanged,
                         onMealTypeChanged = viewModel::onTemplateMealTypeChanged,
+                        onTemplateItemQuantityChanged = viewModel::onTemplateDraftItemQuantityChanged,
+                        onTemplateItemRemoveClick = viewModel::removeTemplateDraftItem,
+                        onTemplateItemFoodChanged = viewModel::onTemplateItemFoodChanged,
+                        onTemplateNewItemQuantityChanged = viewModel::onTemplateNewItemQuantityChanged,
+                        onTemplateAddItemClick = viewModel::addTemplateItem,
                         onSaveEditClick = viewModel::saveMealTemplateEdits,
                     )
 
@@ -2835,6 +2840,11 @@ private fun MealTemplatesPanel(
     onFavoriteClick: (String, Boolean) -> Unit,
     onNameChanged: (String) -> Unit,
     onMealTypeChanged: (String) -> Unit,
+    onTemplateItemQuantityChanged: (Int, String) -> Unit,
+    onTemplateItemRemoveClick: (Int) -> Unit,
+    onTemplateItemFoodChanged: (String) -> Unit,
+    onTemplateNewItemQuantityChanged: (String) -> Unit,
+    onTemplateAddItemClick: () -> Unit,
     onSaveEditClick: () -> Unit,
 ) {
     Column(
@@ -2862,6 +2872,56 @@ private fun MealTemplatesPanel(
                         mealDefinitions = state.mealDefinitions,
                         onMealChanged = onMealTypeChanged,
                     )
+                    Text("Items", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    state.templateItemsInput.forEachIndexed { index, item ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedTextField(
+                                value = item.quantityGrams,
+                                onValueChange = { onTemplateItemQuantityChanged(index, it) },
+                                label = { Text(item.foodName) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                modifier = Modifier.weight(1f),
+                            )
+                            OutlinedButton(
+                                onClick = { onTemplateItemRemoveClick(index) },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                modifier = Modifier.width(104.dp),
+                            ) {
+                                Text("Remove")
+                            }
+                        }
+                    }
+                    Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.savedFoods.forEach { food ->
+                            FilterChip(
+                                selected = state.templateItemFoodId == food.id,
+                                onClick = { onTemplateItemFoodChanged(food.id) },
+                                label = { Text(food.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = state.templateItemQuantityGrams,
+                            onValueChange = onTemplateNewItemQuantityChanged,
+                            label = { Text("Amount g") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.weight(1f),
+                        )
+                        Button(onClick = onTemplateAddItemClick, modifier = Modifier.width(96.dp)) {
+                            Text("Add")
+                        }
+                    }
                     Button(
                         onClick = onSaveEditClick,
                         enabled = !state.isSaving,
