@@ -9,6 +9,8 @@ import java.time.LocalDate
 interface HealthConnectGateway {
     suspend fun status(): HealthConnectStatus
     suspend fun requestablePermissions(): Set<String>
+    suspend fun foodRequestablePermissions(): Set<String>
     suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary
     suspend fun exportWorkout(session: WorkoutSessionEntity, sets: List<WorkoutSetEntity>): String?
+    suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult?
 }

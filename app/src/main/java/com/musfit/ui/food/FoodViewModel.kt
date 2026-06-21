@@ -10,6 +10,8 @@ import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodDiaryEntryStatus
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
+import com.musfit.data.repository.FoodHealthConnectSyncResult
+import com.musfit.data.repository.FoodHealthConnectSyncState
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodMealDefinition
 import com.musfit.data.repository.FoodMealDefinitionInput
@@ -34,6 +36,7 @@ import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.ShoppingListGroup
 import com.musfit.data.repository.ShoppingListItem
 import com.musfit.data.repository.WaterLogInput
+import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -378,6 +381,13 @@ data class FoodUiState(
     val waterProgress: Double = 0.0,
     val waterCustomAmountInput: String = "",
     val waterGoalInput: String = WATER_GOAL_MILLILITERS.formatInputNumber(),
+    val foodHealthConnectSyncEnabled: Boolean = false,
+    val foodHealthConnectCanRequestPermissions: Boolean = false,
+    val foodHealthConnectCanSync: Boolean = false,
+    val foodHealthConnectRequestablePermissions: Set<String> = emptySet(),
+    val foodHealthConnectPermissionSummary: String = "Health Connect unavailable",
+    val foodHealthConnectLastSyncAtEpochMillis: Long? = null,
+    val foodHealthConnectLastFailureMessage: String? = null,
     val shoppingListGroups: List<ShoppingListGroupUiState> = emptyList(),
     val shoppingStartDateInput: String = LocalDate.now().toString(),
     val shoppingEndDateInput: String = LocalDate.now().plusDays(6).toString(),
@@ -590,6 +600,11 @@ class FoodViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            repository.observeFoodHealthConnectSyncState().collect { syncState ->
+                mutableState.update { currentState -> currentState.withFoodHealthConnectSyncState(syncState) }
+            }
+        }
+        viewModelScope.launch {
             repository.observeSavedFoods().collect { savedFoods ->
                 mutableState.update { currentState ->
                     val foodStates = savedFoods.map { it.toUiState() }
@@ -644,6 +659,7 @@ class FoodViewModel @Inject constructor(
                 }
             }
         }
+        refreshFoodHealthConnectSync()
     }
 
     fun goToPreviousDay() {
@@ -787,6 +803,86 @@ class FoodViewModel @Inject constructor(
                 throw error
             } catch (error: Exception) {
                 mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to log water") }
+            }
+        }
+    }
+
+    fun refreshFoodHealthConnectSync() {
+        viewModelScope.launch {
+            try {
+                val syncState = repository.refreshFoodHealthConnectSyncState()
+                mutableState.update { currentState ->
+                    currentState.withFoodHealthConnectSyncState(syncState)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(message = error.message ?: "Failed to refresh Health Connect")
+                }
+            }
+        }
+    }
+
+    fun onFoodHealthConnectSyncEnabledChanged(isEnabled: Boolean) {
+        mutableState.update {
+            it.copy(
+                foodHealthConnectSyncEnabled = isEnabled,
+                message = null,
+            )
+        }
+        viewModelScope.launch {
+            try {
+                repository.setFoodHealthConnectSyncEnabled(isEnabled)
+                val syncState = repository.refreshFoodHealthConnectSyncState()
+                mutableState.update { currentState ->
+                    currentState
+                        .withFoodHealthConnectSyncState(syncState)
+                        .copy(
+                            message = if (isEnabled) {
+                                "Food Health Connect sync enabled"
+                            } else {
+                                "Food Health Connect sync disabled"
+                            },
+                        )
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(message = error.message ?: "Failed to update Health Connect sync")
+                }
+            }
+        }
+    }
+
+    fun syncFoodToHealthConnect() {
+        val date = state.value.selectedDate
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val result = repository.syncFoodToHealthConnect(date)
+                val syncState = repository.refreshFoodHealthConnectSyncState()
+                mutableState.update { currentState ->
+                    currentState
+                        .withFoodHealthConnectSyncState(syncState)
+                        .copy(
+                            isSaving = false,
+                            message = result.toFoodHealthConnectMessage(),
+                        )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to sync Food to Health Connect",
+                    )
+                }
             }
         }
     }
@@ -3551,6 +3647,40 @@ private fun FoodUiState.withWaterSummary(summary: FoodWaterSummary): FoodUiState
         waterProgress = summary.consumedMilliliters.fractionOf(summary.goalMilliliters),
         waterGoalInput = summary.goalMilliliters.formatInputNumber(),
     )
+
+private fun FoodUiState.withFoodHealthConnectSyncState(syncState: FoodHealthConnectSyncState): FoodUiState =
+    copy(
+        foodHealthConnectSyncEnabled = syncState.isEnabled,
+        foodHealthConnectCanRequestPermissions = syncState.canRequestPermissions,
+        foodHealthConnectCanSync = syncState.canSync,
+        foodHealthConnectRequestablePermissions = syncState.requestablePermissions,
+        foodHealthConnectPermissionSummary = syncState.permissionSummary(),
+        foodHealthConnectLastSyncAtEpochMillis = syncState.lastSyncAtEpochMillis,
+        foodHealthConnectLastFailureMessage = syncState.lastFailureMessage,
+    )
+
+private fun FoodHealthConnectSyncState.permissionSummary(): String =
+    when (availability) {
+        HealthConnectAvailability.Available ->
+            if (requestablePermissionCount == 0) {
+                "No Food permissions requested"
+            } else {
+                "$grantedPermissionCount / $requestablePermissionCount Food permissions granted"
+            }
+
+        HealthConnectAvailability.NotInstalled -> "Health Connect needs install or update"
+        HealthConnectAvailability.NotSupported -> "Health Connect unavailable"
+    }
+
+private fun FoodHealthConnectSyncResult.toFoodHealthConnectMessage(): String {
+    val mealText = when (nutritionRecordCount) {
+        0 -> "no meals"
+        1 -> "1 meal"
+        else -> "$nutritionRecordCount meals"
+    }
+    val waterText = if (hydrationRecordCount > 0) " and water" else ""
+    return "Synced $mealText$waterText to Health Connect"
+}
 
 fun FoodUiState.selectedMealDetailForDisplay(): FoodMealSectionUiState? =
     selectedMealDetailId

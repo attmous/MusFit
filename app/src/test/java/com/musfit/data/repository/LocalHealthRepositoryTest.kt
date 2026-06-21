@@ -10,6 +10,8 @@ import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
+import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -131,6 +133,8 @@ class LocalHealthRepositoryTest {
 
         override suspend fun requestablePermissions(): Set<String> = setOf("steps")
 
+        override suspend fun foodRequestablePermissions(): Set<String> = emptySet()
+
         override suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary =
             ImportedDailyHealthSummary(
                 steps = 1234L,
@@ -147,5 +151,8 @@ class LocalHealthRepositoryTest {
             exportedSets = sets
             return "record-id"
         }
+
+        override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? =
+            null
     }
 }

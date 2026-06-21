@@ -8,7 +8,12 @@ import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
 import com.musfit.data.remote.food.ProductDataQuality
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.model.FoodNutrition
+import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
+import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
+import com.musfit.integrations.healthconnect.HealthConnectGateway
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -1430,6 +1435,52 @@ class LocalFoodRepositoryTest {
         assertEquals(150.0, targetDiary.meals.single().entries.single().quantityGrams, 0.01)
     }
 
+    @Test
+    fun foodHealthConnectSync_persistsToggleAndExportsLoggedMealsAndWater() = runTest {
+        val gateway = FakeHealthConnectGateway()
+        repository =
+            LocalFoodRepository(
+                database = database,
+                foodDao = database.foodDao(),
+                healthConnectGateway = gateway,
+            )
+        val date = LocalDate.of(2026, 6, 20)
+        val foodId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Oats",
+                    brand = null,
+                    defaultServingGrams = 50.0,
+                    nutritionPer100g = nutrition(calories = 380.0, protein = 13.0, carbs = 67.0, fat = 7.0),
+                    nutritionDetailsPer100g = NutritionDetails(
+                        fiberGrams = 10.0,
+                        sugarGrams = 1.0,
+                        sodiumMilligrams = 6.0,
+                    ),
+                ),
+            )
+        repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 50.0, date))
+        repository.logWater(WaterLogInput(date = date, amountMilliliters = 500.0))
+
+        repository.setFoodHealthConnectSyncEnabled(true)
+        val result = repository.syncFoodToHealthConnect(date)
+        val state = repository.observeFoodHealthConnectSyncState().first()
+
+        assertEquals(FoodHealthConnectSyncResult(nutritionRecordCount = 1, hydrationRecordCount = 1), result)
+        assertEquals(true, state.isEnabled)
+        assertEquals(HealthConnectAvailability.Available, state.availability)
+        assertEquals(null, state.lastFailureMessage)
+        assertNotNull(state.lastSyncAtEpochMillis)
+        assertEquals(date, gateway.lastPayload?.date)
+        val meal = requireNotNull(gateway.lastPayload).meals.single()
+        assertEquals("breakfast", meal.mealType)
+        assertEquals(190.0, meal.caloriesKcal, 0.01)
+        assertEquals(6.5, meal.proteinGrams, 0.01)
+        assertEquals(5.0, meal.fiberGrams, 0.01)
+        assertEquals(500.0, gateway.lastPayload?.hydrationMilliliters ?: 0.0, 0.01)
+    }
+
     private fun foundProduct(
         barcode: String = "1234567890123",
         name: String = "Greek Yogurt",
@@ -1460,4 +1511,40 @@ class LocalFoodRepositoryTest {
         carbsGrams = carbs,
         fatGrams = fat,
     )
+
+    private class FakeHealthConnectGateway : HealthConnectGateway {
+        private val foodPermissions = setOf("write-nutrition", "write-hydration")
+        var lastPayload: HealthConnectFoodExportPayload? = null
+
+        override suspend fun status(): HealthConnectStatus =
+            HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = foodPermissions,
+            )
+
+        override suspend fun requestablePermissions(): Set<String> = emptySet()
+
+        override suspend fun foodRequestablePermissions(): Set<String> = foodPermissions
+
+        override suspend fun readDailySummary(date: LocalDate) =
+            com.musfit.domain.health.ImportedDailyHealthSummary(
+                steps = null,
+                activeCaloriesKcal = null,
+                latestWeightKg = null,
+                restingHeartRateBpm = null,
+            )
+
+        override suspend fun exportWorkout(
+            session: com.musfit.data.local.entity.WorkoutSessionEntity,
+            sets: List<com.musfit.data.local.entity.WorkoutSetEntity>,
+        ): String? = null
+
+        override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult {
+            lastPayload = payload
+            return HealthConnectFoodExportResult(
+                nutritionRecordCount = payload.meals.size,
+                hydrationRecordCount = if (payload.hydrationMilliliters > 0.0) 1 else 0,
+            )
+        }
+    }
 }

@@ -124,6 +124,15 @@ data class WaterEntryEntity(
     val createdAtEpochMillis: Long,
 )
 
+@Entity(tableName = "food_health_connect_sync")
+data class FoodHealthConnectSyncEntity(
+    @PrimaryKey val key: String,
+    val isEnabled: Boolean,
+    val lastSyncAtEpochMillis: Long?,
+    val lastFailureMessage: String?,
+    val updatedAtEpochMillis: Long,
+)
+
 @Entity(
     tableName = "barcode_products",
     foreignKeys = [

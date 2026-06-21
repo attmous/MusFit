@@ -5,6 +5,8 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HydrationRecord
+import androidx.health.connect.client.records.NutritionRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.WeightRecord
@@ -46,10 +48,16 @@ class HealthConnectManager @Inject constructor(
         READ_RESTING_HEART_RATE_PERMISSION,
         WRITE_EXERCISE_PERMISSION,
     )
+    private val foodPermissions = setOf(
+        WRITE_NUTRITION_PERMISSION,
+        WRITE_HYDRATION_PERMISSION,
+    )
 
     override suspend fun status(): HealthConnectStatus = statusReader()
 
     override suspend fun requestablePermissions(): Set<String> = permissions
+
+    override suspend fun foodRequestablePermissions(): Set<String> = foodPermissions
 
     override suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary {
         val currentStatus = status()
@@ -121,6 +129,52 @@ class HealthConnectManager @Inject constructor(
         }.getOrNull()
     }
 
+    override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? {
+        val currentStatus = status()
+        if (currentStatus.availability != HealthConnectAvailability.Available) {
+            return null
+        }
+
+        val canWriteNutrition = WRITE_NUTRITION_PERMISSION in currentStatus.grantedPermissions
+        val canWriteHydration = WRITE_HYDRATION_PERMISSION in currentStatus.grantedPermissions
+        if (!canWriteNutrition && !canWriteHydration) {
+            return null
+        }
+
+        val nutritionRecords = if (canWriteNutrition) {
+            payload.meals
+                .filter { meal -> meal.caloriesKcal > 0.0 || meal.proteinGrams > 0.0 || meal.carbsGrams > 0.0 || meal.fatGrams > 0.0 }
+                .map { meal -> HealthConnectRecordMapper.toNutritionRecord(payload.date, meal) }
+        } else {
+            emptyList()
+        }
+        val hydrationRecord = if (canWriteHydration && payload.hydrationMilliliters > 0.0) {
+            HealthConnectRecordMapper.toHydrationRecord(payload.date, payload.hydrationMilliliters)
+        } else {
+            null
+        }
+
+        if (nutritionRecords.isEmpty() && hydrationRecord == null) {
+            return HealthConnectFoodExportResult(nutritionRecordCount = 0, hydrationRecordCount = 0)
+        }
+
+        return runCatching {
+            val client = clientFactory()
+            val nutritionCount = if (nutritionRecords.isNotEmpty()) {
+                client.insertNutritionRecords(nutritionRecords)
+            } else {
+                0
+            }
+            val hydrationCount = hydrationRecord?.let { record ->
+                if (client.insertHydrationRecord(record) != null) 1 else 0
+            } ?: 0
+            HealthConnectFoodExportResult(
+                nutritionRecordCount = nutritionCount,
+                hydrationRecordCount = hydrationCount,
+            )
+        }.getOrNull()
+    }
+
     private companion object {
         const val HEALTH_CONNECT_PROVIDER_PACKAGE = "com.google.android.apps.healthdata"
         val READ_STEPS_PERMISSION = HealthPermission.getReadPermission(StepsRecord::class)
@@ -131,6 +185,10 @@ class HealthConnectManager @Inject constructor(
             HealthPermission.getReadPermission(RestingHeartRateRecord::class)
         val WRITE_EXERCISE_PERMISSION =
             HealthPermission.getWritePermission(ExerciseSessionRecord::class)
+        val WRITE_NUTRITION_PERMISSION =
+            HealthPermission.getWritePermission(NutritionRecord::class)
+        val WRITE_HYDRATION_PERMISSION =
+            HealthPermission.getWritePermission(HydrationRecord::class)
         val EMPTY_SUMMARY = ImportedDailyHealthSummary(
             steps = null,
             activeCaloriesKcal = null,
@@ -185,6 +243,10 @@ internal interface HealthConnectClientAdapter {
     suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long?
 
     suspend fun insertExerciseSession(record: ExerciseSessionRecord): String?
+
+    suspend fun insertNutritionRecords(records: List<NutritionRecord>): Int
+
+    suspend fun insertHydrationRecord(record: HydrationRecord): String?
 }
 
 private class DefaultHealthConnectClientAdapter(
@@ -222,6 +284,12 @@ private class DefaultHealthConnectClientAdapter(
         ).records.maxByOrNull { it.time }?.beatsPerMinute
 
     override suspend fun insertExerciseSession(record: ExerciseSessionRecord): String? =
+        client.insertRecords(listOf(record)).recordIdsList.firstOrNull()
+
+    override suspend fun insertNutritionRecords(records: List<NutritionRecord>): Int =
+        client.insertRecords(records).recordIdsList.size
+
+    override suspend fun insertHydrationRecord(record: HydrationRecord): String? =
         client.insertRecords(listOf(record)).recordIdsList.firstOrNull()
 }
 

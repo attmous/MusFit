@@ -1,6 +1,7 @@
 package com.musfit.ui.food
 
 import com.musfit.data.repository.FoodGoalMode
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import kotlin.math.roundToInt
 
@@ -66,6 +68,11 @@ fun FoodScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val selectedMealDetail = state.selectedMealDetailForDisplay()
+    val foodHealthConnectPermissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract(),
+    ) {
+        viewModel.refreshFoodHealthConnectSync()
+    }
 
     LaunchedEffect(scannedBarcode) {
         if (!scannedBarcode.isNullOrBlank()) {
@@ -135,6 +142,19 @@ fun FoodScreen(
                         onCustomAddClick = viewModel::logCustomWater,
                         onGoalChanged = viewModel::onWaterGoalChanged,
                         onGoalSaveClick = viewModel::saveWaterGoal,
+                    )
+                    FoodHealthConnectSyncCard(
+                        state = state,
+                        onEnabledChanged = viewModel::onFoodHealthConnectSyncEnabledChanged,
+                        onRequestPermissionsClick = {
+                            if (state.foodHealthConnectCanRequestPermissions) {
+                                foodHealthConnectPermissionLauncher.launch(
+                                    state.foodHealthConnectRequestablePermissions,
+                                )
+                            }
+                        },
+                        onRefreshClick = viewModel::refreshFoodHealthConnectSync,
+                        onSyncClick = viewModel::syncFoodToHealthConnect,
                     )
 
                     MessageBanner(
@@ -884,6 +904,87 @@ private fun WaterTrackerCard(
                 OutlinedButton(onClick = onGoalSaveClick, enabled = !state.isSaving) {
                     Text("Save")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FoodHealthConnectSyncCard(
+    state: FoodUiState,
+    onEnabledChanged: (Boolean) -> Unit,
+    onRequestPermissionsClick: () -> Unit,
+    onRefreshClick: () -> Unit,
+    onSyncClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Health Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        state.foodHealthConnectPermissionSummary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF706D6A),
+                    )
+                }
+                Switch(
+                    checked = state.foodHealthConnectSyncEnabled,
+                    onCheckedChange = onEnabledChanged,
+                    enabled = !state.isSaving,
+                )
+            }
+
+            Text(
+                text = "Writes logged meals and water from Food.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF706D6A),
+            )
+
+            state.foodHealthConnectLastFailureMessage?.let { failure ->
+                Text(
+                    text = failure,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF8A3D2B),
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = onRequestPermissionsClick,
+                    enabled = state.foodHealthConnectCanRequestPermissions && !state.isSaving,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Permissions", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                OutlinedButton(
+                    onClick = onRefreshClick,
+                    enabled = !state.isSaving,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Refresh", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+
+            Button(
+                onClick = onSyncClick,
+                enabled = state.foodHealthConnectSyncEnabled && state.foodHealthConnectCanSync && !state.isSaving,
+                colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Sync Food to Health Connect")
             }
         }
     }

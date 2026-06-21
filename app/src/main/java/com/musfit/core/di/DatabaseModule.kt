@@ -34,6 +34,7 @@ object DatabaseModule {
                 MIGRATION_9_10,
                 MIGRATION_10_11,
                 MIGRATION_11_12,
+                MIGRATION_12_13,
             )
             .build()
 
@@ -265,6 +266,23 @@ object DatabaseModule {
                     """.trimIndent(),
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_water_entries_dateEpochDay ON water_entries(dateEpochDay)")
+            }
+        }
+
+    private val MIGRATION_12_13 =
+        object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS food_health_connect_sync (
+                        `key` TEXT NOT NULL PRIMARY KEY,
+                        isEnabled INTEGER NOT NULL,
+                        lastSyncAtEpochMillis INTEGER,
+                        lastFailureMessage TEXT,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
             }
         }
 }

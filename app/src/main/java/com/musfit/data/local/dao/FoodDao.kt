@@ -8,6 +8,7 @@ import androidx.room.Query
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
+import com.musfit.data.local.entity.FoodHealthConnectSyncEntity
 import com.musfit.data.local.entity.FoodServingEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealDefinitionEntity
@@ -379,6 +380,15 @@ interface FoodDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertFoodGoal(goal: FoodGoalEntity)
+
+    @Query("SELECT * FROM food_health_connect_sync WHERE `key` = :key LIMIT 1")
+    fun observeFoodHealthConnectSyncState(key: String): Flow<FoodHealthConnectSyncEntity?>
+
+    @Query("SELECT * FROM food_health_connect_sync WHERE `key` = :key LIMIT 1")
+    suspend fun getFoodHealthConnectSyncState(key: String): FoodHealthConnectSyncEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertFoodHealthConnectSyncState(state: FoodHealthConnectSyncEntity)
 
     @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE dateEpochDay = :dateEpochDay")
     fun observeWaterTotalForDate(dateEpochDay: Long): Flow<Double>

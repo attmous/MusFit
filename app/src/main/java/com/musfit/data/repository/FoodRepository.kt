@@ -10,6 +10,7 @@ import com.musfit.data.local.dao.RecipeIngredientRow
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
+import com.musfit.data.local.entity.FoodHealthConnectSyncEntity
 import com.musfit.data.local.entity.FoodServingEntity
 import com.musfit.data.local.entity.MealDefinitionEntity
 import com.musfit.data.local.entity.MealEntity
@@ -23,12 +24,21 @@ import com.musfit.data.local.entity.ShoppingListItemEntity
 import com.musfit.data.local.entity.WaterEntryEntity
 import com.musfit.data.remote.food.ProductDataQuality
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.MealItemInput
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.nutrition.NutritionCalculator
+import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
+import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
+import com.musfit.integrations.healthconnect.HealthConnectFoodMealExport
+import com.musfit.integrations.healthconnect.HealthConnectGateway
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
@@ -218,6 +228,23 @@ data class FoodWaterSummary(
     val date: LocalDate,
     val consumedMilliliters: Double,
     val goalMilliliters: Double,
+)
+
+data class FoodHealthConnectSyncState(
+    val isEnabled: Boolean = false,
+    val availability: HealthConnectAvailability = HealthConnectAvailability.NotSupported,
+    val grantedPermissionCount: Int = 0,
+    val requestablePermissionCount: Int = 0,
+    val requestablePermissions: Set<String> = emptySet(),
+    val canRequestPermissions: Boolean = false,
+    val canSync: Boolean = false,
+    val lastSyncAtEpochMillis: Long? = null,
+    val lastFailureMessage: String? = null,
+)
+
+data class FoodHealthConnectSyncResult(
+    val nutritionRecordCount: Int,
+    val hydrationRecordCount: Int,
 )
 
 enum class FoodGoalMode {
@@ -430,6 +457,17 @@ interface FoodRepository {
 
     suspend fun updateWaterGoal(goalMilliliters: Double) = Unit
 
+    fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> =
+        flowOf(FoodHealthConnectSyncState())
+
+    suspend fun refreshFoodHealthConnectSyncState(): FoodHealthConnectSyncState =
+        FoodHealthConnectSyncState()
+
+    suspend fun setFoodHealthConnectSyncEnabled(isEnabled: Boolean) = Unit
+
+    suspend fun syncFoodToHealthConnect(date: LocalDate): FoodHealthConnectSyncResult =
+        FoodHealthConnectSyncResult(nutritionRecordCount = 0, hydrationRecordCount = 0)
+
     fun observeRecipes(): Flow<List<Recipe>> = flowOf(emptyList())
 
     suspend fun upsertRecipe(input: RecipeUpsertInput): String = ""
@@ -464,7 +502,11 @@ val DEFAULT_REPOSITORY_FOOD_GOAL =
 class LocalFoodRepository @Inject constructor(
     private val database: MusFitDatabase,
     private val foodDao: FoodDao,
+    private val healthConnectGateway: HealthConnectGateway = NoopHealthConnectGateway,
 ) : FoodRepository {
+    private val foodHealthConnectStatusFlow = MutableStateFlow(DEFAULT_HEALTH_CONNECT_STATUS)
+    private val foodHealthConnectPermissionsFlow = MutableStateFlow(emptySet<String>())
+
     override suspend fun saveConfirmedProduct(
         result: ProductLookupResult.Found,
         editedName: String,
@@ -831,6 +873,111 @@ class LocalFoodRepository @Inject constructor(
                     .toEntity(System.currentTimeMillis()),
             )
         }
+    }
+
+    override fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> =
+        combine(
+            foodDao.observeFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY),
+            foodHealthConnectStatusFlow,
+            foodHealthConnectPermissionsFlow,
+        ) { entity, status, permissions ->
+            entity.toFoodHealthConnectSyncState(status, permissions)
+        }
+
+    override suspend fun refreshFoodHealthConnectSyncState(): FoodHealthConnectSyncState {
+        val status = runCatching { healthConnectGateway.status() }.getOrDefault(DEFAULT_HEALTH_CONNECT_STATUS)
+        val permissions = if (status.availability == HealthConnectAvailability.Available) {
+            runCatching { healthConnectGateway.foodRequestablePermissions() }.getOrDefault(emptySet())
+        } else {
+            emptySet()
+        }
+        foodHealthConnectStatusFlow.value = status
+        foodHealthConnectPermissionsFlow.value = permissions
+        return foodDao
+            .getFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY)
+            .toFoodHealthConnectSyncState(status, permissions)
+    }
+
+    override suspend fun setFoodHealthConnectSyncEnabled(isEnabled: Boolean) {
+        val now = System.currentTimeMillis()
+        val current = foodDao.getFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY)
+        foodDao.upsertFoodHealthConnectSyncState(
+            FoodHealthConnectSyncEntity(
+                key = FOOD_HEALTH_CONNECT_SYNC_KEY,
+                isEnabled = isEnabled,
+                lastSyncAtEpochMillis = current?.lastSyncAtEpochMillis,
+                lastFailureMessage = current?.lastFailureMessage,
+                updatedAtEpochMillis = now,
+            ),
+        )
+    }
+
+    override suspend fun syncFoodToHealthConnect(date: LocalDate): FoodHealthConnectSyncResult {
+        val state = refreshFoodHealthConnectSyncState()
+        if (!state.isEnabled) {
+            recordFoodHealthConnectSyncFailure("Enable Health Connect sync first")
+            error("Enable Health Connect sync first")
+        }
+        if (state.availability != HealthConnectAvailability.Available) {
+            recordFoodHealthConnectSyncFailure("Health Connect is not available")
+            error("Health Connect is not available")
+        }
+        if (!state.canSync) {
+            recordFoodHealthConnectSyncFailure("Check Health Connect nutrition and hydration permissions")
+            error("Check Health Connect nutrition and hydration permissions")
+        }
+
+        return try {
+            val diary = foodDao.getFoodDiaryEntryRowsForDate(date.toEpochDay()).toFoodDiary()
+            val waterSummary = observeWaterSummary(date).first()
+            val payload = HealthConnectFoodExportPayload(
+                date = date,
+                meals = diary.meals.mapNotNull { meal -> meal.toHealthConnectFoodMealExport() },
+                hydrationMilliliters = waterSummary.consumedMilliliters,
+            )
+            val exportResult =
+                healthConnectGateway.exportFood(payload)
+                    ?: error("Check Health Connect nutrition and hydration permissions")
+            val result = FoodHealthConnectSyncResult(
+                nutritionRecordCount = exportResult.nutritionRecordCount,
+                hydrationRecordCount = exportResult.hydrationRecordCount,
+            )
+            recordFoodHealthConnectSyncSuccess()
+            result
+        } catch (error: Exception) {
+            recordFoodHealthConnectSyncFailure(
+                error.message ?: "Failed to sync Food to Health Connect",
+            )
+            throw error
+        }
+    }
+
+    private suspend fun recordFoodHealthConnectSyncSuccess() {
+        val now = System.currentTimeMillis()
+        val current = foodDao.getFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY)
+        foodDao.upsertFoodHealthConnectSyncState(
+            FoodHealthConnectSyncEntity(
+                key = FOOD_HEALTH_CONNECT_SYNC_KEY,
+                isEnabled = current?.isEnabled ?: false,
+                lastSyncAtEpochMillis = now,
+                lastFailureMessage = null,
+                updatedAtEpochMillis = now,
+            ),
+        )
+    }
+
+    private suspend fun recordFoodHealthConnectSyncFailure(message: String) {
+        val now = System.currentTimeMillis()
+        val current = foodDao.getFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY)
+        foodDao.upsertFoodHealthConnectSyncState(
+            FoodHealthConnectSyncEntity(
+                key = FOOD_HEALTH_CONNECT_SYNC_KEY,
+                isEnabled = current?.isEnabled ?: false,
+                lastSyncAtEpochMillis = current?.lastSyncAtEpochMillis,
+                lastFailureMessage = message,
+                updatedAtEpochMillis = now,
+            ),
+        )
     }
 
     override fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>> =
@@ -1552,7 +1699,13 @@ class LocalFoodRepository @Inject constructor(
         const val DEFAULT_MEAL_TYPE = "meal"
         const val QUICK_CALORIES_NAME = "Quick calories"
         const val DEFAULT_GOAL_ID = "default"
+        const val FOOD_HEALTH_CONNECT_SYNC_KEY = "food"
         const val RECIPE_BRAND = "Recipe"
+        val DEFAULT_HEALTH_CONNECT_STATUS =
+            HealthConnectStatus(
+                availability = HealthConnectAvailability.NotSupported,
+                grantedPermissions = emptySet(),
+            )
 
         val DEFAULT_FOOD_GOAL =
             FoodGoal(
@@ -1618,6 +1771,95 @@ class LocalFoodRepository @Inject constructor(
                 ),
             )
     }
+}
+
+private fun FoodHealthConnectSyncEntity?.toFoodHealthConnectSyncState(
+    status: HealthConnectStatus,
+    requestablePermissions: Set<String>,
+): FoodHealthConnectSyncState {
+    val grantedPermissionCount = requestablePermissions.count { permission ->
+        permission in status.grantedPermissions
+    }
+    val isEnabled = this?.isEnabled ?: false
+    return FoodHealthConnectSyncState(
+        isEnabled = isEnabled,
+        availability = status.availability,
+        grantedPermissionCount = grantedPermissionCount,
+        requestablePermissionCount = requestablePermissions.size,
+        requestablePermissions = requestablePermissions,
+        canRequestPermissions = status.availability == HealthConnectAvailability.Available &&
+            requestablePermissions.isNotEmpty() &&
+            grantedPermissionCount < requestablePermissions.size,
+        canSync = isEnabled &&
+            status.availability == HealthConnectAvailability.Available &&
+            requestablePermissions.isNotEmpty() &&
+            grantedPermissionCount == requestablePermissions.size,
+        lastSyncAtEpochMillis = this?.lastSyncAtEpochMillis,
+        lastFailureMessage = this?.lastFailureMessage,
+    )
+}
+
+private fun FoodDiaryMeal.toHealthConnectFoodMealExport(): HealthConnectFoodMealExport? {
+    val hasLoggedNutrition =
+        entries.any { entry -> entry.status == FoodDiaryEntryStatus.Logged } &&
+            (totals.caloriesKcal > 0.0 || totals.proteinGrams > 0.0 || totals.carbsGrams > 0.0 || totals.fatGrams > 0.0)
+    if (!hasLoggedNutrition) {
+        return null
+    }
+    return HealthConnectFoodMealExport(
+        mealType = type,
+        name = type.toHealthConnectMealName(),
+        caloriesKcal = totals.caloriesKcal,
+        proteinGrams = totals.proteinGrams,
+        carbsGrams = totals.carbsGrams,
+        fatGrams = totals.fatGrams,
+        fiberGrams = detailTotals.fiberGrams,
+        sugarGrams = detailTotals.sugarGrams,
+        saturatedFatGrams = detailTotals.saturatedFatGrams,
+        sodiumMilligrams = detailTotals.sodiumMilligrams,
+        potassiumMilligrams = detailTotals.potassiumMilligrams,
+        calciumMilligrams = detailTotals.calciumMilligrams,
+        ironMilligrams = detailTotals.ironMilligrams,
+        vitaminDMicrograms = detailTotals.vitaminDMicrograms,
+        vitaminCMilligrams = detailTotals.vitaminCMilligrams,
+        magnesiumMilligrams = detailTotals.magnesiumMilligrams,
+    )
+}
+
+private fun String.toHealthConnectMealName(): String =
+    split('-', '_', ' ')
+        .filter { part -> part.isNotBlank() }
+        .joinToString(" ") { part ->
+            part.replaceFirstChar { char ->
+                if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
+            }
+        }
+        .ifBlank { "Meal" }
+
+private object NoopHealthConnectGateway : HealthConnectGateway {
+    override suspend fun status(): HealthConnectStatus = HealthConnectStatus(
+        availability = HealthConnectAvailability.NotSupported,
+        grantedPermissions = emptySet(),
+    )
+
+    override suspend fun requestablePermissions(): Set<String> = emptySet()
+
+    override suspend fun foodRequestablePermissions(): Set<String> = emptySet()
+
+    override suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary =
+        ImportedDailyHealthSummary(
+            steps = null,
+            activeCaloriesKcal = null,
+            latestWeightKg = null,
+            restingHeartRateBpm = null,
+        )
+
+    override suspend fun exportWorkout(
+        session: com.musfit.data.local.entity.WorkoutSessionEntity,
+        sets: List<com.musfit.data.local.entity.WorkoutSetEntity>,
+    ): String? = null
+
+    override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? = null
 }
 
 private fun FoodLogInput.requireValid() {

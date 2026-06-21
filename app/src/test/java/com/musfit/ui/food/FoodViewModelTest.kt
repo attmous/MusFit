@@ -10,6 +10,8 @@ import com.musfit.data.repository.FoodDiaryEntryStatus
 import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
+import com.musfit.data.repository.FoodHealthConnectSyncResult
+import com.musfit.data.repository.FoodHealthConnectSyncState
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodMealDefinition
 import com.musfit.data.repository.FoodMealDefinitionInput
@@ -37,6 +39,7 @@ import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.ShoppingListGroup
 import com.musfit.data.repository.ShoppingListItem
 import com.musfit.data.repository.WaterLogInput
+import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import kotlinx.coroutines.CompletableDeferred
@@ -2777,6 +2780,67 @@ class FoodViewModelTest {
         assertEquals(FoodNutrition(430.0, 12.0, 22.0, 31.0), savedFood.nutritionPer100g)
     }
 
+    @Test
+    fun foodHealthConnectSyncRefreshToggleAndSyncUsesSelectedDate() = runTest {
+        val repository =
+            FakeFoodRepository(
+                foodHealthConnectSyncState = FoodHealthConnectSyncState(
+                    isEnabled = false,
+                    availability = HealthConnectAvailability.Available,
+                    grantedPermissionCount = 2,
+                    requestablePermissionCount = 2,
+                    requestablePermissions = setOf("write-nutrition", "write-hydration"),
+                    canRequestPermissions = true,
+                    canSync = false,
+                ),
+                foodHealthConnectSyncResult = FoodHealthConnectSyncResult(
+                    nutritionRecordCount = 2,
+                    hydrationRecordCount = 1,
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.refreshFoodHealthConnectSync()
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onFoodHealthConnectSyncEnabledChanged(true)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.syncFoodToHealthConnect()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(true, repository.foodHealthConnectEnabled)
+        assertEquals(LocalDate.now(), repository.foodHealthConnectSyncDate)
+        assertEquals(setOf("write-nutrition", "write-hydration"), viewModel.state.value.foodHealthConnectRequestablePermissions)
+        assertTrue(viewModel.state.value.foodHealthConnectCanRequestPermissions)
+        assertTrue(viewModel.state.value.foodHealthConnectCanSync)
+        assertEquals("Synced 2 meals and water to Health Connect", viewModel.state.value.message)
+    }
+
+    @Test
+    fun foodHealthConnectSyncErrorIsVisibleAndNonBlocking() = runTest {
+        val repository =
+            FakeFoodRepository(
+                foodHealthConnectSyncState = FoodHealthConnectSyncState(
+                    isEnabled = true,
+                    availability = HealthConnectAvailability.Available,
+                    grantedPermissionCount = 2,
+                    requestablePermissionCount = 2,
+                    requestablePermissions = setOf("write-nutrition", "write-hydration"),
+                    canRequestPermissions = true,
+                    canSync = true,
+                ),
+                foodHealthConnectSyncError = IllegalStateException("Check Health Connect permissions"),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.syncFoodToHealthConnect()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.isSaving)
+        assertEquals("Check Health Connect permissions", viewModel.state.value.message)
+    }
+
     private data class CopyMealCall(
         val fromDate: LocalDate,
         val toDate: LocalDate,
@@ -2894,6 +2958,10 @@ class FoodViewModelTest {
         weeklyPlan: List<FoodPlanDay> = emptyList(),
         shoppingGroups: List<ShoppingListGroup> = emptyList(),
         waterSummary: FoodWaterSummary = FoodWaterSummary(LocalDate.now(), 0.0, 2000.0),
+        foodHealthConnectSyncState: FoodHealthConnectSyncState = FoodHealthConnectSyncState(),
+        private val foodHealthConnectSyncResult: FoodHealthConnectSyncResult =
+            FoodHealthConnectSyncResult(nutritionRecordCount = 0, hydrationRecordCount = 0),
+        private val foodHealthConnectSyncError: Exception? = null,
         foodGoal: FoodGoal = FoodGoal(
             dailyCaloriesKcal = 2083.0,
             proteinGrams = 104.0,
@@ -2916,6 +2984,7 @@ class FoodViewModelTest {
         private val weeklyPlanFlow = MutableStateFlow(weeklyPlan)
         private val shoppingGroupsFlow = MutableStateFlow(shoppingGroups)
         private val waterSummaryFlow = MutableStateFlow(waterSummary)
+        private val foodHealthConnectSyncStateFlow = MutableStateFlow(foodHealthConnectSyncState)
         private val foodGoalFlow = MutableStateFlow(foodGoal)
         var savedLog: FoodLogInput? = null
         var savedFoodLog: SavedFoodLogInput? = null
@@ -2955,6 +3024,8 @@ class FoodViewModelTest {
         var toggledShoppingItem: Pair<String, Boolean>? = null
         var waterLogInput: WaterLogInput? = null
         var waterGoalMilliliters: Double? = null
+        var foodHealthConnectEnabled: Boolean? = null
+        var foodHealthConnectSyncDate: LocalDate? = null
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -3034,6 +3105,30 @@ class FoodViewModelTest {
         override suspend fun updateWaterGoal(goalMilliliters: Double) {
             waterGoalMilliliters = goalMilliliters
             waterSummaryFlow.value = waterSummaryFlow.value.copy(goalMilliliters = goalMilliliters)
+        }
+
+        override fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> =
+            foodHealthConnectSyncStateFlow
+
+        override suspend fun refreshFoodHealthConnectSyncState(): FoodHealthConnectSyncState =
+            foodHealthConnectSyncStateFlow.value
+
+        override suspend fun setFoodHealthConnectSyncEnabled(isEnabled: Boolean) {
+            foodHealthConnectEnabled = isEnabled
+            foodHealthConnectSyncStateFlow.value =
+                foodHealthConnectSyncStateFlow.value.copy(
+                    isEnabled = isEnabled,
+                    canSync = isEnabled &&
+                        foodHealthConnectSyncStateFlow.value.availability == HealthConnectAvailability.Available &&
+                        foodHealthConnectSyncStateFlow.value.grantedPermissionCount ==
+                        foodHealthConnectSyncStateFlow.value.requestablePermissionCount,
+                )
+        }
+
+        override suspend fun syncFoodToHealthConnect(date: LocalDate): FoodHealthConnectSyncResult {
+            foodHealthConnectSyncDate = date
+            foodHealthConnectSyncError?.let { error -> throw error }
+            return foodHealthConnectSyncResult
         }
 
         override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> =
