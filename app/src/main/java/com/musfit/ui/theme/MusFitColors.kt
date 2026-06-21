@@ -30,6 +30,7 @@ data class MusFitColors(
     val positiveContainer: Color,
     val warning: Color,
     val warningContainer: Color,
+    val water: Color,
 ) {
     /** Index order preserved from the legacy `MacroColors` list: [carbs, protein, fat]. */
     val macroColors: List<Color> get() = listOf(macroCarbs, macroProtein, macroFat)
@@ -58,6 +59,7 @@ val lightMusFitColors = MusFitColors(
     positiveContainer = PositiveContainer,
     warning = CoralInk,
     warningContainer = CoralContainer,
+    water = Water,
 )
 
 val LocalMusFitColors = staticCompositionLocalOf<MusFitColors> {
