@@ -174,6 +174,7 @@ fun FoodScreen(
                         onBarcodeChanged = viewModel::onBarcodeChanged,
                         onLookupClick = viewModel::lookupBarcode,
                         onScanClick = onScanClick,
+                        onNutritionLabelScanClick = viewModel::openNutritionLabelScan,
                         onLogFoodClick = viewModel::logFood,
                         onSaveProductClick = viewModel::saveScannedProductToDatabase,
                         onQuickCaloriesChanged = viewModel::onQuickCaloriesChanged,
@@ -193,6 +194,8 @@ fun FoodScreen(
                         onEditFoodClick = viewModel::openSavedFoodEditor,
                         onSaveOnlineFoodClick = viewModel::saveOnlineFoodResult,
                         onImportStarterFoodsClick = viewModel::seedStarterFoods,
+                        onNutritionLabelScanClick = viewModel::openNutritionLabelScan,
+                        onMergeDuplicateFoodsClick = viewModel::mergeDuplicateFoods,
                         onFavoriteClick = viewModel::toggleFavoriteFood,
                     )
 
@@ -213,6 +216,7 @@ fun FoodScreen(
                         state = state,
                         onMealChanged = viewModel::onDiaryEntryMealChanged,
                         onQuantityChanged = viewModel::onDiaryEntryQuantityChanged,
+                        onServingChoiceSelected = viewModel::onDiaryEntryServingChoiceSelected,
                         onSaveClick = viewModel::saveDiaryEntry,
                         onDeleteClick = viewModel::deleteDiaryEntry,
                         onCopyToMealClick = { mealType -> viewModel.copyDiaryEntryTo(mealType, state.selectedDate) },
@@ -240,7 +244,27 @@ fun FoodScreen(
                         onCategoryChanged = viewModel::onSavedFoodCategoryChanged,
                         onFavoriteChanged = viewModel::onSavedFoodFavoriteChanged,
                         onSaveClick = viewModel::saveSavedFood,
+                        onDuplicateClick = viewModel::duplicateSavedFood,
                         onDeleteClick = viewModel::deleteSavedFood,
+                    )
+
+                FoodSheetMode.NutritionLabelScan ->
+                    NutritionLabelScanPanel(
+                        state = state,
+                        onNameChanged = viewModel::onSavedFoodNameChanged,
+                        onBrandChanged = viewModel::onSavedFoodBrandChanged,
+                        onServingChanged = viewModel::onSavedFoodServingChanged,
+                        onCaloriesChanged = viewModel::onSavedFoodCaloriesChanged,
+                        onProteinChanged = viewModel::onSavedFoodProteinChanged,
+                        onCarbsChanged = viewModel::onSavedFoodCarbsChanged,
+                        onFatChanged = viewModel::onSavedFoodFatChanged,
+                        onFiberChanged = viewModel::onSavedFoodFiberChanged,
+                        onSugarChanged = viewModel::onSavedFoodSugarChanged,
+                        onSaturatedFatChanged = viewModel::onSavedFoodSaturatedFatChanged,
+                        onSodiumChanged = viewModel::onSavedFoodSodiumChanged,
+                        onServingNameChanged = viewModel::onSavedFoodServingNameChanged,
+                        onCategoryChanged = viewModel::onSavedFoodCategoryChanged,
+                        onSaveClick = viewModel::saveSavedFood,
                     )
 
                 FoodSheetMode.GoalEditor ->
@@ -1133,6 +1157,8 @@ private fun FoodDatabasePanel(
     onEditFoodClick: (String) -> Unit,
     onSaveOnlineFoodClick: (String) -> Unit,
     onImportStarterFoodsClick: () -> Unit,
+    onNutritionLabelScanClick: () -> Unit,
+    onMergeDuplicateFoodsClick: (String, List<String>) -> Unit,
     onFavoriteClick: (String, Boolean) -> Unit,
 ) {
     val foods = state.filteredDatabaseFoods()
@@ -1171,6 +1197,10 @@ private fun FoodDatabasePanel(
 
         OutlinedButton(onClick = onImportStarterFoodsClick, modifier = Modifier.fillMaxWidth()) {
             Text("Import starter foods")
+        }
+
+        OutlinedButton(onClick = onNutritionLabelScanClick, modifier = Modifier.fillMaxWidth()) {
+            Text("Scan nutrition label")
         }
 
         OutlinedTextField(
@@ -1212,6 +1242,14 @@ private fun FoodDatabasePanel(
                     onSaveClick = { onSaveOnlineFoodClick(result.barcode) },
                 )
             }
+        }
+
+        if (state.duplicateFoodGroups.isNotEmpty()) {
+            DuplicateFoodGroupsSection(
+                duplicateGroups = state.duplicateFoodGroups,
+                isSaving = state.isSaving,
+                onMergeDuplicateFoodsClick = onMergeDuplicateFoodsClick,
+            )
         }
 
         Text(
@@ -1282,6 +1320,57 @@ private fun OnlineFoodResultRow(
 }
 
 @Composable
+private fun DuplicateFoodGroupsSection(
+    duplicateGroups: List<FoodDuplicateGroupUiState>,
+    isSaving: Boolean,
+    onMergeDuplicateFoodsClick: (String, List<String>) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Potential duplicates",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF315847),
+        )
+        duplicateGroups.forEach { group ->
+            Surface(
+                color = Color(0xFFFFF7E8),
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = group.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = "${group.reason} - ${group.duplicateFoodIds.size + 1} foods",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF706D6A),
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { onMergeDuplicateFoodsClick(group.primaryFoodId, group.duplicateFoodIds) },
+                        enabled = !isSaving,
+                    ) {
+                        Text("Merge")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SavedFoodDatabaseRow(
     food: SavedFoodUiState,
     onDetailClick: () -> Unit,
@@ -1309,6 +1398,7 @@ private fun SavedFoodDatabaseRow(
                 )
                 Text(
                     text = listOfNotNull(
+                        food.sourceLabel,
                         food.brand,
                         "${food.defaultServingGrams.roundToInt()} g",
                         "${food.caloriesPerServingKcal.roundToInt()} kcal",
@@ -1446,6 +1536,7 @@ private fun DiaryEntryEditorPanel(
     state: FoodUiState,
     onMealChanged: (String) -> Unit,
     onQuantityChanged: (String) -> Unit,
+    onServingChoiceSelected: (String) -> Unit,
     onSaveClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onCopyToMealClick: (String) -> Unit,
@@ -1488,11 +1579,61 @@ private fun DiaryEntryEditorPanel(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Text(
-            text = "Currently ${state.editingDiaryEntryCaloriesKcal.roundToInt()} kcal",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF706D6A),
-        )
+        if (state.editingDiaryEntryServingChoices.isNotEmpty()) {
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                state.editingDiaryEntryServingChoices.forEach { choice ->
+                    FilterChip(
+                        selected = state.editingDiaryEntryQuantityGrams == choice.grams.formatNutritionDisplay(),
+                        onClick = { onServingChoiceSelected(choice.id) },
+                        label = { Text(choice.label) },
+                    )
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFFF5F2ED))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = "Preview before saving",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF706D6A),
+            )
+            Text(
+                text = "${state.editingDiaryEntryPreviewCaloriesKcal.roundToInt()} kcal",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "P ${state.editingDiaryEntryPreviewProteinGrams.formatNutritionDisplay()}g",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF706D6A),
+                )
+                Text(
+                    text = "C ${state.editingDiaryEntryPreviewCarbsGrams.formatNutritionDisplay()}g",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF706D6A),
+                )
+                Text(
+                    text = "F ${state.editingDiaryEntryPreviewFatGrams.formatNutritionDisplay()}g",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF706D6A),
+                )
+            }
+        }
 
         state.message?.let { message ->
             Text(
@@ -1581,6 +1722,7 @@ private fun SavedFoodEditorPanel(
     onCategoryChanged: (String) -> Unit,
     onFavoriteChanged: (Boolean) -> Unit,
     onSaveClick: () -> Unit,
+    onDuplicateClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     val isExistingFood = state.editingSavedFoodId != null
@@ -1703,6 +1845,14 @@ private fun SavedFoodEditorPanel(
 
         if (isExistingFood) {
             OutlinedButton(
+                onClick = onDuplicateClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Duplicate food")
+            }
+
+            OutlinedButton(
                 onClick = onDeleteClick,
                 enabled = !state.isSaving,
                 modifier = Modifier.fillMaxWidth(),
@@ -1710,6 +1860,133 @@ private fun SavedFoodEditorPanel(
             ) {
                 Text("Delete saved food")
             }
+        }
+    }
+}
+
+@Composable
+private fun NutritionLabelScanPanel(
+    state: FoodUiState,
+    onNameChanged: (String) -> Unit,
+    onBrandChanged: (String) -> Unit,
+    onServingChanged: (String) -> Unit,
+    onCaloriesChanged: (String) -> Unit,
+    onProteinChanged: (String) -> Unit,
+    onCarbsChanged: (String) -> Unit,
+    onFatChanged: (String) -> Unit,
+    onFiberChanged: (String) -> Unit,
+    onSugarChanged: (String) -> Unit,
+    onSaturatedFatChanged: (String) -> Unit,
+    onSodiumChanged: (String) -> Unit,
+    onServingNameChanged: (String) -> Unit,
+    onCategoryChanged: (String) -> Unit,
+    onSaveClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 640.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Nutrition label scan",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "Review fields before saving",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF706D6A),
+            )
+        }
+
+        OutlinedButton(
+            onClick = {},
+            enabled = false,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Capture label photo")
+        }
+
+        OutlinedTextField(
+            value = state.savedFoodName,
+            onValueChange = onNameChanged,
+            label = { Text("Food name") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = state.savedFoodBrand,
+                onValueChange = onBrandChanged,
+                label = { Text("Brand") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = state.savedFoodServingGrams,
+                onValueChange = onServingChanged,
+                label = { Text("Serving g") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = state.savedFoodServingName,
+                onValueChange = onServingNameChanged,
+                label = { Text("Serving") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = state.savedFoodCategory,
+                onValueChange = onCategoryChanged,
+                label = { Text("Category") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        SavedFoodNutritionFields(
+            state = state,
+            onCaloriesChanged = onCaloriesChanged,
+            onProteinChanged = onProteinChanged,
+            onCarbsChanged = onCarbsChanged,
+            onFatChanged = onFatChanged,
+            onFiberChanged = onFiberChanged,
+            onSugarChanged = onSugarChanged,
+            onSaturatedFatChanged = onSaturatedFatChanged,
+            onSodiumChanged = onSodiumChanged,
+        )
+
+        state.message?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        Button(
+            onClick = onSaveClick,
+            enabled = !state.isSaving,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+        ) {
+            Text(if (state.isSaving) "Saving" else "Save food")
         }
     }
 }
@@ -2096,6 +2373,7 @@ private fun AddFoodPanel(
     onBarcodeChanged: (String) -> Unit,
     onLookupClick: () -> Unit,
     onScanClick: () -> Unit,
+    onNutritionLabelScanClick: () -> Unit,
     onLogFoodClick: () -> Unit,
     onSaveProductClick: () -> Unit,
     onQuickCaloriesChanged: (String) -> Unit,
@@ -2129,6 +2407,10 @@ private fun AddFoodPanel(
             selectedMode = state.addMode,
             onModeSelected = onModeSelected,
         )
+
+        OutlinedButton(onClick = onNutritionLabelScanClick, modifier = Modifier.fillMaxWidth()) {
+            Text("Scan nutrition label")
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2532,7 +2814,7 @@ private fun BarcodeFoodForm(
             onCarbsChanged = onCarbsChanged,
             onFatChanged = onFatChanged,
         )
-        if (state.lookupResult != null) {
+        if (state.lookupResult != null || state.barcode.isNotBlank()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2550,7 +2832,15 @@ private fun BarcodeFoodForm(
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
                 ) {
-                    Text(if (state.isSaving) "Logging" else "Log food")
+                    Text(
+                        if (state.isSaving) {
+                            "Logging"
+                        } else if (state.lookupResult == null) {
+                            "Save and log"
+                        } else {
+                            "Log food"
+                        },
+                    )
                 }
             }
         } else {

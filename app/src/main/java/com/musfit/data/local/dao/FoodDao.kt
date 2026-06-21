@@ -354,6 +354,18 @@ interface FoodDao {
     @Delete
     suspend fun deleteFood(food: FoodEntity)
 
+    @Query("UPDATE meal_items SET foodId = :primaryFoodId WHERE foodId IN (:duplicateFoodIds)")
+    suspend fun reassignMealItemsToFood(primaryFoodId: String, duplicateFoodIds: List<String>)
+
+    @Query("UPDATE meal_template_items SET foodId = :primaryFoodId WHERE foodId IN (:duplicateFoodIds)")
+    suspend fun reassignMealTemplateItemsToFood(primaryFoodId: String, duplicateFoodIds: List<String>)
+
+    @Query("UPDATE recipe_ingredients SET foodId = :primaryFoodId WHERE foodId IN (:duplicateFoodIds)")
+    suspend fun reassignRecipeIngredientsToFood(primaryFoodId: String, duplicateFoodIds: List<String>)
+
+    @Query("UPDATE barcode_products SET linkedFoodId = :primaryFoodId WHERE linkedFoodId IN (:duplicateFoodIds)")
+    suspend fun reassignBarcodeProductsToFood(primaryFoodId: String, duplicateFoodIds: List<String>)
+
     @Query("DELETE FROM meal_items WHERE id = :mealItemId")
     suspend fun deleteMealItemById(mealItemId: String): Int
 

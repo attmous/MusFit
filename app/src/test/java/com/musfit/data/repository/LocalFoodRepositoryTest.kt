@@ -531,6 +531,58 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun mergeDuplicateFoods_reassignsReferencesAndDeletesDuplicates() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val primaryFoodId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = "food-primary",
+                    name = "Oats",
+                    brand = "Pantry",
+                    defaultServingGrams = 40.0,
+                    nutritionPer100g = nutrition(calories = 389.0, protein = 17.0, carbs = 66.0, fat = 7.0),
+                ),
+            )
+        val duplicateFoodId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = "food-duplicate",
+                    name = "oats",
+                    brand = "pantry",
+                    defaultServingGrams = 40.0,
+                    nutritionPer100g = nutrition(calories = 389.0, protein = 17.0, carbs = 66.0, fat = 7.0),
+                ),
+            )
+        val mealItemId = repository.logSavedFood(SavedFoodLogInput(duplicateFoodId, "breakfast", 40.0, date))
+        val templateId = repository.saveMealAsTemplate(date, "breakfast", "Duplicate breakfast")
+        val recipeId =
+            repository.upsertRecipe(
+                RecipeUpsertInput(
+                    recipeId = null,
+                    name = "Overnight oats",
+                    category = "Breakfast",
+                    servingName = "Jar",
+                    servingGrams = 250.0,
+                    ingredients = listOf(RecipeIngredientInput(duplicateFoodId, 40.0)),
+                ),
+            )
+
+        repository.mergeDuplicateFoods(primaryFoodId, listOf(duplicateFoodId))
+
+        val savedFoods = repository.observeSavedFoods().first()
+        val diary = repository.observeFoodDiary(date).first()
+        val template = repository.observeMealTemplates().first().single { it.id == templateId }
+        val recipe = repository.observeRecipes().first().single { it.id == recipeId }
+
+        assertEquals(listOf(primaryFoodId), savedFoods.map { it.id })
+        assertNull(database.foodDao().getFood(duplicateFoodId))
+        assertEquals(primaryFoodId, database.foodDao().getMealItem(mealItemId)?.foodId)
+        assertEquals(primaryFoodId, diary.meals.single().entries.single().foodId)
+        assertEquals(primaryFoodId, template.items.single().foodId)
+        assertEquals(primaryFoodId, recipe.ingredients.single().foodId)
+    }
+
+    @Test
     fun upsertSavedFood_storesAdvancedFoodDetailsServingsAndPreventsDuplicates() = runTest {
         val input =
             SavedFoodUpsertInput(

@@ -10,6 +10,8 @@ import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
+import com.musfit.data.repository.FoodServingInput
+import com.musfit.data.repository.FoodServingOption
 import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.MealTemplateItem
 import com.musfit.data.repository.NutritionDetails
@@ -538,6 +540,86 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun savedFoodsExposeSourceBadgesAndDuplicateGroups() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        barcode = "111",
+                    ),
+                    SavedFoodItem(
+                        id = "food-2",
+                        name = "Greek yogurt alt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        barcode = "111",
+                    ),
+                    SavedFoodItem(
+                        id = "food-3",
+                        name = "Oats",
+                        brand = "Pantry",
+                        defaultServingGrams = 40.0,
+                        nutritionPer100g = FoodNutrition(389.0, 17.0, 66.0, 7.0),
+                    ),
+                    SavedFoodItem(
+                        id = "food-4",
+                        name = "oats",
+                        brand = "pantry",
+                        defaultServingGrams = 40.0,
+                        nutritionPer100g = FoodNutrition(389.0, 17.0, 66.0, 7.0),
+                    ),
+                    SavedFoodItem(
+                        id = "food-5",
+                        name = "Protein cereal",
+                        brand = null,
+                        defaultServingGrams = 100.0,
+                        nutritionPer100g = FoodNutrition(220.0, 12.0, 30.0, 8.0),
+                        category = "Nutrition label",
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+
+        assertEquals("Scanned", state.savedFoods.first { it.id == "food-1" }.sourceLabel)
+        assertEquals("Manual", state.savedFoods.first { it.id == "food-3" }.sourceLabel)
+        assertEquals("Label", state.savedFoods.first { it.id == "food-5" }.sourceLabel)
+        assertEquals(2, state.duplicateFoodGroups.size)
+        assertEquals("food-1", state.duplicateFoodGroups[0].primaryFoodId)
+        assertEquals(listOf("food-2"), state.duplicateFoodGroups[0].duplicateFoodIds)
+        assertEquals("Barcode 111", state.duplicateFoodGroups[0].reason)
+        assertEquals("food-3", state.duplicateFoodGroups[1].primaryFoodId)
+        assertEquals(listOf("food-4"), state.duplicateFoodGroups[1].duplicateFoodIds)
+        assertEquals("Name and brand", state.duplicateFoodGroups[1].reason)
+    }
+
+    @Test
+    fun mergeDuplicateFoods_delegatesToRepositoryAndShowsCleanupMessage() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.mergeDuplicateFoods("food-1", listOf("food-2", "food-3"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(MergeDuplicateFoodsCall("food-1", listOf("food-2", "food-3")), repository.mergeDuplicateFoodsCall)
+        assertEquals("Merged duplicate foods", viewModel.state.value.message)
+    }
+
+    @Test
     fun openMealDetail_selectsMealAndExposesMealMacroTotals() = runTest {
         val repository =
             FakeFoodRepository(
@@ -766,6 +848,112 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun diaryEntryEditor_updatesMacroPreviewWhenAmountChanges() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = "Kitchen",
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 120.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 8.0,
+                                    fatGrams = 2.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openDiaryEntryEditor("entry-1")
+        viewModel.onDiaryEntryQuantityChanged("100")
+
+        with(viewModel.state.value) {
+            assertEquals(60.0, editingDiaryEntryPreviewCaloriesKcal, 0.01)
+            assertEquals(10.0, editingDiaryEntryPreviewProteinGrams, 0.01)
+            assertEquals(4.0, editingDiaryEntryPreviewCarbsGrams, 0.01)
+            assertEquals(1.0, editingDiaryEntryPreviewFatGrams, 0.01)
+        }
+    }
+
+    @Test
+    fun diaryEntryEditor_exposesServingChoicesAndSelectionUpdatesPreview() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Greek yogurt",
+                                    brand = "Kitchen",
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 120.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 8.0,
+                                    fatGrams = 2.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(120.0, 20.0, 8.0, 2.0),
+                        ),
+                    ),
+                ),
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(60.0, 10.0, 4.0, 1.0),
+                        servingName = "Cup",
+                        servings = listOf(
+                            FoodServingOption("serving-1", "Half cup", 85.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openDiaryEntryEditor("entry-1")
+
+        val choices = viewModel.state.value.editingDiaryEntryServingChoices
+        assertEquals(listOf("100 g", "Cup", "Half cup"), choices.map { it.label })
+
+        viewModel.onDiaryEntryServingChoiceSelected(choices.first { it.label == "Half cup" }.id)
+
+        with(viewModel.state.value) {
+            assertEquals("85", editingDiaryEntryQuantityGrams)
+            assertEquals(51.0, editingDiaryEntryPreviewCaloriesKcal, 0.01)
+            assertEquals(8.5, editingDiaryEntryPreviewProteinGrams, 0.01)
+            assertEquals(3.4, editingDiaryEntryPreviewCarbsGrams, 0.01)
+            assertEquals(0.85, editingDiaryEntryPreviewFatGrams, 0.01)
+        }
+    }
+
+    @Test
     fun deleteDiaryEntry_removesSelectedDiaryItem() = runTest {
         val repository =
             FakeFoodRepository(
@@ -928,6 +1116,117 @@ class FoodViewModelTest {
         assertEquals("food-1", repository.deletedSavedFoodId)
         assertEquals(FoodSheetMode.FoodDatabase, viewModel.state.value.sheetMode)
         assertEquals("Deleted food", viewModel.state.value.message)
+    }
+
+    @Test
+    fun duplicateSavedFood_createsEditableCopyWithoutBarcode() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(
+                            caloriesKcal = 61.0,
+                            proteinGrams = 10.0,
+                            carbsGrams = 4.0,
+                            fatGrams = 1.0,
+                        ),
+                        nutritionDetailsPer100g = NutritionDetails(
+                            fiberGrams = 0.2,
+                            sugarGrams = 3.6,
+                            saturatedFatGrams = 0.6,
+                            sodiumMilligrams = 45.0,
+                        ),
+                        servingName = "Cup",
+                        barcode = "123456",
+                        category = "Dairy",
+                        isFavorite = true,
+                        servings = listOf(
+                            FoodServingOption("serving-1", "Cup", 170.0),
+                            FoodServingOption("serving-2", "Half cup", 85.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openSavedFoodEditor("food-1")
+        viewModel.duplicateSavedFood()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            SavedFoodUpsertInput(
+                foodId = null,
+                name = "Greek yogurt copy",
+                brand = "Kitchen",
+                defaultServingGrams = 170.0,
+                nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                nutritionDetailsPer100g = NutritionDetails(0.2, 3.6, 0.6, 45.0),
+                servingName = "Cup",
+                barcode = null,
+                category = "Dairy",
+                isFavorite = true,
+                servings = listOf(
+                    FoodServingInput("Cup", 170.0),
+                    FoodServingInput("Half cup", 85.0),
+                ),
+            ),
+            repository.savedFoodUpsert,
+        )
+        assertEquals(FoodSheetMode.FoodDatabase, viewModel.state.value.sheetMode)
+        assertEquals("Duplicated food", viewModel.state.value.message)
+    }
+
+    @Test
+    fun openNutritionLabelScan_prefillsEditableExtractedFieldsAndSavesCorrection() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openNutritionLabelScan()
+
+        with(viewModel.state.value) {
+            assertTrue(isAddPanelVisible)
+            assertEquals(FoodSheetMode.NutritionLabelScan, sheetMode)
+            assertEquals("Scanned label", savedFoodName)
+            assertEquals("100", savedFoodServingGrams)
+            assertEquals("250", savedFoodCaloriesPer100g)
+            assertEquals("12", savedFoodProteinPer100g)
+            assertEquals("30", savedFoodCarbsPer100g)
+            assertEquals("8", savedFoodFatPer100g)
+            assertEquals("Review extracted nutrition before saving.", message)
+        }
+
+        viewModel.onSavedFoodNameChanged("Protein cereal")
+        viewModel.onSavedFoodCaloriesChanged("220")
+        viewModel.saveSavedFood()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            SavedFoodUpsertInput(
+                foodId = null,
+                name = "Protein cereal",
+                brand = null,
+                defaultServingGrams = 100.0,
+                nutritionPer100g = FoodNutrition(220.0, 12.0, 30.0, 8.0),
+                nutritionDetailsPer100g = NutritionDetails(),
+                servingName = "Label serving",
+                barcode = null,
+                category = "Nutrition label",
+                isFavorite = false,
+            ),
+            repository.savedFoodUpsert,
+        )
+        assertEquals(FoodSheetMode.FoodDatabase, viewModel.state.value.sheetMode)
     }
 
     @Test
@@ -1417,6 +1716,40 @@ class FoodViewModelTest {
         assertEquals("Product not found. Add details to create it.", viewModel.state.value.message)
     }
 
+    @Test
+    fun saveScannedProductToDatabase_afterBarcodeMissCreatesSavedFoodWithoutLogging() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel =
+            FoodViewModel(
+                provider = FakeProductProvider(result = ProductLookupResult.NotFound("999")),
+                repository = repository,
+            )
+
+        viewModel.onBarcodeChanged("999")
+        viewModel.lookupBarcode()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onProductNameChanged("Tahini bar")
+        viewModel.onBrandChanged("Kitchen")
+        viewModel.onQuantityChanged("45")
+        viewModel.onCaloriesChanged("430")
+        viewModel.onProteinChanged("12")
+        viewModel.onCarbsChanged("22")
+        viewModel.onFatChanged("31")
+        viewModel.saveScannedProductToDatabase()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val savedFood = requireNotNull(repository.savedFoodUpsert)
+        assertNull(repository.savedLog)
+        assertEquals("Saved product to database", viewModel.state.value.message)
+        assertEquals("Tahini bar", savedFood.name)
+        assertEquals("Kitchen", savedFood.brand)
+        assertEquals("999", savedFood.barcode)
+        assertEquals("45 g", savedFood.servingName)
+        assertEquals(45.0, savedFood.defaultServingGrams, 0.01)
+        assertEquals(FoodNutrition(430.0, 12.0, 22.0, 31.0), savedFood.nutritionPer100g)
+    }
+
     private data class CopyMealCall(
         val fromDate: LocalDate,
         val toDate: LocalDate,
@@ -1452,6 +1785,11 @@ class FoodViewModelTest {
         val mealItemId: String,
         val mealType: String,
         val date: LocalDate,
+    )
+
+    private data class MergeDuplicateFoodsCall(
+        val primaryFoodId: String,
+        val duplicateFoodIds: List<String>,
     )
 
     private data class ConfirmedProductSaveCall(
@@ -1526,6 +1864,7 @@ class FoodViewModelTest {
         var deletedDiaryEntryId: String? = null
         var savedFoodUpsert: SavedFoodUpsertInput? = null
         var deletedSavedFoodId: String? = null
+        var mergeDuplicateFoodsCall: MergeDuplicateFoodsCall? = null
         var favoriteToggle: Pair<String, Boolean>? = null
         var foodGoalUpdate: FoodGoal? = null
         var copyMealCall: CopyMealCall? = null
@@ -1598,6 +1937,10 @@ class FoodViewModelTest {
 
         override suspend fun deleteSavedFood(foodId: String) {
             deletedSavedFoodId = foodId
+        }
+
+        override suspend fun mergeDuplicateFoods(primaryFoodId: String, duplicateFoodIds: List<String>) {
+            mergeDuplicateFoodsCall = MergeDuplicateFoodsCall(primaryFoodId, duplicateFoodIds)
         }
 
         override suspend fun toggleFavoriteFood(foodId: String, isFavorite: Boolean) {

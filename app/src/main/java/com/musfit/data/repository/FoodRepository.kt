@@ -236,6 +236,8 @@ interface FoodRepository {
 
     suspend fun toggleFavoriteFood(foodId: String, isFavorite: Boolean) = Unit
 
+    suspend fun mergeDuplicateFoods(primaryFoodId: String, duplicateFoodIds: List<String>) = Unit
+
     fun observeFoodGoal(): Flow<FoodGoal> = flowOf(DEFAULT_REPOSITORY_FOOD_GOAL)
 
     suspend fun updateFoodGoal(goal: FoodGoal) = Unit
@@ -489,6 +491,32 @@ class LocalFoodRepository @Inject constructor(
         database.withTransaction {
             val food = foodDao.getFood(foodId) ?: error("Saved food not found")
             foodDao.upsertFood(food.copy(isFavorite = isFavorite, updatedAtEpochMillis = System.currentTimeMillis()))
+        }
+    }
+
+    override suspend fun mergeDuplicateFoods(primaryFoodId: String, duplicateFoodIds: List<String>) {
+        val trimmedPrimaryId = primaryFoodId.trim()
+        val trimmedDuplicateIds = duplicateFoodIds.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        require(trimmedPrimaryId.isNotBlank()) { "Primary food id is required" }
+        require(trimmedDuplicateIds.isNotEmpty()) { "Choose duplicate foods to merge" }
+        require(trimmedPrimaryId !in trimmedDuplicateIds) { "Primary food cannot be merged into itself" }
+
+        database.withTransaction {
+            val primaryFood = foodDao.getFood(trimmedPrimaryId) ?: error("Primary food not found")
+            val duplicates = trimmedDuplicateIds.map { duplicateId ->
+                foodDao.getFood(duplicateId) ?: error("Duplicate food not found")
+            }
+            if (duplicates.isEmpty()) {
+                return@withTransaction
+            }
+
+            foodDao.reassignMealItemsToFood(primaryFood.id, trimmedDuplicateIds)
+            foodDao.reassignMealTemplateItemsToFood(primaryFood.id, trimmedDuplicateIds)
+            foodDao.reassignRecipeIngredientsToFood(primaryFood.id, trimmedDuplicateIds)
+            foodDao.reassignBarcodeProductsToFood(primaryFood.id, trimmedDuplicateIds)
+            duplicates.forEach { duplicateFood ->
+                foodDao.deleteFood(duplicateFood)
+            }
         }
     }
 
