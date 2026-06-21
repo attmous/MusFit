@@ -15,6 +15,8 @@ import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.NutritionDetails
 import com.musfit.data.repository.QuickCalorieLogInput
+import com.musfit.data.repository.QuickCaloriePreset
+import com.musfit.data.repository.QuickCaloriePresetInput
 import com.musfit.data.repository.Recipe
 import com.musfit.data.repository.RecipeIngredientInput
 import com.musfit.data.repository.RecipeUpsertInput
@@ -187,6 +189,16 @@ data class RecipeIngredientDraftUiState(
     val quantityGrams: Double,
 )
 
+data class QuickCaloriePresetUiState(
+    val id: String,
+    val name: String,
+    val caloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+    val isFavorite: Boolean,
+)
+
 data class DeletedDiaryEntrySnapshot(
     val foodId: String,
     val mealType: String,
@@ -244,6 +256,7 @@ data class FoodUiState(
     val duplicateFoodGroups: List<FoodDuplicateGroupUiState> = emptyList(),
     val mealTemplates: List<MealTemplateUiState> = emptyList(),
     val recipes: List<RecipeUiState> = emptyList(),
+    val quickCaloriePresets: List<QuickCaloriePresetUiState> = emptyList(),
     val onlineFoodResults: List<OnlineFoodResultUiState> = emptyList(),
     val isSearchingFoods: Boolean = false,
     val isAddPanelVisible: Boolean = false,
@@ -360,6 +373,13 @@ class FoodViewModel @Inject constructor(
             repository.observeRecipes().collect { recipes ->
                 mutableState.update { currentState ->
                     currentState.copy(recipes = recipes.map { it.toUiState() })
+                }
+            }
+        }
+        viewModelScope.launch {
+            repository.observeQuickCaloriePresets().collect { presets ->
+                mutableState.update { currentState ->
+                    currentState.copy(quickCaloriePresets = presets.map { it.toUiState() })
                 }
             }
         }
@@ -1808,6 +1828,94 @@ class FoodViewModel @Inject constructor(
         }
     }
 
+    fun saveFavoriteQuickLog() {
+        val currentState = state.value
+        if (currentState.isSaving) {
+            return
+        }
+        val caloriesKcal = currentState.quickCaloriesKcal.parsePositiveNumberOrNull()
+        val proteinGrams = currentState.quickProteinGrams.parseNonNegativeNumberOrZero()
+        val carbsGrams = currentState.quickCarbsGrams.parseNonNegativeNumberOrZero()
+        val fatGrams = currentState.quickFatGrams.parseNonNegativeNumberOrZero()
+        if (caloriesKcal == null || proteinGrams == null || carbsGrams == null || fatGrams == null) {
+            mutableState.update { it.copy(message = "Enter valid quick calories") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.saveFavoriteQuickLog(
+                    QuickCaloriePresetInput(
+                        name = "${caloriesKcal.formatInputNumber()} kcal quick log",
+                        caloriesKcal = caloriesKcal,
+                        proteinGrams = proteinGrams,
+                        carbsGrams = carbsGrams,
+                        fatGrams = fatGrams,
+                        isFavorite = true,
+                    ),
+                )
+                mutableState.update { it.copy(isSaving = false, message = "Saved quick log favorite") }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to save quick log") }
+            }
+        }
+    }
+
+    fun logFavoriteQuickLog(presetId: String) {
+        val currentState = state.value
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.logFavoriteQuickLog(
+                    presetId = presetId,
+                    mealType = currentState.mealType,
+                    date = currentState.selectedDate,
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = currentState.keepAddingFoods,
+                        message = "Logged favorite quick log",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to log quick favorite") }
+            }
+        }
+    }
+
+    fun toggleFavoriteQuickLog(presetId: String, isFavorite: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.toggleFavoriteQuickLog(presetId, isFavorite)
+                mutableState.update {
+                    it.copy(
+                        message = if (isFavorite) {
+                            "Quick log added to favorites"
+                        } else {
+                            "Quick log removed from favorites"
+                        },
+                    )
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(message = error.message ?: "Failed to update quick favorite") }
+            }
+        }
+    }
+
     fun copySelectedMealFromYesterday() {
         val currentState = state.value
         val mealType = currentState.selectedMealDetailId ?: currentState.mealType
@@ -2544,6 +2652,17 @@ private fun Recipe.toUiState(): RecipeUiState =
                 quantityGrams = ingredient.quantityGrams,
             )
         },
+    )
+
+private fun QuickCaloriePreset.toUiState(): QuickCaloriePresetUiState =
+    QuickCaloriePresetUiState(
+        id = id,
+        name = name,
+        caloriesKcal = caloriesKcal,
+        proteinGrams = proteinGrams,
+        carbsGrams = carbsGrams,
+        fatGrams = fatGrams,
+        isFavorite = isFavorite,
     )
 
 private fun defaultAmountServingChoices(): List<FoodAmountServingChoiceUiState> =

@@ -15,6 +15,7 @@ import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
 import com.musfit.data.local.entity.MealTemplateEntity
 import com.musfit.data.local.entity.MealTemplateItemEntity
+import com.musfit.data.local.entity.QuickCaloriePresetEntity
 import com.musfit.data.local.entity.RecipeEntity
 import com.musfit.data.local.entity.RecipeIngredientEntity
 import com.musfit.data.remote.food.ProductDataQuality
@@ -76,6 +77,25 @@ data class QuickCalorieLogInput(
     val carbsGrams: Double,
     val fatGrams: Double,
     val date: LocalDate,
+)
+
+data class QuickCaloriePresetInput(
+    val name: String,
+    val caloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+    val isFavorite: Boolean = true,
+)
+
+data class QuickCaloriePreset(
+    val id: String,
+    val name: String,
+    val caloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+    val isFavorite: Boolean,
 )
 
 data class DiaryEntryUpdateInput(
@@ -227,6 +247,14 @@ interface FoodRepository {
     suspend fun logSavedFood(input: SavedFoodLogInput): String
 
     suspend fun quickLog(input: QuickCalorieLogInput): String
+
+    fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> = flowOf(emptyList())
+
+    suspend fun saveFavoriteQuickLog(input: QuickCaloriePresetInput): String = ""
+
+    suspend fun toggleFavoriteQuickLog(presetId: String, isFavorite: Boolean) = Unit
+
+    suspend fun logFavoriteQuickLog(presetId: String, mealType: String, date: LocalDate): String = ""
 
     suspend fun updateDiaryEntry(input: DiaryEntryUpdateInput)
 
@@ -391,6 +419,60 @@ class LocalFoodRepository @Inject constructor(
                 mealType = input.mealType,
                 quantityGrams = 100.0,
                 date = input.date,
+            ),
+        )
+    }
+
+    override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> =
+        foodDao.observeQuickCaloriePresets().map { presets ->
+            presets.map { it.toQuickCaloriePreset() }
+        }
+
+    override suspend fun saveFavoriteQuickLog(input: QuickCaloriePresetInput): String {
+        input.requireValid()
+        return database.withTransaction {
+            val now = System.currentTimeMillis()
+            val presetId = UUID.randomUUID().toString()
+            foodDao.upsertQuickCaloriePreset(
+                QuickCaloriePresetEntity(
+                    id = presetId,
+                    name = input.name.trim(),
+                    caloriesKcal = input.caloriesKcal,
+                    proteinGrams = input.proteinGrams,
+                    carbsGrams = input.carbsGrams,
+                    fatGrams = input.fatGrams,
+                    createdAtEpochMillis = now,
+                    updatedAtEpochMillis = now,
+                    isFavorite = input.isFavorite,
+                ),
+            )
+            presetId
+        }
+    }
+
+    override suspend fun toggleFavoriteQuickLog(presetId: String, isFavorite: Boolean) {
+        require(presetId.isNotBlank()) { "Quick log id is required" }
+        database.withTransaction {
+            val updatedCount = foodDao.updateQuickCaloriePresetFavorite(
+                presetId = presetId,
+                isFavorite = isFavorite,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+            check(updatedCount > 0) { "Quick log not found" }
+        }
+    }
+
+    override suspend fun logFavoriteQuickLog(presetId: String, mealType: String, date: LocalDate): String {
+        require(presetId.isNotBlank()) { "Quick log id is required" }
+        val preset = foodDao.getQuickCaloriePreset(presetId) ?: error("Quick log not found")
+        return quickLog(
+            QuickCalorieLogInput(
+                mealType = mealType,
+                caloriesKcal = preset.caloriesKcal,
+                proteinGrams = preset.proteinGrams,
+                carbsGrams = preset.carbsGrams,
+                fatGrams = preset.fatGrams,
+                date = date,
             ),
         )
     }
@@ -1069,6 +1151,14 @@ private fun QuickCalorieLogInput.requireValid() {
     require(fatGrams.isNonNegativeFinite())
 }
 
+private fun QuickCaloriePresetInput.requireValid() {
+    require(name.isNotBlank()) { "Quick log name is required" }
+    require(caloriesKcal.isFinite() && caloriesKcal > 0.0) { "Quick calories must be positive" }
+    require(proteinGrams.isNonNegativeFinite())
+    require(carbsGrams.isNonNegativeFinite())
+    require(fatGrams.isNonNegativeFinite())
+}
+
 private fun DiaryEntryUpdateInput.requireValid() {
     require(mealItemId.isNotBlank()) { "Diary item id is required" }
     require(mealType.isNotBlank()) { "Meal type is required" }
@@ -1127,6 +1217,17 @@ private fun SavedFoodUpsertInput.resolvedServings(): List<FoodServingInput> =
     }
 
 private fun Double.isNonNegativeFinite(): Boolean = isFinite() && this >= 0.0
+
+private fun QuickCaloriePresetEntity.toQuickCaloriePreset(): QuickCaloriePreset =
+    QuickCaloriePreset(
+        id = id,
+        name = name,
+        caloriesKcal = caloriesKcal,
+        proteinGrams = proteinGrams,
+        carbsGrams = carbsGrams,
+        fatGrams = fatGrams,
+        isFavorite = isFavorite,
+    )
 
 private fun MealNutritionRow.toMealItemInput(): MealItemInput =
     MealItemInput(

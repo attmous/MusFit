@@ -385,6 +385,38 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun saveFavoriteQuickLogAndLogPreset_persistsFavoriteStateAndLogsCalories() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val presetId =
+            repository.saveFavoriteQuickLog(
+                QuickCaloriePresetInput(
+                    name = "Protein snack",
+                    caloriesKcal = 320.0,
+                    proteinGrams = 25.0,
+                    carbsGrams = 18.0,
+                    fatGrams = 9.0,
+                ),
+            )
+
+        val preset = repository.observeQuickCaloriePresets().first().single()
+
+        assertEquals(presetId, preset.id)
+        assertEquals("Protein snack", preset.name)
+        assertTrue(preset.isFavorite)
+
+        repository.logFavoriteQuickLog(presetId, "snacks", date)
+        repository.toggleFavoriteQuickLog(presetId, false)
+
+        val diary = repository.observeFoodDiary(date).first()
+        val unfavorited = repository.observeQuickCaloriePresets().first().single()
+
+        assertEquals("snacks", diary.meals.single().type)
+        assertEquals(320.0, diary.totals.caloriesKcal, 0.01)
+        assertEquals(25.0, diary.totals.proteinGrams, 0.01)
+        assertFalse(unfavorited.isFavorite)
+    }
+
+    @Test
     fun updateDiaryEntry_changesQuantityAndMealWithoutDuplicatingSavedFood() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         val mealItemId =

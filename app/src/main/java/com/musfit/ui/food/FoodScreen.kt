@@ -186,6 +186,9 @@ fun FoodScreen(
                         onQuickCarbsChanged = viewModel::onQuickCarbsChanged,
                         onQuickFatChanged = viewModel::onQuickFatChanged,
                         onQuickLogClick = viewModel::quickLog,
+                        onQuickSaveFavoriteClick = viewModel::saveFavoriteQuickLog,
+                        onFavoriteQuickLogClick = viewModel::logFavoriteQuickLog,
+                        onFavoriteQuickLogFavoriteClick = viewModel::toggleFavoriteQuickLog,
                     )
 
                 FoodSheetMode.FoodDatabase ->
@@ -2517,6 +2520,9 @@ private fun AddFoodPanel(
     onQuickCarbsChanged: (String) -> Unit,
     onQuickFatChanged: (String) -> Unit,
     onQuickLogClick: () -> Unit,
+    onQuickSaveFavoriteClick: () -> Unit,
+    onFavoriteQuickLogClick: (String) -> Unit,
+    onFavoriteQuickLogFavoriteClick: (String, Boolean) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -2634,6 +2640,9 @@ private fun AddFoodPanel(
                     onQuickCarbsChanged = onQuickCarbsChanged,
                     onQuickFatChanged = onQuickFatChanged,
                     onQuickLogClick = onQuickLogClick,
+                    onQuickSaveFavoriteClick = onQuickSaveFavoriteClick,
+                    onFavoriteQuickLogClick = onFavoriteQuickLogClick,
+                    onFavoriteQuickLogFavoriteClick = onFavoriteQuickLogFavoriteClick,
                 )
         }
     }
@@ -3247,8 +3256,50 @@ private fun QuickCalorieForm(
     onQuickCarbsChanged: (String) -> Unit,
     onQuickFatChanged: (String) -> Unit,
     onQuickLogClick: () -> Unit,
+    onQuickSaveFavoriteClick: () -> Unit,
+    onFavoriteQuickLogClick: (String) -> Unit,
+    onFavoriteQuickLogFavoriteClick: (String, Boolean) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (state.quickCaloriePresets.isNotEmpty()) {
+            Text("Favorite quick logs", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            state.quickCaloriePresets.forEach { preset ->
+                Surface(color = Color(0xFFF7F4F1), shape = RoundedCornerShape(8.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(preset.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                listOf(
+                                    "${preset.caloriesKcal.roundToInt()} kcal",
+                                    "P ${preset.proteinGrams.roundToInt()}",
+                                    "C ${preset.carbsGrams.roundToInt()}",
+                                    "F ${preset.fatGrams.roundToInt()}",
+                                    if (preset.isFavorite) "Favorite" else "Saved",
+                                ).joinToString(" - "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF706D6A),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedButton(onClick = { onFavoriteQuickLogFavoriteClick(preset.id, !preset.isFavorite) }) {
+                                Text(if (preset.isFavorite) "Starred" else "Star")
+                            }
+                            OutlinedButton(onClick = { onFavoriteQuickLogClick(preset.id) }) {
+                                Text("Log")
+                            }
+                        }
+                    }
+                }
+            }
+        }
         OutlinedTextField(
             value = state.quickCaloriesKcal,
             onValueChange = onQuickCaloriesChanged,
@@ -3280,13 +3331,22 @@ private fun QuickCalorieForm(
                 modifier = Modifier.weight(1f),
             )
         }
-        Button(
-            onClick = onQuickLogClick,
-            enabled = !state.isSaving,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
-        ) {
-            Text(if (state.isSaving) "Logging" else "Log quick calories")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = onQuickSaveFavoriteClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Save favorite")
+            }
+            Button(
+                onClick = onQuickLogClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = ActionGreen),
+            ) {
+                Text(if (state.isSaving) "Logging" else "Log")
+            }
         }
     }
 }

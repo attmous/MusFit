@@ -122,6 +122,19 @@ data class FoodGoalEntity(
     val updatedAtEpochMillis: Long,
 )
 
+@Entity(tableName = "quick_calorie_presets")
+data class QuickCaloriePresetEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val caloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+    @ColumnInfo(defaultValue = "1") val isFavorite: Boolean = true,
+)
+
 @Entity(tableName = "meal_templates")
 data class MealTemplateEntity(
     @PrimaryKey val id: String,

@@ -13,6 +13,7 @@ import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
 import com.musfit.data.local.entity.MealTemplateEntity
 import com.musfit.data.local.entity.MealTemplateItemEntity
+import com.musfit.data.local.entity.QuickCaloriePresetEntity
 import com.musfit.data.local.entity.RecipeEntity
 import com.musfit.data.local.entity.RecipeIngredientEntity
 import kotlinx.coroutines.flow.Flow
@@ -213,6 +214,26 @@ interface FoodDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertFoodGoal(goal: FoodGoalEntity)
+
+    @Query("SELECT * FROM quick_calorie_presets ORDER BY isFavorite DESC, updatedAtEpochMillis DESC, name")
+    fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePresetEntity>>
+
+    @Query("SELECT * FROM quick_calorie_presets WHERE id = :presetId LIMIT 1")
+    suspend fun getQuickCaloriePreset(presetId: String): QuickCaloriePresetEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertQuickCaloriePreset(preset: QuickCaloriePresetEntity)
+
+    @Query(
+        "UPDATE quick_calorie_presets " +
+            "SET isFavorite = :isFavorite, updatedAtEpochMillis = :updatedAtEpochMillis " +
+            "WHERE id = :presetId",
+    )
+    suspend fun updateQuickCaloriePresetFavorite(
+        presetId: String,
+        isFavorite: Boolean,
+        updatedAtEpochMillis: Long,
+    ): Int
 
     @Query(
         "SELECT meal_templates.id AS templateId, " +

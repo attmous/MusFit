@@ -17,6 +17,8 @@ import com.musfit.data.repository.MealTemplateItem
 import com.musfit.data.repository.NutritionDetails
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.QuickCalorieLogInput
+import com.musfit.data.repository.QuickCaloriePreset
+import com.musfit.data.repository.QuickCaloriePresetInput
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.Recipe
 import com.musfit.data.repository.RecipeIngredient
@@ -914,6 +916,58 @@ class FoodViewModelTest {
         assertEquals(9.0, repository.quickLog?.fatGrams ?: 0.0, 0.01)
         assertEquals("Logged quick calories", viewModel.state.value.message)
         assertFalse(viewModel.state.value.isAddPanelVisible)
+    }
+
+    @Test
+    fun saveFavoriteQuickLogUsesCurrentQuickInputs() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+
+        viewModel.selectAddMode(FoodAddMode.Quick)
+        viewModel.onQuickCaloriesChanged("320")
+        viewModel.onQuickProteinChanged("22")
+        viewModel.onQuickCarbsChanged("36")
+        viewModel.onQuickFatChanged("9")
+        viewModel.saveFavoriteQuickLog()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val preset = requireNotNull(repository.favoriteQuickLogSave)
+        assertEquals("320 kcal quick log", preset.name)
+        assertEquals(320.0, preset.caloriesKcal, 0.01)
+        assertEquals(22.0, preset.proteinGrams, 0.01)
+        assertEquals(36.0, preset.carbsGrams, 0.01)
+        assertEquals(9.0, preset.fatGrams, 0.01)
+        assertTrue(preset.isFavorite)
+        assertEquals("Saved quick log favorite", viewModel.state.value.message)
+    }
+
+    @Test
+    fun logFavoriteQuickLogLogsPresetIntoSelectedMeal() = runTest {
+        val repository =
+            FakeFoodRepository(
+                quickCaloriePresets = listOf(
+                    QuickCaloriePreset(
+                        id = "quick-1",
+                        name = "Protein snack",
+                        caloriesKcal = 320.0,
+                        proteinGrams = 22.0,
+                        carbsGrams = 36.0,
+                        fatGrams = 9.0,
+                        isFavorite = true,
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.quickCaloriePresets.single().isFavorite)
+
+        viewModel.openAddFood("snacks")
+        viewModel.logFavoriteQuickLog("quick-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(LogFavoriteQuickLogCall("quick-1", "snacks", LocalDate.now()), repository.logFavoriteQuickLogCall)
+        assertEquals("Logged favorite quick log", viewModel.state.value.message)
     }
 
     @Test
@@ -1974,6 +2028,12 @@ class FoodViewModelTest {
         val date: LocalDate,
     )
 
+    private data class LogFavoriteQuickLogCall(
+        val presetId: String,
+        val mealType: String,
+        val date: LocalDate,
+    )
+
     private data class RenameTemplateCall(
         val templateId: String,
         val name: String,
@@ -2038,6 +2098,7 @@ class FoodViewModelTest {
         savedFoods: List<SavedFoodItem> = emptyList(),
         templates: List<MealTemplate> = emptyList(),
         recipes: List<Recipe> = emptyList(),
+        quickCaloriePresets: List<QuickCaloriePreset> = emptyList(),
         foodGoal: FoodGoal = FoodGoal(
             dailyCaloriesKcal = 2083.0,
             proteinGrams = 104.0,
@@ -2055,10 +2116,14 @@ class FoodViewModelTest {
         private val savedFoodsFlow = MutableStateFlow(savedFoods)
         private val templatesFlow = MutableStateFlow(templates)
         private val recipesFlow = MutableStateFlow(recipes)
+        private val quickCaloriePresetsFlow = MutableStateFlow(quickCaloriePresets)
         private val foodGoalFlow = MutableStateFlow(foodGoal)
         var savedLog: FoodLogInput? = null
         var savedFoodLog: SavedFoodLogInput? = null
         var quickLog: QuickCalorieLogInput? = null
+        var favoriteQuickLogSave: QuickCaloriePresetInput? = null
+        var favoriteQuickLogToggle: Pair<String, Boolean>? = null
+        var logFavoriteQuickLogCall: LogFavoriteQuickLogCall? = null
         var diaryEntryUpdate: DiaryEntryUpdateInput? = null
         var deletedDiaryEntryId: String? = null
         var savedFoodUpsert: SavedFoodUpsertInput? = null
@@ -2120,6 +2185,23 @@ class FoodViewModelTest {
 
         override suspend fun quickLog(input: QuickCalorieLogInput): String {
             quickLog = input
+            return "meal-item-1"
+        }
+
+        override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> =
+            quickCaloriePresetsFlow
+
+        override suspend fun saveFavoriteQuickLog(input: QuickCaloriePresetInput): String {
+            favoriteQuickLogSave = input
+            return "quick-1"
+        }
+
+        override suspend fun toggleFavoriteQuickLog(presetId: String, isFavorite: Boolean) {
+            favoriteQuickLogToggle = presetId to isFavorite
+        }
+
+        override suspend fun logFavoriteQuickLog(presetId: String, mealType: String, date: LocalDate): String {
+            logFavoriteQuickLogCall = LogFavoriteQuickLogCall(presetId, mealType, date)
             return "meal-item-1"
         }
 
