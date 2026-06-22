@@ -30,7 +30,7 @@ The MVP is local-first. It has no account system, cloud sync, analytics, subscri
 | UI | Jetpack Compose with Material 3 |
 | Navigation | Navigation Compose, single activity |
 | State | Hilt ViewModels exposing immutable `StateFlow` UI state |
-| Storage | Room local database, schema version 17 |
+| Storage | Room local database, schema version 21 |
 | Async | Kotlin coroutines and Flow |
 | DI | Hilt |
 | Food remote data | Retrofit and Moshi client for Open Food Facts |
@@ -54,7 +54,7 @@ The MVP is local-first. It has no account system, cloud sync, analytics, subscri
 | `app/src/main/java/com/musfit/domain/` | Pure Kotlin domain models and calculators. No Android, Compose, Retrofit, Room, or Health Connect dependencies. |
 | `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect gateway, record mapping, and permission rationale activity. |
 | `app/src/test/java/com/musfit/` | Unit tests for ViewModels, repositories, DAOs, domain calculators, and integration boundaries. |
-| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Exported Room schema JSON files for versions 1 through 17. |
+| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Exported Room schema JSON files for versions 1 through 21. |
 
 ## Layering
 
@@ -138,7 +138,7 @@ Food and Today use date-scoped Flow collection. Food owns a `selectedDateFlow` a
 
 ## Persistence
 
-The database is `MusFitDatabase`, version 17, with `exportSchema = true`.
+The database is `MusFitDatabase`, version 21, with `exportSchema = true`.
 
 Major table groups:
 
@@ -147,7 +147,7 @@ Major table groups:
 - Health: body metrics, daily health summaries, Health Connect sync state.
 - Today goals: user goals.
 
-Room migrations are registered from version 1 to 17 in `DatabaseModule`. The app does not use destructive migration fallback, so schema changes must include a migration and a committed schema JSON.
+Room migrations are registered from version 1 to 21 in `DatabaseModule`. The app does not use destructive migration fallback, so schema changes must include a migration and a committed schema JSON.
 
 ## Remote And Device Integrations
 

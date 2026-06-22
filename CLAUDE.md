@@ -65,11 +65,13 @@ Strict layering, one direction of dependency: **Compose screen → ViewModel →
 
 ### Room database — migrations are mandatory
 
-`MusFitDatabase` is at **version 14** with `exportSchema = true`; every version's schema JSON is committed under `app/schemas/` and ships as a test asset. Any entity/schema change **must**: (1) add a `MIGRATION_x_y` to `core/di/DatabaseModule.kt` and register it in `addMigrations(...)`, (2) bump `version`, and (3) commit the new `app/schemas/...json`. There is no `fallbackToDestructiveMigration` — a missing migration crashes existing installs. Match the column names/types Room expects exactly (compare against the generated schema JSON).
+`MusFitDatabase` is at **version 21** with `exportSchema = true`; every version's schema JSON is committed under `app/schemas/` and ships as a test asset. Any entity/schema change **must**: (1) add a `MIGRATION_x_y` to `core/di/DatabaseModule.kt` and register it in `addMigrations(...)`, (2) bump `version`, and (3) commit the new `app/schemas/...json`. There is no `fallbackToDestructiveMigration` — a missing migration crashes existing installs. Match the column names/types Room expects exactly (compare against the generated schema JSON).
 
 ### The Food miniapp is concentrated and large
 
 `ui/food/FoodScreen.kt` and `ui/food/FoodViewModel.kt` are each ~4,700 lines; `data/repository/FoodRepository.kt` is ~2,400. New Food work extends these existing files and patterns — prefer following the established `FoodAddMode` / `FoodSheetMode` / state-driven sheet conventions over introducing new abstractions or splitting files unprompted.
+
+For a full map of the Food miniapp — feature inventory, the state-driven sheet/add modes, the `FoodUiState` shape, and the in-progress structure refactor — see [`docs/architecture/food-system.md`](docs/architecture/food-system.md). Read it before large Food work.
 
 ## Testing
 
