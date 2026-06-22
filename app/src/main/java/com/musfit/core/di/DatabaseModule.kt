@@ -36,6 +36,7 @@ object DatabaseModule {
                 MIGRATION_11_12,
                 MIGRATION_12_13,
                 MIGRATION_13_14,
+                MIGRATION_14_15,
             )
             .build()
 
@@ -294,6 +295,19 @@ object DatabaseModule {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_foods_brand ON foods(brand)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_foods_category ON foods(category)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_foods_isFavorite ON foods(isFavorite)")
+            }
+        }
+
+    private val MIGRATION_14_15 =
+        object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE routines ADD COLUMN updatedAtEpochMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE routines SET updatedAtEpochMillis = createdAtEpochMillis WHERE updatedAtEpochMillis = 0")
+                db.execSQL("ALTER TABLE routines ADD COLUMN isStarter INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE workout_sessions ADD COLUMN title TEXT")
+                db.execSQL("ALTER TABLE workout_sessions ADD COLUMN status TEXT NOT NULL DEFAULT 'completed'")
+                db.execSQL("ALTER TABLE workout_sets ADD COLUMN setType TEXT NOT NULL DEFAULT 'working'")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_workout_sessions_status ON workout_sessions(status)")
             }
         }
 }
