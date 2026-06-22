@@ -3,29 +3,41 @@ package com.musfit.ui.training
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.musfit.data.repository.ActiveWorkoutSummary
 import com.musfit.data.repository.ExerciseSummary
 import java.util.Locale
 
@@ -33,6 +45,7 @@ import java.util.Locale
 fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
     val activeWorkout = state.activeWorkout
+    var quickLogExpanded by remember { mutableStateOf(false) }
 
     if (state.activeWorkoutRouteOpen && activeWorkout != null) {
         Column(
@@ -45,6 +58,11 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 workout = activeWorkout,
                 exercises = state.exercises,
                 restTimer = state.restTimer,
+                onTickRestTimer = viewModel::tickRestTimer,
+                onPauseRestTimer = viewModel::pauseRestTimer,
+                onResumeRestTimer = viewModel::resumeRestTimer,
+                onSkipRestTimer = viewModel::skipRestTimer,
+                onAdjustRestTimer = viewModel::adjustRestTimerSeconds,
                 onAddExercise = viewModel::addExerciseToActiveWorkout,
                 onAddSet = viewModel::addWorkoutSet,
                 onDuplicateSet = viewModel::duplicateLastWorkoutSet,
@@ -52,8 +70,15 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 onDeleteSet = viewModel::deleteWorkoutSet,
                 onToggleSet = viewModel::toggleWorkoutSetCompletion,
                 onClose = viewModel::closeActiveWorkoutRoute,
-                onFinish = viewModel::finishActiveWorkout,
-                onDiscard = viewModel::discardActiveWorkout,
+                onFinish = viewModel::requestFinishActiveWorkout,
+                onDiscard = viewModel::requestDiscardActiveWorkout,
+            )
+            ActiveWorkoutConfirmationDialogs(
+                state = state,
+                onConfirmFinish = viewModel::finishActiveWorkout,
+                onCancelFinish = viewModel::cancelFinishActiveWorkout,
+                onConfirmDiscard = viewModel::discardActiveWorkout,
+                onCancelDiscard = viewModel::cancelDiscardActiveWorkout,
             )
         }
         return
@@ -75,28 +100,25 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     ) {
         Text(text = "Training", style = MaterialTheme.typography.headlineSmall)
         state.activeWorkoutSummary?.let { summary ->
-            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(text = summary.title, style = MaterialTheme.typography.titleMedium)
-                    Text(text = "${summary.completedSetCount} sets completed")
-                    Text(text = "Volume: ${summary.totalVolumeKg.formatKg()} kg")
-                    TextButton(onClick = viewModel::resumeActiveWorkout) {
-                        Text("Resume workout")
-                    }
-                }
-            }
+            ActiveWorkoutResumeBanner(
+                summary = summary,
+                onResume = viewModel::resumeActiveWorkout,
+            )
         }
-        QuickSetLoggerCard(
-            state = state,
-            onExerciseChanged = viewModel::onExerciseChanged,
-            onRepsChanged = viewModel::onRepsChanged,
-            onWeightChanged = viewModel::onWeightChanged,
-            onAddSet = viewModel::addSet,
-            onToggleSetCompletion = viewModel::toggleSetCompletion,
+        QuickLogDisclosure(
+            expanded = quickLogExpanded,
+            onToggle = { quickLogExpanded = nextQuickLogExpanded(quickLogExpanded) },
         )
+        if (quickLogExpanded) {
+            QuickSetLoggerCard(
+                state = state,
+                onExerciseChanged = viewModel::onExerciseChanged,
+                onRepsChanged = viewModel::onRepsChanged,
+                onWeightChanged = viewModel::onWeightChanged,
+                onAddSet = viewModel::addSet,
+                onToggleSetCompletion = viewModel::toggleSetCompletion,
+            )
+        }
         state.message?.let { message ->
             Text(
                 text = message,
@@ -178,6 +200,105 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     progress = state.selectedExerciseProgress,
                     onSelectExercise = viewModel::selectProgressExercise,
                 )
+        }
+    }
+}
+
+@Composable
+private fun ActiveWorkoutConfirmationDialogs(
+    state: TrainingUiState,
+    onConfirmFinish: () -> Unit,
+    onCancelFinish: () -> Unit,
+    onConfirmDiscard: () -> Unit,
+    onCancelDiscard: () -> Unit,
+) {
+    val workout = state.activeWorkout
+    if (state.finishConfirmationOpen && workout != null) {
+        AlertDialog(
+            onDismissRequest = onCancelFinish,
+            title = { Text("Finish workout?") },
+            text = {
+                Text(
+                    "${workout.title}\n" +
+                        "${workout.completedSetCount} sets - ${workout.totalVolumeKg.formatKg()} kg",
+                )
+            },
+            confirmButton = {
+                Button(onClick = onConfirmFinish) {
+                    Text("Finish")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelFinish) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+    if (state.discardConfirmationOpen && workout != null) {
+        AlertDialog(
+            onDismissRequest = onCancelDiscard,
+            title = { Text("Discard workout?") },
+            text = { Text("This removes the active workout from your log.") },
+            confirmButton = {
+                Button(onClick = onConfirmDiscard) {
+                    Text("Discard")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelDiscard) {
+                    Text("Keep workout")
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun ActiveWorkoutResumeBanner(
+    summary: ActiveWorkoutSummary,
+    onResume: () -> Unit,
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = summary.title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = "${summary.completedSetCount} sets - ${summary.totalVolumeKg.formatKg()} kg",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onResume) {
+                Text("Resume")
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickLogDisclosure(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        TextButton(
+            onClick = onToggle,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(imageVector = Icons.Outlined.FitnessCenter, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(if (expanded) "Hide quick log" else "Quick log")
         }
     }
 }
