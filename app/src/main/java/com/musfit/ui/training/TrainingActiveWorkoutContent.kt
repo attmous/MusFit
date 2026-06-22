@@ -7,9 +7,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -39,11 +43,18 @@ fun TrainingActiveWorkoutContent(
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
     onToggleSet: (String, Boolean) -> Unit,
+    onClose: () -> Unit,
     onFinish: () -> Unit,
     onDiscard: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = "Back",
+                )
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(workout.title, style = MaterialTheme.typography.headlineSmall)
                 Text("${workout.completedSetCount} sets - ${workout.totalVolumeKg.formatKg()} kg")
