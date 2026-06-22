@@ -2403,7 +2403,7 @@ class FoodViewModelTest {
         val carbProgress = viewModel.state.value.macroProgress.first { it.label == "Net carbs" }
         assertTrue(repository.foodGoalUpdate?.useNetCarbs == true)
         assertTrue(viewModel.state.value.useNetCarbs)
-        assertTrue(viewModel.state.value.goalUseNetCarbsInput)
+        assertTrue(viewModel.state.value.goalEditor.useNetCarbsInput)
         assertEquals(66.0, carbProgress.currentGrams, 0.01)
         assertEquals(260.0, carbProgress.goalGrams, 0.01)
     }

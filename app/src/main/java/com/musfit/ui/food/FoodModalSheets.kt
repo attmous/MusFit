@@ -1394,25 +1394,25 @@ internal fun GoalEditorPanel(
     ) {
         Text("Nutrition goals", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SmallNumberField("Calories", state.goalCaloriesKcalInput, onCaloriesChanged, Modifier.weight(1f))
-            SmallNumberField("Protein", state.goalProteinGramsInput, onProteinChanged, Modifier.weight(1f))
+            SmallNumberField("Calories", state.goalEditor.caloriesKcalInput, onCaloriesChanged, Modifier.weight(1f))
+            SmallNumberField("Protein", state.goalEditor.proteinGramsInput, onProteinChanged, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SmallNumberField("Carbs", state.goalCarbsGramsInput, onCarbsChanged, Modifier.weight(1f))
-            SmallNumberField("Fat", state.goalFatGramsInput, onFatChanged, Modifier.weight(1f))
+            SmallNumberField("Carbs", state.goalEditor.carbsGramsInput, onCarbsChanged, Modifier.weight(1f))
+            SmallNumberField("Fat", state.goalEditor.fatGramsInput, onFatChanged, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SmallNumberField("Fiber", state.goalFiberGramsInput, onFiberChanged, Modifier.weight(1f))
-            SmallNumberField("Sugar", state.goalSugarGramsInput, onSugarChanged, Modifier.weight(1f))
+            SmallNumberField("Fiber", state.goalEditor.fiberGramsInput, onFiberChanged, Modifier.weight(1f))
+            SmallNumberField("Sugar", state.goalEditor.sugarGramsInput, onSugarChanged, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SmallNumberField("Sat fat", state.goalSaturatedFatGramsInput, onSaturatedFatChanged, Modifier.weight(1f))
-            SmallNumberField("Sodium mg", state.goalSodiumMgInput, onSodiumChanged, Modifier.weight(1f))
+            SmallNumberField("Sat fat", state.goalEditor.saturatedFatGramsInput, onSaturatedFatChanged, Modifier.weight(1f))
+            SmallNumberField("Sodium mg", state.goalEditor.sodiumMgInput, onSodiumChanged, Modifier.weight(1f))
         }
         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FoodGoalMode.entries.forEach { mode ->
                 FilterChip(
-                    selected = state.goalModeInput == mode,
+                    selected = state.goalEditor.modeInput == mode,
                     onClick = { onModeChanged(mode) },
                     label = { Text(mode.label) },
                 )
@@ -1424,7 +1424,7 @@ internal fun GoalEditorPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Net carbs", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-            Switch(checked = state.goalUseNetCarbsInput, onCheckedChange = onNetCarbsChanged)
+            Switch(checked = state.goalEditor.useNetCarbsInput, onCheckedChange = onNetCarbsChanged)
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1432,7 +1432,7 @@ internal fun GoalEditorPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Include training calories", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-            Switch(checked = state.goalIncludeTrainingInput, onCheckedChange = onTrainingChanged)
+            Switch(checked = state.goalEditor.includeTrainingInput, onCheckedChange = onTrainingChanged)
         }
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         Button(

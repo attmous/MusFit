@@ -389,6 +389,20 @@ data class DiaryEntryEditorState(
     val isPlanned: Boolean = false,
 )
 
+data class GoalEditorState(
+    val caloriesKcalInput: String = CALORIE_GOAL_KCAL.formatInputNumber(),
+    val proteinGramsInput: String = PROTEIN_GOAL_GRAMS.formatInputNumber(),
+    val carbsGramsInput: String = CARBS_GOAL_GRAMS.formatInputNumber(),
+    val fatGramsInput: String = FAT_GOAL_GRAMS.formatInputNumber(),
+    val fiberGramsInput: String = FIBER_GOAL_GRAMS.formatInputNumber(),
+    val sugarGramsInput: String = SUGAR_GOAL_GRAMS.formatInputNumber(),
+    val saturatedFatGramsInput: String = SATURATED_FAT_GOAL_GRAMS.formatInputNumber(),
+    val sodiumMgInput: String = SODIUM_GOAL_MILLIGRAMS.formatInputNumber(),
+    val modeInput: FoodGoalMode = FoodGoalMode.Balanced,
+    val includeTrainingInput: Boolean = false,
+    val useNetCarbsInput: Boolean = false,
+)
+
 data class FoodAmountNutritionPreviewUiState(
     val quantityGrams: Double,
     val caloriesKcal: Double,
@@ -520,17 +534,7 @@ data class FoodUiState(
     val templateItemsInput: List<MealTemplateItemDraftUiState> = emptyList(),
     val templateItemFoodId: String = "",
     val templateItemQuantityGrams: String = "100",
-    val goalCaloriesKcalInput: String = CALORIE_GOAL_KCAL.formatInputNumber(),
-    val goalProteinGramsInput: String = PROTEIN_GOAL_GRAMS.formatInputNumber(),
-    val goalCarbsGramsInput: String = CARBS_GOAL_GRAMS.formatInputNumber(),
-    val goalFatGramsInput: String = FAT_GOAL_GRAMS.formatInputNumber(),
-    val goalFiberGramsInput: String = FIBER_GOAL_GRAMS.formatInputNumber(),
-    val goalSugarGramsInput: String = SUGAR_GOAL_GRAMS.formatInputNumber(),
-    val goalSaturatedFatGramsInput: String = SATURATED_FAT_GOAL_GRAMS.formatInputNumber(),
-    val goalSodiumMgInput: String = SODIUM_GOAL_MILLIGRAMS.formatInputNumber(),
-    val goalModeInput: FoodGoalMode = FoodGoalMode.Balanced,
-    val goalIncludeTrainingInput: Boolean = false,
-    val goalUseNetCarbsInput: Boolean = false,
+    val goalEditor: GoalEditorState = GoalEditorState(),
     val editingRecipeId: String? = null,
     val recipeName: String = "",
     val recipeCategory: String = "",
@@ -3112,53 +3116,55 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onGoalCaloriesChanged(value: String) {
-        mutableState.update { it.copy(goalCaloriesKcalInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(caloriesKcalInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalProteinChanged(value: String) {
-        mutableState.update { it.copy(goalProteinGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(proteinGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalCarbsChanged(value: String) {
-        mutableState.update { it.copy(goalCarbsGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(carbsGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalFatChanged(value: String) {
-        mutableState.update { it.copy(goalFatGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(fatGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalFiberChanged(value: String) {
-        mutableState.update { it.copy(goalFiberGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(fiberGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalSugarChanged(value: String) {
-        mutableState.update { it.copy(goalSugarGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(sugarGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalSaturatedFatChanged(value: String) {
-        mutableState.update { it.copy(goalSaturatedFatGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(saturatedFatGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalSodiumChanged(value: String) {
-        mutableState.update { it.copy(goalSodiumMgInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(sodiumMgInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalModeChanged(value: FoodGoalMode) {
         mutableState.update { currentState ->
             val preset = value.goalPreset()
             if (preset == null) {
-                currentState.copy(goalModeInput = value, message = null)
+                currentState.copy(goalEditor = currentState.goalEditor.copy(modeInput = value), message = null)
             } else {
                 currentState.copy(
-                    goalModeInput = value,
-                    goalCaloriesKcalInput = preset.dailyCaloriesKcal.formatInputNumber(),
-                    goalProteinGramsInput = preset.proteinGrams.formatInputNumber(),
-                    goalCarbsGramsInput = preset.carbsGrams.formatInputNumber(),
-                    goalFatGramsInput = preset.fatGrams.formatInputNumber(),
-                    goalFiberGramsInput = preset.fiberGrams.formatInputNumber(),
-                    goalSugarGramsInput = preset.sugarGrams.formatInputNumber(),
-                    goalSaturatedFatGramsInput = preset.saturatedFatGrams.formatInputNumber(),
-                    goalSodiumMgInput = preset.sodiumMilligrams.formatInputNumber(),
+                    goalEditor = currentState.goalEditor.copy(
+                        modeInput = value,
+                        caloriesKcalInput = preset.dailyCaloriesKcal.formatInputNumber(),
+                        proteinGramsInput = preset.proteinGrams.formatInputNumber(),
+                        carbsGramsInput = preset.carbsGrams.formatInputNumber(),
+                        fatGramsInput = preset.fatGrams.formatInputNumber(),
+                        fiberGramsInput = preset.fiberGrams.formatInputNumber(),
+                        sugarGramsInput = preset.sugarGrams.formatInputNumber(),
+                        saturatedFatGramsInput = preset.saturatedFatGrams.formatInputNumber(),
+                        sodiumMgInput = preset.sodiumMilligrams.formatInputNumber(),
+                    ),
                     message = null,
                 )
             }
@@ -3166,31 +3172,32 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onGoalIncludeTrainingChanged(value: Boolean) {
-        mutableState.update { it.copy(goalIncludeTrainingInput = value, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(includeTrainingInput = value), message = null) }
     }
 
     fun onGoalUseNetCarbsChanged(value: Boolean) {
-        mutableState.update { it.copy(goalUseNetCarbsInput = value, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(useNetCarbsInput = value), message = null) }
     }
 
     fun saveFoodGoal() {
         val currentState = state.value
+        val editor = currentState.goalEditor
         val goal =
             FoodGoal(
-                dailyCaloriesKcal = currentState.goalCaloriesKcalInput.parsePositiveNumberOrNull() ?: run {
+                dailyCaloriesKcal = editor.caloriesKcalInput.parsePositiveNumberOrNull() ?: run {
                     mutableState.update { it.copy(message = "Enter a valid calorie goal") }
                     return
                 },
-                proteinGrams = currentState.goalProteinGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                carbsGrams = currentState.goalCarbsGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                fatGrams = currentState.goalFatGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                fiberGrams = currentState.goalFiberGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                sugarGrams = currentState.goalSugarGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                saturatedFatGrams = currentState.goalSaturatedFatGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                sodiumMilligrams = currentState.goalSodiumMgInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                mode = currentState.goalModeInput,
-                includeTrainingCalories = currentState.goalIncludeTrainingInput,
-                useNetCarbs = currentState.goalUseNetCarbsInput,
+                proteinGrams = editor.proteinGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                carbsGrams = editor.carbsGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                fatGrams = editor.fatGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                fiberGrams = editor.fiberGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                sugarGrams = editor.sugarGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                saturatedFatGrams = editor.saturatedFatGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                sodiumMilligrams = editor.sodiumMgInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                mode = editor.modeInput,
+                includeTrainingCalories = editor.includeTrainingInput,
+                useNetCarbs = editor.useNetCarbsInput,
                 waterGoalMilliliters = currentState.waterGoalMilliliters,
             )
         if (!markSaving()) {
@@ -3866,17 +3873,19 @@ private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
         includeTrainingCalories = goal.includeTrainingCalories,
         useNetCarbs = goal.useNetCarbs,
         remainingCaloriesKcal = goal.dailyCaloriesKcal - eatenCaloriesKcal,
-        goalCaloriesKcalInput = goal.dailyCaloriesKcal.formatInputNumber(),
-        goalProteinGramsInput = goal.proteinGrams.formatInputNumber(),
-        goalCarbsGramsInput = goal.carbsGrams.formatInputNumber(),
-        goalFatGramsInput = goal.fatGrams.formatInputNumber(),
-        goalFiberGramsInput = goal.fiberGrams.formatInputNumber(),
-        goalSugarGramsInput = goal.sugarGrams.formatInputNumber(),
-        goalSaturatedFatGramsInput = goal.saturatedFatGrams.formatInputNumber(),
-        goalSodiumMgInput = goal.sodiumMilligrams.formatInputNumber(),
-        goalModeInput = goal.mode,
-        goalIncludeTrainingInput = goal.includeTrainingCalories,
-        goalUseNetCarbsInput = goal.useNetCarbs,
+        goalEditor = GoalEditorState(
+            caloriesKcalInput = goal.dailyCaloriesKcal.formatInputNumber(),
+            proteinGramsInput = goal.proteinGrams.formatInputNumber(),
+            carbsGramsInput = goal.carbsGrams.formatInputNumber(),
+            fatGramsInput = goal.fatGrams.formatInputNumber(),
+            fiberGramsInput = goal.fiberGrams.formatInputNumber(),
+            sugarGramsInput = goal.sugarGrams.formatInputNumber(),
+            saturatedFatGramsInput = goal.saturatedFatGrams.formatInputNumber(),
+            sodiumMgInput = goal.sodiumMilligrams.formatInputNumber(),
+            modeInput = goal.mode,
+            includeTrainingInput = goal.includeTrainingCalories,
+            useNetCarbsInput = goal.useNetCarbs,
+        ),
         waterGoalMilliliters = goal.waterGoalMilliliters,
         waterProgress = waterConsumedMilliliters.fractionOf(goal.waterGoalMilliliters),
         waterGoalInput = goal.waterGoalMilliliters.formatInputNumber(),
