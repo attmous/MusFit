@@ -31,7 +31,8 @@ Profile stays Android-only, local-first, and integrated with the existing MusFit
 - `ImportedDailyHealthSummary` carries `steps`, `activeCaloriesKcal`, `latestWeightKg`, and `restingHeartRateBpm`; `DailyHealthSummaryEntity` persists them per day.
 - Food owns nutrition goals through `FoodRepository.observeFoodGoal(): Flow<FoodGoal>` and `updateFoodGoal(goal)`, backed by `FoodGoalEntity` (table `food_goals`, with daily calories, protein/carbs/fat grams, mode, training-calorie inclusion, net-carbs, and water goal). The "Apply to Food goals" action calls `updateFoodGoal`; Food source is not modified.
 - Today reads the Health Connect daily summary (steps, active calories, body weight). Today is unchanged in v1.
-- `MusFitDatabase` is at version 14 with `exportSchema = true` and no destructive-migration fallback.
+- `MusFitDatabase` is at version 16 with `exportSchema = true` and no destructive-migration fallback. (The version 14 noted in CLAUDE.md is stale.)
+- A generic `body_metrics` table already exists (`BodyMetricEntity`: `id`, `type`, `value`, `unit`, `measuredAtEpochMillis`, `source`, `externalId`) with `HealthDao` methods `upsertBodyMetric`, `observeBodyMetrics(type, fromEpochMillis)`, and `getBodyMetrics(type, fromEpochMillis)`. It is currently unused by any repository and is the natural store for weight and measurements.
 
 The design extends these existing layers rather than replacing the data or Health Connect plumbing.
 
@@ -62,7 +63,7 @@ The existing direction of dependency is preserved:
 Compose screen -> `ProfileViewModel` -> `ProfileRepository` / `HealthRepository` / `FoodRepository` -> DAO / Health Connect gateway -> Room / Health Connect.
 
 - `ProfileViewModel` exposes a single immutable `StateFlow<ProfileUiState>` built from a private `MutableStateFlow(...).asStateFlow()`. It observes profile, weight series and latest weight, measurements, settings, and the Health Connect daily summary via flows, and runs mutations in `viewModelScope`.
-- `ProfileRepository` (interface plus `LocalProfileRepository`, bound via Hilt `@Binds` in `RepositoryModule`) owns profile, weight, measurements, and settings.
+- `ProfileRepository` (interface plus `LocalProfileRepository`, bound via Hilt `@Binds` in `RepositoryModule`) owns profile and settings through a new `ProfileDao`, and weight and measurements through the existing `body_metrics` table and `HealthDao`.
 - `HealthRepository` is reused unchanged for Health Connect status, import, export, and the vitals strip.
 - `FoodRepository` is injected only for the single "Apply to Food goals" write.
 - Calculations live in pure domain code with no Android or Room dependencies.
@@ -80,7 +81,7 @@ If a screen file grows large, split composables by surface for readability (for 
 
 `BodyMetricsCalculator` (pure): BMI from weight and height; goal-weight progress fraction from start, current, and goal weight; weight-trend delta over a window.
 
-The recommendation requires sex, birthdate, height, and a current weight (the latest `WeightEntryEntity`); otherwise the targets card shows a complete-profile prompt instead of numbers.
+The recommendation requires sex, birthdate, height, and a current weight (the latest `body_metrics` row of type `weight`); otherwise the targets card shows a complete-profile prompt instead of numbers.
 
 ## Apply To Food Goals
 
@@ -88,18 +89,18 @@ The action reads the current `FoodGoal` (first value of `observeFoodGoal()`), co
 
 ## Data Model
 
-New Room entities, all created in a single migration:
+Weight and measurements reuse the existing `body_metrics` table (`BodyMetricEntity`: `id`, `type`, `value`, `unit`, `measuredAtEpochMillis`, `source`, `externalId`) and its existing `HealthDao` methods (`upsertBodyMetric`, `observeBodyMetrics(type, fromEpochMillis)`, `getBodyMetrics(type, fromEpochMillis)`). Weight is `type = "weight"` (unit `kg`); measurements are a `type` of `waist`, `chest`, `arms`, `thighs`, `hips`, or `body_fat` (unit `cm` or `%`); `source` is `manual` or `health_connect`. No new time-series tables are introduced.
 
-- `UserProfileEntity` (singleton row): sex, `birthDateEpochDay`, `heightCm`, `activityLevel`, `goalType`, `goalPaceKgPerWeek`, `goalWeightKg`, `updatedAtEpochMillis`.
-- `WeightEntryEntity` (time series): id, `dateEpochDay`, `weightKg`, `source` (manual or health_connect), `createdAtEpochMillis`.
-- `BodyMeasurementEntity` (time series by type): id, `dateEpochDay`, `type` (waist, chest, arms, thighs, hips, body_fat, and so on), `value`, `createdAtEpochMillis`.
-- `AppSettingsEntity` (singleton row): `unitSystem` (metric default), `themeMode` (system default), `updatedAtEpochMillis`. The unit and theme values are stored but not yet applied app-wide in v1.
+Two new singleton entities are required:
+
+- `UserProfileEntity` (singleton row, fixed id): `sex`, `birthDateEpochDay`, `heightCm`, `activityLevel`, `goalType`, `goalPaceKgPerWeek`, `goalWeightKg`, `updatedAtEpochMillis`.
+- `AppSettingsEntity` (singleton row, fixed id): `unitSystem` (metric default), `themeMode` (system default), `updatedAtEpochMillis`. The unit and theme values are stored but not yet applied app-wide in v1.
 
 Weights are stored in kilograms and lengths in centimeters regardless of any future unit preference.
 
-The schema change is mandatory and follows the repository rule: add `MIGRATION_14_15` creating these tables in `DatabaseModule.kt`, bump `MusFitDatabase` version to 15, register the migration in `addMigrations(...)`, commit the new `app/schemas/15.json`, and add a migration test. There is no destructive fallback.
+The schema change is mandatory and follows the repository rule: add `MIGRATION_16_17` creating the `user_profile` and `app_settings` tables in `DatabaseModule.kt`, bump `MusFitDatabase` version from 16 to 17, register the migration in `addMigrations(...)`, let the build regenerate the schema JSON and commit `app/schemas/.../17.json`, and add DAO round-trip tests for the new tables. There is no destructive fallback.
 
-`ProfileDao` returns Flows: observe and upsert profile; insert weight entry, observe the weight series and latest weight; insert measurement, observe the series and latest value per type; observe and upsert settings.
+A new `ProfileDao` exposes Flows for the two singletons (observe and upsert profile; observe and upsert settings). `ProfileRepository` injects both `ProfileDao` and the existing `HealthDao`, reading and writing weight and measurements through `body_metrics`.
 
 ## State And Navigation
 
@@ -124,7 +125,7 @@ Today continues to read the Health Connect daily summary and is unchanged in v1.
 TDD is expected for behavior changes.
 
 - Domain (pure JUnit): `EnergyCalculator` BMR, TDEE, target calories, and macro split for known inputs across each goal intent and activity level; `BodyMetricsCalculator` BMI, progress, and trend.
-- Repository (`RobolectricTestRunner` with in-memory Room): profile upsert and read; weight add, list, and latest; measurement add, list, and latest-by-type; settings upsert and read; and the 14 to 15 migration.
+- Repository (`RobolectricTestRunner` with in-memory Room): profile upsert and read; weight add, list, and latest; measurement add, list, and latest-by-type; settings upsert and read; and DAO round-trip for the new `user_profile` and `app_settings` tables (migration 16 to 17).
 - ViewModel (JUnit with hand-written fakes including a `FakeProfileRepository`, reusing the existing Food and Health fakes; `StandardTestDispatcher` with `Dispatchers.setMain`/`resetMain`): empty and incomplete state; editing the profile recomputes the recommendation; Apply writes a computed `FoodGoal` that preserves the other goal fields; logging weight updates trend and progress; vitals mapping; and the relocated Health Connect status, import, and export behavior.
 
 Full verification before claiming completion or pushing:
@@ -144,19 +145,19 @@ Full verification before claiming completion or pushing:
 
 ### Slice 2: Profile and targets
 
-- Add `UserProfileEntity` and `AppSettingsEntity`, and create the `WeightEntryEntity` and `BodyMeasurementEntity` tables in the same migration 14 to 15 so there is a single schema bump.
-- Add `ProfileDao`, `ProfileRepository`, and `EnergyCalculator`.
+- Add `UserProfileEntity` and `AppSettingsEntity` via migration 16 to 17 (a single schema bump); weight and measurements reuse the existing `body_metrics` table, so no new time-series tables are created.
+- Add `ProfileDao`, `ProfileRepository` (injecting the new `ProfileDao` and the existing `HealthDao`), and `EnergyCalculator`.
 - Add the profile editor (which captures the current weight as an initial weight entry so the recommendation has a value), the recommended-targets card, and the Apply to Food goals action.
 - Add domain, repository, and ViewModel tests.
 
 ### Slice 3: Weight tracking
 
-- Add weight logging (prefilled from the latest Health Connect weight), trend, and goal progress, backed by `BodyMetricsCalculator`.
+- Add weight logging to `body_metrics` (type `weight`, prefilled from the latest Health Connect weight), trend, and goal progress, backed by `BodyMetricsCalculator`.
 - Add tests for weight logging, trend, and progress.
 
 ### Slice 4: Measurements
 
-- Add measurement logging and latest-value-plus-delta display.
+- Add measurement logging to `body_metrics` (types `waist`, `chest`, `arms`, `thighs`, `hips`, `body_fat`) and latest-value-plus-delta display.
 - Add tests for measurement persistence and display.
 
 ### Slice 5: Vitals and polish
@@ -175,7 +176,7 @@ Profile v1 is complete when:
 - A user can log body measurements and see the latest value and delta.
 - The Health Connect vitals strip shows resting heart rate, steps, and active calories when granted, and degrades gracefully otherwise.
 - Health Connect status, import, and export work from Settings exactly as before.
-- The 14 to 15 migration ships with its schema JSON and tests, and existing installs upgrade without data loss.
+- The 16 to 17 migration ships with its schema JSON (`17.json`) and DAO round-trip tests, and existing installs upgrade without data loss.
 - `testDebugUnitTest`, `lintDebug`, and `assembleDebug` pass.
 
 ## Non-Goals For V1
