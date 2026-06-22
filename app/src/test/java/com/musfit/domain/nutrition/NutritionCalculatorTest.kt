@@ -30,6 +30,35 @@ class NutritionCalculatorTest {
     }
 
     @Test
+    fun nutritionForAmount_scalesPer100gByQuantity() {
+        val per100g = FoodNutrition(
+            caloriesKcal = 250.0,
+            proteinGrams = 12.0,
+            carbsGrams = 30.0,
+            fatGrams = 8.0,
+        )
+
+        val scaled = NutritionCalculator.nutritionForAmount(per100g, quantityGrams = 150.0)
+
+        assertEquals(375.0, scaled.caloriesKcal, 0.01)
+        assertEquals(18.0, scaled.proteinGrams, 0.01)
+        assertEquals(45.0, scaled.carbsGrams, 0.01)
+        assertEquals(12.0, scaled.fatGrams, 0.01)
+    }
+
+    @Test
+    fun nutritionForAmount_returnsZeroForZeroQuantity() {
+        val per100g = FoodNutrition(250.0, 12.0, 30.0, 8.0)
+
+        val scaled = NutritionCalculator.nutritionForAmount(per100g, quantityGrams = 0.0)
+
+        assertEquals(0.0, scaled.caloriesKcal, 0.01)
+        assertEquals(0.0, scaled.proteinGrams, 0.01)
+        assertEquals(0.0, scaled.carbsGrams, 0.01)
+        assertEquals(0.0, scaled.fatGrams, 0.01)
+    }
+
+    @Test
     fun calculateMealTotals_ignoresZeroAndNegativeQuantities() {
         val items = listOf(
             MealItemInput(

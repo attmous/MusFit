@@ -41,6 +41,7 @@ import com.musfit.domain.food.NutritionLabelParser
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.domain.nutrition.NutritionCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -3642,13 +3643,13 @@ class FoodViewModel @Inject constructor(
         val quantity = quantityGrams.parsePositiveNumberOrNull()
         val nutrition = toEditedNutritionOrNull()
         val preview = if (quantity != null && nutrition != null) {
-            val scale = quantity / 100.0
+            val scaled = NutritionCalculator.nutritionForAmount(nutrition, quantity)
             FoodAmountNutritionPreviewUiState(
                 quantityGrams = quantity,
-                caloriesKcal = nutrition.caloriesKcal * scale,
-                proteinGrams = nutrition.proteinGrams * scale,
-                carbsGrams = nutrition.carbsGrams * scale,
-                fatGrams = nutrition.fatGrams * scale,
+                caloriesKcal = scaled.caloriesKcal,
+                proteinGrams = scaled.proteinGrams,
+                carbsGrams = scaled.carbsGrams,
+                fatGrams = scaled.fatGrams,
             )
         } else {
             null
