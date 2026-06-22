@@ -442,11 +442,21 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.resumeActiveWorkout()
         viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
-        dispatcher.scheduler.advanceUntilIdle()
+        dispatcher.scheduler.advanceTimeBy(500)
 
         assertEquals("set-1", repository.updatedSetId)
         assertEquals(true, repository.updatedSetInput?.completed)
         assertEquals(true, viewModel.state.value.restTimer.isVisible)
+        assertEquals(120, viewModel.state.value.restTimer.remainingSeconds)
+
+        dispatcher.scheduler.advanceTimeBy(3_000)
+        assertEquals(117, viewModel.state.value.restTimer.remainingSeconds)
+
+        viewModel.extendRest()
+        assertEquals(132, viewModel.state.value.restTimer.remainingSeconds)
+
+        viewModel.skipRest()
+        assertFalse(viewModel.state.value.restTimer.isVisible)
     }
 
     @Test

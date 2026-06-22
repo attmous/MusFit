@@ -20,6 +20,7 @@ import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.training.WorkoutCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,6 +56,7 @@ data class RestTimerState(
     val isVisible: Boolean = false,
     val sourceSetId: String? = null,
     val durationSeconds: Int = 120,
+    val remainingSeconds: Int = durationSeconds,
 )
 
 data class TrainingUiState(
@@ -93,6 +95,7 @@ class TrainingViewModel @Inject constructor(
     private val mutableState = MutableStateFlow(TrainingUiState())
     val state: StateFlow<TrainingUiState> = mutableState.asStateFlow()
     private var progressObservationJob: Job? = null
+    private var restTimerJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -502,11 +505,40 @@ class TrainingViewModel @Inject constructor(
                 ),
             )
             if (completed) {
+                startRestTimer(setId)
+            }
+        }
+    }
+
+    private fun startRestTimer(setId: String) {
+        restTimerJob?.cancel()
+        mutableState.update {
+            it.copy(restTimer = RestTimerState(isVisible = true, sourceSetId = setId, remainingSeconds = 120))
+        }
+        restTimerJob = viewModelScope.launch {
+            while (state.value.restTimer.remainingSeconds > 0) {
+                delay(1_000)
                 mutableState.update {
-                    it.copy(restTimer = RestTimerState(isVisible = true, sourceSetId = setId))
+                    val remaining = (it.restTimer.remainingSeconds - 1).coerceAtLeast(0)
+                    it.copy(restTimer = it.restTimer.copy(remainingSeconds = remaining, isVisible = remaining > 0))
                 }
             }
         }
+    }
+
+    fun extendRest() {
+        mutableState.update {
+            if (!it.restTimer.isVisible) {
+                it
+            } else {
+                it.copy(restTimer = it.restTimer.copy(remainingSeconds = it.restTimer.remainingSeconds + 15, isVisible = true))
+            }
+        }
+    }
+
+    fun skipRest() {
+        restTimerJob?.cancel()
+        mutableState.update { it.copy(restTimer = it.restTimer.copy(isVisible = false, remainingSeconds = 0)) }
     }
 
     fun addExerciseToActiveWorkout(exerciseId: String) {
