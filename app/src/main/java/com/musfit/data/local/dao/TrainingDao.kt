@@ -43,6 +43,24 @@ data class RoutineExerciseDetailRow(
     val targetReps: String?,
 )
 
+data class WorkoutSetDetailRow(
+    val setId: String,
+    val sessionId: String,
+    val exerciseId: String,
+    val exerciseName: String,
+    val category: String,
+    val equipment: String?,
+    val targetMuscles: String,
+    val isCustom: Boolean,
+    val sortOrder: Int,
+    val setType: String,
+    val reps: Int?,
+    val weightKg: Double?,
+    val rpe: Double?,
+    val notes: String?,
+    val completed: Boolean,
+)
+
 @Dao
 interface TrainingDao {
     @Query("SELECT * FROM exercises ORDER BY name")
@@ -106,6 +124,9 @@ interface TrainingDao {
     )
     fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummaryRow?>
 
+    @Query("SELECT * FROM workout_sessions WHERE status = 'active' ORDER BY startedAtEpochMillis DESC LIMIT 1")
+    fun observeActiveWorkoutSession(): Flow<WorkoutSessionEntity?>
+
     @Query("SELECT * FROM workout_sessions WHERE id = :sessionId LIMIT 1")
     suspend fun getWorkoutSession(sessionId: String): WorkoutSessionEntity?
 
@@ -158,6 +179,31 @@ interface TrainingDao {
     )
     suspend fun getLatestCompletedWorkoutSession(): WorkoutSessionEntity?
 
+    @Query(
+        """
+        SELECT workout_sets.id AS setId,
+            workout_sets.sessionId AS sessionId,
+            exercises.id AS exerciseId,
+            exercises.name AS exerciseName,
+            exercises.category AS category,
+            exercises.equipment AS equipment,
+            exercises.targetMuscles AS targetMuscles,
+            exercises.isCustom AS isCustom,
+            workout_sets.sortOrder AS sortOrder,
+            workout_sets.setType AS setType,
+            workout_sets.reps AS reps,
+            workout_sets.weightKg AS weightKg,
+            workout_sets.rpe AS rpe,
+            workout_sets.notes AS notes,
+            workout_sets.completed AS completed
+        FROM workout_sets
+        INNER JOIN exercises ON exercises.id = workout_sets.exerciseId
+        WHERE workout_sets.sessionId = :sessionId
+        ORDER BY workout_sets.sortOrder ASC
+        """,
+    )
+    fun observeWorkoutSetDetailRows(sessionId: String): Flow<List<WorkoutSetDetailRow>>
+
     @Query("SELECT * FROM routine_exercises WHERE routineId = :routineId ORDER BY sortOrder")
     fun observeRoutineExercises(routineId: String): Flow<List<RoutineExerciseEntity>>
 
@@ -169,6 +215,15 @@ interface TrainingDao {
 
     @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId ORDER BY sortOrder")
     suspend fun getWorkoutSets(sessionId: String): List<WorkoutSetEntity>
+
+    @Query("SELECT * FROM workout_sets WHERE id = :setId LIMIT 1")
+    suspend fun getWorkoutSet(setId: String): WorkoutSetEntity?
+
+    @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId AND exerciseId = :exerciseId ORDER BY sortOrder DESC LIMIT 1")
+    suspend fun getLastWorkoutSetForExercise(sessionId: String, exerciseId: String): WorkoutSetEntity?
+
+    @Query("SELECT MAX(sortOrder) FROM workout_sets WHERE sessionId = :sessionId")
+    suspend fun getMaxWorkoutSetSortOrder(sessionId: String): Int?
 
     @Query(
         """
@@ -232,6 +287,12 @@ interface TrainingDao {
 
     @Query("UPDATE workout_sets SET completed = :completed WHERE id = :setId")
     suspend fun updateWorkoutSetCompletion(setId: String, completed: Boolean)
+
+    @Query("DELETE FROM workout_sets WHERE id = :setId")
+    suspend fun deleteWorkoutSetById(setId: String)
+
+    @Query("UPDATE workout_sessions SET status = :status, endedAtEpochMillis = :endedAtEpochMillis WHERE id = :sessionId")
+    suspend fun updateWorkoutSessionStatus(sessionId: String, status: String, endedAtEpochMillis: Long?)
 
     @Query("DELETE FROM routine_exercises WHERE routineId = :routineId")
     suspend fun deleteRoutineExercises(routineId: String)

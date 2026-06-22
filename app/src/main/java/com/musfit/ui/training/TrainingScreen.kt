@@ -29,6 +29,25 @@ import java.util.Locale
 @Composable
 fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
+    val activeWorkout = state.activeWorkout
+
+    if (state.activeWorkoutRouteOpen && activeWorkout != null) {
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TrainingActiveWorkoutContent(
+                workout = activeWorkout,
+                restTimer = state.restTimer,
+                onToggleSet = viewModel::toggleWorkoutSetCompletion,
+                onFinish = viewModel::finishActiveWorkout,
+                onDiscard = viewModel::discardActiveWorkout,
+            )
+        }
+        return
+    }
 
     if (state.activeWorkoutRouteOpen) {
         ActiveWorkoutPlaceholder(

@@ -7,6 +7,7 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.data.repository.WorkoutSetInputData
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -239,6 +240,57 @@ class LocalTrainingRepositoryTest {
 
         assertEquals("Blank workout", active?.title)
         assertTrue(sets.isEmpty())
+    }
+
+    @Test
+    fun activeWorkout_addEditDuplicateCompleteDeleteAndFinish_persistsExpectedState() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val sessionId = repository.startBlankWorkout()
+
+        repository.addExerciseToActiveWorkout(sessionId, bench.id)
+        val setId = repository.addSetToExercise(
+            sessionId,
+            bench.id,
+            WorkoutSetInputData(
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                rpe = 8.0,
+                notes = "Solid",
+                completed = true,
+            ),
+        )
+        repository.duplicateLastSet(sessionId, bench.id)
+        repository.updateWorkoutSet(
+            setId,
+            WorkoutSetInputData("warmup", reps = 8, weightKg = 60.0, rpe = 6.0, notes = "Warm", completed = true),
+        )
+
+        val detail = repository.observeActiveWorkoutDetail().first()
+
+        assertEquals(1, detail?.exerciseBlocks?.size)
+        assertEquals(2, detail?.exerciseBlocks?.single()?.sets?.size)
+        assertEquals("warmup", detail?.exerciseBlocks?.single()?.sets?.first()?.setType)
+        assertEquals(1, detail?.completedSetCount)
+        assertEquals(480.0, detail?.totalVolumeKg ?: 0.0, 0.01)
+
+        val duplicatedSet = detail?.exerciseBlocks?.single()?.sets?.last()
+        repository.deleteWorkoutSet(duplicatedSet?.id ?: error("Missing duplicated set"))
+        repository.finishWorkout(sessionId)
+
+        assertEquals(null, repository.observeActiveWorkoutDetail().first())
+        assertEquals(null, repository.observeActiveWorkoutSummary().first())
+    }
+
+    @Test
+    fun discardWorkout_removesActiveSessionFromActiveReads() = runTest {
+        val sessionId = repository.startBlankWorkout()
+
+        repository.discardWorkout(sessionId)
+
+        assertEquals(null, repository.observeActiveWorkoutDetail().first())
+        assertEquals(null, repository.observeActiveWorkoutSummary().first())
     }
 
     @Test

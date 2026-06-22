@@ -1,6 +1,8 @@
 package com.musfit.ui.training
 
 import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.LoggedWorkoutSetDetail
+import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineSummary
@@ -10,6 +12,8 @@ import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
+import com.musfit.data.repository.WorkoutExerciseBlock
+import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.data.repository.WorkoutForExport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -299,6 +303,48 @@ class TrainingViewModelTest {
         assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
     }
 
+    @Test
+    fun completeSet_updatesSummaryAndStartsRestTimerShell() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        repository.activeWorkoutDetail.value = ActiveWorkoutDetail(
+            sessionId = "session-1",
+            title = "Push",
+            startedAtEpochMillis = 1_000L,
+            completedSetCount = 0,
+            totalVolumeKg = 0.0,
+            exerciseBlocks = listOf(
+                WorkoutExerciseBlock(
+                    exercise = repository.exercisesFlow.value.first(),
+                    targetReps = "5",
+                    sets = listOf(
+                        LoggedWorkoutSetDetail(
+                            id = "set-1",
+                            exerciseId = "exercise-bench-press",
+                            setType = "working",
+                            reps = 5,
+                            weightKg = 100.0,
+                            rpe = 8.0,
+                            notes = null,
+                            completed = false,
+                            previousLabel = "95 kg x 5",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("set-1", repository.updatedSetId)
+        assertEquals(true, repository.updatedSetInput?.completed)
+        assertEquals(true, viewModel.state.value.restTimer.isVisible)
+    }
+
     private class FakeTrainingRepository : TrainingRepository {
         var addCalls = 0
         var seedCalls = 0
@@ -307,6 +353,7 @@ class TrainingViewModelTest {
         var savedWeightKg: Double? = null
         var updatedSetId: String? = null
         var updatedCompleted: Boolean? = null
+        var updatedSetInput: WorkoutSetInputData? = null
         var createdRoutineInput: RoutineInput? = null
         var updatedRoutineId: String? = null
         var updatedRoutineInput: RoutineInput? = null
@@ -324,7 +371,7 @@ class TrainingViewModelTest {
                 ),
             ),
         )
-        private val exercisesFlow = MutableStateFlow(
+        val exercisesFlow = MutableStateFlow(
             listOf(
                 ExerciseSummary(
                     id = "exercise-bench-press",
@@ -345,6 +392,7 @@ class TrainingViewModelTest {
             ),
         )
         private val activeWorkoutFlow = MutableStateFlow<ActiveWorkoutSummary?>(null)
+        val activeWorkoutDetail = MutableStateFlow<ActiveWorkoutDetail?>(null)
         private val routineDetails = mutableMapOf(
             "routine-full-body-a" to
                 RoutineDetail(
@@ -397,6 +445,8 @@ class TrainingViewModelTest {
 
         override fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = activeWorkoutFlow
 
+        override fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?> = activeWorkoutDetail
+
         override suspend fun createRoutine(input: RoutineInput): String {
             createdRoutineInput = input
             return "new-routine-id"
@@ -422,6 +472,27 @@ class TrainingViewModelTest {
             startedRoutineId = routineId
             return "session-for-$routineId"
         }
+
+        override suspend fun addExerciseToActiveWorkout(sessionId: String, exerciseId: String) = Unit
+
+        override suspend fun addSetToExercise(
+            sessionId: String,
+            exerciseId: String,
+            input: WorkoutSetInputData,
+        ): String = "new-set-id"
+
+        override suspend fun duplicateLastSet(sessionId: String, exerciseId: String): String? = null
+
+        override suspend fun updateWorkoutSet(setId: String, input: WorkoutSetInputData) {
+            updatedSetId = setId
+            updatedSetInput = input
+        }
+
+        override suspend fun deleteWorkoutSet(setId: String) = Unit
+
+        override suspend fun finishWorkout(sessionId: String) = Unit
+
+        override suspend fun discardWorkout(sessionId: String) = Unit
 
         override suspend fun seedStarterTrainingData() {
             seedCalls += 1

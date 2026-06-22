@@ -5,6 +5,7 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.ActiveWorkoutSummaryRow
 import com.musfit.data.local.dao.RoutineSummaryRow
 import com.musfit.data.local.dao.TrainingDao
+import com.musfit.data.local.dao.WorkoutSetDetailRow
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
@@ -12,7 +13,9 @@ import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.WorkoutCalculator
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.Instant
@@ -94,6 +97,42 @@ data class ActiveWorkoutSummary(
     val totalVolumeKg: Double,
 )
 
+data class WorkoutSetInputData(
+    val setType: String,
+    val reps: Int?,
+    val weightKg: Double?,
+    val rpe: Double?,
+    val notes: String?,
+    val completed: Boolean,
+)
+
+data class LoggedWorkoutSetDetail(
+    val id: String,
+    val exerciseId: String,
+    val setType: String,
+    val reps: Int?,
+    val weightKg: Double?,
+    val rpe: Double?,
+    val notes: String?,
+    val completed: Boolean,
+    val previousLabel: String?,
+)
+
+data class WorkoutExerciseBlock(
+    val exercise: ExerciseSummary,
+    val targetReps: String?,
+    val sets: List<LoggedWorkoutSetDetail>,
+)
+
+data class ActiveWorkoutDetail(
+    val sessionId: String,
+    val title: String,
+    val startedAtEpochMillis: Long,
+    val completedSetCount: Int,
+    val totalVolumeKg: Double,
+    val exerciseBlocks: List<WorkoutExerciseBlock>,
+)
+
 interface TrainingRepository {
     suspend fun addCompletedSet(
         exerciseName: String,
@@ -113,6 +152,8 @@ interface TrainingRepository {
 
     fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = flowOf(null)
 
+    fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?> = flowOf(null)
+
     fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary>
 
     suspend fun createRoutine(input: RoutineInput): String
@@ -128,6 +169,24 @@ interface TrainingRepository {
     suspend fun startBlankWorkout(): String
 
     suspend fun startWorkoutFromRoutine(routineId: String): String
+
+    suspend fun addExerciseToActiveWorkout(sessionId: String, exerciseId: String) = Unit
+
+    suspend fun addSetToExercise(
+        sessionId: String,
+        exerciseId: String,
+        input: WorkoutSetInputData,
+    ): String = ""
+
+    suspend fun duplicateLastSet(sessionId: String, exerciseId: String): String? = null
+
+    suspend fun updateWorkoutSet(setId: String, input: WorkoutSetInputData) = Unit
+
+    suspend fun deleteWorkoutSet(setId: String) = Unit
+
+    suspend fun finishWorkout(sessionId: String) = Unit
+
+    suspend fun discardWorkout(sessionId: String) = Unit
 
     suspend fun getLatestWorkoutForExport(): WorkoutForExport?
 
@@ -222,6 +281,18 @@ class LocalTrainingRepository @Inject constructor(
 
     override fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> =
         trainingDao.observeActiveWorkoutSummary().map { row -> row?.toSummary() }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?> =
+        trainingDao.observeActiveWorkoutSession().flatMapLatest { session ->
+            if (session == null) {
+                flowOf(null)
+            } else {
+                trainingDao.observeWorkoutSetDetailRows(session.id).map { rows ->
+                    rows.toActiveWorkoutDetail(session)
+                }
+            }
+        }
 
     override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> {
         val range = date.dayRange()
@@ -361,6 +432,79 @@ class LocalTrainingRepository @Inject constructor(
             sets.forEach { trainingDao.upsertWorkoutSet(it) }
             sessionId
         }
+
+    override suspend fun addExerciseToActiveWorkout(sessionId: String, exerciseId: String) {
+        val session = trainingDao.getWorkoutSession(sessionId) ?: return
+        if (session.status != WORKOUT_STATUS_ACTIVE) return
+        trainingDao.getLastWorkoutSetForExercise(sessionId, exerciseId)
+    }
+
+    override suspend fun addSetToExercise(
+        sessionId: String,
+        exerciseId: String,
+        input: WorkoutSetInputData,
+    ): String {
+        val nextSortOrder = (trainingDao.getMaxWorkoutSetSortOrder(sessionId) ?: -1) + 1
+        val set = WorkoutSetEntity(
+            id = UUID.randomUUID().toString(),
+            sessionId = sessionId,
+            exerciseId = exerciseId,
+            sortOrder = nextSortOrder,
+            setType = input.setType,
+            reps = input.reps,
+            weightKg = input.weightKg,
+            durationSeconds = null,
+            distanceMeters = null,
+            rpe = input.rpe,
+            notes = input.notes?.trim()?.takeIf { it.isNotBlank() },
+            completed = input.completed,
+        )
+        trainingDao.upsertWorkoutSet(set)
+        return set.id
+    }
+
+    override suspend fun duplicateLastSet(sessionId: String, exerciseId: String): String? {
+        val last = trainingDao.getLastWorkoutSetForExercise(sessionId, exerciseId) ?: return null
+        return addSetToExercise(
+            sessionId = sessionId,
+            exerciseId = exerciseId,
+            input = WorkoutSetInputData(
+                setType = last.setType,
+                reps = last.reps,
+                weightKg = last.weightKg,
+                rpe = last.rpe,
+                notes = last.notes,
+                completed = false,
+            ),
+        )
+    }
+
+    override suspend fun updateWorkoutSet(setId: String, input: WorkoutSetInputData) {
+        val existing = trainingDao.getWorkoutSet(setId) ?: return
+        if (input.completed && ((input.reps ?: 0) <= 0 || (input.weightKg ?: 0.0) <= 0.0)) return
+        trainingDao.upsertWorkoutSet(
+            existing.copy(
+                setType = input.setType,
+                reps = input.reps,
+                weightKg = input.weightKg,
+                rpe = input.rpe,
+                notes = input.notes?.trim()?.takeIf { it.isNotBlank() },
+                completed = input.completed,
+            ),
+        )
+    }
+
+    override suspend fun deleteWorkoutSet(setId: String) {
+        trainingDao.deleteWorkoutSetById(setId)
+    }
+
+    override suspend fun finishWorkout(sessionId: String) {
+        trainingDao.updateWorkoutSessionStatus(sessionId, WORKOUT_STATUS_COMPLETED, clock())
+    }
+
+    override suspend fun discardWorkout(sessionId: String) {
+        trainingDao.updateWorkoutSessionStatus(sessionId, WORKOUT_STATUS_DISCARDED, clock())
+    }
 
     override suspend fun getLatestWorkoutForExport(): WorkoutForExport? {
         val session = trainingDao.getLatestCompletedWorkoutSession() ?: return null
@@ -585,6 +729,52 @@ private fun ActiveWorkoutSummaryRow.toSummary(): ActiveWorkoutSummary =
         completedSetCount = completedSetCount,
         totalVolumeKg = totalVolumeKg,
     )
+
+private fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(session: WorkoutSessionEntity): ActiveWorkoutDetail {
+    val visibleRows = filterNot { row ->
+        !row.completed &&
+            row.reps == null &&
+            row.weightKg == null &&
+            row.rpe == null &&
+            row.notes.isNullOrBlank()
+    }
+    val blocks = visibleRows.groupBy { it.exerciseId }.map { (_, exerciseRows) ->
+        val first = exerciseRows.first()
+        WorkoutExerciseBlock(
+            exercise = ExerciseSummary(
+                id = first.exerciseId,
+                name = first.exerciseName,
+                category = first.category,
+                equipment = first.equipment,
+                targetMuscles = first.targetMuscles,
+                isCustom = first.isCustom,
+            ),
+            targetReps = null,
+            sets = exerciseRows.map { row ->
+                LoggedWorkoutSetDetail(
+                    id = row.setId,
+                    exerciseId = row.exerciseId,
+                    setType = row.setType,
+                    reps = row.reps,
+                    weightKg = row.weightKg,
+                    rpe = row.rpe,
+                    notes = row.notes,
+                    completed = row.completed,
+                    previousLabel = null,
+                )
+            },
+        )
+    }
+    val completedRows = visibleRows.filter { it.completed && it.reps != null && it.weightKg != null }
+    return ActiveWorkoutDetail(
+        sessionId = session.id,
+        title = session.title ?: "Blank workout",
+        startedAtEpochMillis = session.startedAtEpochMillis,
+        completedSetCount = completedRows.size,
+        totalVolumeKg = completedRows.sumOf { (it.reps ?: 0) * (it.weightKg ?: 0.0) },
+        exerciseBlocks = blocks,
+    )
+}
 
 private fun LocalDate.dayRange(zoneId: ZoneId = ZoneId.systemDefault()): DayRange =
     DayRange(

@@ -2,9 +2,11 @@ package com.musfit.ui.training
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.RoutineSummary
@@ -35,11 +37,18 @@ data class RoutineEditorState(
     val isOpen: Boolean = false,
 )
 
+data class RestTimerState(
+    val isVisible: Boolean = false,
+    val sourceSetId: String? = null,
+    val durationSeconds: Int = 120,
+)
+
 data class TrainingUiState(
     val selectedSection: TrainingSection = TrainingSection.Routines,
     val routines: List<RoutineSummary> = emptyList(),
     val exercises: List<ExerciseSummary> = emptyList(),
     val activeWorkoutSummary: ActiveWorkoutSummary? = null,
+    val activeWorkout: ActiveWorkoutDetail? = null,
     val exerciseSearchQuery: String = "",
     val exerciseName: String = "",
     val reps: String = "",
@@ -49,6 +58,9 @@ data class TrainingUiState(
     val bestEstimatedOneRepMaxKg: Double = 0.0,
     val routineEditor: RoutineEditorState = RoutineEditorState(),
     val activeWorkoutRouteOpen: Boolean = false,
+    val restTimer: RestTimerState = RestTimerState(),
+    val finishConfirmationOpen: Boolean = false,
+    val discardConfirmationOpen: Boolean = false,
     val message: String? = null,
 )
 
@@ -78,6 +90,11 @@ class TrainingViewModel @Inject constructor(
                         activeWorkoutSummary = activeWorkout,
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            repository.observeActiveWorkoutDetail().collect { activeWorkout ->
+                mutableState.update { it.copy(activeWorkout = activeWorkout) }
             }
         }
     }
@@ -296,6 +313,52 @@ class TrainingViewModel @Inject constructor(
         mutableState.update { it.copy(sets = nextSets).withCalculatedSummary() }
         viewModelScope.launch {
             repository.setCompletion(setId = updatedSet.id, completed = updatedSet.completed)
+        }
+    }
+
+    fun toggleWorkoutSetCompletion(setId: String, completed: Boolean) {
+        val set = state.value.activeWorkout
+            ?.exerciseBlocks
+            ?.flatMap { it.sets }
+            ?.firstOrNull { it.id == setId }
+            ?: return
+        viewModelScope.launch {
+            repository.updateWorkoutSet(
+                setId,
+                WorkoutSetInputData(
+                    setType = set.setType,
+                    reps = set.reps,
+                    weightKg = set.weightKg,
+                    rpe = set.rpe,
+                    notes = set.notes,
+                    completed = completed,
+                ),
+            )
+            if (completed) {
+                mutableState.update {
+                    it.copy(restTimer = RestTimerState(isVisible = true, sourceSetId = setId))
+                }
+            }
+        }
+    }
+
+    fun finishActiveWorkout() {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        viewModelScope.launch {
+            repository.finishWorkout(sessionId)
+            mutableState.update {
+                it.copy(activeWorkoutRouteOpen = false, finishConfirmationOpen = false)
+            }
+        }
+    }
+
+    fun discardActiveWorkout() {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        viewModelScope.launch {
+            repository.discardWorkout(sessionId)
+            mutableState.update {
+                it.copy(activeWorkoutRouteOpen = false, discardConfirmationOpen = false)
+            }
         }
     }
 
