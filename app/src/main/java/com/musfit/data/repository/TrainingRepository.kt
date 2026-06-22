@@ -455,6 +455,8 @@ class LocalTrainingRepository @Inject constructor(
         exerciseId: String,
         input: WorkoutSetInputData,
     ): String {
+        val session = trainingDao.getWorkoutSession(sessionId) ?: return ""
+        if (session.status != WORKOUT_STATUS_ACTIVE) return ""
         val nextSortOrder = (trainingDao.getMaxWorkoutSetSortOrder(sessionId) ?: -1) + 1
         val set = WorkoutSetEntity(
             id = UUID.randomUUID().toString(),
@@ -475,6 +477,8 @@ class LocalTrainingRepository @Inject constructor(
     }
 
     override suspend fun duplicateLastSet(sessionId: String, exerciseId: String): String? {
+        val session = trainingDao.getWorkoutSession(sessionId) ?: return null
+        if (session.status != WORKOUT_STATUS_ACTIVE) return null
         val last = trainingDao.getLastWorkoutSetForExercise(sessionId, exerciseId) ?: return null
         return addSetToExercise(
             sessionId = sessionId,
@@ -492,6 +496,8 @@ class LocalTrainingRepository @Inject constructor(
 
     override suspend fun updateWorkoutSet(setId: String, input: WorkoutSetInputData) {
         val existing = trainingDao.getWorkoutSet(setId) ?: return
+        val session = trainingDao.getWorkoutSession(existing.sessionId) ?: return
+        if (session.status != WORKOUT_STATUS_ACTIVE) return
         if (input.completed && ((input.reps ?: 0) <= 0 || (input.weightKg ?: 0.0) <= 0.0)) return
         trainingDao.upsertWorkoutSet(
             existing.copy(
@@ -506,6 +512,9 @@ class LocalTrainingRepository @Inject constructor(
     }
 
     override suspend fun deleteWorkoutSet(setId: String) {
+        val existing = trainingDao.getWorkoutSet(setId) ?: return
+        val session = trainingDao.getWorkoutSession(existing.sessionId) ?: return
+        if (session.status != WORKOUT_STATUS_ACTIVE) return
         trainingDao.deleteWorkoutSetById(setId)
     }
 

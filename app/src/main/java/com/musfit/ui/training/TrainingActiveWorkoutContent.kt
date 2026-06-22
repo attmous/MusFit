@@ -15,6 +15,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,6 +117,14 @@ private fun WorkoutSetEditorRow(
     var weightKg by remember(set.id) { mutableStateOf(set.weightKg?.toString().orEmpty()) }
     var rpe by remember(set.id) { mutableStateOf(set.rpe?.toString().orEmpty()) }
     var notes by remember(set.id) { mutableStateOf(set.notes.orEmpty()) }
+
+    LaunchedEffect(set.setType, set.reps, set.weightKg, set.rpe, set.notes) {
+        setType = set.setType
+        reps = set.reps?.toString().orEmpty()
+        weightKg = set.weightKg?.toString().orEmpty()
+        rpe = set.rpe?.toString().orEmpty()
+        notes = set.notes.orEmpty()
+    }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(

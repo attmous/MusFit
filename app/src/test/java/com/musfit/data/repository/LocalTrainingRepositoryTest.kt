@@ -360,6 +360,130 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun activeWorkoutMutations_afterFinish_doNotMutateFinishedSession() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val sessionId = repository.startBlankWorkout()
+        val originalSetId = repository.addSetToExercise(
+            sessionId = sessionId,
+            exerciseId = bench.id,
+            input = WorkoutSetInputData(
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                rpe = 8.0,
+                notes = "Keep",
+                completed = false,
+            ),
+        )
+
+        repository.finishWorkout(sessionId)
+
+        val addedAfterFinish = repository.addSetToExercise(
+            sessionId = sessionId,
+            exerciseId = bench.id,
+            input = WorkoutSetInputData(
+                setType = "warmup",
+                reps = 10,
+                weightKg = 40.0,
+                rpe = 5.0,
+                notes = "Should not save",
+                completed = false,
+            ),
+        )
+        val duplicatedAfterFinish = repository.duplicateLastSet(sessionId, bench.id)
+        repository.updateWorkoutSet(
+            originalSetId,
+            WorkoutSetInputData(
+                setType = "amrap",
+                reps = 12,
+                weightKg = 90.0,
+                rpe = 9.0,
+                notes = "Should not update",
+                completed = true,
+            ),
+        )
+        repository.deleteWorkoutSet(originalSetId)
+
+        val session = database.trainingDao().getWorkoutSession(sessionId)
+        val sets = database.trainingDao().getWorkoutSets(sessionId)
+        val preservedSet = sets.singleOrNull { it.id == originalSetId }
+
+        assertEquals("", addedAfterFinish)
+        assertEquals(null, duplicatedAfterFinish)
+        assertEquals("completed", session?.status)
+        assertEquals(1, sets.size)
+        assertEquals("working", preservedSet?.setType)
+        assertEquals(5, preservedSet?.reps)
+        assertEquals(100.0, preservedSet?.weightKg ?: 0.0, 0.01)
+        assertEquals(8.0, preservedSet?.rpe ?: 0.0, 0.01)
+        assertEquals("Keep", preservedSet?.notes)
+        assertEquals(false, preservedSet?.completed)
+    }
+
+    @Test
+    fun activeWorkoutMutations_afterDiscard_doNotMutateDiscardedSession() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val sessionId = repository.startBlankWorkout()
+        val originalSetId = repository.addSetToExercise(
+            sessionId = sessionId,
+            exerciseId = bench.id,
+            input = WorkoutSetInputData(
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                rpe = 8.0,
+                notes = "Keep",
+                completed = false,
+            ),
+        )
+
+        repository.discardWorkout(sessionId)
+
+        val addedAfterDiscard = repository.addSetToExercise(
+            sessionId = sessionId,
+            exerciseId = bench.id,
+            input = WorkoutSetInputData(
+                setType = "warmup",
+                reps = 10,
+                weightKg = 40.0,
+                rpe = 5.0,
+                notes = "Should not save",
+                completed = false,
+            ),
+        )
+        val duplicatedAfterDiscard = repository.duplicateLastSet(sessionId, bench.id)
+        repository.updateWorkoutSet(
+            originalSetId,
+            WorkoutSetInputData(
+                setType = "amrap",
+                reps = 12,
+                weightKg = 90.0,
+                rpe = 9.0,
+                notes = "Should not update",
+                completed = true,
+            ),
+        )
+        repository.deleteWorkoutSet(originalSetId)
+
+        val session = database.trainingDao().getWorkoutSession(sessionId)
+        val sets = database.trainingDao().getWorkoutSets(sessionId)
+        val preservedSet = sets.singleOrNull { it.id == originalSetId }
+
+        assertEquals("", addedAfterDiscard)
+        assertEquals(null, duplicatedAfterDiscard)
+        assertEquals("discarded", session?.status)
+        assertEquals(1, sets.size)
+        assertEquals("working", preservedSet?.setType)
+        assertEquals(5, preservedSet?.reps)
+        assertEquals(100.0, preservedSet?.weightKg ?: 0.0, 0.01)
+        assertEquals(8.0, preservedSet?.rpe ?: 0.0, 0.01)
+        assertEquals("Keep", preservedSet?.notes)
+        assertEquals(false, preservedSet?.completed)
+    }
+
+    @Test
     fun addCompletedSet_afterFinishingActiveWorkout_createsFreshQuickLogSession() = runTest {
         repository.seedStarterTrainingData()
         val activeSessionId = repository.startBlankWorkout()
