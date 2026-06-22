@@ -2,11 +2,14 @@ package com.musfit.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.musfit.data.local.dao.AccountDao
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
 import com.musfit.data.local.dao.ProfileDao
 import com.musfit.data.local.dao.TrainingDao
 import com.musfit.data.local.dao.UserGoalsDao
+import com.musfit.data.local.entity.AccountEntity
+import com.musfit.data.local.entity.AccountSessionEntity
 import com.musfit.data.local.entity.AppSettingsEntity
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.BodyMetricEntity
@@ -36,6 +39,8 @@ import com.musfit.data.local.entity.WorkoutSetEntity
 
 @Database(
     entities = [
+        AccountEntity::class,
+        AccountSessionEntity::class,
         FoodEntity::class,
         FoodServingEntity::class,
         MealEntity::class,
@@ -63,10 +68,12 @@ import com.musfit.data.local.entity.WorkoutSetEntity
         AppSettingsEntity::class,
         UserGoalsEntity::class,
     ],
-    version = 19,
+    version = 20,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {
+    abstract fun accountDao(): AccountDao
+
     abstract fun foodDao(): FoodDao
 
     abstract fun trainingDao(): TrainingDao

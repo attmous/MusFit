@@ -4,10 +4,14 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.test.core.app.ApplicationProvider
+import com.musfit.data.local.dao.AccountDao
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
 import com.musfit.data.local.dao.ProfileDao
 import com.musfit.data.local.dao.TrainingDao
+import com.musfit.data.local.entity.ACTIVE_ACCOUNT_SESSION_KEY
+import com.musfit.data.local.entity.AccountEntity
+import com.musfit.data.local.entity.AccountSessionEntity
 import com.musfit.data.local.entity.AppSettingsEntity
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.BodyMetricEntity
@@ -34,6 +38,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class MusFitDatabaseTest {
     private lateinit var database: MusFitDatabase
+    private lateinit var accountDao: AccountDao
     private lateinit var foodDao: FoodDao
     private lateinit var trainingDao: TrainingDao
     private lateinit var healthDao: HealthDao
@@ -46,6 +51,7 @@ class MusFitDatabaseTest {
             Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        accountDao = database.accountDao()
         foodDao = database.foodDao()
         trainingDao = database.trainingDao()
         healthDao = database.healthDao()
@@ -60,6 +66,7 @@ class MusFitDatabaseTest {
     @Test
     fun database_exposesExpectedDaosAndGeneratedImplementation() {
         assertTrue(RoomDatabase::class.java.isAssignableFrom(MusFitDatabase::class.java))
+        assertEquals(AccountDao::class.java, MusFitDatabase::class.java.getMethod("accountDao").returnType)
         assertEquals(FoodDao::class.java, MusFitDatabase::class.java.getMethod("foodDao").returnType)
         assertEquals(TrainingDao::class.java, MusFitDatabase::class.java.getMethod("trainingDao").returnType)
         assertEquals(HealthDao::class.java, MusFitDatabase::class.java.getMethod("healthDao").returnType)
@@ -68,6 +75,28 @@ class MusFitDatabaseTest {
                 Class.forName("com.musfit.data.local.MusFitDatabase_Impl"),
             ),
         )
+    }
+
+    @Test
+    fun accountDao_roundTripFromDatabaseSmokeTest() = runTest {
+        val account = AccountEntity(
+            id = "account-smoke",
+            displayName = "Smoke",
+            email = null,
+            remoteUserId = null,
+            createdAtEpochMillis = 1L,
+            updatedAtEpochMillis = 2L,
+        )
+        val session = AccountSessionEntity(
+            key = ACTIVE_ACCOUNT_SESSION_KEY,
+            activeAccountId = account.id,
+            updatedAtEpochMillis = 3L,
+        )
+
+        accountDao.upsertAccount(account)
+        accountDao.upsertSession(session)
+
+        assertEquals(account, accountDao.observeActiveAccount().first())
     }
 
     @Test
