@@ -134,6 +134,7 @@ data class WorkoutExerciseBlock(
     val exercise: ExerciseSummary,
     val targetReps: String?,
     val sets: List<LoggedWorkoutSetDetail>,
+    val priorBestEstimatedOneRepMaxKg: Double = 0.0,
 )
 
 data class ActiveWorkoutDetail(
@@ -894,14 +895,27 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
     session: WorkoutSessionEntity,
     trainingDao: TrainingDao,
 ): ActiveWorkoutDetail {
-    val previousLabels = map { it.exerciseId }
-        .distinct()
-        .associateWith { exerciseId ->
-            trainingDao.getLatestCompletedSetForExerciseBefore(
-                exerciseId = exerciseId,
-                beforeStartedAtEpochMillis = session.startedAtEpochMillis,
-            )?.toPreviousLabel()
-        }
+    val distinctExerciseIds = map { it.exerciseId }.distinct()
+    val previousLabels = distinctExerciseIds.associateWith { exerciseId ->
+        trainingDao.getLatestCompletedSetForExerciseBefore(
+            exerciseId = exerciseId,
+            beforeStartedAtEpochMillis = session.startedAtEpochMillis,
+        )?.toPreviousLabel()
+    }
+    val priorBest1RM = distinctExerciseIds.associateWith { exerciseId ->
+        trainingDao.getCompletedSetsForExerciseBefore(
+            exerciseId = exerciseId,
+            beforeStartedAtEpochMillis = session.startedAtEpochMillis,
+        ).maxOfOrNull { set ->
+            val reps = set.reps
+            val weightKg = set.weightKg
+            if (reps != null && weightKg != null) {
+                WorkoutCalculator.estimatedOneRepMax(weightKg = weightKg, reps = reps)
+            } else {
+                0.0
+            }
+        } ?: 0.0
+    }
     val blocks = groupBy { it.exerciseId }.map { (_, exerciseRows) ->
         val first = exerciseRows.first()
         val parsedNotes = exerciseRows.associate { row -> row.setId to parseWorkoutSetNotes(row.notes) }
@@ -915,6 +929,7 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
                 isCustom = first.isCustom,
             ),
             targetReps = exerciseRows.firstNotNullOfOrNull { row -> parsedNotes.getValue(row.setId).targetReps },
+            priorBestEstimatedOneRepMaxKg = priorBest1RM[first.exerciseId] ?: 0.0,
             sets = exerciseRows.map { row ->
                 LoggedWorkoutSetDetail(
                     id = row.setId,

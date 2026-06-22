@@ -315,6 +315,24 @@ interface TrainingDao {
         beforeStartedAtEpochMillis: Long,
     ): WorkoutSetEntity?
 
+    @Query(
+        """
+        SELECT workout_sets.*
+        FROM workout_sets
+        INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId
+        WHERE workout_sets.exerciseId = :exerciseId
+        AND workout_sets.completed = 1
+        AND workout_sets.reps IS NOT NULL
+        AND workout_sets.weightKg IS NOT NULL
+        AND workout_sessions.status = 'completed'
+        AND workout_sessions.startedAtEpochMillis < :beforeStartedAtEpochMillis
+        """,
+    )
+    suspend fun getCompletedSetsForExerciseBefore(
+        exerciseId: String,
+        beforeStartedAtEpochMillis: Long,
+    ): List<WorkoutSetEntity>
+
     @Query("SELECT MAX(sortOrder) FROM workout_sets WHERE sessionId = :sessionId")
     suspend fun getMaxWorkoutSetSortOrder(sessionId: String): Int?
 

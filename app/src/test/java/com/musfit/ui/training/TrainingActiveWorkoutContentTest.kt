@@ -74,6 +74,25 @@ class TrainingActiveWorkoutContentTest {
     }
 
     @Test
+    fun formatWorkoutSetRowsForDisplay_flagsPrOnlyForCompletedWorkingSetsBeatingPriorBest() {
+        val rows = formatWorkoutSetRowsForDisplay(
+            listOf(
+                // est-1RM = 100 * (1 + 5/30) ≈ 116.7 > 110 prior best, completed → PR.
+                set(id = "pr", setType = "working", previousLabel = null, reps = 5, weightKg = 100.0, completed = true),
+                // Same lift but not completed → no PR.
+                set(id = "not-done", setType = "working", previousLabel = null, reps = 5, weightKg = 100.0, completed = false),
+                // Lighter completed set below prior best → no PR.
+                set(id = "light", setType = "working", previousLabel = null, reps = 5, weightKg = 80.0, completed = true),
+                // Heavy completed warmup is never a PR.
+                set(id = "warmup", setType = "warmup", previousLabel = null, reps = 5, weightKg = 100.0, completed = true),
+            ),
+            priorBestEstimatedOneRepMaxKg = 110.0,
+        )
+
+        assertEquals(listOf(true, false, false, false), rows.map { it.isPr })
+    }
+
+    @Test
     fun formatWorkoutSetRowsForDisplay_keepsCompactDecimalValuesAndRpe() {
         val rows = formatWorkoutSetRowsForDisplay(
             listOf(
@@ -99,6 +118,7 @@ class TrainingActiveWorkoutContentTest {
         reps: Int?,
         weightKg: Double?,
         rpe: Double? = null,
+        completed: Boolean = false,
     ): LoggedWorkoutSetDetail =
         LoggedWorkoutSetDetail(
             id = id,
@@ -108,7 +128,7 @@ class TrainingActiveWorkoutContentTest {
             weightKg = weightKg,
             rpe = rpe,
             notes = null,
-            completed = false,
+            completed = completed,
             previousLabel = previousLabel,
         )
 
