@@ -18,14 +18,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -97,6 +101,7 @@ fun ProfileScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            AccountCard(state = state, onEdit = viewModel::openAccountEditor)
             IdentityCard(state = state, onEdit = { showEditor = true })
             GoalCard(state = state, onApply = viewModel::applyTargetsToFood, onComplete = { showEditor = true })
             WeightCard(state = state, onLog = { showLogWeight = true }, onOpenEntries = { showWeightSheet = true })
@@ -157,6 +162,100 @@ fun ProfileScreen(
             onDelete = viewModel::deleteEntry,
         )
     }
+    if (state.accountEditorOpen) {
+        AccountEditDialog(
+            name = state.accountNameInput,
+            email = state.accountEmailInput,
+            error = state.accountErrorMessage,
+            onNameChange = viewModel::onAccountNameChanged,
+            onEmailChange = viewModel::onAccountEmailChanged,
+            onDismiss = viewModel::closeAccountEditor,
+            onSave = viewModel::saveAccount,
+        )
+    }
+}
+
+@Composable
+private fun AccountCard(state: ProfileUiState, onEdit: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    state.account.displayName.accountInitial(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(state.account.displayName, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    state.account.email ?: "Local account",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (state.account.isLocalOnly) {
+                    AssistChip(onClick = {}, label = { Text("Local only") })
+                }
+            }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Outlined.Edit, contentDescription = "Edit account")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountEditDialog(
+    name: String,
+    email: String,
+    error: String?,
+    onNameChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Local account") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    label = { Text("Name") },
+                    isError = error != null,
+                    supportingText = { if (error != null) Text(error) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = onEmailChange,
+                    label = { Text("Email (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Stored on this device. Sync and sign-in are not enabled.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onSave) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -428,6 +527,9 @@ private fun identitySubtitle(state: ProfileUiState): String {
     state.profile?.activityLevel?.let { parts.add(it.label()) }
     return if (parts.isEmpty()) "Tap to set up your profile" else parts.joinToString(" · ")
 }
+
+private fun String.accountInitial(): String =
+    trim().firstOrNull()?.uppercaseChar()?.toString() ?: "Y"
 
 internal fun Double.format1(): String =
     if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)
