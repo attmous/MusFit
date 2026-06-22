@@ -371,6 +371,24 @@ data class DeletedDiaryEntrySnapshot(
     val quantityGrams: Double,
 )
 
+data class DiaryEntryEditorState(
+    val id: String,
+    val name: String,
+    val mealType: String,
+    val quantityGrams: String,
+    val servingChoices: List<FoodAmountServingChoiceUiState> = emptyList(),
+    val caloriesKcal: Double = 0.0,
+    val originalQuantityGrams: Double = 0.0,
+    val originalProteinGrams: Double = 0.0,
+    val originalCarbsGrams: Double = 0.0,
+    val originalFatGrams: Double = 0.0,
+    val previewCaloriesKcal: Double = 0.0,
+    val previewProteinGrams: Double = 0.0,
+    val previewCarbsGrams: Double = 0.0,
+    val previewFatGrams: Double = 0.0,
+    val isPlanned: Boolean = false,
+)
+
 data class FoodAmountNutritionPreviewUiState(
     val quantityGrams: Double,
     val caloriesKcal: Double,
@@ -473,21 +491,7 @@ data class FoodUiState(
     val recentFoods: List<SavedFoodUiState> = emptyList(),
     val sameAsYesterday: List<SavedFoodUiState> = emptyList(),
     val addTab: AddTab = AddTab.Recents,
-    val editingDiaryEntryId: String? = null,
-    val editingDiaryEntryName: String = "",
-    val editingDiaryEntryMealType: String = "breakfast",
-    val editingDiaryEntryQuantityGrams: String = "",
-    val editingDiaryEntryServingChoices: List<FoodAmountServingChoiceUiState> = emptyList(),
-    val editingDiaryEntryCaloriesKcal: Double = 0.0,
-    val editingDiaryEntryOriginalQuantityGrams: Double = 0.0,
-    val editingDiaryEntryOriginalProteinGrams: Double = 0.0,
-    val editingDiaryEntryOriginalCarbsGrams: Double = 0.0,
-    val editingDiaryEntryOriginalFatGrams: Double = 0.0,
-    val editingDiaryEntryPreviewCaloriesKcal: Double = 0.0,
-    val editingDiaryEntryPreviewProteinGrams: Double = 0.0,
-    val editingDiaryEntryPreviewCarbsGrams: Double = 0.0,
-    val editingDiaryEntryPreviewFatGrams: Double = 0.0,
-    val editingDiaryEntryIsPlanned: Boolean = false,
+    val diaryEntryEditor: DiaryEntryEditorState? = null,
     val editingSavedFoodId: String? = null,
     val savedFoodName: String = "",
     val savedFoodBrand: String = "",
@@ -978,8 +982,7 @@ class FoodViewModel @Inject constructor(
                 isAddPanelVisible = false,
                 sheetMode = null,
                 message = null,
-                editingDiaryEntryId = null,
-                editingDiaryEntryIsPlanned = false,
+                diaryEntryEditor = null,
                 editingSavedFoodId = null,
                 editingTemplateId = null,
                 editingRecipeId = null,
@@ -1079,7 +1082,7 @@ class FoodViewModel @Inject constructor(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.FoodDatabase,
                 message = null,
-                editingDiaryEntryId = null,
+                diaryEntryEditor = null,
                 editingSavedFoodId = null,
                 selectedSavedFoodDetail = null,
             )
@@ -1745,21 +1748,23 @@ class FoodViewModel @Inject constructor(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.DiaryEntryEditor,
                 message = null,
-                editingDiaryEntryId = entry.id,
-                editingDiaryEntryName = entry.name,
-                editingDiaryEntryMealType = section.id,
-                editingDiaryEntryQuantityGrams = entry.quantityGrams.formatInputNumber(),
-                editingDiaryEntryServingChoices = servingChoices,
-                editingDiaryEntryCaloriesKcal = entry.caloriesKcal,
-                editingDiaryEntryOriginalQuantityGrams = entry.quantityGrams,
-                editingDiaryEntryOriginalProteinGrams = entry.proteinGrams,
-                editingDiaryEntryOriginalCarbsGrams = entry.carbsGrams,
-                editingDiaryEntryOriginalFatGrams = entry.fatGrams,
-                editingDiaryEntryPreviewCaloriesKcal = entry.caloriesKcal,
-                editingDiaryEntryPreviewProteinGrams = entry.proteinGrams,
-                editingDiaryEntryPreviewCarbsGrams = entry.carbsGrams,
-                editingDiaryEntryPreviewFatGrams = entry.fatGrams,
-                editingDiaryEntryIsPlanned = entry.isPlanned,
+                diaryEntryEditor = DiaryEntryEditorState(
+                    id = entry.id,
+                    name = entry.name,
+                    mealType = section.id,
+                    quantityGrams = entry.quantityGrams.formatInputNumber(),
+                    servingChoices = servingChoices,
+                    caloriesKcal = entry.caloriesKcal,
+                    originalQuantityGrams = entry.quantityGrams,
+                    originalProteinGrams = entry.proteinGrams,
+                    originalCarbsGrams = entry.carbsGrams,
+                    originalFatGrams = entry.fatGrams,
+                    previewCaloriesKcal = entry.caloriesKcal,
+                    previewProteinGrams = entry.proteinGrams,
+                    previewCarbsGrams = entry.carbsGrams,
+                    previewFatGrams = entry.fatGrams,
+                    isPlanned = entry.isPlanned,
+                ),
             )
         }
     }
@@ -1767,7 +1772,7 @@ class FoodViewModel @Inject constructor(
     fun onDiaryEntryMealChanged(value: String) {
         mutableState.update {
             it.copy(
-                editingDiaryEntryMealType = value.normalizedMealType(),
+                diaryEntryEditor = it.diaryEntryEditor?.copy(mealType = value.normalizedMealType()),
                 message = null,
             )
         }
@@ -1776,7 +1781,7 @@ class FoodViewModel @Inject constructor(
     fun onDiaryEntryQuantityChanged(value: String) {
         mutableState.update {
             it.copy(
-                editingDiaryEntryQuantityGrams = value.sanitizeDecimalInput(),
+                diaryEntryEditor = it.diaryEntryEditor?.copy(quantityGrams = value.sanitizeDecimalInput()),
                 message = null,
             ).withDiaryEntryPreview()
         }
@@ -1784,12 +1789,12 @@ class FoodViewModel @Inject constructor(
 
     fun onDiaryEntryServingChoiceSelected(choiceId: String) {
         mutableState.update { currentState ->
-            val choice = currentState.editingDiaryEntryServingChoices.firstOrNull { choice -> choice.id == choiceId }
+            val choice = currentState.diaryEntryEditor?.servingChoices?.firstOrNull { choice -> choice.id == choiceId }
             if (choice == null) {
                 currentState.copy(message = "Serving not found")
             } else {
                 currentState.copy(
-                    editingDiaryEntryQuantityGrams = choice.grams.formatInputNumber(),
+                    diaryEntryEditor = currentState.diaryEntryEditor?.copy(quantityGrams = choice.grams.formatInputNumber()),
                     message = null,
                 ).withDiaryEntryPreview()
             }
@@ -1801,12 +1806,13 @@ class FoodViewModel @Inject constructor(
         if (currentState.isSaving) {
             return
         }
-        val mealItemId = currentState.editingDiaryEntryId
-        if (mealItemId == null) {
+        val editor = currentState.diaryEntryEditor
+        if (editor == null) {
             mutableState.update { it.copy(message = "Choose a diary item") }
             return
         }
-        val quantityGrams = currentState.editingDiaryEntryQuantityGrams.parsePositiveNumberOrNull()
+        val mealItemId = editor.id
+        val quantityGrams = editor.quantityGrams.parsePositiveNumberOrNull()
         if (quantityGrams == null) {
             mutableState.update { it.copy(message = "Enter a valid amount") }
             return
@@ -1820,7 +1826,7 @@ class FoodViewModel @Inject constructor(
                 repository.updateDiaryEntry(
                     DiaryEntryUpdateInput(
                         mealItemId = mealItemId,
-                        mealType = currentState.editingDiaryEntryMealType,
+                        mealType = editor.mealType,
                         quantityGrams = quantityGrams,
                         date = currentState.selectedDate,
                     ),
@@ -1830,8 +1836,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = false,
                         sheetMode = null,
-                        editingDiaryEntryId = null,
-                        editingDiaryEntryIsPlanned = false,
+                        diaryEntryEditor = null,
                         message = "Updated diary item",
                     )
                 }
@@ -1854,7 +1859,7 @@ class FoodViewModel @Inject constructor(
         if (currentState.isSaving) {
             return
         }
-        val mealItemId = currentState.editingDiaryEntryId
+        val mealItemId = currentState.diaryEntryEditor?.id
         if (mealItemId == null) {
             mutableState.update { it.copy(message = "Choose a diary item") }
             return
@@ -1880,8 +1885,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = false,
                         sheetMode = null,
-                        editingDiaryEntryId = null,
-                        editingDiaryEntryIsPlanned = false,
+                        diaryEntryEditor = null,
                         lastDeletedDiaryEntry = deletedSnapshot,
                         message = "Deleted diary item",
                     )
@@ -1944,7 +1948,7 @@ class FoodViewModel @Inject constructor(
 
     fun copyDiaryEntryTo(mealType: String, date: LocalDate) {
         val currentState = state.value
-        val mealItemId = currentState.editingDiaryEntryId
+        val mealItemId = currentState.diaryEntryEditor?.id
         if (mealItemId == null) {
             mutableState.update { it.copy(message = "Choose a diary item") }
             return
@@ -1965,8 +1969,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = false,
                         sheetMode = null,
-                        editingDiaryEntryId = null,
-                        editingDiaryEntryIsPlanned = false,
+                        diaryEntryEditor = null,
                         message = "Copied diary item",
                     )
                 }
@@ -1986,12 +1989,13 @@ class FoodViewModel @Inject constructor(
 
     fun markDiaryEntryLogged() {
         val currentState = state.value
-        val mealItemId = currentState.editingDiaryEntryId
-        if (mealItemId == null) {
+        val editor = currentState.diaryEntryEditor
+        if (editor == null) {
             mutableState.update { it.copy(message = "Choose a diary item") }
             return
         }
-        if (!currentState.editingDiaryEntryIsPlanned) {
+        val mealItemId = editor.id
+        if (!editor.isPlanned) {
             mutableState.update { it.copy(message = "Diary item is already logged") }
             return
         }
@@ -2007,8 +2011,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = false,
                         sheetMode = null,
-                        editingDiaryEntryId = null,
-                        editingDiaryEntryIsPlanned = false,
+                        diaryEntryEditor = null,
                         message = "Logged planned food",
                     )
                 }
@@ -3659,23 +3662,28 @@ class FoodViewModel @Inject constructor(
     }
 
     private fun FoodUiState.withDiaryEntryPreview(): FoodUiState {
-        val quantity = editingDiaryEntryQuantityGrams.parsePositiveNumberOrNull()
-        val originalQuantity = editingDiaryEntryOriginalQuantityGrams
+        val editor = diaryEntryEditor ?: return this
+        val quantity = editor.quantityGrams.parsePositiveNumberOrNull()
+        val originalQuantity = editor.originalQuantityGrams
         if (quantity == null || originalQuantity <= 0.0) {
             return copy(
-                editingDiaryEntryPreviewCaloriesKcal = 0.0,
-                editingDiaryEntryPreviewProteinGrams = 0.0,
-                editingDiaryEntryPreviewCarbsGrams = 0.0,
-                editingDiaryEntryPreviewFatGrams = 0.0,
+                diaryEntryEditor = editor.copy(
+                    previewCaloriesKcal = 0.0,
+                    previewProteinGrams = 0.0,
+                    previewCarbsGrams = 0.0,
+                    previewFatGrams = 0.0,
+                ),
             )
         }
 
         val scale = quantity / originalQuantity
         return copy(
-            editingDiaryEntryPreviewCaloriesKcal = editingDiaryEntryCaloriesKcal * scale,
-            editingDiaryEntryPreviewProteinGrams = editingDiaryEntryOriginalProteinGrams * scale,
-            editingDiaryEntryPreviewCarbsGrams = editingDiaryEntryOriginalCarbsGrams * scale,
-            editingDiaryEntryPreviewFatGrams = editingDiaryEntryOriginalFatGrams * scale,
+            diaryEntryEditor = editor.copy(
+                previewCaloriesKcal = editor.caloriesKcal * scale,
+                previewProteinGrams = editor.originalProteinGrams * scale,
+                previewCarbsGrams = editor.originalCarbsGrams * scale,
+                previewFatGrams = editor.originalFatGrams * scale,
+            ),
         )
     }
 

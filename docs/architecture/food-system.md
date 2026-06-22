@@ -195,9 +195,10 @@ sub-state data classes, one editor at a time, updating tests per step.
 **Cost discovered while planning (do these in this order, each as its own
 verified change):**
 
-- [ ] `DiaryEntryEditorState` — **cleanest start.** Dedicated fields
-  (`editingDiaryEntry*`), only ~13 `FoodViewModelTest` references. Also touches
-  `withDiaryEntryPreview` and `DiaryEntryEditorPanel` (now in `FoodModalSheets.kt`).
+- [x] `DiaryEntryEditorState` — **done.** Collapsed 15 flat `editingDiaryEntry*`
+  fields into one nullable `diaryEntryEditor` object; updated `withDiaryEntryPreview`,
+  `DiaryEntryEditorPanel` (in `FoodModalSheets.kt`), and the `FoodViewModelTest`
+  assertions. Behavior-preserving; full verification green.
 - [ ] `GoalEditorState` — ~19 goal-related test refs.
 - [ ] `MealTemplateEditorState` / `RecipeEditorState` — heaviest: ~50–80
   template/recipe test references each. Expect large test churn.

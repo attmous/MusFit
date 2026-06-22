@@ -406,7 +406,7 @@ fun FoodScreen(
                         onDeleteClick = viewModel::deleteDiaryEntry,
                         onCopyToMealClick = { mealType -> viewModel.copyDiaryEntryTo(mealType, state.selectedDate) },
                         onCopyTomorrowClick = {
-                            viewModel.copyDiaryEntryTo(state.editingDiaryEntryMealType, state.selectedDate.plusDays(1))
+                            viewModel.copyDiaryEntryTo(state.diaryEntryEditor?.mealType.orEmpty(), state.selectedDate.plusDays(1))
                         },
                         onMarkLoggedClick = viewModel::markDiaryEntryLogged,
                     )

@@ -1581,11 +1581,11 @@ class FoodViewModelTest {
         viewModel.openDiaryEntryEditor("entry-1")
         viewModel.onDiaryEntryQuantityChanged("100")
 
-        with(viewModel.state.value) {
-            assertEquals(60.0, editingDiaryEntryPreviewCaloriesKcal, 0.01)
-            assertEquals(10.0, editingDiaryEntryPreviewProteinGrams, 0.01)
-            assertEquals(4.0, editingDiaryEntryPreviewCarbsGrams, 0.01)
-            assertEquals(1.0, editingDiaryEntryPreviewFatGrams, 0.01)
+        with(viewModel.state.value.diaryEntryEditor!!) {
+            assertEquals(60.0, previewCaloriesKcal, 0.01)
+            assertEquals(10.0, previewProteinGrams, 0.01)
+            assertEquals(4.0, previewCarbsGrams, 0.01)
+            assertEquals(1.0, previewFatGrams, 0.01)
         }
     }
 
@@ -1637,17 +1637,17 @@ class FoodViewModelTest {
 
         viewModel.openDiaryEntryEditor("entry-1")
 
-        val choices = viewModel.state.value.editingDiaryEntryServingChoices
+        val choices = viewModel.state.value.diaryEntryEditor!!.servingChoices
         assertEquals(listOf("100 g", "Cup", "Half cup"), choices.map { it.label })
 
         viewModel.onDiaryEntryServingChoiceSelected(choices.first { it.label == "Half cup" }.id)
 
-        with(viewModel.state.value) {
-            assertEquals("85", editingDiaryEntryQuantityGrams)
-            assertEquals(51.0, editingDiaryEntryPreviewCaloriesKcal, 0.01)
-            assertEquals(8.5, editingDiaryEntryPreviewProteinGrams, 0.01)
-            assertEquals(3.4, editingDiaryEntryPreviewCarbsGrams, 0.01)
-            assertEquals(0.85, editingDiaryEntryPreviewFatGrams, 0.01)
+        with(viewModel.state.value.diaryEntryEditor!!) {
+            assertEquals("85", quantityGrams)
+            assertEquals(51.0, previewCaloriesKcal, 0.01)
+            assertEquals(8.5, previewProteinGrams, 0.01)
+            assertEquals(3.4, previewCarbsGrams, 0.01)
+            assertEquals(0.85, previewFatGrams, 0.01)
         }
     }
 
@@ -1687,9 +1687,10 @@ class FoodViewModelTest {
         viewModel.openDiaryEntryEditor("entry-1")
         with(viewModel.state.value) {
             assertEquals(FoodSheetMode.DiaryEntryEditor, sheetMode)
-            assertEquals("entry-1", editingDiaryEntryId)
-            assertEquals("Greek yogurt", editingDiaryEntryName)
-            assertEquals("200", editingDiaryEntryQuantityGrams)
+            val editor = diaryEntryEditor!!
+            assertEquals("entry-1", editor.id)
+            assertEquals("Greek yogurt", editor.name)
+            assertEquals("200", editor.quantityGrams)
         }
 
         viewModel.deleteDiaryEntry()

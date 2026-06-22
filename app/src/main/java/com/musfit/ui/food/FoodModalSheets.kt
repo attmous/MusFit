@@ -641,6 +641,7 @@ internal fun DiaryEntryEditorPanel(
     onCopyTomorrowClick: () -> Unit,
     onMarkLoggedClick: () -> Unit,
 ) {
+    val editor = state.diaryEntryEditor ?: return
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -656,7 +657,7 @@ internal fun DiaryEntryEditorPanel(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = state.editingDiaryEntryName.ifBlank { "Food item" },
+                text = editor.name.ifBlank { "Food item" },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -665,13 +666,13 @@ internal fun DiaryEntryEditorPanel(
         }
 
         MealTypeChips(
-            selectedMealType = state.editingDiaryEntryMealType,
+            selectedMealType = editor.mealType,
             mealDefinitions = state.mealDefinitions,
             onMealChanged = onMealChanged,
         )
 
         OutlinedTextField(
-            value = state.editingDiaryEntryQuantityGrams,
+            value = editor.quantityGrams,
             onValueChange = onQuantityChanged,
             label = { Text("Amount (g)") },
             singleLine = true,
@@ -679,14 +680,14 @@ internal fun DiaryEntryEditorPanel(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        if (state.editingDiaryEntryServingChoices.isNotEmpty()) {
+        if (editor.servingChoices.isNotEmpty()) {
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                state.editingDiaryEntryServingChoices.forEach { choice ->
+                editor.servingChoices.forEach { choice ->
                     FilterChip(
-                        selected = state.editingDiaryEntryQuantityGrams == choice.grams.formatNutritionDisplay(),
+                        selected = editor.quantityGrams == choice.grams.formatNutritionDisplay(),
                         onClick = { onServingChoiceSelected(choice.id) },
                         label = { Text(choice.label) },
                     )
@@ -709,7 +710,7 @@ internal fun DiaryEntryEditorPanel(
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
             Text(
-                text = "${state.editingDiaryEntryPreviewCaloriesKcal.roundToInt()} kcal",
+                text = "${editor.previewCaloriesKcal.roundToInt()} kcal",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
@@ -718,17 +719,17 @@ internal fun DiaryEntryEditorPanel(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = "P ${state.editingDiaryEntryPreviewProteinGrams.formatNutritionDisplay()}g",
+                    text = "P ${editor.previewProteinGrams.formatNutritionDisplay()}g",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
                 Text(
-                    text = "C ${state.editingDiaryEntryPreviewCarbsGrams.formatNutritionDisplay()}g",
+                    text = "C ${editor.previewCarbsGrams.formatNutritionDisplay()}g",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
                 Text(
-                    text = "F ${state.editingDiaryEntryPreviewFatGrams.formatNutritionDisplay()}g",
+                    text = "F ${editor.previewFatGrams.formatNutritionDisplay()}g",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -752,7 +753,7 @@ internal fun DiaryEntryEditorPanel(
             Text(if (state.isSaving) "Saving" else "Save changes")
         }
 
-        if (state.editingDiaryEntryIsPlanned) {
+        if (editor.isPlanned) {
             OutlinedButton(
                 onClick = onMarkLoggedClick,
                 enabled = !state.isSaving,
