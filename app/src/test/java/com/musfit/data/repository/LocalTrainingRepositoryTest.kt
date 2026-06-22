@@ -536,6 +536,58 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun finishWorkout_onCompletedSession_doesNotRewriteTerminalState() = runTest {
+        val endedAt = WORKOUT_START.plusSeconds(1200).toEpochMilli()
+        val session =
+            WorkoutSessionEntity(
+                id = "session-completed",
+                routineId = null,
+                title = "Completed workout",
+                status = "completed",
+                startedAtEpochMillis = WORKOUT_START.toEpochMilli(),
+                endedAtEpochMillis = endedAt,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+        database.trainingDao().upsertWorkoutSession(session)
+        currentInstant = WORKOUT_START.plusSeconds(3600)
+
+        repository.finishWorkout(session.id)
+
+        val savedSession = database.trainingDao().getWorkoutSession(session.id)
+
+        assertEquals("completed", savedSession?.status)
+        assertEquals(endedAt, savedSession?.endedAtEpochMillis)
+    }
+
+    @Test
+    fun discardWorkout_onDiscardedSession_doesNotRewriteTerminalState() = runTest {
+        val endedAt = WORKOUT_START.plusSeconds(1800).toEpochMilli()
+        val session =
+            WorkoutSessionEntity(
+                id = "session-discarded",
+                routineId = null,
+                title = "Discarded workout",
+                status = "discarded",
+                startedAtEpochMillis = WORKOUT_START.toEpochMilli(),
+                endedAtEpochMillis = endedAt,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+        database.trainingDao().upsertWorkoutSession(session)
+        currentInstant = WORKOUT_START.plusSeconds(5400)
+
+        repository.discardWorkout(session.id)
+
+        val savedSession = database.trainingDao().getWorkoutSession(session.id)
+
+        assertEquals("discarded", savedSession?.status)
+        assertEquals(endedAt, savedSession?.endedAtEpochMillis)
+    }
+
+    @Test
     fun startWorkoutFromRoutine_whenBlankActiveWorkoutExists_returnsExistingSessionUnchanged() = runTest {
         repository.seedStarterTrainingData()
         val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }

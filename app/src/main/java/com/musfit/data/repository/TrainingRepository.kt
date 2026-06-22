@@ -519,6 +519,8 @@ class LocalTrainingRepository @Inject constructor(
     }
 
     override suspend fun finishWorkout(sessionId: String) {
+        val session = trainingDao.getWorkoutSession(sessionId) ?: return
+        if (session.status != WORKOUT_STATUS_ACTIVE) return
         trainingDao.updateWorkoutSessionStatus(sessionId, WORKOUT_STATUS_COMPLETED, clock())
         if (activeSessionId == sessionId) {
             activeSessionId = null
@@ -526,6 +528,8 @@ class LocalTrainingRepository @Inject constructor(
     }
 
     override suspend fun discardWorkout(sessionId: String) {
+        val session = trainingDao.getWorkoutSession(sessionId) ?: return
+        if (session.status != WORKOUT_STATUS_ACTIVE) return
         trainingDao.updateWorkoutSessionStatus(sessionId, WORKOUT_STATUS_DISCARDED, clock())
         if (activeSessionId == sessionId) {
             activeSessionId = null
