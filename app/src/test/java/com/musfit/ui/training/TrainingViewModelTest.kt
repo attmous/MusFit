@@ -408,6 +408,62 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun finishAndDiscardRequests_toggleConfirmationState() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.requestFinishActiveWorkout()
+        assertTrue(viewModel.state.value.finishConfirmationOpen)
+
+        viewModel.cancelFinishActiveWorkout()
+        assertFalse(viewModel.state.value.finishConfirmationOpen)
+
+        viewModel.requestDiscardActiveWorkout()
+        assertTrue(viewModel.state.value.discardConfirmationOpen)
+
+        viewModel.cancelDiscardActiveWorkout()
+        assertFalse(viewModel.state.value.discardConfirmationOpen)
+    }
+
+    @Test
+    fun finishActiveWorkout_opensCompletedWorkoutDetailInHistory() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.requestFinishActiveWorkout()
+        viewModel.finishActiveWorkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("session-1", repository.finishedSessionId)
+        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
+        assertFalse(viewModel.state.value.finishConfirmationOpen)
+        assertEquals(TrainingSection.History, viewModel.state.value.selectedSection)
+        assertEquals(listOf("session-1"), repository.openedWorkoutDetailSessionIds)
+        assertEquals("session-1", viewModel.state.value.selectedWorkoutDetail?.summary?.sessionId)
+    }
+
+    @Test
+    fun discardActiveWorkout_discardsAndReturnsToRoutines() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.requestDiscardActiveWorkout()
+        viewModel.discardActiveWorkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("session-1", repository.discardedSessionId)
+        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
+        assertFalse(viewModel.state.value.discardConfirmationOpen)
+        assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
+        assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
+    }
+
+    @Test
     fun completeSet_updatesSummaryAndStartsRestTimerShell() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
@@ -598,6 +654,8 @@ class TrainingViewModelTest {
         var duplicatedSessionId: String? = null
         var duplicatedExerciseId: String? = null
         var deletedSetId: String? = null
+        var finishedSessionId: String? = null
+        var discardedSessionId: String? = null
         val openedWorkoutDetailSessionIds = mutableListOf<String>()
         val observedProgressExerciseIds = mutableListOf<String>()
         val requestedRoutineDetailIds = mutableListOf<String>()
@@ -722,7 +780,7 @@ class TrainingViewModelTest {
                 )
         }
 
-        private val workoutHistoryDetails = mapOf(
+        private val workoutHistoryDetails = mutableMapOf(
             "session-history-1" to
                 WorkoutHistoryDetail(
                     summary = workoutHistoryFlow.value.single(),
@@ -890,9 +948,24 @@ class TrainingViewModelTest {
             deletedRoutineIds += routineId
         }
 
-        override suspend fun finishWorkout(sessionId: String) = Unit
+        override suspend fun finishWorkout(sessionId: String) {
+            finishedSessionId = sessionId
+            workoutHistoryDetails[sessionId] = WorkoutHistoryDetail(
+                summary = WorkoutHistorySummary(
+                    sessionId = sessionId,
+                    title = activeWorkoutDetail.value?.title ?: "Workout",
+                    startedAtEpochMillis = activeWorkoutDetail.value?.startedAtEpochMillis ?: 1_000L,
+                    endedAtEpochMillis = 2_000L,
+                    completedSetCount = activeWorkoutDetail.value?.completedSetCount ?: 0,
+                    totalVolumeKg = activeWorkoutDetail.value?.totalVolumeKg ?: 0.0,
+                ),
+                exerciseBlocks = activeWorkoutDetail.value?.exerciseBlocks.orEmpty(),
+            )
+        }
 
-        override suspend fun discardWorkout(sessionId: String) = Unit
+        override suspend fun discardWorkout(sessionId: String) {
+            discardedSessionId = sessionId
+        }
 
         override suspend fun getLatestWorkoutForExport(): WorkoutForExport? = null
 

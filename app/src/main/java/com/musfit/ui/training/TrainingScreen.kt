@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
@@ -64,8 +65,15 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 onDeleteSet = viewModel::deleteWorkoutSet,
                 onToggleSet = viewModel::toggleWorkoutSetCompletion,
                 onClose = viewModel::closeActiveWorkoutRoute,
-                onFinish = viewModel::finishActiveWorkout,
-                onDiscard = viewModel::discardActiveWorkout,
+                onFinish = viewModel::requestFinishActiveWorkout,
+                onDiscard = viewModel::requestDiscardActiveWorkout,
+            )
+            ActiveWorkoutConfirmationDialogs(
+                state = state,
+                onConfirmFinish = viewModel::finishActiveWorkout,
+                onCancelFinish = viewModel::cancelFinishActiveWorkout,
+                onConfirmDiscard = viewModel::discardActiveWorkout,
+                onCancelDiscard = viewModel::cancelDiscardActiveWorkout,
             )
         }
         return
@@ -188,6 +196,56 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     onSelectExercise = viewModel::selectProgressExercise,
                 )
         }
+    }
+}
+
+@Composable
+private fun ActiveWorkoutConfirmationDialogs(
+    state: TrainingUiState,
+    onConfirmFinish: () -> Unit,
+    onCancelFinish: () -> Unit,
+    onConfirmDiscard: () -> Unit,
+    onCancelDiscard: () -> Unit,
+) {
+    val workout = state.activeWorkout
+    if (state.finishConfirmationOpen && workout != null) {
+        AlertDialog(
+            onDismissRequest = onCancelFinish,
+            title = { Text("Finish workout?") },
+            text = {
+                Text(
+                    "${workout.title}\n" +
+                        "${workout.completedSetCount} sets - ${workout.totalVolumeKg.formatKg()} kg",
+                )
+            },
+            confirmButton = {
+                Button(onClick = onConfirmFinish) {
+                    Text("Finish")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelFinish) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+    if (state.discardConfirmationOpen && workout != null) {
+        AlertDialog(
+            onDismissRequest = onCancelDiscard,
+            title = { Text("Discard workout?") },
+            text = { Text("This removes the active workout from your log.") },
+            confirmButton = {
+                Button(onClick = onConfirmDiscard) {
+                    Text("Discard")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelDiscard) {
+                    Text("Keep workout")
+                }
+            },
+        )
     }
 }
 

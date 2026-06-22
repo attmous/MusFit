@@ -575,12 +575,48 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    fun requestFinishActiveWorkout() {
+        if (state.value.activeWorkout == null) return
+        mutableState.update {
+            it.copy(
+                finishConfirmationOpen = true,
+                discardConfirmationOpen = false,
+            )
+        }
+    }
+
+    fun cancelFinishActiveWorkout() {
+        mutableState.update { it.copy(finishConfirmationOpen = false) }
+    }
+
+    fun requestDiscardActiveWorkout() {
+        if (state.value.activeWorkout == null) return
+        mutableState.update {
+            it.copy(
+                discardConfirmationOpen = true,
+                finishConfirmationOpen = false,
+            )
+        }
+    }
+
+    fun cancelDiscardActiveWorkout() {
+        mutableState.update { it.copy(discardConfirmationOpen = false) }
+    }
+
     fun finishActiveWorkout() {
         val sessionId = state.value.activeWorkout?.sessionId ?: return
         viewModelScope.launch {
             repository.finishWorkout(sessionId)
+            val completedDetail = repository.getWorkoutHistoryDetail(sessionId)
             mutableState.update {
-                it.copy(activeWorkoutRouteOpen = false, finishConfirmationOpen = false)
+                it.copy(
+                    activeWorkoutRouteOpen = false,
+                    finishConfirmationOpen = false,
+                    discardConfirmationOpen = false,
+                    selectedSection = TrainingSection.History,
+                    selectedWorkoutDetail = completedDetail,
+                    restTimer = RestTimerState(),
+                )
             }
         }
     }
@@ -590,7 +626,14 @@ class TrainingViewModel @Inject constructor(
         viewModelScope.launch {
             repository.discardWorkout(sessionId)
             mutableState.update {
-                it.copy(activeWorkoutRouteOpen = false, discardConfirmationOpen = false)
+                it.copy(
+                    activeWorkoutRouteOpen = false,
+                    finishConfirmationOpen = false,
+                    discardConfirmationOpen = false,
+                    selectedSection = TrainingSection.Routines,
+                    selectedWorkoutDetail = null,
+                    restTimer = RestTimerState(),
+                )
             }
         }
     }
