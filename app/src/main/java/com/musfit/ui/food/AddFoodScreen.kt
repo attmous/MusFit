@@ -32,7 +32,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -60,9 +59,20 @@ fun AddFoodScreen(
     onFoodClick: (String) -> Unit,
     onQuickTrack: () -> Unit,
     onAdjustGoals: () -> Unit,
-    onCreateFood: () -> Unit,
     onCopyYesterday: () -> Unit,
     onSaveTemplate: () -> Unit,
+    onScanLabel: () -> Unit,
+    onProductNameChanged: (String) -> Unit,
+    onBrandChanged: (String) -> Unit,
+    onQuantityChanged: (String) -> Unit,
+    onAmountServingChoiceSelected: (String) -> Unit,
+    onCaloriesChanged: (String) -> Unit,
+    onProteinChanged: (String) -> Unit,
+    onCarbsChanged: (String) -> Unit,
+    onFatChanged: (String) -> Unit,
+    onSaveProduct: () -> Unit,
+    onLogFood: () -> Unit,
+    onCreateRecipe: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -188,13 +198,23 @@ fun AddFoodScreen(
 
                     AddTab.Create -> {
                         Spacer(Modifier.height(8.dp))
-                        OutlinedButton(onClick = onCreateFood, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Filled.Add, contentDescription = null)
-                            Spacer(Modifier.size(8.dp))
-                            Text("Create a food")
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        EmptyHint("Add a food that isn't in any database (scan-to-autofill coming soon).")
+                        CreateFoodForm(
+                            state = state,
+                            onScanBarcode = onScanClick,
+                            onScanLabel = onScanLabel,
+                            onProductNameChanged = onProductNameChanged,
+                            onBrandChanged = onBrandChanged,
+                            onQuantityChanged = onQuantityChanged,
+                            onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+                            onCaloriesChanged = onCaloriesChanged,
+                            onProteinChanged = onProteinChanged,
+                            onCarbsChanged = onCarbsChanged,
+                            onFatChanged = onFatChanged,
+                            onSaveProduct = onSaveProduct,
+                            onLogFood = onLogFood,
+                            onCreateRecipe = onCreateRecipe,
+                        )
+                        Spacer(Modifier.height(12.dp))
                     }
                 }
             }

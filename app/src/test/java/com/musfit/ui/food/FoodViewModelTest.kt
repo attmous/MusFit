@@ -76,6 +76,26 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun onScannedBarcode_routesToCreateTabAndAutofills() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.onScannedBarcode("123abc45")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val result = viewModel.state.value
+        assertEquals(AddTab.Create, result.addTab)
+        assertTrue(result.isAddPanelVisible)
+        assertEquals(FoodSheetMode.AddFood, result.sheetMode)
+        assertEquals(FoodAddMode.Saved, result.addMode)
+        assertEquals("12345", result.barcode)
+        assertEquals("Greek Yogurt", result.productName)
+        assertEquals("59.0", result.caloriesPer100g)
+    }
+
+    @Test
     fun lookupBarcode_withBlankBarcode_setsValidationMessage() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(),

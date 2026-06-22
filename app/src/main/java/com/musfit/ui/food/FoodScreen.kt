@@ -38,6 +38,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,7 +55,9 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.BakeryDining
 import androidx.compose.material.icons.outlined.Cookie
 import androidx.compose.material.icons.outlined.DinnerDining
+import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.LunchDining
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -108,8 +111,7 @@ fun FoodScreen(
 
     LaunchedEffect(scannedBarcode) {
         if (!scannedBarcode.isNullOrBlank()) {
-            viewModel.onBarcodeChanged(scannedBarcode)
-            viewModel.selectAddMode(FoodAddMode.Barcode)
+            viewModel.onScannedBarcode(scannedBarcode)
             onScannedBarcodeConsumed()
         }
     }
@@ -143,9 +145,20 @@ fun FoodScreen(
                 onFoodClick = viewModel::logSavedFood,
                 onQuickTrack = { viewModel.selectAddMode(FoodAddMode.Quick) },
                 onAdjustGoals = viewModel::openGoalEditor,
-                onCreateFood = { viewModel.selectAddMode(FoodAddMode.Manual) },
                 onCopyYesterday = viewModel::copySelectedMealFromYesterday,
                 onSaveTemplate = { viewModel.saveSelectedMealAsTemplate("${state.selectedMealTitle} template") },
+                onScanLabel = viewModel::startLabelScanPlaceholder,
+                onProductNameChanged = viewModel::onProductNameChanged,
+                onBrandChanged = viewModel::onBrandChanged,
+                onQuantityChanged = viewModel::onQuantityChanged,
+                onAmountServingChoiceSelected = viewModel::onAmountServingChoiceSelected,
+                onCaloriesChanged = viewModel::onCaloriesChanged,
+                onProteinChanged = viewModel::onProteinChanged,
+                onCarbsChanged = viewModel::onCarbsChanged,
+                onFatChanged = viewModel::onFatChanged,
+                onSaveProduct = viewModel::saveScannedProductToDatabase,
+                onLogFood = viewModel::logFood,
+                onCreateRecipe = { viewModel.openRecipeEditor(null) },
             )
         } else {
             Column(
@@ -194,7 +207,7 @@ fun FoodScreen(
                                     EmptyDiaryActionType.Breakfast -> viewModel.openAddFood("breakfast")
                                     EmptyDiaryActionType.Barcode -> {
                                         viewModel.openAddFood("snacks")
-                                        viewModel.selectAddMode(FoodAddMode.Barcode)
+                                        viewModel.selectAddTab(AddTab.Create)
                                         onScanClick()
                                     }
                                     EmptyDiaryActionType.Ai -> {
@@ -4616,6 +4629,95 @@ private fun BarcodeLookupSummary(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+    }
+}
+
+@Composable
+internal fun CreateFoodForm(
+    state: FoodUiState,
+    onScanBarcode: () -> Unit,
+    onScanLabel: () -> Unit,
+    onProductNameChanged: (String) -> Unit,
+    onBrandChanged: (String) -> Unit,
+    onQuantityChanged: (String) -> Unit,
+    onAmountServingChoiceSelected: (String) -> Unit,
+    onCaloriesChanged: (String) -> Unit,
+    onProteinChanged: (String) -> Unit,
+    onCarbsChanged: (String) -> Unit,
+    onFatChanged: (String) -> Unit,
+    onSaveProduct: () -> Unit,
+    onLogFood: () -> Unit,
+    onCreateRecipe: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                onClick = onScanBarcode,
+                enabled = !state.isLoading && !state.isSaving,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(Icons.Outlined.QrCodeScanner, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Scan barcode")
+            }
+            OutlinedButton(
+                onClick = onScanLabel,
+                enabled = !state.isLoading && !state.isSaving,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(Icons.Outlined.DocumentScanner, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Scan label")
+            }
+        }
+
+        if (state.lookupResult != null) {
+            BarcodeLookupSummary(state = state)
+        }
+
+        ProductFields(
+            state = state,
+            onProductNameChanged = onProductNameChanged,
+            onBrandChanged = onBrandChanged,
+            onQuantityChanged = onQuantityChanged,
+            onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+        )
+        NutritionFields(
+            state = state,
+            onCaloriesChanged = onCaloriesChanged,
+            onProteinChanged = onProteinChanged,
+            onCarbsChanged = onCarbsChanged,
+            onFatChanged = onFatChanged,
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                onClick = onSaveProduct,
+                enabled = !state.isLoading && !state.isSaving,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(if (state.isSaving) "Saving" else "Save to database")
+            }
+            Button(
+                onClick = onLogFood,
+                enabled = !state.isLoading && !state.isSaving,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+            ) {
+                Text(if (state.isSaving) "Logging" else "Log food")
+            }
+        }
+
+        HorizontalDivider(color = MusFitTheme.colors.outline)
+        TextButton(onClick = onCreateRecipe, modifier = Modifier.fillMaxWidth()) {
+            Text("Create a meal or recipe instead")
         }
     }
 }

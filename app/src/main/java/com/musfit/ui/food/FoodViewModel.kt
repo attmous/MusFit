@@ -2485,6 +2485,28 @@ class FoodViewModel @Inject constructor(
         }
     }
 
+    /** Entry point when the barcode scanner returns: show the Create tab and auto-look-up the product. */
+    fun onScannedBarcode(barcode: String) {
+        onBarcodeChanged(barcode)
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.AddFood,
+                addMode = FoodAddMode.Saved,
+                addTab = AddTab.Create,
+                message = null,
+            )
+        }
+        lookupBarcode()
+    }
+
+    /** Slice B placeholder for "Scan label" — Slice C replaces this with the OCR capture launch. */
+    fun startLabelScanPlaceholder() {
+        mutableState.update {
+            it.copy(addTab = AddTab.Create, message = "Label scanning arrives next — enter the values below for now.")
+        }
+    }
+
     fun onProductNameChanged(value: String) {
         mutableState.update { it.copy(productName = value, message = null) }
     }
