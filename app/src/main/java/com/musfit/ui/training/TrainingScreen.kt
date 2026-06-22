@@ -140,6 +140,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     TrainingRoutineEditor(
                         editor = state.routineEditor,
                         exercises = state.exercises,
+                        accent = accent,
                         onNameChange = viewModel::onRoutineNameChanged,
                         onNotesChange = viewModel::onRoutineNotesChanged,
                         onAddExercise = viewModel::addRoutineExercise,

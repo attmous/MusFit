@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
@@ -13,6 +14,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,11 +69,22 @@ fun TrainingProgressContent(
                 Text("Best day volume · ${progress.bestWorkoutVolumeKg.formatKg()} kg", color = MusFitTheme.colors.onSurfaceVariant)
             }
         }
-        progress.trend.forEach { point ->
+        if (progress.trend.isEmpty()) {
             Text(
-                text = "Day ${point.dateEpochDay} · ${point.volumeKg.formatKg()} kg · 1RM ${point.bestEstimatedOneRepMaxKg.formatKg()} kg",
+                text = "No history yet",
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
+            )
+        } else {
+            var metric by rememberSaveable { mutableStateOf(TrendMetric.EstOneRepMax) }
+            TrendMetricToggle(selected = metric, accent = accent, onSelect = { metric = it })
+            ExerciseTrendChart(
+                trend = progress.trend,
+                metric = metric,
+                accent = accent,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(168.dp),
             )
         }
     }
