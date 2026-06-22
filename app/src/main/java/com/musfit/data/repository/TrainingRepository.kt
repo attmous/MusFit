@@ -462,18 +462,19 @@ class LocalTrainingRepository @Inject constructor(
             val routineExercises = trainingDao.getRoutineExercises(routine.id)
             val sets = routineExercises.flatMap { routineExercise ->
                 (0 until routineExercise.targetSets.coerceAtLeast(1)).map { setIndex ->
+                    val targetReps = routineExercise.targetReps?.trim()?.takeIf(String::isNotEmpty)
                     WorkoutSetEntity(
                         id = UUID.randomUUID().toString(),
                         sessionId = sessionId,
                         exerciseId = routineExercise.exerciseId,
                         sortOrder = routineExercise.sortOrder * 100 + setIndex,
                         setType = SET_TYPE_WORKING,
-                        reps = routineExercise.targetReps?.toIntOrNull(),
+                        reps = targetReps?.toIntOrNull(),
                         weightKg = null,
                         durationSeconds = null,
                         distanceMeters = null,
                         rpe = null,
-                        notes = null,
+                        notes = encodeWorkoutSetNotes(targetReps = targetReps, userNote = null),
                         completed = false,
                     )
                 }
@@ -548,13 +549,17 @@ class LocalTrainingRepository @Inject constructor(
         val session = trainingDao.getWorkoutSession(existing.sessionId) ?: return
         if (session.status != WORKOUT_STATUS_ACTIVE) return
         if (input.completed && ((input.reps ?: 0) <= 0 || (input.weightKg ?: 0.0) <= 0.0)) return
+        val existingNotes = parseWorkoutSetNotes(existing.notes)
         trainingDao.upsertWorkoutSet(
             existing.copy(
                 setType = input.setType,
                 reps = input.reps,
                 weightKg = input.weightKg,
                 rpe = input.rpe,
-                notes = input.notes?.trim()?.takeIf { it.isNotBlank() },
+                notes = encodeWorkoutSetNotes(
+                    targetReps = existingNotes.targetReps,
+                    userNote = input.notes?.trim()?.takeIf { it.isNotBlank() },
+                ),
                 completed = input.completed,
             ),
         )
@@ -709,7 +714,7 @@ class LocalTrainingRepository @Inject constructor(
         require(input.name.isNotBlank()) { "Routine name is required" }
         database.withTransaction {
             val now = clock()
-            trainingDao.upsertRoutine(
+            upsertWorkoutRoutine(
                 RoutineEntity(
                     id = routineId,
                     name = input.name.trim(),
@@ -851,15 +856,15 @@ private fun List<ExerciseProgressSetRow>.toExerciseProgress(): ExerciseProgress?
     )
 }
 
+private data class ParsedWorkoutSetNotes(
+    val targetReps: String?,
+    val userNote: String?,
+)
+
 private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
     session: WorkoutSessionEntity,
     trainingDao: TrainingDao,
 ): ActiveWorkoutDetail {
-    val routineTargets = session.routineId
-        ?.let { routineId ->
-            trainingDao.getRoutineExercises(routineId).associate { it.exerciseId to it.targetReps?.trim()?.takeIf(String::isNotEmpty) }
-        }
-        .orEmpty()
     val previousLabels = map { it.exerciseId }
         .distinct()
         .associateWith { exerciseId ->
@@ -870,6 +875,7 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
         }
     val blocks = groupBy { it.exerciseId }.map { (_, exerciseRows) ->
         val first = exerciseRows.first()
+        val parsedNotes = exerciseRows.associate { row -> row.setId to parseWorkoutSetNotes(row.notes) }
         WorkoutExerciseBlock(
             exercise = ExerciseSummary(
                 id = first.exerciseId,
@@ -879,7 +885,7 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
                 targetMuscles = first.targetMuscles,
                 isCustom = first.isCustom,
             ),
-            targetReps = routineTargets[first.exerciseId],
+            targetReps = exerciseRows.firstNotNullOfOrNull { row -> parsedNotes.getValue(row.setId).targetReps },
             sets = exerciseRows.map { row ->
                 LoggedWorkoutSetDetail(
                     id = row.setId,
@@ -888,7 +894,7 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
                     reps = row.reps,
                     weightKg = row.weightKg,
                     rpe = row.rpe,
-                    notes = row.notes,
+                    notes = parsedNotes.getValue(row.setId).userNote,
                     completed = row.completed,
                     previousLabel = previousLabels[row.exerciseId],
                 )
@@ -912,6 +918,29 @@ private fun WorkoutSetEntity.toPreviousLabel(): String? {
     return "${weightKg.formatCompactKg()} kg x $reps"
 }
 
+private fun encodeWorkoutSetNotes(targetReps: String?, userNote: String?): String? {
+    val metadata = targetReps?.trim()?.takeIf { it.isNotEmpty() }?.let { "$TARGET_REPS_PREFIX$it" }
+    return listOfNotNull(metadata, userNote?.trim()?.takeIf { it.isNotEmpty() })
+        .takeIf { it.isNotEmpty() }
+        ?.joinToString("\n")
+}
+
+private fun parseWorkoutSetNotes(notes: String?): ParsedWorkoutSetNotes {
+    if (notes.isNullOrEmpty()) {
+        return ParsedWorkoutSetNotes(targetReps = null, userNote = null)
+    }
+    val lines = notes.lines()
+    val firstLine = lines.firstOrNull()
+    return if (firstLine != null && firstLine.startsWith(TARGET_REPS_PREFIX)) {
+        ParsedWorkoutSetNotes(
+            targetReps = firstLine.removePrefix(TARGET_REPS_PREFIX).trim().takeIf { it.isNotEmpty() },
+            userNote = lines.drop(1).joinToString("\n").trim().takeIf { it.isNotEmpty() },
+        )
+    } else {
+        ParsedWorkoutSetNotes(targetReps = null, userNote = notes)
+    }
+}
+
 private fun Double.formatCompactKg(): String =
     if (this % 1.0 == 0.0) {
         toInt().toString()
@@ -928,3 +957,5 @@ private fun LocalDate.dayRange(zoneId: ZoneId = ZoneId.systemDefault()): DayRang
 private fun Long.isSameDayAs(other: Long, zoneId: ZoneId = ZoneId.systemDefault()): Boolean =
     Instant.ofEpochMilli(this).atZone(zoneId).toLocalDate() ==
         Instant.ofEpochMilli(other).atZone(zoneId).toLocalDate()
+
+private const val TARGET_REPS_PREFIX = "__musfit_target_reps__:"

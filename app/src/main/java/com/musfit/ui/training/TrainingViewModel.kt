@@ -165,6 +165,10 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun openRoutineEditor(routineId: String?) {
+        if (routineId != null && isStarterRoutine(routineId)) {
+            mutableState.update { it.copy(message = "Starter routines are read-only templates.") }
+            return
+        }
         viewModelScope.launch {
             val detail = routineId?.let { repository.getRoutineDetail(it) }
             mutableState.update {
@@ -276,6 +280,11 @@ class TrainingViewModel @Inject constructor(
 
     fun saveRoutineEditor() {
         val editor = state.value.routineEditor
+        if (editor.routineId != null && isStarterRoutine(editor.routineId)) {
+            mutableState.update { it.copy(message = "Starter routines are read-only templates.") }
+            closeRoutineEditor()
+            return
+        }
         val input = RoutineInput(editor.name, editor.notes, editor.exercises)
         viewModelScope.launch {
             if (editor.routineId == null) {
@@ -294,6 +303,10 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun deleteRoutine(routineId: String) {
+        if (isStarterRoutine(routineId)) {
+            mutableState.update { it.copy(message = "Starter routines are read-only templates.") }
+            return
+        }
         viewModelScope.launch {
             repository.deleteRoutine(routineId)
             if (state.value.routineEditor.routineId == routineId) {
@@ -516,4 +529,7 @@ class TrainingViewModel @Inject constructor(
 
     private fun LoggedWorkoutSetDetail.isValidForCompletion(): Boolean =
         (reps ?: 0) > 0 && (weightKg ?: 0.0) > 0.0
+
+    private fun isStarterRoutine(routineId: String?): Boolean =
+        routineId != null && state.value.routines.any { it.id == routineId && it.isStarter }
 }

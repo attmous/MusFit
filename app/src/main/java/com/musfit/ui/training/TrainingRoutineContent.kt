@@ -56,16 +56,20 @@ fun TrainingRoutineContent(
                         Button(onClick = { onStartRoutine(routine.id) }) {
                             Text("Start")
                         }
-                        TextButton(onClick = { onEditRoutine(routine.id) }) {
-                            Text("Edit")
+                        if (!routine.isStarter) {
+                            TextButton(onClick = { onEditRoutine(routine.id) }) {
+                                Text("Edit")
+                            }
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { onDuplicateRoutine(routine.id) }) {
                             Text("Duplicate")
                         }
-                        TextButton(onClick = { onDeleteRoutine(routine.id) }) {
-                            Text("Delete")
+                        if (!routine.isStarter) {
+                            TextButton(onClick = { onDeleteRoutine(routine.id) }) {
+                                Text("Delete")
+                            }
                         }
                     }
                 }

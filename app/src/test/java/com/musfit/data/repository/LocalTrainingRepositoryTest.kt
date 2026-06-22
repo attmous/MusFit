@@ -215,6 +215,52 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun updateRoutine_preservesLinkedActiveAndCompletedWorkoutSessionRoutineIds() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val routineId = repository.createRoutine(
+            RoutineInput(
+                name = "Upper A",
+                notes = "Press focus",
+                exercises = listOf(
+                    RoutineExerciseInput(bench.id, targetSets = 3, targetReps = "5"),
+                ),
+            ),
+        )
+        val activeSessionId = repository.startWorkoutFromRoutine(routineId)
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-completed-linked",
+                routineId = routineId,
+                title = "Upper A",
+                status = "completed",
+                startedAtEpochMillis = WORKOUT_START.minusSeconds(3600).toEpochMilli(),
+                endedAtEpochMillis = WORKOUT_START.minusSeconds(1800).toEpochMilli(),
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+
+        repository.updateRoutine(
+            routineId,
+            RoutineInput(
+                name = "Upper A Updated",
+                notes = "Updated press focus",
+                exercises = listOf(
+                    RoutineExerciseInput(bench.id, targetSets = 4, targetReps = "6"),
+                ),
+            ),
+        )
+
+        val activeSession = database.trainingDao().getWorkoutSession(activeSessionId)
+        val completedSession = database.trainingDao().getWorkoutSession("session-completed-linked")
+
+        assertEquals(routineId, activeSession?.routineId)
+        assertEquals(routineId, completedSession?.routineId)
+    }
+
+    @Test
     fun startWorkoutFromRoutine_createsActiveSessionWithPlannedSets() = runTest {
         repository.seedStarterTrainingData()
         val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
@@ -315,6 +361,37 @@ class LocalTrainingRepositoryTest {
 
         assertTrue(detail?.exerciseBlocks?.isNotEmpty() == true)
         assertEquals("5", detail?.exerciseBlocks?.first()?.targetReps)
+    }
+
+    @Test
+    fun observeActiveWorkoutDetail_keepsLaunchTimeTargetRepsAfterRoutineEdit() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val routineId = repository.createRoutine(
+            RoutineInput(
+                name = "Bench Focus",
+                notes = null,
+                exercises = listOf(
+                    RoutineExerciseInput(bench.id, targetSets = 3, targetReps = "5"),
+                ),
+            ),
+        )
+
+        repository.startWorkoutFromRoutine(routineId)
+        repository.updateRoutine(
+            routineId,
+            RoutineInput(
+                name = "Bench Focus",
+                notes = "Adjusted plan",
+                exercises = listOf(
+                    RoutineExerciseInput(bench.id, targetSets = 3, targetReps = "8"),
+                ),
+            ),
+        )
+
+        val detail = repository.observeActiveWorkoutDetail().first()
+
+        assertEquals("5", detail?.exerciseBlocks?.singleOrNull()?.targetReps)
     }
 
     @Test

@@ -182,11 +182,24 @@ class TrainingViewModelTest {
 
         assertEquals(TrainingSection.Routines, state.selectedSection)
         assertEquals(1, repository.seedCalls)
-        assertEquals(listOf("Full Body A"), state.routines.map { it.name })
+        assertEquals(listOf("Full Body A", "Upper A"), state.routines.map { it.name })
         assertEquals(
             listOf("Barbell Bench Press", "Chest Supported Row"),
             state.exercises.map { it.name },
         )
+    }
+
+    @Test
+    fun openRoutineEditor_forStarterRoutineDoesNotOpenEditor() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineEditor("routine-full-body-a")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.routineEditor.isOpen)
+        assertTrue(repository.requestedRoutineDetailIds.isEmpty())
     }
 
     @Test
@@ -204,16 +217,28 @@ class TrainingViewModelTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
 
-        viewModel.openRoutineEditor("routine-full-body-a")
+        viewModel.openRoutineEditor("routine-upper-a")
         dispatcher.scheduler.advanceUntilIdle()
 
         val editor = viewModel.state.value.routineEditor
         assertTrue(editor.isOpen)
-        assertEquals("routine-full-body-a", editor.routineId)
-        assertEquals("Full Body A", editor.name)
-        assertEquals("Starter routine", editor.notes)
+        assertEquals("routine-upper-a", editor.routineId)
+        assertEquals("Upper A", editor.name)
+        assertEquals("Custom routine", editor.notes)
         assertEquals(1, editor.exercises.size)
         assertEquals("exercise-bench-press", editor.exercises.single().exerciseId)
+    }
+
+    @Test
+    fun deleteRoutine_forStarterRoutineDoesNotDelete() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.deleteRoutine("routine-full-body-a")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(repository.deletedRoutineIds.isEmpty())
     }
 
     @Test
@@ -499,6 +524,8 @@ class TrainingViewModelTest {
         var deletedSetId: String? = null
         val openedWorkoutDetailSessionIds = mutableListOf<String>()
         val observedProgressExerciseIds = mutableListOf<String>()
+        val requestedRoutineDetailIds = mutableListOf<String>()
+        val deletedRoutineIds = mutableListOf<String>()
 
         private val routinesFlow = MutableStateFlow(
             listOf(
@@ -509,6 +536,14 @@ class TrainingViewModelTest {
                     exerciseCount = 5,
                     targetSetCount = 15,
                     isStarter = true,
+                ),
+                RoutineSummary(
+                    id = "routine-upper-a",
+                    name = "Upper A",
+                    notes = "Custom routine",
+                    exerciseCount = 1,
+                    targetSetCount = 3,
+                    isStarter = false,
                 ),
             ),
         )
@@ -636,6 +671,22 @@ class TrainingViewModelTest {
                         ),
                     ),
                 ),
+            "routine-upper-a" to
+                RoutineDetail(
+                    id = "routine-upper-a",
+                    name = "Upper A",
+                    notes = "Custom routine",
+                    isStarter = false,
+                    exercises = listOf(
+                        RoutineExerciseDetail(
+                            id = "routine-upper-a-exercise-1",
+                            exercise = exercisesFlow.value.first { it.id == "exercise-bench-press" },
+                            sortOrder = 0,
+                            targetSets = 3,
+                            targetReps = "6",
+                        ),
+                    ),
+                ),
         )
 
         override suspend fun addCompletedSet(
@@ -700,9 +751,10 @@ class TrainingViewModelTest {
 
         override suspend fun duplicateRoutine(routineId: String): String = "$routineId-copy"
 
-        override suspend fun deleteRoutine(routineId: String) = Unit
-
-        override suspend fun getRoutineDetail(routineId: String): RoutineDetail? = routineDetails[routineId]
+        override suspend fun getRoutineDetail(routineId: String): RoutineDetail? {
+            requestedRoutineDetailIds += routineId
+            return routineDetails[routineId]
+        }
 
         override suspend fun startBlankWorkout(): String {
             startBlankWorkoutCalls += 1
@@ -743,6 +795,10 @@ class TrainingViewModelTest {
 
         override suspend fun deleteWorkoutSet(setId: String) {
             deletedSetId = setId
+        }
+
+        override suspend fun deleteRoutine(routineId: String) {
+            deletedRoutineIds += routineId
         }
 
         override suspend fun finishWorkout(sessionId: String) = Unit

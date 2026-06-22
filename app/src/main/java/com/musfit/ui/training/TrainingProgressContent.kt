@@ -33,7 +33,7 @@ fun TrainingProgressContent(
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
         ) {
-            exercises.take(4).forEach { exercise ->
+            exercises.forEach { exercise ->
                 TextButton(onClick = { onSelectExercise(exercise.id) }) {
                     Text(
                         if (exercise.id == selectedExerciseId) {
