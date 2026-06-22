@@ -6,6 +6,7 @@ import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineInput
@@ -322,6 +323,9 @@ class TrainingViewModel @Inject constructor(
             ?.flatMap { it.sets }
             ?.firstOrNull { it.id == setId }
             ?: return
+        if (completed && !set.isValidForCompletion()) {
+            return
+        }
         viewModelScope.launch {
             repository.updateWorkoutSet(
                 setId,
@@ -462,4 +466,7 @@ class TrainingViewModel @Inject constructor(
 
         return builder.toString()
     }
+
+    private fun LoggedWorkoutSetDetail.isValidForCompletion(): Boolean =
+        (reps ?: 0) > 0 && (weightKg ?: 0.0) > 0.0
 }

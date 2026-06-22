@@ -511,10 +511,16 @@ class LocalTrainingRepository @Inject constructor(
 
     override suspend fun finishWorkout(sessionId: String) {
         trainingDao.updateWorkoutSessionStatus(sessionId, WORKOUT_STATUS_COMPLETED, clock())
+        if (activeSessionId == sessionId) {
+            activeSessionId = null
+        }
     }
 
     override suspend fun discardWorkout(sessionId: String) {
         trainingDao.updateWorkoutSessionStatus(sessionId, WORKOUT_STATUS_DISCARDED, clock())
+        if (activeSessionId == sessionId) {
+            activeSessionId = null
+        }
     }
 
     override suspend fun getLatestWorkoutForExport(): WorkoutForExport? {
@@ -597,15 +603,17 @@ class LocalTrainingRepository @Inject constructor(
     }
 
     private suspend fun currentOrNewSession(now: Long): WorkoutSessionEntity {
-        val existingSession = activeSessionId?.let { trainingDao.getWorkoutSession(it) }
-        if (existingSession != null && existingSession.startedAtEpochMillis.isSameDayAs(now)) {
-            val completedSession =
-                existingSession.copy(
-                    status = WORKOUT_STATUS_COMPLETED,
-                    endedAtEpochMillis = now,
-                )
-            upsertWorkoutSession(completedSession)
-            return completedSession
+        val cachedSession = activeSessionId?.let { trainingDao.getWorkoutSession(it) }
+        if (cachedSession?.status == WORKOUT_STATUS_ACTIVE && cachedSession.startedAtEpochMillis.isSameDayAs(now)) {
+            return cachedSession
+        }
+        if (cachedSession == null || cachedSession.status != WORKOUT_STATUS_ACTIVE) {
+            activeSessionId = null
+        }
+        val activeSession = trainingDao.getLatestActiveWorkoutSession()
+        if (activeSession != null && activeSession.startedAtEpochMillis.isSameDayAs(now)) {
+            activeSessionId = activeSession.id
+            return activeSession
         }
 
         val session = WorkoutSessionEntity(
@@ -619,7 +627,6 @@ class LocalTrainingRepository @Inject constructor(
             healthConnectRecordId = null,
             healthConnectLastExportedAtEpochMillis = null,
         )
-        activeSessionId = session.id
         upsertWorkoutSession(session)
         return session
     }

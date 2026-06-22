@@ -136,7 +136,7 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
-    fun addCompletedSet_multipleSetsSameDay_preservesEarlierSets() = runTest {
+    fun addCompletedSet_multipleSetsSameDay_preservesEarlierSetsAcrossFreshCompletedSessions() = runTest {
         repository.addCompletedSet(
             exerciseName = "Bench Press",
             reps = 5,
@@ -149,11 +149,11 @@ class LocalTrainingRepositoryTest {
         )
 
         val sessions = database.trainingDao().observeWorkoutSessions().first()
-        val sets = database.trainingDao().getWorkoutSets(sessions.single().id)
+        val allSets = sessions.flatMap { session -> database.trainingDao().getWorkoutSets(session.id) }
         val summary = repository.observeDailyTrainingSummary(WORKOUT_DATE).first()
 
-        assertEquals(1, sessions.size)
-        assertEquals(listOf(5, 6), sets.mapNotNull { it.reps })
+        assertEquals(2, sessions.size)
+        assertEquals(listOf(5, 6), allSets.mapNotNull { it.reps }.sorted())
         assertEquals(2, summary.completedSetCount)
         assertEquals(1115.0, summary.totalVolumeKg, 0.01)
     }
@@ -357,6 +357,58 @@ class LocalTrainingRepositoryTest {
 
         assertEquals(null, repository.observeActiveWorkoutDetail().first())
         assertEquals(null, repository.observeActiveWorkoutSummary().first())
+    }
+
+    @Test
+    fun addCompletedSet_afterFinishingActiveWorkout_createsFreshQuickLogSession() = runTest {
+        repository.seedStarterTrainingData()
+        val activeSessionId = repository.startBlankWorkout()
+
+        repository.finishWorkout(activeSessionId)
+        repository.addCompletedSet(
+            exerciseName = "Bench Press",
+            reps = 5,
+            weightKg = 100.0,
+        )
+
+        val sessions = database.trainingDao().observeWorkoutSessions().first().sortedBy { it.startedAtEpochMillis }
+        val quickLogSessions = sessions.filter { it.id != activeSessionId }
+        val quickLogSets = quickLogSessions.flatMap { session -> database.trainingDao().getWorkoutSets(session.id) }
+
+        assertEquals(2, sessions.size)
+        assertEquals("completed", sessions.first { it.id == activeSessionId }.status)
+        assertEquals(1, quickLogSessions.size)
+        assertEquals("completed", quickLogSessions.single().status)
+        assertEquals(listOf(activeSessionId), sessions.filter { it.id == activeSessionId }.map { it.id })
+        assertEquals(1, quickLogSets.size)
+        assertEquals(quickLogSessions.single().id, quickLogSets.single().sessionId)
+    }
+
+    @Test
+    fun addCompletedSet_afterDiscardingActiveWorkout_doesNotReuseDiscardedSession() = runTest {
+        repository.seedStarterTrainingData()
+        val activeSessionId = repository.startBlankWorkout()
+
+        repository.discardWorkout(activeSessionId)
+        repository.addCompletedSet(
+            exerciseName = "Bench Press",
+            reps = 5,
+            weightKg = 100.0,
+        )
+
+        val sessions = database.trainingDao().observeWorkoutSessions().first().sortedBy { it.startedAtEpochMillis }
+        val discardedSession = sessions.first { it.id == activeSessionId }
+        val quickLogSessions = sessions.filter { it.id != activeSessionId }
+        val discardedSets = database.trainingDao().getWorkoutSets(activeSessionId)
+        val quickLogSets = quickLogSessions.flatMap { session -> database.trainingDao().getWorkoutSets(session.id) }
+
+        assertEquals(2, sessions.size)
+        assertEquals("discarded", discardedSession.status)
+        assertTrue(discardedSets.isEmpty())
+        assertEquals(1, quickLogSessions.size)
+        assertEquals("completed", quickLogSessions.single().status)
+        assertEquals(1, quickLogSets.size)
+        assertEquals(quickLogSessions.single().id, quickLogSets.single().sessionId)
     }
 
     @Test

@@ -346,6 +346,49 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun completeBlankActiveSet_doesNotPersistCompletionOrShowRestTimer() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        repository.activeWorkoutDetail.value = ActiveWorkoutDetail(
+            sessionId = "session-1",
+            title = "Push",
+            startedAtEpochMillis = 1_000L,
+            completedSetCount = 0,
+            totalVolumeKg = 0.0,
+            exerciseBlocks = listOf(
+                WorkoutExerciseBlock(
+                    exercise = repository.exercisesFlow.value.first(),
+                    targetReps = "5",
+                    sets = listOf(
+                        LoggedWorkoutSetDetail(
+                            id = "set-blank",
+                            exerciseId = "exercise-bench-press",
+                            setType = "working",
+                            reps = null,
+                            weightKg = null,
+                            rpe = null,
+                            notes = null,
+                            completed = false,
+                            previousLabel = null,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-blank", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(null, repository.updatedSetId)
+        assertEquals(null, repository.updatedSetInput)
+        assertFalse(viewModel.state.value.restTimer.isVisible)
+    }
+
+    @Test
     fun activeWorkoutActions_addDuplicateAndDeleteDelegateToRepository() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
