@@ -98,6 +98,9 @@ fun FoodScreen(
     scannedBarcode: String? = null,
     onScanClick: () -> Unit = {},
     onScannedBarcodeConsumed: () -> Unit = {},
+    scannedLabelText: String? = null,
+    onLabelScanClick: () -> Unit = {},
+    onScannedLabelConsumed: () -> Unit = {},
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -113,6 +116,13 @@ fun FoodScreen(
         if (!scannedBarcode.isNullOrBlank()) {
             viewModel.onScannedBarcode(scannedBarcode)
             onScannedBarcodeConsumed()
+        }
+    }
+
+    LaunchedEffect(scannedLabelText) {
+        if (!scannedLabelText.isNullOrBlank()) {
+            viewModel.onScannedLabel(scannedLabelText)
+            onScannedLabelConsumed()
         }
     }
 
@@ -147,7 +157,7 @@ fun FoodScreen(
                 onAdjustGoals = viewModel::openGoalEditor,
                 onCopyYesterday = viewModel::copySelectedMealFromYesterday,
                 onSaveTemplate = { viewModel.saveSelectedMealAsTemplate("${state.selectedMealTitle} template") },
-                onScanLabel = viewModel::startLabelScanPlaceholder,
+                onScanLabel = onLabelScanClick,
                 onProductNameChanged = viewModel::onProductNameChanged,
                 onBrandChanged = viewModel::onBrandChanged,
                 onQuantityChanged = viewModel::onQuantityChanged,

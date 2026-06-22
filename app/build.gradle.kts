@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.camera.mlkit)
     implementation(libs.mlkit.barcode)
+    implementation(libs.mlkit.text)
     implementation(libs.hilt.android)
     implementation(libs.retrofit)
     implementation(libs.retrofit.moshi)

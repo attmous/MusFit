@@ -8,6 +8,7 @@ import androidx.compose.material.icons.outlined.Today
 import androidx.compose.ui.graphics.vector.ImageVector
 
 const val BARCODE_SCANNER_ROUTE = "barcode-scanner"
+const val NUTRITION_LABEL_SCANNER_ROUTE = "nutrition-label-scanner"
 
 enum class AppDestination(val route: String, val label: String, val icon: ImageVector) {
     Today(route = "today", label = "Today", icon = Icons.Outlined.Today),

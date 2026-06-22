@@ -37,6 +37,7 @@ import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.ShoppingListGroup
 import com.musfit.data.repository.ShoppingListItem
 import com.musfit.data.repository.WaterLogInput
+import com.musfit.domain.food.NutritionLabelParser
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
@@ -2500,10 +2501,25 @@ class FoodViewModel @Inject constructor(
         lookupBarcode()
     }
 
-    /** Slice B placeholder for "Scan label" — Slice C replaces this with the OCR capture launch. */
-    fun startLabelScanPlaceholder() {
+    /** Entry point when the label scanner returns recognized text: parse it and autofill the Create form. */
+    fun onScannedLabel(rawText: String) {
+        val parsed = NutritionLabelParser.parse(rawText)
         mutableState.update {
-            it.copy(addTab = AddTab.Create, message = "Label scanning arrives next — enter the values below for now.")
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.AddFood,
+                addMode = FoodAddMode.Saved,
+                addTab = AddTab.Create,
+                caloriesPer100g = parsed.caloriesKcal?.formatInputNumber() ?: it.caloriesPer100g,
+                proteinPer100g = parsed.proteinGrams?.formatInputNumber() ?: it.proteinPer100g,
+                carbsPer100g = parsed.carbsGrams?.formatInputNumber() ?: it.carbsPer100g,
+                fatPer100g = parsed.fatGrams?.formatInputNumber() ?: it.fatPer100g,
+                message = if (parsed.hasAnyValue) {
+                    "Review the scanned values below."
+                } else {
+                    "Couldn't read the label — enter the values manually."
+                },
+            ).withAmountNutritionPreview()
         }
     }
 

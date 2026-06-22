@@ -96,6 +96,24 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun onScannedLabel_parsesAndAutofillsCreateTab() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.onScannedLabel("Energy 250 kcal\nFat 12 g\nCarbohydrate 30 g\nProtein 8 g")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val result = viewModel.state.value
+        assertEquals(AddTab.Create, result.addTab)
+        assertEquals("250", result.caloriesPer100g)
+        assertEquals("8", result.proteinPer100g)
+        assertEquals("30", result.carbsPer100g)
+        assertEquals("12", result.fatPer100g)
+    }
+
+    @Test
     fun lookupBarcode_withBlankBarcode_setsValidationMessage() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(),
