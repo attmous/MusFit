@@ -76,6 +76,44 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun onScannedBarcode_routesToCreateTabAndAutofills() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.onScannedBarcode("123abc45")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val result = viewModel.state.value
+        assertEquals(AddTab.Create, result.addTab)
+        assertTrue(result.isAddPanelVisible)
+        assertEquals(FoodSheetMode.AddFood, result.sheetMode)
+        assertEquals(FoodAddMode.Saved, result.addMode)
+        assertEquals("12345", result.barcode)
+        assertEquals("Greek Yogurt", result.productName)
+        assertEquals("59.0", result.caloriesPer100g)
+    }
+
+    @Test
+    fun onScannedLabel_parsesAndAutofillsCreateTab() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(),
+        )
+
+        viewModel.onScannedLabel("Energy 250 kcal\nFat 12 g\nCarbohydrate 30 g\nProtein 8 g")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val result = viewModel.state.value
+        assertEquals(AddTab.Create, result.addTab)
+        assertEquals("250", result.caloriesPer100g)
+        assertEquals("8", result.proteinPer100g)
+        assertEquals("30", result.carbsPer100g)
+        assertEquals("12", result.fatPer100g)
+    }
+
+    @Test
     fun lookupBarcode_withBlankBarcode_setsValidationMessage() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(),
@@ -99,7 +137,7 @@ class FoodViewModelTest {
 
         assertTrue(viewModel.state.value.isFoodDiaryEmpty)
         assertEquals(
-            listOf("Add breakfast", "Scan barcode", "AI log"),
+            listOf("Add breakfast", "Scan barcode"),
             viewModel.state.value.emptyDiaryActions.map { it.label },
         )
     }
@@ -3423,6 +3461,12 @@ class FoodViewModelTest {
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
             savedFoodsFlow
 
+        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
+            flowOf(emptyList())
+
+        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> =
+            flowOf(emptyList())
+
         override suspend fun getFoodDetail(foodId: String): SavedFoodItem? =
             savedFoodsFlow.value.firstOrNull { it.id == foodId }
 
@@ -3672,6 +3716,12 @@ class FoodViewModelTest {
             flowOf(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
 
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
+            flowOf(emptyList())
+
+        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
+            flowOf(emptyList())
+
+        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> =
             flowOf(emptyList())
 
         override suspend fun logSavedFood(input: SavedFoodLogInput): String {

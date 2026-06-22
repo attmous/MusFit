@@ -49,6 +49,7 @@ data class FoodDiaryEntryRow(
     val foodName: String,
     val brand: String?,
     val foodCategory: String?,
+    val imageUrl: String?,
     val quantityGrams: Double,
     val status: String,
     val caloriesPer100g: Double,
@@ -120,6 +121,26 @@ data class RecipeIngredientRow(
 
 @Dao
 interface FoodDao {
+    @Query(
+        "SELECT foods.* FROM foods " +
+            "INNER JOIN meal_items ON meal_items.foodId = foods.id " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "GROUP BY foods.id " +
+            "ORDER BY MAX(meals.createdAtEpochMillis) DESC " +
+            "LIMIT :limit",
+    )
+    fun observeRecentFoods(limit: Int): Flow<List<FoodEntity>>
+
+    @Query(
+        "SELECT foods.* FROM foods " +
+            "INNER JOIN meal_items ON meal_items.foodId = foods.id " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "WHERE meals.dateEpochDay = :dateEpochDay AND meals.type = :mealType " +
+            "GROUP BY foods.id " +
+            "ORDER BY MAX(meals.createdAtEpochMillis) DESC",
+    )
+    fun observeSameAsYesterday(dateEpochDay: Long, mealType: String): Flow<List<FoodEntity>>
+
     @Query("SELECT * FROM foods ORDER BY name")
     fun observeFoods(): Flow<List<FoodEntity>>
 
@@ -202,6 +223,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -236,6 +258,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -270,6 +293,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -304,6 +328,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +
@@ -338,6 +363,7 @@ interface FoodDao {
             "foods.name AS foodName, " +
             "foods.brand AS brand, " +
             "foods.category AS foodCategory, " +
+            "foods.imageUrl AS imageUrl, " +
             "meal_items.quantityGrams AS quantityGrams, " +
             "meal_items.status AS status, " +
             "foods.caloriesPer100g AS caloriesPer100g, " +

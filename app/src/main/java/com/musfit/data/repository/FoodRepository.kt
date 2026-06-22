@@ -144,6 +144,7 @@ data class SavedFoodUpsertInput(
     val category: String? = null,
     val isFavorite: Boolean = false,
     val servings: List<FoodServingInput> = emptyList(),
+    val imageUrl: String? = null,
 )
 
 data class SavedFoodItem(
@@ -158,6 +159,7 @@ data class SavedFoodItem(
     val category: String? = null,
     val isFavorite: Boolean = false,
     val servings: List<FoodServingOption> = emptyList(),
+    val imageUrl: String? = null,
 )
 
 data class FoodDiaryEntry(
@@ -172,6 +174,7 @@ data class FoodDiaryEntry(
     val fatGrams: Double,
     val nutritionDetails: NutritionDetails = NutritionDetails(),
     val status: FoodDiaryEntryStatus = FoodDiaryEntryStatus.Logged,
+    val imageUrl: String? = null,
 )
 
 data class FoodDiaryMeal(
@@ -374,6 +377,10 @@ interface FoodRepository {
     fun observeShoppingList(): Flow<List<ShoppingListGroup>> = flowOf(emptyList())
 
     fun observeSavedFoods(): Flow<List<SavedFoodItem>>
+
+    fun observeRecentFoods(limit: Int = 20): Flow<List<SavedFoodItem>>
+
+    fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>>
 
     suspend fun getFoodDetail(foodId: String): SavedFoodItem? = null
 
@@ -580,6 +587,20 @@ class LocalFoodRepository @Inject constructor(
                 .map { food -> food.toSavedFoodItem(foodDao.getServings(food.id)) }
         }
 
+    override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
+        foodDao.observeRecentFoods(limit).map { foods ->
+            foods
+                .filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
+                .map { food -> food.toSavedFoodItem(emptyList()) }
+        }
+
+    override fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>> =
+        foodDao.observeSameAsYesterday(date.minusDays(1).toEpochDay(), mealType).map { foods ->
+            foods
+                .filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
+                .map { food -> food.toSavedFoodItem(emptyList()) }
+        }
+
     override suspend fun getFoodDetail(foodId: String): SavedFoodItem? =
         foodDao.getFood(foodId)?.toSavedFoodItem(foodDao.getServings(foodId))
 
@@ -757,6 +778,7 @@ class LocalFoodRepository @Inject constructor(
                     barcode = normalizedBarcode,
                     category = input.category?.trim()?.takeIf { it.isNotEmpty() },
                     isFavorite = input.isFavorite,
+                    imageUrl = input.imageUrl ?: existingFood?.imageUrl,
                     fiberPer100g = input.nutritionDetailsPer100g.fiberGrams,
                     sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
                     saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,
@@ -1485,6 +1507,7 @@ class LocalFoodRepository @Inject constructor(
                 updatedAtEpochMillis = now,
                 servingName = servingLabel(servingGrams),
                 barcode = normalizedBarcode,
+                imageUrl = input.lookupResult?.imageUrl?.trim()?.takeIf { it.isNotEmpty() },
                 fiberPer100g = input.nutritionDetailsPer100g.fiberGrams,
                 sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
                 saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,
@@ -1620,6 +1643,7 @@ class LocalFoodRepository @Inject constructor(
                 updatedAtEpochMillis = now,
                 servingName = servingLabel(servingGrams),
                 barcode = result.barcode,
+                imageUrl = result.imageUrl,
                 category = category?.trim()?.takeIf { it.isNotEmpty() },
                 fiberPer100g = editedNutritionDetails.fiberGrams,
                 sugarPer100g = editedNutritionDetails.sugarGrams,
@@ -2056,6 +2080,7 @@ private fun FoodDiaryEntryRow.toDiaryEntry(): FoodDiaryEntry {
     return FoodDiaryEntry(
         id = mealItemId,
         foodId = foodId,
+        imageUrl = imageUrl,
         name = foodName,
         brand = brand,
         quantityGrams = quantityGrams,
@@ -2165,6 +2190,7 @@ private fun String.toFoodDiaryEntryStatus(): FoodDiaryEntryStatus =
 private fun FoodEntity.toSavedFoodItem(servings: List<FoodServingEntity>): SavedFoodItem =
     SavedFoodItem(
         id = id,
+        imageUrl = imageUrl,
         name = name,
         brand = brand,
         defaultServingGrams = defaultServingGrams,

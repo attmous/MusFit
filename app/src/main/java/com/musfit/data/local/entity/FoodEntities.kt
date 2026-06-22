@@ -41,6 +41,7 @@ data class FoodEntity(
     @ColumnInfo(defaultValue = "0") val vitaminDMcgPer100g: Double = 0.0,
     @ColumnInfo(defaultValue = "0") val vitaminCMgPer100g: Double = 0.0,
     @ColumnInfo(defaultValue = "0") val magnesiumMgPer100g: Double = 0.0,
+    val imageUrl: String? = null,
 )
 
 @Entity(

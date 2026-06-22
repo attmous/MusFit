@@ -122,6 +122,12 @@ class TodayViewModelTest {
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
             MutableStateFlow(emptyList())
 
+        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
+            MutableStateFlow(emptyList())
+
+        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> =
+            MutableStateFlow(emptyList())
+
         override suspend fun logSavedFood(input: SavedFoodLogInput): String = "meal-item-1"
 
         override suspend fun quickLog(input: QuickCalorieLogInput): String = "meal-item-1"

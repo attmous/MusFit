@@ -3,6 +3,7 @@ package com.musfit.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +18,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodScreen
+import com.musfit.ui.food.NutritionLabelScannerScreen
 import com.musfit.ui.health.HealthScreen
 import com.musfit.ui.today.TodayScreen
 import com.musfit.ui.training.TrainingScreen
@@ -28,6 +30,7 @@ fun AppNavGraph() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: AppDestination.Today.route
     var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
+    var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(
         bottomBar = {
@@ -42,7 +45,7 @@ fun AppNavGraph() {
                             }
                         },
                         label = { Text(destination.label) },
-                        icon = { Text(destination.label.first().toString()) },
+                        icon = { Icon(destination.icon, contentDescription = destination.label) },
                     )
                 }
             }
@@ -59,6 +62,9 @@ fun AppNavGraph() {
                     scannedBarcode = scannedBarcode,
                     onScanClick = { navController.navigate(BARCODE_SCANNER_ROUTE) },
                     onScannedBarcodeConsumed = { scannedBarcode = null },
+                    scannedLabelText = scannedLabelText,
+                    onLabelScanClick = { navController.navigate(NUTRITION_LABEL_SCANNER_ROUTE) },
+                    onScannedLabelConsumed = { scannedLabelText = null },
                 )
             }
             composable(AppDestination.Training.route) { TrainingScreen() }
@@ -68,6 +74,16 @@ fun AppNavGraph() {
                     onBarcodeDetected = { barcode ->
                         if (barcode.isNotBlank()) {
                             scannedBarcode = barcode
+                            navController.popBackStack()
+                        }
+                    },
+                )
+            }
+            composable(NUTRITION_LABEL_SCANNER_ROUTE) {
+                NutritionLabelScannerScreen(
+                    onLabelCaptured = { text ->
+                        if (text.isNotBlank()) {
+                            scannedLabelText = text
                             navController.popBackStack()
                         }
                     },

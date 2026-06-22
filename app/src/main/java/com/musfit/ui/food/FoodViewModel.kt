@@ -37,6 +37,7 @@ import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.ShoppingListGroup
 import com.musfit.data.repository.ShoppingListItem
 import com.musfit.data.repository.WaterLogInput
+import com.musfit.domain.food.NutritionLabelParser
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
@@ -47,6 +48,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -59,6 +61,12 @@ enum class FoodAddMode {
     Barcode,
     Quick,
     Ai,
+}
+
+enum class AddTab {
+    Recents,
+    Favorites,
+    Create,
 }
 
 enum class FoodSheetMode {
@@ -152,6 +160,7 @@ data class FoodMealEntryUiState(
     val carbsContribution: Double = 0.0,
     val fatContribution: Double = 0.0,
     val isPlanned: Boolean = false,
+    val imageUrl: String? = null,
 )
 
 data class FoodMealSectionUiState(
@@ -236,6 +245,7 @@ data class SavedFoodUiState(
     val potassiumMgPer100g: Double = 0.0,
     val calciumMgPer100g: Double = 0.0,
     val ironMgPer100g: Double = 0.0,
+    val imageUrl: String? = null,
     val vitaminDMcgPer100g: Double = 0.0,
     val vitaminCMgPer100g: Double = 0.0,
     val magnesiumMgPer100g: Double = 0.0,
@@ -459,6 +469,9 @@ data class FoodUiState(
     val aiLoggingDraftSourceLabel: String? = null,
     val keepAddingFoods: Boolean = false,
     val foodDatabaseQuery: String = "",
+    val recentFoods: List<SavedFoodUiState> = emptyList(),
+    val sameAsYesterday: List<SavedFoodUiState> = emptyList(),
+    val addTab: AddTab = AddTab.Recents,
     val editingDiaryEntryId: String? = null,
     val editingDiaryEntryName: String = "",
     val editingDiaryEntryMealType: String = "breakfast",
@@ -644,6 +657,11 @@ class FoodViewModel @Inject constructor(
         viewModelScope.launch {
             repository.observeFoodHealthConnectSyncState().collect { syncState ->
                 mutableState.update { currentState -> currentState.withFoodHealthConnectSyncState(syncState) }
+            }
+        }
+        viewModelScope.launch {
+            repository.observeRecentFoods().collect { recents ->
+                mutableState.update { it.copy(recentFoods = recents.map { food -> food.toUiState() }) }
             }
         }
         viewModelScope.launch {
@@ -939,9 +957,18 @@ class FoodViewModel @Inject constructor(
                 mealType = normalizedMealType,
                 selectedMealTitle = currentState.mealTitleFor(normalizedMealType),
                 addMode = FoodAddMode.Saved,
+                addTab = AddTab.Recents,
                 message = null,
             )
         }
+        viewModelScope.launch {
+            val items = repository.observeSameAsYesterday(normalizedMealType, state.value.selectedDate).first()
+            mutableState.update { it.copy(sameAsYesterday = items.map { food -> food.toUiState() }) }
+        }
+    }
+
+    fun selectAddTab(tab: AddTab) {
+        mutableState.update { it.copy(addTab = tab) }
     }
 
     fun closeAddFood() {
@@ -2456,6 +2483,43 @@ class FoodViewModel @Inject constructor(
                     message = null,
                 )
             }
+        }
+    }
+
+    /** Entry point when the barcode scanner returns: show the Create tab and auto-look-up the product. */
+    fun onScannedBarcode(barcode: String) {
+        onBarcodeChanged(barcode)
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.AddFood,
+                addMode = FoodAddMode.Saved,
+                addTab = AddTab.Create,
+                message = null,
+            )
+        }
+        lookupBarcode()
+    }
+
+    /** Entry point when the label scanner returns recognized text: parse it and autofill the Create form. */
+    fun onScannedLabel(rawText: String) {
+        val parsed = NutritionLabelParser.parse(rawText)
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.AddFood,
+                addMode = FoodAddMode.Saved,
+                addTab = AddTab.Create,
+                caloriesPer100g = parsed.caloriesKcal?.formatInputNumber() ?: it.caloriesPer100g,
+                proteinPer100g = parsed.proteinGrams?.formatInputNumber() ?: it.proteinPer100g,
+                carbsPer100g = parsed.carbsGrams?.formatInputNumber() ?: it.carbsPer100g,
+                fatPer100g = parsed.fatGrams?.formatInputNumber() ?: it.fatPer100g,
+                message = if (parsed.hasAnyValue) {
+                    "Review the scanned values below."
+                } else {
+                    "Couldn't read the label — enter the values manually."
+                },
+            ).withAmountNutritionPreview()
         }
     }
 
@@ -4170,6 +4234,7 @@ private fun FoodDiary.toMealSections(
                     carbsContribution = entry.carbsGrams.fractionOf(totals?.carbsGrams ?: 0.0),
                     fatContribution = entry.fatGrams.fractionOf(totals?.fatGrams ?: 0.0),
                     isPlanned = entry.status == FoodDiaryEntryStatus.Planned,
+                    imageUrl = entry.imageUrl,
                 )
             },
         )
@@ -4187,6 +4252,7 @@ private fun SavedFoodItem.toUiState(): SavedFoodUiState {
     val servingMultiplier = defaultServingGrams / 100.0
     return SavedFoodUiState(
         id = id,
+        imageUrl = imageUrl,
         name = name,
         brand = brand,
         defaultServingGrams = defaultServingGrams,
@@ -4460,6 +4526,7 @@ private fun OnlineFoodResultUiState.toSavedFoodUpsertInput(): SavedFoodUpsertInp
         name = name,
         brand = brand,
         defaultServingGrams = servingQuantityGrams ?: 100.0,
+        imageUrl = imageUrl,
         nutritionPer100g = FoodNutrition(
             caloriesKcal = caloriesPer100g,
             proteinGrams = proteinPer100g,
@@ -4672,11 +4739,6 @@ private fun defaultEmptyDiaryActions(): List<EmptyDiaryActionUiState> =
             type = EmptyDiaryActionType.Barcode,
             label = "Scan barcode",
             accessibilityLabel = "Scan barcode to add food",
-        ),
-        EmptyDiaryActionUiState(
-            type = EmptyDiaryActionType.Ai,
-            label = "AI log",
-            accessibilityLabel = "Create AI food draft",
         ),
     )
 
