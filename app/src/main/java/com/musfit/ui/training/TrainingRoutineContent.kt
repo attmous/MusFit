@@ -108,17 +108,26 @@ fun TrainingRoutineContent(
                         actions.filterNot { it == ROUTINE_ACTION_START }.forEach { action ->
                             when (action) {
                                 ROUTINE_ACTION_EDIT -> {
-                                    TextButton(onClick = { onEditRoutine(routine.id) }) {
+                                    TextButton(
+                                        onClick = { onEditRoutine(routine.id) },
+                                        colors = ButtonDefaults.textButtonColors(contentColor = accent.color),
+                                    ) {
                                         Text("Edit")
                                     }
                                 }
                                 ROUTINE_ACTION_DUPLICATE -> {
-                                    TextButton(onClick = { onDuplicateRoutine(routine.id) }) {
+                                    TextButton(
+                                        onClick = { onDuplicateRoutine(routine.id) },
+                                        colors = ButtonDefaults.textButtonColors(contentColor = accent.color),
+                                    ) {
                                         Text("Duplicate")
                                     }
                                 }
                                 ROUTINE_ACTION_DELETE -> {
-                                    TextButton(onClick = { onDeleteRoutine(routine.id) }) {
+                                    TextButton(
+                                        onClick = { onDeleteRoutine(routine.id) },
+                                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                    ) {
                                         Text("Delete")
                                     }
                                 }
