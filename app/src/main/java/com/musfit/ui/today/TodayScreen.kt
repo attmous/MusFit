@@ -31,9 +31,13 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.musfit.domain.coach.CoachAction
+import com.musfit.domain.coach.CoachBriefing
 import com.musfit.domain.today.WeeklyGoals
 import com.musfit.ui.theme.MusFitTheme
 import java.util.Locale
@@ -91,6 +97,17 @@ fun TodayScreen(
             }
             IconButton(onClick = viewModel::openGoalsEditor) {
                 Icon(Icons.Outlined.Tune, contentDescription = "Edit goals", tint = MusFitTheme.colors.onSurfaceVariant)
+            }
+        }
+
+        state.coach?.let { briefing ->
+            CoachBriefingCard(briefing) { action ->
+                when (action) {
+                    CoachAction.OpenFood -> onOpenFood()
+                    CoachAction.OpenTraining -> onOpenTraining()
+                    CoachAction.OpenHealth -> onOpenHealth()
+                    is CoachAction.StartRoutine -> onOpenTraining()
+                }
             }
         }
 
@@ -389,6 +406,91 @@ private fun TodayGoalsEditorSheet(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CoachBriefingCard(briefing: CoachBriefing, onAction: (CoachAction) -> Unit) {
+    val cues = briefing.cues
+    if (cues.isEmpty()) return
+    var index by rememberSaveable { mutableStateOf(0) }
+    val safeIndex = index.coerceIn(0, cues.size - 1)
+    val cue = cues[safeIndex]
+
+    Surface(
+        color = MusFitTheme.colors.brand,
+        shape = MusFitTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Coach briefing",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MusFitTheme.colors.positiveContainer,
+                )
+                if (cues.size > 1) {
+                    Text(
+                        text = "${safeIndex + 1} / ${cues.size}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MusFitTheme.colors.positiveContainer,
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = briefing.greeting,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MusFitTheme.colors.onBrand,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = cue.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MusFitTheme.colors.onBrand,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                cue.action?.let { action ->
+                    Surface(
+                        onClick = { onAction(action) },
+                        color = MusFitTheme.colors.onBrand,
+                        shape = MusFitTheme.shapes.small,
+                    ) {
+                        Text(
+                            text = actionLabel(action),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MusFitTheme.colors.brandInk,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                        )
+                    }
+                }
+                if (cues.size > 1) {
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { index = (safeIndex + 1) % cues.size }) {
+                        Text("Next", color = MusFitTheme.colors.positiveContainer)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun actionLabel(action: CoachAction): String = when (action) {
+    CoachAction.OpenFood -> "Open food"
+    CoachAction.OpenTraining -> "Open training"
+    CoachAction.OpenHealth -> "Open health"
+    is CoachAction.StartRoutine -> "Start workout"
 }
 
 @Composable

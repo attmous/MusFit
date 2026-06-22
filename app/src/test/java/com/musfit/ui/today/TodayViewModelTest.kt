@@ -38,6 +38,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
@@ -112,9 +113,9 @@ class TodayViewModelTest {
         )
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf(targetDate), foodRepository.observedDates)
-        assertEquals(listOf(targetDate), trainingRepository.observedDates)
-        assertEquals(listOf(targetDate), healthRepository.observedDates)
+        assertTrue(foodRepository.observedDates.isNotEmpty() && foodRepository.observedDates.all { it == targetDate })
+        assertTrue(trainingRepository.observedDates.isNotEmpty() && trainingRepository.observedDates.all { it == targetDate })
+        assertTrue(healthRepository.observedDates.isNotEmpty() && healthRepository.observedDates.all { it == targetDate })
     }
 
     private class FakeFoodRepository : FoodRepository {

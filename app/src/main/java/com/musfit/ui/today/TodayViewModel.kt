@@ -2,14 +2,21 @@ package com.musfit.ui.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.HealthRepository
+import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
 import com.musfit.data.repository.UserGoals
+import com.musfit.data.repository.WorkoutHistorySummary
+import com.musfit.domain.coach.CoachBriefing
+import com.musfit.domain.coach.CoachEngine
+import com.musfit.domain.coach.CoachInput
+import com.musfit.domain.coach.TimeOfDay
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.today.WeeklyGoals
 import com.musfit.domain.today.WeeklyGoalsCalculator
@@ -21,7 +28,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
@@ -59,6 +68,7 @@ data class TodayUiState(
     val stepGoalInput: String = "",
     val sessionTargetInput: String = "",
     val targetWeightInput: String = "",
+    val coach: CoachBriefing? = null,
 )
 
 @HiltViewModel
@@ -68,6 +78,7 @@ class TodayViewModel internal constructor(
     private val healthRepository: HealthRepository,
     private val goalsRepository: GoalsRepository,
     private val dateProvider: () -> LocalDate,
+    private val clock: () -> Long = { System.currentTimeMillis() },
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(TodayUiState())
     val state: StateFlow<TodayUiState> = mutableState.asStateFlow()
@@ -77,6 +88,7 @@ class TodayViewModel internal constructor(
     init {
         observeDaily()
         observeWeekly()
+        observeCoach()
     }
 
     @Inject
@@ -153,6 +165,82 @@ class TodayViewModel internal constructor(
             }.collect { weekly ->
                 mutableState.update { it.copy(weekly = weekly) }
             }
+        }
+    }
+
+    private fun observeCoach() {
+        val date = dateProvider()
+        val weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val weekStartMillis = weekStart.toEpochDay() * DAY_MILLIS
+        val weightFromMillis = (weekStart.toEpochDay() - 7L) * DAY_MILLIS
+        viewModelScope.launch {
+            val nutritionGoalHealth = combine(
+                foodRepository.observeDailyNutrition(date),
+                foodRepository.observeFoodGoal(),
+                healthRepository.observeDailySummary(date),
+            ) { nutrition, goal, health -> Triple(nutrition, goal, health) }
+            val trainingAndGoals = combine(
+                trainingRepository.observeWorkoutHistory(),
+                trainingRepository.observeRoutineSummaries(),
+                goalsRepository.observeUserGoals(),
+            ) { history, routines, userGoals -> Triple(history, routines, userGoals) }
+            combine(
+                nutritionGoalHealth,
+                trainingAndGoals,
+                healthRepository.observeWeightSeries(weightFromMillis),
+            ) { ngh, tg, weights ->
+                val (nutrition, goal, health) = ngh
+                val (history, routines, userGoals) = tg
+                buildCoachBriefing(nutrition, goal, health, history, routines, userGoals, weights, weekStartMillis)
+            }.collect { briefing ->
+                mutableState.update { it.copy(coach = briefing) }
+            }
+        }
+    }
+
+    private fun buildCoachBriefing(
+        nutrition: NutritionTotals,
+        goal: FoodGoal,
+        health: DailyHealthSummaryEntity?,
+        history: List<WorkoutHistorySummary>,
+        routines: List<RoutineSummary>,
+        userGoals: UserGoals,
+        weights: List<BodyMetricEntity>,
+        weekStartMillis: Long,
+    ): CoachBriefing {
+        val nowMillis = clock()
+        val lastWorkoutMillis = history.maxOfOrNull { it.startedAtEpochMillis }
+        val daysSince = lastWorkoutMillis?.let { ((nowMillis - it) / DAY_MILLIS).toInt().coerceAtLeast(0) }
+        val nextRoutine = routines.firstOrNull()
+        val (_, weightDelta) = WeeklyGoalsCalculator.weightTrend(
+            weights.map { it.measuredAtEpochMillis to it.value },
+            weekStartMillis,
+        )
+        return CoachEngine.briefing(
+            CoachInput(
+                timeOfDay = timeOfDay(nowMillis),
+                firstName = null,
+                caloriesKcal = nutrition.caloriesKcal,
+                calorieGoalKcal = goal.dailyCaloriesKcal,
+                proteinGrams = nutrition.proteinGrams,
+                proteinGoalGrams = goal.proteinGrams,
+                daysSinceLastWorkout = daysSince,
+                nextRoutineName = nextRoutine?.name,
+                nextRoutineId = nextRoutine?.id,
+                weightDeltaKg = weightDelta,
+                targetWeightKg = userGoals.targetWeightKg.takeIf { it > 0.0 },
+                stepsToday = health?.steps ?: 0L,
+                stepGoal = userGoals.stepGoal,
+            ),
+        )
+    }
+
+    private fun timeOfDay(nowMillis: Long): TimeOfDay {
+        val hour = Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()).hour
+        return when {
+            hour < 12 -> TimeOfDay.Morning
+            hour < 18 -> TimeOfDay.Afternoon
+            else -> TimeOfDay.Evening
         }
     }
 
