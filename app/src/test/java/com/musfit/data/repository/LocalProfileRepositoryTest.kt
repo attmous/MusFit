@@ -13,6 +13,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -84,6 +85,50 @@ class LocalProfileRepositoryTest {
         val recent = repository.observeRecentMeasurements(0L).first()
         assertEquals(84.0, recent["waist"]!!.first().value, 0.001)
         assertEquals("cm", recent["waist"]!!.first().unit)
+    }
+
+    @Test
+    fun observeWeightSeries_exposesRowId() = runTest {
+        repository.logWeight(85.0)
+        val entry = repository.observeWeightSeries(0L).first().first()
+        assertTrue(entry.id.isNotBlank())
+    }
+
+    @Test
+    fun updateEntryValue_changesOnlyThatRow() = runTest {
+        repository.logWeight(85.0)
+        repository.logWeight(84.0)
+        val entries = repository.observeWeightSeries(0L).first()
+        val target = entries.first { it.weightKg == 85.0 }
+
+        repository.updateEntryValue(target.id, 86.5)
+
+        val updated = repository.observeWeightSeries(0L).first()
+        assertEquals(86.5, updated.first { it.id == target.id }.weightKg, 0.001)
+        assertEquals(84.0, updated.first { it.weightKg != 86.5 }.weightKg, 0.001)
+    }
+
+    @Test
+    fun deleteEntry_removesRow() = runTest {
+        repository.logMeasurement("waist", 84.0, "cm")
+        val entry = repository.observeRecentMeasurements(0L).first()["waist"]!!.first()
+
+        repository.deleteEntry(entry.id)
+
+        assertTrue(repository.observeRecentMeasurements(0L).first()["waist"]!!.isEmpty())
+    }
+
+    @Test
+    fun updateEntryValue_rejectsNonPositive() = runTest {
+        repository.logWeight(85.0)
+        val id = repository.observeWeightSeries(0L).first().first().id
+        var threw = false
+        try {
+            repository.updateEntryValue(id, 0.0)
+        } catch (e: IllegalArgumentException) {
+            threw = true
+        }
+        assertTrue(threw)
     }
 
     @Test

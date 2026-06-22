@@ -33,9 +33,9 @@ data class UserProfile(
     val goalWeightKg: Double?,
 )
 
-data class WeightEntry(val measuredAtEpochMillis: Long, val weightKg: Double, val source: String)
+data class WeightEntry(val id: String, val measuredAtEpochMillis: Long, val weightKg: Double, val source: String)
 
-data class BodyMeasurement(val type: String, val value: Double, val unit: String, val measuredAtEpochMillis: Long)
+data class BodyMeasurement(val id: String, val type: String, val value: Double, val unit: String, val measuredAtEpochMillis: Long)
 
 data class AppSettings(val unitSystem: String, val themeMode: String)
 
@@ -59,6 +59,8 @@ interface ProfileRepository {
     fun observeLatestWeight(): Flow<WeightEntry?>
     fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>>
     suspend fun logMeasurement(type: String, value: Double, unit: String)
+    suspend fun deleteEntry(id: String)
+    suspend fun updateEntryValue(id: String, value: Double)
     fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>>
     fun observeSettings(): Flow<AppSettings>
     suspend fun saveSettings(settings: AppSettings)
@@ -116,12 +118,12 @@ class LocalProfileRepository @Inject constructor(
 
     override fun observeLatestWeight(): Flow<WeightEntry?> =
         healthDao.observeBodyMetrics(WEIGHT_METRIC_TYPE, 0L).map { rows ->
-            rows.firstOrNull()?.let { WeightEntry(it.measuredAtEpochMillis, it.value, it.source) }
+            rows.firstOrNull()?.let { WeightEntry(it.id, it.measuredAtEpochMillis, it.value, it.source) }
         }
 
     override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> =
         healthDao.observeBodyMetrics(WEIGHT_METRIC_TYPE, sinceEpochMillis).map { rows ->
-            rows.map { WeightEntry(it.measuredAtEpochMillis, it.value, it.source) }
+            rows.map { WeightEntry(it.id, it.measuredAtEpochMillis, it.value, it.source) }
         }
 
     override suspend fun logMeasurement(type: String, value: Double, unit: String) {
@@ -139,10 +141,19 @@ class LocalProfileRepository @Inject constructor(
         )
     }
 
+    override suspend fun deleteEntry(id: String) {
+        healthDao.deleteBodyMetric(id)
+    }
+
+    override suspend fun updateEntryValue(id: String, value: Double) {
+        require(value.isFinite() && value > 0.0) { "Value must be positive" }
+        healthDao.updateBodyMetricValue(id, value)
+    }
+
     override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> {
         val typeFlows: List<Flow<Pair<String, List<BodyMeasurement>>>> = MEASUREMENT_TYPES.map { type ->
             healthDao.observeBodyMetrics(type, sinceEpochMillis).map { rows ->
-                type to rows.map { BodyMeasurement(it.type, it.value, it.unit, it.measuredAtEpochMillis) }
+                type to rows.map { BodyMeasurement(it.id, it.type, it.value, it.unit, it.measuredAtEpochMillis) }
             }
         }
         return combine(typeFlows) { pairs -> pairs.toMap() }
