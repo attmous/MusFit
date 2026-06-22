@@ -56,7 +56,28 @@ fun AppNavGraph() {
             startDestination = AppDestination.Today.route,
             modifier = Modifier.padding(padding),
         ) {
-            composable(AppDestination.Today.route) { TodayScreen() }
+            composable(AppDestination.Today.route) {
+                TodayScreen(
+                    onOpenFood = {
+                        navController.navigate(AppDestination.Food.route) {
+                            popUpTo(AppDestination.Today.route)
+                            launchSingleTop = true
+                        }
+                    },
+                    onOpenTraining = {
+                        navController.navigate(AppDestination.Training.route) {
+                            popUpTo(AppDestination.Today.route)
+                            launchSingleTop = true
+                        }
+                    },
+                    onOpenHealth = {
+                        navController.navigate(AppDestination.Health.route) {
+                            popUpTo(AppDestination.Today.route)
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
             composable(AppDestination.Food.route) {
                 FoodScreen(
                     scannedBarcode = scannedBarcode,

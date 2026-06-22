@@ -2,8 +2,12 @@ package com.musfit.ui.today
 
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.FoodDiary
+import com.musfit.data.repository.FoodGoal
+import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
+import com.musfit.data.repository.GoalsRepository
+import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.LoggedWorkoutSet
@@ -34,6 +38,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
@@ -63,20 +68,33 @@ class TodayViewModelTest {
             foodRepository = foodRepository,
             trainingRepository = trainingRepository,
             healthRepository = healthRepository,
+            goalsRepository = FakeGoalsRepository(),
             dateProvider = { date },
         )
         dispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.state.value
 
-        assertEquals(600.0, state.caloriesKcal, 0.01)
-        assertEquals(45.0, state.proteinGrams, 0.01)
-        assertEquals(70.0, state.carbsGrams, 0.01)
-        assertEquals(18.0, state.fatGrams, 0.01)
-        assertEquals("2 sets - 1250 kg volume", state.trainingSummary)
-        assertEquals(8200L, state.steps)
-        assertEquals(420.0, state.activeCaloriesKcal ?: 0.0, 0.01)
-        assertEquals(82.4, state.bodyWeightKg ?: 0.0, 0.01)
+        val calories = state.rings.first { it.kind == RingKind.Calories }
+        assertEquals("600", calories.centerLabel)
+        assertEquals(0.3f, calories.progress, 0.001f)
+
+        val protein = state.rings.first { it.kind == RingKind.Protein }
+        assertEquals("45 g", protein.centerLabel)
+        assertEquals(0.3f, protein.progress, 0.001f)
+
+        val steps = state.rings.first { it.kind == RingKind.Steps }
+        assertEquals("8.2k", steps.centerLabel)
+        assertEquals(0.82f, steps.progress, 0.001f)
+
+        assertEquals(70.0, state.macros.carbsGrams, 0.01)
+        assertEquals(18.0, state.macros.fatGrams, 0.01)
+
+        assertEquals("2 sets", state.training.title)
+        assertEquals("1250 kg volume", state.training.subtitle)
+        assertEquals(true, state.training.hasWorkout)
+
+        assertEquals(82.4, state.weightKg ?: 0.0, 0.01)
     }
 
     @Test
@@ -90,13 +108,14 @@ class TodayViewModelTest {
             foodRepository = foodRepository,
             trainingRepository = trainingRepository,
             healthRepository = healthRepository,
+            goalsRepository = FakeGoalsRepository(),
             dateProvider = { targetDate },
         )
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf(targetDate), foodRepository.observedDates)
-        assertEquals(listOf(targetDate), trainingRepository.observedDates)
-        assertEquals(listOf(targetDate), healthRepository.observedDates)
+        assertTrue(foodRepository.observedDates.isNotEmpty() && foodRepository.observedDates.all { it == targetDate })
+        assertTrue(trainingRepository.observedDates.isNotEmpty() && trainingRepository.observedDates.all { it == targetDate })
+        assertTrue(healthRepository.observedDates.isNotEmpty() && healthRepository.observedDates.all { it == targetDate })
     }
 
     private class FakeFoodRepository : FoodRepository {
@@ -115,6 +134,22 @@ class TodayViewModelTest {
             observedDates += date
             return MutableStateFlow(NutritionTotals(600.0, 45.0, 70.0, 18.0))
         }
+
+        override fun observeFoodGoal(): Flow<FoodGoal> =
+            MutableStateFlow(
+                FoodGoal(
+                    dailyCaloriesKcal = 2000.0,
+                    proteinGrams = 150.0,
+                    carbsGrams = 200.0,
+                    fatGrams = 60.0,
+                    fiberGrams = 30.0,
+                    sugarGrams = 50.0,
+                    saturatedFatGrams = 20.0,
+                    sodiumMilligrams = 2300.0,
+                    mode = FoodGoalMode.Balanced,
+                    includeTrainingCalories = false,
+                ),
+            )
 
         override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
             MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
@@ -140,6 +175,12 @@ class TodayViewModelTest {
             input.foodId ?: "food-1"
 
         override suspend fun deleteSavedFood(foodId: String) = Unit
+    }
+
+    private class FakeGoalsRepository : GoalsRepository {
+        override fun observeUserGoals(): Flow<UserGoals> = MutableStateFlow(UserGoals())
+
+        override suspend fun updateUserGoals(goals: UserGoals) = Unit
     }
 
     private class FakeTrainingRepository : TrainingRepository {
