@@ -245,7 +245,7 @@ interface FoodDao {
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
             "INNER JOIN foods ON foods.id = meal_items.foodId " +
             "WHERE meals.dateEpochDay = :dateEpochDay " +
-            "ORDER BY meals.createdAtEpochMillis, meal_items.id",
+            "ORDER BY meals.createdAtEpochMillis, meals.type, meal_items.id",
     )
     fun observeFoodDiaryEntryRowsForDate(dateEpochDay: Long): Flow<List<FoodDiaryEntryRow>>
 
@@ -280,7 +280,7 @@ interface FoodDao {
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
             "INNER JOIN foods ON foods.id = meal_items.foodId " +
             "WHERE meals.dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
-            "ORDER BY meals.dateEpochDay, meals.createdAtEpochMillis, meal_items.id",
+            "ORDER BY meals.dateEpochDay, meals.createdAtEpochMillis, meals.type, meal_items.id",
     )
     fun observeFoodDiaryEntryRowsForDateRange(startEpochDay: Long, endEpochDay: Long): Flow<List<FoodDiaryEntryRow>>
 
@@ -315,7 +315,7 @@ interface FoodDao {
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
             "INNER JOIN foods ON foods.id = meal_items.foodId " +
             "WHERE meals.dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
-            "ORDER BY meals.dateEpochDay, meals.createdAtEpochMillis, meal_items.id",
+            "ORDER BY meals.dateEpochDay, meals.createdAtEpochMillis, meals.type, meal_items.id",
     )
     suspend fun getFoodDiaryEntryRowsForDateRange(startEpochDay: Long, endEpochDay: Long): List<FoodDiaryEntryRow>
 
@@ -350,7 +350,7 @@ interface FoodDao {
             "INNER JOIN meals ON meals.id = meal_items.mealId " +
             "INNER JOIN foods ON foods.id = meal_items.foodId " +
             "WHERE meals.dateEpochDay = :dateEpochDay " +
-            "ORDER BY meals.createdAtEpochMillis, meal_items.id",
+            "ORDER BY meals.createdAtEpochMillis, meals.type, meal_items.id",
     )
     suspend fun getFoodDiaryEntryRowsForDate(dateEpochDay: Long): List<FoodDiaryEntryRow>
 
