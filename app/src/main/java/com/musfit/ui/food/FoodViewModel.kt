@@ -4702,11 +4702,6 @@ private fun defaultEmptyDiaryActions(): List<EmptyDiaryActionUiState> =
             label = "Scan barcode",
             accessibilityLabel = "Scan barcode to add food",
         ),
-        EmptyDiaryActionUiState(
-            type = EmptyDiaryActionType.Ai,
-            label = "AI log",
-            accessibilityLabel = "Create AI food draft",
-        ),
     )
 
 private fun String.normalizedMealType(): String {

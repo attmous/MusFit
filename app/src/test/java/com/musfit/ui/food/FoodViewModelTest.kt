@@ -99,7 +99,7 @@ class FoodViewModelTest {
 
         assertTrue(viewModel.state.value.isFoodDiaryEmpty)
         assertEquals(
-            listOf("Add breakfast", "Scan barcode", "AI log"),
+            listOf("Add breakfast", "Scan barcode"),
             viewModel.state.value.emptyDiaryActions.map { it.label },
         )
     }

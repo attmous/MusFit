@@ -131,6 +131,18 @@ fun FoodScreen(
                 onEntryClick = viewModel::openDiaryEntryEditor,
                 onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
             )
+        } else if (state.isAddPanelVisible && state.sheetMode == FoodSheetMode.AddFood) {
+            AddFoodScreen(
+                state = state,
+                onBack = viewModel::closeAddFood,
+                onQueryChange = viewModel::onFoodDatabaseQueryChanged,
+                onScanClick = onScanClick,
+                onTabSelected = viewModel::selectAddTab,
+                onFoodClick = viewModel::logSavedFood,
+                onQuickTrack = { viewModel.selectAddMode(FoodAddMode.Quick) },
+                onAdjustGoals = viewModel::openGoalEditor,
+                onCreateFood = { viewModel.selectAddMode(FoodAddMode.Manual) },
+            )
         } else {
             Column(
                 modifier = Modifier
@@ -253,7 +265,7 @@ fun FoodScreen(
         }
     }
 
-    if (state.isAddPanelVisible) {
+    if (state.isAddPanelVisible && (state.sheetMode != FoodSheetMode.AddFood || state.addMode != FoodAddMode.Saved)) {
         ModalBottomSheet(
             onDismissRequest = viewModel::closeAddFood,
             containerColor = MusFitTheme.colors.surface,
@@ -2313,10 +2325,6 @@ private fun FoodDatabasePanel(
             Text("Import starter foods")
         }
 
-        OutlinedButton(onClick = onNutritionLabelScanClick, modifier = Modifier.fillMaxWidth()) {
-            Text("Scan nutrition label")
-        }
-
         OutlinedTextField(
             value = state.foodDatabaseQuery,
             onValueChange = onSearchChanged,
@@ -3847,10 +3855,6 @@ private fun AddFoodPanel(
             onModeSelected = onModeSelected,
         )
 
-        OutlinedButton(onClick = onNutritionLabelScanClick, modifier = Modifier.fillMaxWidth()) {
-            Text("Scan nutrition label")
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -4042,7 +4046,7 @@ private fun AddModeTabs(
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        FoodAddMode.entries.forEach { mode ->
+        FoodAddMode.entries.filter { it != FoodAddMode.Ai }.forEach { mode ->
             FilterChip(
                 selected = selectedMode == mode,
                 onClick = { onModeSelected(mode) },
