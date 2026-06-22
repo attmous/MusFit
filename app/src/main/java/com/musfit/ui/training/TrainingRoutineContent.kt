@@ -3,12 +3,17 @@ package com.musfit.ui.training
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -18,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.ExerciseSummary
@@ -32,13 +38,15 @@ fun TrainingRoutineContent(
     onDuplicateRoutine: (String) -> Unit,
     onDeleteRoutine: (String) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Button(onClick = onStartBlank, modifier = Modifier.weight(1f)) {
-                Text("Blank workout")
+                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Start empty workout")
             }
             TextButton(onClick = { onEditRoutine(null) }) {
                 Text("New routine")
@@ -47,28 +55,50 @@ fun TrainingRoutineContent(
         routines.forEach { routine ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(routine.name, style = MaterialTheme.typography.titleMedium)
-                    Text("${routine.exerciseCount} exercises - ${routine.targetSetCount} sets")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { onStartRoutine(routine.id) }) {
-                            Text("Start")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(routine.name, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "${routine.exerciseCount} exercises - ${routine.targetSetCount} sets",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                        if (!routine.isStarter) {
-                            TextButton(onClick = { onEditRoutine(routine.id) }) {
-                                Text("Edit")
-                            }
+                    }
+                    val actions = routineCardActions(routine.isStarter)
+                    if (ROUTINE_ACTION_START in actions) {
+                        Button(
+                            onClick = { onStartRoutine(routine.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Start")
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { onDuplicateRoutine(routine.id) }) {
-                            Text("Duplicate")
-                        }
-                        if (!routine.isStarter) {
-                            TextButton(onClick = { onDeleteRoutine(routine.id) }) {
-                                Text("Delete")
+                        actions.filterNot { it == ROUTINE_ACTION_START }.forEach { action ->
+                            when (action) {
+                                ROUTINE_ACTION_EDIT -> {
+                                    TextButton(onClick = { onEditRoutine(routine.id) }) {
+                                        Text("Edit")
+                                    }
+                                }
+                                ROUTINE_ACTION_DUPLICATE -> {
+                                    TextButton(onClick = { onDuplicateRoutine(routine.id) }) {
+                                        Text("Duplicate")
+                                    }
+                                }
+                                ROUTINE_ACTION_DELETE -> {
+                                    TextButton(onClick = { onDeleteRoutine(routine.id) }) {
+                                        Text("Delete")
+                                    }
+                                }
                             }
                         }
                     }
@@ -77,6 +107,20 @@ fun TrainingRoutineContent(
         }
     }
 }
+
+internal fun nextQuickLogExpanded(current: Boolean): Boolean = !current
+
+internal fun routineCardActions(isStarter: Boolean): List<String> =
+    if (isStarter) {
+        listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_DUPLICATE)
+    } else {
+        listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_EDIT, ROUTINE_ACTION_DUPLICATE, ROUTINE_ACTION_DELETE)
+    }
+
+private const val ROUTINE_ACTION_START = "Start"
+private const val ROUTINE_ACTION_EDIT = "Edit"
+private const val ROUTINE_ACTION_DUPLICATE = "Duplicate"
+private const val ROUTINE_ACTION_DELETE = "Delete"
 
 @Composable
 fun TrainingRoutineEditor(
