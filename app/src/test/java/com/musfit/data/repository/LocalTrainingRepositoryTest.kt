@@ -242,22 +242,68 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
-    fun startWorkoutFromRoutine_reusesExistingActiveSession() = runTest {
+    fun startWorkoutFromRoutine_whenBlankActiveWorkoutExists_returnsExistingSessionUnchanged() = runTest {
+        repository.seedStarterTrainingData()
+        val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
+
+        val blankSessionId = repository.startBlankWorkout()
+        val returnedSessionId = repository.startWorkoutFromRoutine(routine.id)
+
+        val active = repository.observeActiveWorkoutSummary().first()
+        val sessions = database.trainingDao().observeWorkoutSessions().first()
+        val sets = database.trainingDao().getWorkoutSets(blankSessionId)
+
+        assertEquals(blankSessionId, returnedSessionId)
+        assertEquals(1, sessions.count { it.status == "active" })
+        assertEquals(blankSessionId, active?.sessionId)
+        assertEquals("Blank workout", active?.title)
+        assertTrue(sets.isEmpty())
+    }
+
+    @Test
+    fun startWorkoutFromRoutine_whenDifferentRoutineIsAlreadyActive_returnsExistingSessionUnchanged() = runTest {
+        repository.seedStarterTrainingData()
+        val routines = repository.observeRoutineSummaries().first()
+        val fullBody = routines.first { it.name == "Full Body A" }
+        val push = routines.first { it.name == "Push" }
+
+        val activeSessionId = repository.startWorkoutFromRoutine(fullBody.id)
+        val originalSets = database.trainingDao().getWorkoutSets(activeSessionId)
+
+        val returnedSessionId = repository.startWorkoutFromRoutine(push.id)
+
+        val active = repository.observeActiveWorkoutSummary().first()
+        val sessions = database.trainingDao().observeWorkoutSessions().first()
+        val setsAfterSecondLaunch = database.trainingDao().getWorkoutSets(activeSessionId)
+
+        assertEquals(activeSessionId, returnedSessionId)
+        assertEquals(1, sessions.count { it.status == "active" })
+        assertEquals(activeSessionId, active?.sessionId)
+        assertEquals("Full Body A", active?.title)
+        assertEquals(originalSets.size, setsAfterSecondLaunch.size)
+        assertEquals(originalSets.map { it.id }, setsAfterSecondLaunch.map { it.id })
+    }
+
+    @Test
+    fun startWorkoutFromRoutine_whenSameRoutineIsStartedRepeatedly_doesNotDuplicatePlannedSets() = runTest {
         repository.seedStarterTrainingData()
         val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
 
         val firstSessionId = repository.startWorkoutFromRoutine(routine.id)
-        val secondSessionId = repository.startBlankWorkout()
+        val originalSets = database.trainingDao().getWorkoutSets(firstSessionId)
 
+        val secondSessionId = repository.startWorkoutFromRoutine(routine.id)
+
+        val active = repository.observeActiveWorkoutSummary().first()
         val sessions = database.trainingDao().observeWorkoutSessions().first()
-        val activeSessions = sessions.filter { it.status == "active" }
-        val sets = database.trainingDao().getWorkoutSets(firstSessionId)
+        val setsAfterRepeat = database.trainingDao().getWorkoutSets(firstSessionId)
 
         assertEquals(firstSessionId, secondSessionId)
-        assertEquals(1, activeSessions.size)
-        assertEquals(firstSessionId, activeSessions.single().id)
-        assertEquals(routine.targetSetCount, sets.size)
-        assertEquals("Full Body A", activeSessions.single().title)
+        assertEquals(1, sessions.count { it.status == "active" })
+        assertEquals(firstSessionId, active?.sessionId)
+        assertEquals("Full Body A", active?.title)
+        assertEquals(originalSets.size, setsAfterRepeat.size)
+        assertEquals(originalSets.map { it.id }, setsAfterRepeat.map { it.id })
     }
 
     @Test

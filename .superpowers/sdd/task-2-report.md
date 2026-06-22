@@ -188,3 +188,40 @@ Result: `BUILD SUCCESSFUL`
 ### Concerns
 
 - Active launch reuse keeps the existing active session intact rather than discarding or rebuilding it. That is the simplest behavior that satisfies the single-active-session requirement for Task 2, but Task 3 may want stricter route/session semantics once the real active workout logger exists.
+
+## Fix Section - Single Active Session Follow-up
+
+### What I Fixed
+
+- Added repository regression coverage for the controller-selected single-active-session behavior:
+  - starting a routine while a blank active workout exists returns that blank session unchanged
+  - starting a different routine while another routine is active returns the existing session unchanged
+  - starting the same routine repeatedly returns the same session without duplicating planned sets
+- Updated `startWorkoutFromRoutine()` to short-circuit when an active session already exists, so it no longer appends planned sets into an unrelated or already-started session.
+
+### Tests Run
+
+Red:
+
+```powershell
+.\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --tests "com.musfit.ui.training.TrainingViewModelTest" --no-daemon --console=plain
+```
+
+Result: failed with 3 repository assertion failures covering mutated blank sessions and duplicated/appended planned sets.
+
+Green:
+
+```powershell
+. 'C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1'; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --tests "com.musfit.ui.training.TrainingViewModelTest" --no-daemon --console=plain
+```
+
+Result: `BUILD SUCCESSFUL`
+
+### Files Changed
+
+- `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
+- `app/src/test/java/com/musfit/data/repository/LocalTrainingRepositoryTest.kt`
+
+### Concerns
+
+- The stale routine-editor `routineId` minor noted in review remains unchanged. I kept this follow-up scoped to the launch corruption bug and its repository coverage.

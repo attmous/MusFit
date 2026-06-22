@@ -326,6 +326,11 @@ class LocalTrainingRepository @Inject constructor(
 
     override suspend fun startWorkoutFromRoutine(routineId: String): String =
         database.withTransaction {
+            val existingActiveSession = trainingDao.getLatestActiveWorkoutSession()
+            if (existingActiveSession != null) {
+                activeSessionId = existingActiveSession.id
+                return@withTransaction existingActiveSession.id
+            }
             val routine = trainingDao.getRoutine(routineId)
             if (routine == null) {
                 return@withTransaction createWorkoutSession(
