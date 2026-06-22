@@ -8,11 +8,15 @@ import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.QuickCalorieLogInput
+import com.musfit.data.repository.RoutineDetail
+import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.SavedFoodItem
 import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
+import com.musfit.data.repository.WorkoutHistoryDetail
+import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutForExport
 import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.domain.health.HealthConnectAvailability
@@ -153,6 +157,24 @@ class TodayViewModelTest {
                 ),
             )
         }
+
+        override suspend fun createRoutine(input: RoutineInput): String = "routine-1"
+
+        override suspend fun updateRoutine(routineId: String, input: RoutineInput) = Unit
+
+        override suspend fun duplicateRoutine(routineId: String): String = "$routineId-copy"
+
+        override suspend fun deleteRoutine(routineId: String) = Unit
+
+        override suspend fun getRoutineDetail(routineId: String): RoutineDetail? = null
+
+        override suspend fun startBlankWorkout(): String = "session-blank"
+
+        override suspend fun startWorkoutFromRoutine(routineId: String): String = "session-$routineId"
+
+        override fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = MutableStateFlow(emptyList())
+
+        override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? = null
 
         override suspend fun getLatestWorkoutForExport(): WorkoutForExport? = null
 
