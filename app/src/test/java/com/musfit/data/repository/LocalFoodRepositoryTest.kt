@@ -329,6 +329,46 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun observeFoodDiary_ordersMealsDeterministicallyWhenMealsTieOnCreatedAt() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val dao = database.foodDao()
+        dao.upsertFood(
+            FoodEntity(
+                id = "food-1",
+                name = "Test food",
+                brand = null,
+                defaultServingGrams = 100.0,
+                caloriesPer100g = 100.0,
+                proteinPer100g = 5.0,
+                carbsPer100g = 10.0,
+                fatPer100g = 2.0,
+                createdAtEpochMillis = 1_000L,
+                updatedAtEpochMillis = 1_000L,
+            ),
+        )
+        // Breakfast and lunch are created in the same millisecond, so they tie on
+        // createdAtEpochMillis. The lunch item id sorts before the breakfast item id, so an
+        // ordering that only tie-breaks on meal_items.id surfaces lunch first. Meal order must
+        // still be deterministic regardless of item ids.
+        dao.upsertMeal(
+            MealEntity("meal-breakfast", date.toEpochDay(), "breakfast", null, 1_000L, 1_000L),
+        )
+        dao.upsertMeal(
+            MealEntity("meal-lunch", date.toEpochDay(), "lunch", null, 1_000L, 1_000L),
+        )
+        dao.upsertMealItem(
+            MealItemEntity(id = "item-2-breakfast", mealId = "meal-breakfast", foodId = "food-1", quantityGrams = 100.0),
+        )
+        dao.upsertMealItem(
+            MealItemEntity(id = "item-1-lunch", mealId = "meal-lunch", foodId = "food-1", quantityGrams = 100.0),
+        )
+
+        val diary = repository.observeFoodDiary(date).first()
+
+        assertEquals(listOf("breakfast", "lunch"), diary.meals.map { it.type })
+    }
+
+    @Test
     fun logSavedFood_logsExistingFoodWithoutCreatingDuplicateSavedFood() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         repository.logFood(
