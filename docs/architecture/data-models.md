@@ -30,7 +30,7 @@ Database:
 - Class: `MusFitDatabase`
 - File: `data/local/MusFitDatabase.kt`
 - Name: `musfit.db`
-- Version: 20
+- Version: 21
 - Exported schemas: `app/schemas/com.musfit.data.local.MusFitDatabase/`
 - DAOs: `AccountDao`, `FoodDao`, `TrainingDao`, `HealthDao`, `ProfileDao`, `UserGoalsDao`
 

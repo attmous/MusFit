@@ -17,7 +17,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class AccountMigration19To20Test {
+class AccountMigration20To21Test {
     private lateinit var context: Context
 
     @Before
@@ -32,13 +32,13 @@ class AccountMigration19To20Test {
     }
 
     @Test
-    fun migration19To20_remapsLegacySingletonRowsToLocalDefault() {
-        createDatabaseFromExportedSchema(version = 19)
+    fun migration20To21_remapsLegacySingletonRowsToLocalDefault() {
+        createDatabaseFromExportedSchema(version = 20)
         seedLegacySingletonRows()
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_19_20)
+                .addMigrations(DatabaseModule.MIGRATION_20_21)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -207,6 +207,6 @@ class AccountMigration19To20Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "account-migration-19-20-test"
+        const val TEST_DATABASE_NAME = "account-migration-20-21-test"
     }
 }
