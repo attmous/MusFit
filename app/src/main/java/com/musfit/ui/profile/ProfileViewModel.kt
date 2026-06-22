@@ -3,6 +3,8 @@ package com.musfit.ui.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.repository.Account
+import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.HealthRepository
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.Period
@@ -39,8 +42,26 @@ data class MeasurementRow(
     val deltaFromPrevious: Double?,
 )
 
+data class AccountUiState(
+    val displayName: String = "You",
+    val email: String? = null,
+    val isLocalOnly: Boolean = true,
+)
+
+private data class AccountEditorState(
+    val open: Boolean = false,
+    val nameInput: String = "",
+    val emailInput: String = "",
+    val errorMessage: String? = null,
+)
+
 data class ProfileUiState(
     val isLoaded: Boolean = false,
+    val account: AccountUiState = AccountUiState(),
+    val accountEditorOpen: Boolean = false,
+    val accountNameInput: String = "",
+    val accountEmailInput: String = "",
+    val accountErrorMessage: String? = null,
     val profile: UserProfile? = null,
     val ageYears: Int? = null,
     val latestWeightKg: Double? = null,
@@ -65,12 +86,21 @@ private val MEASUREMENT_LABELS = mapOf(
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
+    private val accountRepository: AccountRepository,
     private val profileRepository: ProfileRepository,
     private val healthRepository: HealthRepository,
     private val foodRepository: FoodRepository,
 ) : ViewModel() {
     private val today = LocalDate.now()
     private val messageFlow = MutableStateFlow<String?>(null)
+    private val accountEditorFlow = MutableStateFlow(AccountEditorState())
+
+    init {
+        viewModelScope.launch {
+            runCatching { accountRepository.ensureActiveAccount() }
+                .onFailure { messageFlow.value = it.message ?: "Could not prepare your local account." }
+        }
+    }
 
     private val dataState: Flow<ProfileUiState> = combine(
         profileRepository.observeProfile(),
@@ -120,10 +150,20 @@ class ProfileViewModel @Inject constructor(
 
     val state: StateFlow<ProfileUiState> = combine(
         dataState,
+        accountRepository.observeActiveAccount(),
         healthRepository.observeDailySummary(today),
         messageFlow,
-    ) { base, summary, message ->
-        base.copy(vitals = summary?.toVitals(), message = message)
+        accountEditorFlow,
+    ) { base, account, summary, message, editor ->
+        base.copy(
+            account = account.toUiState(),
+            vitals = summary?.toVitals(),
+            message = message,
+            accountEditorOpen = editor.open,
+            accountNameInput = editor.nameInput,
+            accountEmailInput = editor.emailInput,
+            accountErrorMessage = editor.errorMessage,
+        )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileUiState())
 
     fun saveProfile(profile: UserProfile) {
@@ -179,6 +219,49 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    fun openAccountEditor() {
+        val account = state.value.account
+        accountEditorFlow.value = AccountEditorState(
+            open = true,
+            nameInput = account.displayName,
+            emailInput = account.email.orEmpty(),
+        )
+    }
+
+    fun closeAccountEditor() {
+        accountEditorFlow.value = AccountEditorState()
+    }
+
+    fun onAccountNameChanged(value: String) {
+        accountEditorFlow.update { it.copy(nameInput = value, errorMessage = null) }
+    }
+
+    fun onAccountEmailChanged(value: String) {
+        accountEditorFlow.update { it.copy(emailInput = value, errorMessage = null) }
+    }
+
+    fun saveAccount() {
+        val editor = accountEditorFlow.value
+        if (editor.nameInput.isBlank()) {
+            accountEditorFlow.update { it.copy(errorMessage = "Account name is required.") }
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                accountRepository.updateActiveAccount(
+                    displayName = editor.nameInput.trim(),
+                    email = editor.emailInput.trim().takeIf { it.isNotBlank() },
+                )
+            }.onSuccess {
+                accountEditorFlow.value = AccountEditorState()
+            }.onFailure { error ->
+                accountEditorFlow.update {
+                    it.copy(errorMessage = error.message ?: "Could not save account.")
+                }
+            }
+        }
+    }
+
     fun dismissMessage() {
         messageFlow.value = null
     }
@@ -201,3 +284,10 @@ class ProfileViewModel @Inject constructor(
 
 private fun DailyHealthSummaryEntity.toVitals() =
     VitalsSummary(steps = steps, activeCaloriesKcal = activeCaloriesKcal, restingHeartRateBpm = restingHeartRateBpm)
+
+private fun Account.toUiState() =
+    AccountUiState(
+        displayName = displayName,
+        email = email,
+        isLocalOnly = remoteUserId == null,
+    )

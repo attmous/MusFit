@@ -10,16 +10,16 @@ import com.musfit.domain.profile.EnergyCalculator
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.Period
 import java.util.UUID
 import javax.inject.Inject
 
-const val PROFILE_ID = "user"
-const val SETTINGS_ID = "app"
 const val WEIGHT_METRIC_TYPE = "weight"
 val MEASUREMENT_TYPES = listOf("waist", "chest", "arms", "thighs", "hips", "body_fat")
 
@@ -66,22 +66,31 @@ interface ProfileRepository {
     suspend fun saveSettings(settings: AppSettings)
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LocalProfileRepository @Inject constructor(
     private val profileDao: ProfileDao,
     private val healthDao: HealthDao,
+    private val accountRepository: AccountRepository,
 ) : ProfileRepository {
     private var clock: () -> Long = { System.currentTimeMillis() }
 
-    internal constructor(profileDao: ProfileDao, healthDao: HealthDao, clock: () -> Long) :
-        this(profileDao, healthDao) {
+    internal constructor(
+        profileDao: ProfileDao,
+        healthDao: HealthDao,
+        accountRepository: AccountRepository,
+        clock: () -> Long,
+    ) : this(profileDao, healthDao, accountRepository) {
         this.clock = clock
     }
 
     override fun observeProfile(): Flow<UserProfile> =
-        profileDao.observeProfile(PROFILE_ID).map { it?.toUserProfile() ?: DEFAULT_USER_PROFILE }
+        accountRepository.observeActiveAccount().flatMapLatest { account ->
+            profileDao.observeProfile(account.id).map { it?.toUserProfile() ?: DEFAULT_USER_PROFILE }
+        }
 
     override suspend fun saveProfile(profile: UserProfile) {
-        profileDao.upsertProfile(profile.toEntity(clock()))
+        val account = accountRepository.ensureActiveAccount()
+        profileDao.upsertProfile(profile.toEntity(id = account.id, now = clock()))
     }
 
     override fun observeRecommendedTargets(): Flow<RecommendedTargets?> =
@@ -160,12 +169,15 @@ class LocalProfileRepository @Inject constructor(
     }
 
     override fun observeSettings(): Flow<AppSettings> =
-        profileDao.observeSettings(SETTINGS_ID).map { it?.toAppSettings() ?: DEFAULT_APP_SETTINGS }
+        accountRepository.observeActiveAccount().flatMapLatest { account ->
+            profileDao.observeSettings(account.id).map { it?.toAppSettings() ?: DEFAULT_APP_SETTINGS }
+        }
 
     override suspend fun saveSettings(settings: AppSettings) {
+        val account = accountRepository.ensureActiveAccount()
         profileDao.upsertSettings(
             AppSettingsEntity(
-                id = SETTINGS_ID,
+                id = account.id,
                 unitSystem = settings.unitSystem,
                 themeMode = settings.themeMode,
                 updatedAtEpochMillis = clock(),
@@ -190,8 +202,8 @@ private fun UserProfileEntity.toUserProfile() = UserProfile(
     goalWeightKg = goalWeightKg,
 )
 
-private fun UserProfile.toEntity(now: Long) = UserProfileEntity(
-    id = PROFILE_ID,
+private fun UserProfile.toEntity(id: String, now: Long) = UserProfileEntity(
+    id = id,
     sex = sex?.name,
     birthDateEpochDay = birthDateEpochDay,
     heightCm = heightCm,

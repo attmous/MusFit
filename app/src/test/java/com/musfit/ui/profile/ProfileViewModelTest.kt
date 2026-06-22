@@ -2,6 +2,8 @@ package com.musfit.ui.profile
 
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.data.repository.Account
+import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.DEFAULT_APP_SETTINGS
@@ -58,7 +60,7 @@ class ProfileViewModelTest {
 
     @Test
     fun incompleteProfile_hidesRecommendation() = runTest {
-        val viewModel = ProfileViewModel(FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isLoaded)
@@ -73,7 +75,7 @@ class ProfileViewModelTest {
             latestWeight = WeightEntry("w1", 1_000L, 80.0, "manual"),
             targets = RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
         )
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(true, viewModel.state.value.isProfileComplete)
@@ -96,7 +98,7 @@ class ProfileViewModelTest {
             latestWeight = WeightEntry("w1", 1_000L, 80.0, "manual"),
             targets = RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
         )
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), food)
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), food)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.applyTargetsToFood()
@@ -120,7 +122,7 @@ class ProfileViewModelTest {
                 restingHeartRateBpm = 58L, updatedAtEpochMillis = 1L,
             ),
         )
-        val viewModel = ProfileViewModel(FakeProfileRepository(), health, FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), FakeProfileRepository(), health, FakeFoodGoalRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(7420L, viewModel.state.value.vitals!!.steps)
@@ -130,7 +132,7 @@ class ProfileViewModelTest {
     @Test
     fun logWeight_callsRepository() = runTest {
         val repo = FakeProfileRepository()
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.logWeight(83.6)
@@ -142,7 +144,7 @@ class ProfileViewModelTest {
     @Test
     fun editEntry_callsRepositoryWithIdAndValue() = runTest {
         val repo = FakeProfileRepository()
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.editEntry("abc", 81.3)
@@ -155,7 +157,7 @@ class ProfileViewModelTest {
     @Test
     fun deleteEntry_callsRepositoryWithId() = runTest {
         val repo = FakeProfileRepository()
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.deleteEntry("xyz")
@@ -167,10 +169,63 @@ class ProfileViewModelTest {
     @Test
     fun state_exposesWeightEntriesForSheet() = runTest {
         val repo = FakeProfileRepository(latestWeight = WeightEntry("w9", 1_000L, 84.0, "manual"))
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("w9", viewModel.state.value.weightEntries.first().id)
+    }
+
+    @Test
+    fun accountState_exposesActiveLocalAccount() = runTest {
+        val accountRepository = FakeAccountRepository(
+            initial = Account(
+                id = "account-1",
+                displayName = "Ava",
+                email = "ava@example.com",
+                remoteUserId = null,
+            ),
+        )
+
+        val viewModel = ProfileViewModel(accountRepository, FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Ava", viewModel.state.value.account.displayName)
+        assertEquals("ava@example.com", viewModel.state.value.account.email)
+        assertEquals(true, viewModel.state.value.account.isLocalOnly)
+    }
+
+    @Test
+    fun saveAccount_updatesRepositoryAndClosesEditor() = runTest {
+        val accountRepository = FakeAccountRepository()
+        val viewModel = ProfileViewModel(accountRepository, FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAccountEditor()
+        viewModel.onAccountNameChanged("Ava")
+        viewModel.onAccountEmailChanged("ava@example.com")
+        viewModel.saveAccount()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Ava", accountRepository.updatedName)
+        assertEquals("ava@example.com", accountRepository.updatedEmail)
+        assertEquals(false, viewModel.state.value.accountEditorOpen)
+        assertEquals(null, viewModel.state.value.accountErrorMessage)
+    }
+
+    @Test
+    fun saveAccount_blankNameKeepsEditorOpenWithValidation() = runTest {
+        val accountRepository = FakeAccountRepository()
+        val viewModel = ProfileViewModel(accountRepository, FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAccountEditor()
+        viewModel.onAccountNameChanged("   ")
+        viewModel.saveAccount()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(true, viewModel.state.value.accountEditorOpen)
+        assertEquals("Account name is required.", viewModel.state.value.accountErrorMessage)
+        assertEquals(null, accountRepository.updatedName)
     }
 
     private class FakeProfileRepository(
@@ -209,6 +264,34 @@ class ProfileViewModelTest {
         override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
             ImportedDailyHealthSummary(null, null, null, null)
         override suspend fun exportLatestWorkout(): String? = null
+    }
+
+    private class FakeAccountRepository(
+        initial: Account = Account("local-default", "You", null, null),
+    ) : AccountRepository {
+        private val active = MutableStateFlow(initial)
+        var updatedName: String? = null
+        var updatedEmail: String? = null
+        var ensured = false
+
+        override fun observeActiveAccount(): Flow<Account> = active
+
+        override fun observeAccounts(): Flow<List<Account>> = MutableStateFlow(listOf(active.value))
+
+        override suspend fun ensureActiveAccount(): Account {
+            ensured = true
+            return active.value
+        }
+
+        override suspend fun createAccount(displayName: String, email: String?): String = "created"
+
+        override suspend fun updateActiveAccount(displayName: String, email: String?) {
+            updatedName = displayName
+            updatedEmail = email
+            active.value = active.value.copy(displayName = displayName, email = email)
+        }
+
+        override suspend fun switchAccount(accountId: String) = Unit
     }
 
     private class FakeFoodGoalRepo(

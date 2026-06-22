@@ -2,7 +2,9 @@ package com.musfit.data.repository
 
 import com.musfit.data.local.dao.UserGoalsDao
 import com.musfit.data.local.entity.UserGoalsEntity
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
@@ -19,29 +21,38 @@ interface GoalsRepository {
     suspend fun updateUserGoals(goals: UserGoals)
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LocalGoalsRepository @Inject constructor(
     private val userGoalsDao: UserGoalsDao,
+    private val accountRepository: AccountRepository,
 ) : GoalsRepository {
     private var clock: () -> Long = { System.currentTimeMillis() }
 
+    internal constructor(
+        userGoalsDao: UserGoalsDao,
+        accountRepository: AccountRepository,
+        clock: () -> Long,
+    ) : this(userGoalsDao, accountRepository) {
+        this.clock = clock
+    }
+
     override fun observeUserGoals(): Flow<UserGoals> =
-        userGoalsDao.observeUserGoals(DEFAULT_ID).map { entity ->
-            entity?.let { UserGoals(it.stepGoal, it.weeklySessionTarget, it.targetWeightKg) } ?: UserGoals()
+        accountRepository.observeActiveAccount().flatMapLatest { account ->
+            userGoalsDao.observeUserGoals(account.id).map { entity ->
+                entity?.let { UserGoals(it.stepGoal, it.weeklySessionTarget, it.targetWeightKg) } ?: UserGoals()
+            }
         }
 
     override suspend fun updateUserGoals(goals: UserGoals) {
+        val account = accountRepository.ensureActiveAccount()
         userGoalsDao.upsertUserGoals(
             UserGoalsEntity(
-                id = DEFAULT_ID,
+                id = account.id,
                 stepGoal = goals.stepGoal.coerceAtLeast(0L),
                 weeklySessionTarget = goals.weeklySessionTarget.coerceAtLeast(0),
                 targetWeightKg = goals.targetWeightKg.coerceAtLeast(0.0),
                 updatedAtEpochMillis = clock(),
             ),
         )
-    }
-
-    private companion object {
-        const val DEFAULT_ID = "default"
     }
 }

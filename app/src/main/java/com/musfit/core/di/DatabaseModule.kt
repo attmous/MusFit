@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.dao.AccountDao
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
 import com.musfit.data.local.dao.ProfileDao
@@ -43,8 +44,13 @@ object DatabaseModule {
                 MIGRATION_16_17,
                 MIGRATION_17_18,
                 MIGRATION_18_19,
+                MIGRATION_19_20,
+                MIGRATION_20_21,
             )
             .build()
+
+    @Provides
+    fun provideAccountDao(database: MusFitDatabase): AccountDao = database.accountDao()
 
     @Provides
     fun provideFoodDao(database: MusFitDatabase): FoodDao = database.foodDao()
@@ -382,6 +388,96 @@ object DatabaseModule {
         object : Migration(18, 19) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE workout_sets ADD COLUMN supersetGroupId TEXT")
+            }
+        }
+
+    internal val MIGRATION_19_20 =
+        object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS accounts (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        displayName TEXT NOT NULL,
+                        email TEXT,
+                        remoteUserId TEXT,
+                        createdAtEpochMillis INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_email ON accounts(email)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_accounts_remoteUserId ON accounts(remoteUserId)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS account_session (
+                        `key` TEXT NOT NULL PRIMARY KEY,
+                        activeAccountId TEXT NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL,
+                        FOREIGN KEY(activeAccountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_account_session_activeAccountId ON account_session(activeAccountId)")
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO accounts (
+                        id, displayName, email, remoteUserId, createdAtEpochMillis, updatedAtEpochMillis
+                    ) VALUES (
+                        'local-default', 'You', NULL, NULL, 0, 0
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO account_session (`key`, activeAccountId, updatedAtEpochMillis)
+                    VALUES ('active', 'local-default', 0)
+                    """.trimIndent(),
+                )
+            }
+        }
+
+    internal val MIGRATION_20_21 =
+        object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    INSERT OR REPLACE INTO user_profile (
+                        id, sex, birthDateEpochDay, heightCm, activityLevel, goalType,
+                        goalPaceKgPerWeek, goalWeightKg, updatedAtEpochMillis
+                    )
+                    SELECT
+                        'local-default', sex, birthDateEpochDay, heightCm, activityLevel, goalType,
+                        goalPaceKgPerWeek, goalWeightKg, updatedAtEpochMillis
+                    FROM user_profile
+                    WHERE id = 'user'
+                    """.trimIndent(),
+                )
+                db.execSQL("DELETE FROM user_profile WHERE id = 'user'")
+                db.execSQL(
+                    """
+                    INSERT OR REPLACE INTO app_settings (
+                        id, unitSystem, themeMode, updatedAtEpochMillis
+                    )
+                    SELECT
+                        'local-default', unitSystem, themeMode, updatedAtEpochMillis
+                    FROM app_settings
+                    WHERE id = 'app'
+                    """.trimIndent(),
+                )
+                db.execSQL("DELETE FROM app_settings WHERE id = 'app'")
+                db.execSQL(
+                    """
+                    INSERT OR REPLACE INTO user_goals (
+                        id, stepGoal, weeklySessionTarget, targetWeightKg, updatedAtEpochMillis
+                    )
+                    SELECT
+                        'local-default', stepGoal, weeklySessionTarget, targetWeightKg, updatedAtEpochMillis
+                    FROM user_goals
+                    WHERE id = 'default'
+                    """.trimIndent(),
+                )
+                db.execSQL("DELETE FROM user_goals WHERE id = 'default'")
             }
         }
 }
