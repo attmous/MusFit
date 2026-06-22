@@ -19,7 +19,11 @@ Snapshot date: 2026-06-22. Schema version 21.
 
 | Path | Responsibility |
 | --- | --- |
-| `ui/food/FoodScreen.kt` | Diary screen, modal sheets, and most Food composables. |
+| `ui/food/FoodScreen.kt` | Diary screen, summary/header, meal detail, and the `FoodSheetMode` dispatch (~2,000 lines). |
+| `ui/food/FoodComponents.kt` | Shared leaf composables + formatters (`ProgressBar`, `FoodThumb`, `SectionTitle`, …). |
+| `ui/food/FoodTrackersUi.kt` | Water + Health Connect "More details" cards. |
+| `ui/food/FoodModalSheets.kt` | The 10 `FoodSheetMode` panels (database, editors, goals, recipes, templates, shopping). |
+| `ui/food/FoodAddPanelUi.kt` | The add-food panel and its entry-mode forms. |
 | `ui/food/AddFoodScreen.kt` | Full-screen add-food surface (the `AddFood` sheet mode). |
 | `ui/food/FoodViewModel.kt` | Single `@HiltViewModel`; owns `FoodUiState` and every Food action. |
 | `ui/food/BarcodeScannerScreen.kt` | CameraX + ML Kit barcode capture route. |
@@ -170,44 +174,62 @@ the single-ViewModel state machine.
 Each item is behavior-preserving and gated on the full verification command
 (`testDebugUnitTest lintDebug assembleDebug`).
 
-### Tier 1a — extract pure logic into `domain/` (lowest risk)
+### Tier 1a — extract pure logic (lowest risk)
 
-- [ ] Move the amount-preview math (`quantity × per-100 g ÷ 100`) into a pure
-  `NutritionCalculator` function; call it from the barcode, manual, and
-  diary-entry preview paths (removes 2–3 duplicated copies).
-- [ ] Move macro / advanced-nutrient / micronutrient **progress accumulation**
-  into pure calculators.
-- [ ] Move `buildDailyInsights` (~90 lines) into `domain/food/DiaryInsightsCalculator`.
-- [ ] Move `buildDayRating` (~45 lines) into `domain/food/DayRatingCalculator`.
-- [ ] Add focused domain unit tests for each; existing `FoodViewModelTest`
-  continues to pin the wiring.
+- [x] Move the amount-preview math (`quantity × per-100 g ÷ 100`) into pure
+  `NutritionCalculator.nutritionForAmount`; called from the add/preview path.
+  (Done — with domain tests.)
+- [ ] Move macro / advanced-nutrient / micronutrient **progress accumulation**,
+  `buildDailyInsights`, and `buildDayRating` out of the ViewModel.
+  **Re-scoped:** these consume the repository `FoodDiary` model and produce
+  `*UiState` types, so a pure-`domain/` home would force domain→repository and
+  domain→UI dependencies. The honest target is a `ui/food` presentation-calculator
+  file (e.g. `FoodSummaryCalculators.kt`) holding them as testable `internal`
+  functions — not `domain/`. Deferred.
 
-### Tier 1b — editor sub-state objects (medium risk)
+### Tier 1b — editor sub-state objects (medium risk, NOT YET DONE)
 
-Replace the flat per-editor input fields in `FoodUiState` with dedicated
-nullable sub-state data classes, one editor at a time, updating tests per step:
+Replace the flat per-editor input fields in `FoodUiState` with dedicated nullable
+sub-state data classes, one editor at a time, updating tests per step.
 
-- [ ] `DiaryEntryEditorState`
-- [ ] `SavedFoodEditorState` (consolidates ~15 nutrient input fields)
-- [ ] `RecipeEditorState`
-- [ ] `MealTemplateEditorState`
-- [ ] `GoalEditorState`
-- [ ] Barcode / manual `FoodDraftState`
+**Cost discovered while planning (do these in this order, each as its own
+verified change):**
 
-Each collapses several flat fields into one object, makes "which fields are live
-in which mode" obvious, and lets the editor be reasoned about in isolation.
+- [ ] `DiaryEntryEditorState` — **cleanest start.** Dedicated fields
+  (`editingDiaryEntry*`), only ~13 `FoodViewModelTest` references. Also touches
+  `withDiaryEntryPreview` and `DiaryEntryEditorPanel` (now in `FoodModalSheets.kt`).
+- [ ] `GoalEditorState` — ~19 goal-related test refs.
+- [ ] `MealTemplateEditorState` / `RecipeEditorState` — heaviest: ~50–80
+  template/recipe test references each. Expect large test churn.
+- [ ] `SavedFoodEditorState` — **entangled.** The saved-food editor reuses the
+  shared add-draft fields (`productName`, `brand`, `caloriesPer100g`, …); only
+  `editingSavedFoodId` is dedicated. Untangling from the add flow is a
+  prerequisite, so do this one last.
+
+Each collapses several flat fields into one object and makes "which fields are
+live in which mode" obvious. Because of the test coupling above, do **not**
+attempt all editors in one pass — land and verify one editor at a time.
 
 ### Tier 2 — split `FoodScreen.kt` along feature seams (mechanical)
 
-Relocate composables into sibling files in the same `com.musfit.ui.food`
-package (private composables become `internal`). No behavior change.
+Relocate composables into sibling files in the same `com.musfit.ui.food` package
+(private composables that cross a file boundary become `internal`). No behavior
+change. **Done — FoodScreen.kt went from ~4,900 to ~1,980 lines.**
 
-- [ ] `FoodComponents.kt` — shared primitives (`FoodThumb`, `ProgressBar`,
-  `SectionTitle`, `MealTypeChips`, avatars, formatters).
-- [ ] `FoodModalSheets.kt` — the `when (sheetMode)` dispatch + panel composables.
-- [ ] `FoodEditorsUi.kt` — saved-food / recipe / template / goal editor panels.
-- [ ] `FoodTrackersUi.kt` — water and Health Connect cards.
-- [ ] Keep `FoodScreen.kt` as the diary screen + top-level dispatch.
+- [x] `FoodComponents.kt` — shared primitives (`FoodThumb`, `ProgressBar`,
+  `SectionTitle`, avatars, `SmallNumberField`, formatters).
+- [x] `FoodTrackersUi.kt` — water and Health Connect cards.
+- [x] `FoodModalSheets.kt` — the 10 `FoodSheetMode` panels and their helpers
+  (the editor panels live here rather than a separate `FoodEditorsUi.kt`).
+- [x] `FoodAddPanelUi.kt` — the add-food panel and its entry-mode forms.
+- [x] `FoodScreen.kt` keeps the diary screen, summary/header, meal detail, and
+  the `when (sheetMode)` dispatch.
+
+Remaining optional Tier 2 polish:
+
+- [ ] Split the diary "More details" summary cards (rating, insights, advanced
+  nutrition, micronutrients) into a `FoodSummaryUi.kt` if `FoodScreen.kt`
+  needs to shrink further.
 
 ### Deferred / do NOT
 

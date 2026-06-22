@@ -216,8 +216,11 @@ Genuinely remaining Food work:
 
 ### Active internal effort: Food structure refactor
 
-Beyond features, there is an in-progress **structure refactor** (Tier 1 + Tier 2)
-to reduce the size of `FoodViewModel`/`FoodScreen`/`FoodUiState` without changing
-behavior. The plan and rationale live in
+A behavior-preserving **structure refactor** is underway. Done so far: the
+Food UI is split by feature (`FoodScreen.kt` ~2,000 lines + `FoodComponents.kt`,
+`FoodTrackersUi.kt`, `FoodModalSheets.kt`, `FoodAddPanelUi.kt`), and the
+amount-preview math moved into `NutritionCalculator`. Still pending: the
+`FoodUiState` editor sub-state objects (Tier 1b). The full plan, status, and the
+test-coupling cost of each remaining editor live in
 [`docs/architecture/food-system.md`](docs/architecture/food-system.md#refactor-backlog).
 Read it before doing large Food work so new code lands in the new structure.

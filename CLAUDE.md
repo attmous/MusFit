@@ -69,7 +69,7 @@ Strict layering, one direction of dependency: **Compose screen → ViewModel →
 
 ### The Food miniapp is concentrated and large
 
-`ui/food/FoodScreen.kt` and `ui/food/FoodViewModel.kt` are each ~4,700 lines; `data/repository/FoodRepository.kt` is ~2,400. New Food work extends these existing files and patterns — prefer following the established `FoodAddMode` / `FoodSheetMode` / state-driven sheet conventions over introducing new abstractions or splitting files unprompted.
+The Food UI is large but now split by feature seam: `ui/food/FoodScreen.kt` (~2,000 lines: diary, summary, meal detail, the `FoodSheetMode` dispatch) plus `FoodComponents.kt` (shared primitives), `FoodTrackersUi.kt` (water/Health Connect), `FoodModalSheets.kt` (the 10 sheet panels), and `FoodAddPanelUi.kt` (add-food forms). `ui/food/FoodViewModel.kt` is still ~4,800 lines and `data/repository/FoodRepository.kt` ~2,160. New Food work extends these existing files and patterns — prefer following the established `FoodAddMode` / `FoodSheetMode` / state-driven sheet conventions over introducing new abstractions or splitting files unprompted.
 
 For a full map of the Food miniapp — feature inventory, the state-driven sheet/add modes, the `FoodUiState` shape, and the in-progress structure refactor — see [`docs/architecture/food-system.md`](docs/architecture/food-system.md). Read it before large Food work.
 
