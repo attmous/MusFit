@@ -18,7 +18,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class AccountMigration18To19Test {
+class AccountMigrationTest {
     private lateinit var context: Context
 
     @Before
@@ -33,12 +33,12 @@ class AccountMigration18To19Test {
     }
 
     @Test
-    fun migration18To19_createsAccountTablesAndSeedsLocalDefaultSession() {
-        createDatabaseFromExportedSchema(version = 18)
+    fun migration19ToLatest_createsAccountTablesAndSeedsLocalDefaultSession() {
+        createDatabaseFromExportedSchema(version = 19)
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_18_19)
+                .addMigrations(DatabaseModule.MIGRATION_19_20, DatabaseModule.MIGRATION_20_21)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -88,8 +88,53 @@ class AccountMigration18To19Test {
         }
     }
 
+    @Test
+    fun migration20To21_remapsLegacySingletonRowsToLocalDefaultAccount() {
+        createDatabaseFromExportedSchema(version = 20)
+        insertLegacySingletonRows(version = 20)
+
+        val roomDatabase =
+            Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
+                .addMigrations(DatabaseModule.MIGRATION_20_21)
+                .build()
+        try {
+            roomDatabase.openHelper.writableDatabase.close()
+        } finally {
+            roomDatabase.close()
+        }
+
+        val migratedDatabase =
+            SQLiteDatabase.openDatabase(
+                context.getDatabasePath(TEST_DATABASE_NAME).path,
+                null,
+                SQLiteDatabase.OPEN_READONLY,
+            )
+        try {
+            migratedDatabase.rawQuery("SELECT id, sex FROM user_profile", null).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(LOCAL_DEFAULT_ACCOUNT_ID, cursor.getString(0))
+                assertEquals("Male", cursor.getString(1))
+                assertEquals(1, cursor.count)
+            }
+            migratedDatabase.rawQuery("SELECT id, themeMode FROM app_settings", null).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(LOCAL_DEFAULT_ACCOUNT_ID, cursor.getString(0))
+                assertEquals("dark", cursor.getString(1))
+                assertEquals(1, cursor.count)
+            }
+            migratedDatabase.rawQuery("SELECT id, stepGoal FROM user_goals", null).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(LOCAL_DEFAULT_ACCOUNT_ID, cursor.getString(0))
+                assertEquals(12_000L, cursor.getLong(1))
+                assertEquals(1, cursor.count)
+            }
+        } finally {
+            migratedDatabase.close()
+        }
+    }
+
     private companion object {
-        const val TEST_DATABASE_NAME = "account-migration-18-19-test"
+        const val TEST_DATABASE_NAME = "account-migration-test"
     }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
@@ -127,6 +172,49 @@ class AccountMigration18To19Test {
     }
 
     private fun resolveSchemaSql(sql: String, tableName: String): String = sql.replace("\${TABLE_NAME}", tableName)
+
+    private fun insertLegacySingletonRows(version: Int) {
+        val database =
+            SQLiteDatabase.openDatabase(
+                context.getDatabasePath(TEST_DATABASE_NAME).path,
+                null,
+                SQLiteDatabase.OPEN_READWRITE,
+            )
+        try {
+            database.execSQL(
+                """
+                INSERT INTO user_profile (
+                    id, sex, birthDateEpochDay, heightCm, activityLevel, goalType,
+                    goalPaceKgPerWeek, goalWeightKg, updatedAtEpochMillis
+                ) VALUES (
+                    'user', 'Male', 9000, 182.0, 'Active', 'Lose',
+                    0.5, 78.0, 1000
+                )
+                """.trimIndent(),
+            )
+            database.execSQL(
+                """
+                INSERT INTO app_settings (
+                    id, unitSystem, themeMode, updatedAtEpochMillis
+                ) VALUES (
+                    'app', 'metric', 'dark', 1000
+                )
+                """.trimIndent(),
+            )
+            database.execSQL(
+                """
+                INSERT INTO user_goals (
+                    id, stepGoal, weeklySessionTarget, targetWeightKg, updatedAtEpochMillis
+                ) VALUES (
+                    'default', 12000, 5, 78.0, 1000
+                )
+                """.trimIndent(),
+            )
+            database.version = version
+        } finally {
+            database.close()
+        }
+    }
 
     private fun resolveSchemaFile(version: Int): File {
         val relativePath = "schemas/com.musfit.data.local.MusFitDatabase/$version.json"

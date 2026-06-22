@@ -45,6 +45,7 @@ object DatabaseModule {
                 MIGRATION_17_18,
                 MIGRATION_18_19,
                 MIGRATION_19_20,
+                MIGRATION_20_21,
             )
             .build()
 
@@ -433,6 +434,50 @@ object DatabaseModule {
                     VALUES ('active', 'local-default', 0)
                     """.trimIndent(),
                 )
+            }
+        }
+
+    internal val MIGRATION_20_21 =
+        object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    INSERT OR REPLACE INTO user_profile (
+                        id, sex, birthDateEpochDay, heightCm, activityLevel, goalType,
+                        goalPaceKgPerWeek, goalWeightKg, updatedAtEpochMillis
+                    )
+                    SELECT
+                        'local-default', sex, birthDateEpochDay, heightCm, activityLevel, goalType,
+                        goalPaceKgPerWeek, goalWeightKg, updatedAtEpochMillis
+                    FROM user_profile
+                    WHERE id = 'user'
+                    """.trimIndent(),
+                )
+                db.execSQL("DELETE FROM user_profile WHERE id = 'user'")
+                db.execSQL(
+                    """
+                    INSERT OR REPLACE INTO app_settings (
+                        id, unitSystem, themeMode, updatedAtEpochMillis
+                    )
+                    SELECT
+                        'local-default', unitSystem, themeMode, updatedAtEpochMillis
+                    FROM app_settings
+                    WHERE id = 'app'
+                    """.trimIndent(),
+                )
+                db.execSQL("DELETE FROM app_settings WHERE id = 'app'")
+                db.execSQL(
+                    """
+                    INSERT OR REPLACE INTO user_goals (
+                        id, stepGoal, weeklySessionTarget, targetWeightKg, updatedAtEpochMillis
+                    )
+                    SELECT
+                        'local-default', stepGoal, weeklySessionTarget, targetWeightKg, updatedAtEpochMillis
+                    FROM user_goals
+                    WHERE id = 'default'
+                    """.trimIndent(),
+                )
+                db.execSQL("DELETE FROM user_goals WHERE id = 'default'")
             }
         }
 }

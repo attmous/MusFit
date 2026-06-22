@@ -68,7 +68,7 @@ import com.musfit.data.local.entity.WorkoutSetEntity
         AppSettingsEntity::class,
         UserGoalsEntity::class,
     ],
-    version = 20,
+    version = 21,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {

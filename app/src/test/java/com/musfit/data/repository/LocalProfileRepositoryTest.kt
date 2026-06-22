@@ -22,6 +22,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class LocalProfileRepositoryTest {
     private lateinit var database: MusFitDatabase
+    private lateinit var accountRepository: LocalAccountRepository
     private lateinit var repository: LocalProfileRepository
     private var clockMillis = 10_000L
 
@@ -31,9 +32,14 @@ class LocalProfileRepositoryTest {
         database = Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
             .allowMainThreadQueries()
             .build()
+        accountRepository = LocalAccountRepository(
+            accountDao = database.accountDao(),
+            clock = { clockMillis += 1_000L; clockMillis },
+        )
         repository = LocalProfileRepository(
             profileDao = database.profileDao(),
             healthDao = database.healthDao(),
+            accountRepository = accountRepository,
             clock = { clockMillis += 1_000L; clockMillis },
         )
     }
@@ -154,5 +160,47 @@ class LocalProfileRepositoryTest {
         assertEquals("metric", repository.observeSettings().first().unitSystem)
         repository.saveSettings(AppSettings(unitSystem = "metric", themeMode = "dark"))
         assertEquals("dark", repository.observeSettings().first().themeMode)
+    }
+
+    @Test
+    fun profileAndSettings_followActiveAccount() = runTest {
+        val first = accountRepository.ensureActiveAccount()
+        repository.saveProfile(
+            UserProfile(
+                sex = Sex.Male,
+                birthDateEpochDay = 9_000L,
+                heightCm = 182.0,
+                activityLevel = ActivityLevel.Active,
+                goalType = GoalType.Lose,
+                goalPaceKgPerWeek = 0.5,
+                goalWeightKg = 78.0,
+            ),
+        )
+        repository.saveSettings(AppSettings(unitSystem = "metric", themeMode = "dark"))
+
+        val secondId = accountRepository.createAccount(displayName = "Partner", email = null)
+        accountRepository.switchAccount(secondId)
+
+        assertNull(repository.observeProfile().first().sex)
+        assertEquals("system", repository.observeSettings().first().themeMode)
+
+        repository.saveProfile(
+            UserProfile(
+                sex = Sex.Female,
+                birthDateEpochDay = 8_000L,
+                heightCm = 170.0,
+                activityLevel = ActivityLevel.Light,
+                goalType = GoalType.Gain,
+                goalPaceKgPerWeek = 0.25,
+                goalWeightKg = 68.0,
+            ),
+        )
+
+        accountRepository.switchAccount(first.id)
+        assertEquals(Sex.Male, repository.observeProfile().first().sex)
+        assertEquals("dark", repository.observeSettings().first().themeMode)
+
+        accountRepository.switchAccount(secondId)
+        assertEquals(Sex.Female, repository.observeProfile().first().sex)
     }
 }
