@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 15,
-    "identityHash": "962f5038ed7a6c96a24f7a9c3fa9834f",
+    "version": 16,
+    "identityHash": "88d08112709312f9a94167ffae74366e",
     "entities": [
       {
         "tableName": "foods",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `brand` TEXT, `defaultServingGrams` REAL NOT NULL, `caloriesPer100g` REAL NOT NULL, `proteinPer100g` REAL NOT NULL, `carbsPer100g` REAL NOT NULL, `fatPer100g` REAL NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `servingName` TEXT, `barcode` TEXT, `category` TEXT, `isFavorite` INTEGER NOT NULL DEFAULT 0, `fiberPer100g` REAL NOT NULL DEFAULT 0, `sugarPer100g` REAL NOT NULL DEFAULT 0, `saturatedFatPer100g` REAL NOT NULL DEFAULT 0, `sodiumMgPer100g` REAL NOT NULL DEFAULT 0, `potassiumMgPer100g` REAL NOT NULL DEFAULT 0, `calciumMgPer100g` REAL NOT NULL DEFAULT 0, `ironMgPer100g` REAL NOT NULL DEFAULT 0, `vitaminDMcgPer100g` REAL NOT NULL DEFAULT 0, `vitaminCMgPer100g` REAL NOT NULL DEFAULT 0, `magnesiumMgPer100g` REAL NOT NULL DEFAULT 0, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `brand` TEXT, `defaultServingGrams` REAL NOT NULL, `caloriesPer100g` REAL NOT NULL, `proteinPer100g` REAL NOT NULL, `carbsPer100g` REAL NOT NULL, `fatPer100g` REAL NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `servingName` TEXT, `barcode` TEXT, `category` TEXT, `isFavorite` INTEGER NOT NULL DEFAULT 0, `fiberPer100g` REAL NOT NULL DEFAULT 0, `sugarPer100g` REAL NOT NULL DEFAULT 0, `saturatedFatPer100g` REAL NOT NULL DEFAULT 0, `sodiumMgPer100g` REAL NOT NULL DEFAULT 0, `potassiumMgPer100g` REAL NOT NULL DEFAULT 0, `calciumMgPer100g` REAL NOT NULL DEFAULT 0, `ironMgPer100g` REAL NOT NULL DEFAULT 0, `vitaminDMcgPer100g` REAL NOT NULL DEFAULT 0, `vitaminCMgPer100g` REAL NOT NULL DEFAULT 0, `magnesiumMgPer100g` REAL NOT NULL DEFAULT 0, `imageUrl` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -158,6 +158,11 @@
             "affinity": "REAL",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "imageUrl",
+            "columnName": "imageUrl",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -1786,7 +1791,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '962f5038ed7a6c96a24f7a9c3fa9834f')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '88d08112709312f9a94167ffae74366e')"
     ]
   }
 }

@@ -69,18 +69,21 @@ class LocalHealthRepository @Inject constructor(
     }
 
     override suspend fun exportLatestWorkout(): String? {
-        val session = trainingDao.getLatestWorkoutSession() ?: return null
-        val sets = trainingDao.getWorkoutSets(session.id)
+        val session = trainingDao.getLatestCompletedWorkoutSession() ?: return null
+        val sets = trainingDao.getCompletedWorkoutSets(session.id)
         if (sets.isEmpty()) return null
 
         val recordId = gateway.exportWorkout(session, sets) ?: return null
         val now = clock()
-        trainingDao.upsertWorkoutSession(
+        val updatedSession =
             session.copy(
                 healthConnectRecordId = recordId,
                 healthConnectLastExportedAtEpochMillis = now,
-            ),
-        )
+            )
+        val inserted = trainingDao.insertWorkoutSession(updatedSession)
+        if (inserted == -1L) {
+            trainingDao.updateWorkoutSession(updatedSession)
+        }
         upsertSyncState(
             lastImportAtEpochMillis = null,
             lastExportAtEpochMillis = now,

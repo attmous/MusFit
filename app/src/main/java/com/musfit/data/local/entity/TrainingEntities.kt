@@ -21,6 +21,8 @@ data class RoutineEntity(
     val name: String,
     val notes: String?,
     val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long = createdAtEpochMillis,
+    val isStarter: Boolean = false,
 )
 
 @Entity(
@@ -52,7 +54,7 @@ data class RoutineExerciseEntity(
 
 @Entity(
     tableName = "workout_sessions",
-    indices = [Index("routineId"), Index("startedAtEpochMillis")],
+    indices = [Index("routineId"), Index("startedAtEpochMillis"), Index("status")],
     foreignKeys = [
         ForeignKey(
             entity = RoutineEntity::class,
@@ -65,6 +67,8 @@ data class RoutineExerciseEntity(
 data class WorkoutSessionEntity(
     @PrimaryKey val id: String,
     val routineId: String?,
+    val title: String? = null,
+    val status: String = "completed",
     val startedAtEpochMillis: Long,
     val endedAtEpochMillis: Long?,
     val notes: String?,
@@ -95,6 +99,7 @@ data class WorkoutSetEntity(
     val sessionId: String,
     val exerciseId: String,
     val sortOrder: Int,
+    val setType: String = "working",
     val reps: Int?,
     val weightKg: Double?,
     val durationSeconds: Long?,

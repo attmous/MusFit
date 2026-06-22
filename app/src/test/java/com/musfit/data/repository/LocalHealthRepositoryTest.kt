@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -85,6 +86,8 @@ class LocalHealthRepositoryTest {
             WorkoutSessionEntity(
                 id = "session-1",
                 routineId = null,
+                title = "Bench workout",
+                status = "completed",
                 startedAtEpochMillis = 500L,
                 endedAtEpochMillis = 900L,
                 notes = null,
@@ -98,6 +101,7 @@ class LocalHealthRepositoryTest {
                 sessionId = "session-1",
                 exerciseId = "exercise-1",
                 sortOrder = 0,
+                setType = "working",
                 reps = 5,
                 weightKg = 100.0,
                 durationSeconds = null,
@@ -119,6 +123,292 @@ class LocalHealthRepositoryTest {
         assertEquals("record-id", savedSession?.healthConnectRecordId)
         assertEquals(1_000L, savedSession?.healthConnectLastExportedAtEpochMillis)
         assertNotNull(syncState?.lastExportAtEpochMillis)
+    }
+
+    @Test
+    fun exportLatestWorkout_preservesExportedWorkoutSetsWhenMetadataIsSaved() = runTest {
+        database.trainingDao().upsertExercise(
+            ExerciseEntity(
+                id = "exercise-1",
+                name = "Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "",
+                isCustom = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-1",
+                routineId = null,
+                title = "Bench workout",
+                status = "completed",
+                startedAtEpochMillis = 500L,
+                endedAtEpochMillis = 900L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-1",
+                sessionId = "session-1",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-2",
+                sessionId = "session-1",
+                exerciseId = "exercise-1",
+                sortOrder = 1,
+                setType = "working",
+                reps = 6,
+                weightKg = 102.5,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+
+        repository.exportLatestWorkout()
+
+        val savedSets = database.trainingDao().getWorkoutSets("session-1")
+
+        assertEquals(listOf("set-1", "set-2"), savedSets.map { it.id })
+    }
+
+    @Test
+    fun exportLatestWorkout_skipsActiveSessionAndExportsLatestCompletedWorkout() = runTest {
+        database.trainingDao().upsertExercise(
+            ExerciseEntity(
+                id = "exercise-1",
+                name = "Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "",
+                isCustom = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-completed",
+                routineId = null,
+                title = "Completed workout",
+                status = "completed",
+                startedAtEpochMillis = 500L,
+                endedAtEpochMillis = 900L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-active",
+                routineId = null,
+                title = "Active workout",
+                status = "active",
+                startedAtEpochMillis = 950L,
+                endedAtEpochMillis = null,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-completed",
+                sessionId = "session-completed",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-active",
+                sessionId = "session-active",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 3,
+                weightKg = 120.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+
+        val recordId = repository.exportLatestWorkout()
+
+        assertEquals("record-id", recordId)
+        assertEquals("session-completed", gateway.exportedSession?.id)
+        assertEquals(listOf("set-completed"), gateway.exportedSets.map { it.id })
+        assertNull(database.trainingDao().getWorkoutSession("session-active")?.healthConnectRecordId)
+    }
+
+    @Test
+    fun exportLatestWorkout_filtersOutIncompleteSetsFromCompletedSession() = runTest {
+        database.trainingDao().upsertExercise(
+            ExerciseEntity(
+                id = "exercise-1",
+                name = "Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "",
+                isCustom = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-1",
+                routineId = null,
+                title = "Bench workout",
+                status = "completed",
+                startedAtEpochMillis = 500L,
+                endedAtEpochMillis = 900L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-completed",
+                sessionId = "session-1",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-incomplete",
+                sessionId = "session-1",
+                exerciseId = "exercise-1",
+                sortOrder = 1,
+                setType = "working",
+                reps = 6,
+                weightKg = 95.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = false,
+            ),
+        )
+
+        repository.exportLatestWorkout()
+
+        assertEquals(listOf("set-completed"), gateway.exportedSets.map { it.id })
+    }
+
+    @Test
+    fun exportLatestWorkout_fallsBackWhenNewestCompletedWorkoutHasNoCompletedSets() = runTest {
+        database.trainingDao().upsertExercise(
+            ExerciseEntity(
+                id = "exercise-1",
+                name = "Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "",
+                isCustom = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-older-completed",
+                routineId = null,
+                title = "Older workout",
+                status = "completed",
+                startedAtEpochMillis = 500L,
+                endedAtEpochMillis = 900L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-newer-empty",
+                routineId = null,
+                title = "Newer empty workout",
+                status = "completed",
+                startedAtEpochMillis = 950L,
+                endedAtEpochMillis = 1_250L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-older-completed",
+                sessionId = "session-older-completed",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-newer-incomplete",
+                sessionId = "session-newer-empty",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 6,
+                weightKg = 95.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = false,
+            ),
+        )
+
+        val recordId = repository.exportLatestWorkout()
+
+        assertEquals("record-id", recordId)
+        assertEquals("session-older-completed", gateway.exportedSession?.id)
+        assertEquals(listOf("set-older-completed"), gateway.exportedSets.map { it.id })
+        assertNull(database.trainingDao().getWorkoutSession("session-newer-empty")?.healthConnectRecordId)
     }
 
     private class FakeHealthConnectGateway : HealthConnectGateway {

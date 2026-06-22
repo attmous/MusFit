@@ -111,6 +111,8 @@ class MusFitDatabaseTest {
                 name = "Lower Body",
                 notes = null,
                 createdAtEpochMillis = 4_000L,
+                updatedAtEpochMillis = 4_000L,
+                isStarter = false,
             )
         val routineExercise =
             RoutineExerciseEntity(
