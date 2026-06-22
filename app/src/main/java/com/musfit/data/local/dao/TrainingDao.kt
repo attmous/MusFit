@@ -61,6 +61,15 @@ data class WorkoutSetDetailRow(
     val completed: Boolean,
 )
 
+data class WorkoutHistorySummaryRow(
+    val sessionId: String,
+    val title: String?,
+    val startedAtEpochMillis: Long,
+    val endedAtEpochMillis: Long?,
+    val completedSetCount: Int,
+    val totalVolumeKg: Double,
+)
+
 @Dao
 interface TrainingDao {
     @Query("SELECT * FROM exercises ORDER BY name")
@@ -178,6 +187,26 @@ interface TrainingDao {
         """,
     )
     suspend fun getLatestCompletedWorkoutSession(): WorkoutSessionEntity?
+
+    @Query("SELECT * FROM workout_sessions WHERE id = :sessionId AND status = 'completed' LIMIT 1")
+    suspend fun getCompletedWorkoutSession(sessionId: String): WorkoutSessionEntity?
+
+    @Query(
+        """
+        SELECT workout_sessions.id AS sessionId,
+            workout_sessions.title AS title,
+            workout_sessions.startedAtEpochMillis AS startedAtEpochMillis,
+            workout_sessions.endedAtEpochMillis AS endedAtEpochMillis,
+            COALESCE(SUM(CASE WHEN workout_sets.completed = 1 THEN 1 ELSE 0 END), 0) AS completedSetCount,
+            COALESCE(SUM(CASE WHEN workout_sets.completed = 1 AND workout_sets.reps IS NOT NULL AND workout_sets.weightKg IS NOT NULL THEN workout_sets.reps * workout_sets.weightKg ELSE 0 END), 0) AS totalVolumeKg
+        FROM workout_sessions
+        LEFT JOIN workout_sets ON workout_sets.sessionId = workout_sessions.id
+        WHERE workout_sessions.status = 'completed'
+        GROUP BY workout_sessions.id
+        ORDER BY workout_sessions.startedAtEpochMillis DESC
+        """,
+    )
+    fun observeWorkoutHistorySummaries(): Flow<List<WorkoutHistorySummaryRow>>
 
     @Query(
         """

@@ -12,6 +12,8 @@ import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
+import com.musfit.data.repository.WorkoutHistoryDetail
+import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.WorkoutCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -50,6 +52,8 @@ data class TrainingUiState(
     val exercises: List<ExerciseSummary> = emptyList(),
     val activeWorkoutSummary: ActiveWorkoutSummary? = null,
     val activeWorkout: ActiveWorkoutDetail? = null,
+    val workoutHistory: List<WorkoutHistorySummary> = emptyList(),
+    val selectedWorkoutDetail: WorkoutHistoryDetail? = null,
     val exerciseSearchQuery: String = "",
     val exerciseName: String = "",
     val reps: String = "",
@@ -98,6 +102,11 @@ class TrainingViewModel @Inject constructor(
                 mutableState.update { it.copy(activeWorkout = activeWorkout) }
             }
         }
+        viewModelScope.launch {
+            repository.observeWorkoutHistory().collect { history ->
+                mutableState.update { it.copy(workoutHistory = history) }
+            }
+        }
     }
 
     fun selectSection(section: TrainingSection) {
@@ -106,6 +115,18 @@ class TrainingViewModel @Inject constructor(
 
     fun resumeActiveWorkout() {
         mutableState.update { it.copy(activeWorkoutRouteOpen = true) }
+    }
+
+    fun openWorkoutDetail(sessionId: String) {
+        viewModelScope.launch {
+            mutableState.update {
+                it.copy(selectedWorkoutDetail = repository.getWorkoutHistoryDetail(sessionId))
+            }
+        }
+    }
+
+    fun closeWorkoutDetail() {
+        mutableState.update { it.copy(selectedWorkoutDetail = null) }
     }
 
     fun closeActiveWorkoutRoute() {

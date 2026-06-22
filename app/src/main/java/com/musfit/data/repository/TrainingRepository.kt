@@ -5,6 +5,7 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.ActiveWorkoutSummaryRow
 import com.musfit.data.local.dao.RoutineSummaryRow
 import com.musfit.data.local.dao.TrainingDao
+import com.musfit.data.local.dao.WorkoutHistorySummaryRow
 import com.musfit.data.local.dao.WorkoutSetDetailRow
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.RoutineEntity
@@ -15,6 +16,7 @@ import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.WorkoutCalculator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -133,6 +135,20 @@ data class ActiveWorkoutDetail(
     val exerciseBlocks: List<WorkoutExerciseBlock>,
 )
 
+data class WorkoutHistorySummary(
+    val sessionId: String,
+    val title: String,
+    val startedAtEpochMillis: Long,
+    val endedAtEpochMillis: Long?,
+    val completedSetCount: Int,
+    val totalVolumeKg: Double,
+)
+
+data class WorkoutHistoryDetail(
+    val summary: WorkoutHistorySummary,
+    val exerciseBlocks: List<WorkoutExerciseBlock>,
+)
+
 interface TrainingRepository {
     suspend fun addCompletedSet(
         exerciseName: String,
@@ -153,6 +169,10 @@ interface TrainingRepository {
     fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = flowOf(null)
 
     fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?> = flowOf(null)
+
+    fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = flowOf(emptyList())
+
+    suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? = null
 
     fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary>
 
@@ -293,6 +313,25 @@ class LocalTrainingRepository @Inject constructor(
                 }
             }
         }
+
+    override fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> =
+        trainingDao.observeWorkoutHistorySummaries().map { rows ->
+            rows.map { it.toHistorySummary() }
+        }
+
+    override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? {
+        val session = trainingDao.getCompletedWorkoutSession(sessionId) ?: return null
+        val summary = trainingDao.observeWorkoutHistorySummaries().first()
+            .firstOrNull { it.sessionId == sessionId }
+            ?.toHistorySummary()
+            ?: return null
+        val detail = trainingDao.observeWorkoutSetDetailRows(session.id).first()
+            .toActiveWorkoutDetail(session, trainingDao)
+        return WorkoutHistoryDetail(
+            summary = summary,
+            exerciseBlocks = detail.exerciseBlocks,
+        )
+    }
 
     override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> {
         val range = date.dayRange()
@@ -757,6 +796,16 @@ private fun ActiveWorkoutSummaryRow.toSummary(): ActiveWorkoutSummary =
         sessionId = sessionId,
         title = title ?: "Blank workout",
         startedAtEpochMillis = startedAtEpochMillis,
+        completedSetCount = completedSetCount,
+        totalVolumeKg = totalVolumeKg,
+    )
+
+private fun WorkoutHistorySummaryRow.toHistorySummary(): WorkoutHistorySummary =
+    WorkoutHistorySummary(
+        sessionId = sessionId,
+        title = title ?: "Blank workout",
+        startedAtEpochMillis = startedAtEpochMillis,
+        endedAtEpochMillis = endedAtEpochMillis,
         completedSetCount = completedSetCount,
         totalVolumeKg = totalVolumeKg,
     )

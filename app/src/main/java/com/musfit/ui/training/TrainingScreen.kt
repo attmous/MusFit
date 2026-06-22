@@ -140,7 +140,13 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     )
                 }
             TrainingSection.Exercises -> ExerciseListPreview(state.exercises)
-            TrainingSection.History -> Text("Finish a workout to build history.")
+            TrainingSection.History ->
+                TrainingHistoryContent(
+                    history = state.workoutHistory,
+                    selectedDetail = state.selectedWorkoutDetail,
+                    onOpenDetail = viewModel::openWorkoutDetail,
+                    onCloseDetail = viewModel::closeWorkoutDetail,
+                )
             TrainingSection.Progress -> Text("Complete workouts to see progress.")
         }
     }

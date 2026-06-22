@@ -15,6 +15,8 @@ import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
+import com.musfit.data.repository.WorkoutHistoryDetail
+import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutForExport
 import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.domain.health.HealthConnectAvailability
@@ -169,6 +171,10 @@ class TodayViewModelTest {
         override suspend fun startBlankWorkout(): String = "session-blank"
 
         override suspend fun startWorkoutFromRoutine(routineId: String): String = "session-$routineId"
+
+        override fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = MutableStateFlow(emptyList())
+
+        override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? = null
 
         override suspend fun getLatestWorkoutForExport(): WorkoutForExport? = null
 

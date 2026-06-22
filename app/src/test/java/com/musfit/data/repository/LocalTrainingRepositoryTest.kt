@@ -867,6 +867,33 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun historyAndLatestExport_includeCompletedWorkoutsOnly() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val activeSession = repository.startBlankWorkout()
+        repository.addSetToExercise(
+            activeSession,
+            bench.id,
+            WorkoutSetInputData("working", reps = 5, weightKg = 100.0, rpe = 8.0, notes = null, completed = true),
+        )
+
+        assertTrue(repository.observeWorkoutHistory().first().isEmpty())
+        assertEquals(null, repository.getLatestWorkoutForExport())
+
+        repository.finishWorkout(activeSession)
+
+        val history = repository.observeWorkoutHistory().first()
+        val detail = repository.getWorkoutHistoryDetail(activeSession)
+        val export = repository.getLatestWorkoutForExport()
+
+        assertEquals(1, history.size)
+        assertEquals("Blank workout", history.single().title)
+        assertEquals(500.0, history.single().totalVolumeKg, 0.01)
+        assertEquals(1, detail?.exerciseBlocks?.single()?.sets?.size)
+        assertEquals(activeSession, export?.session?.id)
+    }
+
+    @Test
     fun observeDailyTrainingSummary_ignoresActiveAndDiscardedSessions() = runTest {
         val exercise =
             ExerciseEntity(

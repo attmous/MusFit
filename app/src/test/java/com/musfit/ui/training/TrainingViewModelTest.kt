@@ -13,6 +13,8 @@ import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
 import com.musfit.data.repository.WorkoutExerciseBlock
+import com.musfit.data.repository.WorkoutHistoryDetail
+import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.data.repository.WorkoutForExport
 import kotlinx.coroutines.Dispatchers
@@ -437,6 +439,24 @@ class TrainingViewModelTest {
         assertEquals(false, repository.updatedSetInput?.completed)
     }
 
+    @Test
+    fun openAndCloseWorkoutDetail_updatesSelectedHistoryDetail() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.selectSection(TrainingSection.History)
+        viewModel.openWorkoutDetail("session-history-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("session-history-1"), repository.openedWorkoutDetailSessionIds)
+        assertEquals("session-history-1", viewModel.state.value.selectedWorkoutDetail?.summary?.sessionId)
+
+        viewModel.closeWorkoutDetail()
+
+        assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
+    }
+
     private class FakeTrainingRepository : TrainingRepository {
         var addCalls = 0
         var seedCalls = 0
@@ -459,6 +479,8 @@ class TrainingViewModelTest {
         var duplicatedSessionId: String? = null
         var duplicatedExerciseId: String? = null
         var deletedSetId: String? = null
+        val openedWorkoutDetailSessionIds = mutableListOf<String>()
+
         private val routinesFlow = MutableStateFlow(
             listOf(
                 RoutineSummary(
@@ -471,6 +493,7 @@ class TrainingViewModelTest {
                 ),
             ),
         )
+
         val exercisesFlow = MutableStateFlow(
             listOf(
                 ExerciseSummary(
@@ -491,7 +514,22 @@ class TrainingViewModelTest {
                 ),
             ),
         )
+
+        private val workoutHistoryFlow = MutableStateFlow(
+            listOf(
+                WorkoutHistorySummary(
+                    sessionId = "session-history-1",
+                    title = "Push",
+                    startedAtEpochMillis = 1_000L,
+                    endedAtEpochMillis = 2_000L,
+                    completedSetCount = 2,
+                    totalVolumeKg = 800.0,
+                ),
+            ),
+        )
+
         private val activeWorkoutFlow = MutableStateFlow<ActiveWorkoutSummary?>(null)
+
         val activeWorkoutDetail = MutableStateFlow<ActiveWorkoutDetail?>(
             ActiveWorkoutDetail(
                 sessionId = "session-1",
@@ -531,6 +569,15 @@ class TrainingViewModelTest {
                 ),
             ),
         )
+
+        private val workoutHistoryDetails = mapOf(
+            "session-history-1" to
+                WorkoutHistoryDetail(
+                    summary = workoutHistoryFlow.value.single(),
+                    exerciseBlocks = activeWorkoutDetail.value?.exerciseBlocks.orEmpty(),
+                ),
+        )
+
         private val routineDetails = mutableMapOf(
             "routine-full-body-a" to
                 RoutineDetail(
@@ -584,6 +631,16 @@ class TrainingViewModelTest {
         override fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = activeWorkoutFlow
 
         override fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?> = activeWorkoutDetail
+
+        override fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = workoutHistoryFlow
+
+        override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? {
+            openedWorkoutDetailSessionIds += sessionId
+            return workoutHistoryDetails[sessionId]
+        }
+
+        override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> =
+            flowOf(TrainingSummary())
 
         override suspend fun createRoutine(input: RoutineInput): String {
             createdRoutineInput = input
@@ -646,14 +703,11 @@ class TrainingViewModelTest {
 
         override suspend fun discardWorkout(sessionId: String) = Unit
 
+        override suspend fun getLatestWorkoutForExport(): WorkoutForExport? = null
+
         override suspend fun seedStarterTrainingData() {
             seedCalls += 1
         }
-
-        override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> =
-            flowOf(TrainingSummary())
-
-        override suspend fun getLatestWorkoutForExport(): WorkoutForExport? = null
 
         override suspend fun markWorkoutExported(
             sessionId: String,
