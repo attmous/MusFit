@@ -1642,24 +1642,24 @@ internal fun MealTemplatesPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text("Meal templates", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        if (state.editingTemplateId != null) {
+        state.mealTemplateEditor?.let { editor ->
             Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Edit template", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     OutlinedTextField(
-                        value = state.templateNameInput,
+                        value = editor.name,
                         onValueChange = onNameChanged,
                         label = { Text("Name") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     MealTypeChips(
-                        selectedMealType = state.templateMealTypeInput,
+                        selectedMealType = editor.mealType,
                         mealDefinitions = state.mealDefinitions,
                         onMealChanged = onMealTypeChanged,
                     )
                     Text("Items", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    state.templateItemsInput.forEachIndexed { index, item ->
+                    editor.items.forEachIndexed { index, item ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1685,7 +1685,7 @@ internal fun MealTemplatesPanel(
                     Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         state.savedFoods.forEach { food ->
                             FilterChip(
-                                selected = state.templateItemFoodId == food.id,
+                                selected = editor.newItemFoodId == food.id,
                                 onClick = { onTemplateItemFoodChanged(food.id) },
                                 label = { Text(food.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             )
@@ -1697,7 +1697,7 @@ internal fun MealTemplatesPanel(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         OutlinedTextField(
-                            value = state.templateItemQuantityGrams,
+                            value = editor.newItemQuantityGrams,
                             onValueChange = onTemplateNewItemQuantityChanged,
                             label = { Text("Amount g") },
                             singleLine = true,

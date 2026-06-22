@@ -403,6 +403,15 @@ data class GoalEditorState(
     val useNetCarbsInput: Boolean = false,
 )
 
+data class MealTemplateEditorState(
+    val id: String,
+    val name: String = "",
+    val mealType: String = "breakfast",
+    val items: List<MealTemplateItemDraftUiState> = emptyList(),
+    val newItemFoodId: String = "",
+    val newItemQuantityGrams: String = "100",
+)
+
 data class FoodAmountNutritionPreviewUiState(
     val quantityGrams: Double,
     val caloriesKcal: Double,
@@ -528,12 +537,7 @@ data class FoodUiState(
     val savedFoodBarcode: String = "",
     val savedFoodCategory: String = "",
     val savedFoodIsFavorite: Boolean = false,
-    val editingTemplateId: String? = null,
-    val templateNameInput: String = "",
-    val templateMealTypeInput: String = "breakfast",
-    val templateItemsInput: List<MealTemplateItemDraftUiState> = emptyList(),
-    val templateItemFoodId: String = "",
-    val templateItemQuantityGrams: String = "100",
+    val mealTemplateEditor: MealTemplateEditorState? = null,
     val goalEditor: GoalEditorState = GoalEditorState(),
     val editingRecipeId: String? = null,
     val recipeName: String = "",
@@ -988,7 +992,7 @@ class FoodViewModel @Inject constructor(
                 message = null,
                 diaryEntryEditor = null,
                 editingSavedFoodId = null,
-                editingTemplateId = null,
+                mealTemplateEditor = null,
                 editingRecipeId = null,
                 editingMealDefinitionId = null,
                 selectedSavedFoodDetail = null,
@@ -1507,38 +1511,41 @@ class FoodViewModel @Inject constructor(
             it.copy(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.MealTemplates,
-                editingTemplateId = template.id,
-                templateNameInput = template.name,
-                templateMealTypeInput = template.mealType,
-                templateItemsInput = template.items,
-                templateItemFoodId = "",
-                templateItemQuantityGrams = "100",
+                mealTemplateEditor = MealTemplateEditorState(
+                    id = template.id,
+                    name = template.name,
+                    mealType = template.mealType,
+                    items = template.items,
+                ),
                 message = null,
             )
         }
     }
 
     fun onTemplateNameChanged(value: String) {
-        mutableState.update { it.copy(templateNameInput = value, message = null) }
+        mutableState.update { it.copy(mealTemplateEditor = it.mealTemplateEditor?.copy(name = value), message = null) }
     }
 
     fun onTemplateMealTypeChanged(value: String) {
-        mutableState.update { it.copy(templateMealTypeInput = value.normalizedMealType(), message = null) }
+        mutableState.update { it.copy(mealTemplateEditor = it.mealTemplateEditor?.copy(mealType = value.normalizedMealType()), message = null) }
     }
 
     fun onTemplateDraftItemQuantityChanged(index: Int, value: String) {
         mutableState.update { currentState ->
-            if (index !in currentState.templateItemsInput.indices) {
+            val editor = currentState.mealTemplateEditor
+            if (editor == null || index !in editor.items.indices) {
                 currentState
             } else {
                 currentState.copy(
-                    templateItemsInput = currentState.templateItemsInput.mapIndexed { itemIndex, item ->
-                        if (itemIndex == index) {
-                            item.copy(quantityGrams = value.sanitizeDecimalInput())
-                        } else {
-                            item
-                        }
-                    },
+                    mealTemplateEditor = editor.copy(
+                        items = editor.items.mapIndexed { itemIndex, item ->
+                            if (itemIndex == index) {
+                                item.copy(quantityGrams = value.sanitizeDecimalInput())
+                            } else {
+                                item
+                            }
+                        },
+                    ),
                     message = null,
                 )
             }
@@ -1547,11 +1554,14 @@ class FoodViewModel @Inject constructor(
 
     fun removeTemplateDraftItem(index: Int) {
         mutableState.update { currentState ->
-            if (index !in currentState.templateItemsInput.indices) {
+            val editor = currentState.mealTemplateEditor
+            if (editor == null || index !in editor.items.indices) {
                 currentState
             } else {
                 currentState.copy(
-                    templateItemsInput = currentState.templateItemsInput.filterIndexed { itemIndex, _ -> itemIndex != index },
+                    mealTemplateEditor = editor.copy(
+                        items = editor.items.filterIndexed { itemIndex, _ -> itemIndex != index },
+                    ),
                     message = null,
                 )
             }
@@ -1561,39 +1571,46 @@ class FoodViewModel @Inject constructor(
     fun onTemplateItemFoodChanged(value: String) {
         val food = state.value.savedFoods.firstOrNull { it.id == value }
         mutableState.update {
+            val editor = it.mealTemplateEditor ?: return@update it
             it.copy(
-                templateItemFoodId = value,
-                templateItemQuantityGrams = food?.defaultServingGrams?.formatInputNumber() ?: it.templateItemQuantityGrams,
+                mealTemplateEditor = editor.copy(
+                    newItemFoodId = value,
+                    newItemQuantityGrams = food?.defaultServingGrams?.formatInputNumber() ?: editor.newItemQuantityGrams,
+                ),
                 message = null,
             )
         }
     }
 
     fun onTemplateNewItemQuantityChanged(value: String) {
-        mutableState.update { it.copy(templateItemQuantityGrams = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(mealTemplateEditor = it.mealTemplateEditor?.copy(newItemQuantityGrams = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun addTemplateItem() {
         val currentState = state.value
-        val food = currentState.savedFoods.firstOrNull { it.id == currentState.templateItemFoodId }
+        val editor = currentState.mealTemplateEditor ?: return
+        val food = currentState.savedFoods.firstOrNull { it.id == editor.newItemFoodId }
         if (food == null) {
             mutableState.update { it.copy(message = "Choose a food") }
             return
         }
-        val quantity = currentState.templateItemQuantityGrams.parsePositiveNumberOrNull()
+        val quantity = editor.newItemQuantityGrams.parsePositiveNumberOrNull()
         if (quantity == null) {
             mutableState.update { it.copy(message = "Enter item amount") }
             return
         }
         mutableState.update {
+            val current = it.mealTemplateEditor ?: return@update it
             it.copy(
-                templateItemsInput = it.templateItemsInput + MealTemplateItemDraftUiState(
-                    foodId = food.id,
-                    foodName = food.name,
-                    quantityGrams = quantity.formatInputNumber(),
+                mealTemplateEditor = current.copy(
+                    items = current.items + MealTemplateItemDraftUiState(
+                        foodId = food.id,
+                        foodName = food.name,
+                        quantityGrams = quantity.formatInputNumber(),
+                    ),
+                    newItemFoodId = "",
+                    newItemQuantityGrams = "100",
                 ),
-                templateItemFoodId = "",
-                templateItemQuantityGrams = "100",
                 message = null,
             )
         }
@@ -1601,17 +1618,18 @@ class FoodViewModel @Inject constructor(
 
     fun saveMealTemplateEdits() {
         val currentState = state.value
-        val templateId = currentState.editingTemplateId
-        if (templateId == null) {
+        val editor = currentState.mealTemplateEditor
+        if (editor == null) {
             mutableState.update { it.copy(message = "Choose a template") }
             return
         }
-        if (currentState.templateNameInput.isBlank()) {
+        val templateId = editor.id
+        if (editor.name.isBlank()) {
             mutableState.update { it.copy(message = "Enter a template name") }
             return
         }
         val items =
-            currentState.templateItemsInput.mapNotNull { item ->
+            editor.items.mapNotNull { item ->
                 item.quantityGrams.parsePositiveNumberOrNull()?.let { quantity ->
                     MealTemplateItemInput(
                         foodId = item.foodId,
@@ -1619,7 +1637,7 @@ class FoodViewModel @Inject constructor(
                     )
                 }
             }
-        if (items.size != currentState.templateItemsInput.size || items.isEmpty()) {
+        if (items.size != editor.items.size || items.isEmpty()) {
             mutableState.update { it.copy(message = "Add at least one valid template item") }
             return
         }
@@ -1631,19 +1649,15 @@ class FoodViewModel @Inject constructor(
                 repository.updateMealTemplate(
                     MealTemplateUpdateInput(
                         templateId = templateId,
-                        name = currentState.templateNameInput,
-                        mealType = currentState.templateMealTypeInput,
+                        name = editor.name,
+                        mealType = editor.mealType,
                         items = items,
                     ),
                 )
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        editingTemplateId = null,
-                        templateNameInput = "",
-                        templateItemsInput = emptyList(),
-                        templateItemFoodId = "",
-                        templateItemQuantityGrams = "100",
+                        mealTemplateEditor = null,
                         message = "Updated meal template",
                     )
                 }
@@ -1693,11 +1707,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        editingTemplateId = null,
-                        templateNameInput = "",
-                        templateItemsInput = emptyList(),
-                        templateItemFoodId = "",
-                        templateItemQuantityGrams = "100",
+                        mealTemplateEditor = null,
                         message = "Deleted meal template",
                     )
                 }
