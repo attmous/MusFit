@@ -4696,12 +4696,17 @@ internal fun CreateFoodForm(
             onQuantityChanged = onQuantityChanged,
             onAmountServingChoiceSelected = onAmountServingChoiceSelected,
         )
+        // Live total for the chosen serving, directly under the amount so it visibly updates as you type.
+        state.amountNutritionPreview?.let { preview ->
+            AmountNutritionPreview(preview = preview)
+        }
         NutritionFields(
             state = state,
             onCaloriesChanged = onCaloriesChanged,
             onProteinChanged = onProteinChanged,
             onCarbsChanged = onCarbsChanged,
             onFatChanged = onFatChanged,
+            showAmountPreview = false,
         )
 
         Row(
@@ -4793,6 +4798,7 @@ private fun NutritionFields(
     onProteinChanged: (String) -> Unit,
     onCarbsChanged: (String) -> Unit,
     onFatChanged: (String) -> Unit,
+    showAmountPreview: Boolean = true,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -4834,8 +4840,10 @@ private fun NutritionFields(
                 modifier = Modifier.weight(1f),
             )
         }
-        state.amountNutritionPreview?.let { preview ->
-            AmountNutritionPreview(preview = preview)
+        if (showAmountPreview) {
+            state.amountNutritionPreview?.let { preview ->
+                AmountNutritionPreview(preview = preview)
+            }
         }
     }
 }
