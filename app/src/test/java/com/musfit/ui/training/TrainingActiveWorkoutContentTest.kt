@@ -1,10 +1,60 @@
 package com.musfit.ui.training
 
+import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSetDetail
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class TrainingActiveWorkoutContentTest {
+    @Test
+    fun compactExerciseSuggestions_collapsedDoesNotShowLibraryItems() {
+        val suggestions = compactExerciseSuggestions(
+            exercises = listOf(
+                exercise(id = "squat", name = "Back Squat"),
+                exercise(id = "bench", name = "Barbell Bench Press"),
+            ),
+            query = "",
+            expanded = false,
+        )
+
+        assertEquals(emptyList<ExerciseSummary>(), suggestions)
+    }
+
+    @Test
+    fun compactExerciseSuggestions_expandedCapsBlankAndFilteredSuggestions() {
+        val exercises = listOf(
+            exercise(id = "squat", name = "Back Squat"),
+            exercise(id = "bench", name = "Barbell Bench Press"),
+            exercise(id = "row", name = "Barbell Row"),
+            exercise(id = "deadlift", name = "Deadlift"),
+            exercise(id = "curl", name = "Dumbbell Biceps Curl"),
+            exercise(id = "press", name = "Dumbbell Shoulder Press"),
+            exercise(id = "face-pull", name = "Face Pull"),
+        )
+
+        val blankSuggestions = compactExerciseSuggestions(
+            exercises = exercises,
+            query = "",
+            expanded = true,
+        )
+        val filteredSuggestions = compactExerciseSuggestions(
+            exercises = exercises,
+            query = "bell",
+            expanded = true,
+        )
+
+        assertEquals(listOf("Back Squat", "Barbell Bench Press", "Barbell Row"), blankSuggestions.map { it.name })
+        assertEquals(
+            listOf(
+                "Barbell Bench Press",
+                "Barbell Row",
+                "Dumbbell Biceps Curl",
+                "Dumbbell Shoulder Press",
+            ),
+            filteredSuggestions.map { it.name },
+        )
+    }
+
     @Test
     fun formatWorkoutSetRowsForDisplay_labelsWarmupsAndNumbersWorkingSets() {
         val rows = formatWorkoutSetRowsForDisplay(
@@ -60,5 +110,15 @@ class TrainingActiveWorkoutContentTest {
             notes = null,
             completed = false,
             previousLabel = previousLabel,
+        )
+
+    private fun exercise(id: String, name: String): ExerciseSummary =
+        ExerciseSummary(
+            id = id,
+            name = name,
+            category = "Strength",
+            equipment = null,
+            targetMuscles = "Full body",
+            isCustom = false,
         )
 }

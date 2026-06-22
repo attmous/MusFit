@@ -5,8 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,16 +20,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,7 +55,6 @@ import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.WorkoutExerciseBlock
 import java.util.Locale
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TrainingActiveWorkoutContent(
     workout: ActiveWorkoutDetail,
@@ -71,7 +70,7 @@ fun TrainingActiveWorkoutContent(
     onFinish: () -> Unit,
     onDiscard: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ActiveWorkoutHeader(
             workout = workout,
             onClose = onClose,
@@ -79,24 +78,10 @@ fun TrainingActiveWorkoutContent(
             onDiscard = onDiscard,
         )
         RestTimerBanner(restTimer = restTimer)
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("Add exercise", style = MaterialTheme.typography.titleMedium)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    exercises.forEach { exercise ->
-                        TextButton(onClick = { onAddExercise(exercise.id) }) {
-                            Text(exercise.name)
-                        }
-                    }
-                }
-            }
-        }
+        AddExerciseCompactBar(
+            exercises = exercises,
+            onAddExercise = onAddExercise,
+        )
         workout.exerciseBlocks.forEach { block ->
             ActiveExerciseBlock(
                 block = block,
@@ -107,6 +92,111 @@ fun TrainingActiveWorkoutContent(
                 onDeleteSet = onDeleteSet,
                 onToggleSet = onToggleSet,
             )
+        }
+    }
+}
+
+@Composable
+private fun AddExerciseCompactBar(
+    exercises: List<ExerciseSummary>,
+    onAddExercise: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val suggestions = compactExerciseSuggestions(
+        exercises = exercises,
+        query = query,
+        expanded = expanded,
+    )
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(6.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 46.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "Add exercise",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (expanded) {
+                    IconButton(
+                        onClick = {
+                            expanded = false
+                            query = ""
+                        },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Close exercise search",
+                        )
+                    }
+                }
+            }
+
+            if (expanded) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = null,
+                        )
+                    },
+                    placeholder = { Text("Search exercise") },
+                )
+                Column(
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    suggestions.forEach { exercise ->
+                        TextButton(
+                            onClick = {
+                                onAddExercise(exercise.id)
+                                query = ""
+                                expanded = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = exercise.name,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Start,
+                            )
+                        }
+                    }
+                    if (query.isNotBlank() && suggestions.isEmpty()) {
+                        Text(
+                            text = "No matching exercises",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -202,7 +292,7 @@ private fun ActiveExerciseBlock(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -268,17 +358,20 @@ private fun ActiveExerciseBlock(
                 onToggleSet = onToggleSet,
             )
         }
-        Button(
-            onClick = { onAddSet(block.exercise.id) },
+        Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Add Set")
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { onAddSet(block.exercise.id) },
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Set")
+            }
             TextButton(onClick = { onDuplicateSet(block.exercise.id) }) {
-                Text("Duplicate last")
+                Text("Duplicate")
             }
         }
         HorizontalDivider()
@@ -330,6 +423,7 @@ private fun WorkoutSetTableRow(
     var weightKg by remember(set.id) { mutableStateOf(row.weightKg) }
     var rpe by remember(set.id) { mutableStateOf(row.rpe) }
     var notes by remember(set.id) { mutableStateOf(set.notes.orEmpty()) }
+    var expanded by remember(set.id) { mutableStateOf(!set.notes.isNullOrBlank()) }
 
     LaunchedEffect(set.reps, set.weightKg, set.rpe, set.notes) {
         reps = row.reps
@@ -348,7 +442,7 @@ private fun WorkoutSetTableRow(
     }
 
     val rowColor = if (isAlternate) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
     } else {
         Color.Transparent
     }
@@ -358,13 +452,13 @@ private fun WorkoutSetTableRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(rowColor)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 44.dp),
+                .heightIn(min = 40.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -389,7 +483,9 @@ private fun WorkoutSetTableRow(
             )
             Text(
                 row.previousLabel,
-                modifier = Modifier.weight(1.35f),
+                modifier = Modifier
+                    .weight(1.35f)
+                    .clickable { expanded = !expanded },
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -425,31 +521,55 @@ private fun WorkoutSetTableRow(
                 modifier = Modifier.width(42.dp),
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CompactNotesField(
-                value = notes,
-                onValueChange = {
-                    notes = it
-                    persist(nextNotes = it)
-                },
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(
-                onClick = { onDeleteSet(set.id) },
-                modifier = Modifier.size(34.dp),
+        if (expanded || notes.isNotBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Delete,
-                    contentDescription = "Delete set",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                CompactNotesField(
+                    value = notes,
+                    onValueChange = {
+                        notes = it
+                        persist(nextNotes = it)
+                    },
+                    modifier = Modifier.weight(1f),
                 )
+                IconButton(
+                    onClick = { onDeleteSet(set.id) },
+                    modifier = Modifier.size(34.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = "Delete set",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
+}
+
+internal fun compactExerciseSuggestions(
+    exercises: List<ExerciseSummary>,
+    query: String,
+    expanded: Boolean,
+): List<ExerciseSummary> {
+    if (!expanded) return emptyList()
+
+    val trimmedQuery = query.trim()
+    val filtered = if (trimmedQuery.isBlank()) {
+        exercises
+    } else {
+        exercises.filter { exercise ->
+            exercise.name.contains(trimmedQuery, ignoreCase = true) ||
+                exercise.category.contains(trimmedQuery, ignoreCase = true) ||
+                exercise.targetMuscles.contains(trimmedQuery, ignoreCase = true) ||
+                exercise.equipment?.contains(trimmedQuery, ignoreCase = true) == true
+        }
+    }
+    val limit = if (trimmedQuery.isBlank()) 3 else 6
+    return filtered.take(limit)
 }
 
 @Composable
@@ -473,10 +593,10 @@ private fun CompactCellTextField(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 36.dp)
+                    .heightIn(min = 32.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                    .padding(horizontal = 4.dp, vertical = 7.dp),
+                    .padding(horizontal = 4.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 innerTextField()
@@ -505,10 +625,10 @@ private fun CompactRpeField(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 36.dp)
+                    .heightIn(min = 32.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(horizontal = 4.dp, vertical = 7.dp),
+                    .padding(horizontal = 4.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 if (value.isBlank()) {
@@ -541,10 +661,10 @@ private fun CompactNotesField(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 34.dp)
+                    .heightIn(min = 32.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f))
-                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 if (value.isBlank()) {
@@ -573,6 +693,7 @@ private fun CompletionButton(
         Box(
             modifier = Modifier
                 .size(34.dp)
+                .heightIn(min = 32.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(
                     if (completed) {
