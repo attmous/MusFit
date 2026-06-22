@@ -16,6 +16,7 @@ import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodServingEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
+import com.musfit.data.local.entity.UserGoalsEntity
 import com.musfit.data.local.entity.UserProfileEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -220,5 +221,17 @@ class MusFitDatabaseTest {
         assertEquals(settings, profileDao.observeSettings("app").first())
         assertEquals(profile, profileDao.getProfile("user"))
         assertNull(profileDao.observeProfile("missing").first())
+    }
+
+    @Test
+    fun userGoals_roundTrip() = runTest {
+        val dao = database.userGoalsDao()
+        dao.upsertUserGoals(UserGoalsEntity("default", 8_000L, 5, 78.0, 1L))
+
+        val loaded = dao.observeUserGoals("default").first()
+
+        assertEquals(8_000L, loaded?.stepGoal)
+        assertEquals(5, loaded?.weeklySessionTarget)
+        assertEquals(78.0, loaded?.targetWeightKg ?: 0.0, 0.001)
     }
 }

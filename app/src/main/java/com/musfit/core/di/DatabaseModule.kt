@@ -9,6 +9,7 @@ import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
 import com.musfit.data.local.dao.ProfileDao
 import com.musfit.data.local.dao.TrainingDao
+import com.musfit.data.local.dao.UserGoalsDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -40,6 +41,7 @@ object DatabaseModule {
                 MIGRATION_14_15,
                 MIGRATION_15_16,
                 MIGRATION_16_17,
+                MIGRATION_17_18,
             )
             .build()
 
@@ -54,6 +56,9 @@ object DatabaseModule {
 
     @Provides
     fun provideProfileDao(database: MusFitDatabase): ProfileDao = database.profileDao()
+
+    @Provides
+    fun provideUserGoalsDao(database: MusFitDatabase): UserGoalsDao = database.userGoalsDao()
 
     private val MIGRATION_1_2 =
         object : Migration(1, 2) {
@@ -326,6 +331,23 @@ object DatabaseModule {
 
     private val MIGRATION_16_17 =
         object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_goals (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        stepGoal INTEGER NOT NULL,
+                        weeklySessionTarget INTEGER NOT NULL,
+                        targetWeightKg REAL NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
+    private val MIGRATION_17_18 =
+        object : Migration(17, 18) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
