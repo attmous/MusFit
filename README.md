@@ -49,6 +49,14 @@ Install the generated debug APK on a connected Android device or emulator for lo
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
+## Documentation
+
+Architecture and screen/model contracts are documented under `docs/architecture/`:
+
+- `docs/architecture/README.md`
+- `docs/architecture/screen-contracts.md`
+- `docs/architecture/data-models.md`
+
 ## Privacy
 
 The MVP stores health, meal, and workout data on-device. It has no account system, cloud sync, analytics, subscriptions, social features, AI coaching, or direct wearable cloud API integrations.
