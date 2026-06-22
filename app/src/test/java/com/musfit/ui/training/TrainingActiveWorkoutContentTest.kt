@@ -92,6 +92,35 @@ class TrainingActiveWorkoutContentTest {
         assertEquals("7.5", rows.single().rpe)
     }
 
+    @Test
+    fun restTimerDisplayText_formatsOffRunningAndPausedStates() {
+        assertEquals("Rest Timer: OFF", restTimerDisplayText(RestTimerState()))
+        assertEquals(
+            "Rest Timer: 2min 0s",
+            restTimerDisplayText(
+                RestTimerState(
+                    isVisible = true,
+                    sourceSetId = "set-1",
+                    durationSeconds = 120,
+                    remainingSeconds = 120,
+                    isRunning = true,
+                ),
+            ),
+        )
+        assertEquals(
+            "Rest Timer: Paused at 1min 5s",
+            restTimerDisplayText(
+                RestTimerState(
+                    isVisible = true,
+                    sourceSetId = "set-1",
+                    durationSeconds = 120,
+                    remainingSeconds = 65,
+                    isRunning = false,
+                ),
+            ),
+        )
+    }
+
     private fun set(
         id: String,
         setType: String,

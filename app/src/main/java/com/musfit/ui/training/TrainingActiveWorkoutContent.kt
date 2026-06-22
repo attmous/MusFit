@@ -24,6 +24,8 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
@@ -53,6 +55,7 @@ import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.WorkoutExerciseBlock
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 @Composable
@@ -60,6 +63,11 @@ fun TrainingActiveWorkoutContent(
     workout: ActiveWorkoutDetail,
     exercises: List<ExerciseSummary>,
     restTimer: RestTimerState,
+    onTickRestTimer: () -> Unit,
+    onPauseRestTimer: () -> Unit,
+    onResumeRestTimer: () -> Unit,
+    onSkipRestTimer: () -> Unit,
+    onAdjustRestTimer: (Int) -> Unit,
     onAddExercise: (String) -> Unit,
     onAddSet: (String) -> Unit,
     onDuplicateSet: (String) -> Unit,
@@ -71,13 +79,23 @@ fun TrainingActiveWorkoutContent(
     onDiscard: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        RestTimerTicker(
+            restTimer = restTimer,
+            onTick = onTickRestTimer,
+        )
         ActiveWorkoutHeader(
             workout = workout,
             onClose = onClose,
             onFinish = onFinish,
             onDiscard = onDiscard,
         )
-        RestTimerBanner(restTimer = restTimer)
+        RestTimerBanner(
+            restTimer = restTimer,
+            onPause = onPauseRestTimer,
+            onResume = onResumeRestTimer,
+            onSkip = onSkipRestTimer,
+            onAdjust = onAdjustRestTimer,
+        )
         AddExerciseCompactBar(
             exercises = exercises,
             onAddExercise = onAddExercise,
@@ -85,13 +103,25 @@ fun TrainingActiveWorkoutContent(
         workout.exerciseBlocks.forEach { block ->
             ActiveExerciseBlock(
                 block = block,
-                restTimer = restTimer,
                 onAddSet = onAddSet,
                 onDuplicateSet = onDuplicateSet,
                 onUpdateSet = onUpdateSet,
                 onDeleteSet = onDeleteSet,
                 onToggleSet = onToggleSet,
             )
+        }
+    }
+}
+
+@Composable
+private fun RestTimerTicker(
+    restTimer: RestTimerState,
+    onTick: () -> Unit,
+) {
+    LaunchedEffect(restTimer.isVisible, restTimer.isRunning, restTimer.remainingSeconds) {
+        if (restTimer.isVisible && restTimer.isRunning && restTimer.remainingSeconds > 0) {
+            delay(1_000L)
+            onTick()
         }
     }
 }
@@ -260,30 +290,77 @@ private fun StatCell(
 }
 
 @Composable
-private fun RestTimerBanner(restTimer: RestTimerState) {
-    val text = if (restTimer.isVisible) {
-        "Rest Timer: ${restTimer.durationSeconds.formatDuration()}"
-    } else {
-        "Rest Timer: OFF"
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+private fun RestTimerBanner(
+    restTimer: RestTimerState,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onSkip: () -> Unit,
+    onAdjust: (Int) -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Icon(
-            imageVector = Icons.Outlined.Timer,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-        )
-        Text(text, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Timer,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = restTimerDisplayText(restTimer),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            if (restTimer.isVisible) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    TextButton(onClick = { onAdjust(-15) }) {
+                        Text("-15s")
+                    }
+                    IconButton(onClick = if (restTimer.isRunning) onPause else onResume) {
+                        Icon(
+                            imageVector = if (restTimer.isRunning) {
+                                Icons.Outlined.Pause
+                            } else {
+                                Icons.Outlined.PlayArrow
+                            },
+                            contentDescription = if (restTimer.isRunning) {
+                                "Pause rest timer"
+                            } else {
+                                "Resume rest timer"
+                            },
+                        )
+                    }
+                    TextButton(onClick = { onAdjust(15) }) {
+                        Text("+15s")
+                    }
+                    TextButton(onClick = onSkip) {
+                        Text("Skip")
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun ActiveExerciseBlock(
     block: WorkoutExerciseBlock,
-    restTimer: RestTimerState,
     onAddSet: (String) -> Unit,
     onDuplicateSet: (String) -> Unit,
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
@@ -326,26 +403,6 @@ private fun ActiveExerciseBlock(
                 imageVector = Icons.Outlined.MoreVert,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Timer,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(
-                text = if (restTimer.isVisible) {
-                    "Rest Timer: ${restTimer.durationSeconds.formatDuration()}"
-                } else {
-                    "Rest Timer: OFF"
-                },
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyLarge,
             )
         }
         SetTableHeader()
@@ -748,6 +805,13 @@ internal fun formatWorkoutSetRowsForDisplay(sets: List<LoggedWorkoutSetDetail>):
         )
     }
 }
+
+internal fun restTimerDisplayText(restTimer: RestTimerState): String =
+    when {
+        !restTimer.isVisible || restTimer.remainingSeconds <= 0 -> "Rest Timer: OFF"
+        restTimer.isRunning -> "Rest Timer: ${restTimer.remainingSeconds.formatDuration()}"
+        else -> "Rest Timer: Paused at ${restTimer.remainingSeconds.formatDuration()}"
+    }
 
 private fun Double?.formatCompact(): String =
     when {

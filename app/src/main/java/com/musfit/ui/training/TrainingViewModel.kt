@@ -54,7 +54,9 @@ data class ExerciseEditorState(
 data class RestTimerState(
     val isVisible: Boolean = false,
     val sourceSetId: String? = null,
-    val durationSeconds: Int = 120,
+    val durationSeconds: Int = DEFAULT_REST_TIMER_SECONDS,
+    val remainingSeconds: Int = 0,
+    val isRunning: Boolean = false,
 )
 
 data class TrainingUiState(
@@ -502,9 +504,77 @@ class TrainingViewModel @Inject constructor(
                 ),
             )
             if (completed) {
-                mutableState.update {
-                    it.copy(restTimer = RestTimerState(isVisible = true, sourceSetId = setId))
-                }
+                startRestTimer(setId)
+            }
+        }
+    }
+
+    fun tickRestTimer() {
+        mutableState.update { current ->
+            val timer = current.restTimer
+            if (!timer.isVisible || !timer.isRunning) {
+                current
+            } else {
+                val nextRemaining = (timer.remainingSeconds - 1).coerceAtLeast(0)
+                current.copy(
+                    restTimer = timer.copy(
+                        isVisible = nextRemaining > 0,
+                        isRunning = nextRemaining > 0,
+                        remainingSeconds = nextRemaining,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun pauseRestTimer() {
+        mutableState.update { current ->
+            if (!current.restTimer.isVisible) {
+                current
+            } else {
+                current.copy(restTimer = current.restTimer.copy(isRunning = false))
+            }
+        }
+    }
+
+    fun resumeRestTimer() {
+        mutableState.update { current ->
+            val timer = current.restTimer
+            if (!timer.isVisible || timer.remainingSeconds <= 0) {
+                current
+            } else {
+                current.copy(restTimer = timer.copy(isRunning = true))
+            }
+        }
+    }
+
+    fun skipRestTimer() {
+        mutableState.update { current ->
+            current.copy(
+                restTimer = current.restTimer.copy(
+                    isVisible = false,
+                    isRunning = false,
+                    remainingSeconds = 0,
+                ),
+            )
+        }
+    }
+
+    fun adjustRestTimerSeconds(deltaSeconds: Int) {
+        if (deltaSeconds == 0) return
+        mutableState.update { current ->
+            val timer = current.restTimer
+            if (!timer.isVisible) {
+                current
+            } else {
+                val nextRemaining = (timer.remainingSeconds + deltaSeconds).coerceAtLeast(0)
+                current.copy(
+                    restTimer = timer.copy(
+                        isVisible = nextRemaining > 0,
+                        isRunning = timer.isRunning && nextRemaining > 0,
+                        remainingSeconds = nextRemaining,
+                    ),
+                )
             }
         }
     }
@@ -709,6 +779,23 @@ class TrainingViewModel @Inject constructor(
     private fun LoggedWorkoutSetDetail.isValidForCompletion(): Boolean =
         (reps ?: 0) > 0 && (weightKg ?: 0.0) > 0.0
 
+    private fun startRestTimer(setId: String) {
+        mutableState.update { current ->
+            val durationSeconds = current.restTimer.durationSeconds.coerceAtLeast(1)
+            current.copy(
+                restTimer = RestTimerState(
+                    isVisible = true,
+                    sourceSetId = setId,
+                    durationSeconds = durationSeconds,
+                    remainingSeconds = durationSeconds,
+                    isRunning = true,
+                ),
+            )
+        }
+    }
+
     private fun isStarterRoutine(routineId: String?): Boolean =
         routineId != null && state.value.routines.any { it.id == routineId && it.isStarter }
 }
+
+private const val DEFAULT_REST_TIMER_SECONDS = 120
