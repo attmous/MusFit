@@ -728,7 +728,7 @@ private fun CalorieRing(
 }
 
 @Composable
-private fun MacroProgressRow(macros: List<FoodMacroProgressUiState>) {
+internal fun MacroProgressRow(macros: List<FoodMacroProgressUiState>) {
     val macroColors = MusFitTheme.colors.macroColors
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1855,7 +1855,7 @@ private fun MealInitial(title: String) {
 }
 
 @Composable
-private fun FoodThumb(
+internal fun FoodThumb(
     imageUrl: String?,
     fallback: ImageVector,
     modifier: Modifier = Modifier,
