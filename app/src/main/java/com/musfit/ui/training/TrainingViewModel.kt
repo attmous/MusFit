@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
+import com.musfit.data.repository.ExerciseGrouping
 import com.musfit.data.repository.ExerciseInput
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSet
@@ -642,6 +643,29 @@ class TrainingViewModel @Inject constructor(
     fun deleteWorkoutSet(setId: String) {
         viewModelScope.launch {
             repository.deleteWorkoutSet(setId)
+        }
+    }
+
+    /** Pair the given standalone exercise with the next standalone exercise below it into a superset. */
+    fun makeSupersetWithNext(exerciseId: String) {
+        val active = state.value.activeWorkout ?: return
+        val groupings = active.exerciseGroupings
+        val index = groupings.indexOfFirst {
+            it is ExerciseGrouping.Single && it.block.exercise.id == exerciseId
+        }
+        if (index < 0) return
+        val next = groupings.drop(index + 1)
+            .filterIsInstance<ExerciseGrouping.Single>()
+            .firstOrNull() ?: return
+        viewModelScope.launch {
+            repository.createSuperset(active.sessionId, exerciseId, next.block.exercise.id)
+        }
+    }
+
+    fun dissolveSuperset(groupId: String) {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        viewModelScope.launch {
+            repository.dissolveSuperset(sessionId, groupId)
         }
     }
 

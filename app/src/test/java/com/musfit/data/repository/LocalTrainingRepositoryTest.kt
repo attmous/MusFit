@@ -377,6 +377,103 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun createSuperset_groupsTwoExercisesWithDerivedLabels_andValidates() = runTest {
+        repository.seedStarterTrainingData()
+        val exercises = repository.observeExercises(query = "").first()
+        val a = exercises[0]
+        val b = exercises[1]
+        val c = exercises[2]
+        val sessionId = repository.startBlankWorkout()
+        repository.addExerciseToActiveWorkout(sessionId, a.id)
+        repository.addExerciseToActiveWorkout(sessionId, b.id)
+        repository.addExerciseToActiveWorkout(sessionId, c.id)
+
+        assertEquals(null, repository.createSuperset(sessionId, a.id, a.id))
+
+        val groupId = repository.createSuperset(sessionId, a.id, b.id)
+        assertNotNull(groupId)
+
+        val detail = repository.observeActiveWorkoutDetail().first()
+        assertEquals(3, detail?.exerciseBlocks?.size)
+        val groupings = detail?.exerciseGroupings.orEmpty()
+        val superset = groupings.filterIsInstance<ExerciseGrouping.Superset>().single()
+        assertEquals(2, superset.group.exerciseBlocks.size)
+        assertEquals(listOf("A", "B"), superset.group.exerciseBlocks.map { it.supersetLabel })
+
+        // Re-grouping an already-grouped exercise is rejected.
+        assertEquals(null, repository.createSuperset(sessionId, a.id, c.id))
+    }
+
+    @Test
+    fun dissolveSuperset_returnsExercisesToStandalone() = runTest {
+        repository.seedStarterTrainingData()
+        val exercises = repository.observeExercises(query = "").first()
+        val a = exercises[0]
+        val b = exercises[1]
+        val sessionId = repository.startBlankWorkout()
+        repository.addExerciseToActiveWorkout(sessionId, a.id)
+        repository.addExerciseToActiveWorkout(sessionId, b.id)
+        val groupId = repository.createSuperset(sessionId, a.id, b.id) ?: error("expected group")
+
+        repository.dissolveSuperset(sessionId, groupId)
+
+        val groupings = repository.observeActiveWorkoutDetail().first()?.exerciseGroupings.orEmpty()
+        assertEquals(2, groupings.size)
+        assertTrue(groupings.all { it is ExerciseGrouping.Single })
+    }
+
+    @Test
+    fun superset_inheritsGroupOnAddSet_andAutoDissolvesOnUnderflow() = runTest {
+        repository.seedStarterTrainingData()
+        val exercises = repository.observeExercises(query = "").first()
+        val a = exercises[0]
+        val b = exercises[1]
+        val sessionId = repository.startBlankWorkout()
+        repository.addExerciseToActiveWorkout(sessionId, a.id)
+        repository.addExerciseToActiveWorkout(sessionId, b.id)
+        val groupId = repository.createSuperset(sessionId, a.id, b.id) ?: error("expected group")
+
+        repository.addSetToExercise(
+            sessionId,
+            a.id,
+            WorkoutSetInputData(setType = "working", reps = null, weightKg = null, rpe = null, notes = null, completed = false),
+        )
+        val supersetAfterAdd = repository.observeActiveWorkoutDetail().first()
+            ?.exerciseGroupings?.filterIsInstance<ExerciseGrouping.Superset>()?.single()
+            ?: error("expected superset")
+        val aBlock = supersetAfterAdd.group.exerciseBlocks.first { it.exercise.id == a.id }
+        assertEquals(2, aBlock.sets.size)
+        assertTrue(aBlock.sets.all { it.supersetGroupId == groupId })
+
+        val bBlock = supersetAfterAdd.group.exerciseBlocks.first { it.exercise.id == b.id }
+        bBlock.sets.forEach { repository.deleteWorkoutSet(it.id) }
+
+        val groupingsAfterDelete = repository.observeActiveWorkoutDetail().first()?.exerciseGroupings.orEmpty()
+        assertTrue(groupingsAfterDelete.all { it is ExerciseGrouping.Single })
+    }
+
+    @Test
+    fun createSuperset_reindexesMembersContiguously() = runTest {
+        repository.seedStarterTrainingData()
+        val exercises = repository.observeExercises(query = "").first()
+        val a = exercises[0]
+        val mid = exercises[1]
+        val b = exercises[2]
+        val sessionId = repository.startBlankWorkout()
+        repository.addExerciseToActiveWorkout(sessionId, a.id)
+        repository.addExerciseToActiveWorkout(sessionId, mid.id)
+        repository.addExerciseToActiveWorkout(sessionId, b.id)
+
+        repository.createSuperset(sessionId, a.id, b.id)
+
+        val groupings = repository.observeActiveWorkoutDetail().first()?.exerciseGroupings.orEmpty()
+        assertEquals(2, groupings.size)
+        val superset = groupings.filterIsInstance<ExerciseGrouping.Superset>().single()
+        assertEquals(setOf(a.id, b.id), superset.group.exerciseBlocks.map { it.exercise.id }.toSet())
+        assertTrue(groupings.any { it is ExerciseGrouping.Single && it.block.exercise.id == mid.id })
+    }
+
+    @Test
     fun addExerciseToActiveWorkout_addsVisibleIncompleteWorkingSet() = runTest {
         repository.seedStarterTrainingData()
         val bench = repository.observeExercises(query = "bench").first().single()

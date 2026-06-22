@@ -1,10 +1,47 @@
 package com.musfit.ui.training
 
 import com.musfit.data.repository.ExerciseSummary
+import com.musfit.data.repository.RoutineExerciseInput
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TrainingHomeContentTest {
+    @Test
+    fun validateTargetSets_enforces1To20() {
+        assertEquals(TargetFieldResult.Valid, validateTargetSets("3"))
+        assertEquals(TargetFieldResult.Valid, validateTargetSets("1"))
+        assertEquals(TargetFieldResult.Valid, validateTargetSets("20"))
+        assertTrue(validateTargetSets("0") is TargetFieldResult.Invalid)
+        assertTrue(validateTargetSets("21") is TargetFieldResult.Invalid)
+        assertTrue(validateTargetSets("") is TargetFieldResult.Invalid)
+        assertTrue(validateTargetSets("abc") is TargetFieldResult.Invalid)
+        assertTrue(validateTargetSets("-1") is TargetFieldResult.Invalid)
+    }
+
+    @Test
+    fun validateTargetReps_acceptsBlankNumberOrRange() {
+        assertEquals(TargetFieldResult.Valid, validateTargetReps(""))
+        assertEquals(TargetFieldResult.Valid, validateTargetReps("8"))
+        assertEquals(TargetFieldResult.Valid, validateTargetReps("8-12"))
+        assertEquals(TargetFieldResult.Valid, validateTargetReps("8 - 12"))
+        assertTrue(validateTargetReps("12-8") is TargetFieldResult.Invalid)
+        assertTrue(validateTargetReps("0") is TargetFieldResult.Invalid)
+        assertTrue(validateTargetReps("101") is TargetFieldResult.Invalid)
+        assertTrue(validateTargetReps("8-") is TargetFieldResult.Invalid)
+        assertTrue(validateTargetReps("x") is TargetFieldResult.Invalid)
+    }
+
+    @Test
+    fun routineEditorCanSave_requiresNameExercisesAndValidTargets() {
+        val validRow = RoutineExerciseInput(exerciseId = "e1", targetSets = 3, targetReps = "8-12")
+        assertFalse(routineEditorCanSave("", listOf(validRow)))
+        assertFalse(routineEditorCanSave("Push", emptyList()))
+        assertFalse(routineEditorCanSave("Push", listOf(RoutineExerciseInput("e1", 0, "8"))))
+        assertTrue(routineEditorCanSave("Push", listOf(validRow)))
+    }
+
     @Test
     fun nextQuickLogExpanded_togglesPanelState() {
         assertEquals(true, nextQuickLogExpanded(current = false))

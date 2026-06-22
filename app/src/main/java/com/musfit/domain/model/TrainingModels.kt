@@ -25,6 +25,7 @@ data class TrainingTrendPoint(
     val dateEpochDay: Long,
     val volumeKg: Double,
     val bestEstimatedOneRepMaxKg: Double,
+    val heaviestWeightKg: Double = 0.0,
 )
 
 data class ExerciseProgress(

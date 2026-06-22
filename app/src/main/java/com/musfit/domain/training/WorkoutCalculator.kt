@@ -46,6 +46,7 @@ object WorkoutCalculator {
                     bestEstimatedOneRepMaxKg = daySets.maxOfOrNull {
                         estimatedOneRepMax(it.weightKg, it.reps)
                     } ?: 0.0,
+                    heaviestWeightKg = daySets.maxOfOrNull { it.weightKg } ?: 0.0,
                 )
             }
         return ExerciseProgress(

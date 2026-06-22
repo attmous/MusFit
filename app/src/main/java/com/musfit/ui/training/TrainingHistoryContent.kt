@@ -16,18 +16,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
+import com.musfit.ui.theme.TabAccent
 import java.util.Locale
 
 @Composable
 fun TrainingHistoryContent(
     history: List<WorkoutHistorySummary>,
     selectedDetail: WorkoutHistoryDetail?,
+    accent: TabAccent,
     onOpenDetail: (String) -> Unit,
     onCloseDetail: () -> Unit,
 ) {
     if (selectedDetail != null) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(onClick = onCloseDetail) { Text("Back") }
+            TextButton(onClick = onCloseDetail) { Text("Back", color = accent.color) }
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -124,7 +126,7 @@ fun TrainingHistoryContent(
                     Text(workout.title, style = MaterialTheme.typography.titleMedium)
                     Text("${workout.completedSetCount} sets - ${workout.totalVolumeKg.formatKg()} kg")
                     TextButton(onClick = { onOpenDetail(workout.sessionId) }) {
-                        Text("Open")
+                        Text("Open", color = accent.color)
                     }
                 }
             }

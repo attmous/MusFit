@@ -128,13 +128,29 @@ data class LoggedWorkoutSetDetail(
     val notes: String?,
     val completed: Boolean,
     val previousLabel: String?,
+    val supersetGroupId: String? = null,
 )
 
 data class WorkoutExerciseBlock(
     val exercise: ExerciseSummary,
     val targetReps: String?,
     val sets: List<LoggedWorkoutSetDetail>,
+    val priorBestEstimatedOneRepMaxKg: Double = 0.0,
+    val supersetGroupId: String? = null,
+    val supersetLabel: String? = null,
 )
+
+/** Two or more exercise blocks the user is supersetting (alternating sets between them). */
+data class SupersetGroup(
+    val supersetGroupId: String,
+    val exerciseBlocks: List<WorkoutExerciseBlock>,
+)
+
+/** How an exercise appears in the active-workout logger: standalone, or part of a superset. */
+sealed interface ExerciseGrouping {
+    data class Single(val block: WorkoutExerciseBlock) : ExerciseGrouping
+    data class Superset(val group: SupersetGroup) : ExerciseGrouping
+}
 
 data class ActiveWorkoutDetail(
     val sessionId: String,
@@ -143,6 +159,7 @@ data class ActiveWorkoutDetail(
     val completedSetCount: Int,
     val totalVolumeKg: Double,
     val exerciseBlocks: List<WorkoutExerciseBlock>,
+    val exerciseGroupings: List<ExerciseGrouping> = emptyList(),
 )
 
 data class WorkoutHistorySummary(
@@ -217,6 +234,12 @@ interface TrainingRepository {
     suspend fun updateWorkoutSet(setId: String, input: WorkoutSetInputData) = Unit
 
     suspend fun deleteWorkoutSet(setId: String) = Unit
+
+    /** Pair two exercises in the active session into a superset; returns the new group id, or null if invalid. */
+    suspend fun createSuperset(sessionId: String, exerciseAId: String, exerciseBId: String): String? = null
+
+    /** Ungroup a superset back into standalone exercises (sortOrder is left intact). */
+    suspend fun dissolveSuperset(sessionId: String, groupId: String) = Unit
 
     suspend fun finishWorkout(sessionId: String) = Unit
 
@@ -537,6 +560,8 @@ class LocalTrainingRepository @Inject constructor(
         val session = trainingDao.getWorkoutSession(sessionId) ?: return ""
         if (session.status != WORKOUT_STATUS_ACTIVE) return ""
         val nextSortOrder = (trainingDao.getMaxWorkoutSetSortOrder(sessionId) ?: -1) + 1
+        // A new set inherits the exercise's current superset membership (null for a standalone exercise).
+        val inheritedGroupId = trainingDao.getLastWorkoutSetForExercise(sessionId, exerciseId)?.supersetGroupId
         val set = WorkoutSetEntity(
             id = UUID.randomUUID().toString(),
             sessionId = sessionId,
@@ -550,6 +575,7 @@ class LocalTrainingRepository @Inject constructor(
             rpe = input.rpe,
             notes = input.notes?.trim()?.takeIf { it.isNotBlank() },
             completed = input.completed,
+            supersetGroupId = inheritedGroupId,
         )
         trainingDao.upsertWorkoutSet(set)
         return set.id
@@ -599,6 +625,82 @@ class LocalTrainingRepository @Inject constructor(
         val session = trainingDao.getWorkoutSession(existing.sessionId) ?: return
         if (session.status != WORKOUT_STATUS_ACTIVE) return
         trainingDao.deleteWorkoutSetById(setId)
+        // Auto-dissolve a superset that no longer has at least two exercises with sets.
+        val groupId = existing.supersetGroupId ?: return
+        val remaining = trainingDao.getWorkoutSets(existing.sessionId).filter { it.supersetGroupId == groupId }
+        if (remaining.map { it.exerciseId }.distinct().size < 2) {
+            trainingDao.clearSupersetGroup(existing.sessionId, groupId)
+        }
+    }
+
+    override suspend fun createSuperset(
+        sessionId: String,
+        exerciseAId: String,
+        exerciseBId: String,
+    ): String? =
+        database.withTransaction {
+            val session = trainingDao.getWorkoutSession(sessionId) ?: return@withTransaction null
+            if (session.status != WORKOUT_STATUS_ACTIVE) return@withTransaction null
+            if (exerciseAId == exerciseBId) return@withTransaction null
+            val sets = trainingDao.getWorkoutSets(sessionId)
+            val aSets = sets.filter { it.exerciseId == exerciseAId }
+            val bSets = sets.filter { it.exerciseId == exerciseBId }
+            // Both exercises must be present in the session and currently ungrouped.
+            if (aSets.isEmpty() || bSets.isEmpty()) return@withTransaction null
+            if (aSets.any { it.supersetGroupId != null } || bSets.any { it.supersetGroupId != null }) {
+                return@withTransaction null
+            }
+            val groupId = UUID.randomUUID().toString()
+            trainingDao.setExerciseSupersetGroup(sessionId, exerciseAId, groupId)
+            trainingDao.setExerciseSupersetGroup(sessionId, exerciseBId, groupId)
+            reindexSupersetContiguous(sessionId, exerciseAId, exerciseBId)
+            groupId
+        }
+
+    override suspend fun dissolveSuperset(sessionId: String, groupId: String) {
+        val session = trainingDao.getWorkoutSession(sessionId) ?: return
+        if (session.status != WORKOUT_STATUS_ACTIVE) return
+        trainingDao.clearSupersetGroup(sessionId, groupId)
+    }
+
+    /**
+     * Re-index this session's [sortOrder]s so the two members' sets are contiguous — the first
+     * member (by current order) followed by the second — anchored at the earliest member position,
+     * while preserving the relative order of every other set. The only write that touches sortOrder.
+     */
+    private suspend fun reindexSupersetContiguous(
+        sessionId: String,
+        exerciseAId: String,
+        exerciseBId: String,
+    ) {
+        val ordered = trainingDao.getWorkoutSets(sessionId)
+        val firstA = ordered.indexOfFirst { it.exerciseId == exerciseAId }
+        val firstB = ordered.indexOfFirst { it.exerciseId == exerciseBId }
+        if (firstA < 0 || firstB < 0) return
+        val (firstMember, secondMember) = if (firstA <= firstB) {
+            exerciseAId to exerciseBId
+        } else {
+            exerciseBId to exerciseAId
+        }
+        val memberBlock = ordered.filter { it.exerciseId == firstMember } +
+            ordered.filter { it.exerciseId == secondMember }
+        val newOrder = mutableListOf<WorkoutSetEntity>()
+        var inserted = false
+        ordered.forEach { set ->
+            if (set.exerciseId == firstMember || set.exerciseId == secondMember) {
+                if (!inserted) {
+                    newOrder += memberBlock
+                    inserted = true
+                }
+            } else {
+                newOrder += set
+            }
+        }
+        newOrder.forEachIndexed { index, set ->
+            if (set.sortOrder != index) {
+                trainingDao.upsertWorkoutSet(set.copy(sortOrder = index))
+            }
+        }
     }
 
     override suspend fun finishWorkout(sessionId: String) {
@@ -894,42 +996,59 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
     session: WorkoutSessionEntity,
     trainingDao: TrainingDao,
 ): ActiveWorkoutDetail {
-    val previousLabels = map { it.exerciseId }
-        .distinct()
-        .associateWith { exerciseId ->
-            trainingDao.getLatestCompletedSetForExerciseBefore(
-                exerciseId = exerciseId,
-                beforeStartedAtEpochMillis = session.startedAtEpochMillis,
-            )?.toPreviousLabel()
-        }
-    val blocks = groupBy { it.exerciseId }.map { (_, exerciseRows) ->
-        val first = exerciseRows.first()
-        val parsedNotes = exerciseRows.associate { row -> row.setId to parseWorkoutSetNotes(row.notes) }
-        WorkoutExerciseBlock(
-            exercise = ExerciseSummary(
-                id = first.exerciseId,
-                name = first.exerciseName,
-                category = first.category,
-                equipment = first.equipment,
-                targetMuscles = first.targetMuscles,
-                isCustom = first.isCustom,
-            ),
-            targetReps = exerciseRows.firstNotNullOfOrNull { row -> parsedNotes.getValue(row.setId).targetReps },
-            sets = exerciseRows.map { row ->
-                LoggedWorkoutSetDetail(
-                    id = row.setId,
-                    exerciseId = row.exerciseId,
-                    setType = row.setType,
-                    reps = row.reps,
-                    weightKg = row.weightKg,
-                    rpe = row.rpe,
-                    notes = parsedNotes.getValue(row.setId).userNote,
-                    completed = row.completed,
-                    previousLabel = previousLabels[row.exerciseId],
-                )
-            },
-        )
+    val distinctExerciseIds = map { it.exerciseId }.distinct()
+    val previousLabels = distinctExerciseIds.associateWith { exerciseId ->
+        trainingDao.getLatestCompletedSetForExerciseBefore(
+            exerciseId = exerciseId,
+            beforeStartedAtEpochMillis = session.startedAtEpochMillis,
+        )?.toPreviousLabel()
     }
+    val priorBest1RM = distinctExerciseIds.associateWith { exerciseId ->
+        trainingDao.getCompletedSetsForExerciseBefore(
+            exerciseId = exerciseId,
+            beforeStartedAtEpochMillis = session.startedAtEpochMillis,
+        ).maxOfOrNull { set ->
+            val reps = set.reps
+            val weightKg = set.weightKg
+            if (reps != null && weightKg != null) {
+                WorkoutCalculator.estimatedOneRepMax(weightKg = weightKg, reps = reps)
+            } else {
+                0.0
+            }
+        } ?: 0.0
+    }
+    // Derive an A/B label per exercise within its superset (first member = A), in sortOrder order.
+    val groupMemberCount = mutableMapOf<String, Int>()
+    val exerciseSupersetLabels = mutableMapOf<String, String>()
+    distinctExerciseIds.forEach { exerciseId ->
+        val groupId = first { it.exerciseId == exerciseId }.supersetGroupId
+        if (groupId != null) {
+            val index = groupMemberCount.getOrDefault(groupId, 0)
+            exerciseSupersetLabels[exerciseId] = ('A' + index).toString()
+            groupMemberCount[groupId] = index + 1
+        }
+    }
+
+    val orderedBlocks = groupBy { it.exerciseId }.map { (_, exerciseRows) ->
+        buildWorkoutExerciseBlock(exerciseRows, previousLabels, priorBest1RM, exerciseSupersetLabels)
+    }
+
+    // Fold consecutive blocks sharing a non-null supersetGroupId into one Superset grouping.
+    val groupings = mutableListOf<ExerciseGrouping>()
+    orderedBlocks.forEach { block ->
+        val last = groupings.lastOrNull()
+        val groupId = block.supersetGroupId
+        when {
+            groupId != null && last is ExerciseGrouping.Superset && last.group.supersetGroupId == groupId ->
+                groupings[groupings.lastIndex] =
+                    ExerciseGrouping.Superset(last.group.copy(exerciseBlocks = last.group.exerciseBlocks + block))
+            groupId != null ->
+                groupings += ExerciseGrouping.Superset(SupersetGroup(groupId, listOf(block)))
+            else ->
+                groupings += ExerciseGrouping.Single(block)
+        }
+    }
+
     val completedRows = filter { it.completed && it.reps != null && it.weightKg != null }
     return ActiveWorkoutDetail(
         sessionId = session.id,
@@ -937,7 +1056,47 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
         startedAtEpochMillis = session.startedAtEpochMillis,
         completedSetCount = completedRows.size,
         totalVolumeKg = completedRows.sumOf { (it.reps ?: 0) * (it.weightKg ?: 0.0) },
-        exerciseBlocks = blocks,
+        exerciseBlocks = orderedBlocks,
+        exerciseGroupings = groupings,
+    )
+}
+
+private fun buildWorkoutExerciseBlock(
+    exerciseRows: List<WorkoutSetDetailRow>,
+    previousLabels: Map<String, String?>,
+    priorBest1RM: Map<String, Double>,
+    exerciseSupersetLabels: Map<String, String>,
+): WorkoutExerciseBlock {
+    val first = exerciseRows.first()
+    val parsedNotes = exerciseRows.associate { row -> row.setId to parseWorkoutSetNotes(row.notes) }
+    val groupId = first.supersetGroupId
+    return WorkoutExerciseBlock(
+        exercise = ExerciseSummary(
+            id = first.exerciseId,
+            name = first.exerciseName,
+            category = first.category,
+            equipment = first.equipment,
+            targetMuscles = first.targetMuscles,
+            isCustom = first.isCustom,
+        ),
+        targetReps = exerciseRows.firstNotNullOfOrNull { row -> parsedNotes.getValue(row.setId).targetReps },
+        priorBestEstimatedOneRepMaxKg = priorBest1RM[first.exerciseId] ?: 0.0,
+        supersetGroupId = groupId,
+        supersetLabel = exerciseSupersetLabels[first.exerciseId],
+        sets = exerciseRows.map { row ->
+            LoggedWorkoutSetDetail(
+                id = row.setId,
+                exerciseId = row.exerciseId,
+                setType = row.setType,
+                reps = row.reps,
+                weightKg = row.weightKg,
+                rpe = row.rpe,
+                notes = parsedNotes.getValue(row.setId).userNote,
+                completed = row.completed,
+                previousLabel = previousLabels[row.exerciseId],
+                supersetGroupId = groupId,
+            )
+        },
     )
 }
 

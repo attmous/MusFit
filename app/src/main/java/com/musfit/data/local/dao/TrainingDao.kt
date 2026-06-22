@@ -59,6 +59,7 @@ data class WorkoutSetDetailRow(
     val rpe: Double?,
     val notes: String?,
     val completed: Boolean,
+    val supersetGroupId: String? = null,
 )
 
 data class WorkoutHistorySummaryRow(
@@ -268,7 +269,8 @@ interface TrainingDao {
             workout_sets.weightKg AS weightKg,
             workout_sets.rpe AS rpe,
             workout_sets.notes AS notes,
-            workout_sets.completed AS completed
+            workout_sets.completed AS completed,
+            workout_sets.supersetGroupId AS supersetGroupId
         FROM workout_sets
         INNER JOIN exercises ON exercises.id = workout_sets.exerciseId
         WHERE workout_sets.sessionId = :sessionId
@@ -314,6 +316,24 @@ interface TrainingDao {
         exerciseId: String,
         beforeStartedAtEpochMillis: Long,
     ): WorkoutSetEntity?
+
+    @Query(
+        """
+        SELECT workout_sets.*
+        FROM workout_sets
+        INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId
+        WHERE workout_sets.exerciseId = :exerciseId
+        AND workout_sets.completed = 1
+        AND workout_sets.reps IS NOT NULL
+        AND workout_sets.weightKg IS NOT NULL
+        AND workout_sessions.status = 'completed'
+        AND workout_sessions.startedAtEpochMillis < :beforeStartedAtEpochMillis
+        """,
+    )
+    suspend fun getCompletedSetsForExerciseBefore(
+        exerciseId: String,
+        beforeStartedAtEpochMillis: Long,
+    ): List<WorkoutSetEntity>
 
     @Query("SELECT MAX(sortOrder) FROM workout_sets WHERE sessionId = :sessionId")
     suspend fun getMaxWorkoutSetSortOrder(sessionId: String): Int?
@@ -380,6 +400,12 @@ interface TrainingDao {
 
     @Query("UPDATE workout_sets SET completed = :completed WHERE id = :setId")
     suspend fun updateWorkoutSetCompletion(setId: String, completed: Boolean)
+
+    @Query("UPDATE workout_sets SET supersetGroupId = :groupId WHERE sessionId = :sessionId AND exerciseId = :exerciseId")
+    suspend fun setExerciseSupersetGroup(sessionId: String, exerciseId: String, groupId: String?)
+
+    @Query("UPDATE workout_sets SET supersetGroupId = NULL WHERE sessionId = :sessionId AND supersetGroupId = :groupId")
+    suspend fun clearSupersetGroup(sessionId: String, groupId: String)
 
     @Query("DELETE FROM workout_sets WHERE id = :setId")
     suspend fun deleteWorkoutSetById(setId: String)
