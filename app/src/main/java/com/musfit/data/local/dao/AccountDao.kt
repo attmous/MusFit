@@ -1,9 +1,8 @@
 package com.musfit.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import com.musfit.data.local.entity.ACTIVE_ACCOUNT_SESSION_KEY
 import com.musfit.data.local.entity.AccountEntity
 import com.musfit.data.local.entity.AccountSessionEntity
@@ -43,9 +42,9 @@ interface AccountDao {
     @Query("SELECT * FROM account_session WHERE `key` = :key LIMIT 1")
     suspend fun getSession(key: String = ACTIVE_ACCOUNT_SESSION_KEY): AccountSessionEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertAccount(account: AccountEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertSession(session: AccountSessionEntity)
 }
