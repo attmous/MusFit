@@ -2,6 +2,7 @@ package com.musfit.data.repository
 
 import com.musfit.data.local.dao.HealthDao
 import com.musfit.data.local.dao.TrainingDao
+import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.HealthConnectSyncStateEntity
 import com.musfit.domain.health.HealthConnectAvailability
@@ -9,6 +10,7 @@ import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.integrations.healthconnect.HealthConnectGateway
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -22,6 +24,12 @@ interface HealthRepository {
     suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary
 
     suspend fun exportLatestWorkout(): String?
+
+    fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> =
+        flowOf(emptyList())
+
+    fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> =
+        flowOf(emptyList())
 }
 
 class LocalHealthRepository @Inject constructor(
@@ -46,6 +54,12 @@ class LocalHealthRepository @Inject constructor(
 
     override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> =
         healthDao.observeDailySummary(date.toEpochDay())
+
+    override fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> =
+        healthDao.observeDailySummariesInRange(startDate.toEpochDay(), endDate.toEpochDay())
+
+    override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> =
+        healthDao.observeBodyMetrics(WEIGHT_METRIC_TYPE, fromEpochMillis)
 
     override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary {
         val summary = gateway.readDailySummary(date)
@@ -114,5 +128,6 @@ class LocalHealthRepository @Inject constructor(
 
     private companion object {
         const val SYNC_STATE_KEY = "health_connect"
+        const val WEIGHT_METRIC_TYPE = "weight"
     }
 }

@@ -5,18 +5,25 @@ import androidx.lifecycle.viewModelScope
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodRepository
+import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
+import com.musfit.data.repository.UserGoals
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.domain.today.WeeklyGoals
+import com.musfit.domain.today.WeeklyGoalsCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import javax.inject.Inject
 
@@ -47,6 +54,11 @@ data class TodayUiState(
     val macros: MacroBreakdownUiState = MacroBreakdownUiState(),
     val training: TrainingGlimpseUiState = TrainingGlimpseUiState(),
     val weightKg: Double? = null,
+    val weekly: WeeklyGoals? = null,
+    val isGoalsEditorVisible: Boolean = false,
+    val stepGoalInput: String = "",
+    val sessionTargetInput: String = "",
+    val targetWeightInput: String = "",
 )
 
 @HiltViewModel
@@ -54,13 +66,17 @@ class TodayViewModel internal constructor(
     private val foodRepository: FoodRepository,
     private val trainingRepository: TrainingRepository,
     private val healthRepository: HealthRepository,
+    private val goalsRepository: GoalsRepository,
     private val dateProvider: () -> LocalDate,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(TodayUiState())
     val state: StateFlow<TodayUiState> = mutableState.asStateFlow()
 
+    private var currentUserGoals = UserGoals()
+
     init {
-        observeToday()
+        observeDaily()
+        observeWeekly()
     }
 
     @Inject
@@ -68,14 +84,16 @@ class TodayViewModel internal constructor(
         foodRepository: FoodRepository,
         trainingRepository: TrainingRepository,
         healthRepository: HealthRepository,
+        goalsRepository: GoalsRepository,
     ) : this(
         foodRepository = foodRepository,
         trainingRepository = trainingRepository,
         healthRepository = healthRepository,
+        goalsRepository = goalsRepository,
         dateProvider = { LocalDate.now() },
     )
 
-    private fun observeToday() {
+    private fun observeDaily() {
         val date = dateProvider()
         viewModelScope.launch {
             combine(
@@ -83,28 +101,127 @@ class TodayViewModel internal constructor(
                 foodRepository.observeFoodGoal(),
                 trainingRepository.observeDailyTrainingSummary(date),
                 healthRepository.observeDailySummary(date),
-            ) { nutrition, goal, training, health ->
-                toUiState(date, nutrition, goal, training, health)
-            }.collect { uiState ->
-                mutableState.value = uiState
+                goalsRepository.observeUserGoals(),
+            ) { nutrition, goal, training, health, userGoals ->
+                currentUserGoals = userGoals
+                buildDaily(date, nutrition, goal, training, health, userGoals)
+            }.collect { daily ->
+                mutableState.update {
+                    it.copy(
+                        dateLabel = daily.dateLabel,
+                        rings = daily.rings,
+                        macros = daily.macros,
+                        training = daily.training,
+                        weightKg = daily.weightKg,
+                    )
+                }
             }
+        }
+    }
+
+    private fun observeWeekly() {
+        val date = dateProvider()
+        val weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val weekEnd = weekStart.plusDays(6)
+        val weekStartMillis = weekStart.toEpochDay() * DAY_MILLIS
+        val weightFromMillis = (weekStart.toEpochDay() - 7L) * DAY_MILLIS
+        viewModelScope.launch {
+            val foodAndTraining = combine(
+                foodRepository.observeFoodPlan(weekStart),
+                trainingRepository.observeWorkoutHistory(),
+                healthRepository.observeDailySummaries(weekStart, weekEnd),
+            ) { plan, history, summaries -> Triple(plan, history, summaries) }
+            val weightAndGoals = combine(
+                healthRepository.observeWeightSeries(weightFromMillis),
+                goalsRepository.observeUserGoals(),
+                foodRepository.observeFoodGoal(),
+            ) { weights, userGoals, foodGoal -> Triple(weights, userGoals, foodGoal) }
+            combine(foodAndTraining, weightAndGoals) { ft, wg ->
+                val (plan, history, summaries) = ft
+                val (weights, userGoals, foodGoal) = wg
+                WeeklyGoalsCalculator.compute(
+                    weekStartMillis = weekStartMillis,
+                    sessionStartMillis = history.map { it.startedAtEpochMillis },
+                    sessionTarget = userGoals.weeklySessionTarget,
+                    loggedCaloriesPerDay = plan.map { if (it.loggedEntryCount > 0) it.loggedTotals.caloriesKcal else null },
+                    calorieGoalKcal = foodGoal.dailyCaloriesKcal,
+                    stepsPerDay = summaries.map { it.steps ?: 0L },
+                    stepGoal = userGoals.stepGoal,
+                    weights = weights.map { it.measuredAtEpochMillis to it.value },
+                    targetWeightKg = userGoals.targetWeightKg,
+                )
+            }.collect { weekly ->
+                mutableState.update { it.copy(weekly = weekly) }
+            }
+        }
+    }
+
+    fun openGoalsEditor() {
+        val goals = currentUserGoals
+        mutableState.update {
+            it.copy(
+                isGoalsEditorVisible = true,
+                stepGoalInput = goals.stepGoal.toString(),
+                sessionTargetInput = goals.weeklySessionTarget.toString(),
+                targetWeightInput = if (goals.targetWeightKg > 0.0) goals.targetWeightKg.formatMetric() else "",
+            )
+        }
+    }
+
+    fun closeGoalsEditor() {
+        mutableState.update { it.copy(isGoalsEditorVisible = false) }
+    }
+
+    fun onStepGoalInputChanged(value: String) {
+        mutableState.update { it.copy(stepGoalInput = value.filter(Char::isDigit)) }
+    }
+
+    fun onSessionTargetInputChanged(value: String) {
+        mutableState.update { it.copy(sessionTargetInput = value.filter(Char::isDigit)) }
+    }
+
+    fun onTargetWeightInputChanged(value: String) {
+        mutableState.update { it.copy(targetWeightInput = value.filter { ch -> ch.isDigit() || ch == '.' }) }
+    }
+
+    fun saveUserGoals() {
+        val current = state.value
+        val goals = UserGoals(
+            stepGoal = current.stepGoalInput.toLongOrNull()?.coerceAtLeast(0L) ?: currentUserGoals.stepGoal,
+            weeklySessionTarget = current.sessionTargetInput.toIntOrNull()?.coerceAtLeast(0) ?: currentUserGoals.weeklySessionTarget,
+            targetWeightKg = current.targetWeightInput.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0,
+        )
+        viewModelScope.launch {
+            goalsRepository.updateUserGoals(goals)
+            mutableState.update { it.copy(isGoalsEditorVisible = false) }
         }
     }
 }
 
-private const val DEFAULT_STEP_GOAL = 10_000L
+private const val DAY_MILLIS = 86_400_000L
+private const val DEFAULT_STEP_GOAL_FLOOR = 1L
 
 private val DATE_FORMATTER = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.US)
 
-private fun toUiState(
+private data class TodayDaily(
+    val dateLabel: String,
+    val rings: List<DailyRingUiState>,
+    val macros: MacroBreakdownUiState,
+    val training: TrainingGlimpseUiState,
+    val weightKg: Double?,
+)
+
+private fun buildDaily(
     date: LocalDate,
     nutrition: NutritionTotals,
     goal: FoodGoal,
     training: TrainingSummary,
     health: DailyHealthSummaryEntity?,
-): TodayUiState {
+    userGoals: UserGoals,
+): TodayDaily {
     val steps = health?.steps ?: 0L
-    return TodayUiState(
+    val stepGoal = userGoals.stepGoal.coerceAtLeast(DEFAULT_STEP_GOAL_FLOOR)
+    return TodayDaily(
         dateLabel = date.format(DATE_FORMATTER),
         rings = listOf(
             DailyRingUiState(
@@ -122,8 +239,8 @@ private fun toUiState(
             DailyRingUiState(
                 kind = RingKind.Steps,
                 centerLabel = formatCount(steps),
-                goalLabel = "of ${formatCount(DEFAULT_STEP_GOAL)}",
-                progress = ratio(steps.toDouble(), DEFAULT_STEP_GOAL.toDouble()),
+                goalLabel = "of ${formatCount(stepGoal)}",
+                progress = ratio(steps.toDouble(), stepGoal.toDouble()),
             ),
         ),
         macros = MacroBreakdownUiState(

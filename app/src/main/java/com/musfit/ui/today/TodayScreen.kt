@@ -15,13 +15,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.MonitorWeight
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,10 +44,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.musfit.domain.today.WeeklyGoals
 import com.musfit.ui.theme.MusFitTheme
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,18 +71,27 @@ fun TodayScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column {
-            Text(
-                text = "Today",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.onSurface,
-            )
-            Text(
-                text = state.dateLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Today",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MusFitTheme.colors.onSurface,
+                )
+                Text(
+                    text = state.dateLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = viewModel::openGoalsEditor) {
+                Icon(Icons.Outlined.Tune, contentDescription = "Edit goals", tint = MusFitTheme.colors.onSurfaceVariant)
+            }
         }
 
         if (state.rings.isNotEmpty()) {
@@ -96,6 +115,19 @@ fun TodayScreen(
                 onClick = onOpenHealth,
             )
         }
+
+        state.weekly?.let { WeeklyGoalsCard(it) }
+    }
+
+    if (state.isGoalsEditorVisible) {
+        TodayGoalsEditorSheet(
+            state = state,
+            onStepGoalChanged = viewModel::onStepGoalInputChanged,
+            onSessionTargetChanged = viewModel::onSessionTargetInputChanged,
+            onTargetWeightChanged = viewModel::onTargetWeightInputChanged,
+            onSave = viewModel::saveUserGoals,
+            onDismiss = viewModel::closeGoalsEditor,
+        )
     }
 }
 
@@ -233,6 +265,128 @@ private fun RowScope.GlimpseTile(
                 style = MaterialTheme.typography.labelSmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun WeeklyGoalsCard(weekly: WeeklyGoals) {
+    val weightTitle = weekly.targetWeightKg?.let { "Weight → ${it.formatMetric()} kg" } ?: "Weight (7-day)"
+    val weightValue = weekly.weightAvgKg?.let { avg ->
+        val delta = weekly.weightDeltaKg?.let { d ->
+            val arrow = if (d < -0.05) "↓" else if (d > 0.05) "↑" else "→"
+            " $arrow${abs(d).formatMetric()}"
+        } ?: ""
+        "${avg.formatMetric()} kg$delta"
+    } ?: "—"
+
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "This week",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MusFitTheme.colors.onSurface,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                WeeklyMiniTracker(Modifier.weight(1f), "Sessions", "${weekly.sessionsDone} / ${weekly.sessionTarget}")
+                WeeklyMiniTracker(Modifier.weight(1f), "Calories on target", "${weekly.calorieOnTargetDays} / ${weekly.trackedDays}")
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                WeeklyMiniTracker(Modifier.weight(1f), weightTitle, weightValue)
+                WeeklyMiniTracker(Modifier.weight(1f), "Step-goal days", "${weekly.stepGoalDays} / ${weekly.trackedDays}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeeklyMiniTracker(modifier: Modifier, label: String, value: String) {
+    Column(
+        modifier = modifier
+            .clip(MusFitTheme.shapes.medium)
+            .background(MusFitTheme.colors.surfaceVariant)
+            .padding(12.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+            maxLines = 1,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MusFitTheme.colors.onSurface,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TodayGoalsEditorSheet(
+    state: TodayUiState,
+    onStepGoalChanged: (String) -> Unit,
+    onSessionTargetChanged: (String) -> Unit,
+    onTargetWeightChanged: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MusFitTheme.colors.surface) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                text = "Goals",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MusFitTheme.colors.onSurface,
+            )
+            OutlinedTextField(
+                value = state.stepGoalInput,
+                onValueChange = onStepGoalChanged,
+                label = { Text("Daily step goal") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.sessionTargetInput,
+                onValueChange = onSessionTargetChanged,
+                label = { Text("Workouts per week") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.targetWeightInput,
+                onValueChange = onTargetWeightChanged,
+                label = { Text("Target weight (kg)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = onSave,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MusFitTheme.colors.brand,
+                    contentColor = MusFitTheme.colors.onBrand,
+                ),
+            ) {
+                Text("Save goals")
+            }
         }
     }
 }

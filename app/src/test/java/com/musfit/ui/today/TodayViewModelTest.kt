@@ -6,6 +6,8 @@ import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
+import com.musfit.data.repository.GoalsRepository
+import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.LoggedWorkoutSet
@@ -65,6 +67,7 @@ class TodayViewModelTest {
             foodRepository = foodRepository,
             trainingRepository = trainingRepository,
             healthRepository = healthRepository,
+            goalsRepository = FakeGoalsRepository(),
             dateProvider = { date },
         )
         dispatcher.scheduler.advanceUntilIdle()
@@ -104,6 +107,7 @@ class TodayViewModelTest {
             foodRepository = foodRepository,
             trainingRepository = trainingRepository,
             healthRepository = healthRepository,
+            goalsRepository = FakeGoalsRepository(),
             dateProvider = { targetDate },
         )
         dispatcher.scheduler.advanceUntilIdle()
@@ -170,6 +174,12 @@ class TodayViewModelTest {
             input.foodId ?: "food-1"
 
         override suspend fun deleteSavedFood(foodId: String) = Unit
+    }
+
+    private class FakeGoalsRepository : GoalsRepository {
+        override fun observeUserGoals(): Flow<UserGoals> = MutableStateFlow(UserGoals())
+
+        override suspend fun updateUserGoals(goals: UserGoals) = Unit
     }
 
     private class FakeTrainingRepository : TrainingRepository {

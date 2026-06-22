@@ -8,6 +8,7 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
 import com.musfit.data.local.dao.TrainingDao
+import com.musfit.data.local.dao.UserGoalsDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -38,6 +39,7 @@ object DatabaseModule {
                 MIGRATION_13_14,
                 MIGRATION_14_15,
                 MIGRATION_15_16,
+                MIGRATION_16_17,
             )
             .build()
 
@@ -49,6 +51,9 @@ object DatabaseModule {
 
     @Provides
     fun provideHealthDao(database: MusFitDatabase): HealthDao = database.healthDao()
+
+    @Provides
+    fun provideUserGoalsDao(database: MusFitDatabase): UserGoalsDao = database.userGoalsDao()
 
     private val MIGRATION_1_2 =
         object : Migration(1, 2) {
@@ -316,6 +321,23 @@ object DatabaseModule {
         object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE foods ADD COLUMN imageUrl TEXT")
+            }
+        }
+
+    private val MIGRATION_16_17 =
+        object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_goals (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        stepGoal INTEGER NOT NULL,
+                        weeklySessionTarget INTEGER NOT NULL,
+                        targetWeightKg REAL NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
             }
         }
 }
