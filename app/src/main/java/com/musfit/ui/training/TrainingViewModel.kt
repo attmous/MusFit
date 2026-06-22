@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
+import com.musfit.data.repository.ExerciseInput
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.LoggedWorkoutSetDetail
@@ -42,6 +43,14 @@ data class RoutineEditorState(
     val isOpen: Boolean = false,
 )
 
+data class ExerciseEditorState(
+    val isOpen: Boolean = false,
+    val name: String = "",
+    val category: String = "strength",
+    val equipment: String = "",
+    val targetMuscles: String = "",
+)
+
 data class RestTimerState(
     val isVisible: Boolean = false,
     val sourceSetId: String? = null,
@@ -52,6 +61,7 @@ data class TrainingUiState(
     val selectedSection: TrainingSection = TrainingSection.Routines,
     val routines: List<RoutineSummary> = emptyList(),
     val exercises: List<ExerciseSummary> = emptyList(),
+    val visibleExercises: List<ExerciseSummary> = emptyList(),
     val activeWorkoutSummary: ActiveWorkoutSummary? = null,
     val activeWorkout: ActiveWorkoutDetail? = null,
     val workoutHistory: List<WorkoutHistorySummary> = emptyList(),
@@ -59,6 +69,9 @@ data class TrainingUiState(
     val selectedExerciseProgress: ExerciseProgress? = null,
     val selectedWorkoutDetail: WorkoutHistoryDetail? = null,
     val exerciseSearchQuery: String = "",
+    val exerciseMuscleFilter: String? = null,
+    val exerciseEquipmentFilter: String? = null,
+    val exerciseEditor: ExerciseEditorState = ExerciseEditorState(),
     val exerciseName: String = "",
     val reps: String = "",
     val weightKg: String = "",
@@ -98,7 +111,7 @@ class TrainingViewModel @Inject constructor(
                         routines = routines,
                         exercises = exercises,
                         activeWorkoutSummary = activeWorkout,
-                    )
+                    ).withFilteredExercises()
                 }
             }
         }
@@ -278,6 +291,14 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    fun moveRoutineExerciseUp(index: Int) {
+        moveRoutineExercise(fromIndex = index, toIndex = index - 1)
+    }
+
+    fun moveRoutineExerciseDown(index: Int) {
+        moveRoutineExercise(fromIndex = index, toIndex = index + 1)
+    }
+
     fun saveRoutineEditor() {
         val editor = state.value.routineEditor
         if (editor.routineId != null && isStarterRoutine(editor.routineId)) {
@@ -331,6 +352,88 @@ class TrainingViewModel @Inject constructor(
 
     fun onExerciseChanged(value: String) {
         mutableState.update { it.copy(exerciseName = value) }
+    }
+
+    fun onExerciseSearchQueryChanged(value: String) {
+        mutableState.update { it.copy(exerciseSearchQuery = value).withFilteredExercises() }
+    }
+
+    fun onExerciseMuscleFilterChanged(value: String?) {
+        mutableState.update {
+            it.copy(exerciseMuscleFilter = value?.trim()?.takeIf(String::isNotEmpty))
+                .withFilteredExercises()
+        }
+    }
+
+    fun onExerciseEquipmentFilterChanged(value: String?) {
+        mutableState.update {
+            it.copy(exerciseEquipmentFilter = value?.trim()?.takeIf(String::isNotEmpty))
+                .withFilteredExercises()
+        }
+    }
+
+    fun clearExerciseFilters() {
+        mutableState.update {
+            it.copy(
+                exerciseSearchQuery = "",
+                exerciseMuscleFilter = null,
+                exerciseEquipmentFilter = null,
+            ).withFilteredExercises()
+        }
+    }
+
+    fun openCustomExerciseEditor() {
+        mutableState.update {
+            it.copy(
+                selectedSection = TrainingSection.Exercises,
+                exerciseEditor = ExerciseEditorState(isOpen = true),
+            )
+        }
+    }
+
+    fun closeCustomExerciseEditor() {
+        mutableState.update { it.copy(exerciseEditor = ExerciseEditorState()) }
+    }
+
+    fun onCustomExerciseNameChanged(value: String) {
+        mutableState.update { it.copy(exerciseEditor = it.exerciseEditor.copy(name = value)) }
+    }
+
+    fun onCustomExerciseCategoryChanged(value: String) {
+        mutableState.update { it.copy(exerciseEditor = it.exerciseEditor.copy(category = value)) }
+    }
+
+    fun onCustomExerciseEquipmentChanged(value: String) {
+        mutableState.update { it.copy(exerciseEditor = it.exerciseEditor.copy(equipment = value)) }
+    }
+
+    fun onCustomExerciseTargetMusclesChanged(value: String) {
+        mutableState.update { it.copy(exerciseEditor = it.exerciseEditor.copy(targetMuscles = value)) }
+    }
+
+    fun saveCustomExercise() {
+        val editor = state.value.exerciseEditor
+        val name = editor.name.trim()
+        if (name.isBlank()) {
+            mutableState.update { it.copy(message = "Exercise name is required.") }
+            return
+        }
+        val input = ExerciseInput(
+            name = name,
+            category = editor.category.trim().ifBlank { "strength" },
+            equipment = editor.equipment.trim().takeIf { it.isNotBlank() },
+            targetMuscles = editor.targetMuscles.trim(),
+        )
+        viewModelScope.launch {
+            repository.createCustomExercise(input)
+            mutableState.update {
+                it.copy(
+                    selectedSection = TrainingSection.Exercises,
+                    exerciseEditor = ExerciseEditorState(),
+                    message = "Exercise saved.",
+                ).withFilteredExercises()
+            }
+        }
     }
 
     fun onRepsChanged(value: String) {
@@ -507,6 +610,39 @@ class TrainingViewModel @Inject constructor(
             totalVolumeKg = personalRecords.totalVolumeKg,
             bestEstimatedOneRepMaxKg = personalRecords.bestEstimatedOneRepMaxKg,
         )
+    }
+
+    private fun TrainingUiState.withFilteredExercises(): TrainingUiState {
+        val query = exerciseSearchQuery.trim()
+        val muscle = exerciseMuscleFilter?.trim()?.takeIf(String::isNotEmpty)
+        val equipment = exerciseEquipmentFilter?.trim()?.takeIf(String::isNotEmpty)
+        val filtered = exercises.filter { exercise ->
+            val matchesQuery = query.isBlank() ||
+                exercise.name.contains(query, ignoreCase = true) ||
+                exercise.targetMuscles.contains(query, ignoreCase = true) ||
+                exercise.equipment.orEmpty().contains(query, ignoreCase = true)
+            val matchesMuscle = muscle == null ||
+                exercise.targetMuscles.contains(muscle, ignoreCase = true)
+            val matchesEquipment = equipment == null ||
+                exercise.equipment.equals(equipment, ignoreCase = true)
+
+            matchesQuery && matchesMuscle && matchesEquipment
+        }
+        return copy(visibleExercises = filtered)
+    }
+
+    private fun moveRoutineExercise(fromIndex: Int, toIndex: Int) {
+        mutableState.update { current ->
+            val exercises = current.routineEditor.exercises
+            if (fromIndex !in exercises.indices || toIndex !in exercises.indices) {
+                current
+            } else {
+                val nextExercises = exercises.toMutableList()
+                val moved = nextExercises.removeAt(fromIndex)
+                nextExercises.add(toIndex, moved)
+                current.copy(routineEditor = current.routineEditor.copy(exercises = nextExercises))
+            }
+        }
     }
 
     private fun String.sanitizeDecimalInput(): String {

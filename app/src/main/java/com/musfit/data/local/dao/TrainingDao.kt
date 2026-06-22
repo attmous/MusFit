@@ -107,6 +107,9 @@ interface TrainingDao {
     @Query("SELECT * FROM exercises WHERE name = :name LIMIT 1")
     suspend fun getExerciseByName(name: String): ExerciseEntity?
 
+    @Query("SELECT * FROM exercises WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun getExerciseByNormalizedName(name: String): ExerciseEntity?
+
     @Query("SELECT * FROM routines ORDER BY createdAtEpochMillis DESC")
     fun observeRoutines(): Flow<List<RoutineEntity>>
 
