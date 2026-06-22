@@ -212,7 +212,7 @@ class LocalTrainingRepository @Inject constructor(
 
     override suspend fun getLatestWorkoutForExport(): WorkoutForExport? {
         val session = trainingDao.getLatestCompletedWorkoutSession() ?: return null
-        val sets = trainingDao.getWorkoutSets(session.id)
+        val sets = trainingDao.getCompletedWorkoutSets(session.id)
         return if (sets.isEmpty()) null else WorkoutForExport(session = session, sets = sets)
     }
 

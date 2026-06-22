@@ -125,10 +125,22 @@ interface TrainingDao {
     suspend fun getWorkoutSets(sessionId: String): List<WorkoutSetEntity>
 
     @Query(
+        """
+        SELECT *
+        FROM workout_sets
+        WHERE sessionId = :sessionId
+        AND completed = 1
+        ORDER BY sortOrder
+        """,
+    )
+    suspend fun getCompletedWorkoutSets(sessionId: String): List<WorkoutSetEntity>
+
+    @Query(
         "SELECT workout_sets.* FROM workout_sets " +
             "INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId " +
             "WHERE workout_sessions.startedAtEpochMillis >= :startEpochMillis " +
             "AND workout_sessions.startedAtEpochMillis < :endEpochMillis " +
+            "AND workout_sessions.status = 'completed' " +
             "ORDER BY workout_sessions.startedAtEpochMillis, workout_sets.sortOrder",
     )
     fun observeWorkoutSetsForDate(

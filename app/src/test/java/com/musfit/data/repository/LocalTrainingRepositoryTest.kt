@@ -322,6 +322,179 @@ class LocalTrainingRepositoryTest {
         assertEquals(listOf("set-completed"), workout?.sets?.map { it.id })
     }
 
+    @Test
+    fun getLatestWorkoutForExport_filtersOutIncompleteSetsFromCompletedSession() = runTest {
+        val exercise =
+            ExerciseEntity(
+                id = "exercise-bench",
+                name = "Bench Press",
+                category = "strength",
+                equipment = "barbell",
+                targetMuscles = "chest,triceps,shoulders",
+                isCustom = false,
+            )
+        val completedSession =
+            WorkoutSessionEntity(
+                id = "session-completed",
+                routineId = null,
+                title = "Bench workout",
+                status = "completed",
+                startedAtEpochMillis = WORKOUT_START.toEpochMilli(),
+                endedAtEpochMillis = WORKOUT_START.plusSeconds(1800).toEpochMilli(),
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+
+        database.trainingDao().upsertExercise(exercise)
+        database.trainingDao().upsertWorkoutSession(completedSession)
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-completed",
+                sessionId = completedSession.id,
+                exerciseId = exercise.id,
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-incomplete",
+                sessionId = completedSession.id,
+                exerciseId = exercise.id,
+                sortOrder = 1,
+                setType = "working",
+                reps = 8,
+                weightKg = 90.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = false,
+            ),
+        )
+
+        val workout = repository.getLatestWorkoutForExport()
+
+        assertNotNull(workout)
+        assertEquals(listOf("set-completed"), workout?.sets?.map { it.id })
+    }
+
+    @Test
+    fun observeDailyTrainingSummary_ignoresActiveAndDiscardedSessions() = runTest {
+        val exercise =
+            ExerciseEntity(
+                id = "exercise-bench",
+                name = "Bench Press",
+                category = "strength",
+                equipment = "barbell",
+                targetMuscles = "chest,triceps,shoulders",
+                isCustom = false,
+            )
+        val completedSession =
+            WorkoutSessionEntity(
+                id = "session-completed",
+                routineId = null,
+                title = "Completed workout",
+                status = "completed",
+                startedAtEpochMillis = WORKOUT_START.toEpochMilli(),
+                endedAtEpochMillis = WORKOUT_START.plusSeconds(1200).toEpochMilli(),
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+        val activeSession =
+            WorkoutSessionEntity(
+                id = "session-active",
+                routineId = null,
+                title = "Active workout",
+                status = "active",
+                startedAtEpochMillis = WORKOUT_START.plusSeconds(1800).toEpochMilli(),
+                endedAtEpochMillis = null,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+        val discardedSession =
+            WorkoutSessionEntity(
+                id = "session-discarded",
+                routineId = null,
+                title = "Discarded workout",
+                status = "discarded",
+                startedAtEpochMillis = WORKOUT_START.plusSeconds(2400).toEpochMilli(),
+                endedAtEpochMillis = WORKOUT_START.plusSeconds(3000).toEpochMilli(),
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+
+        database.trainingDao().upsertExercise(exercise)
+        database.trainingDao().upsertWorkoutSession(completedSession)
+        database.trainingDao().upsertWorkoutSession(activeSession)
+        database.trainingDao().upsertWorkoutSession(discardedSession)
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-completed",
+                sessionId = completedSession.id,
+                exerciseId = exercise.id,
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-active",
+                sessionId = activeSession.id,
+                exerciseId = exercise.id,
+                sortOrder = 0,
+                setType = "working",
+                reps = 3,
+                weightKg = 120.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-discarded",
+                sessionId = discardedSession.id,
+                exerciseId = exercise.id,
+                sortOrder = 0,
+                setType = "working",
+                reps = 10,
+                weightKg = 60.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+
+        val summary = repository.observeDailyTrainingSummary(WORKOUT_DATE).first()
+
+        assertEquals(1, summary.completedSetCount)
+        assertEquals(500.0, summary.totalVolumeKg, 0.01)
+        assertEquals(116.67, summary.bestEstimatedOneRepMaxKg, 0.01)
+    }
+
     private companion object {
         val WORKOUT_DATE: LocalDate = LocalDate.of(2026, 6, 20)
         val WORKOUT_START: Instant = WORKOUT_DATE

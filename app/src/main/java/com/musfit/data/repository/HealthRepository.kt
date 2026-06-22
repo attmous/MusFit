@@ -70,7 +70,7 @@ class LocalHealthRepository @Inject constructor(
 
     override suspend fun exportLatestWorkout(): String? {
         val session = trainingDao.getLatestCompletedWorkoutSession() ?: return null
-        val sets = trainingDao.getWorkoutSets(session.id)
+        val sets = trainingDao.getCompletedWorkoutSets(session.id)
         if (sets.isEmpty()) return null
 
         val recordId = gateway.exportWorkout(session, sets) ?: return null

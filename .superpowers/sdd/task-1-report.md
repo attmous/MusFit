@@ -214,3 +214,41 @@ Result: PASS
 ### Concerns
 
 - `upsertWorkoutSession(...)` and `upsertRoutine(...)` still exist on the DAO for compatibility with older call sites and tests. This fix only removed them from the Task 1 parent-row update paths called out in the review.
+
+## Re-Review Fixes 4
+
+### What I fixed
+
+- Scoped both Health export readers to completed sets only by adding a dedicated DAO read for completed workout sets and using it from:
+  - `TrainingRepository.getLatestWorkoutForExport()`
+  - `LocalHealthRepository.exportLatestWorkout()`
+- Scoped daily training summary input to completed workout sessions only by filtering the date-range workout-set DAO query to `workout_sessions.status = 'completed'`.
+- Added focused regression coverage for:
+  - repository export filtering of incomplete sets
+  - Health export filtering of incomplete sets
+  - Today training summary exclusion of active and discarded sessions
+
+### Tests run and exact results
+
+- `.\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --tests "com.musfit.data.repository.LocalHealthRepositoryTest" --no-daemon --console=plain`
+  - First run before production changes: `17 tests completed, 3 failed`
+  - Failing regressions:
+    - `getLatestWorkoutForExport_filtersOutIncompleteSetsFromCompletedSession`
+    - `exportLatestWorkout_filtersOutIncompleteSetsFromCompletedSession`
+    - `observeDailyTrainingSummary_ignoresActiveAndDiscardedSessions`
+  - Second run after production changes: success (`exit code 0`)
+- `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain`
+  - Result: `BUILD SUCCESSFUL`
+
+### Files changed
+
+- `app/src/main/java/com/musfit/data/local/dao/TrainingDao.kt`
+- `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
+- `app/src/main/java/com/musfit/data/repository/HealthRepository.kt`
+- `app/src/test/java/com/musfit/data/repository/LocalTrainingRepositoryTest.kt`
+- `app/src/test/java/com/musfit/data/repository/LocalHealthRepositoryTest.kt`
+- `.superpowers/sdd/task-1-report.md`
+
+### Concerns
+
+- This stays within Task 1 compatibility scope. It does not add any new active-workout lifecycle behavior beyond excluding non-completed sessions from export and Today summaries.
