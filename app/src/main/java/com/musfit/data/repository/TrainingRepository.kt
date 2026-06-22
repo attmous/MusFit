@@ -822,28 +822,32 @@ private fun WorkoutHistorySummaryRow.toHistorySummary(): WorkoutHistorySummary =
 
 private fun List<ExerciseProgressSetRow>.toExerciseProgress(): ExerciseProgress? {
     val first = firstOrNull() ?: return null
+    val inputs = mapNotNull { row ->
+        val reps = row.reps
+        val weightKg = row.weightKg
+        if (reps == null || weightKg == null) {
+            null
+        } else {
+            ExerciseProgressSetInput(
+                dateEpochDay = Instant.ofEpochMilli(row.startedAtEpochMillis)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                    .toEpochDay(),
+                reps = reps,
+                weightKg = weightKg,
+                completed = row.completed,
+            )
+        }
+    }
+    if (inputs.none { it.completed && it.reps > 0 && it.weightKg > 0.0 }) {
+        return null
+    }
     return WorkoutCalculator.exerciseProgress(
         exerciseId = first.exerciseId,
         exerciseName = first.exerciseName,
         equipment = first.equipment,
         targetMuscles = first.targetMuscles,
-        sets = mapNotNull { row ->
-            val reps = row.reps
-            val weightKg = row.weightKg
-            if (reps == null || weightKg == null) {
-                null
-            } else {
-                ExerciseProgressSetInput(
-                    dateEpochDay = Instant.ofEpochMilli(row.startedAtEpochMillis)
-                        .atZone(ZoneId.systemDefault())
-                        .toLocalDate()
-                        .toEpochDay(),
-                    reps = reps,
-                    weightKg = weightKg,
-                    completed = row.completed,
-                )
-            }
-        },
+        sets = inputs,
     )
 }
 

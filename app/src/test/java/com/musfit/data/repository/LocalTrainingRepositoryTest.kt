@@ -990,6 +990,23 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun observeExerciseProgress_returnsNullWhenCompletedWorkoutsOnlyContainInvalidOrIncompleteSets() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val sessionId = repository.startBlankWorkout()
+        repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("working", null, 100.0, 8.0, null, true))
+        repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("working", 5, null, 8.0, null, true))
+        repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("working", 0, 100.0, 8.0, null, true))
+        repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("working", 5, 0.0, 8.0, null, true))
+        repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("working", 8, 90.0, 9.0, null, false))
+        repository.finishWorkout(sessionId)
+
+        val progress = repository.observeExerciseProgress(bench.id).first()
+
+        assertEquals(null, progress)
+    }
+
+    @Test
     fun observeDailyTrainingSummary_ignoresActiveAndDiscardedSessions() = runTest {
         val exercise =
             ExerciseEntity(
