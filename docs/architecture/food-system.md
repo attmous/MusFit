@@ -187,29 +187,29 @@ Each item is behavior-preserving and gated on the full verification command
   file (e.g. `FoodSummaryCalculators.kt`) holding them as testable `internal`
   functions — not `domain/`. Deferred.
 
-### Tier 1b — editor sub-state objects (medium risk, NOT YET DONE)
+### Tier 1b — editor sub-state objects — DONE
 
-Replace the flat per-editor input fields in `FoodUiState` with dedicated nullable
-sub-state data classes, one editor at a time, updating tests per step.
+Each editor's flat input fields in `FoodUiState` were collapsed into a dedicated
+sub-state data class, one editor at a time, each behavior-preserving and verified:
 
-**Cost discovered while planning (do these in this order, each as its own
-verified change):**
+- [x] `DiaryEntryEditorState` — 15 flat `editingDiaryEntry*` fields → one nullable
+  `diaryEntryEditor`.
+- [x] `GoalEditorState` — 11 `goal*Input` fields → a **non-nullable** `goalEditor`
+  (the goal draft is always present/synced, never nulled, so non-nullable
+  preserves behavior exactly).
+- [x] `MealTemplateEditorState` — 6 `template*` fields → nullable `mealTemplateEditor`.
+- [x] `RecipeEditorState` — 12 `recipe*` editor fields → nullable `recipeEditor`.
+  Note: `recipeServingsToLog` stays a flat field — it is the recipe-**log** quantity
+  (RecipeQuickList / `logRecipe`), not the editor.
+- [x] `SavedFoodEditorState` — 22 `editingSavedFoodId`/`savedFood*` fields → nullable
+  `savedFoodEditor`. (Earlier worry that this editor shared the add-draft fields was
+  **wrong** — it uses entirely dedicated `savedFood*` fields. The overloaded prefix
+  fields `savedFoodQuantityGrams`, `savedFoods`, `selectedSavedFoodDetail` are the
+  picker/database, not the editor, and stay flat.)
 
-- [x] `DiaryEntryEditorState` — **done.** Collapsed 15 flat `editingDiaryEntry*`
-  fields into one nullable `diaryEntryEditor` object; updated `withDiaryEntryPreview`,
-  `DiaryEntryEditorPanel` (in `FoodModalSheets.kt`), and the `FoodViewModelTest`
-  assertions. Behavior-preserving; full verification green.
-- [ ] `GoalEditorState` — ~19 goal-related test refs.
-- [ ] `MealTemplateEditorState` / `RecipeEditorState` — heaviest: ~50–80
-  template/recipe test references each. Expect large test churn.
-- [ ] `SavedFoodEditorState` — **entangled.** The saved-food editor reuses the
-  shared add-draft fields (`productName`, `brand`, `caloriesPer100g`, …); only
-  `editingSavedFoodId` is dedicated. Untangling from the add flow is a
-  prerequisite, so do this one last.
-
-Each collapses several flat fields into one object and makes "which fields are
-live in which mode" obvious. Because of the test coupling above, do **not**
-attempt all editors in one pass — land and verify one editor at a time.
+Result: `FoodUiState`'s flat editor-input fields (~80) collapsed into 6 sub-state
+objects, making "which fields are live in which mode" explicit and each editor
+unit-reasonable in isolation.
 
 ### Tier 2 — split `FoodScreen.kt` along feature seams (mechanical)
 
