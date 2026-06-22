@@ -5,6 +5,7 @@ import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
 import com.musfit.data.repository.ExerciseInput
+import com.musfit.data.repository.ExerciseGrouping
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.RoutineDetail
@@ -516,6 +517,51 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun makeSupersetWithNext_pairsWithNextStandalone_andDissolveDelegates() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        fun block(id: String) = WorkoutExerciseBlock(
+            exercise = ExerciseSummary(
+                id = id,
+                name = id,
+                category = "strength",
+                equipment = null,
+                targetMuscles = "x",
+                isCustom = false,
+            ),
+            targetReps = null,
+            sets = emptyList(),
+        )
+        val blockA = block("ex-a")
+        val blockB = block("ex-b")
+        repository.activeWorkoutDetail.value = ActiveWorkoutDetail(
+            sessionId = "session-1",
+            title = "Push",
+            startedAtEpochMillis = 1_000L,
+            completedSetCount = 0,
+            totalVolumeKg = 0.0,
+            exerciseBlocks = listOf(blockA, blockB),
+            exerciseGroupings = listOf(ExerciseGrouping.Single(blockA), ExerciseGrouping.Single(blockB)),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // The last standalone block has no "next" -> no-op.
+        viewModel.makeSupersetWithNext("ex-b")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(null, repository.createSupersetArgs)
+
+        viewModel.makeSupersetWithNext("ex-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(Triple("session-1", "ex-a", "ex-b"), repository.createSupersetArgs)
+
+        viewModel.dissolveSuperset("grp-1")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("session-1" to "grp-1", repository.dissolveSupersetArgs)
+    }
+
+    @Test
     fun restTimerControls_tickPauseResumeAdjustAndSkip() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
@@ -719,6 +765,8 @@ class TrainingViewModelTest {
         var updatedSetId: String? = null
         var updatedCompleted: Boolean? = null
         var updatedSetInput: WorkoutSetInputData? = null
+        var createSupersetArgs: Triple<String, String, String>? = null
+        var dissolveSupersetArgs: Pair<String, String>? = null
         var createdRoutineInput: RoutineInput? = null
         var createdExerciseInput: ExerciseInput? = null
         var updatedRoutineId: String? = null
@@ -1021,6 +1069,15 @@ class TrainingViewModelTest {
 
         override suspend fun deleteWorkoutSet(setId: String) {
             deletedSetId = setId
+        }
+
+        override suspend fun createSuperset(sessionId: String, exerciseAId: String, exerciseBId: String): String? {
+            createSupersetArgs = Triple(sessionId, exerciseAId, exerciseBId)
+            return "grp-fake"
+        }
+
+        override suspend fun dissolveSuperset(sessionId: String, groupId: String) {
+            dissolveSupersetArgs = sessionId to groupId
         }
 
         override suspend fun deleteRoutine(routineId: String) {

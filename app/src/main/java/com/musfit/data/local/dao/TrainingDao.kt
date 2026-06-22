@@ -59,6 +59,7 @@ data class WorkoutSetDetailRow(
     val rpe: Double?,
     val notes: String?,
     val completed: Boolean,
+    val supersetGroupId: String? = null,
 )
 
 data class WorkoutHistorySummaryRow(
@@ -268,7 +269,8 @@ interface TrainingDao {
             workout_sets.weightKg AS weightKg,
             workout_sets.rpe AS rpe,
             workout_sets.notes AS notes,
-            workout_sets.completed AS completed
+            workout_sets.completed AS completed,
+            workout_sets.supersetGroupId AS supersetGroupId
         FROM workout_sets
         INNER JOIN exercises ON exercises.id = workout_sets.exerciseId
         WHERE workout_sets.sessionId = :sessionId
@@ -398,6 +400,12 @@ interface TrainingDao {
 
     @Query("UPDATE workout_sets SET completed = :completed WHERE id = :setId")
     suspend fun updateWorkoutSetCompletion(setId: String, completed: Boolean)
+
+    @Query("UPDATE workout_sets SET supersetGroupId = :groupId WHERE sessionId = :sessionId AND exerciseId = :exerciseId")
+    suspend fun setExerciseSupersetGroup(sessionId: String, exerciseId: String, groupId: String?)
+
+    @Query("UPDATE workout_sets SET supersetGroupId = NULL WHERE sessionId = :sessionId AND supersetGroupId = :groupId")
+    suspend fun clearSupersetGroup(sessionId: String, groupId: String)
 
     @Query("DELETE FROM workout_sets WHERE id = :setId")
     suspend fun deleteWorkoutSetById(setId: String)

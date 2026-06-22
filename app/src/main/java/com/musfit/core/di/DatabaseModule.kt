@@ -42,6 +42,7 @@ object DatabaseModule {
                 MIGRATION_15_16,
                 MIGRATION_16_17,
                 MIGRATION_17_18,
+                MIGRATION_18_19,
             )
             .build()
 
@@ -374,6 +375,13 @@ object DatabaseModule {
                     )
                     """.trimIndent(),
                 )
+            }
+        }
+
+    private val MIGRATION_18_19 =
+        object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE workout_sets ADD COLUMN supersetGroupId TEXT")
             }
         }
 }

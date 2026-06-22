@@ -55,10 +55,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.ActiveWorkoutDetail
+import com.musfit.data.repository.ExerciseGrouping
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSetDetail
+import com.musfit.data.repository.SupersetGroup
 import com.musfit.data.repository.WorkoutExerciseBlock
 import com.musfit.domain.training.PlateCalculator
 import com.musfit.domain.training.WorkoutCalculator
@@ -84,6 +87,8 @@ fun TrainingActiveWorkoutContent(
     onResumeRestTimer: () -> Unit,
     onSkipRestTimer: () -> Unit,
     onAdjustRestTimer: (Int) -> Unit,
+    onMakeSuperset: (String) -> Unit,
+    onDissolveSuperset: (String) -> Unit,
     onClose: () -> Unit,
     onFinish: () -> Unit,
     onDiscard: () -> Unit,
@@ -111,16 +116,49 @@ fun TrainingActiveWorkoutContent(
             accent = accent,
             onAddExercise = onAddExercise,
         )
-        workout.exerciseBlocks.forEach { block ->
-            ActiveExerciseBlock(
-                block = block,
-                accent = accent,
-                onAddSet = onAddSet,
-                onDuplicateSet = onDuplicateSet,
-                onUpdateSet = onUpdateSet,
-                onDeleteSet = onDeleteSet,
-                onToggleSet = onToggleSet,
-            )
+        val groupings = workout.exerciseGroupings.ifEmpty {
+            workout.exerciseBlocks.map { ExerciseGrouping.Single(it) }
+        }
+        groupings.forEachIndexed { index, grouping ->
+            when (grouping) {
+                is ExerciseGrouping.Single -> {
+                    val canMakeSuperset = groupings.drop(index + 1).any { it is ExerciseGrouping.Single }
+                    ActiveExerciseBlock(
+                        block = grouping.block,
+                        accent = accent,
+                        onAddSet = onAddSet,
+                        onDuplicateSet = onDuplicateSet,
+                        onUpdateSet = onUpdateSet,
+                        onDeleteSet = onDeleteSet,
+                        onToggleSet = onToggleSet,
+                        canMakeSuperset = canMakeSuperset,
+                        onMakeSuperset = onMakeSuperset,
+                    )
+                }
+                is ExerciseGrouping.Superset ->
+                    if (grouping.group.exerciseBlocks.size > 1) {
+                        SupersetGroupCard(
+                            group = grouping.group,
+                            accent = accent,
+                            onAddSet = onAddSet,
+                            onDuplicateSet = onDuplicateSet,
+                            onUpdateSet = onUpdateSet,
+                            onDeleteSet = onDeleteSet,
+                            onToggleSet = onToggleSet,
+                            onDissolveSuperset = onDissolveSuperset,
+                        )
+                    } else {
+                        ActiveExerciseBlock(
+                            block = grouping.group.exerciseBlocks.first(),
+                            accent = accent,
+                            onAddSet = onAddSet,
+                            onDuplicateSet = onDuplicateSet,
+                            onUpdateSet = onUpdateSet,
+                            onDeleteSet = onDeleteSet,
+                            onToggleSet = onToggleSet,
+                        )
+                    }
+            }
         }
     }
 }
@@ -413,85 +451,241 @@ private fun ActiveExerciseBlock(
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
     onToggleSet: (String, Boolean) -> Unit,
+    nested: Boolean = false,
+    canMakeSuperset: Boolean = false,
+    onMakeSuperset: ((String) -> Unit)? = null,
 ) {
-    Surface(
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.large,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+    if (nested) {
+        ActiveExerciseBlockBody(
+            block = block,
+            accent = accent,
+            contentPadding = 12.dp,
+            canMakeSuperset = false,
+            onMakeSuperset = null,
+            onAddSet = onAddSet,
+            onDuplicateSet = onDuplicateSet,
+            onUpdateSet = onUpdateSet,
+            onDeleteSet = onDeleteSet,
+            onToggleSet = onToggleSet,
+        )
+    } else {
+        Surface(
+            color = MusFitTheme.colors.surface,
+            shape = MusFitTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth(),
+            ActiveExerciseBlockBody(
+                block = block,
+                accent = accent,
+                contentPadding = 14.dp,
+                canMakeSuperset = canMakeSuperset,
+                onMakeSuperset = onMakeSuperset,
+                onAddSet = onAddSet,
+                onDuplicateSet = onDuplicateSet,
+                onUpdateSet = onUpdateSet,
+                onDeleteSet = onDeleteSet,
+                onToggleSet = onToggleSet,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActiveExerciseBlockBody(
+    block: WorkoutExerciseBlock,
+    accent: TabAccent,
+    contentPadding: Dp,
+    canMakeSuperset: Boolean,
+    onMakeSuperset: ((String) -> Unit)?,
+    onAddSet: (String) -> Unit,
+    onDuplicateSet: (String) -> Unit,
+    onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
+    onDeleteSet: (String) -> Unit,
+    onToggleSet: (String, Boolean) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(contentPadding),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(accent.container),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(accent.container),
-                    contentAlignment = Alignment.Center,
+                Icon(
+                    imageVector = Icons.Outlined.FitnessCenter,
+                    contentDescription = null,
+                    tint = accent.onContainer,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.FitnessCenter,
-                        contentDescription = null,
-                        tint = accent.onContainer,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
+                    block.supersetLabel?.let { SupersetBadge(label = it, accent = accent) }
                     Text(
                         block.exercise.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = accent.color,
                     )
-                    block.targetReps?.let {
-                        Text(
-                            "Target reps $it",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MusFitTheme.colors.onSurfaceVariant,
+                }
+                block.targetReps?.let {
+                    Text(
+                        "Target reps $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+            }
+            if (onMakeSuperset != null) {
+                Box {
+                    var menu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menu = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.MoreVert,
+                            contentDescription = "Exercise options",
+                            tint = accent.color,
+                        )
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Make superset with next") },
+                            enabled = canMakeSuperset,
+                            onClick = {
+                                menu = false
+                                onMakeSuperset(block.exercise.id)
+                            },
                         )
                     }
                 }
             }
+        }
 
-            SetTableHeader()
-            val rows = formatWorkoutSetRowsForDisplay(block.sets, block.priorBestEstimatedOneRepMaxKg)
-            rows.forEachIndexed { rowIndex, row ->
-                WorkoutSetTableRow(
-                    row = row,
-                    accent = accent,
-                    isAlternate = rowIndex % 2 == 1,
-                    onUpdateSet = onUpdateSet,
-                    onDeleteSet = onDeleteSet,
-                    onToggleSet = onToggleSet,
-                )
-            }
+        SetTableHeader()
+        val rows = formatWorkoutSetRowsForDisplay(block.sets, block.priorBestEstimatedOneRepMaxKg)
+        rows.forEachIndexed { rowIndex, row ->
+            WorkoutSetTableRow(
+                row = row,
+                accent = accent,
+                isAlternate = rowIndex % 2 == 1,
+                onUpdateSet = onUpdateSet,
+                onDeleteSet = onDeleteSet,
+                onToggleSet = onToggleSet,
+            )
+        }
 
-            PlateLine(block = block)
+        PlateLine(block = block)
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                onClick = { onAddSet(block.exercise.id) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
             ) {
-                Button(
-                    onClick = { onAddSet(block.exercise.id) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
-                ) {
-                    Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Add set")
+                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add set")
+            }
+            TextButton(onClick = { onDuplicateSet(block.exercise.id) }) {
+                Text("Duplicate", color = accent.color)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SupersetGroupCard(
+    group: SupersetGroup,
+    accent: TabAccent,
+    onAddSet: (String) -> Unit,
+    onDuplicateSet: (String) -> Unit,
+    onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
+    onDeleteSet: (String) -> Unit,
+    onToggleSet: (String, Boolean) -> Unit,
+    onDissolveSuperset: (String) -> Unit,
+) {
+    Surface(
+        color = accent.container,
+        shape = MusFitTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 4.dp),
+            ) {
+                Surface(color = accent.color, shape = MusFitTheme.shapes.small) {
+                    Text(
+                        text = "SUPERSET",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = accent.onColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
                 }
-                TextButton(onClick = { onDuplicateSet(block.exercise.id) }) {
-                    Text("Duplicate", color = accent.color)
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { onDissolveSuperset(group.supersetGroupId) }) {
+                    Text("Dissolve", color = accent.onContainer, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            group.exerciseBlocks.forEach { member ->
+                Surface(
+                    color = MusFitTheme.colors.surface,
+                    shape = MusFitTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    ActiveExerciseBlock(
+                        block = member,
+                        accent = accent,
+                        onAddSet = onAddSet,
+                        onDuplicateSet = onDuplicateSet,
+                        onUpdateSet = onUpdateSet,
+                        onDeleteSet = onDeleteSet,
+                        onToggleSet = onToggleSet,
+                        nested = true,
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SupersetBadge(label: String, accent: TabAccent) {
+    Box(
+        modifier = Modifier
+            .size(20.dp)
+            .clip(CircleShape)
+            .background(accent.container),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = accent.onContainer,
+        )
     }
 }
 

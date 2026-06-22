@@ -107,4 +107,5 @@ data class WorkoutSetEntity(
     val rpe: Double?,
     val notes: String?,
     val completed: Boolean,
+    val supersetGroupId: String? = null,
 )

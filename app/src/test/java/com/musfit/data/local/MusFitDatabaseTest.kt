@@ -18,6 +18,8 @@ import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
 import com.musfit.data.local.entity.UserGoalsEntity
 import com.musfit.data.local.entity.UserProfileEntity
+import com.musfit.data.local.entity.WorkoutSessionEntity
+import com.musfit.data.local.entity.WorkoutSetEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -221,6 +223,118 @@ class MusFitDatabaseTest {
         assertEquals(settings, profileDao.observeSettings("app").first())
         assertEquals(profile, profileDao.getProfile("user"))
         assertNull(profileDao.observeProfile("missing").first())
+    }
+
+    @Test
+    fun workoutSet_supersetGroupId_roundTrips() = runTest {
+        val exercise = ExerciseEntity(
+            id = "ex-ss",
+            name = "Bench Press",
+            category = "strength",
+            equipment = "barbell",
+            targetMuscles = "chest",
+            isCustom = false,
+        )
+        val session = WorkoutSessionEntity(
+            id = "sess-ss",
+            routineId = null,
+            title = "Workout",
+            status = "active",
+            startedAtEpochMillis = 1_000L,
+            endedAtEpochMillis = null,
+            notes = null,
+            healthConnectRecordId = null,
+            healthConnectLastExportedAtEpochMillis = null,
+        )
+        trainingDao.upsertExercise(exercise)
+        trainingDao.upsertWorkoutSession(session)
+        trainingDao.upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-grouped",
+                sessionId = session.id,
+                exerciseId = exercise.id,
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = false,
+                supersetGroupId = "grp-1",
+            ),
+        )
+        trainingDao.upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-standalone",
+                sessionId = session.id,
+                exerciseId = exercise.id,
+                sortOrder = 1,
+                setType = "working",
+                reps = 8,
+                weightKg = 80.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = false,
+            ),
+        )
+
+        assertEquals("grp-1", trainingDao.getWorkoutSet("set-grouped")?.supersetGroupId)
+        assertNull(trainingDao.getWorkoutSet("set-standalone")?.supersetGroupId)
+    }
+
+    @Test
+    fun supersetGroupWriters_tagAndClearAllSetsOfExercise() = runTest {
+        val exercise = ExerciseEntity(
+            id = "ex-w",
+            name = "Barbell Row",
+            category = "strength",
+            equipment = "barbell",
+            targetMuscles = "back",
+            isCustom = false,
+        )
+        val session = WorkoutSessionEntity(
+            id = "sess-w",
+            routineId = null,
+            title = "Workout",
+            status = "active",
+            startedAtEpochMillis = 1_000L,
+            endedAtEpochMillis = null,
+            notes = null,
+            healthConnectRecordId = null,
+            healthConnectLastExportedAtEpochMillis = null,
+        )
+        trainingDao.upsertExercise(exercise)
+        trainingDao.upsertWorkoutSession(session)
+        repeat(2) { i ->
+            trainingDao.upsertWorkoutSet(
+                WorkoutSetEntity(
+                    id = "w$i",
+                    sessionId = session.id,
+                    exerciseId = exercise.id,
+                    sortOrder = i,
+                    setType = "working",
+                    reps = 8,
+                    weightKg = 60.0,
+                    durationSeconds = null,
+                    distanceMeters = null,
+                    rpe = null,
+                    notes = null,
+                    completed = false,
+                ),
+            )
+        }
+
+        trainingDao.setExerciseSupersetGroup(session.id, exercise.id, "grp-X")
+        val tagged = trainingDao.observeWorkoutSetDetailRows(session.id).first()
+        assertEquals(listOf("grp-X", "grp-X"), tagged.map { it.supersetGroupId })
+
+        trainingDao.clearSupersetGroup(session.id, "grp-X")
+        val cleared = trainingDao.observeWorkoutSetDetailRows(session.id).first()
+        assertTrue(cleared.all { it.supersetGroupId == null })
     }
 
     @Test
