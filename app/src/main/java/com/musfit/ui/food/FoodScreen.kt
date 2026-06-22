@@ -498,7 +498,7 @@ fun FoodScreen(
                         onDuplicateRecipeClick = viewModel::duplicateRecipe,
                         onFavoriteClick = viewModel::toggleFavoriteRecipe,
                         onSaveClick = viewModel::saveRecipe,
-                        onDeleteClick = { state.editingRecipeId?.let(viewModel::deleteRecipe) },
+                        onDeleteClick = { state.recipeEditor?.editingRecipeId?.let(viewModel::deleteRecipe) },
                     )
 
                 FoodSheetMode.MealTemplates ->

@@ -938,7 +938,8 @@ internal fun SavedFoodEditorPanel(
     onDuplicateClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
-    val isExistingFood = state.editingSavedFoodId != null
+    val editor = state.savedFoodEditor ?: return
+    val isExistingFood = editor.id != null
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -961,7 +962,7 @@ internal fun SavedFoodEditorPanel(
         }
 
         OutlinedTextField(
-            value = state.savedFoodName,
+            value = editor.name,
             onValueChange = onNameChanged,
             label = { Text("Food name") },
             singleLine = true,
@@ -973,14 +974,14 @@ internal fun SavedFoodEditorPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             OutlinedTextField(
-                value = state.savedFoodBrand,
+                value = editor.brand,
                 onValueChange = onBrandChanged,
                 label = { Text("Brand") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
-                value = state.savedFoodServingGrams,
+                value = editor.servingGrams,
                 onValueChange = onServingChanged,
                 label = { Text("Serving (g)") },
                 singleLine = true,
@@ -994,14 +995,14 @@ internal fun SavedFoodEditorPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             OutlinedTextField(
-                value = state.savedFoodServingName,
+                value = editor.servingName,
                 onValueChange = onServingNameChanged,
                 label = { Text("Serving name") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
-                value = state.savedFoodCategory,
+                value = editor.category,
                 onValueChange = onCategoryChanged,
                 label = { Text("Category") },
                 singleLine = true,
@@ -1010,7 +1011,7 @@ internal fun SavedFoodEditorPanel(
         }
 
         OutlinedTextField(
-            value = state.savedFoodBarcode,
+            value = editor.barcode,
             onValueChange = onBarcodeChanged,
             label = { Text("Barcode") },
             singleLine = true,
@@ -1024,7 +1025,7 @@ internal fun SavedFoodEditorPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Favorite", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-            Switch(checked = state.savedFoodIsFavorite, onCheckedChange = onFavoriteChanged)
+            Switch(checked = editor.isFavorite, onCheckedChange = onFavoriteChanged)
         }
 
         SavedFoodNutritionFields(
@@ -1107,6 +1108,7 @@ internal fun NutritionLabelScanPanel(
     onCategoryChanged: (String) -> Unit,
     onSaveClick: () -> Unit,
 ) {
+    val editor = state.savedFoodEditor ?: return
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1137,7 +1139,7 @@ internal fun NutritionLabelScanPanel(
         }
 
         OutlinedTextField(
-            value = state.savedFoodName,
+            value = editor.name,
             onValueChange = onNameChanged,
             label = { Text("Food name") },
             singleLine = true,
@@ -1149,14 +1151,14 @@ internal fun NutritionLabelScanPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             OutlinedTextField(
-                value = state.savedFoodBrand,
+                value = editor.brand,
                 onValueChange = onBrandChanged,
                 label = { Text("Brand") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
-                value = state.savedFoodServingGrams,
+                value = editor.servingGrams,
                 onValueChange = onServingChanged,
                 label = { Text("Serving g") },
                 singleLine = true,
@@ -1170,14 +1172,14 @@ internal fun NutritionLabelScanPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             OutlinedTextField(
-                value = state.savedFoodServingName,
+                value = editor.servingName,
                 onValueChange = onServingNameChanged,
                 label = { Text("Serving") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
-                value = state.savedFoodCategory,
+                value = editor.category,
                 onValueChange = onCategoryChanged,
                 label = { Text("Category") },
                 singleLine = true,
@@ -1240,6 +1242,7 @@ private fun SavedFoodNutritionFields(
     onVitaminCChanged: (String) -> Unit,
     onMagnesiumChanged: (String) -> Unit,
 ) {
+    val editor = state.savedFoodEditor ?: return
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = "Per 100 g",
@@ -1252,13 +1255,13 @@ private fun SavedFoodNutritionFields(
         ) {
             SmallNumberField(
                 label = "Calories",
-                value = state.savedFoodCaloriesPer100g,
+                value = editor.caloriesPer100g,
                 onValueChange = onCaloriesChanged,
                 modifier = Modifier.weight(1f),
             )
             SmallNumberField(
                 label = "Protein",
-                value = state.savedFoodProteinPer100g,
+                value = editor.proteinPer100g,
                 onValueChange = onProteinChanged,
                 modifier = Modifier.weight(1f),
             )
@@ -1269,13 +1272,13 @@ private fun SavedFoodNutritionFields(
         ) {
             SmallNumberField(
                 label = "Carbs",
-                value = state.savedFoodCarbsPer100g,
+                value = editor.carbsPer100g,
                 onValueChange = onCarbsChanged,
                 modifier = Modifier.weight(1f),
             )
             SmallNumberField(
                 label = "Fat",
-                value = state.savedFoodFatPer100g,
+                value = editor.fatPer100g,
                 onValueChange = onFatChanged,
                 modifier = Modifier.weight(1f),
             )
@@ -1286,13 +1289,13 @@ private fun SavedFoodNutritionFields(
         ) {
             SmallNumberField(
                 label = "Fiber",
-                value = state.savedFoodFiberPer100g,
+                value = editor.fiberPer100g,
                 onValueChange = onFiberChanged,
                 modifier = Modifier.weight(1f),
             )
             SmallNumberField(
                 label = "Sugar",
-                value = state.savedFoodSugarPer100g,
+                value = editor.sugarPer100g,
                 onValueChange = onSugarChanged,
                 modifier = Modifier.weight(1f),
             )
@@ -1303,13 +1306,13 @@ private fun SavedFoodNutritionFields(
         ) {
             SmallNumberField(
                 label = "Sat fat",
-                value = state.savedFoodSaturatedFatPer100g,
+                value = editor.saturatedFatPer100g,
                 onValueChange = onSaturatedFatChanged,
                 modifier = Modifier.weight(1f),
             )
             SmallNumberField(
                 label = "Sodium mg",
-                value = state.savedFoodSodiumMgPer100g,
+                value = editor.sodiumMgPer100g,
                 onValueChange = onSodiumChanged,
                 modifier = Modifier.weight(1f),
             )
@@ -1320,13 +1323,13 @@ private fun SavedFoodNutritionFields(
         ) {
             SmallNumberField(
                 label = "Potassium mg",
-                value = state.savedFoodPotassiumMgPer100g,
+                value = editor.potassiumMgPer100g,
                 onValueChange = onPotassiumChanged,
                 modifier = Modifier.weight(1f),
             )
             SmallNumberField(
                 label = "Calcium mg",
-                value = state.savedFoodCalciumMgPer100g,
+                value = editor.calciumMgPer100g,
                 onValueChange = onCalciumChanged,
                 modifier = Modifier.weight(1f),
             )
@@ -1337,13 +1340,13 @@ private fun SavedFoodNutritionFields(
         ) {
             SmallNumberField(
                 label = "Iron mg",
-                value = state.savedFoodIronMgPer100g,
+                value = editor.ironMgPer100g,
                 onValueChange = onIronChanged,
                 modifier = Modifier.weight(1f),
             )
             SmallNumberField(
                 label = "Vit D mcg",
-                value = state.savedFoodVitaminDMcgPer100g,
+                value = editor.vitaminDMcgPer100g,
                 onValueChange = onVitaminDChanged,
                 modifier = Modifier.weight(1f),
             )
@@ -1354,13 +1357,13 @@ private fun SavedFoodNutritionFields(
         ) {
             SmallNumberField(
                 label = "Vit C mg",
-                value = state.savedFoodVitaminCMgPer100g,
+                value = editor.vitaminCMgPer100g,
                 onValueChange = onVitaminCChanged,
                 modifier = Modifier.weight(1f),
             )
             SmallNumberField(
                 label = "Magnesium mg",
-                value = state.savedFoodMagnesiumMgPer100g,
+                value = editor.magnesiumMgPer100g,
                 onValueChange = onMagnesiumChanged,
                 modifier = Modifier.weight(1f),
             )
@@ -1394,25 +1397,25 @@ internal fun GoalEditorPanel(
     ) {
         Text("Nutrition goals", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SmallNumberField("Calories", state.goalCaloriesKcalInput, onCaloriesChanged, Modifier.weight(1f))
-            SmallNumberField("Protein", state.goalProteinGramsInput, onProteinChanged, Modifier.weight(1f))
+            SmallNumberField("Calories", state.goalEditor.caloriesKcalInput, onCaloriesChanged, Modifier.weight(1f))
+            SmallNumberField("Protein", state.goalEditor.proteinGramsInput, onProteinChanged, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SmallNumberField("Carbs", state.goalCarbsGramsInput, onCarbsChanged, Modifier.weight(1f))
-            SmallNumberField("Fat", state.goalFatGramsInput, onFatChanged, Modifier.weight(1f))
+            SmallNumberField("Carbs", state.goalEditor.carbsGramsInput, onCarbsChanged, Modifier.weight(1f))
+            SmallNumberField("Fat", state.goalEditor.fatGramsInput, onFatChanged, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SmallNumberField("Fiber", state.goalFiberGramsInput, onFiberChanged, Modifier.weight(1f))
-            SmallNumberField("Sugar", state.goalSugarGramsInput, onSugarChanged, Modifier.weight(1f))
+            SmallNumberField("Fiber", state.goalEditor.fiberGramsInput, onFiberChanged, Modifier.weight(1f))
+            SmallNumberField("Sugar", state.goalEditor.sugarGramsInput, onSugarChanged, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SmallNumberField("Sat fat", state.goalSaturatedFatGramsInput, onSaturatedFatChanged, Modifier.weight(1f))
-            SmallNumberField("Sodium mg", state.goalSodiumMgInput, onSodiumChanged, Modifier.weight(1f))
+            SmallNumberField("Sat fat", state.goalEditor.saturatedFatGramsInput, onSaturatedFatChanged, Modifier.weight(1f))
+            SmallNumberField("Sodium mg", state.goalEditor.sodiumMgInput, onSodiumChanged, Modifier.weight(1f))
         }
         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FoodGoalMode.entries.forEach { mode ->
                 FilterChip(
-                    selected = state.goalModeInput == mode,
+                    selected = state.goalEditor.modeInput == mode,
                     onClick = { onModeChanged(mode) },
                     label = { Text(mode.label) },
                 )
@@ -1424,7 +1427,7 @@ internal fun GoalEditorPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Net carbs", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-            Switch(checked = state.goalUseNetCarbsInput, onCheckedChange = onNetCarbsChanged)
+            Switch(checked = state.goalEditor.useNetCarbsInput, onCheckedChange = onNetCarbsChanged)
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1432,7 +1435,7 @@ internal fun GoalEditorPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Include training calories", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-            Switch(checked = state.goalIncludeTrainingInput, onCheckedChange = onTrainingChanged)
+            Switch(checked = state.goalEditor.includeTrainingInput, onCheckedChange = onTrainingChanged)
         }
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         Button(
@@ -1464,6 +1467,7 @@ internal fun RecipeEditorPanel(
     onSaveClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
+    val editor = state.recipeEditor ?: return
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1472,8 +1476,8 @@ internal fun RecipeEditorPanel(
             .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(if (state.editingRecipeId == null) "Recipe" else "Edit recipe", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        if (state.recipes.isNotEmpty() && state.editingRecipeId == null) {
+        Text(if (editor.editingRecipeId == null) "Recipe" else "Edit recipe", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        if (state.recipes.isNotEmpty() && editor.editingRecipeId == null) {
             Text("Saved recipes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             state.recipes.forEach { recipe ->
                 Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
@@ -1513,14 +1517,14 @@ internal fun RecipeEditorPanel(
                 }
             }
         }
-        OutlinedTextField(state.recipeName, onNameChanged, label = { Text("Recipe name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(editor.name, onNameChanged, label = { Text("Recipe name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(state.recipeCategory, onCategoryChanged, label = { Text("Category") }, singleLine = true, modifier = Modifier.weight(1f))
-            OutlinedTextField(state.recipeServingName, onServingNameChanged, label = { Text("Serving") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(editor.category, onCategoryChanged, label = { Text("Category") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(editor.servingName, onServingNameChanged, label = { Text("Serving") }, singleLine = true, modifier = Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
-                state.recipeServingsCount,
+                editor.servingsCount,
                 onServingsCountChanged,
                 label = { Text("Servings") },
                 singleLine = true,
@@ -1528,7 +1532,7 @@ internal fun RecipeEditorPanel(
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
-                state.recipeCookedYieldGrams,
+                editor.cookedYieldGrams,
                 onCookedYieldChanged,
                 label = { Text("Cooked yield g") },
                 singleLine = true,
@@ -1537,7 +1541,7 @@ internal fun RecipeEditorPanel(
             )
         }
         Text(
-            text = "${state.recipeServingGrams.ifBlank { "0" }} g per ${state.recipeServingName.ifBlank { "serving" }}",
+            text = "${editor.servingGrams.ifBlank { "0" }} g per ${editor.servingName.ifBlank { "serving" }}",
             style = MaterialTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
         )
@@ -1545,17 +1549,17 @@ internal fun RecipeEditorPanel(
         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.savedFoods.forEach { food ->
                 FilterChip(
-                    selected = state.recipeIngredientFoodId == food.id,
+                    selected = editor.ingredientFoodId == food.id,
                     onClick = { onIngredientFoodChanged(food.id) },
                     label = { Text(food.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 )
             }
         }
-        if (state.recipeIngredientServingChoices.isNotEmpty()) {
+        if (editor.ingredientServingChoices.isNotEmpty()) {
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.recipeIngredientServingChoices.forEach { choice ->
+                editor.ingredientServingChoices.forEach { choice ->
                     FilterChip(
-                        selected = state.recipeIngredientServingChoiceId == choice.id,
+                        selected = editor.ingredientServingChoiceId == choice.id,
                         onClick = { onIngredientServingChoiceSelected(choice.id) },
                         label = { Text(choice.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     )
@@ -1564,7 +1568,7 @@ internal fun RecipeEditorPanel(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
-                state.recipeIngredientQuantityGrams,
+                editor.ingredientQuantityGrams,
                 onIngredientQuantityChanged,
                 label = { Text("Amount") },
                 singleLine = true,
@@ -1575,7 +1579,7 @@ internal fun RecipeEditorPanel(
                 Text("Add")
             }
         }
-        state.recipeIngredients.forEach { ingredient ->
+        editor.ingredients.forEach { ingredient ->
             Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                 Row(
                     modifier = Modifier
@@ -1603,7 +1607,7 @@ internal fun RecipeEditorPanel(
         ) {
             Text(if (state.isSaving) "Saving" else "Save recipe")
         }
-        if (state.editingRecipeId != null) {
+        if (editor.editingRecipeId != null) {
             OutlinedButton(
                 onClick = onDeleteClick,
                 enabled = !state.isSaving,
@@ -1642,24 +1646,24 @@ internal fun MealTemplatesPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text("Meal templates", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        if (state.editingTemplateId != null) {
+        state.mealTemplateEditor?.let { editor ->
             Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Edit template", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     OutlinedTextField(
-                        value = state.templateNameInput,
+                        value = editor.name,
                         onValueChange = onNameChanged,
                         label = { Text("Name") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     MealTypeChips(
-                        selectedMealType = state.templateMealTypeInput,
+                        selectedMealType = editor.mealType,
                         mealDefinitions = state.mealDefinitions,
                         onMealChanged = onMealTypeChanged,
                     )
                     Text("Items", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    state.templateItemsInput.forEachIndexed { index, item ->
+                    editor.items.forEachIndexed { index, item ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1685,7 +1689,7 @@ internal fun MealTemplatesPanel(
                     Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         state.savedFoods.forEach { food ->
                             FilterChip(
-                                selected = state.templateItemFoodId == food.id,
+                                selected = editor.newItemFoodId == food.id,
                                 onClick = { onTemplateItemFoodChanged(food.id) },
                                 label = { Text(food.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             )
@@ -1697,7 +1701,7 @@ internal fun MealTemplatesPanel(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         OutlinedTextField(
-                            value = state.templateItemQuantityGrams,
+                            value = editor.newItemQuantityGrams,
                             onValueChange = onTemplateNewItemQuantityChanged,
                             label = { Text("Amount g") },
                             singleLine = true,

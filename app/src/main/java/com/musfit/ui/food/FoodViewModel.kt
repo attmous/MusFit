@@ -389,6 +389,69 @@ data class DiaryEntryEditorState(
     val isPlanned: Boolean = false,
 )
 
+data class GoalEditorState(
+    val caloriesKcalInput: String = CALORIE_GOAL_KCAL.formatInputNumber(),
+    val proteinGramsInput: String = PROTEIN_GOAL_GRAMS.formatInputNumber(),
+    val carbsGramsInput: String = CARBS_GOAL_GRAMS.formatInputNumber(),
+    val fatGramsInput: String = FAT_GOAL_GRAMS.formatInputNumber(),
+    val fiberGramsInput: String = FIBER_GOAL_GRAMS.formatInputNumber(),
+    val sugarGramsInput: String = SUGAR_GOAL_GRAMS.formatInputNumber(),
+    val saturatedFatGramsInput: String = SATURATED_FAT_GOAL_GRAMS.formatInputNumber(),
+    val sodiumMgInput: String = SODIUM_GOAL_MILLIGRAMS.formatInputNumber(),
+    val modeInput: FoodGoalMode = FoodGoalMode.Balanced,
+    val includeTrainingInput: Boolean = false,
+    val useNetCarbsInput: Boolean = false,
+)
+
+data class MealTemplateEditorState(
+    val id: String,
+    val name: String = "",
+    val mealType: String = "breakfast",
+    val items: List<MealTemplateItemDraftUiState> = emptyList(),
+    val newItemFoodId: String = "",
+    val newItemQuantityGrams: String = "100",
+)
+
+data class RecipeEditorState(
+    val editingRecipeId: String? = null,
+    val name: String = "",
+    val category: String = "",
+    val servingName: String = "Serving",
+    val servingGrams: String = "100",
+    val servingsCount: String = "1",
+    val cookedYieldGrams: String = "100",
+    val ingredientFoodId: String = "",
+    val ingredientServingChoiceId: String = "g",
+    val ingredientServingChoices: List<RecipeIngredientServingChoiceUiState> = emptyList(),
+    val ingredientQuantityGrams: String = "100",
+    val ingredients: List<RecipeIngredientDraftUiState> = emptyList(),
+)
+
+data class SavedFoodEditorState(
+    val id: String? = null,
+    val name: String = "",
+    val brand: String = "",
+    val servingGrams: String = "100",
+    val caloriesPer100g: String = "",
+    val proteinPer100g: String = "",
+    val carbsPer100g: String = "",
+    val fatPer100g: String = "",
+    val fiberPer100g: String = "",
+    val sugarPer100g: String = "",
+    val saturatedFatPer100g: String = "",
+    val sodiumMgPer100g: String = "",
+    val potassiumMgPer100g: String = "",
+    val calciumMgPer100g: String = "",
+    val ironMgPer100g: String = "",
+    val vitaminDMcgPer100g: String = "",
+    val vitaminCMgPer100g: String = "",
+    val magnesiumMgPer100g: String = "",
+    val servingName: String = "",
+    val barcode: String = "",
+    val category: String = "",
+    val isFavorite: Boolean = false,
+)
+
 data class FoodAmountNutritionPreviewUiState(
     val quantityGrams: Double,
     val caloriesKcal: Double,
@@ -492,57 +555,10 @@ data class FoodUiState(
     val sameAsYesterday: List<SavedFoodUiState> = emptyList(),
     val addTab: AddTab = AddTab.Recents,
     val diaryEntryEditor: DiaryEntryEditorState? = null,
-    val editingSavedFoodId: String? = null,
-    val savedFoodName: String = "",
-    val savedFoodBrand: String = "",
-    val savedFoodServingGrams: String = "100",
-    val savedFoodCaloriesPer100g: String = "",
-    val savedFoodProteinPer100g: String = "",
-    val savedFoodCarbsPer100g: String = "",
-    val savedFoodFatPer100g: String = "",
-    val savedFoodFiberPer100g: String = "",
-    val savedFoodSugarPer100g: String = "",
-    val savedFoodSaturatedFatPer100g: String = "",
-    val savedFoodSodiumMgPer100g: String = "",
-    val savedFoodPotassiumMgPer100g: String = "",
-    val savedFoodCalciumMgPer100g: String = "",
-    val savedFoodIronMgPer100g: String = "",
-    val savedFoodVitaminDMcgPer100g: String = "",
-    val savedFoodVitaminCMgPer100g: String = "",
-    val savedFoodMagnesiumMgPer100g: String = "",
-    val savedFoodServingName: String = "",
-    val savedFoodBarcode: String = "",
-    val savedFoodCategory: String = "",
-    val savedFoodIsFavorite: Boolean = false,
-    val editingTemplateId: String? = null,
-    val templateNameInput: String = "",
-    val templateMealTypeInput: String = "breakfast",
-    val templateItemsInput: List<MealTemplateItemDraftUiState> = emptyList(),
-    val templateItemFoodId: String = "",
-    val templateItemQuantityGrams: String = "100",
-    val goalCaloriesKcalInput: String = CALORIE_GOAL_KCAL.formatInputNumber(),
-    val goalProteinGramsInput: String = PROTEIN_GOAL_GRAMS.formatInputNumber(),
-    val goalCarbsGramsInput: String = CARBS_GOAL_GRAMS.formatInputNumber(),
-    val goalFatGramsInput: String = FAT_GOAL_GRAMS.formatInputNumber(),
-    val goalFiberGramsInput: String = FIBER_GOAL_GRAMS.formatInputNumber(),
-    val goalSugarGramsInput: String = SUGAR_GOAL_GRAMS.formatInputNumber(),
-    val goalSaturatedFatGramsInput: String = SATURATED_FAT_GOAL_GRAMS.formatInputNumber(),
-    val goalSodiumMgInput: String = SODIUM_GOAL_MILLIGRAMS.formatInputNumber(),
-    val goalModeInput: FoodGoalMode = FoodGoalMode.Balanced,
-    val goalIncludeTrainingInput: Boolean = false,
-    val goalUseNetCarbsInput: Boolean = false,
-    val editingRecipeId: String? = null,
-    val recipeName: String = "",
-    val recipeCategory: String = "",
-    val recipeServingName: String = "Serving",
-    val recipeServingGrams: String = "100",
-    val recipeServingsCount: String = "1",
-    val recipeCookedYieldGrams: String = "100",
-    val recipeIngredientFoodId: String = "",
-    val recipeIngredientServingChoiceId: String = "g",
-    val recipeIngredientServingChoices: List<RecipeIngredientServingChoiceUiState> = emptyList(),
-    val recipeIngredientQuantityGrams: String = "100",
-    val recipeIngredients: List<RecipeIngredientDraftUiState> = emptyList(),
+    val savedFoodEditor: SavedFoodEditorState? = null,
+    val mealTemplateEditor: MealTemplateEditorState? = null,
+    val goalEditor: GoalEditorState = GoalEditorState(),
+    val recipeEditor: RecipeEditorState? = null,
     val recipeServingsToLog: String = "1",
     val editingMealDefinitionId: String? = null,
     val customMealNameInput: String = "",
@@ -983,9 +999,9 @@ class FoodViewModel @Inject constructor(
                 sheetMode = null,
                 message = null,
                 diaryEntryEditor = null,
-                editingSavedFoodId = null,
-                editingTemplateId = null,
-                editingRecipeId = null,
+                savedFoodEditor = null,
+                mealTemplateEditor = null,
+                recipeEditor = null,
                 editingMealDefinitionId = null,
                 selectedSavedFoodDetail = null,
             )
@@ -1083,7 +1099,7 @@ class FoodViewModel @Inject constructor(
                 sheetMode = FoodSheetMode.FoodDatabase,
                 message = null,
                 diaryEntryEditor = null,
-                editingSavedFoodId = null,
+                savedFoodEditor = null,
                 selectedSavedFoodDetail = null,
             )
         }
@@ -1333,36 +1349,23 @@ class FoodViewModel @Inject constructor(
                 it.copy(
                     isAddPanelVisible = true,
                     sheetMode = FoodSheetMode.RecipeEditor,
-                    editingRecipeId = null,
-                    recipeName = "",
-                    recipeCategory = "",
-                    recipeServingName = "Serving",
-                    recipeServingGrams = "100",
-                    recipeServingsCount = "1",
-                    recipeCookedYieldGrams = "100",
-                    recipeIngredientFoodId = "",
-                    recipeIngredientServingChoiceId = "g",
-                    recipeIngredientServingChoices = emptyList(),
-                    recipeIngredientQuantityGrams = "100",
-                    recipeIngredients = emptyList(),
+                    recipeEditor = RecipeEditorState(),
                     message = null,
                 )
             } else {
                 it.copy(
                     isAddPanelVisible = true,
                     sheetMode = FoodSheetMode.RecipeEditor,
-                    editingRecipeId = recipe.id,
-                    recipeName = recipe.name,
-                    recipeCategory = recipe.category.orEmpty(),
-                    recipeServingName = recipe.servingName,
-                    recipeServingGrams = recipe.servingGrams.formatInputNumber(),
-                    recipeServingsCount = recipe.servings.formatInputNumber(),
-                    recipeCookedYieldGrams = recipe.cookedYieldGrams.formatInputNumber(),
-                    recipeIngredientFoodId = "",
-                    recipeIngredientServingChoiceId = "g",
-                    recipeIngredientServingChoices = emptyList(),
-                    recipeIngredientQuantityGrams = "100",
-                    recipeIngredients = recipe.ingredients,
+                    recipeEditor = RecipeEditorState(
+                        editingRecipeId = recipe.id,
+                        name = recipe.name,
+                        category = recipe.category.orEmpty(),
+                        servingName = recipe.servingName,
+                        servingGrams = recipe.servingGrams.formatInputNumber(),
+                        servingsCount = recipe.servings.formatInputNumber(),
+                        cookedYieldGrams = recipe.cookedYieldGrams.formatInputNumber(),
+                        ingredients = recipe.ingredients,
+                    ),
                     message = null,
                 )
             }
@@ -1503,38 +1506,41 @@ class FoodViewModel @Inject constructor(
             it.copy(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.MealTemplates,
-                editingTemplateId = template.id,
-                templateNameInput = template.name,
-                templateMealTypeInput = template.mealType,
-                templateItemsInput = template.items,
-                templateItemFoodId = "",
-                templateItemQuantityGrams = "100",
+                mealTemplateEditor = MealTemplateEditorState(
+                    id = template.id,
+                    name = template.name,
+                    mealType = template.mealType,
+                    items = template.items,
+                ),
                 message = null,
             )
         }
     }
 
     fun onTemplateNameChanged(value: String) {
-        mutableState.update { it.copy(templateNameInput = value, message = null) }
+        mutableState.update { it.copy(mealTemplateEditor = it.mealTemplateEditor?.copy(name = value), message = null) }
     }
 
     fun onTemplateMealTypeChanged(value: String) {
-        mutableState.update { it.copy(templateMealTypeInput = value.normalizedMealType(), message = null) }
+        mutableState.update { it.copy(mealTemplateEditor = it.mealTemplateEditor?.copy(mealType = value.normalizedMealType()), message = null) }
     }
 
     fun onTemplateDraftItemQuantityChanged(index: Int, value: String) {
         mutableState.update { currentState ->
-            if (index !in currentState.templateItemsInput.indices) {
+            val editor = currentState.mealTemplateEditor
+            if (editor == null || index !in editor.items.indices) {
                 currentState
             } else {
                 currentState.copy(
-                    templateItemsInput = currentState.templateItemsInput.mapIndexed { itemIndex, item ->
-                        if (itemIndex == index) {
-                            item.copy(quantityGrams = value.sanitizeDecimalInput())
-                        } else {
-                            item
-                        }
-                    },
+                    mealTemplateEditor = editor.copy(
+                        items = editor.items.mapIndexed { itemIndex, item ->
+                            if (itemIndex == index) {
+                                item.copy(quantityGrams = value.sanitizeDecimalInput())
+                            } else {
+                                item
+                            }
+                        },
+                    ),
                     message = null,
                 )
             }
@@ -1543,11 +1549,14 @@ class FoodViewModel @Inject constructor(
 
     fun removeTemplateDraftItem(index: Int) {
         mutableState.update { currentState ->
-            if (index !in currentState.templateItemsInput.indices) {
+            val editor = currentState.mealTemplateEditor
+            if (editor == null || index !in editor.items.indices) {
                 currentState
             } else {
                 currentState.copy(
-                    templateItemsInput = currentState.templateItemsInput.filterIndexed { itemIndex, _ -> itemIndex != index },
+                    mealTemplateEditor = editor.copy(
+                        items = editor.items.filterIndexed { itemIndex, _ -> itemIndex != index },
+                    ),
                     message = null,
                 )
             }
@@ -1557,39 +1566,46 @@ class FoodViewModel @Inject constructor(
     fun onTemplateItemFoodChanged(value: String) {
         val food = state.value.savedFoods.firstOrNull { it.id == value }
         mutableState.update {
+            val editor = it.mealTemplateEditor ?: return@update it
             it.copy(
-                templateItemFoodId = value,
-                templateItemQuantityGrams = food?.defaultServingGrams?.formatInputNumber() ?: it.templateItemQuantityGrams,
+                mealTemplateEditor = editor.copy(
+                    newItemFoodId = value,
+                    newItemQuantityGrams = food?.defaultServingGrams?.formatInputNumber() ?: editor.newItemQuantityGrams,
+                ),
                 message = null,
             )
         }
     }
 
     fun onTemplateNewItemQuantityChanged(value: String) {
-        mutableState.update { it.copy(templateItemQuantityGrams = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(mealTemplateEditor = it.mealTemplateEditor?.copy(newItemQuantityGrams = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun addTemplateItem() {
         val currentState = state.value
-        val food = currentState.savedFoods.firstOrNull { it.id == currentState.templateItemFoodId }
+        val editor = currentState.mealTemplateEditor ?: return
+        val food = currentState.savedFoods.firstOrNull { it.id == editor.newItemFoodId }
         if (food == null) {
             mutableState.update { it.copy(message = "Choose a food") }
             return
         }
-        val quantity = currentState.templateItemQuantityGrams.parsePositiveNumberOrNull()
+        val quantity = editor.newItemQuantityGrams.parsePositiveNumberOrNull()
         if (quantity == null) {
             mutableState.update { it.copy(message = "Enter item amount") }
             return
         }
         mutableState.update {
+            val current = it.mealTemplateEditor ?: return@update it
             it.copy(
-                templateItemsInput = it.templateItemsInput + MealTemplateItemDraftUiState(
-                    foodId = food.id,
-                    foodName = food.name,
-                    quantityGrams = quantity.formatInputNumber(),
+                mealTemplateEditor = current.copy(
+                    items = current.items + MealTemplateItemDraftUiState(
+                        foodId = food.id,
+                        foodName = food.name,
+                        quantityGrams = quantity.formatInputNumber(),
+                    ),
+                    newItemFoodId = "",
+                    newItemQuantityGrams = "100",
                 ),
-                templateItemFoodId = "",
-                templateItemQuantityGrams = "100",
                 message = null,
             )
         }
@@ -1597,17 +1613,18 @@ class FoodViewModel @Inject constructor(
 
     fun saveMealTemplateEdits() {
         val currentState = state.value
-        val templateId = currentState.editingTemplateId
-        if (templateId == null) {
+        val editor = currentState.mealTemplateEditor
+        if (editor == null) {
             mutableState.update { it.copy(message = "Choose a template") }
             return
         }
-        if (currentState.templateNameInput.isBlank()) {
+        val templateId = editor.id
+        if (editor.name.isBlank()) {
             mutableState.update { it.copy(message = "Enter a template name") }
             return
         }
         val items =
-            currentState.templateItemsInput.mapNotNull { item ->
+            editor.items.mapNotNull { item ->
                 item.quantityGrams.parsePositiveNumberOrNull()?.let { quantity ->
                     MealTemplateItemInput(
                         foodId = item.foodId,
@@ -1615,7 +1632,7 @@ class FoodViewModel @Inject constructor(
                     )
                 }
             }
-        if (items.size != currentState.templateItemsInput.size || items.isEmpty()) {
+        if (items.size != editor.items.size || items.isEmpty()) {
             mutableState.update { it.copy(message = "Add at least one valid template item") }
             return
         }
@@ -1627,19 +1644,15 @@ class FoodViewModel @Inject constructor(
                 repository.updateMealTemplate(
                     MealTemplateUpdateInput(
                         templateId = templateId,
-                        name = currentState.templateNameInput,
-                        mealType = currentState.templateMealTypeInput,
+                        name = editor.name,
+                        mealType = editor.mealType,
                         items = items,
                     ),
                 )
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        editingTemplateId = null,
-                        templateNameInput = "",
-                        templateItemsInput = emptyList(),
-                        templateItemFoodId = "",
-                        templateItemQuantityGrams = "100",
+                        mealTemplateEditor = null,
                         message = "Updated meal template",
                     )
                 }
@@ -1689,11 +1702,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        editingTemplateId = null,
-                        templateNameInput = "",
-                        templateItemsInput = emptyList(),
-                        templateItemFoodId = "",
-                        templateItemQuantityGrams = "100",
+                        mealTemplateEditor = null,
                         message = "Deleted meal template",
                     )
                 }
@@ -2035,28 +2044,7 @@ class FoodViewModel @Inject constructor(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.SavedFoodEditor,
                 message = null,
-                editingSavedFoodId = null,
-                savedFoodName = "",
-                savedFoodBrand = "",
-                savedFoodServingGrams = "100",
-                savedFoodCaloriesPer100g = "",
-                savedFoodProteinPer100g = "",
-                savedFoodCarbsPer100g = "",
-                savedFoodFatPer100g = "",
-                savedFoodFiberPer100g = "",
-                savedFoodSugarPer100g = "",
-                savedFoodSaturatedFatPer100g = "",
-                savedFoodSodiumMgPer100g = "",
-                savedFoodPotassiumMgPer100g = "",
-                savedFoodCalciumMgPer100g = "",
-                savedFoodIronMgPer100g = "",
-                savedFoodVitaminDMcgPer100g = "",
-                savedFoodVitaminCMgPer100g = "",
-                savedFoodMagnesiumMgPer100g = "",
-                savedFoodServingName = "",
-                savedFoodBarcode = "",
-                savedFoodCategory = "",
-                savedFoodIsFavorite = false,
+                savedFoodEditor = SavedFoodEditorState(),
                 selectedSavedFoodDetail = null,
             )
         }
@@ -2068,28 +2056,15 @@ class FoodViewModel @Inject constructor(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.NutritionLabelScan,
                 message = "Review extracted nutrition before saving.",
-                editingSavedFoodId = null,
-                savedFoodName = "Scanned label",
-                savedFoodBrand = "",
-                savedFoodServingGrams = "100",
-                savedFoodCaloriesPer100g = "250",
-                savedFoodProteinPer100g = "12",
-                savedFoodCarbsPer100g = "30",
-                savedFoodFatPer100g = "8",
-                savedFoodFiberPer100g = "",
-                savedFoodSugarPer100g = "",
-                savedFoodSaturatedFatPer100g = "",
-                savedFoodSodiumMgPer100g = "",
-                savedFoodPotassiumMgPer100g = "",
-                savedFoodCalciumMgPer100g = "",
-                savedFoodIronMgPer100g = "",
-                savedFoodVitaminDMcgPer100g = "",
-                savedFoodVitaminCMgPer100g = "",
-                savedFoodMagnesiumMgPer100g = "",
-                savedFoodServingName = "Label serving",
-                savedFoodBarcode = "",
-                savedFoodCategory = "Nutrition label",
-                savedFoodIsFavorite = false,
+                savedFoodEditor = SavedFoodEditorState(
+                    name = "Scanned label",
+                    caloriesPer100g = "250",
+                    proteinPer100g = "12",
+                    carbsPer100g = "30",
+                    fatPer100g = "8",
+                    servingName = "Label serving",
+                    category = "Nutrition label",
+                ),
                 selectedSavedFoodDetail = null,
             )
         }
@@ -2107,115 +2082,117 @@ class FoodViewModel @Inject constructor(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.SavedFoodEditor,
                 message = null,
-                editingSavedFoodId = savedFood.id,
-                savedFoodName = savedFood.name,
-                savedFoodBrand = savedFood.brand.orEmpty(),
-                savedFoodServingGrams = savedFood.defaultServingGrams.formatInputNumber(),
-                savedFoodCaloriesPer100g = savedFood.caloriesPer100g.formatInputNumber(),
-                savedFoodProteinPer100g = savedFood.proteinPer100g.formatInputNumber(),
-                savedFoodCarbsPer100g = savedFood.carbsPer100g.formatInputNumber(),
-                savedFoodFatPer100g = savedFood.fatPer100g.formatInputNumber(),
-                savedFoodFiberPer100g = savedFood.fiberPer100g.formatInputNumber(),
-                savedFoodSugarPer100g = savedFood.sugarPer100g.formatInputNumber(),
-                savedFoodSaturatedFatPer100g = savedFood.saturatedFatPer100g.formatInputNumber(),
-                savedFoodSodiumMgPer100g = savedFood.sodiumMgPer100g.formatInputNumber(),
-                savedFoodPotassiumMgPer100g = savedFood.potassiumMgPer100g.formatInputNumber(),
-                savedFoodCalciumMgPer100g = savedFood.calciumMgPer100g.formatInputNumber(),
-                savedFoodIronMgPer100g = savedFood.ironMgPer100g.formatInputNumber(),
-                savedFoodVitaminDMcgPer100g = savedFood.vitaminDMcgPer100g.formatInputNumber(),
-                savedFoodVitaminCMgPer100g = savedFood.vitaminCMgPer100g.formatInputNumber(),
-                savedFoodMagnesiumMgPer100g = savedFood.magnesiumMgPer100g.formatInputNumber(),
-                savedFoodServingName = savedFood.servingName.orEmpty(),
-                savedFoodBarcode = savedFood.barcode.orEmpty(),
-                savedFoodCategory = savedFood.category.orEmpty(),
-                savedFoodIsFavorite = savedFood.isFavorite,
+                savedFoodEditor = SavedFoodEditorState(
+                    id = savedFood.id,
+                    name = savedFood.name,
+                    brand = savedFood.brand.orEmpty(),
+                    servingGrams = savedFood.defaultServingGrams.formatInputNumber(),
+                    caloriesPer100g = savedFood.caloriesPer100g.formatInputNumber(),
+                    proteinPer100g = savedFood.proteinPer100g.formatInputNumber(),
+                    carbsPer100g = savedFood.carbsPer100g.formatInputNumber(),
+                    fatPer100g = savedFood.fatPer100g.formatInputNumber(),
+                    fiberPer100g = savedFood.fiberPer100g.formatInputNumber(),
+                    sugarPer100g = savedFood.sugarPer100g.formatInputNumber(),
+                    saturatedFatPer100g = savedFood.saturatedFatPer100g.formatInputNumber(),
+                    sodiumMgPer100g = savedFood.sodiumMgPer100g.formatInputNumber(),
+                    potassiumMgPer100g = savedFood.potassiumMgPer100g.formatInputNumber(),
+                    calciumMgPer100g = savedFood.calciumMgPer100g.formatInputNumber(),
+                    ironMgPer100g = savedFood.ironMgPer100g.formatInputNumber(),
+                    vitaminDMcgPer100g = savedFood.vitaminDMcgPer100g.formatInputNumber(),
+                    vitaminCMgPer100g = savedFood.vitaminCMgPer100g.formatInputNumber(),
+                    magnesiumMgPer100g = savedFood.magnesiumMgPer100g.formatInputNumber(),
+                    servingName = savedFood.servingName.orEmpty(),
+                    barcode = savedFood.barcode.orEmpty(),
+                    category = savedFood.category.orEmpty(),
+                    isFavorite = savedFood.isFavorite,
+                ),
                 selectedSavedFoodDetail = null,
             )
         }
     }
 
     fun onSavedFoodNameChanged(value: String) {
-        mutableState.update { it.copy(savedFoodName = value, message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(name = value), message = null) }
     }
 
     fun onSavedFoodBrandChanged(value: String) {
-        mutableState.update { it.copy(savedFoodBrand = value, message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(brand = value), message = null) }
     }
 
     fun onSavedFoodServingChanged(value: String) {
-        mutableState.update { it.copy(savedFoodServingGrams = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(servingGrams = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodCaloriesChanged(value: String) {
-        mutableState.update { it.copy(savedFoodCaloriesPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(caloriesPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodProteinChanged(value: String) {
-        mutableState.update { it.copy(savedFoodProteinPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(proteinPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodCarbsChanged(value: String) {
-        mutableState.update { it.copy(savedFoodCarbsPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(carbsPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodFatChanged(value: String) {
-        mutableState.update { it.copy(savedFoodFatPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(fatPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodFiberChanged(value: String) {
-        mutableState.update { it.copy(savedFoodFiberPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(fiberPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodSugarChanged(value: String) {
-        mutableState.update { it.copy(savedFoodSugarPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(sugarPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodSaturatedFatChanged(value: String) {
-        mutableState.update { it.copy(savedFoodSaturatedFatPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(saturatedFatPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodSodiumChanged(value: String) {
-        mutableState.update { it.copy(savedFoodSodiumMgPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(sodiumMgPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodPotassiumChanged(value: String) {
-        mutableState.update { it.copy(savedFoodPotassiumMgPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(potassiumMgPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodCalciumChanged(value: String) {
-        mutableState.update { it.copy(savedFoodCalciumMgPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(calciumMgPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodIronChanged(value: String) {
-        mutableState.update { it.copy(savedFoodIronMgPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(ironMgPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodVitaminDChanged(value: String) {
-        mutableState.update { it.copy(savedFoodVitaminDMcgPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(vitaminDMcgPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodVitaminCChanged(value: String) {
-        mutableState.update { it.copy(savedFoodVitaminCMgPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(vitaminCMgPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodMagnesiumChanged(value: String) {
-        mutableState.update { it.copy(savedFoodMagnesiumMgPer100g = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(magnesiumMgPer100g = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onSavedFoodServingNameChanged(value: String) {
-        mutableState.update { it.copy(savedFoodServingName = value, message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(servingName = value), message = null) }
     }
 
     fun onSavedFoodBarcodeChanged(value: String) {
-        mutableState.update { it.copy(savedFoodBarcode = value.filter { char -> char.isDigit() }, message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(barcode = value.filter { char -> char.isDigit() }), message = null) }
     }
 
     fun onSavedFoodCategoryChanged(value: String) {
-        mutableState.update { it.copy(savedFoodCategory = value, message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(category = value), message = null) }
     }
 
     fun onSavedFoodFavoriteChanged(value: Boolean) {
-        mutableState.update { it.copy(savedFoodIsFavorite = value, message = null) }
+        mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(isFavorite = value), message = null) }
     }
 
     fun saveSavedFood() {
@@ -2223,12 +2200,13 @@ class FoodViewModel @Inject constructor(
         if (currentState.isSaving) {
             return
         }
-        val foodName = currentState.savedFoodName.trim()
+        val editor = currentState.savedFoodEditor ?: return
+        val foodName = editor.name.trim()
         if (foodName.isBlank()) {
             mutableState.update { it.copy(message = "Enter a food name") }
             return
         }
-        val servingGrams = currentState.savedFoodServingGrams.parsePositiveNumberOrNull()
+        val servingGrams = editor.servingGrams.parsePositiveNumberOrNull()
         val nutrition = currentState.toSavedFoodNutritionOrNull()
         val nutritionDetails = currentState.toSavedFoodNutritionDetailsOrNull()
         if (servingGrams == null || nutrition == null || nutritionDetails == null) {
@@ -2243,16 +2221,16 @@ class FoodViewModel @Inject constructor(
             try {
                 repository.upsertSavedFood(
                     SavedFoodUpsertInput(
-                        foodId = currentState.editingSavedFoodId,
+                        foodId = editor.id,
                         name = foodName,
-                        brand = currentState.savedFoodBrand.ifBlank { null },
+                        brand = editor.brand.ifBlank { null },
                         defaultServingGrams = servingGrams,
                         nutritionPer100g = nutrition,
                         nutritionDetailsPer100g = nutritionDetails,
-                        servingName = currentState.savedFoodServingName.ifBlank { null },
-                        barcode = currentState.savedFoodBarcode.ifBlank { null },
-                        category = currentState.savedFoodCategory.ifBlank { null },
-                        isFavorite = currentState.savedFoodIsFavorite,
+                        servingName = editor.servingName.ifBlank { null },
+                        barcode = editor.barcode.ifBlank { null },
+                        category = editor.category.ifBlank { null },
+                        isFavorite = editor.isFavorite,
                         servings = currentState.savedFoodServingInputsForUpsert(servingGrams),
                     ),
                 )
@@ -2261,7 +2239,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = true,
                         sheetMode = FoodSheetMode.FoodDatabase,
-                        editingSavedFoodId = null,
+                        savedFoodEditor = null,
                         message = "Saved food",
                     )
                 }
@@ -2284,7 +2262,7 @@ class FoodViewModel @Inject constructor(
         if (currentState.isSaving) {
             return
         }
-        val foodId = currentState.editingSavedFoodId
+        val foodId = currentState.savedFoodEditor?.id
         if (foodId == null) {
             mutableState.update { it.copy(message = "Choose a saved food") }
             return
@@ -2301,7 +2279,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = true,
                         sheetMode = FoodSheetMode.FoodDatabase,
-                        editingSavedFoodId = null,
+                        savedFoodEditor = null,
                         message = "Deleted food",
                     )
                 }
@@ -2324,7 +2302,7 @@ class FoodViewModel @Inject constructor(
         if (currentState.isSaving) {
             return
         }
-        val foodId = currentState.editingSavedFoodId
+        val foodId = currentState.savedFoodEditor?.id
         if (foodId == null) {
             mutableState.update { it.copy(message = "Choose a saved food") }
             return
@@ -2378,7 +2356,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = true,
                         sheetMode = FoodSheetMode.FoodDatabase,
-                        editingSavedFoodId = null,
+                        savedFoodEditor = null,
                         message = "Duplicated food",
                     )
                 }
@@ -3112,53 +3090,55 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onGoalCaloriesChanged(value: String) {
-        mutableState.update { it.copy(goalCaloriesKcalInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(caloriesKcalInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalProteinChanged(value: String) {
-        mutableState.update { it.copy(goalProteinGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(proteinGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalCarbsChanged(value: String) {
-        mutableState.update { it.copy(goalCarbsGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(carbsGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalFatChanged(value: String) {
-        mutableState.update { it.copy(goalFatGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(fatGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalFiberChanged(value: String) {
-        mutableState.update { it.copy(goalFiberGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(fiberGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalSugarChanged(value: String) {
-        mutableState.update { it.copy(goalSugarGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(sugarGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalSaturatedFatChanged(value: String) {
-        mutableState.update { it.copy(goalSaturatedFatGramsInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(saturatedFatGramsInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalSodiumChanged(value: String) {
-        mutableState.update { it.copy(goalSodiumMgInput = value.sanitizeDecimalInput(), goalModeInput = FoodGoalMode.Custom, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(sodiumMgInput = value.sanitizeDecimalInput(), modeInput = FoodGoalMode.Custom), message = null) }
     }
 
     fun onGoalModeChanged(value: FoodGoalMode) {
         mutableState.update { currentState ->
             val preset = value.goalPreset()
             if (preset == null) {
-                currentState.copy(goalModeInput = value, message = null)
+                currentState.copy(goalEditor = currentState.goalEditor.copy(modeInput = value), message = null)
             } else {
                 currentState.copy(
-                    goalModeInput = value,
-                    goalCaloriesKcalInput = preset.dailyCaloriesKcal.formatInputNumber(),
-                    goalProteinGramsInput = preset.proteinGrams.formatInputNumber(),
-                    goalCarbsGramsInput = preset.carbsGrams.formatInputNumber(),
-                    goalFatGramsInput = preset.fatGrams.formatInputNumber(),
-                    goalFiberGramsInput = preset.fiberGrams.formatInputNumber(),
-                    goalSugarGramsInput = preset.sugarGrams.formatInputNumber(),
-                    goalSaturatedFatGramsInput = preset.saturatedFatGrams.formatInputNumber(),
-                    goalSodiumMgInput = preset.sodiumMilligrams.formatInputNumber(),
+                    goalEditor = currentState.goalEditor.copy(
+                        modeInput = value,
+                        caloriesKcalInput = preset.dailyCaloriesKcal.formatInputNumber(),
+                        proteinGramsInput = preset.proteinGrams.formatInputNumber(),
+                        carbsGramsInput = preset.carbsGrams.formatInputNumber(),
+                        fatGramsInput = preset.fatGrams.formatInputNumber(),
+                        fiberGramsInput = preset.fiberGrams.formatInputNumber(),
+                        sugarGramsInput = preset.sugarGrams.formatInputNumber(),
+                        saturatedFatGramsInput = preset.saturatedFatGrams.formatInputNumber(),
+                        sodiumMgInput = preset.sodiumMilligrams.formatInputNumber(),
+                    ),
                     message = null,
                 )
             }
@@ -3166,31 +3146,32 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onGoalIncludeTrainingChanged(value: Boolean) {
-        mutableState.update { it.copy(goalIncludeTrainingInput = value, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(includeTrainingInput = value), message = null) }
     }
 
     fun onGoalUseNetCarbsChanged(value: Boolean) {
-        mutableState.update { it.copy(goalUseNetCarbsInput = value, message = null) }
+        mutableState.update { it.copy(goalEditor = it.goalEditor.copy(useNetCarbsInput = value), message = null) }
     }
 
     fun saveFoodGoal() {
         val currentState = state.value
+        val editor = currentState.goalEditor
         val goal =
             FoodGoal(
-                dailyCaloriesKcal = currentState.goalCaloriesKcalInput.parsePositiveNumberOrNull() ?: run {
+                dailyCaloriesKcal = editor.caloriesKcalInput.parsePositiveNumberOrNull() ?: run {
                     mutableState.update { it.copy(message = "Enter a valid calorie goal") }
                     return
                 },
-                proteinGrams = currentState.goalProteinGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                carbsGrams = currentState.goalCarbsGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                fatGrams = currentState.goalFatGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                fiberGrams = currentState.goalFiberGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                sugarGrams = currentState.goalSugarGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                saturatedFatGrams = currentState.goalSaturatedFatGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                sodiumMilligrams = currentState.goalSodiumMgInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
-                mode = currentState.goalModeInput,
-                includeTrainingCalories = currentState.goalIncludeTrainingInput,
-                useNetCarbs = currentState.goalUseNetCarbsInput,
+                proteinGrams = editor.proteinGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                carbsGrams = editor.carbsGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                fatGrams = editor.fatGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                fiberGrams = editor.fiberGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                sugarGrams = editor.sugarGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                saturatedFatGrams = editor.saturatedFatGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                sodiumMilligrams = editor.sodiumMgInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
+                mode = editor.modeInput,
+                includeTrainingCalories = editor.includeTrainingInput,
+                useNetCarbs = editor.useNetCarbsInput,
                 waterGoalMilliliters = currentState.waterGoalMilliliters,
             )
         if (!markSaving()) {
@@ -3228,27 +3209,30 @@ class FoodViewModel @Inject constructor(
     }
 
     fun onRecipeNameChanged(value: String) {
-        mutableState.update { it.copy(recipeName = value, message = null) }
+        mutableState.update { it.copy(recipeEditor = it.recipeEditor?.copy(name = value), message = null) }
     }
 
     fun onRecipeCategoryChanged(value: String) {
-        mutableState.update { it.copy(recipeCategory = value, message = null) }
+        mutableState.update { it.copy(recipeEditor = it.recipeEditor?.copy(category = value), message = null) }
     }
 
     fun onRecipeServingNameChanged(value: String) {
-        mutableState.update { it.copy(recipeServingName = value, message = null) }
+        mutableState.update { it.copy(recipeEditor = it.recipeEditor?.copy(servingName = value), message = null) }
     }
 
     fun onRecipeServingGramsChanged(value: String) {
         val sanitized = value.sanitizeDecimalInput()
         mutableState.update {
+            val editor = it.recipeEditor ?: return@update it
             it.copy(
-                recipeServingGrams = sanitized,
-                recipeCookedYieldGrams = if (it.recipeServingsCount.parsePositiveNumberOrNull() == 1.0) {
-                    sanitized
-                } else {
-                    it.recipeCookedYieldGrams
-                },
+                recipeEditor = editor.copy(
+                    servingGrams = sanitized,
+                    cookedYieldGrams = if (editor.servingsCount.parsePositiveNumberOrNull() == 1.0) {
+                        sanitized
+                    } else {
+                        editor.cookedYieldGrams
+                    },
+                ),
                 message = null,
             )
         }
@@ -3257,15 +3241,18 @@ class FoodViewModel @Inject constructor(
     fun onRecipeServingsCountChanged(value: String) {
         val sanitized = value.sanitizeDecimalInput()
         mutableState.update {
-            val cookedYield = it.recipeCookedYieldGrams.parsePositiveNumberOrNull()
+            val editor = it.recipeEditor ?: return@update it
+            val cookedYield = editor.cookedYieldGrams.parsePositiveNumberOrNull()
             val servings = sanitized.parsePositiveNumberOrNull()
             it.copy(
-                recipeServingsCount = sanitized,
-                recipeServingGrams = if (cookedYield != null && servings != null) {
-                    (cookedYield / servings).formatInputNumber()
-                } else {
-                    it.recipeServingGrams
-                },
+                recipeEditor = editor.copy(
+                    servingsCount = sanitized,
+                    servingGrams = if (cookedYield != null && servings != null) {
+                        (cookedYield / servings).formatInputNumber()
+                    } else {
+                        editor.servingGrams
+                    },
+                ),
                 message = null,
             )
         }
@@ -3274,15 +3261,18 @@ class FoodViewModel @Inject constructor(
     fun onRecipeCookedYieldGramsChanged(value: String) {
         val sanitized = value.sanitizeDecimalInput()
         mutableState.update {
+            val editor = it.recipeEditor ?: return@update it
             val cookedYield = sanitized.parsePositiveNumberOrNull()
-            val servings = it.recipeServingsCount.parsePositiveNumberOrNull()
+            val servings = editor.servingsCount.parsePositiveNumberOrNull()
             it.copy(
-                recipeCookedYieldGrams = sanitized,
-                recipeServingGrams = if (cookedYield != null && servings != null) {
-                    (cookedYield / servings).formatInputNumber()
-                } else {
-                    it.recipeServingGrams
-                },
+                recipeEditor = editor.copy(
+                    cookedYieldGrams = sanitized,
+                    servingGrams = if (cookedYield != null && servings != null) {
+                        (cookedYield / servings).formatInputNumber()
+                    } else {
+                        editor.servingGrams
+                    },
+                ),
                 message = null,
             )
         }
@@ -3293,27 +3283,32 @@ class FoodViewModel @Inject constructor(
         val choices = food?.toRecipeIngredientServingChoices().orEmpty()
         mutableState.update {
             it.copy(
-                recipeIngredientFoodId = value,
-                recipeIngredientServingChoiceId = choices.firstOrNull()?.id ?: "g",
-                recipeIngredientServingChoices = choices,
+                recipeEditor = it.recipeEditor?.copy(
+                    ingredientFoodId = value,
+                    ingredientServingChoiceId = choices.firstOrNull()?.id ?: "g",
+                    ingredientServingChoices = choices,
+                ),
                 message = null,
             )
         }
     }
 
     fun onRecipeIngredientServingChoiceSelected(choiceId: String) {
-        val choice = state.value.recipeIngredientServingChoices.firstOrNull { it.id == choiceId } ?: return
+        val choice = state.value.recipeEditor?.ingredientServingChoices?.firstOrNull { it.id == choiceId } ?: return
         mutableState.update {
+            val editor = it.recipeEditor ?: return@update it
             it.copy(
-                recipeIngredientServingChoiceId = choice.id,
-                recipeIngredientQuantityGrams = if (choice.id == "g") it.recipeIngredientQuantityGrams else "1",
+                recipeEditor = editor.copy(
+                    ingredientServingChoiceId = choice.id,
+                    ingredientQuantityGrams = if (choice.id == "g") editor.ingredientQuantityGrams else "1",
+                ),
                 message = null,
             )
         }
     }
 
     fun onRecipeIngredientQuantityChanged(value: String) {
-        mutableState.update { it.copy(recipeIngredientQuantityGrams = value.sanitizeDecimalInput(), message = null) }
+        mutableState.update { it.copy(recipeEditor = it.recipeEditor?.copy(ingredientQuantityGrams = value.sanitizeDecimalInput()), message = null) }
     }
 
     fun onRecipeServingsToLogChanged(value: String) {
@@ -3322,34 +3317,38 @@ class FoodViewModel @Inject constructor(
 
     fun addRecipeIngredient() {
         val currentState = state.value
-        val food = currentState.savedFoods.firstOrNull { it.id == currentState.recipeIngredientFoodId }
+        val editor = currentState.recipeEditor ?: return
+        val food = currentState.savedFoods.firstOrNull { it.id == editor.ingredientFoodId }
         if (food == null) {
             mutableState.update { it.copy(message = "Choose an ingredient") }
             return
         }
-        val quantity = currentState.recipeIngredientQuantityGrams.parsePositiveNumberOrNull()
+        val quantity = editor.ingredientQuantityGrams.parsePositiveNumberOrNull()
         if (quantity == null) {
             mutableState.update { it.copy(message = "Enter ingredient amount") }
             return
         }
         val servingChoice =
-            currentState.recipeIngredientServingChoices.firstOrNull { it.id == currentState.recipeIngredientServingChoiceId }
+            editor.ingredientServingChoices.firstOrNull { it.id == editor.ingredientServingChoiceId }
                 ?: RecipeIngredientServingChoiceUiState(id = "g", label = "g", grams = 1.0)
         val quantityGrams = quantity * servingChoice.grams
         mutableState.update {
+            val current = it.recipeEditor ?: return@update it
             it.copy(
-                recipeIngredients = it.recipeIngredients + RecipeIngredientDraftUiState(
-                    foodId = food.id,
-                    foodName = food.name,
-                    quantityGrams = quantityGrams,
-                    unitLabel = servingChoice.label,
-                    unitGrams = servingChoice.grams,
-                    unitQuantity = quantity,
+                recipeEditor = current.copy(
+                    ingredients = current.ingredients + RecipeIngredientDraftUiState(
+                        foodId = food.id,
+                        foodName = food.name,
+                        quantityGrams = quantityGrams,
+                        unitLabel = servingChoice.label,
+                        unitGrams = servingChoice.grams,
+                        unitQuantity = quantity,
+                    ),
+                    ingredientFoodId = "",
+                    ingredientServingChoiceId = "g",
+                    ingredientServingChoices = emptyList(),
+                    ingredientQuantityGrams = "100",
                 ),
-                recipeIngredientFoodId = "",
-                recipeIngredientServingChoiceId = "g",
-                recipeIngredientServingChoices = emptyList(),
-                recipeIngredientQuantityGrams = "100",
                 message = null,
             )
         }
@@ -3357,19 +3356,20 @@ class FoodViewModel @Inject constructor(
 
     fun saveRecipe() {
         val currentState = state.value
-        val servings = currentState.recipeServingsCount.parsePositiveNumberOrNull()
-        val cookedYieldGrams = currentState.recipeCookedYieldGrams.parsePositiveNumberOrNull()
+        val editor = currentState.recipeEditor ?: return
+        val servings = editor.servingsCount.parsePositiveNumberOrNull()
+        val cookedYieldGrams = editor.cookedYieldGrams.parsePositiveNumberOrNull()
         val servingGrams = if (servings != null && cookedYieldGrams != null) {
             cookedYieldGrams / servings
         } else {
-            currentState.recipeServingGrams.parsePositiveNumberOrNull()
+            editor.servingGrams.parsePositiveNumberOrNull()
         }
         if (
-            currentState.recipeName.isBlank() ||
+            editor.name.isBlank() ||
             servingGrams == null ||
             servings == null ||
             cookedYieldGrams == null ||
-            currentState.recipeIngredients.isEmpty()
+            editor.ingredients.isEmpty()
         ) {
             mutableState.update { it.copy(message = "Complete the recipe") }
             return
@@ -3381,14 +3381,14 @@ class FoodViewModel @Inject constructor(
             try {
                 repository.upsertRecipe(
                     RecipeUpsertInput(
-                        recipeId = currentState.editingRecipeId,
-                        name = currentState.recipeName,
-                        category = currentState.recipeCategory.ifBlank { null },
-                        servingName = currentState.recipeServingName.ifBlank { "Serving" },
+                        recipeId = editor.editingRecipeId,
+                        name = editor.name,
+                        category = editor.category.ifBlank { null },
+                        servingName = editor.servingName.ifBlank { "Serving" },
                         servingGrams = servingGrams,
                         servings = servings,
                         cookedYieldGrams = cookedYieldGrams,
-                        ingredients = currentState.recipeIngredients.map { ingredient ->
+                        ingredients = editor.ingredients.map { ingredient ->
                             RecipeIngredientInput(
                                 foodId = ingredient.foodId,
                                 quantityGrams = ingredient.quantityGrams,
@@ -3404,18 +3404,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = false,
                         sheetMode = null,
-                        editingRecipeId = null,
-                        recipeName = "",
-                        recipeCategory = "",
-                        recipeServingName = "Serving",
-                        recipeServingGrams = "100",
-                        recipeServingsCount = "1",
-                        recipeCookedYieldGrams = "100",
-                        recipeIngredientFoodId = "",
-                        recipeIngredientServingChoiceId = "g",
-                        recipeIngredientServingChoices = emptyList(),
-                        recipeIngredientQuantityGrams = "100",
-                        recipeIngredients = emptyList(),
+                        recipeEditor = null,
                         message = "Saved recipe",
                     )
                 }
@@ -3445,7 +3434,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = false,
                         sheetMode = null,
-                        editingRecipeId = null,
+                        recipeEditor = null,
                         message = "Deleted recipe",
                     )
                 }
@@ -3570,10 +3559,11 @@ class FoodViewModel @Inject constructor(
     }
 
     private fun FoodUiState.toSavedFoodNutritionOrNull(): FoodNutrition? {
-        val calories = savedFoodCaloriesPer100g.parseNutritionValue() ?: return null
-        val protein = savedFoodProteinPer100g.parseNutritionValue() ?: return null
-        val carbs = savedFoodCarbsPer100g.parseNutritionValue() ?: return null
-        val fat = savedFoodFatPer100g.parseNutritionValue() ?: return null
+        val editor = savedFoodEditor ?: return null
+        val calories = editor.caloriesPer100g.parseNutritionValue() ?: return null
+        val protein = editor.proteinPer100g.parseNutritionValue() ?: return null
+        val carbs = editor.carbsPer100g.parseNutritionValue() ?: return null
+        val fat = editor.fatPer100g.parseNutritionValue() ?: return null
 
         return FoodNutrition(
             caloriesKcal = calories,
@@ -3584,16 +3574,17 @@ class FoodViewModel @Inject constructor(
     }
 
     private fun FoodUiState.toSavedFoodNutritionDetailsOrNull(): NutritionDetails? {
-        val fiber = savedFoodFiberPer100g.parseNonNegativeNumberOrZero() ?: return null
-        val sugar = savedFoodSugarPer100g.parseNonNegativeNumberOrZero() ?: return null
-        val saturatedFat = savedFoodSaturatedFatPer100g.parseNonNegativeNumberOrZero() ?: return null
-        val sodium = savedFoodSodiumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
-        val potassium = savedFoodPotassiumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
-        val calcium = savedFoodCalciumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
-        val iron = savedFoodIronMgPer100g.parseNonNegativeNumberOrZero() ?: return null
-        val vitaminD = savedFoodVitaminDMcgPer100g.parseNonNegativeNumberOrZero() ?: return null
-        val vitaminC = savedFoodVitaminCMgPer100g.parseNonNegativeNumberOrZero() ?: return null
-        val magnesium = savedFoodMagnesiumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val editor = savedFoodEditor ?: return null
+        val fiber = editor.fiberPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val sugar = editor.sugarPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val saturatedFat = editor.saturatedFatPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val sodium = editor.sodiumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val potassium = editor.potassiumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val calcium = editor.calciumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val iron = editor.ironMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val vitaminD = editor.vitaminDMcgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val vitaminC = editor.vitaminCMgPer100g.parseNonNegativeNumberOrZero() ?: return null
+        val magnesium = editor.magnesiumMgPer100g.parseNonNegativeNumberOrZero() ?: return null
 
         return NutritionDetails(
             fiberGrams = fiber,
@@ -3610,15 +3601,16 @@ class FoodViewModel @Inject constructor(
     }
 
     private fun FoodUiState.savedFoodServingInputsForUpsert(servingGrams: Double): List<FoodServingInput> {
+        val editor = savedFoodEditor ?: return emptyList()
         val existingFood =
-            editingSavedFoodId?.let { foodId -> savedFoods.firstOrNull { savedFood -> savedFood.id == foodId } }
+            editor.id?.let { foodId -> savedFoods.firstOrNull { savedFood -> savedFood.id == foodId } }
                 ?: return emptyList()
         if (existingFood.servings.isEmpty()) {
             return emptyList()
         }
 
         val currentServingLabel =
-            savedFoodServingName.ifBlank {
+            editor.servingName.ifBlank {
                 existingFood.servingName ?: "${servingGrams.formatInputNumber()} g"
             }
         var updatedDefaultServing = false
@@ -3866,17 +3858,19 @@ private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
         includeTrainingCalories = goal.includeTrainingCalories,
         useNetCarbs = goal.useNetCarbs,
         remainingCaloriesKcal = goal.dailyCaloriesKcal - eatenCaloriesKcal,
-        goalCaloriesKcalInput = goal.dailyCaloriesKcal.formatInputNumber(),
-        goalProteinGramsInput = goal.proteinGrams.formatInputNumber(),
-        goalCarbsGramsInput = goal.carbsGrams.formatInputNumber(),
-        goalFatGramsInput = goal.fatGrams.formatInputNumber(),
-        goalFiberGramsInput = goal.fiberGrams.formatInputNumber(),
-        goalSugarGramsInput = goal.sugarGrams.formatInputNumber(),
-        goalSaturatedFatGramsInput = goal.saturatedFatGrams.formatInputNumber(),
-        goalSodiumMgInput = goal.sodiumMilligrams.formatInputNumber(),
-        goalModeInput = goal.mode,
-        goalIncludeTrainingInput = goal.includeTrainingCalories,
-        goalUseNetCarbsInput = goal.useNetCarbs,
+        goalEditor = GoalEditorState(
+            caloriesKcalInput = goal.dailyCaloriesKcal.formatInputNumber(),
+            proteinGramsInput = goal.proteinGrams.formatInputNumber(),
+            carbsGramsInput = goal.carbsGrams.formatInputNumber(),
+            fatGramsInput = goal.fatGrams.formatInputNumber(),
+            fiberGramsInput = goal.fiberGrams.formatInputNumber(),
+            sugarGramsInput = goal.sugarGrams.formatInputNumber(),
+            saturatedFatGramsInput = goal.saturatedFatGrams.formatInputNumber(),
+            sodiumMgInput = goal.sodiumMilligrams.formatInputNumber(),
+            modeInput = goal.mode,
+            includeTrainingInput = goal.includeTrainingCalories,
+            useNetCarbsInput = goal.useNetCarbs,
+        ),
         waterGoalMilliliters = goal.waterGoalMilliliters,
         waterProgress = waterConsumedMilliliters.fractionOf(goal.waterGoalMilliliters),
         waterGoalInput = goal.waterGoalMilliliters.formatInputNumber(),

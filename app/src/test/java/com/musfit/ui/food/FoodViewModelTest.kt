@@ -1734,14 +1734,15 @@ class FoodViewModelTest {
             assertTrue(isAddPanelVisible)
             assertEquals(FoodSheetMode.SavedFoodEditor, sheetMode)
             assertEquals("yog", foodDatabaseQuery)
-            assertEquals("food-1", editingSavedFoodId)
-            assertEquals("Greek yogurt", savedFoodName)
-            assertEquals("Kitchen", savedFoodBrand)
-            assertEquals("200", savedFoodServingGrams)
-            assertEquals("60", savedFoodCaloriesPer100g)
-            assertEquals("10", savedFoodProteinPer100g)
-            assertEquals("4", savedFoodCarbsPer100g)
-            assertEquals("1", savedFoodFatPer100g)
+            val editor = savedFoodEditor!!
+            assertEquals("food-1", editor.id)
+            assertEquals("Greek yogurt", editor.name)
+            assertEquals("Kitchen", editor.brand)
+            assertEquals("200", editor.servingGrams)
+            assertEquals("60", editor.caloriesPer100g)
+            assertEquals("10", editor.proteinPer100g)
+            assertEquals("4", editor.carbsPer100g)
+            assertEquals("1", editor.fatPer100g)
         }
     }
 
@@ -1994,12 +1995,13 @@ class FoodViewModelTest {
         with(viewModel.state.value) {
             assertTrue(isAddPanelVisible)
             assertEquals(FoodSheetMode.NutritionLabelScan, sheetMode)
-            assertEquals("Scanned label", savedFoodName)
-            assertEquals("100", savedFoodServingGrams)
-            assertEquals("250", savedFoodCaloriesPer100g)
-            assertEquals("12", savedFoodProteinPer100g)
-            assertEquals("30", savedFoodCarbsPer100g)
-            assertEquals("8", savedFoodFatPer100g)
+            val editor = savedFoodEditor!!
+            assertEquals("Scanned label", editor.name)
+            assertEquals("100", editor.servingGrams)
+            assertEquals("250", editor.caloriesPer100g)
+            assertEquals("12", editor.proteinPer100g)
+            assertEquals("30", editor.carbsPer100g)
+            assertEquals("8", editor.fatPer100g)
             assertEquals("Review extracted nutrition before saving.", message)
         }
 
@@ -2403,7 +2405,7 @@ class FoodViewModelTest {
         val carbProgress = viewModel.state.value.macroProgress.first { it.label == "Net carbs" }
         assertTrue(repository.foodGoalUpdate?.useNetCarbs == true)
         assertTrue(viewModel.state.value.useNetCarbs)
-        assertTrue(viewModel.state.value.goalUseNetCarbsInput)
+        assertTrue(viewModel.state.value.goalEditor.useNetCarbsInput)
         assertEquals(66.0, carbProgress.currentGrams, 0.01)
         assertEquals(260.0, carbProgress.goalGrams, 0.01)
     }
@@ -2956,7 +2958,7 @@ class FoodViewModelTest {
 
         assertEquals(
             listOf("g", "Serving", "Scoop", "Package"),
-            viewModel.state.value.recipeIngredientServingChoices.map { it.label },
+            viewModel.state.value.recipeEditor!!.ingredientServingChoices.map { it.label },
         )
 
         viewModel.onRecipeIngredientServingChoiceSelected("serving-scoop")
