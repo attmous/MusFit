@@ -89,34 +89,48 @@ Then rerun the same verification command.
 
 ## Current Food Miniapp State
 
-The Food miniapp already includes:
+> The authoritative, detailed reference for Food is now
+> [`docs/architecture/food-system.md`](docs/architecture/food-system.md) —
+> full feature map, state/sheet-mode reference, data model, and the refactor
+> backlog. The summary below is the quick handoff view.
 
-- Main Food diary with date navigation, calories remaining, macro cards, and meal sections.
-- Default meal sections: Breakfast, Lunch, Dinner, Snacks.
-- Add-food bottom sheet with Saved, Manual, Barcode, Quick, templates, and recipes.
-- Barcode lookup through Open Food Facts.
-- Barcode result editing for name, brand, amount, calories, protein, carbs, fat.
-- Live amount-based nutrition preview for scanned/manual foods.
-- Barcode serving chips such as `100 g` and `Serving 170 g`.
-- Separate scanned-product actions: `Save product` and `Log food`.
-- Saved food database with create/edit/delete/search and favorite support.
-- Saved food serving options.
-- Online food search/import into saved database.
-- Starter foods import.
-- Quick calorie logging.
-- Diary item editor: edit amount/meal, copy, delete, undo.
-- Meal detail screen when tapping Breakfast/Lunch/Dinner/Snacks.
-- Meal detail totals for calories, macros, fiber, sugar, saturated fat, sodium.
-- Logged item rows show item calories and P/C/F macros.
-- Meal templates basic support.
-- Recipe basic support.
-- Food goals editor and macro goal state.
+The Food miniapp is feature-complete against most of the original 24-slice
+roadmap. Shipped and working:
 
-Important recent commits:
+- **Diary**: date navigation, planning mode, calorie ring, macro progress,
+  advanced-nutrient and micronutrient progress, meal sections + custom meals,
+  per-item macro rows, deterministic daily insights and a day-rating card,
+  weekly plan strip.
+- **Add flow** (`FoodAddMode`): Saved (recents, same-as-yesterday, favorites,
+  templates, recipes), Manual, Barcode (Open Food Facts lookup + edit + save),
+  Quick calories (with favorite presets), and an AI shell. "Keep adding" mode.
+- **Saved food database**: full editor (name/brand/barcode/category/favorite,
+  per-100 g vs per-serving, custom servings, full macros + micros, delete,
+  duplicate), local search, online search/import, duplicate detection + merge,
+  starter-food import.
+- **Servings**: per-food default + custom units with live amount preview.
+- **Recipes v2**: ingredients, serving units, cooked yield, per-serving
+  nutrition, edit/duplicate/delete/favorite, fractional-serving logging.
+- **Meal templates v2**: editable items, duplicate/favorite, save current meal
+  as template, log to any meal.
+- **Custom meals**: rename, time, reorder.
+- **Goals**: calorie + macro + advanced-nutrient targets, diet modes
+  (`FoodGoalMode`: Balanced/HighProtein/KetoLowCarb/MuscleGain/WeightLoss/Custom),
+  include-training-calories, net-carbs toggle.
+- **Planning / shopping / water**: planned-vs-logged, copy day/meal, 7-day plan,
+  shopping list generated from planned meals (grouped, checkable, manual adds),
+  water tracking with goal.
+- **Health Connect**: food/hydration export with sync state card.
+- **Cross-cutting**: favorites across foods/templates/recipes/quick-logs, undo
+  delete, copy/move entries, mark planned → logged.
 
-- `6ac4013 feat: improve food barcode and meal detail UX`
-- `9557e7d fix: preview barcode nutrition by amount`
-- `4dfe43d feat: complete food app v4 polish`
+Known shells / placeholders (intentional, not yet real):
+
+- **Nutrition-label OCR** — camera + ML Kit text recognition feed a best-effort
+  `NutritionLabelParser`; values are always shown for user review. Real parsing
+  is partial.
+- **AI voice / photo logging** — UX shells only; AI text logging produces a
+  simple editable draft. Cloud AI is out of scope (local-first).
 
 ## Key Files
 
@@ -161,90 +175,52 @@ docs/superpowers/plans/2026-06-21-food-meal-detail-menu.md
 - Keep data local-first.
 - Push to `origin/master` when the user asks to push or when continuing the established deploy workflow after verified changes.
 
-## Remaining Food Roadmap Slices
+## Food Roadmap Status
 
-Use these as Codex CLI goals. Implement one slice at a time, verify, commit, push, and install on the phone when connected.
+The original 24-slice Food roadmap is largely delivered. Each shipped slice has
+a plan under `docs/superpowers/plans/` (see "Existing Food plans" above for the
+filenames). Status:
 
-1. Unified Add Food Flow
-   - Make Recent, Favorites, Search, Barcode, Manual, Quick Calories, Recipes, and Templates feel like one polished add flow.
+| #  | Slice | Status |
+| -- | ----- | ------ |
+| 1  | Unified Add Food Flow | Shipped |
+| 2  | Full Serving Unit System | Shipped |
+| 3  | Full Food Editor | Shipped |
+| 4  | Barcode No-Match Custom Food Flow | Shipped |
+| 5  | Nutrition Label Scan | Shell + best-effort parser; real OCR partial |
+| 6  | Food Database Quality | Shipped (search, duplicate merge, states) |
+| 7  | Meal Item Editor Polish | Shipped |
+| 8  | Meal Detail Upgrade | Shipped |
+| 9  | Favorites Everywhere | Shipped |
+| 10 | Custom Meals And Meal Times | Shipped |
+| 11 | Nutrition Goals And Diet Modes | Shipped (`FoodGoalMode`) |
+| 12 | Net Carbs And Advanced Macros | Shipped |
+| 13 | Micronutrient Foundation | Shipped |
+| 14 | Recipes V2 | Shipped |
+| 15 | Meal Templates V2 | Shipped |
+| 16 | Meal Planning | Shipped |
+| 17 | Shopping List | Shipped |
+| 18 | Water Tracking | Shipped |
+| 19 | Health Connect Nutrition Sync | Shipped |
+| 20 | AI Logging Shell | Text draft works; voice/photo are shells |
+| 21 | Daily Food Insights | Shipped (deterministic) |
+| 22 | Food/Meal/Day Rating | Shipped (deterministic) |
+| 23 | UX Polish Pass | Ongoing |
+| 24 | Food Performance And Reliability | Ongoing |
 
-2. Full Serving Unit System
-   - Support `g`, `ml`, `oz`, `serving`, `piece`, `slice`, `scoop`, `cup`, and `package`.
-   - Recalculate preview instantly and persist custom servings.
+Genuinely remaining Food work:
 
-3. Full Food Editor
-   - Complete saved food editing: name, brand, barcode, category, favorite, serving options, per-100g/per-serving toggle, calories/macros/details, delete, duplicate.
+- Real nutrition-label OCR parsing (Slice 5 completion).
+- Continued UX polish and performance hardening (Slices 23–24).
+- AI voice/photo logging stay shells by design (no cloud AI; local-first).
 
-4. Barcode No-Match Custom Food Flow
-   - On barcode miss, guide user into creating a custom food with that barcode attached.
-   - Support `Save product` and `Save and log`.
+### Active internal effort: Food structure refactor
 
-5. Nutrition Label Scan Placeholder Flow
-   - Add UX shell for scanning nutrition labels and editing extracted fields before save.
-   - Structure so real OCR can be plugged in later.
-
-6. Food Database Quality
-   - Add source/quality badges, duplicate detection, merge/cleanup, better search/filtering, and robust empty/error/loading states.
-
-7. Meal Item Editor Polish
-   - Serving-unit editing, move/copy to meal/date, preview before save, consistent undo behavior.
-
-8. Meal Detail Upgrade
-   - Better meal progress visualization, item contribution charts, compact item cards, sorting, and richer nutrition breakdown.
-
-9. Favorites Everywhere
-   - Favorite foods, meals, recipes, templates, and quick logs. Make favorites one-tap loggable.
-
-10. Custom Meals And Meal Times
-    - Rename meals, add custom meal types, optional meal time, reorder meals.
-
-11. Nutrition Goals And Diet Modes
-    - Balanced, high protein, keto/low carb, muscle gain, weight loss, custom.
-    - Let users override goals.
-
-12. Net Carbs And Advanced Macros
-    - Net carbs mode, fiber goal, sugar limit, saturated fat limit, sodium limit.
-
-13. Micronutrient Foundation
-    - Start with sodium, potassium, calcium, iron, vitamin D, vitamin C, magnesium.
-    - Add model/storage/UI support without overwhelming the diary.
-
-14. Recipes V2
-    - Ingredients, serving units, cooked yield, per-serving nutrition, edit/delete/duplicate, log fractional servings.
-
-15. Meal Templates V2
-    - Editable templates, duplicate/favorite template, log to any meal/date.
-
-16. Meal Planning
-    - Future-day planning, copy day/meal, 7-day meal plan view, planned vs logged state.
-
-17. Shopping List
-    - Generate from planned meals/recipes, group ingredients, check off items, allow manual additions.
-
-18. Water Tracking
-    - Quick water buttons, custom amount, daily water goal, later Health Connect hydration sync.
-
-19. Health Connect Nutrition Sync
-    - Request permissions, write logged meals/hydration, handle unavailable Health Connect gracefully.
-
-20. AI Logging Shell
-    - Text, voice placeholder, photo placeholder.
-    - Always show editable confirmation before saving.
-
-21. Daily Food Insights
-    - Deterministic coaching: protein low, fiber low, sodium high, balanced meal, what to add next.
-
-22. Food/Meal/Day Rating
-    - Lifesum-style rating with clear reason and suggested improvement.
-
-23. UX Polish Pass
-    - Spacing, typography, icons, empty/loading/error states, dark mode readiness, accessibility labels.
-
-24. Food Performance And Reliability
-    - Large database performance, search debounce, offline handling, Room indexes if needed, regression tests for core Food flows.
-
-Recommended next goal:
-
-```text
-Implement Slice 3 and Slice 4 for the MusFit Android Food miniapp: complete the saved food editor and barcode no-match custom food flow. Keep the UX Lifesum-like, clean, and Android-only. Use existing Kotlin/Compose/Hilt/Room patterns. Write failing ViewModel tests first, implement minimally, then run testDebugUnitTest lintDebug assembleDebug. Commit and push when verified.
-```
+A behavior-preserving **structure refactor** is underway. Done so far: the
+Food UI is split by feature (`FoodScreen.kt` ~2,000 lines + `FoodComponents.kt`,
+`FoodTrackersUi.kt`, `FoodModalSheets.kt`, `FoodAddPanelUi.kt`), and the
+amount-preview math moved into `NutritionCalculator`. Still pending: the
+`FoodUiState` editor sub-state objects (Tier 1b). The full plan, status, and the
+test-coupling cost of each remaining editor live in
+[`docs/architecture/food-system.md`](docs/architecture/food-system.md#refactor-backlog).
+Read it before doing large Food work so new code lands in the new structure.
