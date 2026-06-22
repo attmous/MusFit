@@ -43,6 +43,12 @@ interface HealthDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertBodyMetric(metric: BodyMetricEntity)
 
+    @Query("DELETE FROM body_metrics WHERE id = :id")
+    suspend fun deleteBodyMetric(id: String)
+
+    @Query("UPDATE body_metrics SET value = :value WHERE id = :id")
+    suspend fun updateBodyMetricValue(id: String, value: Double)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDailySummary(summary: DailyHealthSummaryEntity)
 

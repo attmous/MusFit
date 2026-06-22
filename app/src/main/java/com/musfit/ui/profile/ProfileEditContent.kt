@@ -5,11 +5,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -18,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -26,8 +36,11 @@ import com.musfit.data.repository.UserProfile
 import com.musfit.domain.profile.ActivityLevel
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.Sex
+import java.time.Instant
 import java.time.LocalDate
 import java.time.Period
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 private val MEASUREMENT_LABELS = mapOf(
     "waist" to "Waist", "chest" to "Chest", "arms" to "Arms",
@@ -208,3 +221,86 @@ private fun NumberField(value: String, onValueChange: (String) -> Unit, label: S
 
 private fun String.toPositiveDoubleOrNull(): Double? =
     trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+
+data class EntrySheetItem(val id: String, val dateLabel: String, val value: Double, val unit: String)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EntriesSheet(
+    title: String,
+    items: List<EntrySheetItem>,
+    onDismiss: () -> Unit,
+    onEdit: (id: String, value: Double) -> Unit,
+    onDelete: (id: String) -> Unit,
+) {
+    var editing by remember { mutableStateOf<EntrySheetItem?>(null) }
+    var deleting by remember { mutableStateOf<EntrySheetItem?>(null) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            if (items.isEmpty()) {
+                Text(
+                    "No entries yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
+            }
+            items.forEach { item ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("${item.value.format1()} ${item.unit}", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            item.dateLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = { editing = item }) {
+                        Icon(Icons.Outlined.Edit, contentDescription = "Edit")
+                    }
+                    IconButton(onClick = { deleting = item }) {
+                        Icon(Icons.Outlined.Delete, contentDescription = "Delete")
+                    }
+                }
+            }
+        }
+    }
+
+    editing?.let { item ->
+        var text by remember(item.id) { mutableStateOf(item.value.format1()) }
+        val parsed = text.toPositiveDoubleOrNull()
+        AlertDialog(
+            onDismissRequest = { editing = null },
+            title = { Text("Edit value") },
+            text = { NumberField(value = text, onValueChange = { text = it }, label = "Value (${item.unit})") },
+            confirmButton = {
+                TextButton(enabled = parsed != null, onClick = {
+                    parsed?.let { onEdit(item.id, it) }
+                    editing = null
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } },
+        )
+    }
+
+    deleting?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("Delete entry?") },
+            text = { Text("${item.value.format1()} ${item.unit} · ${item.dateLabel}") },
+            confirmButton = {
+                TextButton(onClick = { onDelete(item.id); deleting = null }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+internal fun formatEntryDate(epochMillis: Long): String =
+    Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+        .format(DateTimeFormatter.ofPattern("d MMM yyyy"))

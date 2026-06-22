@@ -70,7 +70,7 @@ class ProfileViewModelTest {
     fun completeProfile_exposesTargetsAndBmi() = runTest {
         val repo = FakeProfileRepository(
             profile = UserProfile(Sex.Male, 0L, 180.0, ActivityLevel.Moderate, GoalType.Maintain, 0.0, 80.0),
-            latestWeight = WeightEntry(1_000L, 80.0, "manual"),
+            latestWeight = WeightEntry("w1", 1_000L, 80.0, "manual"),
             targets = RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
         )
         val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
@@ -93,7 +93,7 @@ class ProfileViewModelTest {
         )
         val repo = FakeProfileRepository(
             profile = UserProfile(Sex.Male, 0L, 180.0, ActivityLevel.Moderate, GoalType.Maintain, 0.0, 80.0),
-            latestWeight = WeightEntry(1_000L, 80.0, "manual"),
+            latestWeight = WeightEntry("w1", 1_000L, 80.0, "manual"),
             targets = RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
         )
         val viewModel = ProfileViewModel(repo, FakeHealthRepo(), food)
@@ -139,6 +139,40 @@ class ProfileViewModelTest {
         assertEquals(83.6, repo.loggedWeight!!, 0.001)
     }
 
+    @Test
+    fun editEntry_callsRepositoryWithIdAndValue() = runTest {
+        val repo = FakeProfileRepository()
+        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.editEntry("abc", 81.3)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("abc", repo.updatedId)
+        assertEquals(81.3, repo.updatedValue!!, 0.001)
+    }
+
+    @Test
+    fun deleteEntry_callsRepositoryWithId() = runTest {
+        val repo = FakeProfileRepository()
+        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.deleteEntry("xyz")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("xyz", repo.deletedId)
+    }
+
+    @Test
+    fun state_exposesWeightEntriesForSheet() = runTest {
+        val repo = FakeProfileRepository(latestWeight = WeightEntry("w9", 1_000L, 84.0, "manual"))
+        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("w9", viewModel.state.value.weightEntries.first().id)
+    }
+
     private class FakeProfileRepository(
         private val profile: UserProfile = DEFAULT_USER_PROFILE,
         private val latestWeight: WeightEntry? = null,
@@ -146,6 +180,9 @@ class ProfileViewModelTest {
         private val measurements: Map<String, List<BodyMeasurement>> = emptyMap(),
     ) : ProfileRepository {
         var loggedWeight: Double? = null
+        var updatedId: String? = null
+        var updatedValue: Double? = null
+        var deletedId: String? = null
         override fun observeProfile(): Flow<UserProfile> = flowOf(profile)
         override suspend fun saveProfile(profile: UserProfile) = Unit
         override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = flowOf(targets)
@@ -154,6 +191,8 @@ class ProfileViewModelTest {
         override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> =
             flowOf(listOfNotNull(latestWeight))
         override suspend fun logMeasurement(type: String, value: Double, unit: String) = Unit
+        override suspend fun deleteEntry(id: String) { deletedId = id }
+        override suspend fun updateEntryValue(id: String, value: Double) { updatedId = id; updatedValue = value }
         override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> =
             flowOf(measurements)
         override fun observeSettings(): Flow<AppSettings> = flowOf(DEFAULT_APP_SETTINGS)
