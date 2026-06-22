@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
+import com.musfit.data.local.dao.ProfileDao
 import com.musfit.data.local.dao.TrainingDao
 import dagger.Module
 import dagger.Provides
@@ -38,6 +39,7 @@ object DatabaseModule {
                 MIGRATION_13_14,
                 MIGRATION_14_15,
                 MIGRATION_15_16,
+                MIGRATION_16_17,
             )
             .build()
 
@@ -49,6 +51,9 @@ object DatabaseModule {
 
     @Provides
     fun provideHealthDao(database: MusFitDatabase): HealthDao = database.healthDao()
+
+    @Provides
+    fun provideProfileDao(database: MusFitDatabase): ProfileDao = database.profileDao()
 
     private val MIGRATION_1_2 =
         object : Migration(1, 2) {
@@ -316,6 +321,37 @@ object DatabaseModule {
         object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE foods ADD COLUMN imageUrl TEXT")
+            }
+        }
+
+    private val MIGRATION_16_17 =
+        object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_profile (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        sex TEXT,
+                        birthDateEpochDay INTEGER,
+                        heightCm REAL,
+                        activityLevel TEXT NOT NULL,
+                        goalType TEXT NOT NULL,
+                        goalPaceKgPerWeek REAL NOT NULL,
+                        goalWeightKg REAL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        unitSystem TEXT NOT NULL,
+                        themeMode TEXT NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
             }
         }
 }

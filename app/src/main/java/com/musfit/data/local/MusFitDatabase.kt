@@ -4,7 +4,9 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
+import com.musfit.data.local.dao.ProfileDao
 import com.musfit.data.local.dao.TrainingDao
+import com.musfit.data.local.entity.AppSettingsEntity
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
@@ -25,6 +27,7 @@ import com.musfit.data.local.entity.RecipeIngredientEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
 import com.musfit.data.local.entity.ShoppingListItemEntity
+import com.musfit.data.local.entity.UserProfileEntity
 import com.musfit.data.local.entity.WaterEntryEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
@@ -54,8 +57,10 @@ import com.musfit.data.local.entity.WorkoutSetEntity
         BodyMetricEntity::class,
         DailyHealthSummaryEntity::class,
         HealthConnectSyncStateEntity::class,
+        UserProfileEntity::class,
+        AppSettingsEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {
@@ -64,4 +69,6 @@ abstract class MusFitDatabase : RoomDatabase() {
     abstract fun trainingDao(): TrainingDao
 
     abstract fun healthDao(): HealthDao
+
+    abstract fun profileDao(): ProfileDao
 }
