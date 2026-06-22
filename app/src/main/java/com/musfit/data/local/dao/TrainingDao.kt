@@ -29,6 +29,20 @@ data class ActiveWorkoutSummaryRow(
     val totalVolumeKg: Double,
 )
 
+data class RoutineExerciseDetailRow(
+    val id: String,
+    val routineId: String,
+    val exerciseId: String,
+    val exerciseName: String,
+    val category: String,
+    val equipment: String?,
+    val targetMuscles: String,
+    val isCustom: Boolean,
+    val sortOrder: Int,
+    val targetSets: Int,
+    val targetReps: String?,
+)
+
 @Dao
 interface TrainingDao {
     @Query("SELECT * FROM exercises ORDER BY name")
@@ -97,6 +111,27 @@ interface TrainingDao {
 
     @Query("SELECT * FROM routines WHERE id = :routineId LIMIT 1")
     suspend fun getRoutine(routineId: String): RoutineEntity?
+
+    @Query(
+        """
+        SELECT routine_exercises.id AS id,
+            routine_exercises.routineId AS routineId,
+            exercises.id AS exerciseId,
+            exercises.name AS exerciseName,
+            exercises.category AS category,
+            exercises.equipment AS equipment,
+            exercises.targetMuscles AS targetMuscles,
+            exercises.isCustom AS isCustom,
+            routine_exercises.sortOrder AS sortOrder,
+            routine_exercises.targetSets AS targetSets,
+            routine_exercises.targetReps AS targetReps
+        FROM routine_exercises
+        INNER JOIN exercises ON exercises.id = routine_exercises.exerciseId
+        WHERE routine_exercises.routineId = :routineId
+        ORDER BY routine_exercises.sortOrder ASC
+        """,
+    )
+    suspend fun getRoutineExerciseDetailRows(routineId: String): List<RoutineExerciseDetailRow>
 
     @Query("SELECT * FROM workout_sessions ORDER BY startedAtEpochMillis DESC LIMIT 1")
     suspend fun getLatestWorkoutSession(): WorkoutSessionEntity?
@@ -186,4 +221,10 @@ interface TrainingDao {
 
     @Query("UPDATE workout_sets SET completed = :completed WHERE id = :setId")
     suspend fun updateWorkoutSetCompletion(setId: String, completed: Boolean)
+
+    @Query("DELETE FROM routine_exercises WHERE routineId = :routineId")
+    suspend fun deleteRoutineExercises(routineId: String)
+
+    @Query("DELETE FROM routines WHERE id = :routineId")
+    suspend fun deleteRoutineById(routineId: String)
 }

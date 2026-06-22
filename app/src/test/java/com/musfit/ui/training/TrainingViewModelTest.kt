@@ -4,6 +4,10 @@ import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.ActiveWorkoutSummary
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineSummary
+import com.musfit.data.repository.RoutineDetail
+import com.musfit.data.repository.RoutineExerciseDetail
+import com.musfit.data.repository.RoutineExerciseInput
+import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
 import com.musfit.data.repository.WorkoutForExport
@@ -181,7 +185,71 @@ class TrainingViewModelTest {
 
         viewModel.resumeActiveWorkout()
 
-        assertEquals("Active workout resume is not wired yet.", viewModel.state.value.message)
+        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
+    }
+
+    @Test
+    fun openRoutineEditor_forExistingRoutineLoadsRoutineIntoEditor() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.openRoutineEditor("routine-full-body-a")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val editor = viewModel.state.value.routineEditor
+        assertTrue(editor.isOpen)
+        assertEquals("routine-full-body-a", editor.routineId)
+        assertEquals("Full Body A", editor.name)
+        assertEquals("Starter routine", editor.notes)
+        assertEquals(1, editor.exercises.size)
+        assertEquals("exercise-bench-press", editor.exercises.single().exerciseId)
+    }
+
+    @Test
+    fun saveRoutineEditor_forNewRoutinePersistsAndClosesEditor() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.openRoutineEditor(null)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onRoutineNameChanged("Leg Day")
+        viewModel.onRoutineNotesChanged("Heavy")
+        viewModel.saveRoutineEditor()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            RoutineInput(
+                name = "Leg Day",
+                notes = "Heavy",
+                exercises = emptyList(),
+            ),
+            repository.createdRoutineInput,
+        )
+        assertFalse(viewModel.state.value.routineEditor.isOpen)
+    }
+
+    @Test
+    fun startRoutine_startsWorkoutAndOpensActiveWorkoutRoute() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.startRoutine("routine-full-body-a")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("routine-full-body-a", repository.startedRoutineId)
+        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
+    }
+
+    @Test
+    fun startBlankWorkout_startsWorkoutAndOpensActiveWorkoutRoute() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.startBlankWorkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, repository.startBlankWorkoutCalls)
+        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
     }
 
     private class FakeTrainingRepository : TrainingRepository {
@@ -192,6 +260,11 @@ class TrainingViewModelTest {
         var savedWeightKg: Double? = null
         var updatedSetId: String? = null
         var updatedCompleted: Boolean? = null
+        var createdRoutineInput: RoutineInput? = null
+        var updatedRoutineId: String? = null
+        var updatedRoutineInput: RoutineInput? = null
+        var startedRoutineId: String? = null
+        var startBlankWorkoutCalls = 0
         private val routinesFlow = MutableStateFlow(
             listOf(
                 RoutineSummary(
@@ -217,6 +290,24 @@ class TrainingViewModelTest {
             ),
         )
         private val activeWorkoutFlow = MutableStateFlow<ActiveWorkoutSummary?>(null)
+        private val routineDetails = mutableMapOf(
+            "routine-full-body-a" to
+                RoutineDetail(
+                    id = "routine-full-body-a",
+                    name = "Full Body A",
+                    notes = "Starter routine",
+                    isStarter = true,
+                    exercises = listOf(
+                        RoutineExerciseDetail(
+                            id = "routine-exercise-1",
+                            exercise = exercisesFlow.value.single(),
+                            sortOrder = 0,
+                            targetSets = 3,
+                            targetReps = "5",
+                        ),
+                    ),
+                ),
+        )
 
         override suspend fun addCompletedSet(
             exerciseName: String,
@@ -250,6 +341,32 @@ class TrainingViewModelTest {
         override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = routinesFlow
 
         override fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = activeWorkoutFlow
+
+        override suspend fun createRoutine(input: RoutineInput): String {
+            createdRoutineInput = input
+            return "new-routine-id"
+        }
+
+        override suspend fun updateRoutine(routineId: String, input: RoutineInput) {
+            updatedRoutineId = routineId
+            updatedRoutineInput = input
+        }
+
+        override suspend fun duplicateRoutine(routineId: String): String = "$routineId-copy"
+
+        override suspend fun deleteRoutine(routineId: String) = Unit
+
+        override suspend fun getRoutineDetail(routineId: String): RoutineDetail? = routineDetails[routineId]
+
+        override suspend fun startBlankWorkout(): String {
+            startBlankWorkoutCalls += 1
+            return "blank-session-id"
+        }
+
+        override suspend fun startWorkoutFromRoutine(routineId: String): String {
+            startedRoutineId = routineId
+            return "session-for-$routineId"
+        }
 
         override suspend fun seedStarterTrainingData() {
             seedCalls += 1

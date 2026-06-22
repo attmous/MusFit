@@ -58,6 +58,34 @@ data class RoutineSummary(
     val isStarter: Boolean,
 )
 
+data class RoutineExerciseDetail(
+    val id: String,
+    val exercise: ExerciseSummary,
+    val sortOrder: Int,
+    val targetSets: Int,
+    val targetReps: String?,
+)
+
+data class RoutineDetail(
+    val id: String,
+    val name: String,
+    val notes: String?,
+    val isStarter: Boolean,
+    val exercises: List<RoutineExerciseDetail>,
+)
+
+data class RoutineInput(
+    val name: String,
+    val notes: String?,
+    val exercises: List<RoutineExerciseInput>,
+)
+
+data class RoutineExerciseInput(
+    val exerciseId: String,
+    val targetSets: Int,
+    val targetReps: String?,
+)
+
 data class ActiveWorkoutSummary(
     val sessionId: String,
     val title: String,
@@ -86,6 +114,20 @@ interface TrainingRepository {
     fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = flowOf(null)
 
     fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary>
+
+    suspend fun createRoutine(input: RoutineInput): String
+
+    suspend fun updateRoutine(routineId: String, input: RoutineInput)
+
+    suspend fun duplicateRoutine(routineId: String): String
+
+    suspend fun deleteRoutine(routineId: String)
+
+    suspend fun getRoutineDetail(routineId: String): RoutineDetail?
+
+    suspend fun startBlankWorkout(): String
+
+    suspend fun startWorkoutFromRoutine(routineId: String): String
 
     suspend fun getLatestWorkoutForExport(): WorkoutForExport?
 
@@ -210,6 +252,111 @@ class LocalTrainingRepository @Inject constructor(
         }
     }
 
+    override suspend fun createRoutine(input: RoutineInput): String {
+        require(input.name.isNotBlank()) { "Routine name is required" }
+        val routineId = UUID.randomUUID().toString()
+        saveRoutine(routineId, input, isStarter = false, createdAt = clock())
+        return routineId
+    }
+
+    override suspend fun updateRoutine(routineId: String, input: RoutineInput) {
+        val existing = trainingDao.getRoutine(routineId) ?: return
+        saveRoutine(
+            routineId = routineId,
+            input = input,
+            isStarter = existing.isStarter,
+            createdAt = existing.createdAtEpochMillis,
+        )
+    }
+
+    override suspend fun duplicateRoutine(routineId: String): String {
+        val detail = getRoutineDetail(routineId) ?: return createRoutine(
+            RoutineInput(name = "Routine Copy", notes = null, exercises = emptyList()),
+        )
+        return createRoutine(
+            RoutineInput(
+                name = "${detail.name} Copy",
+                notes = detail.notes,
+                exercises = detail.exercises.map {
+                    RoutineExerciseInput(
+                        exerciseId = it.exercise.id,
+                        targetSets = it.targetSets,
+                        targetReps = it.targetReps,
+                    )
+                },
+            ),
+        )
+    }
+
+    override suspend fun deleteRoutine(routineId: String) {
+        trainingDao.deleteRoutineById(routineId)
+    }
+
+    override suspend fun getRoutineDetail(routineId: String): RoutineDetail? {
+        val routine = trainingDao.getRoutine(routineId) ?: return null
+        val exercises = trainingDao.getRoutineExerciseDetailRows(routineId).map { row ->
+            RoutineExerciseDetail(
+                id = row.id,
+                exercise = ExerciseSummary(
+                    id = row.exerciseId,
+                    name = row.exerciseName,
+                    category = row.category,
+                    equipment = row.equipment,
+                    targetMuscles = row.targetMuscles,
+                    isCustom = row.isCustom,
+                ),
+                sortOrder = row.sortOrder,
+                targetSets = row.targetSets,
+                targetReps = row.targetReps,
+            )
+        }
+        return RoutineDetail(
+            id = routine.id,
+            name = routine.name,
+            notes = routine.notes,
+            isStarter = routine.isStarter,
+            exercises = exercises,
+        )
+    }
+
+    override suspend fun startBlankWorkout(): String =
+        database.withTransaction {
+            createWorkoutSession(routineId = null, title = DEFAULT_WORKOUT_TITLE)
+        }
+
+    override suspend fun startWorkoutFromRoutine(routineId: String): String =
+        database.withTransaction {
+            val routine = trainingDao.getRoutine(routineId)
+            if (routine == null) {
+                return@withTransaction createWorkoutSession(
+                    routineId = null,
+                    title = DEFAULT_WORKOUT_TITLE,
+                )
+            }
+            val sessionId = createWorkoutSession(routineId = routine.id, title = routine.name)
+            val routineExercises = trainingDao.getRoutineExercises(routine.id)
+            val sets = routineExercises.flatMap { routineExercise ->
+                (0 until routineExercise.targetSets.coerceAtLeast(1)).map { setIndex ->
+                    WorkoutSetEntity(
+                        id = UUID.randomUUID().toString(),
+                        sessionId = sessionId,
+                        exerciseId = routineExercise.exerciseId,
+                        sortOrder = routineExercise.sortOrder * 100 + setIndex,
+                        setType = SET_TYPE_WORKING,
+                        reps = routineExercise.targetReps?.toIntOrNull(),
+                        weightKg = null,
+                        durationSeconds = null,
+                        distanceMeters = null,
+                        rpe = null,
+                        notes = null,
+                        completed = false,
+                    )
+                }
+            }
+            sets.forEach { trainingDao.upsertWorkoutSet(it) }
+            sessionId
+        }
+
     override suspend fun getLatestWorkoutForExport(): WorkoutForExport? {
         val session = trainingDao.getLatestCompletedWorkoutSession() ?: return null
         val sets = trainingDao.getCompletedWorkoutSets(session.id)
@@ -322,6 +469,59 @@ class LocalTrainingRepository @Inject constructor(
         if (inserted == -1L) {
             trainingDao.updateRoutine(routine)
         }
+    }
+
+    private suspend fun saveRoutine(
+        routineId: String,
+        input: RoutineInput,
+        isStarter: Boolean,
+        createdAt: Long,
+    ) {
+        require(input.name.isNotBlank()) { "Routine name is required" }
+        database.withTransaction {
+            val now = clock()
+            trainingDao.upsertRoutine(
+                RoutineEntity(
+                    id = routineId,
+                    name = input.name.trim(),
+                    notes = input.notes?.trim()?.takeIf { it.isNotBlank() },
+                    createdAtEpochMillis = createdAt,
+                    updatedAtEpochMillis = now,
+                    isStarter = isStarter,
+                ),
+            )
+            trainingDao.deleteRoutineExercises(routineId)
+            trainingDao.upsertRoutineExercises(
+                input.exercises.mapIndexed { index, exercise ->
+                    RoutineExerciseEntity(
+                        id = "$routineId-${exercise.exerciseId}-$index",
+                        routineId = routineId,
+                        exerciseId = exercise.exerciseId,
+                        sortOrder = index,
+                        targetSets = exercise.targetSets.coerceAtLeast(1),
+                        targetReps = exercise.targetReps?.trim()?.takeIf { it.isNotBlank() },
+                    )
+                },
+            )
+        }
+    }
+
+    private suspend fun createWorkoutSession(routineId: String?, title: String): String {
+        val now = clock()
+        val session = WorkoutSessionEntity(
+            id = UUID.randomUUID().toString(),
+            routineId = routineId,
+            title = title,
+            status = WORKOUT_STATUS_ACTIVE,
+            startedAtEpochMillis = now,
+            endedAtEpochMillis = null,
+            notes = null,
+            healthConnectRecordId = null,
+            healthConnectLastExportedAtEpochMillis = null,
+        )
+        activeSessionId = session.id
+        trainingDao.upsertWorkoutSession(session)
+        return session.id
     }
 
     private suspend fun upsertWorkoutSession(session: WorkoutSessionEntity) {

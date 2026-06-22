@@ -174,6 +174,74 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun createUpdateDuplicateAndDeleteRoutine_persistsRoutineExerciseTargets() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val squat = repository.observeExercises(query = "squat").first().single()
+
+        val routineId = repository.createRoutine(
+            RoutineInput(
+                name = "Strength A",
+                notes = "Heavy work",
+                exercises = listOf(
+                    RoutineExerciseInput(bench.id, targetSets = 3, targetReps = "5"),
+                    RoutineExerciseInput(squat.id, targetSets = 4, targetReps = "6"),
+                ),
+            ),
+        )
+
+        repository.updateRoutine(
+            routineId,
+            RoutineInput(
+                name = "Strength A Updated",
+                notes = "Heavy plus backoff",
+                exercises = listOf(
+                    RoutineExerciseInput(squat.id, targetSets = 5, targetReps = "5"),
+                ),
+            ),
+        )
+        val duplicateId = repository.duplicateRoutine(routineId)
+        repository.deleteRoutine(routineId)
+
+        val summaries = repository.observeRoutineSummaries().first()
+        val duplicate = repository.getRoutineDetail(duplicateId)
+
+        assertTrue(summaries.none { it.id == routineId })
+        assertEquals("Strength A Updated Copy", duplicate?.name)
+        assertEquals(1, duplicate?.exercises?.size)
+        assertEquals("Back Squat", duplicate?.exercises?.single()?.exercise?.name)
+        assertEquals(5, duplicate?.exercises?.single()?.targetSets)
+    }
+
+    @Test
+    fun startWorkoutFromRoutine_createsActiveSessionWithPlannedSets() = runTest {
+        repository.seedStarterTrainingData()
+        val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
+
+        val sessionId = repository.startWorkoutFromRoutine(routine.id)
+        val active = repository.observeActiveWorkoutSummary().first()
+
+        val sets = database.trainingDao().getWorkoutSets(sessionId)
+
+        assertEquals(sessionId, active?.sessionId)
+        assertEquals("Full Body A", active?.title)
+        assertEquals(routine.targetSetCount, sets.size)
+        assertTrue(sets.all { !it.completed })
+        assertTrue(sets.all { it.setType == "working" })
+    }
+
+    @Test
+    fun startBlankWorkout_createsActiveBlankWorkout() = runTest {
+        val sessionId = repository.startBlankWorkout()
+
+        val active = repository.observeActiveWorkoutSummary().first()
+        val sets = database.trainingDao().getWorkoutSets(sessionId)
+
+        assertEquals("Blank workout", active?.title)
+        assertTrue(sets.isEmpty())
+    }
+
+    @Test
     fun observeExercises_filtersBySearchMuscleAndEquipment() = runTest {
         repository.seedStarterTrainingData()
 

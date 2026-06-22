@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.ActiveWorkoutSummary
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.RoutineExerciseInput
+import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.domain.model.WorkoutSetInput
@@ -25,6 +27,14 @@ enum class TrainingSection {
     Progress,
 }
 
+data class RoutineEditorState(
+    val routineId: String? = null,
+    val name: String = "",
+    val notes: String = "",
+    val exercises: List<RoutineExerciseInput> = emptyList(),
+    val isOpen: Boolean = false,
+)
+
 data class TrainingUiState(
     val selectedSection: TrainingSection = TrainingSection.Routines,
     val routines: List<RoutineSummary> = emptyList(),
@@ -37,6 +47,8 @@ data class TrainingUiState(
     val sets: List<LoggedWorkoutSet> = emptyList(),
     val totalVolumeKg: Double = 0.0,
     val bestEstimatedOneRepMaxKg: Double = 0.0,
+    val routineEditor: RoutineEditorState = RoutineEditorState(),
+    val activeWorkoutRouteOpen: Boolean = false,
     val message: String? = null,
 )
 
@@ -75,7 +87,84 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun resumeActiveWorkout() {
-        mutableState.update { it.copy(message = "Active workout resume is not wired yet.") }
+        mutableState.update { it.copy(activeWorkoutRouteOpen = true) }
+    }
+
+    fun openRoutineEditor(routineId: String?) {
+        viewModelScope.launch {
+            val detail = routineId?.let { repository.getRoutineDetail(it) }
+            mutableState.update {
+                it.copy(
+                    routineEditor = RoutineEditorState(
+                        routineId = routineId,
+                        name = detail?.name.orEmpty(),
+                        notes = detail?.notes.orEmpty(),
+                        exercises = detail?.exercises?.map { exercise ->
+                            RoutineExerciseInput(
+                                exerciseId = exercise.exercise.id,
+                                targetSets = exercise.targetSets,
+                                targetReps = exercise.targetReps,
+                            )
+                        }.orEmpty(),
+                        isOpen = true,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun closeRoutineEditor() {
+        mutableState.update { it.copy(routineEditor = RoutineEditorState()) }
+    }
+
+    fun onRoutineNameChanged(value: String) {
+        mutableState.update { it.copy(routineEditor = it.routineEditor.copy(name = value)) }
+    }
+
+    fun onRoutineNotesChanged(value: String) {
+        mutableState.update { it.copy(routineEditor = it.routineEditor.copy(notes = value)) }
+    }
+
+    fun saveRoutineEditor() {
+        val editor = state.value.routineEditor
+        val input = RoutineInput(editor.name, editor.notes, editor.exercises)
+        viewModelScope.launch {
+            if (editor.routineId == null) {
+                repository.createRoutine(input)
+            } else {
+                repository.updateRoutine(editor.routineId, input)
+            }
+            closeRoutineEditor()
+        }
+    }
+
+    fun duplicateRoutine(routineId: String) {
+        viewModelScope.launch {
+            repository.duplicateRoutine(routineId)
+        }
+    }
+
+    fun deleteRoutine(routineId: String) {
+        viewModelScope.launch {
+            repository.deleteRoutine(routineId)
+            if (state.value.routineEditor.routineId == routineId) {
+                closeRoutineEditor()
+            }
+        }
+    }
+
+    fun startBlankWorkout() {
+        viewModelScope.launch {
+            repository.startBlankWorkout()
+            mutableState.update { it.copy(activeWorkoutRouteOpen = true) }
+        }
+    }
+
+    fun startRoutine(routineId: String) {
+        viewModelScope.launch {
+            repository.startWorkoutFromRoutine(routineId)
+            mutableState.update { it.copy(activeWorkoutRouteOpen = true) }
+        }
     }
 
     fun onExerciseChanged(value: String) {

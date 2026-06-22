@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.data.repository.ExerciseSummary
-import com.musfit.data.repository.RoutineSummary
 import java.util.Locale
 
 @Composable
@@ -80,7 +79,23 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
             }
         }
         when (state.selectedSection) {
-            TrainingSection.Routines -> RoutineListPreview(state.routines)
+            TrainingSection.Routines ->
+                if (state.routineEditor.isOpen) {
+                    TrainingRoutineEditor(
+                        editor = state.routineEditor,
+                        onNameChange = viewModel::onRoutineNameChanged,
+                        onNotesChange = viewModel::onRoutineNotesChanged,
+                        onSave = viewModel::saveRoutineEditor,
+                        onCancel = viewModel::closeRoutineEditor,
+                    )
+                } else {
+                    TrainingRoutineContent(
+                        routines = state.routines,
+                        onStartRoutine = viewModel::startRoutine,
+                        onStartBlank = viewModel::startBlankWorkout,
+                        onEditRoutine = viewModel::openRoutineEditor,
+                    )
+                }
             TrainingSection.Exercises -> ExerciseListPreview(state.exercises)
             TrainingSection.History -> Text("Finish a workout to build history.")
             TrainingSection.Progress -> Text("Complete workouts to see progress.")
@@ -148,19 +163,6 @@ private fun QuickSetLoggerCard(
                     },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun RoutineListPreview(routines: List<RoutineSummary>) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = "Routines", style = MaterialTheme.typography.titleMedium)
-        routines.forEach { routine ->
-            ListItem(
-                headlineContent = { Text(routine.name) },
-                supportingContent = { Text("${routine.exerciseCount} exercises - ${routine.targetSetCount} sets") },
-            )
         }
     }
 }
