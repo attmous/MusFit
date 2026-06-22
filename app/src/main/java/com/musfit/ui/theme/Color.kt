@@ -23,3 +23,11 @@ val MacroCarbs = Color(0xFFF59E0B)
 val MacroFat = Color(0xFF6D5BD0)
 val PositiveContainer = Color(0xFFE7F4EC)
 val Water = Color(0xFF3FA9E0)
+
+// Per-tab accents (color coding).
+val Indigo = Color(0xFF3D5AF1)
+val IndigoInk = Color(0xFF1E2A78)
+val IndigoContainer = Color(0xFFE4E7FD)
+val Teal = Color(0xFF0E9594)
+val TealInk = Color(0xFF0B5E5D)
+val TealContainer = Color(0xFFD9F0EF)

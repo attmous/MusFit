@@ -3,6 +3,7 @@ package com.musfit.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -20,6 +21,7 @@ import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodScreen
 import com.musfit.ui.food.NutritionLabelScannerScreen
 import com.musfit.ui.health.HealthScreen
+import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.today.TodayScreen
 import com.musfit.ui.training.TrainingScreen
 
@@ -36,6 +38,7 @@ fun AppNavGraph() {
         bottomBar = {
             NavigationBar {
                 destinations.forEach { destination ->
+                    val accent = tabAccentFor(destination)
                     NavigationBarItem(
                         selected = currentRoute == destination.route,
                         onClick = {
@@ -46,6 +49,11 @@ fun AppNavGraph() {
                         },
                         label = { Text(destination.label) },
                         icon = { Icon(destination.icon, contentDescription = destination.label) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = accent.onContainer,
+                            selectedTextColor = accent.color,
+                            indicatorColor = accent.container,
+                        ),
                     )
                 }
             }
