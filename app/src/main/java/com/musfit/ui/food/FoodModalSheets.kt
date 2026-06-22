@@ -1464,6 +1464,7 @@ internal fun RecipeEditorPanel(
     onSaveClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
+    val editor = state.recipeEditor ?: return
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1472,8 +1473,8 @@ internal fun RecipeEditorPanel(
             .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(if (state.editingRecipeId == null) "Recipe" else "Edit recipe", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        if (state.recipes.isNotEmpty() && state.editingRecipeId == null) {
+        Text(if (editor.editingRecipeId == null) "Recipe" else "Edit recipe", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        if (state.recipes.isNotEmpty() && editor.editingRecipeId == null) {
             Text("Saved recipes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             state.recipes.forEach { recipe ->
                 Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
@@ -1513,14 +1514,14 @@ internal fun RecipeEditorPanel(
                 }
             }
         }
-        OutlinedTextField(state.recipeName, onNameChanged, label = { Text("Recipe name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(editor.name, onNameChanged, label = { Text("Recipe name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(state.recipeCategory, onCategoryChanged, label = { Text("Category") }, singleLine = true, modifier = Modifier.weight(1f))
-            OutlinedTextField(state.recipeServingName, onServingNameChanged, label = { Text("Serving") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(editor.category, onCategoryChanged, label = { Text("Category") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(editor.servingName, onServingNameChanged, label = { Text("Serving") }, singleLine = true, modifier = Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
-                state.recipeServingsCount,
+                editor.servingsCount,
                 onServingsCountChanged,
                 label = { Text("Servings") },
                 singleLine = true,
@@ -1528,7 +1529,7 @@ internal fun RecipeEditorPanel(
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
-                state.recipeCookedYieldGrams,
+                editor.cookedYieldGrams,
                 onCookedYieldChanged,
                 label = { Text("Cooked yield g") },
                 singleLine = true,
@@ -1537,7 +1538,7 @@ internal fun RecipeEditorPanel(
             )
         }
         Text(
-            text = "${state.recipeServingGrams.ifBlank { "0" }} g per ${state.recipeServingName.ifBlank { "serving" }}",
+            text = "${editor.servingGrams.ifBlank { "0" }} g per ${editor.servingName.ifBlank { "serving" }}",
             style = MaterialTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
         )
@@ -1545,17 +1546,17 @@ internal fun RecipeEditorPanel(
         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.savedFoods.forEach { food ->
                 FilterChip(
-                    selected = state.recipeIngredientFoodId == food.id,
+                    selected = editor.ingredientFoodId == food.id,
                     onClick = { onIngredientFoodChanged(food.id) },
                     label = { Text(food.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 )
             }
         }
-        if (state.recipeIngredientServingChoices.isNotEmpty()) {
+        if (editor.ingredientServingChoices.isNotEmpty()) {
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.recipeIngredientServingChoices.forEach { choice ->
+                editor.ingredientServingChoices.forEach { choice ->
                     FilterChip(
-                        selected = state.recipeIngredientServingChoiceId == choice.id,
+                        selected = editor.ingredientServingChoiceId == choice.id,
                         onClick = { onIngredientServingChoiceSelected(choice.id) },
                         label = { Text(choice.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     )
@@ -1564,7 +1565,7 @@ internal fun RecipeEditorPanel(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
-                state.recipeIngredientQuantityGrams,
+                editor.ingredientQuantityGrams,
                 onIngredientQuantityChanged,
                 label = { Text("Amount") },
                 singleLine = true,
@@ -1575,7 +1576,7 @@ internal fun RecipeEditorPanel(
                 Text("Add")
             }
         }
-        state.recipeIngredients.forEach { ingredient ->
+        editor.ingredients.forEach { ingredient ->
             Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                 Row(
                     modifier = Modifier
@@ -1603,7 +1604,7 @@ internal fun RecipeEditorPanel(
         ) {
             Text(if (state.isSaving) "Saving" else "Save recipe")
         }
-        if (state.editingRecipeId != null) {
+        if (editor.editingRecipeId != null) {
             OutlinedButton(
                 onClick = onDeleteClick,
                 enabled = !state.isSaving,

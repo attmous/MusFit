@@ -2956,7 +2956,7 @@ class FoodViewModelTest {
 
         assertEquals(
             listOf("g", "Serving", "Scoop", "Package"),
-            viewModel.state.value.recipeIngredientServingChoices.map { it.label },
+            viewModel.state.value.recipeEditor!!.ingredientServingChoices.map { it.label },
         )
 
         viewModel.onRecipeIngredientServingChoiceSelected("serving-scoop")
