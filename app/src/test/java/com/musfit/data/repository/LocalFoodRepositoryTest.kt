@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
 import com.musfit.data.remote.food.ProductDataQuality
@@ -544,6 +545,42 @@ class LocalFoodRepositoryTest {
         val savedFood = repository.observeSavedFoods().first().single()
         assertEquals("https://images.test/egg.jpg", savedFood.imageUrl)
     }
+
+    @Test
+    fun recentFoods_returnsDistinctFoodsMostRecentFirst() = runTest {
+        val dao = database.foodDao()
+        dao.upsertFood(foodEntity(id = "f-egg", name = "Egg"))
+        dao.upsertFood(foodEntity(id = "f-ice", name = "Ice cream"))
+        dao.upsertMeal(MealEntity(id = "m1", dateEpochDay = 20260, type = "breakfast", notes = null, createdAtEpochMillis = 100, updatedAtEpochMillis = 100))
+        dao.upsertMealItem(MealItemEntity(id = "mi1", mealId = "m1", foodId = "f-egg", quantityGrams = 100.0))
+        dao.upsertMeal(MealEntity(id = "m2", dateEpochDay = 20260, type = "lunch", notes = null, createdAtEpochMillis = 200, updatedAtEpochMillis = 200))
+        dao.upsertMealItem(MealItemEntity(id = "mi2", mealId = "m2", foodId = "f-ice", quantityGrams = 100.0))
+
+        val recents = repository.observeRecentFoods(limit = 10).first()
+        assertEquals(listOf("Ice cream", "Egg"), recents.map { it.name })
+    }
+
+    @Test
+    fun sameAsYesterday_returnsFoodsLoggedForThatMealYesterday() = runTest {
+        val dao = database.foodDao()
+        val yesterday = LocalDate.of(2026, 6, 21)
+        val today = LocalDate.of(2026, 6, 22)
+        dao.upsertFood(foodEntity(id = "f-oats", name = "Oats"))
+        dao.upsertFood(foodEntity(id = "f-steak", name = "Steak"))
+        dao.upsertMeal(MealEntity(id = "mb", dateEpochDay = yesterday.toEpochDay(), type = "breakfast", notes = null, createdAtEpochMillis = 100, updatedAtEpochMillis = 100))
+        dao.upsertMealItem(MealItemEntity(id = "mib", mealId = "mb", foodId = "f-oats", quantityGrams = 100.0))
+        dao.upsertMeal(MealEntity(id = "md", dateEpochDay = yesterday.toEpochDay(), type = "dinner", notes = null, createdAtEpochMillis = 110, updatedAtEpochMillis = 110))
+        dao.upsertMealItem(MealItemEntity(id = "mid", mealId = "md", foodId = "f-steak", quantityGrams = 100.0))
+
+        val same = repository.observeSameAsYesterday(mealType = "breakfast", date = today).first()
+        assertEquals(listOf("Oats"), same.map { it.name })
+    }
+
+    private fun foodEntity(id: String, name: String) = FoodEntity(
+        id = id, name = name, brand = null, defaultServingGrams = 100.0,
+        caloriesPer100g = 100.0, proteinPer100g = 1.0, carbsPer100g = 1.0, fatPer100g = 1.0,
+        createdAtEpochMillis = 1, updatedAtEpochMillis = 1,
+    )
 
     @Test
     fun upsertSavedFood_createsAndUpdatesReusableDatabaseFood() = runTest {

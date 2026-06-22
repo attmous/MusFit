@@ -3423,6 +3423,12 @@ class FoodViewModelTest {
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
             savedFoodsFlow
 
+        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
+            flowOf(emptyList())
+
+        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> =
+            flowOf(emptyList())
+
         override suspend fun getFoodDetail(foodId: String): SavedFoodItem? =
             savedFoodsFlow.value.firstOrNull { it.id == foodId }
 
@@ -3672,6 +3678,12 @@ class FoodViewModelTest {
             flowOf(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
 
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
+            flowOf(emptyList())
+
+        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
+            flowOf(emptyList())
+
+        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> =
             flowOf(emptyList())
 
         override suspend fun logSavedFood(input: SavedFoodLogInput): String {

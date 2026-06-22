@@ -378,6 +378,10 @@ interface FoodRepository {
 
     fun observeSavedFoods(): Flow<List<SavedFoodItem>>
 
+    fun observeRecentFoods(limit: Int = 20): Flow<List<SavedFoodItem>>
+
+    fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>>
+
     suspend fun getFoodDetail(foodId: String): SavedFoodItem? = null
 
     suspend fun logSavedFood(input: SavedFoodLogInput): String
@@ -581,6 +585,20 @@ class LocalFoodRepository @Inject constructor(
             foods
                 .filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
                 .map { food -> food.toSavedFoodItem(foodDao.getServings(food.id)) }
+        }
+
+    override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
+        foodDao.observeRecentFoods(limit).map { foods ->
+            foods
+                .filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
+                .map { food -> food.toSavedFoodItem(emptyList()) }
+        }
+
+    override fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>> =
+        foodDao.observeSameAsYesterday(date.minusDays(1).toEpochDay(), mealType).map { foods ->
+            foods
+                .filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
+                .map { food -> food.toSavedFoodItem(emptyList()) }
         }
 
     override suspend fun getFoodDetail(foodId: String): SavedFoodItem? =

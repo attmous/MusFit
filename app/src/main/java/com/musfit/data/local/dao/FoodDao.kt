@@ -121,6 +121,26 @@ data class RecipeIngredientRow(
 
 @Dao
 interface FoodDao {
+    @Query(
+        "SELECT foods.* FROM foods " +
+            "INNER JOIN meal_items ON meal_items.foodId = foods.id " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "GROUP BY foods.id " +
+            "ORDER BY MAX(meals.createdAtEpochMillis) DESC " +
+            "LIMIT :limit",
+    )
+    fun observeRecentFoods(limit: Int): Flow<List<FoodEntity>>
+
+    @Query(
+        "SELECT foods.* FROM foods " +
+            "INNER JOIN meal_items ON meal_items.foodId = foods.id " +
+            "INNER JOIN meals ON meals.id = meal_items.mealId " +
+            "WHERE meals.dateEpochDay = :dateEpochDay AND meals.type = :mealType " +
+            "GROUP BY foods.id " +
+            "ORDER BY MAX(meals.createdAtEpochMillis) DESC",
+    )
+    fun observeSameAsYesterday(dateEpochDay: Long, mealType: String): Flow<List<FoodEntity>>
+
     @Query("SELECT * FROM foods ORDER BY name")
     fun observeFoods(): Flow<List<FoodEntity>>
 

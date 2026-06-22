@@ -47,6 +47,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -59,6 +60,12 @@ enum class FoodAddMode {
     Barcode,
     Quick,
     Ai,
+}
+
+enum class AddTab {
+    Recents,
+    Favorites,
+    Create,
 }
 
 enum class FoodSheetMode {
@@ -461,6 +468,9 @@ data class FoodUiState(
     val aiLoggingDraftSourceLabel: String? = null,
     val keepAddingFoods: Boolean = false,
     val foodDatabaseQuery: String = "",
+    val recentFoods: List<SavedFoodUiState> = emptyList(),
+    val sameAsYesterday: List<SavedFoodUiState> = emptyList(),
+    val addTab: AddTab = AddTab.Recents,
     val editingDiaryEntryId: String? = null,
     val editingDiaryEntryName: String = "",
     val editingDiaryEntryMealType: String = "breakfast",
@@ -646,6 +656,11 @@ class FoodViewModel @Inject constructor(
         viewModelScope.launch {
             repository.observeFoodHealthConnectSyncState().collect { syncState ->
                 mutableState.update { currentState -> currentState.withFoodHealthConnectSyncState(syncState) }
+            }
+        }
+        viewModelScope.launch {
+            repository.observeRecentFoods().collect { recents ->
+                mutableState.update { it.copy(recentFoods = recents.map { food -> food.toUiState() }) }
             }
         }
         viewModelScope.launch {
@@ -941,9 +956,18 @@ class FoodViewModel @Inject constructor(
                 mealType = normalizedMealType,
                 selectedMealTitle = currentState.mealTitleFor(normalizedMealType),
                 addMode = FoodAddMode.Saved,
+                addTab = AddTab.Recents,
                 message = null,
             )
         }
+        viewModelScope.launch {
+            val items = repository.observeSameAsYesterday(normalizedMealType, state.value.selectedDate).first()
+            mutableState.update { it.copy(sameAsYesterday = items.map { food -> food.toUiState() }) }
+        }
+    }
+
+    fun selectAddTab(tab: AddTab) {
+        mutableState.update { it.copy(addTab = tab) }
     }
 
     fun closeAddFood() {
