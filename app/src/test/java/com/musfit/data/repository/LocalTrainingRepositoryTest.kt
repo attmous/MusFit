@@ -135,6 +135,29 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun addCompletedSet_multipleSetsSameDay_preservesEarlierSets() = runTest {
+        repository.addCompletedSet(
+            exerciseName = "Bench Press",
+            reps = 5,
+            weightKg = 100.0,
+        )
+        repository.addCompletedSet(
+            exerciseName = "Bench Press",
+            reps = 6,
+            weightKg = 102.5,
+        )
+
+        val sessions = database.trainingDao().observeWorkoutSessions().first()
+        val sets = database.trainingDao().getWorkoutSets(sessions.single().id)
+        val summary = repository.observeDailyTrainingSummary(WORKOUT_DATE).first()
+
+        assertEquals(1, sessions.size)
+        assertEquals(listOf(5, 6), sets.mapNotNull { it.reps })
+        assertEquals(2, summary.completedSetCount)
+        assertEquals(1115.0, summary.totalVolumeKg, 0.01)
+    }
+
+    @Test
     fun seedStarterTrainingData_importsExercisesAndRoutinesOnce() = runTest {
         repository.seedStarterTrainingData()
         repository.seedStarterTrainingData()
@@ -193,6 +216,30 @@ class LocalTrainingRepositoryTest {
             pushRoutineExercises.size,
         )
         assertTrue(pushRoutineExercises.any { it.exerciseId == customBenchPress.id })
+    }
+
+    @Test
+    fun seedStarterTrainingData_repeatedSeedPreservesRoutineLinkOnExistingWorkoutSession() = runTest {
+        repository.seedStarterTrainingData()
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-linked-routine",
+                routineId = "starter-routine-full-body-a",
+                title = "Full Body A",
+                status = "completed",
+                startedAtEpochMillis = WORKOUT_START.toEpochMilli(),
+                endedAtEpochMillis = WORKOUT_START.plusSeconds(1800).toEpochMilli(),
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+
+        repository.seedStarterTrainingData()
+
+        val savedSession = database.trainingDao().getWorkoutSession("session-linked-routine")
+
+        assertEquals("starter-routine-full-body-a", savedSession?.routineId)
     }
 
     @Test

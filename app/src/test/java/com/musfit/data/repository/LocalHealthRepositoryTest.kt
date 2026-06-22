@@ -126,6 +126,71 @@ class LocalHealthRepositoryTest {
     }
 
     @Test
+    fun exportLatestWorkout_preservesExportedWorkoutSetsWhenMetadataIsSaved() = runTest {
+        database.trainingDao().upsertExercise(
+            ExerciseEntity(
+                id = "exercise-1",
+                name = "Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "",
+                isCustom = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-1",
+                routineId = null,
+                title = "Bench workout",
+                status = "completed",
+                startedAtEpochMillis = 500L,
+                endedAtEpochMillis = 900L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-1",
+                sessionId = "session-1",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-2",
+                sessionId = "session-1",
+                exerciseId = "exercise-1",
+                sortOrder = 1,
+                setType = "working",
+                reps = 6,
+                weightKg = 102.5,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+
+        repository.exportLatestWorkout()
+
+        val savedSets = database.trainingDao().getWorkoutSets("session-1")
+
+        assertEquals(listOf("set-1", "set-2"), savedSets.map { it.id })
+    }
+
+    @Test
     fun exportLatestWorkout_skipsActiveSessionAndExportsLatestCompletedWorkout() = runTest {
         database.trainingDao().upsertExercise(
             ExerciseEntity(

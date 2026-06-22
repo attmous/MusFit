@@ -75,12 +75,15 @@ class LocalHealthRepository @Inject constructor(
 
         val recordId = gateway.exportWorkout(session, sets) ?: return null
         val now = clock()
-        trainingDao.upsertWorkoutSession(
+        val updatedSession =
             session.copy(
                 healthConnectRecordId = recordId,
                 healthConnectLastExportedAtEpochMillis = now,
-            ),
-        )
+            )
+        val inserted = trainingDao.insertWorkoutSession(updatedSession)
+        if (inserted == -1L) {
+            trainingDao.updateWorkoutSession(updatedSession)
+        }
         upsertSyncState(
             lastImportAtEpochMillis = null,
             lastExportAtEpochMillis = now,

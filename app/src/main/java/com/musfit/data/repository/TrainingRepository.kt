@@ -236,18 +236,28 @@ class LocalTrainingRepository @Inject constructor(
                     }
                     definition.id to (existingExercise?.id ?: definition.id)
                 }
-            trainingDao.upsertRoutines(
-                TrainingStarterData.routines.map {
-                    RoutineEntity(
-                        id = it.id,
-                        name = it.name,
-                        notes = it.notes,
-                        createdAtEpochMillis = now,
-                        updatedAtEpochMillis = now,
-                        isStarter = true,
-                    )
-                },
-            )
+            TrainingStarterData.routines.forEach { definition ->
+                val existingRoutine = trainingDao.getRoutine(definition.id)
+                val routine =
+                    if (existingRoutine == null) {
+                        RoutineEntity(
+                            id = definition.id,
+                            name = definition.name,
+                            notes = definition.notes,
+                            createdAtEpochMillis = now,
+                            updatedAtEpochMillis = now,
+                            isStarter = true,
+                        )
+                    } else {
+                        existingRoutine.copy(
+                            name = definition.name,
+                            notes = definition.notes,
+                            updatedAtEpochMillis = now,
+                            isStarter = true,
+                        )
+                    }
+                upsertWorkoutRoutine(routine)
+            }
             trainingDao.upsertRoutineExercises(
                 TrainingStarterData.routines.flatMap { routine ->
                     routine.exercises.mapIndexed { index, exercise ->
@@ -271,7 +281,7 @@ class LocalTrainingRepository @Inject constructor(
         exportedAtEpochMillis: Long,
     ) {
         val session = trainingDao.getWorkoutSession(sessionId) ?: return
-        trainingDao.upsertWorkoutSession(
+        upsertWorkoutSession(
             session.copy(
                 healthConnectRecordId = recordId,
                 healthConnectLastExportedAtEpochMillis = exportedAtEpochMillis,
@@ -287,7 +297,7 @@ class LocalTrainingRepository @Inject constructor(
                     status = WORKOUT_STATUS_COMPLETED,
                     endedAtEpochMillis = now,
                 )
-            trainingDao.upsertWorkoutSession(completedSession)
+            upsertWorkoutSession(completedSession)
             return completedSession
         }
 
@@ -303,8 +313,22 @@ class LocalTrainingRepository @Inject constructor(
             healthConnectLastExportedAtEpochMillis = null,
         )
         activeSessionId = session.id
-        trainingDao.upsertWorkoutSession(session)
+        upsertWorkoutSession(session)
         return session
+    }
+
+    private suspend fun upsertWorkoutRoutine(routine: RoutineEntity) {
+        val inserted = trainingDao.insertRoutine(routine)
+        if (inserted == -1L) {
+            trainingDao.updateRoutine(routine)
+        }
+    }
+
+    private suspend fun upsertWorkoutSession(session: WorkoutSessionEntity) {
+        val inserted = trainingDao.insertWorkoutSession(session)
+        if (inserted == -1L) {
+            trainingDao.updateWorkoutSession(session)
+        }
     }
 
     private companion object {

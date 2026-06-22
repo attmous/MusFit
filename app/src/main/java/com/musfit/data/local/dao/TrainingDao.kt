@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
@@ -94,6 +95,9 @@ interface TrainingDao {
     @Query("SELECT * FROM workout_sessions WHERE id = :sessionId LIMIT 1")
     suspend fun getWorkoutSession(sessionId: String): WorkoutSessionEntity?
 
+    @Query("SELECT * FROM routines WHERE id = :routineId LIMIT 1")
+    suspend fun getRoutine(routineId: String): RoutineEntity?
+
     @Query("SELECT * FROM workout_sessions ORDER BY startedAtEpochMillis DESC LIMIT 1")
     suspend fun getLatestWorkoutSession(): WorkoutSessionEntity?
 
@@ -141,6 +145,12 @@ interface TrainingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRoutine(routine: RoutineEntity)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRoutine(routine: RoutineEntity): Long
+
+    @Update
+    suspend fun updateRoutine(routine: RoutineEntity): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRoutines(routines: List<RoutineEntity>)
 
@@ -152,6 +162,12 @@ interface TrainingDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertWorkoutSession(session: WorkoutSessionEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertWorkoutSession(session: WorkoutSessionEntity): Long
+
+    @Update
+    suspend fun updateWorkoutSession(session: WorkoutSessionEntity): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertWorkoutSet(set: WorkoutSetEntity)

@@ -180,3 +180,37 @@ Result: PASS
 ### Concerns
 
 - This preserves Task 1 quick logger compatibility by treating its same-day sessions as already completed. It does not implement the later active-workout lifecycle, which still belongs to future Training tasks.
+
+## Re-Review Fixes 3
+
+### What I fixed
+
+- Replaced destructive `WorkoutSessionEntity` parent-row rewrites in the Training repository quick-logger path with non-destructive insert-or-update DAO calls, so same-day session refreshes keep existing `workout_sets` rows.
+- Replaced destructive workout-session export metadata writes in both `TrainingRepository.markWorkoutExported(...)` and `LocalHealthRepository.exportLatestWorkout()` with the same non-destructive insert-or-update DAO calls, so Health Connect record metadata updates no longer cascade-delete exported sets.
+- Reworked starter routine seeding to update existing `RoutineEntity` rows in place instead of reseeding them through `REPLACE`, which preserves `WorkoutSessionEntity.routineId` links for completed workouts that reference starter routines.
+- Added focused regression tests covering same-day quick logging, export metadata persistence, and repeated starter seeding with an existing routine-linked workout session.
+
+### Tests run and exact results
+
+- `.\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --tests "com.musfit.data.repository.LocalHealthRepositoryTest" --no-daemon --console=plain`
+  - First run before production changes: `14 tests completed, 3 failed`
+  - Failing regressions:
+    - `addCompletedSet_multipleSetsSameDay_preservesEarlierSets`
+    - `exportLatestWorkout_preservesExportedWorkoutSetsWhenMetadataIsSaved`
+    - `seedStarterTrainingData_repeatedSeedPreservesRoutineLinkOnExistingWorkoutSession`
+  - Second run after production changes: success (`exit code 0`)
+- `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain`
+  - Result: `BUILD SUCCESSFUL`
+
+### Files changed
+
+- `app/src/main/java/com/musfit/data/local/dao/TrainingDao.kt`
+- `app/src/main/java/com/musfit/data/repository/HealthRepository.kt`
+- `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
+- `app/src/test/java/com/musfit/data/repository/LocalHealthRepositoryTest.kt`
+- `app/src/test/java/com/musfit/data/repository/LocalTrainingRepositoryTest.kt`
+- `.superpowers/sdd/task-1-report.md`
+
+### Concerns
+
+- `upsertWorkoutSession(...)` and `upsertRoutine(...)` still exist on the DAO for compatibility with older call sites and tests. This fix only removed them from the Task 1 parent-row update paths called out in the review.
