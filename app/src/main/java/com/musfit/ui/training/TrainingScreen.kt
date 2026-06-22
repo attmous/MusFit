@@ -40,7 +40,13 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         ) {
             TrainingActiveWorkoutContent(
                 workout = activeWorkout,
+                exercises = state.exercises,
                 restTimer = state.restTimer,
+                onAddExercise = viewModel::addExerciseToActiveWorkout,
+                onAddSet = viewModel::addWorkoutSet,
+                onDuplicateSet = viewModel::duplicateLastWorkoutSet,
+                onUpdateSet = viewModel::updateWorkoutSetFields,
+                onDeleteSet = viewModel::deleteWorkoutSet,
                 onToggleSet = viewModel::toggleWorkoutSetCompletion,
                 onFinish = viewModel::finishActiveWorkout,
                 onDiscard = viewModel::discardActiveWorkout,

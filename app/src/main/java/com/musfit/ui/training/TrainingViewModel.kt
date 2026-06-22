@@ -342,6 +342,72 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    fun addExerciseToActiveWorkout(exerciseId: String) {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        viewModelScope.launch {
+            repository.addExerciseToActiveWorkout(sessionId, exerciseId)
+        }
+    }
+
+    fun addWorkoutSet(exerciseId: String) {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        viewModelScope.launch {
+            repository.addSetToExercise(
+                sessionId = sessionId,
+                exerciseId = exerciseId,
+                input = WorkoutSetInputData(
+                    setType = "working",
+                    reps = null,
+                    weightKg = null,
+                    rpe = null,
+                    notes = null,
+                    completed = false,
+                ),
+            )
+        }
+    }
+
+    fun duplicateLastWorkoutSet(exerciseId: String) {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        viewModelScope.launch {
+            repository.duplicateLastSet(sessionId, exerciseId)
+        }
+    }
+
+    fun updateWorkoutSetFields(
+        setId: String,
+        setType: String,
+        reps: String,
+        weightKg: String,
+        rpe: String,
+        notes: String,
+    ) {
+        val existing = state.value.activeWorkout
+            ?.exerciseBlocks
+            ?.flatMap { it.sets }
+            ?.firstOrNull { it.id == setId }
+            ?: return
+        viewModelScope.launch {
+            repository.updateWorkoutSet(
+                setId = setId,
+                input = WorkoutSetInputData(
+                    setType = setType.trim().ifBlank { existing.setType },
+                    reps = reps.filter(Char::isDigit).toIntOrNull(),
+                    weightKg = weightKg.sanitizeDecimalInput().toDoubleOrNull(),
+                    rpe = rpe.sanitizeDecimalInput().toDoubleOrNull(),
+                    notes = notes,
+                    completed = existing.completed,
+                ),
+            )
+        }
+    }
+
+    fun deleteWorkoutSet(setId: String) {
+        viewModelScope.launch {
+            repository.deleteWorkoutSet(setId)
+        }
+    }
+
     fun finishActiveWorkout() {
         val sessionId = state.value.activeWorkout?.sessionId ?: return
         viewModelScope.launch {

@@ -345,6 +345,55 @@ class TrainingViewModelTest {
         assertEquals(true, viewModel.state.value.restTimer.isVisible)
     }
 
+    @Test
+    fun activeWorkoutActions_addDuplicateAndDeleteDelegateToRepository() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.addExerciseToActiveWorkout("exercise-row")
+        viewModel.addWorkoutSet("exercise-bench-press")
+        viewModel.duplicateLastWorkoutSet("exercise-bench-press")
+        viewModel.deleteWorkoutSet("set-2")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("session-1", repository.addedExerciseSessionId)
+        assertEquals("exercise-row", repository.addedExerciseId)
+        assertEquals("session-1", repository.addedSetSessionId)
+        assertEquals("exercise-bench-press", repository.addedSetExerciseId)
+        assertEquals(false, repository.addedSetInput?.completed)
+        assertEquals("session-1", repository.duplicatedSessionId)
+        assertEquals("exercise-bench-press", repository.duplicatedExerciseId)
+        assertEquals("set-2", repository.deletedSetId)
+    }
+
+    @Test
+    fun updateWorkoutSetFields_propagatesEditedValues() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.updateWorkoutSetFields(
+            setId = "set-1",
+            setType = "warmup",
+            reps = "8",
+            weightKg = "60.5",
+            rpe = "6.5",
+            notes = "Smooth",
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("set-1", repository.updatedSetId)
+        assertEquals("warmup", repository.updatedSetInput?.setType)
+        assertEquals(8, repository.updatedSetInput?.reps)
+        assertEquals(60.5, repository.updatedSetInput?.weightKg ?: 0.0, 0.01)
+        assertEquals(6.5, repository.updatedSetInput?.rpe ?: 0.0, 0.01)
+        assertEquals("Smooth", repository.updatedSetInput?.notes)
+        assertEquals(false, repository.updatedSetInput?.completed)
+    }
+
     private class FakeTrainingRepository : TrainingRepository {
         var addCalls = 0
         var seedCalls = 0
@@ -359,6 +408,14 @@ class TrainingViewModelTest {
         var updatedRoutineInput: RoutineInput? = null
         var startedRoutineId: String? = null
         var startBlankWorkoutCalls = 0
+        var addedExerciseSessionId: String? = null
+        var addedExerciseId: String? = null
+        var addedSetSessionId: String? = null
+        var addedSetExerciseId: String? = null
+        var addedSetInput: WorkoutSetInputData? = null
+        var duplicatedSessionId: String? = null
+        var duplicatedExerciseId: String? = null
+        var deletedSetId: String? = null
         private val routinesFlow = MutableStateFlow(
             listOf(
                 RoutineSummary(
@@ -392,7 +449,45 @@ class TrainingViewModelTest {
             ),
         )
         private val activeWorkoutFlow = MutableStateFlow<ActiveWorkoutSummary?>(null)
-        val activeWorkoutDetail = MutableStateFlow<ActiveWorkoutDetail?>(null)
+        val activeWorkoutDetail = MutableStateFlow<ActiveWorkoutDetail?>(
+            ActiveWorkoutDetail(
+                sessionId = "session-1",
+                title = "Push",
+                startedAtEpochMillis = 1_000L,
+                completedSetCount = 0,
+                totalVolumeKg = 0.0,
+                exerciseBlocks = listOf(
+                    WorkoutExerciseBlock(
+                        exercise = exercisesFlow.value.first(),
+                        targetReps = "5",
+                        sets = listOf(
+                            LoggedWorkoutSetDetail(
+                                id = "set-1",
+                                exerciseId = "exercise-bench-press",
+                                setType = "working",
+                                reps = 5,
+                                weightKg = 100.0,
+                                rpe = 8.0,
+                                notes = null,
+                                completed = false,
+                                previousLabel = "95 kg x 5",
+                            ),
+                            LoggedWorkoutSetDetail(
+                                id = "set-2",
+                                exerciseId = "exercise-bench-press",
+                                setType = "working",
+                                reps = 5,
+                                weightKg = 100.0,
+                                rpe = null,
+                                notes = null,
+                                completed = false,
+                                previousLabel = "95 kg x 5",
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
         private val routineDetails = mutableMapOf(
             "routine-full-body-a" to
                 RoutineDetail(
@@ -473,22 +568,36 @@ class TrainingViewModelTest {
             return "session-for-$routineId"
         }
 
-        override suspend fun addExerciseToActiveWorkout(sessionId: String, exerciseId: String) = Unit
+        override suspend fun addExerciseToActiveWorkout(sessionId: String, exerciseId: String) {
+            addedExerciseSessionId = sessionId
+            addedExerciseId = exerciseId
+        }
 
         override suspend fun addSetToExercise(
             sessionId: String,
             exerciseId: String,
             input: WorkoutSetInputData,
-        ): String = "new-set-id"
+        ): String {
+            addedSetSessionId = sessionId
+            addedSetExerciseId = exerciseId
+            addedSetInput = input
+            return "new-set-id"
+        }
 
-        override suspend fun duplicateLastSet(sessionId: String, exerciseId: String): String? = null
+        override suspend fun duplicateLastSet(sessionId: String, exerciseId: String): String? {
+            duplicatedSessionId = sessionId
+            duplicatedExerciseId = exerciseId
+            return "duplicated-set-id"
+        }
 
         override suspend fun updateWorkoutSet(setId: String, input: WorkoutSetInputData) {
             updatedSetId = setId
             updatedSetInput = input
         }
 
-        override suspend fun deleteWorkoutSet(setId: String) = Unit
+        override suspend fun deleteWorkoutSet(setId: String) {
+            deletedSetId = setId
+        }
 
         override suspend fun finishWorkout(sessionId: String) = Unit
 

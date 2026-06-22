@@ -268,19 +268,85 @@ class LocalTrainingRepositoryTest {
         )
 
         val detail = repository.observeActiveWorkoutDetail().first()
+        val sets = detail?.exerciseBlocks?.single()?.sets.orEmpty()
 
         assertEquals(1, detail?.exerciseBlocks?.size)
-        assertEquals(2, detail?.exerciseBlocks?.single()?.sets?.size)
-        assertEquals("warmup", detail?.exerciseBlocks?.single()?.sets?.first()?.setType)
+        assertEquals(3, sets.size)
+        assertEquals("warmup", sets.firstOrNull { it.id == setId }?.setType)
         assertEquals(1, detail?.completedSetCount)
         assertEquals(480.0, detail?.totalVolumeKg ?: 0.0, 0.01)
 
-        val duplicatedSet = detail?.exerciseBlocks?.single()?.sets?.last()
+        val duplicatedSet = sets.lastOrNull()
         repository.deleteWorkoutSet(duplicatedSet?.id ?: error("Missing duplicated set"))
         repository.finishWorkout(sessionId)
 
         assertEquals(null, repository.observeActiveWorkoutDetail().first())
         assertEquals(null, repository.observeActiveWorkoutSummary().first())
+    }
+
+    @Test
+    fun addExerciseToActiveWorkout_addsVisibleIncompleteWorkingSet() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val sessionId = repository.startBlankWorkout()
+
+        repository.addExerciseToActiveWorkout(sessionId, bench.id)
+
+        val detail = repository.observeActiveWorkoutDetail().first()
+        val block = detail?.exerciseBlocks?.singleOrNull()
+        val set = block?.sets?.singleOrNull()
+
+        assertEquals(1, detail?.exerciseBlocks?.size)
+        assertEquals(bench.id, block?.exercise?.id)
+        assertEquals("working", set?.setType)
+        assertEquals(false, set?.completed)
+        assertEquals(null, set?.reps)
+        assertEquals(null, set?.weightKg)
+    }
+
+    @Test
+    fun observeActiveWorkoutDetail_fromRoutineSurfacesTargetReps() = runTest {
+        repository.seedStarterTrainingData()
+        val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
+
+        repository.startWorkoutFromRoutine(routine.id)
+
+        val detail = repository.observeActiveWorkoutDetail().first()
+
+        assertTrue(detail?.exerciseBlocks?.isNotEmpty() == true)
+        assertEquals("5", detail?.exerciseBlocks?.first()?.targetReps)
+    }
+
+    @Test
+    fun observeActiveWorkoutDetail_usesLatestPriorCompletedSetForPreviousLabel() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+
+        repository.addCompletedSet(
+            exerciseName = bench.name,
+            reps = 5,
+            weightKg = 95.5,
+        )
+
+        currentInstant = WORKOUT_START.plusSeconds(7200)
+        val sessionId = repository.startBlankWorkout()
+        repository.addSetToExercise(
+            sessionId = sessionId,
+            exerciseId = bench.id,
+            input = WorkoutSetInputData(
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                rpe = null,
+                notes = null,
+                completed = false,
+            ),
+        )
+
+        val detail = repository.observeActiveWorkoutDetail().first()
+        val set = detail?.exerciseBlocks?.singleOrNull()?.sets?.singleOrNull()
+
+        assertEquals("95.5 kg x 5", set?.previousLabel)
     }
 
     @Test

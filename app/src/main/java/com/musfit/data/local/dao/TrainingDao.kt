@@ -222,6 +222,26 @@ interface TrainingDao {
     @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId AND exerciseId = :exerciseId ORDER BY sortOrder DESC LIMIT 1")
     suspend fun getLastWorkoutSetForExercise(sessionId: String, exerciseId: String): WorkoutSetEntity?
 
+    @Query(
+        """
+        SELECT workout_sets.*
+        FROM workout_sets
+        INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId
+        WHERE workout_sets.exerciseId = :exerciseId
+        AND workout_sets.completed = 1
+        AND workout_sets.reps IS NOT NULL
+        AND workout_sets.weightKg IS NOT NULL
+        AND workout_sessions.status = 'completed'
+        AND workout_sessions.startedAtEpochMillis < :beforeStartedAtEpochMillis
+        ORDER BY workout_sessions.startedAtEpochMillis DESC, workout_sets.sortOrder DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun getLatestCompletedSetForExerciseBefore(
+        exerciseId: String,
+        beforeStartedAtEpochMillis: Long,
+    ): WorkoutSetEntity?
+
     @Query("SELECT MAX(sortOrder) FROM workout_sets WHERE sessionId = :sessionId")
     suspend fun getMaxWorkoutSetSortOrder(sessionId: String): Int?
 

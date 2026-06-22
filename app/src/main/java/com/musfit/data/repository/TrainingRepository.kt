@@ -289,7 +289,7 @@ class LocalTrainingRepository @Inject constructor(
                 flowOf(null)
             } else {
                 trainingDao.observeWorkoutSetDetailRows(session.id).map { rows ->
-                    rows.toActiveWorkoutDetail(session)
+                    rows.toActiveWorkoutDetail(session, trainingDao)
                 }
             }
         }
@@ -436,7 +436,18 @@ class LocalTrainingRepository @Inject constructor(
     override suspend fun addExerciseToActiveWorkout(sessionId: String, exerciseId: String) {
         val session = trainingDao.getWorkoutSession(sessionId) ?: return
         if (session.status != WORKOUT_STATUS_ACTIVE) return
-        trainingDao.getLastWorkoutSetForExercise(sessionId, exerciseId)
+        addSetToExercise(
+            sessionId = sessionId,
+            exerciseId = exerciseId,
+            input = WorkoutSetInputData(
+                setType = SET_TYPE_WORKING,
+                reps = null,
+                weightKg = null,
+                rpe = null,
+                notes = null,
+                completed = false,
+            ),
+        )
     }
 
     override suspend fun addSetToExercise(
@@ -730,15 +741,24 @@ private fun ActiveWorkoutSummaryRow.toSummary(): ActiveWorkoutSummary =
         totalVolumeKg = totalVolumeKg,
     )
 
-private fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(session: WorkoutSessionEntity): ActiveWorkoutDetail {
-    val visibleRows = filterNot { row ->
-        !row.completed &&
-            row.reps == null &&
-            row.weightKg == null &&
-            row.rpe == null &&
-            row.notes.isNullOrBlank()
-    }
-    val blocks = visibleRows.groupBy { it.exerciseId }.map { (_, exerciseRows) ->
+private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
+    session: WorkoutSessionEntity,
+    trainingDao: TrainingDao,
+): ActiveWorkoutDetail {
+    val routineTargets = session.routineId
+        ?.let { routineId ->
+            trainingDao.getRoutineExercises(routineId).associate { it.exerciseId to it.targetReps?.trim()?.takeIf(String::isNotEmpty) }
+        }
+        .orEmpty()
+    val previousLabels = map { it.exerciseId }
+        .distinct()
+        .associateWith { exerciseId ->
+            trainingDao.getLatestCompletedSetForExerciseBefore(
+                exerciseId = exerciseId,
+                beforeStartedAtEpochMillis = session.startedAtEpochMillis,
+            )?.toPreviousLabel()
+        }
+    val blocks = groupBy { it.exerciseId }.map { (_, exerciseRows) ->
         val first = exerciseRows.first()
         WorkoutExerciseBlock(
             exercise = ExerciseSummary(
@@ -749,7 +769,7 @@ private fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(session: WorkoutSess
                 targetMuscles = first.targetMuscles,
                 isCustom = first.isCustom,
             ),
-            targetReps = null,
+            targetReps = routineTargets[first.exerciseId],
             sets = exerciseRows.map { row ->
                 LoggedWorkoutSetDetail(
                     id = row.setId,
@@ -760,12 +780,12 @@ private fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(session: WorkoutSess
                     rpe = row.rpe,
                     notes = row.notes,
                     completed = row.completed,
-                    previousLabel = null,
+                    previousLabel = previousLabels[row.exerciseId],
                 )
             },
         )
     }
-    val completedRows = visibleRows.filter { it.completed && it.reps != null && it.weightKg != null }
+    val completedRows = filter { it.completed && it.reps != null && it.weightKg != null }
     return ActiveWorkoutDetail(
         sessionId = session.id,
         title = session.title ?: "Blank workout",
@@ -775,6 +795,19 @@ private fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(session: WorkoutSess
         exerciseBlocks = blocks,
     )
 }
+
+private fun WorkoutSetEntity.toPreviousLabel(): String? {
+    val reps = reps ?: return null
+    val weightKg = weightKg ?: return null
+    return "${weightKg.formatCompactKg()} kg x $reps"
+}
+
+private fun Double.formatCompactKg(): String =
+    if (this % 1.0 == 0.0) {
+        toInt().toString()
+    } else {
+        toString().trimEnd('0').trimEnd('.')
+    }
 
 private fun LocalDate.dayRange(zoneId: ZoneId = ZoneId.systemDefault()): DayRange =
     DayRange(
