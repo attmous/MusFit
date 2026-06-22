@@ -3,6 +3,7 @@ package com.musfit.data.repository
 import androidx.room.withTransaction
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.ActiveWorkoutSummaryRow
+import com.musfit.data.local.dao.ExerciseProgressSetRow
 import com.musfit.data.local.dao.RoutineSummaryRow
 import com.musfit.data.local.dao.TrainingDao
 import com.musfit.data.local.dao.WorkoutHistorySummaryRow
@@ -12,6 +13,8 @@ import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.domain.model.ExerciseProgress
+import com.musfit.domain.model.ExerciseProgressSetInput
 import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.WorkoutCalculator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -172,6 +175,8 @@ interface TrainingRepository {
 
     fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = flowOf(emptyList())
 
+    fun observeExerciseProgress(exerciseId: String): Flow<ExerciseProgress?> = flowOf(null)
+
     suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? = null
 
     fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary>
@@ -317,6 +322,11 @@ class LocalTrainingRepository @Inject constructor(
     override fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> =
         trainingDao.observeWorkoutHistorySummaries().map { rows ->
             rows.map { it.toHistorySummary() }
+        }
+
+    override fun observeExerciseProgress(exerciseId: String): Flow<ExerciseProgress?> =
+        trainingDao.observeExerciseProgressSetRows(exerciseId).map { rows ->
+            rows.toExerciseProgress()
         }
 
     override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? {
@@ -809,6 +819,33 @@ private fun WorkoutHistorySummaryRow.toHistorySummary(): WorkoutHistorySummary =
         completedSetCount = completedSetCount,
         totalVolumeKg = totalVolumeKg,
     )
+
+private fun List<ExerciseProgressSetRow>.toExerciseProgress(): ExerciseProgress? {
+    val first = firstOrNull() ?: return null
+    return WorkoutCalculator.exerciseProgress(
+        exerciseId = first.exerciseId,
+        exerciseName = first.exerciseName,
+        equipment = first.equipment,
+        targetMuscles = first.targetMuscles,
+        sets = mapNotNull { row ->
+            val reps = row.reps
+            val weightKg = row.weightKg
+            if (reps == null || weightKg == null) {
+                null
+            } else {
+                ExerciseProgressSetInput(
+                    dateEpochDay = Instant.ofEpochMilli(row.startedAtEpochMillis)
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalDate()
+                        .toEpochDay(),
+                    reps = reps,
+                    weightKg = weightKg,
+                    completed = row.completed,
+                )
+            }
+        },
+    )
+}
 
 private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
     session: WorkoutSessionEntity,

@@ -17,6 +17,8 @@ import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.data.repository.WorkoutForExport
+import com.musfit.domain.model.ExerciseProgress
+import com.musfit.domain.model.TrainingTrendPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -457,6 +459,22 @@ class TrainingViewModelTest {
         assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
     }
 
+    @Test
+    fun selectProgressExercise_loadsProgressForSelectedExercise() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.selectSection(TrainingSection.Progress)
+        viewModel.selectProgressExercise("exercise-bench-press")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("exercise-bench-press", repository.observedProgressExerciseIds.single())
+        assertEquals("exercise-bench-press", viewModel.state.value.selectedProgressExerciseId)
+        assertEquals("Barbell Bench Press", viewModel.state.value.selectedExerciseProgress?.exerciseName)
+        assertEquals(120.0, viewModel.state.value.selectedExerciseProgress?.heaviestWeightKg ?: 0.0, 0.01)
+    }
+
     private class FakeTrainingRepository : TrainingRepository {
         var addCalls = 0
         var seedCalls = 0
@@ -480,6 +498,7 @@ class TrainingViewModelTest {
         var duplicatedExerciseId: String? = null
         var deletedSetId: String? = null
         val openedWorkoutDetailSessionIds = mutableListOf<String>()
+        val observedProgressExerciseIds = mutableListOf<String>()
 
         private val routinesFlow = MutableStateFlow(
             listOf(
@@ -529,6 +548,7 @@ class TrainingViewModelTest {
         )
 
         private val activeWorkoutFlow = MutableStateFlow<ActiveWorkoutSummary?>(null)
+        private val progressFlow = MutableStateFlow<ExerciseProgress?>(null)
 
         val activeWorkoutDetail = MutableStateFlow<ActiveWorkoutDetail?>(
             ActiveWorkoutDetail(
@@ -569,6 +589,27 @@ class TrainingViewModelTest {
                 ),
             ),
         )
+
+        init {
+            progressFlow.value =
+                ExerciseProgress(
+                    exerciseId = "exercise-bench-press",
+                    exerciseName = "Barbell Bench Press",
+                    equipment = "barbell",
+                    targetMuscles = "chest,triceps,shoulders",
+                    heaviestWeightKg = 120.0,
+                    maxReps = 8,
+                    bestEstimatedOneRepMaxKg = 132.0,
+                    bestWorkoutVolumeKg = 1500.0,
+                    trend = listOf(
+                        TrainingTrendPoint(
+                            dateEpochDay = 20_000L,
+                            volumeKg = 1500.0,
+                            bestEstimatedOneRepMaxKg = 132.0,
+                        ),
+                    ),
+                )
+        }
 
         private val workoutHistoryDetails = mapOf(
             "session-history-1" to
@@ -633,6 +674,11 @@ class TrainingViewModelTest {
         override fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?> = activeWorkoutDetail
 
         override fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = workoutHistoryFlow
+
+        override fun observeExerciseProgress(exerciseId: String): Flow<ExerciseProgress?> {
+            observedProgressExerciseIds += exerciseId
+            return progressFlow
+        }
 
         override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? {
             openedWorkoutDetailSessionIds += sessionId

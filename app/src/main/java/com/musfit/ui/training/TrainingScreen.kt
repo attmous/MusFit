@@ -147,7 +147,13 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     onOpenDetail = viewModel::openWorkoutDetail,
                     onCloseDetail = viewModel::closeWorkoutDetail,
                 )
-            TrainingSection.Progress -> Text("Complete workouts to see progress.")
+            TrainingSection.Progress ->
+                TrainingProgressContent(
+                    exercises = state.exercises,
+                    selectedExerciseId = state.selectedProgressExerciseId,
+                    progress = state.selectedExerciseProgress,
+                    onSelectExercise = viewModel::selectProgressExercise,
+                )
         }
     }
 }

@@ -70,6 +70,19 @@ data class WorkoutHistorySummaryRow(
     val totalVolumeKg: Double,
 )
 
+data class ExerciseProgressSetRow(
+    val exerciseId: String,
+    val exerciseName: String,
+    val category: String,
+    val equipment: String?,
+    val targetMuscles: String,
+    val isCustom: Boolean,
+    val startedAtEpochMillis: Long,
+    val reps: Int?,
+    val weightKg: Double?,
+    val completed: Boolean,
+)
+
 @Dao
 interface TrainingDao {
     @Query("SELECT * FROM exercises ORDER BY name")
@@ -213,6 +226,28 @@ interface TrainingDao {
         """,
     )
     fun observeWorkoutHistorySummaries(): Flow<List<WorkoutHistorySummaryRow>>
+
+    @Query(
+        """
+        SELECT exercises.id AS exerciseId,
+            exercises.name AS exerciseName,
+            exercises.category AS category,
+            exercises.equipment AS equipment,
+            exercises.targetMuscles AS targetMuscles,
+            exercises.isCustom AS isCustom,
+            workout_sessions.startedAtEpochMillis AS startedAtEpochMillis,
+            workout_sets.reps AS reps,
+            workout_sets.weightKg AS weightKg,
+            workout_sets.completed AS completed
+        FROM workout_sets
+        INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId
+        INNER JOIN exercises ON exercises.id = workout_sets.exerciseId
+        WHERE workout_sets.exerciseId = :exerciseId
+        AND workout_sessions.status = 'completed'
+        ORDER BY workout_sessions.startedAtEpochMillis ASC, workout_sets.sortOrder ASC
+        """,
+    )
+    fun observeExerciseProgressSetRows(exerciseId: String): Flow<List<ExerciseProgressSetRow>>
 
     @Query(
         """

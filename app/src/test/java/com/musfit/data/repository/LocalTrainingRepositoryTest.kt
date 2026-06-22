@@ -973,6 +973,23 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun observeExerciseProgress_returnsPrsAndTrendsForCompletedSetsOnly() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val sessionId = repository.startBlankWorkout()
+        repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("working", 5, 100.0, 8.0, null, true))
+        repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("working", 1, 130.0, 10.0, null, false))
+        repository.finishWorkout(sessionId)
+
+        val progress = repository.observeExerciseProgress(bench.id).first()
+
+        assertEquals("Barbell Bench Press", progress?.exerciseName)
+        assertEquals(100.0, progress?.heaviestWeightKg ?: 0.0, 0.01)
+        assertEquals(116.67, progress?.bestEstimatedOneRepMaxKg ?: 0.0, 0.01)
+        assertEquals(1, progress?.trend?.size)
+    }
+
+    @Test
     fun observeDailyTrainingSummary_ignoresActiveAndDiscardedSessions() = runTest {
         val exercise =
             ExerciseEntity(

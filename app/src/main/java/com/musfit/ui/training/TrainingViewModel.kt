@@ -15,8 +15,10 @@ import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.model.WorkoutSetInput
+import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.training.WorkoutCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,6 +55,8 @@ data class TrainingUiState(
     val activeWorkoutSummary: ActiveWorkoutSummary? = null,
     val activeWorkout: ActiveWorkoutDetail? = null,
     val workoutHistory: List<WorkoutHistorySummary> = emptyList(),
+    val selectedProgressExerciseId: String? = null,
+    val selectedExerciseProgress: ExerciseProgress? = null,
     val selectedWorkoutDetail: WorkoutHistoryDetail? = null,
     val exerciseSearchQuery: String = "",
     val exerciseName: String = "",
@@ -75,6 +79,7 @@ class TrainingViewModel @Inject constructor(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(TrainingUiState())
     val state: StateFlow<TrainingUiState> = mutableState.asStateFlow()
+    private var progressObservationJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -121,6 +126,27 @@ class TrainingViewModel @Inject constructor(
         viewModelScope.launch {
             mutableState.update {
                 it.copy(selectedWorkoutDetail = repository.getWorkoutHistoryDetail(sessionId))
+            }
+        }
+    }
+
+    fun selectProgressExercise(exerciseId: String) {
+        mutableState.update {
+            it.copy(
+                selectedProgressExerciseId = exerciseId,
+                selectedExerciseProgress = null,
+            )
+        }
+        progressObservationJob?.cancel()
+        progressObservationJob = viewModelScope.launch {
+            repository.observeExerciseProgress(exerciseId).collect { progress ->
+                mutableState.update { current ->
+                    if (current.selectedProgressExerciseId == exerciseId) {
+                        current.copy(selectedExerciseProgress = progress)
+                    } else {
+                        current
+                    }
+                }
             }
         }
     }
