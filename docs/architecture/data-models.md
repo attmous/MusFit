@@ -30,9 +30,20 @@ Database:
 - Class: `MusFitDatabase`
 - File: `data/local/MusFitDatabase.kt`
 - Name: `musfit.db`
-- Version: 17
+- Version: 20
 - Exported schemas: `app/schemas/com.musfit.data.local.MusFitDatabase/`
-- DAOs: `FoodDao`, `TrainingDao`, `HealthDao`, `UserGoalsDao`
+- DAOs: `AccountDao`, `FoodDao`, `TrainingDao`, `HealthDao`, `ProfileDao`, `UserGoalsDao`
+
+### Account Tables
+
+Source: `app/src/main/java/com/musfit/data/local/entity/AccountEntities.kt`
+
+| Entity | Table | Purpose | Key fields |
+| --- | --- | --- | --- |
+| `AccountEntity` | `accounts` | Local account identity for user-owned data. | `id`, `displayName`, optional `email`, optional future `remoteUserId`, timestamps. |
+| `AccountSessionEntity` | `account_session` | Device-local active account pointer. | `key = "active"`, `activeAccountId`, `updatedAtEpochMillis`. |
+
+The first account id is `local-default`. Profile, app settings, and Today goals use the active account id as their singleton row id. Food, Training, and Health ownership are separate follow-up slices.
 
 ### Food Tables
 
@@ -96,13 +107,18 @@ Source: `app/src/main/java/com/musfit/data/local/entity/HealthEntities.kt`
 | `DailyHealthSummaryEntity` | `daily_health_summaries` | Dated health summary. | date, steps, active calories, latest weight, resting heart rate. |
 | `HealthConnectSyncStateEntity` | `health_connect_sync_state` | Generic Health Connect sync state. | availability, granted permissions CSV, import/export timestamps, failure. |
 
-### User Goals Table
+### Profile And Goals Tables
 
-Source: `app/src/main/java/com/musfit/data/local/entity/UserGoalsEntity.kt`
+Source:
+
+- `app/src/main/java/com/musfit/data/local/entity/ProfileEntities.kt`
+- `app/src/main/java/com/musfit/data/local/entity/UserGoalsEntity.kt`
 
 | Entity | Table | Purpose | Key fields |
 | --- | --- | --- | --- |
-| `UserGoalsEntity` | `user_goals` | Cross-cutting Today goals not stored in `food_goals`. | step goal, weekly session target, target weight. |
+| `UserProfileEntity` | `user_profile` | Per-account profile and body-goal inputs. | `id` stores the account id, profile inputs, goal intent, updated time. |
+| `AppSettingsEntity` | `app_settings` | Per-account app preferences. | `id` stores the account id, unit system, theme mode. |
+| `UserGoalsEntity` | `user_goals` | Per-account cross-cutting Today goals not stored in `food_goals`. | `id` stores the account id, step goal, weekly session target, target weight. |
 
 ## DAO Projection Rows
 
