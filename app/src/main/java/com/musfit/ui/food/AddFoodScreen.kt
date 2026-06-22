@@ -61,6 +61,8 @@ fun AddFoodScreen(
     onQuickTrack: () -> Unit,
     onAdjustGoals: () -> Unit,
     onCreateFood: () -> Unit,
+    onCopyYesterday: () -> Unit,
+    onSaveTemplate: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -78,13 +80,26 @@ fun AddFoodScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MusFitTheme.colors.onSurface)
                     }
-                    Text(
-                        text = state.selectedMealTitle,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MusFitTheme.colors.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
+                    val mealCalories = state.mealSections
+                        .firstOrNull { it.id == state.mealType }
+                        ?.caloriesKcal ?: 0.0
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = state.selectedMealTitle,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MusFitTheme.colors.onSurface,
+                        )
+                        Text(
+                            text = if (mealCalories > 0.0) {
+                                "${mealCalories.roundToInt()} kcal logged"
+                            } else {
+                                "Nothing logged yet"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    }
                     Box {
                         var menuOpen by remember { mutableStateOf(false) }
                         IconButton(onClick = { menuOpen = true }) {
@@ -92,6 +107,8 @@ fun AddFoodScreen(
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(text = { Text("Quick track") }, onClick = { menuOpen = false; onQuickTrack() })
+                            DropdownMenuItem(text = { Text("Copy yesterday") }, onClick = { menuOpen = false; onCopyYesterday() })
+                            DropdownMenuItem(text = { Text("Save as template") }, onClick = { menuOpen = false; onSaveTemplate() })
                             DropdownMenuItem(text = { Text("Adjust goals") }, onClick = { menuOpen = false; onAdjustGoals() })
                         }
                     }

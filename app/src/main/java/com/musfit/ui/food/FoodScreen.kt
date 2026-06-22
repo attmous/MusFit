@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
@@ -142,6 +144,8 @@ fun FoodScreen(
                 onQuickTrack = { viewModel.selectAddMode(FoodAddMode.Quick) },
                 onAdjustGoals = viewModel::openGoalEditor,
                 onCreateFood = { viewModel.selectAddMode(FoodAddMode.Manual) },
+                onCopyYesterday = viewModel::copySelectedMealFromYesterday,
+                onSaveTemplate = { viewModel.saveSelectedMealAsTemplate("${state.selectedMealTitle} template") },
             )
         } else {
             Column(
@@ -204,7 +208,7 @@ fun FoodScreen(
                     state.mealSections.forEach { meal ->
                         MealSectionCard(
                             meal = meal,
-                            onMealClick = { viewModel.openMealDetail(meal.id) },
+                            onMealClick = { viewModel.openAddFood(meal.id) },
                             onAddClick = { viewModel.openAddFood(meal.id) },
                             onEntryClick = viewModel::openDiaryEntryEditor,
                         )
@@ -249,18 +253,48 @@ fun FoodScreen(
         }
 
         if (selectedMealDetail == null && !state.isAddPanelVisible) {
-            FloatingActionButton(
-                onClick = {
-                    val mealId = state.mealSections.firstOrNull()?.id ?: "breakfast"
-                    viewModel.openAddFood(mealId)
-                },
-                containerColor = MusFitTheme.colors.accent,
-                contentColor = MusFitTheme.colors.onAccent,
+            var fabMenuExpanded by rememberSaveable { mutableStateOf(false) }
+
+            if (fabMenuExpanded) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { fabMenuExpanded = false },
+                )
+            }
+
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 20.dp, bottom = 24.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add food")
+                if (fabMenuExpanded) {
+                    state.mealSections.forEach { meal ->
+                        MealPickerItem(
+                            meal = meal,
+                            onClick = {
+                                fabMenuExpanded = false
+                                viewModel.openAddFood(meal.id)
+                            },
+                        )
+                    }
+                }
+                FloatingActionButton(
+                    onClick = { fabMenuExpanded = !fabMenuExpanded },
+                    containerColor = MusFitTheme.colors.accent,
+                    contentColor = MusFitTheme.colors.onAccent,
+                ) {
+                    Icon(
+                        imageVector = if (fabMenuExpanded) Icons.Filled.Close else Icons.Filled.Add,
+                        contentDescription = if (fabMenuExpanded) "Close meal picker" else "Add food",
+                    )
+                }
             }
         }
     }
@@ -1742,6 +1776,48 @@ private fun mealTypeIcon(id: String, title: String): ImageVector {
         "dinner" in key -> Icons.Outlined.DinnerDining
         "snack" in key -> Icons.Outlined.Cookie
         else -> Icons.Outlined.Restaurant
+    }
+}
+
+@Composable
+private fun MealPickerItem(
+    meal: FoodMealSectionUiState,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Surface(
+            color = MusFitTheme.colors.surface,
+            shape = MusFitTheme.shapes.small,
+            shadowElevation = 3.dp,
+        ) {
+            Text(
+                text = meal.title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
+        Surface(
+            onClick = onClick,
+            shape = CircleShape,
+            color = MusFitTheme.colors.surface,
+            shadowElevation = 3.dp,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = mealTypeIcon(meal.id, meal.title),
+                    contentDescription = "Add to ${meal.title}",
+                    tint = MusFitTheme.colors.brand,
+                )
+            }
+        }
     }
 }
 
