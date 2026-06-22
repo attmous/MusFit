@@ -9,6 +9,7 @@ import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.MEASUREMENT_TYPES
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserProfile
+import com.musfit.data.repository.WeightEntry
 import com.musfit.domain.profile.BodyMetricsCalculator
 import com.musfit.domain.profile.RecommendedTargets
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -50,6 +51,9 @@ data class ProfileUiState(
     val weightTrend: List<Double> = emptyList(),
     val goalProgressFraction: Double? = null,
     val measurements: List<MeasurementRow> = emptyList(),
+    val weightEntries: List<WeightEntry> = emptyList(),
+    val measurementEntries: Map<String, List<BodyMeasurement>> = emptyMap(),
+    val weeklyWeightDeltaKg: Double? = null,
     val vitals: VitalsSummary? = null,
     val message: String? = null,
 )
@@ -91,6 +95,11 @@ class ProfileViewModel @Inject constructor(
         } else {
             null
         }
+        val weeklyDelta = BodyMetricsCalculator.changeOverWindow(
+            points = weightSeries.map { it.measuredAtEpochMillis to it.weightKg },
+            windowMillis = 7L * 86_400_000L,
+            nowMillis = System.currentTimeMillis(),
+        )
         ProfileUiState(
             isLoaded = true,
             profile = profile,
@@ -103,6 +112,9 @@ class ProfileViewModel @Inject constructor(
             weightTrend = weightSeries.map { it.weightKg }.reversed(),
             goalProgressFraction = progress,
             measurements = MEASUREMENT_TYPES.map { type -> measurementRow(type, measurements[type].orEmpty()) },
+            weightEntries = weightSeries,
+            measurementEntries = measurements,
+            weeklyWeightDeltaKg = weeklyDelta,
         )
     }
 
@@ -129,6 +141,20 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { profileRepository.logMeasurement(type, value, unit) }
                 .onFailure { messageFlow.value = it.message ?: "Could not log measurement." }
+        }
+    }
+
+    fun editEntry(id: String, value: Double) {
+        viewModelScope.launch {
+            runCatching { profileRepository.updateEntryValue(id, value) }
+                .onFailure { messageFlow.value = it.message ?: "Could not update entry." }
+        }
+    }
+
+    fun deleteEntry(id: String) {
+        viewModelScope.launch {
+            runCatching { profileRepository.deleteEntry(id) }
+                .onFailure { messageFlow.value = it.message ?: "Could not delete entry." }
         }
     }
 

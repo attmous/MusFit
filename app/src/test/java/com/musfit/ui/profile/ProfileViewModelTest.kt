@@ -139,6 +139,40 @@ class ProfileViewModelTest {
         assertEquals(83.6, repo.loggedWeight!!, 0.001)
     }
 
+    @Test
+    fun editEntry_callsRepositoryWithIdAndValue() = runTest {
+        val repo = FakeProfileRepository()
+        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.editEntry("abc", 81.3)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("abc", repo.updatedId)
+        assertEquals(81.3, repo.updatedValue!!, 0.001)
+    }
+
+    @Test
+    fun deleteEntry_callsRepositoryWithId() = runTest {
+        val repo = FakeProfileRepository()
+        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.deleteEntry("xyz")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("xyz", repo.deletedId)
+    }
+
+    @Test
+    fun state_exposesWeightEntriesForSheet() = runTest {
+        val repo = FakeProfileRepository(latestWeight = WeightEntry("w9", 1_000L, 84.0, "manual"))
+        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("w9", viewModel.state.value.weightEntries.first().id)
+    }
+
     private class FakeProfileRepository(
         private val profile: UserProfile = DEFAULT_USER_PROFILE,
         private val latestWeight: WeightEntry? = null,
