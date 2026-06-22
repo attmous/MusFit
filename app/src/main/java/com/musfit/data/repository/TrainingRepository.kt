@@ -57,6 +57,13 @@ data class ExerciseSummary(
     val isCustom: Boolean,
 )
 
+data class ExerciseInput(
+    val name: String,
+    val category: String,
+    val equipment: String?,
+    val targetMuscles: String,
+)
+
 data class RoutineSummary(
     val id: String,
     val name: String,
@@ -166,6 +173,8 @@ interface TrainingRepository {
         muscle: String? = null,
         equipment: String? = null,
     ): Flow<List<ExerciseSummary>> = flowOf(emptyList())
+
+    suspend fun createCustomExercise(input: ExerciseInput): String = ""
 
     fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = flowOf(emptyList())
 
@@ -300,6 +309,26 @@ class LocalTrainingRepository @Inject constructor(
     ): Flow<List<ExerciseSummary>> =
         trainingDao.observeExercisesFiltered(query.trim(), muscle, equipment)
             .map { exercises -> exercises.map { it.toSummary() } }
+
+    override suspend fun createCustomExercise(input: ExerciseInput): String {
+        val name = input.name.trim()
+        require(name.isNotBlank()) { "Exercise name is required" }
+        val existing = trainingDao.getExerciseByNormalizedName(name)
+        if (existing != null) {
+            return existing.id
+        }
+
+        val exercise = ExerciseEntity(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            category = input.category.trim().ifBlank { "strength" },
+            equipment = input.equipment?.trim()?.takeIf { it.isNotBlank() },
+            targetMuscles = input.targetMuscles.trim(),
+            isCustom = true,
+        )
+        trainingDao.upsertExercise(exercise)
+        return exercise.id
+    }
 
     override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> =
         trainingDao.observeRoutineSummaries().map { rows -> rows.map { it.toSummary() } }

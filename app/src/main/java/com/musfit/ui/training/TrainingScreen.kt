@@ -2,13 +2,16 @@ package com.musfit.ui.training
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -122,6 +125,8 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         onNotesChange = viewModel::onRoutineNotesChanged,
                         onAddExercise = viewModel::addRoutineExercise,
                         onRemoveExercise = viewModel::removeRoutineExercise,
+                        onMoveExerciseUp = viewModel::moveRoutineExerciseUp,
+                        onMoveExerciseDown = viewModel::moveRoutineExerciseDown,
                         onTargetSetsChange = viewModel::onRoutineExerciseTargetSetsChanged,
                         onTargetRepsChange = viewModel::onRoutineExerciseTargetRepsChanged,
                         onSave = viewModel::saveRoutineEditor,
@@ -139,7 +144,26 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         onDeleteRoutine = viewModel::deleteRoutine,
                     )
                 }
-            TrainingSection.Exercises -> ExerciseListPreview(state.exercises)
+            TrainingSection.Exercises ->
+                TrainingExerciseLibraryContent(
+                    visibleExercises = state.visibleExercises,
+                    allExercises = state.exercises,
+                    searchQuery = state.exerciseSearchQuery,
+                    muscleFilter = state.exerciseMuscleFilter,
+                    equipmentFilter = state.exerciseEquipmentFilter,
+                    editor = state.exerciseEditor,
+                    onSearchChange = viewModel::onExerciseSearchQueryChanged,
+                    onMuscleFilterChange = viewModel::onExerciseMuscleFilterChanged,
+                    onEquipmentFilterChange = viewModel::onExerciseEquipmentFilterChanged,
+                    onClearFilters = viewModel::clearExerciseFilters,
+                    onOpenCustomExercise = viewModel::openCustomExerciseEditor,
+                    onCloseCustomExercise = viewModel::closeCustomExerciseEditor,
+                    onCustomExerciseNameChange = viewModel::onCustomExerciseNameChanged,
+                    onCustomExerciseCategoryChange = viewModel::onCustomExerciseCategoryChanged,
+                    onCustomExerciseEquipmentChange = viewModel::onCustomExerciseEquipmentChanged,
+                    onCustomExerciseTargetMusclesChange = viewModel::onCustomExerciseTargetMusclesChanged,
+                    onSaveCustomExercise = viewModel::saveCustomExercise,
+                )
             TrainingSection.History ->
                 TrainingHistoryContent(
                     history = state.workoutHistory,
@@ -256,14 +280,179 @@ private fun QuickSetLoggerCard(
 }
 
 @Composable
-private fun ExerciseListPreview(exercises: List<ExerciseSummary>) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = "Exercises", style = MaterialTheme.typography.titleMedium)
-        exercises.take(12).forEach { exercise ->
+private fun TrainingExerciseLibraryContent(
+    visibleExercises: List<ExerciseSummary>,
+    allExercises: List<ExerciseSummary>,
+    searchQuery: String,
+    muscleFilter: String?,
+    equipmentFilter: String?,
+    editor: ExerciseEditorState,
+    onSearchChange: (String) -> Unit,
+    onMuscleFilterChange: (String?) -> Unit,
+    onEquipmentFilterChange: (String?) -> Unit,
+    onClearFilters: () -> Unit,
+    onOpenCustomExercise: () -> Unit,
+    onCloseCustomExercise: () -> Unit,
+    onCustomExerciseNameChange: (String) -> Unit,
+    onCustomExerciseCategoryChange: (String) -> Unit,
+    onCustomExerciseEquipmentChange: (String) -> Unit,
+    onCustomExerciseTargetMusclesChange: (String) -> Unit,
+    onSaveCustomExercise: () -> Unit,
+) {
+    val equipmentOptions = allExercises
+        .mapNotNull { it.equipment?.takeIf(String::isNotBlank) }
+        .distinct()
+        .sorted()
+    val muscleOptions = allExercises
+        .flatMap { it.targetMuscles.split(",") }
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .sorted()
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                label = { Text("Search exercises") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Button(onClick = onOpenCustomExercise) {
+                Text("Custom")
+            }
+        }
+        FilterChipRow(
+            title = "Equipment",
+            options = equipmentOptions,
+            selected = equipmentFilter,
+            onSelected = onEquipmentFilterChange,
+        )
+        FilterChipRow(
+            title = "Muscle",
+            options = muscleOptions.take(8),
+            selected = muscleFilter,
+            onSelected = onMuscleFilterChange,
+        )
+        if (searchQuery.isNotBlank() || equipmentFilter != null || muscleFilter != null) {
+            TextButton(onClick = onClearFilters) {
+                Text("Clear filters")
+            }
+        }
+        if (editor.isOpen) {
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Custom exercise", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = editor.name,
+                        onValueChange = onCustomExerciseNameChange,
+                        label = { Text("Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = editor.category,
+                            onValueChange = onCustomExerciseCategoryChange,
+                            label = { Text("Category") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = editor.equipment,
+                            onValueChange = onCustomExerciseEquipmentChange,
+                            label = { Text("Equipment") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    OutlinedTextField(
+                        value = editor.targetMuscles,
+                        onValueChange = onCustomExerciseTargetMusclesChange,
+                        label = { Text("Target muscles") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onSaveCustomExercise,
+                            enabled = editor.name.isNotBlank(),
+                        ) {
+                            Text("Save")
+                        }
+                        TextButton(onClick = onCloseCustomExercise) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        }
+        Text(
+            text = "${visibleExercises.size} exercises",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        if (visibleExercises.isEmpty()) {
+            Text(
+                text = "No exercises match these filters.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        visibleExercises.forEach { exercise ->
             ListItem(
                 headlineContent = { Text(exercise.name) },
-                supportingContent = { Text(listOfNotNull(exercise.equipment, exercise.targetMuscles).joinToString(" - ")) },
+                supportingContent = {
+                    Text(
+                        listOfNotNull(
+                            exercise.equipment,
+                            exercise.targetMuscles.takeIf(String::isNotBlank),
+                            if (exercise.isCustom) "Custom" else "Library",
+                        ).joinToString(" - "),
+                    )
+                },
             )
+        }
+    }
+}
+
+@Composable
+private fun FilterChipRow(
+    title: String,
+    options: List<String>,
+    selected: String?,
+    onSelected: (String?) -> Unit,
+) {
+    if (options.isEmpty()) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, style = MaterialTheme.typography.labelLarge)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            options.forEach { option ->
+                FilterChip(
+                    selected = selected.equals(option, ignoreCase = true),
+                    onClick = {
+                        onSelected(
+                            if (selected.equals(option, ignoreCase = true)) {
+                                null
+                            } else {
+                                option
+                            },
+                        )
+                    },
+                    label = { Text(option) },
+                )
+            }
         }
     }
 }

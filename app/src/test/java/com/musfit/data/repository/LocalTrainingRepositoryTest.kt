@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -172,6 +173,51 @@ class LocalTrainingRepositoryTest {
         assertTrue(routines.any { it.name == "Push" && it.exerciseCount >= 4 })
         assertEquals(exercises.map { it.id }.distinct().size, exercises.size)
         assertEquals(routines.map { it.id }.distinct().size, routines.size)
+    }
+
+    @Test
+    fun createCustomExercise_trimsAndPersistsCustomExercise() = runTest {
+        val exerciseId = repository.createCustomExercise(
+            ExerciseInput(
+                name = "  Belt Squat  ",
+                category = " strength ",
+                equipment = " machine ",
+                targetMuscles = " quads, glutes ",
+            ),
+        )
+
+        val exercises = repository.observeExercises(query = "belt").first()
+        val exercise = exercises.single()
+
+        assertEquals(exerciseId, exercise.id)
+        assertEquals("Belt Squat", exercise.name)
+        assertEquals("strength", exercise.category)
+        assertEquals("machine", exercise.equipment)
+        assertEquals("quads, glutes", exercise.targetMuscles)
+        assertTrue(exercise.isCustom)
+    }
+
+    @Test
+    fun createCustomExercise_reusesExistingExerciseNameWithoutDuplicatingStarterExercise() = runTest {
+        repository.seedStarterTrainingData()
+        val before = repository.observeExercises().first()
+        val existingBench = before.first { it.name == "Barbell Bench Press" }
+
+        val exerciseId = repository.createCustomExercise(
+            ExerciseInput(
+                name = "  barbell bench press  ",
+                category = "strength",
+                equipment = "barbell",
+                targetMuscles = "chest",
+            ),
+        )
+
+        val after = repository.observeExercises().first()
+        val savedBench = after.first { it.id == existingBench.id }
+
+        assertEquals(existingBench.id, exerciseId)
+        assertEquals(before.size, after.size)
+        assertFalse(savedBench.isCustom)
     }
 
     @Test

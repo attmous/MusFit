@@ -4,6 +4,7 @@ import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
+import com.musfit.data.repository.ExerciseInput
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.RoutineDetail
@@ -190,6 +191,60 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun exerciseLibrary_filtersVisibleExercisesBySearchEquipmentAndMuscle() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onExerciseSearchQueryChanged("press")
+
+        assertEquals(
+            listOf("Barbell Bench Press"),
+            viewModel.state.value.visibleExercises.map { it.name },
+        )
+
+        viewModel.onExerciseSearchQueryChanged("")
+        viewModel.onExerciseEquipmentFilterChanged("machine")
+
+        assertEquals(
+            listOf("Chest Supported Row"),
+            viewModel.state.value.visibleExercises.map { it.name },
+        )
+
+        viewModel.onExerciseMuscleFilterChanged("chest")
+
+        assertTrue(viewModel.state.value.visibleExercises.isEmpty())
+    }
+
+    @Test
+    fun saveCustomExercise_persistsInputAndClearsEditor() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openCustomExerciseEditor()
+        viewModel.onCustomExerciseNameChanged("  Landmine Press  ")
+        viewModel.onCustomExerciseCategoryChanged(" strength ")
+        viewModel.onCustomExerciseEquipmentChanged(" landmine ")
+        viewModel.onCustomExerciseTargetMusclesChanged(" shoulders, triceps ")
+        viewModel.saveCustomExercise()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            ExerciseInput(
+                name = "Landmine Press",
+                category = "strength",
+                equipment = "landmine",
+                targetMuscles = "shoulders, triceps",
+            ),
+            repository.createdExerciseInput,
+        )
+        assertFalse(viewModel.state.value.exerciseEditor.isOpen)
+        assertEquals("", viewModel.state.value.exerciseEditor.name)
+        assertEquals(TrainingSection.Exercises, viewModel.state.value.selectedSection)
+    }
+
+    @Test
     fun openRoutineEditor_forStarterRoutineDoesNotOpenEditor() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
@@ -293,6 +348,26 @@ class TrainingViewModelTest {
                 ),
             ),
             repository.createdRoutineInput,
+        )
+    }
+
+    @Test
+    fun routineEditor_reordersExercisesBeforeSave() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.openRoutineEditor(null)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onRoutineNameChanged("Upper")
+        viewModel.addRoutineExercise("exercise-bench-press")
+        viewModel.addRoutineExercise("exercise-row")
+        viewModel.moveRoutineExerciseUp(index = 1)
+        viewModel.saveRoutineEditor()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf("exercise-row", "exercise-bench-press"),
+            repository.createdRoutineInput?.exercises?.map { it.exerciseId },
         )
     }
 
@@ -510,6 +585,7 @@ class TrainingViewModelTest {
         var updatedCompleted: Boolean? = null
         var updatedSetInput: WorkoutSetInputData? = null
         var createdRoutineInput: RoutineInput? = null
+        var createdExerciseInput: ExerciseInput? = null
         var updatedRoutineId: String? = null
         var updatedRoutineInput: RoutineInput? = null
         var startedRoutineId: String? = null
@@ -742,6 +818,19 @@ class TrainingViewModelTest {
         override suspend fun createRoutine(input: RoutineInput): String {
             createdRoutineInput = input
             return "new-routine-id"
+        }
+
+        override suspend fun createCustomExercise(input: ExerciseInput): String {
+            createdExerciseInput = input
+            exercisesFlow.value = exercisesFlow.value + ExerciseSummary(
+                id = "custom-exercise-id",
+                name = input.name,
+                category = input.category,
+                equipment = input.equipment,
+                targetMuscles = input.targetMuscles,
+                isCustom = true,
+            )
+            return "custom-exercise-id"
         }
 
         override suspend fun updateRoutine(routineId: String, input: RoutineInput) {

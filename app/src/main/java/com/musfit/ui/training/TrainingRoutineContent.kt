@@ -86,6 +86,8 @@ fun TrainingRoutineEditor(
     onNotesChange: (String) -> Unit,
     onAddExercise: (String) -> Unit,
     onRemoveExercise: (Int) -> Unit,
+    onMoveExerciseUp: (Int) -> Unit,
+    onMoveExerciseDown: (Int) -> Unit,
     onTargetSetsChange: (Int, String) -> Unit,
     onTargetRepsChange: (Int, String) -> Unit,
     onSave: () -> Unit,
@@ -94,8 +96,16 @@ fun TrainingRoutineEditor(
     onDelete: ((String) -> Unit)? = null,
 ) {
     val exerciseMap = remember(exercises) { exercises.associateBy { it.id } }
+    var exerciseSearchQuery by remember { mutableStateOf("") }
     val availableExercises = exercises.filter { candidate ->
-        editor.exercises.none { it.exerciseId == candidate.id }
+        val query = exerciseSearchQuery.trim()
+        editor.exercises.none { it.exerciseId == candidate.id } &&
+            (
+                query.isBlank() ||
+                    candidate.name.contains(query, ignoreCase = true) ||
+                    candidate.equipment.orEmpty().contains(query, ignoreCase = true) ||
+                    candidate.targetMuscles.contains(query, ignoreCase = true)
+                )
     }
     var addMenuExpanded by remember { mutableStateOf(false) }
 
@@ -114,7 +124,17 @@ fun TrainingRoutineEditor(
             label = { Text("Notes") },
             modifier = Modifier.fillMaxWidth(),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            OutlinedTextField(
+                value = exerciseSearchQuery,
+                onValueChange = { exerciseSearchQuery = it },
+                label = { Text("Find exercise") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
             Button(
                 onClick = { addMenuExpanded = true },
                 enabled = availableExercises.isNotEmpty(),
@@ -169,8 +189,22 @@ fun TrainingRoutineEditor(
                             modifier = Modifier.weight(1f),
                         )
                     }
-                    TextButton(onClick = { onRemoveExercise(index) }) {
-                        Text("Remove")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = { onMoveExerciseUp(index) },
+                            enabled = index > 0,
+                        ) {
+                            Text("Up")
+                        }
+                        TextButton(
+                            onClick = { onMoveExerciseDown(index) },
+                            enabled = index < editor.exercises.lastIndex,
+                        ) {
+                            Text("Down")
+                        }
+                        TextButton(onClick = { onRemoveExercise(index) }) {
+                            Text("Remove")
+                        }
                     }
                 }
             }
