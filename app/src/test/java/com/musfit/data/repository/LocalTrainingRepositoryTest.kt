@@ -242,6 +242,25 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun startWorkoutFromRoutine_reusesExistingActiveSession() = runTest {
+        repository.seedStarterTrainingData()
+        val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
+
+        val firstSessionId = repository.startWorkoutFromRoutine(routine.id)
+        val secondSessionId = repository.startBlankWorkout()
+
+        val sessions = database.trainingDao().observeWorkoutSessions().first()
+        val activeSessions = sessions.filter { it.status == "active" }
+        val sets = database.trainingDao().getWorkoutSets(firstSessionId)
+
+        assertEquals(firstSessionId, secondSessionId)
+        assertEquals(1, activeSessions.size)
+        assertEquals(firstSessionId, activeSessions.single().id)
+        assertEquals(routine.targetSetCount, sets.size)
+        assertEquals("Full Body A", activeSessions.single().title)
+    }
+
+    @Test
     fun observeExercises_filtersBySearchMuscleAndEquipment() = runTest {
         repository.seedStarterTrainingData()
 

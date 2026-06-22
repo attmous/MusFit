@@ -30,6 +30,14 @@ import java.util.Locale
 fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
 
+    if (state.activeWorkoutRouteOpen) {
+        ActiveWorkoutPlaceholder(
+            state = state,
+            onBack = viewModel::closeActiveWorkoutRoute,
+        )
+        return
+    }
+
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
@@ -83,10 +91,17 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 if (state.routineEditor.isOpen) {
                     TrainingRoutineEditor(
                         editor = state.routineEditor,
+                        exercises = state.exercises,
                         onNameChange = viewModel::onRoutineNameChanged,
                         onNotesChange = viewModel::onRoutineNotesChanged,
+                        onAddExercise = viewModel::addRoutineExercise,
+                        onRemoveExercise = viewModel::removeRoutineExercise,
+                        onTargetSetsChange = viewModel::onRoutineExerciseTargetSetsChanged,
+                        onTargetRepsChange = viewModel::onRoutineExerciseTargetRepsChanged,
                         onSave = viewModel::saveRoutineEditor,
                         onCancel = viewModel::closeRoutineEditor,
+                        onDuplicate = viewModel::duplicateRoutine,
+                        onDelete = viewModel::deleteRoutine,
                     )
                 } else {
                     TrainingRoutineContent(
@@ -94,11 +109,46 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         onStartRoutine = viewModel::startRoutine,
                         onStartBlank = viewModel::startBlankWorkout,
                         onEditRoutine = viewModel::openRoutineEditor,
+                        onDuplicateRoutine = viewModel::duplicateRoutine,
+                        onDeleteRoutine = viewModel::deleteRoutine,
                     )
                 }
             TrainingSection.Exercises -> ExerciseListPreview(state.exercises)
             TrainingSection.History -> Text("Finish a workout to build history.")
             TrainingSection.Progress -> Text("Complete workouts to see progress.")
+        }
+    }
+}
+
+@Composable
+private fun ActiveWorkoutPlaceholder(
+    state: TrainingUiState,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(text = "Active workout", style = MaterialTheme.typography.headlineSmall)
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = state.activeWorkoutSummary?.title ?: "Workout in progress",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text("Task 2 placeholder for the active workout route.")
+                state.activeWorkoutSummary?.let { summary ->
+                    Text("${summary.completedSetCount} sets completed")
+                }
+                TextButton(onClick = onBack) {
+                    Text("Back to routines")
+                }
+            }
         }
     }
 }

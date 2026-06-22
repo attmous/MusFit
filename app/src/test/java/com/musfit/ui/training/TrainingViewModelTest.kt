@@ -175,7 +175,10 @@ class TrainingViewModelTest {
         assertEquals(TrainingSection.Routines, state.selectedSection)
         assertEquals(1, repository.seedCalls)
         assertEquals(listOf("Full Body A"), state.routines.map { it.name })
-        assertEquals(listOf("Barbell Bench Press"), state.exercises.map { it.name })
+        assertEquals(
+            listOf("Barbell Bench Press", "Chest Supported Row"),
+            state.exercises.map { it.name },
+        )
     }
 
     @Test
@@ -229,6 +232,38 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun routineEditor_addsEditsAndRemovesExercisesBeforeSave() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.openRoutineEditor(null)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onRoutineNameChanged("Upper")
+        viewModel.addRoutineExercise("exercise-bench-press")
+        viewModel.onRoutineExerciseTargetSetsChanged(index = 0, value = "4")
+        viewModel.onRoutineExerciseTargetRepsChanged(index = 0, value = "8")
+        viewModel.addRoutineExercise("exercise-row")
+        viewModel.removeRoutineExercise(index = 1)
+        viewModel.saveRoutineEditor()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            RoutineInput(
+                name = "Upper",
+                notes = "",
+                exercises = listOf(
+                    RoutineExerciseInput(
+                        exerciseId = "exercise-bench-press",
+                        targetSets = 4,
+                        targetReps = "8",
+                    ),
+                ),
+            ),
+            repository.createdRoutineInput,
+        )
+    }
+
+    @Test
     fun startRoutine_startsWorkoutAndOpensActiveWorkoutRoute() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
@@ -250,6 +285,18 @@ class TrainingViewModelTest {
 
         assertEquals(1, repository.startBlankWorkoutCalls)
         assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
+    }
+
+    @Test
+    fun closeActiveWorkoutRoute_returnsToRoutinesHome() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.resumeActiveWorkout()
+        viewModel.closeActiveWorkoutRoute()
+
+        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
+        assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
     }
 
     private class FakeTrainingRepository : TrainingRepository {
@@ -287,6 +334,14 @@ class TrainingViewModelTest {
                     targetMuscles = "chest,triceps,shoulders",
                     isCustom = false,
                 ),
+                ExerciseSummary(
+                    id = "exercise-row",
+                    name = "Chest Supported Row",
+                    category = "strength",
+                    equipment = "machine",
+                    targetMuscles = "back,biceps",
+                    isCustom = false,
+                ),
             ),
         )
         private val activeWorkoutFlow = MutableStateFlow<ActiveWorkoutSummary?>(null)
@@ -300,7 +355,7 @@ class TrainingViewModelTest {
                     exercises = listOf(
                         RoutineExerciseDetail(
                             id = "routine-exercise-1",
-                            exercise = exercisesFlow.value.single(),
+                            exercise = exercisesFlow.value.first { it.id == "exercise-bench-press" },
                             sortOrder = 0,
                             targetSets = 3,
                             targetReps = "5",

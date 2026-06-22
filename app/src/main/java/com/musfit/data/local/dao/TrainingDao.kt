@@ -140,6 +140,17 @@ interface TrainingDao {
         """
         SELECT *
         FROM workout_sessions
+        WHERE status = 'active'
+        ORDER BY startedAtEpochMillis DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun getLatestActiveWorkoutSession(): WorkoutSessionEntity?
+
+    @Query(
+        """
+        SELECT *
+        FROM workout_sessions
         WHERE status = 'completed'
         ORDER BY startedAtEpochMillis DESC
         LIMIT 1

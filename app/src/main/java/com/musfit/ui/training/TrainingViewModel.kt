@@ -90,6 +90,15 @@ class TrainingViewModel @Inject constructor(
         mutableState.update { it.copy(activeWorkoutRouteOpen = true) }
     }
 
+    fun closeActiveWorkoutRoute() {
+        mutableState.update {
+            it.copy(
+                activeWorkoutRouteOpen = false,
+                selectedSection = TrainingSection.Routines,
+            )
+        }
+    }
+
     fun openRoutineEditor(routineId: String?) {
         viewModelScope.launch {
             val detail = routineId?.let { repository.getRoutineDetail(it) }
@@ -123,6 +132,81 @@ class TrainingViewModel @Inject constructor(
 
     fun onRoutineNotesChanged(value: String) {
         mutableState.update { it.copy(routineEditor = it.routineEditor.copy(notes = value)) }
+    }
+
+    fun addRoutineExercise(exerciseId: String) {
+        val exerciseExists = state.value.exercises.any { it.id == exerciseId }
+        if (!exerciseExists) return
+
+        mutableState.update {
+            it.copy(
+                routineEditor = it.routineEditor.copy(
+                    exercises = it.routineEditor.exercises + RoutineExerciseInput(
+                        exerciseId = exerciseId,
+                        targetSets = 3,
+                        targetReps = "8",
+                    ),
+                ),
+            )
+        }
+    }
+
+    fun removeRoutineExercise(index: Int) {
+        mutableState.update { current ->
+            if (index !in current.routineEditor.exercises.indices) {
+                current
+            } else {
+                current.copy(
+                    routineEditor = current.routineEditor.copy(
+                        exercises = current.routineEditor.exercises.filterIndexed { itemIndex, _ ->
+                            itemIndex != index
+                        },
+                    ),
+                )
+            }
+        }
+    }
+
+    fun onRoutineExerciseTargetSetsChanged(index: Int, value: String) {
+        val parsedSets = value.filter(Char::isDigit).toIntOrNull()?.coerceAtLeast(1) ?: 1
+        mutableState.update { current ->
+            if (index !in current.routineEditor.exercises.indices) {
+                current
+            } else {
+                current.copy(
+                    routineEditor = current.routineEditor.copy(
+                        exercises = current.routineEditor.exercises.mapIndexed { itemIndex, exercise ->
+                            if (itemIndex == index) {
+                                exercise.copy(targetSets = parsedSets)
+                            } else {
+                                exercise
+                            }
+                        },
+                    ),
+                )
+            }
+        }
+    }
+
+    fun onRoutineExerciseTargetRepsChanged(index: Int, value: String) {
+        val sanitized = value.trim().takeIf { it.isNotEmpty() }
+        mutableState.update { current ->
+            if (index !in current.routineEditor.exercises.indices) {
+                current
+            } else {
+                current.copy(
+                    routineEditor = current.routineEditor.copy(
+                        exercises = current.routineEditor.exercises.mapIndexed { itemIndex, exercise ->
+                            if (itemIndex == index) {
+                                exercise.copy(targetReps = sanitized)
+                            } else {
+                                exercise
+                            }
+                        },
+                    ),
+                )
+            }
+        }
     }
 
     fun saveRoutineEditor() {

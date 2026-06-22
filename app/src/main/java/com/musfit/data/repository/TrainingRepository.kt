@@ -507,6 +507,11 @@ class LocalTrainingRepository @Inject constructor(
     }
 
     private suspend fun createWorkoutSession(routineId: String?, title: String): String {
+        val existingActiveSession = trainingDao.getLatestActiveWorkoutSession()
+        if (existingActiveSession != null) {
+            activeSessionId = existingActiveSession.id
+            return existingActiveSession.id
+        }
         val now = clock()
         val session = WorkoutSessionEntity(
             id = UUID.randomUUID().toString(),
