@@ -6,7 +6,9 @@ import androidx.room.RoomDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
+import com.musfit.data.local.dao.ProfileDao
 import com.musfit.data.local.dao.TrainingDao
+import com.musfit.data.local.entity.AppSettingsEntity
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.ExerciseEntity
@@ -15,6 +17,7 @@ import com.musfit.data.local.entity.FoodServingEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
 import com.musfit.data.local.entity.UserGoalsEntity
+import com.musfit.data.local.entity.UserProfileEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -32,6 +35,7 @@ class MusFitDatabaseTest {
     private lateinit var foodDao: FoodDao
     private lateinit var trainingDao: TrainingDao
     private lateinit var healthDao: HealthDao
+    private lateinit var profileDao: ProfileDao
 
     @Before
     fun setUp() {
@@ -43,6 +47,7 @@ class MusFitDatabaseTest {
         foodDao = database.foodDao()
         trainingDao = database.trainingDao()
         healthDao = database.healthDao()
+        profileDao = database.profileDao()
     }
 
     @After
@@ -187,6 +192,35 @@ class MusFitDatabaseTest {
         foodDao.deleteFood(food)
 
         assertNull(foodDao.getBarcodeProduct(barcodeProduct.barcode)?.linkedFoodId)
+    }
+
+    @Test
+    fun profileDao_roundTripsProfileAndSettings() = runTest {
+        val profile = UserProfileEntity(
+            id = "user",
+            sex = "Male",
+            birthDateEpochDay = 9_000L,
+            heightCm = 182.0,
+            activityLevel = "Moderate",
+            goalType = "Lose",
+            goalPaceKgPerWeek = 0.5,
+            goalWeightKg = 78.0,
+            updatedAtEpochMillis = 1_000L,
+        )
+        val settings = AppSettingsEntity(
+            id = "app",
+            unitSystem = "metric",
+            themeMode = "system",
+            updatedAtEpochMillis = 1_000L,
+        )
+
+        profileDao.upsertProfile(profile)
+        profileDao.upsertSettings(settings)
+
+        assertEquals(profile, profileDao.observeProfile("user").first())
+        assertEquals(settings, profileDao.observeSettings("app").first())
+        assertEquals(profile, profileDao.getProfile("user"))
+        assertNull(profileDao.observeProfile("missing").first())
     }
 
     @Test

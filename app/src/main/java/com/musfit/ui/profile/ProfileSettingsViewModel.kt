@@ -1,4 +1,4 @@
-package com.musfit.ui.health
+package com.musfit.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,7 +14,7 @@ import java.time.LocalDate
 import java.util.Locale
 import javax.inject.Inject
 
-data class HealthUiState(
+data class ProfileSettingsUiState(
     val availabilityLabel: String = "Unknown",
     val grantedPermissionCount: Int = 0,
     val requestablePermissionCount: Int = 0,
@@ -24,11 +24,11 @@ data class HealthUiState(
 )
 
 @HiltViewModel
-class HealthViewModel @Inject constructor(
+class ProfileSettingsViewModel @Inject constructor(
     private val repository: HealthRepository,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(HealthUiState())
-    val state: StateFlow<HealthUiState> = mutableState.asStateFlow()
+    private val mutableState = MutableStateFlow(ProfileSettingsUiState())
+    val state: StateFlow<ProfileSettingsUiState> = mutableState.asStateFlow()
 
     fun refreshStatus() {
         viewModelScope.launch {
@@ -59,7 +59,7 @@ class HealthViewModel @Inject constructor(
                         requestablePermissionCount = 0,
                         requestablePermissions = emptySet(),
                         canRequestPermissions = false,
-                        message = "Unable to refresh Health Connect status right now. Try again from the Health tab.",
+                        message = "Unable to refresh Health Connect status right now. Try again from the Profile tab.",
                     )
                 }
             }
