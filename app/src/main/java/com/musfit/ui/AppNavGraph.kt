@@ -20,7 +20,8 @@ import androidx.navigation.compose.rememberNavController
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodScreen
 import com.musfit.ui.food.NutritionLabelScannerScreen
-import com.musfit.ui.health.HealthScreen
+import com.musfit.ui.profile.ProfileScreen
+import com.musfit.ui.profile.ProfileSettingsScreen
 import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.today.TodayScreen
 import com.musfit.ui.training.TrainingScreen
@@ -79,7 +80,7 @@ fun AppNavGraph() {
                         }
                     },
                     onOpenHealth = {
-                        navController.navigate(AppDestination.Health.route) {
+                        navController.navigate(AppDestination.Profile.route) {
                             popUpTo(AppDestination.Today.route)
                             launchSingleTop = true
                         }
@@ -97,7 +98,12 @@ fun AppNavGraph() {
                 )
             }
             composable(AppDestination.Training.route) { TrainingScreen() }
-            composable(AppDestination.Health.route) { HealthScreen() }
+            composable(AppDestination.Profile.route) {
+                ProfileScreen(onSettingsClick = { navController.navigate(PROFILE_SETTINGS_ROUTE) })
+            }
+            composable(PROFILE_SETTINGS_ROUTE) {
+                ProfileSettingsScreen(onBack = { navController.popBackStack() })
+            }
             composable(BARCODE_SCANNER_ROUTE) {
                 BarcodeScannerScreen(
                     onBarcodeDetected = { barcode ->

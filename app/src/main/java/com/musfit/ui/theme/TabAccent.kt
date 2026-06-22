@@ -15,5 +15,5 @@ fun tabAccentFor(destination: AppDestination): TabAccent = when (destination) {
     AppDestination.Today -> TabAccent(Coral, CardWhite, CoralContainer, CoralInk)
     AppDestination.Food -> TabAccent(Emerald, CardWhite, PositiveContainer, EmeraldInk)
     AppDestination.Training -> TabAccent(Indigo, CardWhite, IndigoContainer, IndigoInk)
-    AppDestination.Health -> TabAccent(Teal, CardWhite, TealContainer, TealInk)
+    AppDestination.Profile -> TabAccent(Teal, CardWhite, TealContainer, TealInk)
 }

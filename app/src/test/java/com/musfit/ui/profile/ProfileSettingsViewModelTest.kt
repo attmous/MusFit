@@ -1,4 +1,4 @@
-package com.musfit.ui.health
+package com.musfit.ui.profile
 
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.HealthRepository
@@ -21,7 +21,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class HealthViewModelTest {
+class ProfileSettingsViewModelTest {
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -36,7 +36,7 @@ class HealthViewModelTest {
 
     @Test
     fun refreshStatus_showsAvailableWhenGatewayAvailable() = runTest {
-        val viewModel = HealthViewModel(FakeHealthRepository())
+        val viewModel = ProfileSettingsViewModel(FakeHealthRepository())
 
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
@@ -49,7 +49,7 @@ class HealthViewModelTest {
 
     @Test
     fun refreshStatus_showsInstallMessageWhenGatewayUnavailable() = runTest {
-        val viewModel = HealthViewModel(
+        val viewModel = ProfileSettingsViewModel(
             FakeHealthRepository(
                 status = HealthConnectStatus(
                     availability = HealthConnectAvailability.NotInstalled,
@@ -74,7 +74,7 @@ class HealthViewModelTest {
 
     @Test
     fun refreshStatus_hidesPermissionLauncherWhenGatewayNotSupported() = runTest {
-        val viewModel = HealthViewModel(
+        val viewModel = ProfileSettingsViewModel(
             FakeHealthRepository(
                 status = HealthConnectStatus(
                     availability = HealthConnectAvailability.NotSupported,
@@ -95,7 +95,7 @@ class HealthViewModelTest {
 
     @Test
     fun refreshStatus_showsEnableSyncMessageWhenNoPermissionsGranted() = runTest {
-        val viewModel = HealthViewModel(
+        val viewModel = ProfileSettingsViewModel(
             FakeHealthRepository(
                 status = HealthConnectStatus(
                     availability = HealthConnectAvailability.Available,
@@ -118,7 +118,7 @@ class HealthViewModelTest {
     @Test
     fun importToday_persistsAndReportsImportedSummary() = runTest {
         val repository = FakeHealthRepository()
-        val viewModel = HealthViewModel(repository)
+        val viewModel = ProfileSettingsViewModel(repository)
 
         viewModel.importToday()
         dispatcher.scheduler.advanceUntilIdle()
@@ -130,7 +130,7 @@ class HealthViewModelTest {
     @Test
     fun exportLatestWorkout_reportsExportedWorkoutRecord() = runTest {
         val repository = FakeHealthRepository(exportedRecordId = "record-id")
-        val viewModel = HealthViewModel(repository)
+        val viewModel = ProfileSettingsViewModel(repository)
 
         viewModel.exportLatestWorkout()
         dispatcher.scheduler.advanceUntilIdle()
@@ -142,7 +142,7 @@ class HealthViewModelTest {
     @Test
     fun exportLatestWorkout_reportsNoWorkoutWhenRepositoryReturnsNull() = runTest {
         val repository = FakeHealthRepository(exportedRecordId = null)
-        val viewModel = HealthViewModel(repository)
+        val viewModel = ProfileSettingsViewModel(repository)
 
         viewModel.exportLatestWorkout()
         dispatcher.scheduler.advanceUntilIdle()
@@ -153,7 +153,7 @@ class HealthViewModelTest {
     @Test
     fun refreshStatus_resetsStaleSuccessStateAfterFailure() = runTest {
         val repository = FakeHealthRepository()
-        val viewModel = HealthViewModel(repository)
+        val viewModel = ProfileSettingsViewModel(repository)
 
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
@@ -173,7 +173,7 @@ class HealthViewModelTest {
         assertTrue(viewModel.state.value.requestablePermissions.isEmpty())
         assertEquals(false, viewModel.state.value.canRequestPermissions)
         assertEquals(
-            "Unable to refresh Health Connect status right now. Try again from the Health tab.",
+            "Unable to refresh Health Connect status right now. Try again from the Profile tab.",
             viewModel.state.value.message,
         )
     }

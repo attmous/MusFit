@@ -20,7 +20,6 @@ import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.training.WorkoutCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,8 +54,9 @@ data class ExerciseEditorState(
 data class RestTimerState(
     val isVisible: Boolean = false,
     val sourceSetId: String? = null,
-    val durationSeconds: Int = 120,
-    val remainingSeconds: Int = durationSeconds,
+    val durationSeconds: Int = DEFAULT_REST_TIMER_SECONDS,
+    val remainingSeconds: Int = 0,
+    val isRunning: Boolean = false,
 )
 
 data class TrainingUiState(
@@ -95,7 +95,6 @@ class TrainingViewModel @Inject constructor(
     private val mutableState = MutableStateFlow(TrainingUiState())
     val state: StateFlow<TrainingUiState> = mutableState.asStateFlow()
     private var progressObservationJob: Job? = null
-    private var restTimerJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -510,35 +509,74 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
-    private fun startRestTimer(setId: String) {
-        restTimerJob?.cancel()
-        mutableState.update {
-            it.copy(restTimer = RestTimerState(isVisible = true, sourceSetId = setId, remainingSeconds = 120))
-        }
-        restTimerJob = viewModelScope.launch {
-            while (state.value.restTimer.remainingSeconds > 0) {
-                delay(1_000)
-                mutableState.update {
-                    val remaining = (it.restTimer.remainingSeconds - 1).coerceAtLeast(0)
-                    it.copy(restTimer = it.restTimer.copy(remainingSeconds = remaining, isVisible = remaining > 0))
-                }
-            }
-        }
-    }
-
-    fun extendRest() {
-        mutableState.update {
-            if (!it.restTimer.isVisible) {
-                it
+    fun tickRestTimer() {
+        mutableState.update { current ->
+            val timer = current.restTimer
+            if (!timer.isVisible || !timer.isRunning) {
+                current
             } else {
-                it.copy(restTimer = it.restTimer.copy(remainingSeconds = it.restTimer.remainingSeconds + 15, isVisible = true))
+                val nextRemaining = (timer.remainingSeconds - 1).coerceAtLeast(0)
+                current.copy(
+                    restTimer = timer.copy(
+                        isVisible = nextRemaining > 0,
+                        isRunning = nextRemaining > 0,
+                        remainingSeconds = nextRemaining,
+                    ),
+                )
             }
         }
     }
 
-    fun skipRest() {
-        restTimerJob?.cancel()
-        mutableState.update { it.copy(restTimer = it.restTimer.copy(isVisible = false, remainingSeconds = 0)) }
+    fun pauseRestTimer() {
+        mutableState.update { current ->
+            if (!current.restTimer.isVisible) {
+                current
+            } else {
+                current.copy(restTimer = current.restTimer.copy(isRunning = false))
+            }
+        }
+    }
+
+    fun resumeRestTimer() {
+        mutableState.update { current ->
+            val timer = current.restTimer
+            if (!timer.isVisible || timer.remainingSeconds <= 0) {
+                current
+            } else {
+                current.copy(restTimer = timer.copy(isRunning = true))
+            }
+        }
+    }
+
+    fun skipRestTimer() {
+        mutableState.update { current ->
+            current.copy(
+                restTimer = current.restTimer.copy(
+                    isVisible = false,
+                    isRunning = false,
+                    remainingSeconds = 0,
+                ),
+            )
+        }
+    }
+
+    fun adjustRestTimerSeconds(deltaSeconds: Int) {
+        if (deltaSeconds == 0) return
+        mutableState.update { current ->
+            val timer = current.restTimer
+            if (!timer.isVisible) {
+                current
+            } else {
+                val nextRemaining = (timer.remainingSeconds + deltaSeconds).coerceAtLeast(0)
+                current.copy(
+                    restTimer = timer.copy(
+                        isVisible = nextRemaining > 0,
+                        isRunning = timer.isRunning && nextRemaining > 0,
+                        remainingSeconds = nextRemaining,
+                    ),
+                )
+            }
+        }
     }
 
     fun addExerciseToActiveWorkout(exerciseId: String) {
@@ -607,12 +645,48 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    fun requestFinishActiveWorkout() {
+        if (state.value.activeWorkout == null) return
+        mutableState.update {
+            it.copy(
+                finishConfirmationOpen = true,
+                discardConfirmationOpen = false,
+            )
+        }
+    }
+
+    fun cancelFinishActiveWorkout() {
+        mutableState.update { it.copy(finishConfirmationOpen = false) }
+    }
+
+    fun requestDiscardActiveWorkout() {
+        if (state.value.activeWorkout == null) return
+        mutableState.update {
+            it.copy(
+                discardConfirmationOpen = true,
+                finishConfirmationOpen = false,
+            )
+        }
+    }
+
+    fun cancelDiscardActiveWorkout() {
+        mutableState.update { it.copy(discardConfirmationOpen = false) }
+    }
+
     fun finishActiveWorkout() {
         val sessionId = state.value.activeWorkout?.sessionId ?: return
         viewModelScope.launch {
             repository.finishWorkout(sessionId)
+            val completedDetail = repository.getWorkoutHistoryDetail(sessionId)
             mutableState.update {
-                it.copy(activeWorkoutRouteOpen = false, finishConfirmationOpen = false)
+                it.copy(
+                    activeWorkoutRouteOpen = false,
+                    finishConfirmationOpen = false,
+                    discardConfirmationOpen = false,
+                    selectedSection = TrainingSection.History,
+                    selectedWorkoutDetail = completedDetail,
+                    restTimer = RestTimerState(),
+                )
             }
         }
     }
@@ -622,7 +696,14 @@ class TrainingViewModel @Inject constructor(
         viewModelScope.launch {
             repository.discardWorkout(sessionId)
             mutableState.update {
-                it.copy(activeWorkoutRouteOpen = false, discardConfirmationOpen = false)
+                it.copy(
+                    activeWorkoutRouteOpen = false,
+                    finishConfirmationOpen = false,
+                    discardConfirmationOpen = false,
+                    selectedSection = TrainingSection.Routines,
+                    selectedWorkoutDetail = null,
+                    restTimer = RestTimerState(),
+                )
             }
         }
     }
@@ -698,6 +779,23 @@ class TrainingViewModel @Inject constructor(
     private fun LoggedWorkoutSetDetail.isValidForCompletion(): Boolean =
         (reps ?: 0) > 0 && (weightKg ?: 0.0) > 0.0
 
+    private fun startRestTimer(setId: String) {
+        mutableState.update { current ->
+            val durationSeconds = current.restTimer.durationSeconds.coerceAtLeast(1)
+            current.copy(
+                restTimer = RestTimerState(
+                    isVisible = true,
+                    sourceSetId = setId,
+                    durationSeconds = durationSeconds,
+                    remainingSeconds = durationSeconds,
+                    isRunning = true,
+                ),
+            )
+        }
+    }
+
     private fun isStarterRoutine(routineId: String?): Boolean =
         routineId != null && state.value.routines.any { it.id == routineId && it.isStarter }
 }
+
+private const val DEFAULT_REST_TIMER_SECONDS = 120

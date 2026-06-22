@@ -408,7 +408,69 @@ class TrainingViewModelTest {
     }
 
     @Test
-    fun completeSet_updatesSummaryAndStartsRestTimerShell() = runTest {
+    fun finishAndDiscardRequests_toggleConfirmationState() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.requestFinishActiveWorkout()
+        assertTrue(viewModel.state.value.finishConfirmationOpen)
+
+        viewModel.cancelFinishActiveWorkout()
+        assertFalse(viewModel.state.value.finishConfirmationOpen)
+
+        viewModel.requestDiscardActiveWorkout()
+        assertTrue(viewModel.state.value.discardConfirmationOpen)
+
+        viewModel.cancelDiscardActiveWorkout()
+        assertFalse(viewModel.state.value.discardConfirmationOpen)
+    }
+
+    @Test
+    fun finishActiveWorkout_opensCompletedWorkoutDetailInHistoryAndClearsRestTimer() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.requestFinishActiveWorkout()
+        viewModel.finishActiveWorkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("session-1", repository.finishedSessionId)
+        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
+        assertFalse(viewModel.state.value.finishConfirmationOpen)
+        assertFalse(viewModel.state.value.restTimer.isVisible)
+        assertEquals(TrainingSection.History, viewModel.state.value.selectedSection)
+        assertEquals(listOf("session-1"), repository.openedWorkoutDetailSessionIds)
+        assertEquals("session-1", viewModel.state.value.selectedWorkoutDetail?.summary?.sessionId)
+    }
+
+    @Test
+    fun discardActiveWorkout_discardsAndReturnsToRoutinesAndClearsRestTimer() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.requestDiscardActiveWorkout()
+        viewModel.discardActiveWorkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("session-1", repository.discardedSessionId)
+        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
+        assertFalse(viewModel.state.value.discardConfirmationOpen)
+        assertFalse(viewModel.state.value.restTimer.isVisible)
+        assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
+        assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
+    }
+
+    @Test
+    fun completeSet_updatesSummaryAndStartsRunningRestTimer() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
         dispatcher.scheduler.advanceUntilIdle()
@@ -442,21 +504,84 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.resumeActiveWorkout()
         viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
-        dispatcher.scheduler.advanceTimeBy(500)
+        dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("set-1", repository.updatedSetId)
         assertEquals(true, repository.updatedSetInput?.completed)
         assertEquals(true, viewModel.state.value.restTimer.isVisible)
+        assertEquals(true, viewModel.state.value.restTimer.isRunning)
+        assertEquals("set-1", viewModel.state.value.restTimer.sourceSetId)
+        assertEquals(120, viewModel.state.value.restTimer.durationSeconds)
         assertEquals(120, viewModel.state.value.restTimer.remainingSeconds)
+    }
 
-        dispatcher.scheduler.advanceTimeBy(3_000)
-        assertEquals(117, viewModel.state.value.restTimer.remainingSeconds)
+    @Test
+    fun restTimerControls_tickPauseResumeAdjustAndSkip() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.extendRest()
-        assertEquals(132, viewModel.state.value.restTimer.remainingSeconds)
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.skipRest()
+        viewModel.tickRestTimer()
+        assertEquals(119, viewModel.state.value.restTimer.remainingSeconds)
+
+        viewModel.pauseRestTimer()
+        viewModel.tickRestTimer()
+        assertEquals(false, viewModel.state.value.restTimer.isRunning)
+        assertEquals(119, viewModel.state.value.restTimer.remainingSeconds)
+
+        viewModel.resumeRestTimer()
+        viewModel.tickRestTimer()
+        assertEquals(true, viewModel.state.value.restTimer.isRunning)
+        assertEquals(118, viewModel.state.value.restTimer.remainingSeconds)
+
+        viewModel.adjustRestTimerSeconds(15)
+        assertEquals(133, viewModel.state.value.restTimer.remainingSeconds)
+
+        viewModel.skipRestTimer()
         assertFalse(viewModel.state.value.restTimer.isVisible)
+        assertFalse(viewModel.state.value.restTimer.isRunning)
+        assertEquals(0, viewModel.state.value.restTimer.remainingSeconds)
+    }
+
+    @Test
+    fun restTimerSubtractPastZeroCompletesTimer() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.adjustRestTimerSeconds(-200)
+
+        assertFalse(viewModel.state.value.restTimer.isVisible)
+        assertFalse(viewModel.state.value.restTimer.isRunning)
+        assertEquals(0, viewModel.state.value.restTimer.remainingSeconds)
+    }
+
+    @Test
+    fun completingAnotherSet_restartsRestTimerFromDefaultDuration() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.tickRestTimer()
+
+        viewModel.toggleWorkoutSetCompletion("set-2", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("set-2", viewModel.state.value.restTimer.sourceSetId)
+        assertEquals(true, viewModel.state.value.restTimer.isVisible)
+        assertEquals(true, viewModel.state.value.restTimer.isRunning)
+        assertEquals(120, viewModel.state.value.restTimer.remainingSeconds)
     }
 
     @Test
@@ -608,6 +733,8 @@ class TrainingViewModelTest {
         var duplicatedSessionId: String? = null
         var duplicatedExerciseId: String? = null
         var deletedSetId: String? = null
+        var finishedSessionId: String? = null
+        var discardedSessionId: String? = null
         val openedWorkoutDetailSessionIds = mutableListOf<String>()
         val observedProgressExerciseIds = mutableListOf<String>()
         val requestedRoutineDetailIds = mutableListOf<String>()
@@ -732,7 +859,7 @@ class TrainingViewModelTest {
                 )
         }
 
-        private val workoutHistoryDetails = mapOf(
+        private val workoutHistoryDetails = mutableMapOf(
             "session-history-1" to
                 WorkoutHistoryDetail(
                     summary = workoutHistoryFlow.value.single(),
@@ -900,9 +1027,24 @@ class TrainingViewModelTest {
             deletedRoutineIds += routineId
         }
 
-        override suspend fun finishWorkout(sessionId: String) = Unit
+        override suspend fun finishWorkout(sessionId: String) {
+            finishedSessionId = sessionId
+            workoutHistoryDetails[sessionId] = WorkoutHistoryDetail(
+                summary = WorkoutHistorySummary(
+                    sessionId = sessionId,
+                    title = activeWorkoutDetail.value?.title ?: "Workout",
+                    startedAtEpochMillis = activeWorkoutDetail.value?.startedAtEpochMillis ?: 1_000L,
+                    endedAtEpochMillis = 2_000L,
+                    completedSetCount = activeWorkoutDetail.value?.completedSetCount ?: 0,
+                    totalVolumeKg = activeWorkoutDetail.value?.totalVolumeKg ?: 0.0,
+                ),
+                exerciseBlocks = activeWorkoutDetail.value?.exerciseBlocks.orEmpty(),
+            )
+        }
 
-        override suspend fun discardWorkout(sessionId: String) = Unit
+        override suspend fun discardWorkout(sessionId: String) {
+            discardedSessionId = sessionId
+        }
 
         override suspend fun getLatestWorkoutForExport(): WorkoutForExport? = null
 

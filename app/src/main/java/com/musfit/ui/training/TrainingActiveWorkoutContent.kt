@@ -25,6 +25,8 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
@@ -77,12 +79,16 @@ fun TrainingActiveWorkoutContent(
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
     onToggleSet: (String, Boolean) -> Unit,
-    onExtendRest: () -> Unit,
-    onSkipRest: () -> Unit,
+    onTickRestTimer: () -> Unit,
+    onPauseRestTimer: () -> Unit,
+    onResumeRestTimer: () -> Unit,
+    onSkipRestTimer: () -> Unit,
+    onAdjustRestTimer: (Int) -> Unit,
     onClose: () -> Unit,
     onFinish: () -> Unit,
     onDiscard: () -> Unit,
 ) {
+    RestTimerTicker(restTimer = restTimer, onTick = onTickRestTimer)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ActiveWorkoutTopBar(
             workout = workout,
@@ -95,8 +101,10 @@ fun TrainingActiveWorkoutContent(
         RestTimerBar(
             restTimer = restTimer,
             accent = accent,
-            onExtend = onExtendRest,
-            onSkip = onSkipRest,
+            onPause = onPauseRestTimer,
+            onResume = onResumeRestTimer,
+            onSkip = onSkipRestTimer,
+            onAdjust = onAdjustRestTimer,
         )
         AddExerciseCompactBar(
             exercises = exercises,
@@ -217,12 +225,28 @@ private fun StatCell(
     }
 }
 
+/** Drives the rest-timer countdown from the UI: ticks once per second while running. */
+@Composable
+private fun RestTimerTicker(
+    restTimer: RestTimerState,
+    onTick: () -> Unit,
+) {
+    LaunchedEffect(restTimer.isVisible, restTimer.isRunning, restTimer.remainingSeconds) {
+        if (restTimer.isVisible && restTimer.isRunning && restTimer.remainingSeconds > 0) {
+            delay(1_000L)
+            onTick()
+        }
+    }
+}
+
 @Composable
 private fun RestTimerBar(
     restTimer: RestTimerState,
     accent: TabAccent,
-    onExtend: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
     onSkip: () -> Unit,
+    onAdjust: (Int) -> Unit,
 ) {
     if (!restTimer.isVisible) return
     Surface(
@@ -233,7 +257,7 @@ private fun RestTimerBar(
         Row(
             modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Icon(
                 imageVector = Icons.Outlined.Timer,
@@ -242,20 +266,26 @@ private fun RestTimerBar(
                 modifier = Modifier.size(20.dp),
             )
             Text(
-                text = "Rest",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = accent.onContainer,
-            )
-            Text(
                 text = restTimer.remainingSeconds.toMinSec(),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = accent.onContainer,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 6.dp),
             )
-            TextButton(onClick = onExtend) {
-                Text("+15s", color = accent.onContainer, fontWeight = FontWeight.SemiBold)
+            TextButton(onClick = { onAdjust(-15) }) {
+                Text("−15", color = accent.onContainer, fontWeight = FontWeight.SemiBold)
+            }
+            TextButton(onClick = { onAdjust(15) }) {
+                Text("+15", color = accent.onContainer, fontWeight = FontWeight.SemiBold)
+            }
+            IconButton(onClick = { if (restTimer.isRunning) onPause() else onResume() }) {
+                Icon(
+                    imageVector = if (restTimer.isRunning) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                    contentDescription = if (restTimer.isRunning) "Pause rest" else "Resume rest",
+                    tint = accent.onContainer,
+                )
             }
             TextButton(onClick = onSkip) {
                 Text("Skip", color = accent.onContainer, fontWeight = FontWeight.SemiBold)
@@ -895,6 +925,23 @@ private fun Int.toMinSec(): String {
     val minutes = this / 60
     val seconds = this % 60
     return String.format(Locale.US, "%d:%02d", minutes, seconds)
+}
+
+internal fun restTimerDisplayText(restTimer: RestTimerState): String =
+    when {
+        !restTimer.isVisible || restTimer.remainingSeconds <= 0 -> "Rest Timer: OFF"
+        restTimer.isRunning -> "Rest Timer: ${restTimer.remainingSeconds.formatDuration()}"
+        else -> "Rest Timer: Paused at ${restTimer.remainingSeconds.formatDuration()}"
+    }
+
+private fun Int.formatDuration(): String {
+    val minutes = this / 60
+    val seconds = this % 60
+    return if (minutes > 0) {
+        "${minutes}min ${seconds}s"
+    } else {
+        "${seconds}s"
+    }
 }
 
 private fun Long.toElapsedClock(): String {

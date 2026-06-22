@@ -10,6 +10,6 @@ class TabAccentTest {
         assertEquals(Coral, tabAccentFor(AppDestination.Today).color)
         assertEquals(Emerald, tabAccentFor(AppDestination.Food).color)
         assertEquals(Indigo, tabAccentFor(AppDestination.Training).color)
-        assertEquals(Teal, tabAccentFor(AppDestination.Health).color)
+        assertEquals(Teal, tabAccentFor(AppDestination.Profile).color)
     }
 }

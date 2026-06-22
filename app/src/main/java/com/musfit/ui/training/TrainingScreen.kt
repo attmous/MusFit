@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -73,11 +74,21 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 onUpdateSet = viewModel::updateWorkoutSetFields,
                 onDeleteSet = viewModel::deleteWorkoutSet,
                 onToggleSet = viewModel::toggleWorkoutSetCompletion,
-                onExtendRest = viewModel::extendRest,
-                onSkipRest = viewModel::skipRest,
+                onTickRestTimer = viewModel::tickRestTimer,
+                onPauseRestTimer = viewModel::pauseRestTimer,
+                onResumeRestTimer = viewModel::resumeRestTimer,
+                onSkipRestTimer = viewModel::skipRestTimer,
+                onAdjustRestTimer = viewModel::adjustRestTimerSeconds,
                 onClose = viewModel::closeActiveWorkoutRoute,
-                onFinish = viewModel::finishActiveWorkout,
-                onDiscard = viewModel::discardActiveWorkout,
+                onFinish = viewModel::requestFinishActiveWorkout,
+                onDiscard = viewModel::requestDiscardActiveWorkout,
+            )
+            ActiveWorkoutConfirmationDialogs(
+                state = state,
+                onConfirmFinish = viewModel::finishActiveWorkout,
+                onCancelFinish = viewModel::cancelFinishActiveWorkout,
+                onConfirmDiscard = viewModel::discardActiveWorkout,
+                onCancelDiscard = viewModel::cancelDiscardActiveWorkout,
             )
         }
         return
@@ -379,6 +390,56 @@ private fun FilterChipRow(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ActiveWorkoutConfirmationDialogs(
+    state: TrainingUiState,
+    onConfirmFinish: () -> Unit,
+    onCancelFinish: () -> Unit,
+    onConfirmDiscard: () -> Unit,
+    onCancelDiscard: () -> Unit,
+) {
+    val workout = state.activeWorkout
+    if (state.finishConfirmationOpen && workout != null) {
+        AlertDialog(
+            onDismissRequest = onCancelFinish,
+            title = { Text("Finish workout?") },
+            text = {
+                Text(
+                    "${workout.title}\n" +
+                        "${workout.completedSetCount} sets - ${workout.totalVolumeKg.formatKg()} kg",
+                )
+            },
+            confirmButton = {
+                Button(onClick = onConfirmFinish) {
+                    Text("Finish")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelFinish) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+    if (state.discardConfirmationOpen && workout != null) {
+        AlertDialog(
+            onDismissRequest = onCancelDiscard,
+            title = { Text("Discard workout?") },
+            text = { Text("This removes the active workout from your log.") },
+            confirmButton = {
+                Button(onClick = onConfirmDiscard) {
+                    Text("Discard")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelDiscard) {
+                    Text("Keep workout")
+                }
+            },
+        )
     }
 }
 

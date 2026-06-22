@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
+import com.musfit.data.local.dao.ProfileDao
 import com.musfit.data.local.dao.TrainingDao
 import com.musfit.data.local.dao.UserGoalsDao
 import dagger.Module
@@ -40,6 +41,7 @@ object DatabaseModule {
                 MIGRATION_14_15,
                 MIGRATION_15_16,
                 MIGRATION_16_17,
+                MIGRATION_17_18,
             )
             .build()
 
@@ -51,6 +53,9 @@ object DatabaseModule {
 
     @Provides
     fun provideHealthDao(database: MusFitDatabase): HealthDao = database.healthDao()
+
+    @Provides
+    fun provideProfileDao(database: MusFitDatabase): ProfileDao = database.profileDao()
 
     @Provides
     fun provideUserGoalsDao(database: MusFitDatabase): UserGoalsDao = database.userGoalsDao()
@@ -334,6 +339,37 @@ object DatabaseModule {
                         stepGoal INTEGER NOT NULL,
                         weeklySessionTarget INTEGER NOT NULL,
                         targetWeightKg REAL NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
+    private val MIGRATION_17_18 =
+        object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_profile (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        sex TEXT,
+                        birthDateEpochDay INTEGER,
+                        heightCm REAL,
+                        activityLevel TEXT NOT NULL,
+                        goalType TEXT NOT NULL,
+                        goalPaceKgPerWeek REAL NOT NULL,
+                        goalWeightKg REAL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        unitSystem TEXT NOT NULL,
+                        themeMode TEXT NOT NULL,
                         updatedAtEpochMillis INTEGER NOT NULL
                     )
                     """.trimIndent(),
