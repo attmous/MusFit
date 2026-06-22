@@ -182,6 +182,12 @@ interface TrainingDao {
         SELECT *
         FROM workout_sessions
         WHERE status = 'completed'
+        AND EXISTS (
+            SELECT 1
+            FROM workout_sets
+            WHERE workout_sets.sessionId = workout_sessions.id
+            AND workout_sets.completed = 1
+        )
         ORDER BY startedAtEpochMillis DESC
         LIMIT 1
         """,

@@ -332,6 +332,85 @@ class LocalHealthRepositoryTest {
         assertEquals(listOf("set-completed"), gateway.exportedSets.map { it.id })
     }
 
+    @Test
+    fun exportLatestWorkout_fallsBackWhenNewestCompletedWorkoutHasNoCompletedSets() = runTest {
+        database.trainingDao().upsertExercise(
+            ExerciseEntity(
+                id = "exercise-1",
+                name = "Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "",
+                isCustom = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-older-completed",
+                routineId = null,
+                title = "Older workout",
+                status = "completed",
+                startedAtEpochMillis = 500L,
+                endedAtEpochMillis = 900L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                id = "session-newer-empty",
+                routineId = null,
+                title = "Newer empty workout",
+                status = "completed",
+                startedAtEpochMillis = 950L,
+                endedAtEpochMillis = 1_250L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-older-completed",
+                sessionId = "session-older-completed",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-newer-incomplete",
+                sessionId = "session-newer-empty",
+                exerciseId = "exercise-1",
+                sortOrder = 0,
+                setType = "working",
+                reps = 6,
+                weightKg = 95.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = false,
+            ),
+        )
+
+        val recordId = repository.exportLatestWorkout()
+
+        assertEquals("record-id", recordId)
+        assertEquals("session-older-completed", gateway.exportedSession?.id)
+        assertEquals(listOf("set-older-completed"), gateway.exportedSets.map { it.id })
+        assertNull(database.trainingDao().getWorkoutSession("session-newer-empty")?.healthConnectRecordId)
+    }
+
     private class FakeHealthConnectGateway : HealthConnectGateway {
         var exportedSession: WorkoutSessionEntity? = null
         var exportedSets: List<WorkoutSetEntity> = emptyList()

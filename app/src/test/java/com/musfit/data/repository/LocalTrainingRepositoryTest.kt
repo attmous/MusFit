@@ -867,6 +867,85 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun getLatestWorkoutForExport_fallsBackWhenNewestCompletedWorkoutHasNoCompletedSets() = runTest {
+        val exercise =
+            ExerciseEntity(
+                id = "exercise-bench",
+                name = "Bench Press",
+                category = "strength",
+                equipment = "barbell",
+                targetMuscles = "chest,triceps,shoulders",
+                isCustom = false,
+            )
+        val olderCompletedSession =
+            WorkoutSessionEntity(
+                id = "session-older-completed",
+                routineId = null,
+                title = "Older workout",
+                status = "completed",
+                startedAtEpochMillis = WORKOUT_START.toEpochMilli(),
+                endedAtEpochMillis = WORKOUT_START.plusSeconds(1800).toEpochMilli(),
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+        val newerEmptyCompletedSession =
+            WorkoutSessionEntity(
+                id = "session-newer-empty",
+                routineId = null,
+                title = "Newer empty workout",
+                status = "completed",
+                startedAtEpochMillis = WORKOUT_START.plusSeconds(3600).toEpochMilli(),
+                endedAtEpochMillis = WORKOUT_START.plusSeconds(5400).toEpochMilli(),
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            )
+
+        database.trainingDao().upsertExercise(exercise)
+        database.trainingDao().upsertWorkoutSession(olderCompletedSession)
+        database.trainingDao().upsertWorkoutSession(newerEmptyCompletedSession)
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-older-completed",
+                sessionId = olderCompletedSession.id,
+                exerciseId = exercise.id,
+                sortOrder = 0,
+                setType = "working",
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                id = "set-newer-incomplete",
+                sessionId = newerEmptyCompletedSession.id,
+                exerciseId = exercise.id,
+                sortOrder = 0,
+                setType = "working",
+                reps = 8,
+                weightKg = 90.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = null,
+                notes = null,
+                completed = false,
+            ),
+        )
+
+        val workout = repository.getLatestWorkoutForExport()
+
+        assertNotNull(workout)
+        assertEquals(olderCompletedSession.id, workout?.session?.id)
+        assertEquals(listOf("set-older-completed"), workout?.sets?.map { it.id })
+    }
+
+    @Test
     fun historyAndLatestExport_includeCompletedWorkoutsOnly() = runTest {
         repository.seedStarterTrainingData()
         val bench = repository.observeExercises(query = "bench").first().single()
