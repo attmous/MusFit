@@ -69,6 +69,11 @@ data class FoodDiaryEntryRow(
     val createdAtEpochMillis: Long,
 )
 
+data class WaterTotalRow(
+    val dateEpochDay: Long,
+    val consumedMilliliters: Double,
+)
+
 data class MealTemplateItemRow(
     val templateId: String,
     val templateName: String,
@@ -418,6 +423,14 @@ interface FoodDao {
 
     @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE dateEpochDay = :dateEpochDay")
     fun observeWaterTotalForDate(dateEpochDay: Long): Flow<Double>
+
+    @Query(
+        "SELECT dateEpochDay, SUM(amountMilliliters) AS consumedMilliliters " +
+            "FROM water_entries " +
+            "WHERE dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
+            "GROUP BY dateEpochDay",
+    )
+    fun observeWaterTotalsForDateRange(startEpochDay: Long, endEpochDay: Long): Flow<List<WaterTotalRow>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWaterEntry(entry: WaterEntryEntity)

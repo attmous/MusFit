@@ -7,6 +7,7 @@ import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.remote.food.ProductSearchResult
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.FoodDiary
+import com.musfit.data.repository.FoodDiaryEntry
 import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodDiaryEntryStatus
 import com.musfit.data.repository.FoodGoal
@@ -17,9 +18,12 @@ import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodMealDefinition
 import com.musfit.data.repository.FoodMealDefinitionInput
 import com.musfit.data.repository.FoodPlanDay
+import com.musfit.data.repository.FoodProgressSummary
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.FoodWaterSummary
+import com.musfit.data.repository.FoodWeeklyDaySummary
+import com.musfit.data.repository.FoodWeeklySummary
 import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.MealTemplateItemInput
 import com.musfit.data.repository.MealTemplateUpdateInput
@@ -54,7 +58,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalTime
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 enum class FoodAddMode {
     Saved,
@@ -70,6 +76,21 @@ enum class AddTab {
     Create,
 }
 
+enum class RecipeDiscoveryFilter {
+    All,
+    HighProtein,
+    LowCarb,
+    Vegetarian,
+    Quick,
+    Favorites,
+    Program,
+}
+
+enum class BarcodeComparisonSide {
+    Left,
+    Right,
+}
+
 enum class FoodSheetMode {
     AddFood,
     FoodDatabase,
@@ -77,6 +98,8 @@ enum class FoodSheetMode {
     DiaryEntryEditor,
     SavedFoodEditor,
     NutritionLabelScan,
+    BarcodeComparison,
+    FastingTimer,
     GoalEditor,
     RecipeEditor,
     MealTemplates,
@@ -128,6 +151,91 @@ data class FoodRatingUiState(
     val reason: String,
     val suggestion: String,
     val tone: FoodInsightTone,
+    val score: Int? = null,
+    val factors: List<FoodRatingFactorUiState> = emptyList(),
+)
+
+data class FoodRatingFactorUiState(
+    val label: String,
+    val valueLabel: String,
+    val explanation: String,
+    val tone: FoodInsightTone,
+)
+
+data class FoodWeeklyScoreUiState(
+    val title: String,
+    val score: Int,
+    val summary: String,
+    val suggestion: String,
+    val tone: FoodInsightTone,
+    val factors: List<FoodRatingFactorUiState>,
+)
+
+data class FoodProgressStatsUiState(
+    val weekly: FoodProgressPeriodUiState,
+    val monthly: FoodProgressPeriodUiState,
+)
+
+data class FoodProgressPeriodUiState(
+    val title: String,
+    val trackedDaysLabel: String,
+    val averageCaloriesLabel: String,
+    val averageProteinLabel: String,
+    val calorieAdherenceLabel: String,
+    val hydrationLabel: String,
+    val habitLabel: String,
+    val trendLabel: String,
+)
+
+data class NutritionLabelScanReviewUiState(
+    val confidenceLabel: String,
+    val parsedFieldCount: Int,
+)
+
+data class FoodProgramUiState(
+    val id: String,
+    val mode: FoodGoalMode,
+    val title: String,
+    val subtitle: String,
+    val description: String,
+    val macroTargetsLabel: String,
+    val suggestedHabits: List<String>,
+    val mealPlanningTip: String,
+    val isSelected: Boolean,
+)
+
+data class RecipeDiscoveryItemUiState(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val category: String,
+    val servingName: String,
+    val servingGrams: Double,
+    val caloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+    val tagLabels: List<String>,
+    val isFavorite: Boolean,
+    val isSavedRecipe: Boolean,
+    val programRelevant: Boolean,
+    val sourceRecipeId: String? = null,
+)
+
+enum class FoodHabitStatus {
+    Complete,
+    InProgress,
+    Missing,
+}
+
+data class FoodHabitTrackerUiState(
+    val id: String,
+    val label: String,
+    val valueLabel: String,
+    val progress: Double,
+    val status: FoodHabitStatus,
+    val tone: FoodInsightTone,
+    val suggestion: String,
 )
 
 enum class EmptyDiaryActionType {
@@ -160,6 +268,7 @@ data class FoodMealEntryUiState(
     val proteinContribution: Double = 0.0,
     val carbsContribution: Double = 0.0,
     val fatContribution: Double = 0.0,
+    val rating: FoodRatingUiState? = null,
     val isPlanned: Boolean = false,
     val imageUrl: String? = null,
 )
@@ -226,6 +335,20 @@ data class FoodMealDefinitionUiState(
     val isDefault: Boolean,
 )
 
+enum class FoodTrustLevel {
+    Imported,
+    Manual,
+    NeedsReview,
+}
+
+data class FoodTrustUiState(
+    val level: FoodTrustLevel,
+    val label: String,
+    val explanation: String,
+    val actionLabel: String,
+    val isReported: Boolean = false,
+)
+
 data class SavedFoodUiState(
     val id: String,
     val name: String,
@@ -255,6 +378,7 @@ data class SavedFoodUiState(
     val category: String? = null,
     val isFavorite: Boolean = false,
     val sourceLabel: String = "Manual",
+    val trust: FoodTrustUiState = emptyFoodTrust(),
     val servings: List<SavedFoodServingUiState> = emptyList(),
 )
 
@@ -292,6 +416,59 @@ data class OnlineFoodResultUiState(
     val magnesiumMgPer100g: Double,
     val category: String?,
     val imageUrl: String?,
+)
+
+data class BarcodeComparisonItemUiState(
+    val barcode: String,
+    val name: String,
+    val brand: String?,
+    val sourceLabel: String,
+    val caloriesPer100g: Double,
+    val proteinPer100g: Double,
+    val carbsPer100g: Double,
+    val fatPer100g: Double,
+    val sugarPer100g: Double,
+    val sodiumMgPer100g: Double,
+    val imageUrl: String? = null,
+)
+
+data class BarcodeComparisonHighlightUiState(
+    val label: String,
+    val leftValue: String,
+    val rightValue: String,
+    val winnerSide: BarcodeComparisonSide?,
+)
+
+data class BarcodeComparisonUiState(
+    val leftBarcodeInput: String = "",
+    val rightBarcodeInput: String = "",
+    val leftItem: BarcodeComparisonItemUiState? = null,
+    val rightItem: BarcodeComparisonItemUiState? = null,
+    val highlights: List<BarcodeComparisonHighlightUiState> = emptyList(),
+) {
+    val items: List<BarcodeComparisonItemUiState>
+        get() = listOfNotNull(leftItem, rightItem)
+}
+
+data class FastingProgramUiState(
+    val id: String,
+    val title: String,
+    val fastingHours: Double,
+    val eatingHours: Double,
+    val description: String,
+    val isSelected: Boolean,
+)
+
+data class FastingTimerUiState(
+    val selectedProgramId: String = "16-8",
+    val programs: List<FastingProgramUiState> = emptyFastingPrograms("16-8", 16.0, 8.0),
+    val fastingStartInput: String = "20:00",
+    val fastingWindowLabel: String = "20:00 - 12:00",
+    val eatingWindowLabel: String = "12:00 - 20:00",
+    val statusLabel: String = "16:8 fasting plan active",
+    val progress: Double = 16.0 / 24.0,
+    val customFastingHoursInput: String = "16",
+    val customEatingHoursInput: String = "8",
 )
 
 data class MealTemplateUiState(
@@ -478,6 +655,10 @@ data class FoodUiState(
     val proteinPer100g: String = "",
     val carbsPer100g: String = "",
     val fatPer100g: String = "",
+    val fiberPer100g: String = "",
+    val sugarPer100g: String = "",
+    val saturatedFatPer100g: String = "",
+    val sodiumMgPer100g: String = "",
     val mealType: String = "breakfast",
     val quantityGrams: String = "100",
     val amountNutritionPreview: FoodAmountNutritionPreviewUiState? = null,
@@ -501,6 +682,10 @@ data class FoodUiState(
     val micronutrients: List<FoodMicronutrientUiState> = emptyMicronutrients(),
     val dailyInsights: List<FoodInsightUiState> = emptyDailyInsights(),
     val dayRating: FoodRatingUiState = emptyFoodRating(),
+    val weeklyScore: FoodWeeklyScoreUiState = emptyWeeklyScore(),
+    val progressStats: FoodProgressStatsUiState = emptyProgressStats(),
+    val foodPrograms: List<FoodProgramUiState> = emptyFoodPrograms(),
+    val habitTrackers: List<FoodHabitTrackerUiState> = emptyHabitTrackers(),
     val isFoodDiaryEmpty: Boolean = true,
     val emptyDiaryActions: List<EmptyDiaryActionUiState> = defaultEmptyDiaryActions(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
@@ -529,12 +714,19 @@ data class FoodUiState(
     val mealDetailSortMode: MealDetailSortMode = MealDetailSortMode.Logged,
     val savedFoods: List<SavedFoodUiState> = emptyList(),
     val visibleSavedFoods: List<SavedFoodUiState> = emptyList(),
+    val reportedSavedFoodIds: Set<String> = emptySet(),
     val duplicateFoodGroups: List<FoodDuplicateGroupUiState> = emptyList(),
     val mealTemplates: List<MealTemplateUiState> = emptyList(),
     val recipes: List<RecipeUiState> = emptyList(),
+    val recipeDiscoveryFilter: RecipeDiscoveryFilter = RecipeDiscoveryFilter.All,
+    val recipeDiscoveryItems: List<RecipeDiscoveryItemUiState> = emptyRecipeDiscoveryItems(),
+    val visibleRecipeDiscoveryItems: List<RecipeDiscoveryItemUiState> = emptyRecipeDiscoveryItems(),
     val quickCaloriePresets: List<QuickCaloriePresetUiState> = emptyList(),
     val onlineFoodResults: List<OnlineFoodResultUiState> = emptyList(),
     val isSearchingFoods: Boolean = false,
+    val barcodeComparison: BarcodeComparisonUiState = BarcodeComparisonUiState(),
+    val isBarcodeComparisonLoading: Boolean = false,
+    val fastingTimer: FastingTimerUiState = FastingTimerUiState(),
     val isAddPanelVisible: Boolean = false,
     val sheetMode: FoodSheetMode? = null,
     val selectedMealTitle: String = "Breakfast",
@@ -549,6 +741,8 @@ data class FoodUiState(
     val aiLoggingText: String = "",
     val aiLoggingHasDraft: Boolean = false,
     val aiLoggingDraftSourceLabel: String? = null,
+    val aiLoggingDraftReview: String? = null,
+    val nutritionLabelScanReview: NutritionLabelScanReviewUiState? = null,
     val keepAddingFoods: Boolean = false,
     val foodDatabaseQuery: String = "",
     val recentFoods: List<SavedFoodUiState> = emptyList(),
@@ -670,9 +864,27 @@ class FoodViewModel @Inject constructor(
         }
         viewModelScope.launch {
             selectedDateFlow.flatMapLatest { date ->
+                repository.observeWeeklyFoodSummary(date.minusDays(6))
+            }.collect { summary ->
+                mutableState.update { currentState ->
+                    currentState.copy(weeklyScore = summary.toWeeklyScoreUiState())
+                }
+            }
+        }
+        viewModelScope.launch {
+            selectedDateFlow.flatMapLatest { date ->
+                repository.observeFoodProgressSummary(date.minusDays(27), dayCount = 28)
+            }.collect { summary ->
+                mutableState.update { currentState ->
+                    currentState.copy(progressStats = summary.toProgressStatsUiState())
+                }
+            }
+        }
+        viewModelScope.launch {
+            selectedDateFlow.flatMapLatest { date ->
                 repository.observeWaterSummary(date)
             }.collect { summary ->
-                mutableState.update { currentState -> currentState.withWaterSummary(summary) }
+                mutableState.update { currentState -> currentState.withWaterSummary(summary, currentDiary) }
             }
         }
         viewModelScope.launch {
@@ -688,11 +900,18 @@ class FoodViewModel @Inject constructor(
         viewModelScope.launch {
             repository.observeSavedFoods().collect { savedFoods ->
                 mutableState.update { currentState ->
-                    val foodStates = savedFoods.map { it.toUiState() }
+                    val foodStates = savedFoods.map { food ->
+                        food.toUiState(isReported = food.id in currentState.reportedSavedFoodIds)
+                    }
                     currentState.copy(
                         savedFoods = foodStates,
                         visibleSavedFoods = foodStates.filterForDatabaseQuery(currentState.foodDatabaseQuery),
                         duplicateFoodGroups = foodStates.toDuplicateFoodGroups(),
+                        selectedSavedFoodDetail = currentState.selectedSavedFoodDetail?.let { selectedFood ->
+                            foodStates.firstOrNull { it.id == selectedFood.id } ?: selectedFood.withTrust(
+                                isReported = selectedFood.id in currentState.reportedSavedFoodIds,
+                            )
+                        },
                     )
                 }
             }
@@ -712,7 +931,7 @@ class FoodViewModel @Inject constructor(
         viewModelScope.launch {
             repository.observeRecipes().collect { recipes ->
                 mutableState.update { currentState ->
-                    currentState.copy(recipes = recipes.map { it.toUiState() })
+                    currentState.withRecipes(recipes.map { it.toUiState() })
                 }
             }
         }
@@ -1027,10 +1246,16 @@ class FoodViewModel @Inject constructor(
             mutableState.update { it.copy(message = "Describe what you ate") }
             return
         }
+        val draft = text.toLocalAiNutritionDraft()
         mutableState.update {
             it.withAiLoggingDraft(
                 name = text.take(80),
                 sourceLabel = "Text",
+                caloriesPer100g = draft.caloriesKcal.formatInputNumber(),
+                proteinPer100g = draft.proteinGrams.formatInputNumber(),
+                carbsPer100g = draft.carbsGrams.formatInputNumber(),
+                fatPer100g = draft.fatGrams.formatInputNumber(),
+                review = draft.review,
                 message = "Review AI suggestion before logging.",
             )
         }
@@ -1102,6 +1327,174 @@ class FoodViewModel @Inject constructor(
                 savedFoodEditor = null,
                 selectedSavedFoodDetail = null,
             )
+        }
+    }
+
+    fun openBarcodeComparison() {
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.BarcodeComparison,
+                message = null,
+            )
+        }
+    }
+
+    fun openFastingTimer() {
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.FastingTimer,
+                message = null,
+            )
+        }
+    }
+
+    fun selectFastingProgram(programId: String) {
+        if (fastingProgramDefinitions.none { it.id == programId }) {
+            mutableState.update { it.copy(message = "Fasting program unavailable") }
+            return
+        }
+        mutableState.update {
+            it.copy(
+                fastingTimer = buildFastingTimerUiState(
+                    selectedProgramId = programId,
+                    fastingStartInput = it.fastingTimer.fastingStartInput,
+                    customFastingHoursInput = it.fastingTimer.customFastingHoursInput,
+                    customEatingHoursInput = it.fastingTimer.customEatingHoursInput,
+                ),
+                message = null,
+            )
+        }
+    }
+
+    fun onFastingStartTimeChanged(value: String) {
+        val sanitized = value.sanitizeFastingTimeInput()
+        mutableState.update {
+            it.copy(
+                fastingTimer = buildFastingTimerUiState(
+                    selectedProgramId = it.fastingTimer.selectedProgramId,
+                    fastingStartInput = sanitized,
+                    customFastingHoursInput = it.fastingTimer.customFastingHoursInput,
+                    customEatingHoursInput = it.fastingTimer.customEatingHoursInput,
+                ),
+                message = null,
+            )
+        }
+    }
+
+    fun onCustomFastingHoursChanged(value: String) {
+        mutableState.update {
+            it.copy(
+                fastingTimer = it.fastingTimer.copy(customFastingHoursInput = value.sanitizeDecimalInput()),
+                message = null,
+            )
+        }
+    }
+
+    fun onCustomEatingHoursChanged(value: String) {
+        mutableState.update {
+            it.copy(
+                fastingTimer = it.fastingTimer.copy(customEatingHoursInput = value.sanitizeDecimalInput()),
+                message = null,
+            )
+        }
+    }
+
+    fun applyCustomFastingProgram() {
+        val currentTimer = state.value.fastingTimer
+        val fastingHours = currentTimer.customFastingHoursInput.parsePositiveNumberOrNull()
+        val eatingHours = currentTimer.customEatingHoursInput.parsePositiveNumberOrNull()
+        if (fastingHours == null || eatingHours == null || kotlin.math.abs((fastingHours + eatingHours) - 24.0) > 0.01) {
+            mutableState.update { it.copy(message = "Enter fasting and eating hours that total 24") }
+            return
+        }
+        mutableState.update {
+            it.copy(
+                fastingTimer = buildFastingTimerUiState(
+                    selectedProgramId = "custom",
+                    fastingStartInput = currentTimer.fastingStartInput,
+                    customFastingHoursInput = fastingHours.formatInputNumber(),
+                    customEatingHoursInput = eatingHours.formatInputNumber(),
+                ),
+                message = "Custom fasting plan active",
+            )
+        }
+    }
+
+    fun onBarcodeComparisonBarcodeChanged(side: BarcodeComparisonSide, value: String) {
+        val sanitized = value.filter(Char::isDigit)
+        mutableState.update {
+            val comparison =
+                when (side) {
+                    BarcodeComparisonSide.Left ->
+                        it.barcodeComparison.copy(leftBarcodeInput = sanitized, leftItem = null, highlights = emptyList())
+                    BarcodeComparisonSide.Right ->
+                        it.barcodeComparison.copy(rightBarcodeInput = sanitized, rightItem = null, highlights = emptyList())
+                }
+            it.copy(barcodeComparison = comparison, message = null)
+        }
+    }
+
+    fun compareBarcodeProducts() {
+        val currentState = state.value
+        val leftBarcode = currentState.barcodeComparison.leftBarcodeInput
+        val rightBarcode = currentState.barcodeComparison.rightBarcodeInput
+        if (leftBarcode.isBlank() || rightBarcode.isBlank()) {
+            mutableState.update { it.copy(message = "Enter two barcodes to compare") }
+            return
+        }
+        if (currentState.isBarcodeComparisonLoading) {
+            return
+        }
+        viewModelScope.launch {
+            mutableState.update { it.copy(isBarcodeComparisonLoading = true, message = null) }
+            try {
+                val savedFoods = state.value.savedFoods
+                val leftItem = lookupBarcodeComparisonItem(leftBarcode, savedFoods)
+                val rightItem = lookupBarcodeComparisonItem(rightBarcode, savedFoods)
+                mutableState.update { latestState ->
+                    latestState.copy(
+                        isBarcodeComparisonLoading = false,
+                        barcodeComparison = latestState.barcodeComparison.copy(
+                            leftItem = leftItem,
+                            rightItem = rightItem,
+                            highlights = buildBarcodeComparisonHighlights(leftItem, rightItem),
+                        ),
+                        message = when {
+                            leftItem != null && rightItem != null -> "Compared barcode products"
+                            leftItem == null && rightItem == null -> "Products not found"
+                            leftItem == null -> "Left product not found"
+                            else -> "Right product not found"
+                        },
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isBarcodeComparisonLoading = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isBarcodeComparisonLoading = false,
+                        message = error.message ?: "Failed to compare barcodes",
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun lookupBarcodeComparisonItem(
+        barcode: String,
+        savedFoods: List<SavedFoodUiState>,
+    ): BarcodeComparisonItemUiState? {
+        val savedFood = savedFoods.firstOrNull { it.barcode == barcode }
+        if (savedFood != null) {
+            return savedFood.toBarcodeComparisonItem()
+        }
+        return when (val result = provider.lookupBarcode(barcode)) {
+            is ProductLookupResult.Found -> result.toBarcodeComparisonItem()
+            is ProductLookupResult.NotFound,
+            is ProductLookupResult.Failed -> null
         }
     }
 
@@ -1369,6 +1762,43 @@ class FoodViewModel @Inject constructor(
                     message = null,
                 )
             }
+        }
+    }
+
+    fun selectRecipeDiscoveryFilter(filter: RecipeDiscoveryFilter) {
+        mutableState.update {
+            it.copy(
+                recipeDiscoveryFilter = filter,
+                visibleRecipeDiscoveryItems = it.recipeDiscoveryItems.filterForRecipeDiscovery(filter),
+                message = null,
+            )
+        }
+    }
+
+    fun useRecipeDiscoveryItem(itemId: String) {
+        val item = state.value.recipeDiscoveryItems.firstOrNull { it.id == itemId } ?: run {
+            mutableState.update { it.copy(message = "Recipe idea unavailable") }
+            return
+        }
+        val savedRecipeId = item.sourceRecipeId
+        if (savedRecipeId != null) {
+            logRecipe(savedRecipeId)
+            return
+        }
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.RecipeEditor,
+                recipeEditor = RecipeEditorState(
+                    name = item.title,
+                    category = item.category,
+                    servingName = item.servingName,
+                    servingGrams = item.servingGrams.formatInputNumber(),
+                    servingsCount = "1",
+                    cookedYieldGrams = item.servingGrams.formatInputNumber(),
+                ),
+                message = "Review and save ${item.title}",
+            )
         }
     }
 
@@ -2111,6 +2541,23 @@ class FoodViewModel @Inject constructor(
         }
     }
 
+    fun reportSavedFoodForReview(foodId: String) {
+        val currentState = state.value
+        if (currentState.savedFoods.none { it.id == foodId }) {
+            mutableState.update { it.copy(message = "Saved food not found") }
+            return
+        }
+        mutableState.update {
+            it.withReportedSavedFoodIds(it.reportedSavedFoodIds + foodId)
+                .copy(message = "Marked food for local review")
+        }
+    }
+
+    fun startSavedFoodCorrection(foodId: String) {
+        openSavedFoodEditor(foodId)
+        mutableState.update { it.copy(message = "Review and correct nutrition before saving.") }
+    }
+
     fun onSavedFoodNameChanged(value: String) {
         mutableState.update { it.copy(savedFoodEditor = it.savedFoodEditor?.copy(name = value), message = null) }
     }
@@ -2496,8 +2943,16 @@ class FoodViewModel @Inject constructor(
                 proteinPer100g = parsed.proteinGrams?.formatInputNumber() ?: it.proteinPer100g,
                 carbsPer100g = parsed.carbsGrams?.formatInputNumber() ?: it.carbsPer100g,
                 fatPer100g = parsed.fatGrams?.formatInputNumber() ?: it.fatPer100g,
+                fiberPer100g = parsed.fiberGrams?.formatInputNumber() ?: it.fiberPer100g,
+                sugarPer100g = parsed.sugarGrams?.formatInputNumber() ?: it.sugarPer100g,
+                saturatedFatPer100g = parsed.saturatedFatGrams?.formatInputNumber() ?: it.saturatedFatPer100g,
+                sodiumMgPer100g = parsed.sodiumMilligrams?.formatInputNumber() ?: it.sodiumMgPer100g,
+                nutritionLabelScanReview = NutritionLabelScanReviewUiState(
+                    confidenceLabel = parsed.confidenceLabel,
+                    parsedFieldCount = parsed.parsedFieldCount,
+                ),
                 message = if (parsed.hasAnyValue) {
-                    "Review the scanned values below."
+                    "${parsed.confidenceLabel}. Review the scanned values below."
                 } else {
                     "Couldn't read the label — enter the values manually."
                 },
@@ -2618,6 +3073,10 @@ class FoodViewModel @Inject constructor(
                                 proteinPer100g = result.nutritionPer100g.proteinGrams.toString(),
                                 carbsPer100g = result.nutritionPer100g.carbsGrams.toString(),
                                 fatPer100g = result.nutritionPer100g.fatGrams.toString(),
+                                fiberPer100g = result.nutritionDetailsPer100g.fiberGrams.formatInputNumber(),
+                                sugarPer100g = result.nutritionDetailsPer100g.sugarGrams.formatInputNumber(),
+                                saturatedFatPer100g = result.nutritionDetailsPer100g.saturatedFatGrams.formatInputNumber(),
+                                sodiumMgPer100g = result.nutritionDetailsPer100g.sodiumMilligrams.formatInputNumber(),
                                 quantityGrams = (
                                     result.servingQuantityGrams
                                         ?.takeIf { it.isFinite() && it > 0.0 }
@@ -2625,6 +3084,7 @@ class FoodViewModel @Inject constructor(
                                     ).formatInputNumber(),
                                 amountServingChoices = result.toAmountServingChoices(),
                                 lookupResult = result,
+                                nutritionLabelScanReview = null,
                                 message = null,
                             ).withAmountNutritionPreview()
                         }
@@ -2675,6 +3135,7 @@ class FoodViewModel @Inject constructor(
             mutableState.update { it.copy(message = "Enter valid nutrition values") }
             return
         }
+        val editedNutritionDetails = currentState.toEditedNutritionDetailsOrNull()
         val result = currentState.lookupResult
         val customBarcode = currentState.barcode.takeIf { it.isNotBlank() }
         val customServingGrams = currentState.quantityGrams.parsePositiveNumberOrNull()
@@ -2708,7 +3169,7 @@ class FoodViewModel @Inject constructor(
                             brand = currentState.brand.ifBlank { null },
                             defaultServingGrams = servingGrams,
                             nutritionPer100g = editedNutrition,
-                            nutritionDetailsPer100g = NutritionDetails(),
+                            nutritionDetailsPer100g = editedNutritionDetails,
                             servingName = "${servingGrams.formatInputNumber()} g",
                             barcode = customBarcode,
                         ),
@@ -2749,6 +3210,7 @@ class FoodViewModel @Inject constructor(
             mutableState.update { it.copy(message = "Enter valid nutrition values") }
             return
         }
+        val editedNutritionDetails = currentState.toEditedNutritionDetailsOrNull()
         val quantityGrams = currentState.quantityGrams.parsePositiveNumberOrNull()
         if (quantityGrams == null) {
             mutableState.update { it.copy(message = "Enter a valid amount") }
@@ -2767,7 +3229,7 @@ class FoodViewModel @Inject constructor(
                         name = productName,
                         brand = currentState.brand.ifBlank { null },
                         nutritionPer100g = editedNutrition,
-                        nutritionDetailsPer100g = currentState.lookupResult?.nutritionDetailsPer100g ?: NutritionDetails(),
+                        nutritionDetailsPer100g = currentState.lookupResult?.nutritionDetailsPer100g ?: editedNutritionDetails,
                         servingGrams = currentState.lookupResult?.servingQuantityGrams ?: quantityGrams,
                         mealType = currentState.mealType,
                         quantityGrams = quantityGrams,
@@ -3138,6 +3600,7 @@ class FoodViewModel @Inject constructor(
                         sugarGramsInput = preset.sugarGrams.formatInputNumber(),
                         saturatedFatGramsInput = preset.saturatedFatGrams.formatInputNumber(),
                         sodiumMgInput = preset.sodiumMilligrams.formatInputNumber(),
+                        useNetCarbsInput = preset.useNetCarbs,
                     ),
                     message = null,
                 )
@@ -3151,6 +3614,65 @@ class FoodViewModel @Inject constructor(
 
     fun onGoalUseNetCarbsChanged(value: Boolean) {
         mutableState.update { it.copy(goalEditor = it.goalEditor.copy(useNetCarbsInput = value), message = null) }
+    }
+
+    fun applyFoodProgram(programId: String) {
+        val program = foodProgramDefinitions.firstOrNull { it.id == programId }
+        val preset = program?.mode?.goalPreset()
+        if (program == null || preset == null) {
+            mutableState.update { it.copy(message = "Food program unavailable") }
+            return
+        }
+        val currentState = state.value
+        val includeTrainingCalories =
+            if (currentState.sheetMode == FoodSheetMode.GoalEditor) {
+                currentState.goalEditor.includeTrainingInput
+            } else {
+                currentState.includeTrainingCalories
+            }
+        val goal =
+            FoodGoal(
+                dailyCaloriesKcal = preset.dailyCaloriesKcal,
+                proteinGrams = preset.proteinGrams,
+                carbsGrams = preset.carbsGrams,
+                fatGrams = preset.fatGrams,
+                fiberGrams = preset.fiberGrams,
+                sugarGrams = preset.sugarGrams,
+                saturatedFatGrams = preset.saturatedFatGrams,
+                sodiumMilligrams = preset.sodiumMilligrams,
+                mode = program.mode,
+                includeTrainingCalories = includeTrainingCalories,
+                useNetCarbs = preset.useNetCarbs,
+                waterGoalMilliliters = currentState.waterGoalMilliliters,
+            )
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.updateFoodGoal(goal)
+                mutableState.update {
+                    it.withFoodGoal(goal)
+                        .withDiary(currentDiary)
+                        .copy(
+                            isSaving = false,
+                            isAddPanelVisible = false,
+                            sheetMode = null,
+                            message = "Applied ${program.title} program",
+                        )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to apply food program",
+                    )
+                }
+            }
+        }
     }
 
     fun saveFoodGoal() {
@@ -3558,6 +4080,14 @@ class FoodViewModel @Inject constructor(
         )
     }
 
+    private fun FoodUiState.toEditedNutritionDetailsOrNull(): NutritionDetails =
+        NutritionDetails(
+            fiberGrams = fiberPer100g.parseNonNegativeNumberOrZero() ?: 0.0,
+            sugarGrams = sugarPer100g.parseNonNegativeNumberOrZero() ?: 0.0,
+            saturatedFatGrams = saturatedFatPer100g.parseNonNegativeNumberOrZero() ?: 0.0,
+            sodiumMilligrams = sodiumMgPer100g.parseNonNegativeNumberOrZero() ?: 0.0,
+        )
+
     private fun FoodUiState.toSavedFoodNutritionOrNull(): FoodNutrition? {
         val editor = savedFoodEditor ?: return null
         val calories = editor.caloriesPer100g.parseNutritionValue() ?: return null
@@ -3682,6 +4212,11 @@ class FoodViewModel @Inject constructor(
     private fun FoodUiState.withAiLoggingDraft(
         name: String,
         sourceLabel: String,
+        caloriesPer100g: String = "250",
+        proteinPer100g: String = "12",
+        carbsPer100g: String = "30",
+        fatPer100g: String = "8",
+        review: String? = "Local estimate: generic meal",
         message: String,
     ): FoodUiState =
         copy(
@@ -3691,14 +4226,20 @@ class FoodViewModel @Inject constructor(
             productName = name,
             brand = "",
             quantityGrams = "100",
-            caloriesPer100g = "250",
-            proteinPer100g = "12",
-            carbsPer100g = "30",
-            fatPer100g = "8",
+            caloriesPer100g = caloriesPer100g,
+            proteinPer100g = proteinPer100g,
+            carbsPer100g = carbsPer100g,
+            fatPer100g = fatPer100g,
+            fiberPer100g = "",
+            sugarPer100g = "",
+            saturatedFatPer100g = "",
+            sodiumMgPer100g = "",
             amountServingChoices = defaultAmountServingChoices(),
             lookupResult = null,
             aiLoggingHasDraft = true,
             aiLoggingDraftSourceLabel = sourceLabel,
+            aiLoggingDraftReview = review,
+            nutritionLabelScanReview = null,
             message = message,
         ).withAmountNutritionPreview()
 
@@ -3710,11 +4251,17 @@ class FoodViewModel @Inject constructor(
             proteinPer100g = "",
             carbsPer100g = "",
             fatPer100g = "",
+            fiberPer100g = "",
+            sugarPer100g = "",
+            saturatedFatPer100g = "",
+            sodiumMgPer100g = "",
             amountNutritionPreview = null,
             amountServingChoices = emptyList(),
             lookupResult = null,
             aiLoggingHasDraft = false,
             aiLoggingDraftSourceLabel = null,
+            aiLoggingDraftReview = null,
+            nutritionLabelScanReview = null,
         )
 }
 
@@ -3736,6 +4283,47 @@ private data class GoalPreset(
     val sugarGrams: Double = SUGAR_GOAL_GRAMS,
     val saturatedFatGrams: Double = SATURATED_FAT_GOAL_GRAMS,
     val sodiumMilligrams: Double = SODIUM_GOAL_MILLIGRAMS,
+    val useNetCarbs: Boolean = false,
+)
+
+private data class FoodProgramDefinition(
+    val id: String,
+    val mode: FoodGoalMode,
+    val title: String,
+    val subtitle: String,
+    val description: String,
+    val suggestedHabits: List<String>,
+    val mealPlanningTip: String,
+)
+
+private data class RecipeCatalogItem(
+    val id: String,
+    val title: String,
+    val category: String,
+    val servingName: String,
+    val servingGrams: Double,
+    val caloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+    val tags: List<String>,
+    val relevantModes: Set<FoodGoalMode>,
+)
+
+private data class FastingProgramDefinition(
+    val id: String,
+    val title: String,
+    val fastingHours: Double,
+    val eatingHours: Double,
+    val description: String,
+)
+
+private data class LocalAiNutritionDraft(
+    val caloriesKcal: Double,
+    val proteinGrams: Double,
+    val carbsGrams: Double,
+    val fatGrams: Double,
+    val review: String,
 )
 
 private val mealDefinitions =
@@ -3757,6 +4345,161 @@ private const val SUGAR_GOAL_GRAMS = 50.0
 private const val SATURATED_FAT_GOAL_GRAMS = 20.0
 private const val SODIUM_GOAL_MILLIGRAMS = 2300.0
 private const val WATER_GOAL_MILLILITERS = 2000.0
+
+private val foodProgramDefinitions =
+    listOf(
+        FoodProgramDefinition(
+            id = "balanced",
+            mode = FoodGoalMode.Balanced,
+            title = "Balanced",
+            subtitle = "Steady everyday nutrition",
+            description = "A practical calorie and macro split for general tracking.",
+            suggestedHabits = listOf("Water daily", "Fruit or vegetables at two meals", "Protein with each main meal"),
+            mealPlanningTip = "Plan simple repeatable meals, then adjust portions by hunger and progress.",
+        ),
+        FoodProgramDefinition(
+            id = "high-protein",
+            mode = FoodGoalMode.HighProtein,
+            title = "High protein",
+            subtitle = "Protein-forward meals",
+            description = "Raises protein while keeping carbs and fats moderate.",
+            suggestedHabits = listOf("Lean protein each meal", "High-protein snack", "Fiber side with protein meals"),
+            mealPlanningTip = "Build templates around eggs, yogurt, fish, meat, tofu, or legumes.",
+        ),
+        FoodProgramDefinition(
+            id = "muscle-gain",
+            mode = FoodGoalMode.MuscleGain,
+            title = "Muscle gain",
+            subtitle = "More energy with protein",
+            description = "Adds calories and carbs while keeping protein high.",
+            suggestedHabits = listOf("Protein every 3-5 hours", "Carbs around training", "Consistent water"),
+            mealPlanningTip = "Plan larger lunches and dinners so calories do not pile up late.",
+        ),
+        FoodProgramDefinition(
+            id = "weight-loss",
+            mode = FoodGoalMode.WeightLoss,
+            title = "Weight loss",
+            subtitle = "Controlled energy, high satiety",
+            description = "Moderates calories while protecting protein and fiber.",
+            suggestedHabits = listOf("Protein first", "Vegetables daily", "Lower-sugar snacks"),
+            mealPlanningTip = "Pre-plan snacks and dinner portions before the day gets busy.",
+        ),
+        FoodProgramDefinition(
+            id = "keto-low-carb",
+            mode = FoodGoalMode.KetoLowCarb,
+            title = "Keto low carb",
+            subtitle = "Lower carbs with net-carb tracking",
+            description = "Keeps carbs low and uses fats for more energy.",
+            suggestedHabits = listOf("Track net carbs", "Electrolyte-aware hydration", "Non-starchy vegetables"),
+            mealPlanningTip = "Plan protein plus low-carb vegetables before adding fats.",
+        ),
+        FoodProgramDefinition(
+            id = "mediterranean-style",
+            mode = FoodGoalMode.MediterraneanStyle,
+            title = "Mediterranean-style",
+            subtitle = "Fiber, fish, olive oil, legumes",
+            description = "Emphasizes higher fiber carbs, unsaturated fats, and fish or legumes.",
+            suggestedHabits = listOf("Olive oil or nuts", "Fish weekly", "Beans, grains, fruit, and vegetables"),
+            mealPlanningTip = "Plan bowls, salads, fish dinners, and legume-based lunches.",
+        ),
+        FoodProgramDefinition(
+            id = "clean-eating",
+            mode = FoodGoalMode.CleanEating,
+            title = "Clean eating",
+            subtitle = "Simple whole-food structure",
+            description = "Focuses on protein, fiber, lower sugar, and less sodium.",
+            suggestedHabits = listOf("Whole-food protein", "Vegetables twice daily", "Limit sugary packaged snacks"),
+            mealPlanningTip = "Prep a protein, a grain or potato, and chopped vegetables for fast meals.",
+        ),
+    )
+
+private val recipeCatalogItems =
+    listOf(
+        RecipeCatalogItem(
+            id = "catalog-high-protein-chicken-bowl",
+            title = "High-protein chicken bowl",
+            category = "Dinner",
+            servingName = "Bowl",
+            servingGrams = 420.0,
+            caloriesKcal = 520.0,
+            proteinGrams = 48.0,
+            carbsGrams = 48.0,
+            fatGrams = 14.0,
+            tags = listOf("High protein", "Quick"),
+            relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain),
+        ),
+        RecipeCatalogItem(
+            id = "catalog-keto-salmon-plate",
+            title = "Low-carb salmon plate",
+            category = "Dinner",
+            servingName = "Plate",
+            servingGrams = 360.0,
+            caloriesKcal = 610.0,
+            proteinGrams = 42.0,
+            carbsGrams = 16.0,
+            fatGrams = 42.0,
+            tags = listOf("High protein", "Low carb"),
+            relevantModes = setOf(FoodGoalMode.KetoLowCarb, FoodGoalMode.HighProtein, FoodGoalMode.MediterraneanStyle),
+        ),
+        RecipeCatalogItem(
+            id = "catalog-mediterranean-chickpea-bowl",
+            title = "Mediterranean chickpea bowl",
+            category = "Vegetarian",
+            servingName = "Bowl",
+            servingGrams = 380.0,
+            caloriesKcal = 470.0,
+            proteinGrams = 24.0,
+            carbsGrams = 62.0,
+            fatGrams = 15.0,
+            tags = listOf("Vegetarian", "Quick"),
+            relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
+        ),
+        RecipeCatalogItem(
+            id = "catalog-clean-breakfast-bowl",
+            title = "Clean breakfast bowl",
+            category = "Breakfast",
+            servingName = "Bowl",
+            servingGrams = 330.0,
+            caloriesKcal = 430.0,
+            proteinGrams = 32.0,
+            carbsGrams = 46.0,
+            fatGrams = 12.0,
+            tags = listOf("High protein", "Vegetarian", "Quick"),
+            relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
+        ),
+    )
+
+private val fastingProgramDefinitions =
+    listOf(
+        FastingProgramDefinition(
+            id = "12-12",
+            title = "12:12",
+            fastingHours = 12.0,
+            eatingHours = 12.0,
+            description = "A gentle overnight fast with an even eating window.",
+        ),
+        FastingProgramDefinition(
+            id = "14-10",
+            title = "14:10",
+            fastingHours = 14.0,
+            eatingHours = 10.0,
+            description = "A moderate fast that still leaves room for three meals.",
+        ),
+        FastingProgramDefinition(
+            id = "16-8",
+            title = "16:8",
+            fastingHours = 16.0,
+            eatingHours = 8.0,
+            description = "A focused daily fasting window with a compact eating window.",
+        ),
+        FastingProgramDefinition(
+            id = "custom",
+            title = "Custom 16:8",
+            fastingHours = 16.0,
+            eatingHours = 8.0,
+            description = "Set a custom fasting and eating split that totals 24 hours.",
+        ),
+    )
 
 private fun FoodGoalMode.goalPreset(): GoalPreset? =
     when (this) {
@@ -3784,6 +4527,7 @@ private fun FoodGoalMode.goalPreset(): GoalPreset? =
                 fatGrams = 150.0,
                 fiberGrams = 25.0,
                 sugarGrams = 25.0,
+                useNetCarbs = true,
             )
 
         FoodGoalMode.MuscleGain ->
@@ -3806,8 +4550,291 @@ private fun FoodGoalMode.goalPreset(): GoalPreset? =
                 sugarGrams = 40.0,
             )
 
+        FoodGoalMode.MediterraneanStyle ->
+            GoalPreset(
+                dailyCaloriesKcal = CALORIE_GOAL_KCAL,
+                proteinGrams = 120.0,
+                carbsGrams = 240.0,
+                fatGrams = 77.0,
+                fiberGrams = 38.0,
+                sugarGrams = 45.0,
+                saturatedFatGrams = 18.0,
+                sodiumMilligrams = 2100.0,
+            )
+
+        FoodGoalMode.CleanEating ->
+            GoalPreset(
+                dailyCaloriesKcal = CALORIE_GOAL_KCAL,
+                proteinGrams = 130.0,
+                carbsGrams = 230.0,
+                fatGrams = 70.0,
+                fiberGrams = 40.0,
+                sugarGrams = 35.0,
+                saturatedFatGrams = 18.0,
+                sodiumMilligrams = 2000.0,
+            )
+
         FoodGoalMode.Custom -> null
     }
+
+private fun buildFoodProgramUiStates(selectedMode: FoodGoalMode): List<FoodProgramUiState> =
+    foodProgramDefinitions.map { program ->
+        val preset = requireNotNull(program.mode.goalPreset()) { "Food programs need goal presets" }
+        FoodProgramUiState(
+            id = program.id,
+            mode = program.mode,
+            title = program.title,
+            subtitle = program.subtitle,
+            description = program.description,
+            macroTargetsLabel = listOf(
+                "${preset.dailyCaloriesKcal.formatInputNumber()} kcal",
+                "${preset.proteinGrams.formatInputNumber()} g protein",
+                "${preset.carbsGrams.formatInputNumber()} g carbs",
+                "${preset.fatGrams.formatInputNumber()} g fat",
+            ).joinToString(" - "),
+            suggestedHabits = program.suggestedHabits,
+            mealPlanningTip = program.mealPlanningTip,
+            isSelected = program.mode == selectedMode,
+        )
+    }
+
+private fun buildRecipeDiscoveryItems(
+    recipes: List<RecipeUiState>,
+    goalMode: FoodGoalMode,
+): List<RecipeDiscoveryItemUiState> =
+    recipes.map { recipe -> recipe.toDiscoveryItem(goalMode) } +
+        recipeCatalogItems.map { item -> item.toDiscoveryItem(goalMode) }
+
+private fun RecipeUiState.toDiscoveryItem(goalMode: FoodGoalMode): RecipeDiscoveryItemUiState {
+    val searchableText = listOf(name, category.orEmpty(), itemSummary).joinToString(" ").lowercase()
+    val tagLabels = buildRecipeTags(
+        proteinGrams = proteinPerServingGrams,
+        carbsGrams = carbsPerServingGrams,
+        category = category.orEmpty(),
+        searchableText = searchableText,
+    )
+    return RecipeDiscoveryItemUiState(
+        id = "saved-$id",
+        title = name,
+        subtitle = listOfNotNull(
+            category?.takeIf { it.isNotBlank() },
+            itemSummary.takeIf { it.isNotBlank() },
+        ).joinToString(" - ").ifBlank { "Saved recipe" },
+        category = category.orEmpty(),
+        servingName = servingName,
+        servingGrams = servingGrams,
+        caloriesKcal = caloriesPerServingKcal,
+        proteinGrams = proteinPerServingGrams,
+        carbsGrams = carbsPerServingGrams,
+        fatGrams = fatPerServingGrams,
+        tagLabels = tagLabels,
+        isFavorite = isFavorite,
+        isSavedRecipe = true,
+        programRelevant = isRecipeRelevantForProgram(
+            goalMode = goalMode,
+            tagLabels = tagLabels,
+            caloriesKcal = caloriesPerServingKcal,
+            searchableText = searchableText,
+        ),
+        sourceRecipeId = id,
+    )
+}
+
+private fun RecipeCatalogItem.toDiscoveryItem(goalMode: FoodGoalMode): RecipeDiscoveryItemUiState {
+    val tagLabels = tags.distinct()
+    return RecipeDiscoveryItemUiState(
+        id = id,
+        title = title,
+        subtitle = "Recipe idea - ${caloriesKcal.formatInputNumber()} kcal",
+        category = category,
+        servingName = servingName,
+        servingGrams = servingGrams,
+        caloriesKcal = caloriesKcal,
+        proteinGrams = proteinGrams,
+        carbsGrams = carbsGrams,
+        fatGrams = fatGrams,
+        tagLabels = tagLabels,
+        isFavorite = false,
+        isSavedRecipe = false,
+        programRelevant = goalMode in relevantModes,
+    )
+}
+
+private fun buildRecipeTags(
+    proteinGrams: Double,
+    carbsGrams: Double,
+    category: String,
+    searchableText: String,
+): List<String> =
+    buildList {
+        if (proteinGrams >= 30.0) {
+            add("High protein")
+        }
+        if (carbsGrams <= 25.0) {
+            add("Low carb")
+        }
+        if (
+            category.contains("vegetarian", ignoreCase = true) ||
+            listOf("tofu", "tempeh", "chickpea", "lentil", "bean", "vegetarian").any { keyword -> keyword in searchableText }
+        ) {
+            add("Vegetarian")
+        }
+        if (listOf("quick", "smoothie", "overnight", "salad", "bowl").any { keyword -> keyword in searchableText }) {
+            add("Quick")
+        }
+    }
+
+private fun isRecipeRelevantForProgram(
+    goalMode: FoodGoalMode,
+    tagLabels: List<String>,
+    caloriesKcal: Double,
+    searchableText: String,
+): Boolean =
+    when (goalMode) {
+        FoodGoalMode.Balanced -> true
+        FoodGoalMode.HighProtein,
+        FoodGoalMode.MuscleGain -> "High protein" in tagLabels
+        FoodGoalMode.KetoLowCarb -> "Low carb" in tagLabels
+        FoodGoalMode.WeightLoss -> caloriesKcal <= 500.0 && ("High protein" in tagLabels || "Vegetarian" in tagLabels)
+        FoodGoalMode.MediterraneanStyle ->
+            listOf("fish", "salmon", "chickpea", "bean", "lentil", "olive", "whole grain").any { keyword -> keyword in searchableText }
+        FoodGoalMode.CleanEating -> caloriesKcal <= 550.0 && ("High protein" in tagLabels || "Vegetarian" in tagLabels)
+        FoodGoalMode.Custom -> false
+    }
+
+private fun List<RecipeDiscoveryItemUiState>.filterForRecipeDiscovery(filter: RecipeDiscoveryFilter): List<RecipeDiscoveryItemUiState> =
+    when (filter) {
+        RecipeDiscoveryFilter.All -> this
+        RecipeDiscoveryFilter.HighProtein -> filter { "High protein" in it.tagLabels }
+        RecipeDiscoveryFilter.LowCarb -> filter { "Low carb" in it.tagLabels }
+        RecipeDiscoveryFilter.Vegetarian -> filter { "Vegetarian" in it.tagLabels }
+        RecipeDiscoveryFilter.Quick -> filter { "Quick" in it.tagLabels }
+        RecipeDiscoveryFilter.Favorites -> filter { it.isFavorite }
+        RecipeDiscoveryFilter.Program -> filter { it.programRelevant }
+    }
+
+private fun buildFastingTimerUiState(
+    selectedProgramId: String,
+    fastingStartInput: String,
+    customFastingHoursInput: String,
+    customEatingHoursInput: String,
+): FastingTimerUiState {
+    val customFastingHours = customFastingHoursInput.parseNonNegativeNumberOrZero() ?: 16.0
+    val customEatingHours = customEatingHoursInput.parseNonNegativeNumberOrZero() ?: 8.0
+    val programs = emptyFastingPrograms(selectedProgramId, customFastingHours, customEatingHours)
+    val selectedProgram = programs.firstOrNull { it.id == selectedProgramId } ?: programs.first { it.id == "16-8" }
+    val startTime = fastingStartInput.toFastingStartTimeOrDefault()
+    val fastingEndTime = startTime.plusMinutes((selectedProgram.fastingHours * 60.0).roundToInt().toLong())
+    val startLabel = startTime.toHourMinuteLabel()
+    val fastingEndLabel = fastingEndTime.toHourMinuteLabel()
+    return FastingTimerUiState(
+        selectedProgramId = selectedProgram.id,
+        programs = programs,
+        fastingStartInput = startLabel,
+        fastingWindowLabel = "$startLabel - $fastingEndLabel",
+        eatingWindowLabel = "$fastingEndLabel - $startLabel",
+        statusLabel = "${selectedProgram.title} fasting plan active",
+        progress = selectedProgram.fastingHours.fractionOf(24.0),
+        customFastingHoursInput = customFastingHoursInput,
+        customEatingHoursInput = customEatingHoursInput,
+    )
+}
+
+private fun emptyFastingPrograms(
+    selectedProgramId: String,
+    customFastingHours: Double,
+    customEatingHours: Double,
+): List<FastingProgramUiState> =
+    fastingProgramDefinitions.map { program ->
+        val fastingHours = if (program.id == "custom") customFastingHours else program.fastingHours
+        val eatingHours = if (program.id == "custom") customEatingHours else program.eatingHours
+        FastingProgramUiState(
+            id = program.id,
+            title = if (program.id == "custom") {
+                "Custom ${fastingHours.formatInputNumber()}:${eatingHours.formatInputNumber()}"
+            } else {
+                program.title
+            },
+            fastingHours = fastingHours,
+            eatingHours = eatingHours,
+            description = program.description,
+            isSelected = program.id == selectedProgramId,
+        )
+    }
+
+private fun String.sanitizeFastingTimeInput(): String {
+    val digits = filter(Char::isDigit).take(4)
+    return when {
+        digits.length <= 2 -> digits
+        else -> "${digits.take(2)}:${digits.drop(2)}"
+    }
+}
+
+private fun String.toFastingStartTimeOrDefault(): LocalTime {
+    val parts = split(":")
+    val hour = parts.getOrNull(0)?.toIntOrNull()
+    val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+    return if (hour != null && hour in 0..23 && minute in 0..59) {
+        LocalTime.of(hour, minute)
+    } else {
+        LocalTime.of(20, 0)
+    }
+}
+
+private fun LocalTime.toHourMinuteLabel(): String =
+    "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+
+private fun String.toLocalAiNutritionDraft(): LocalAiNutritionDraft {
+    val lower = lowercase()
+    var calories = 0.0
+    var protein = 0.0
+    var carbs = 0.0
+    var fat = 0.0
+    val matched = mutableListOf<String>()
+
+    val eggCount =
+        Regex("""(\d+)\s*eggs?""").find(lower)?.groupValues?.getOrNull(1)?.toDoubleOrNull()
+            ?: if ("egg" in lower) 1.0 else 0.0
+    if (eggCount > 0.0) {
+        calories += 70.0 * eggCount
+        protein += 6.0 * eggCount
+        carbs += 0.5 * eggCount
+        fat += 5.0 * eggCount
+        matched += "eggs"
+    }
+    if ("toast" in lower) {
+        calories += 100.0
+        protein += 4.0
+        carbs += 18.0
+        fat += 1.0
+        matched += "toast"
+    }
+    if ("yogurt" in lower || "yoghurt" in lower) {
+        calories += 120.0
+        protein += 18.0
+        carbs += 8.0
+        fat += 2.0
+        matched += "yogurt"
+    }
+    if ("banana" in lower) {
+        calories += 105.0
+        protein += 1.0
+        carbs += 27.0
+        fat += 0.0
+        matched += "banana"
+    }
+
+    if (matched.isEmpty()) {
+        return LocalAiNutritionDraft(250.0, 12.0, 30.0, 8.0, "Local estimate: generic meal")
+    }
+    return LocalAiNutritionDraft(
+        caloriesKcal = calories,
+        proteinGrams = protein,
+        carbsGrams = carbs,
+        fatGrams = fat,
+        review = "Local estimate: ${matched.joinToString(", ")}",
+    )
+}
 
 private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
     copy(
@@ -3829,6 +4856,11 @@ private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
         micronutrients = diary.detailTotals.toMicronutrients(),
         dailyInsights = buildDailyInsights(diary),
         dayRating = buildDayRating(diary),
+        habitTrackers = buildHabitTrackers(
+            diary = diary,
+            waterConsumedMilliliters = waterConsumedMilliliters,
+            waterGoalMilliliters = waterGoalMilliliters,
+        ),
         isFoodDiaryEmpty = diary.isEmptyLoggedDiary(),
         emptyDiaryActions = if (diary.isEmptyLoggedDiary()) defaultEmptyDiaryActions() else emptyList(),
         mealSections = diary.toMealSections(
@@ -3844,8 +4876,8 @@ private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
         ),
     )
 
-private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
-    copy(
+private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState {
+    val updatedState = copy(
         calorieGoalKcal = goal.dailyCaloriesKcal,
         proteinGoalGrams = goal.proteinGrams,
         carbsGoalGrams = goal.carbsGrams,
@@ -3857,6 +4889,7 @@ private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
         goalMode = goal.mode,
         includeTrainingCalories = goal.includeTrainingCalories,
         useNetCarbs = goal.useNetCarbs,
+        foodPrograms = buildFoodProgramUiStates(goal.mode),
         remainingCaloriesKcal = goal.dailyCaloriesKcal - eatenCaloriesKcal,
         goalEditor = GoalEditorState(
             caloriesKcalInput = goal.dailyCaloriesKcal.formatInputNumber(),
@@ -3875,13 +4908,41 @@ private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState =
         waterProgress = waterConsumedMilliliters.fractionOf(goal.waterGoalMilliliters),
         waterGoalInput = goal.waterGoalMilliliters.formatInputNumber(),
     )
+    return updatedState.withRecipes(updatedState.recipes)
+}
 
-private fun FoodUiState.withWaterSummary(summary: FoodWaterSummary): FoodUiState =
+private fun FoodUiState.withRecipes(recipes: List<RecipeUiState>): FoodUiState {
+    val discoveryItems = buildRecipeDiscoveryItems(recipes, goalMode)
+    return copy(
+        recipes = recipes,
+        recipeDiscoveryItems = discoveryItems,
+        visibleRecipeDiscoveryItems = discoveryItems.filterForRecipeDiscovery(recipeDiscoveryFilter),
+    )
+}
+
+private fun FoodUiState.withReportedSavedFoodIds(reportedIds: Set<String>): FoodUiState {
+    val updatedFoods = savedFoods.map { food -> food.withTrust(isReported = food.id in reportedIds) }
+    return copy(
+        reportedSavedFoodIds = reportedIds,
+        savedFoods = updatedFoods,
+        visibleSavedFoods = updatedFoods.filterForDatabaseQuery(foodDatabaseQuery),
+        selectedSavedFoodDetail = selectedSavedFoodDetail?.let { selectedFood ->
+            selectedFood.withTrust(isReported = selectedFood.id in reportedIds)
+        },
+    )
+}
+
+private fun FoodUiState.withWaterSummary(summary: FoodWaterSummary, diary: FoodDiary): FoodUiState =
     copy(
         waterConsumedMilliliters = summary.consumedMilliliters,
         waterGoalMilliliters = summary.goalMilliliters,
         waterProgress = summary.consumedMilliliters.fractionOf(summary.goalMilliliters),
         waterGoalInput = summary.goalMilliliters.formatInputNumber(),
+        habitTrackers = buildHabitTrackers(
+            diary = diary,
+            waterConsumedMilliliters = summary.consumedMilliliters,
+            waterGoalMilliliters = summary.goalMilliliters,
+        ),
     )
 
 private fun FoodUiState.withFoodHealthConnectSyncState(syncState: FoodHealthConnectSyncState): FoodUiState =
@@ -4063,14 +5124,447 @@ private fun FoodUiState.buildDayRating(diary: FoodDiary): FoodRatingUiState {
         reasons += "Calories are still low."
         suggestions += "Add a balanced meal."
     }
+    val factors = buildDayRatingFactors(diary)
 
     return FoodRatingUiState(
         label = score.toFoodRatingLabel(),
         reason = reasons.firstOrNull() ?: "Calories, protein, fiber, and sodium are aligned.",
         suggestion = suggestions.firstOrNull() ?: "Keep the same pattern for the next meal.",
         tone = score.toFoodRatingTone(),
+        score = score.coerceIn(0, 100),
+        factors = factors,
     )
 }
+
+private fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatingFactorUiState> {
+    val calories = diary.totals.caloriesKcal
+    val protein = diary.totals.proteinGrams
+    val fiber = diary.detailTotals.fiberGrams
+    val sodium = diary.detailTotals.sodiumMilligrams
+    return listOf(
+        FoodRatingFactorUiState(
+            label = "Calories",
+            valueLabel = "${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal",
+            explanation = when {
+                calories > calorieGoalKcal * 1.1 -> "Above today's calorie target."
+                calories < calorieGoalKcal * 0.5 -> "Still low for today."
+                else -> "Aligned with today's calorie target."
+            },
+            tone = when {
+                calories > calorieGoalKcal * 1.1 -> FoodInsightTone.Warning
+                calories < calorieGoalKcal * 0.5 -> FoodInsightTone.Neutral
+                else -> FoodInsightTone.Positive
+            },
+        ),
+        FoodRatingFactorUiState(
+            label = "Protein",
+            valueLabel = "${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g",
+            explanation = when {
+                protein < proteinGoalGrams * 0.6 -> "Well below your protein target."
+                protein < proteinGoalGrams * 0.9 -> "A little short of your protein target."
+                else -> "On pace for your protein target."
+            },
+            tone = when {
+                protein < proteinGoalGrams * 0.6 -> FoodInsightTone.Warning
+                protein < proteinGoalGrams * 0.9 -> FoodInsightTone.Neutral
+                else -> FoodInsightTone.Positive
+            },
+        ),
+        FoodRatingFactorUiState(
+            label = "Fiber",
+            valueLabel = "${fiber.formatNutritionDisplay()} / ${fiberGoalGrams.formatNutritionDisplay()} g",
+            explanation = when {
+                fiber < fiberGoalGrams * 0.5 -> "Low fiber for the day."
+                fiber < fiberGoalGrams * 0.8 -> "Some more fiber would help."
+                else -> "Fiber is in a strong range."
+            },
+            tone = when {
+                fiber < fiberGoalGrams * 0.5 -> FoodInsightTone.Warning
+                fiber < fiberGoalGrams * 0.8 -> FoodInsightTone.Neutral
+                else -> FoodInsightTone.Positive
+            },
+        ),
+        FoodRatingFactorUiState(
+            label = "Sodium",
+            valueLabel = "${sodium.roundToInt()} / ${sodiumGoalMilligrams.roundToInt()} mg",
+            explanation = if (sodium > sodiumGoalMilligrams) {
+                "Above today's sodium target."
+            } else {
+                "Within today's sodium target."
+            },
+            tone = if (sodium > sodiumGoalMilligrams) FoodInsightTone.Warning else FoodInsightTone.Positive,
+        ),
+        buildDietModeRatingFactor(diary),
+    )
+}
+
+private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingFactorUiState =
+    when (goalMode) {
+        FoodGoalMode.HighProtein -> {
+            val protein = diary.totals.proteinGrams
+            FoodRatingFactorUiState(
+                label = "High protein focus",
+                valueLabel = "${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g",
+                explanation = if (protein >= proteinGoalGrams * 0.9) {
+                    "High Protein mode is on track."
+                } else {
+                    "High Protein mode needs more lean protein today."
+                },
+                tone = if (protein >= proteinGoalGrams * 0.9) FoodInsightTone.Positive else FoodInsightTone.Warning,
+            )
+        }
+
+        FoodGoalMode.KetoLowCarb -> {
+            val carbs = if (useNetCarbs) {
+                (diary.totals.carbsGrams - diary.detailTotals.fiberGrams).coerceAtLeast(0.0)
+            } else {
+                diary.totals.carbsGrams
+            }
+            FoodRatingFactorUiState(
+                label = "Low-carb focus",
+                valueLabel = "${carbs.formatNutritionDisplay()} / ${carbsGoalGrams.formatNutritionDisplay()} g",
+                explanation = if (carbs <= carbsGoalGrams) {
+                    "Low-carb mode is within today's carb target."
+                } else {
+                    "Low-carb mode is over today's carb target."
+                },
+                tone = if (carbs <= carbsGoalGrams) FoodInsightTone.Positive else FoodInsightTone.Warning,
+            )
+        }
+
+        FoodGoalMode.MuscleGain -> {
+            val calories = diary.totals.caloriesKcal
+            FoodRatingFactorUiState(
+                label = "Muscle gain focus",
+                valueLabel = "${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal",
+                explanation = if (calories >= calorieGoalKcal * 0.85 && diary.totals.proteinGrams >= proteinGoalGrams * 0.9) {
+                    "Muscle Gain mode has enough energy and protein."
+                } else {
+                    "Muscle Gain mode needs more calories or protein."
+                },
+                tone = if (calories >= calorieGoalKcal * 0.85 && diary.totals.proteinGrams >= proteinGoalGrams * 0.9) {
+                    FoodInsightTone.Positive
+                } else {
+                    FoodInsightTone.Warning
+                },
+            )
+        }
+
+        FoodGoalMode.WeightLoss -> {
+            val calories = diary.totals.caloriesKcal
+            FoodRatingFactorUiState(
+                label = "Weight loss focus",
+                valueLabel = "${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal",
+                explanation = if (calories <= calorieGoalKcal && diary.totals.proteinGrams >= proteinGoalGrams * 0.8) {
+                    "Weight Loss mode is controlled without losing protein."
+                } else {
+                    "Weight Loss mode needs tighter calories or more protein."
+                },
+                tone = if (calories <= calorieGoalKcal && diary.totals.proteinGrams >= proteinGoalGrams * 0.8) {
+                    FoodInsightTone.Positive
+                } else {
+                    FoodInsightTone.Warning
+                },
+            )
+        }
+
+        FoodGoalMode.MediterraneanStyle ->
+            FoodRatingFactorUiState(
+                label = "Mediterranean focus",
+                valueLabel = goalMode.label,
+                explanation = "Mediterranean-style mode emphasizes fiber, fish or legumes, and unsaturated fats.",
+                tone = FoodInsightTone.Positive,
+            )
+
+        FoodGoalMode.CleanEating ->
+            FoodRatingFactorUiState(
+                label = "Clean eating focus",
+                valueLabel = goalMode.label,
+                explanation = "Clean Eating mode emphasizes protein, fiber, lower sugar, and calmer sodium.",
+                tone = FoodInsightTone.Positive,
+            )
+
+        FoodGoalMode.Custom ->
+            FoodRatingFactorUiState(
+                label = "Custom focus",
+                valueLabel = goalMode.label,
+                explanation = "Rated against your custom calorie and nutrient targets.",
+                tone = FoodInsightTone.Neutral,
+            )
+
+        FoodGoalMode.Balanced ->
+            FoodRatingFactorUiState(
+                label = "Balanced focus",
+                valueLabel = goalMode.label,
+                explanation = "Balanced mode checks calories, protein, fiber, and sodium together.",
+                tone = FoodInsightTone.Positive,
+            )
+    }
+
+private data class WeeklyScoreFactor(
+    val score: Int,
+    val uiState: FoodRatingFactorUiState,
+)
+
+private fun FoodWeeklySummary.toWeeklyScoreUiState(): FoodWeeklyScoreUiState {
+    val foodTrackedDays = days.filter { day -> day.diary.hasTrackedNutrition() }
+    val hydrationDays = foodTrackedDays.ifEmpty {
+        days.filter { day -> day.water.consumedMilliliters > 0.0 }
+    }
+    if (foodTrackedDays.isEmpty() && hydrationDays.isEmpty()) {
+        return emptyWeeklyScore()
+    }
+
+    val nutritionFactor = buildWeeklyNutritionFactor(foodTrackedDays, goal)
+    val hydrationFactor = buildWeeklyHydrationFactor(hydrationDays)
+    val habitFactor = buildWeeklyHabitFactor(days)
+    val trainingFactor = WeeklyScoreFactor(
+        score = 50,
+        uiState = FoodRatingFactorUiState(
+            label = "Training signal",
+            valueLabel = "Not available",
+            explanation = "Food does not have a weekly training signal connected yet.",
+            tone = FoodInsightTone.Neutral,
+        ),
+    )
+    val factors = listOf(nutritionFactor, hydrationFactor, habitFactor, trainingFactor)
+    val score =
+        (
+            nutritionFactor.score * 0.45 +
+                hydrationFactor.score * 0.30 +
+                habitFactor.score * 0.15 +
+                trainingFactor.score * 0.10
+            ).roundToInt()
+            .coerceIn(0, 100)
+
+    return FoodWeeklyScoreUiState(
+        title = "Weekly MusFit score",
+        score = score,
+        summary = "${foodTrackedDays.size} tracked days in this 7-day window.",
+        suggestion = weeklyScoreSuggestion(nutritionFactor.score, hydrationFactor.score, habitFactor.score),
+        tone = score.toWeeklyScoreTone(),
+        factors = factors.map { factor -> factor.uiState },
+    )
+}
+
+private fun FoodProgressSummary.toProgressStatsUiState(): FoodProgressStatsUiState {
+    val rangeDays = days.take(dayCount)
+    return FoodProgressStatsUiState(
+        weekly = rangeDays.takeLast(7).toProgressPeriodUiState(title = "Last 7 days", goal = goal),
+        monthly = rangeDays.takeLast(28).toProgressPeriodUiState(title = "Last 28 days", goal = goal),
+    )
+}
+
+private fun List<FoodWeeklyDaySummary>.toProgressPeriodUiState(
+    title: String,
+    goal: FoodGoal,
+): FoodProgressPeriodUiState {
+    val trackedDays = filter { day -> day.diary.hasTrackedNutrition() }
+    val trackedCount = trackedDays.size
+    val averageCalories = trackedDays.map { it.diary.totals.caloriesKcal }.averageOrZero()
+    val averageProtein = trackedDays.map { it.diary.totals.proteinGrams }.averageOrZero()
+    val calorieTargetDays =
+        trackedDays.count { day ->
+            day.diary.totals.caloriesKcal >= goal.dailyCaloriesKcal * 0.9 &&
+                day.diary.totals.caloriesKcal <= goal.dailyCaloriesKcal * 1.1
+        }
+    val hydrationDays =
+        trackedDays.count { day ->
+            day.water.goalMilliliters > 0.0 &&
+                day.water.consumedMilliliters >= day.water.goalMilliliters
+        }
+    val habitDays =
+        trackedDays.count { day ->
+            val entries = day.diary.meals.flatMap { meal -> meal.entries }
+            entries.anyHabitKeyword(fruitHabitKeywords) ||
+                entries.anyHabitKeyword(vegetableHabitKeywords) ||
+                entries.anyHabitKeyword(fishHabitKeywords)
+        }
+    return FoodProgressPeriodUiState(
+        title = title,
+        trackedDaysLabel = "$trackedCount tracked days",
+        averageCaloriesLabel = "${averageCalories.roundToInt()} kcal avg",
+        averageProteinLabel = "${averageProtein.roundToInt()} g protein avg",
+        calorieAdherenceLabel = "$calorieTargetDays/$trackedCount calorie target days",
+        hydrationLabel = "$hydrationDays/$trackedCount hydration days",
+        habitLabel = "$habitDays/$trackedCount habit days",
+        trendLabel = trendLabelForCalories(),
+    )
+}
+
+private fun List<FoodWeeklyDaySummary>.trendLabelForCalories(): String {
+    val midpoint = size / 2
+    val firstAverage = take(midpoint).filter { it.diary.hasTrackedNutrition() }.map { it.diary.totals.caloriesKcal }.averageOrNull()
+    val secondAverage = drop(midpoint).filter { it.diary.hasTrackedNutrition() }.map { it.diary.totals.caloriesKcal }.averageOrNull()
+    if (firstAverage == null || secondAverage == null) {
+        return "Trend needs more tracked days"
+    }
+    val difference = secondAverage - firstAverage
+    return when {
+        kotlin.math.abs(difference) < 100.0 -> "Calories stable"
+        difference > 0.0 -> "Calories trending up"
+        else -> "Calories trending down"
+    }
+}
+
+private fun List<Double>.averageOrZero(): Double =
+    averageOrNull() ?: 0.0
+
+private fun List<Double>.averageOrNull(): Double? =
+    if (isEmpty()) null else average()
+
+private fun FoodDiary.hasTrackedNutrition(): Boolean =
+    totals.caloriesKcal > 0.0 ||
+        meals
+            .flatMap { meal -> meal.entries }
+            .any { entry -> entry.status == FoodDiaryEntryStatus.Logged }
+
+private fun buildWeeklyNutritionFactor(days: List<FoodWeeklyDaySummary>, goal: FoodGoal): WeeklyScoreFactor {
+    if (days.isEmpty()) {
+        return WeeklyScoreFactor(
+            score = 0,
+            uiState = FoodRatingFactorUiState(
+                label = "Nutrition consistency",
+                valueLabel = "0%",
+                explanation = "No logged food days in this window.",
+                tone = FoodInsightTone.Warning,
+            ),
+        )
+    }
+
+    val dayScores =
+        days.map { day ->
+            listOf(
+                day.diary.totals.caloriesKcal.weeklyRangeScore(goal.dailyCaloriesKcal, low = 0.8, high = 1.1),
+                day.diary.totals.proteinGrams.weeklyMinimumScore(goal.proteinGrams, soft = 0.7, strong = 0.9),
+                day.diary.detailTotals.fiberGrams.weeklyMinimumScore(goal.fiberGrams, soft = 0.5, strong = 0.8),
+                day.diary.detailTotals.sodiumMilligrams.weeklyLimitScore(goal.sodiumMilligrams, soft = 1.0, high = 1.25),
+            ).average()
+        }
+    val score = dayScores.average().roundToInt().coerceIn(0, 100)
+    return WeeklyScoreFactor(
+        score = score,
+        uiState = FoodRatingFactorUiState(
+            label = "Nutrition consistency",
+            valueLabel = "$score%",
+            explanation = when {
+                score >= 80 -> "Most logged days align with calorie, protein, fiber, and sodium targets."
+                score >= 60 -> "Several logged days are close, with a few nutrition gaps."
+                else -> "Logged days often miss protein, fiber, sodium, or calorie targets."
+            },
+            tone = score.toWeeklyScoreTone(),
+        ),
+    )
+}
+
+private fun buildWeeklyHydrationFactor(days: List<FoodWeeklyDaySummary>): WeeklyScoreFactor {
+    val goal = days.sumOf { day -> day.water.goalMilliliters.coerceAtLeast(0.0) }
+    val consumed = days.sumOf { day -> day.water.consumedMilliliters.coerceAtLeast(0.0) }
+    val score = if (goal > 0.0) {
+        ((consumed / goal).coerceIn(0.0, 1.0) * 100.0).roundToInt()
+    } else {
+        0
+    }
+    return WeeklyScoreFactor(
+        score = score,
+        uiState = FoodRatingFactorUiState(
+            label = "Hydration",
+            valueLabel = "$score%",
+            explanation = when {
+                score >= 90 -> "Water is consistently close to goal on tracked days."
+                score >= 60 -> "Water is partly covered, but there is room to tighten consistency."
+                else -> "Water is a clear weekly opportunity."
+            },
+            tone = score.toWeeklyScoreTone(),
+        ),
+    )
+}
+
+private fun buildWeeklyHabitFactor(days: List<FoodWeeklyDaySummary>): WeeklyScoreFactor {
+    val entries =
+        days
+            .flatMap { day -> day.diary.meals }
+            .flatMap { meal -> meal.entries }
+            .filter { entry -> entry.status == FoodDiaryEntryStatus.Logged }
+    val matchedCount =
+        listOf(
+            entries.anyHabitKeyword(fruitHabitKeywords),
+            entries.anyHabitKeyword(vegetableHabitKeywords),
+            entries.anyHabitKeyword(fishHabitKeywords),
+        ).count { matched -> matched }
+    val score = (matchedCount / 3.0 * 100.0).roundToInt()
+    return WeeklyScoreFactor(
+        score = score,
+        uiState = FoodRatingFactorUiState(
+            label = "Habits",
+            valueLabel = "$matchedCount / 3",
+            explanation = when (matchedCount) {
+                3 -> "Fruit, vegetables, and fish all appeared this week."
+                2 -> "Two weekly food habits appeared."
+                1 -> "One weekly food habit appeared."
+                else -> "Fruit, vegetables, and fish were not detected in logged food names."
+            },
+            tone = score.toWeeklyScoreTone(),
+        ),
+    )
+}
+
+private fun List<FoodDiaryEntry>.anyHabitKeyword(keywords: Set<String>): Boolean =
+    any { entry ->
+        val key = "${entry.name} ${entry.brand.orEmpty()}".lowercase()
+        keywords.any { keyword -> keyword in key }
+    }
+
+private fun Double.weeklyRangeScore(goal: Double, low: Double, high: Double): Double {
+    if (!isFinite() || !goal.isFinite() || goal <= 0.0) {
+        return 0.0
+    }
+    val ratio = this / goal
+    return when {
+        ratio in low..high -> 100.0
+        ratio >= low * 0.75 && ratio <= high * 1.2 -> 70.0
+        else -> 35.0
+    }
+}
+
+private fun Double.weeklyMinimumScore(goal: Double, soft: Double, strong: Double): Double {
+    if (!isFinite() || !goal.isFinite() || goal <= 0.0) {
+        return 0.0
+    }
+    val ratio = this / goal
+    return when {
+        ratio >= strong -> 100.0
+        ratio >= soft -> 70.0
+        else -> (ratio / soft * 50.0).coerceIn(0.0, 50.0)
+    }
+}
+
+private fun Double.weeklyLimitScore(goal: Double, soft: Double, high: Double): Double {
+    if (!isFinite() || !goal.isFinite() || goal <= 0.0) {
+        return 0.0
+    }
+    val ratio = this / goal
+    return when {
+        ratio <= soft -> 100.0
+        ratio <= high -> 70.0
+        else -> 35.0
+    }
+}
+
+private fun weeklyScoreSuggestion(nutritionScore: Int, hydrationScore: Int, habitScore: Int): String =
+    when {
+        hydrationScore < 80 -> "Raise water consistency on tracked days first."
+        nutritionScore < 80 -> "Anchor the week with protein, fiber, and calmer sodium."
+        habitScore < 67 -> "Plan fruit, vegetables, and one fish meal into the week."
+        else -> "Keep this pattern and repeat the strongest logged days."
+    }
+
+private fun Int.toWeeklyScoreTone(): FoodInsightTone =
+    when {
+        this >= 80 -> FoodInsightTone.Positive
+        this >= 50 -> FoodInsightTone.Neutral
+        else -> FoodInsightTone.Warning
+    }
 
 private fun FoodDiaryMeal?.toFoodMealRating(calorieTargetKcal: Double): FoodRatingUiState? {
     val meal = this ?: return null
@@ -4105,14 +5599,240 @@ private fun FoodDiaryMeal?.toFoodMealRating(calorieTargetKcal: Double): FoodRati
         reasons += "This meal is very light."
         suggestions += "Add protein or fiber if you are still hungry."
     }
+    val factors = listOf(
+        FoodRatingFactorUiState(
+            label = "Calories",
+            valueLabel = "${meal.totals.caloriesKcal.roundToInt()} / ${calorieTargetKcal.roundToInt()} kcal",
+            explanation = if (meal.totals.caloriesKcal > calorieTargetKcal * 1.15) {
+                "Above this meal's target."
+            } else {
+                "Reasonable for this meal."
+            },
+            tone = if (meal.totals.caloriesKcal > calorieTargetKcal * 1.15) FoodInsightTone.Warning else FoodInsightTone.Positive,
+        ),
+        FoodRatingFactorUiState(
+            label = "Protein",
+            valueLabel = "${meal.totals.proteinGrams.formatNutritionDisplay()} g",
+            explanation = if (meal.totals.proteinGrams >= 20.0) "Protein anchor is covered." else "Add a protein anchor.",
+            tone = if (meal.totals.proteinGrams >= 20.0) FoodInsightTone.Positive else FoodInsightTone.Warning,
+        ),
+        FoodRatingFactorUiState(
+            label = "Fiber",
+            valueLabel = "${meal.detailTotals.fiberGrams.formatNutritionDisplay()} g",
+            explanation = if (meal.detailTotals.fiberGrams >= 5.0) "Fiber is helpful here." else "Fiber is light.",
+            tone = if (meal.detailTotals.fiberGrams >= 5.0) FoodInsightTone.Positive else FoodInsightTone.Neutral,
+        ),
+        FoodRatingFactorUiState(
+            label = "Sodium",
+            valueLabel = "${meal.detailTotals.sodiumMilligrams.roundToInt()} mg",
+            explanation = if (meal.detailTotals.sodiumMilligrams > 900.0) "High for one meal." else "Not high for one meal.",
+            tone = if (meal.detailTotals.sodiumMilligrams > 900.0) FoodInsightTone.Warning else FoodInsightTone.Positive,
+        ),
+    )
 
     return FoodRatingUiState(
         label = score.toFoodRatingLabel(),
         reason = reasons.firstOrNull() ?: "Protein, fiber, sodium, and calories look balanced.",
         suggestion = suggestions.firstOrNull() ?: "Repeat this structure when it fits your day.",
         tone = score.toFoodRatingTone(),
+        score = score.coerceIn(0, 100),
+        factors = factors,
     )
 }
+
+private fun FoodDiaryEntry.toFoodEntryRating(): FoodRatingUiState? {
+    if (status != FoodDiaryEntryStatus.Logged || caloriesKcal <= 0.0) {
+        return null
+    }
+
+    var score = 100
+    val reasons = mutableListOf<String>()
+    val suggestions = mutableListOf<String>()
+    if (nutritionDetails.sugarGrams > 20.0) {
+        score -= 35
+        reasons += "Sugar is high for one food."
+        suggestions += "Pair it with a lower-sugar choice next."
+    }
+    if (nutritionDetails.sodiumMilligrams > 700.0) {
+        score -= 25
+        reasons += "Sodium is high for one food."
+        suggestions += "Balance it with lower-sodium foods."
+    }
+    if (nutritionDetails.saturatedFatGrams > 7.0) {
+        score -= 20
+        reasons += "Saturated fat is high."
+        suggestions += "Keep the next fat source lighter."
+    }
+    if (caloriesKcal >= 300.0 && proteinGrams < 10.0) {
+        score -= 20
+        reasons += "Calories are not backed by much protein."
+        suggestions += "Add a protein-forward food nearby."
+    }
+    if (caloriesKcal >= 200.0 && nutritionDetails.fiberGrams < 2.0 && carbsGrams > 25.0) {
+        score -= 10
+        reasons += "Fiber is light for the carbs."
+        suggestions += "Add fruit, veg, beans, or whole grains."
+    }
+
+    val factors = listOf(
+        FoodRatingFactorUiState(
+            label = "Protein",
+            valueLabel = "${proteinGrams.formatNutritionDisplay()} g",
+            explanation = if (proteinGrams >= 10.0) "Useful protein contribution." else "Low protein contribution.",
+            tone = if (proteinGrams >= 10.0) FoodInsightTone.Positive else FoodInsightTone.Neutral,
+        ),
+        FoodRatingFactorUiState(
+            label = "Fiber",
+            valueLabel = "${nutritionDetails.fiberGrams.formatNutritionDisplay()} g",
+            explanation = if (nutritionDetails.fiberGrams >= 2.0) "Adds fiber." else "Little fiber.",
+            tone = if (nutritionDetails.fiberGrams >= 2.0) FoodInsightTone.Positive else FoodInsightTone.Neutral,
+        ),
+        FoodRatingFactorUiState(
+            label = "Sugar",
+            valueLabel = "${nutritionDetails.sugarGrams.formatNutritionDisplay()} g",
+            explanation = if (nutritionDetails.sugarGrams > 20.0) "High sugar for one food." else "Sugar is not high.",
+            tone = if (nutritionDetails.sugarGrams > 20.0) FoodInsightTone.Warning else FoodInsightTone.Positive,
+        ),
+        FoodRatingFactorUiState(
+            label = "Sodium",
+            valueLabel = "${nutritionDetails.sodiumMilligrams.roundToInt()} mg",
+            explanation = if (nutritionDetails.sodiumMilligrams > 700.0) "High sodium for one food." else "Sodium is not high.",
+            tone = if (nutritionDetails.sodiumMilligrams > 700.0) FoodInsightTone.Warning else FoodInsightTone.Positive,
+        ),
+    )
+
+    return FoodRatingUiState(
+        label = score.coerceIn(0, 100).toFoodRatingLabel(),
+        reason = reasons.firstOrNull() ?: "This food fits today's pattern well.",
+        suggestion = suggestions.firstOrNull() ?: "Keep it when it supports your meal.",
+        tone = score.coerceIn(0, 100).toFoodRatingTone(),
+        score = score.coerceIn(0, 100),
+        factors = factors,
+    )
+}
+
+private fun buildHabitTrackers(
+    diary: FoodDiary,
+    waterConsumedMilliliters: Double,
+    waterGoalMilliliters: Double,
+): List<FoodHabitTrackerUiState> {
+    val loggedEntries =
+        diary.meals
+            .flatMap { meal -> meal.entries }
+            .filter { entry -> entry.status == FoodDiaryEntryStatus.Logged }
+    val waterProgress = waterConsumedMilliliters.fractionOf(waterGoalMilliliters)
+
+    return listOf(
+        habitFromEntries(
+            id = "fruit",
+            label = "Fruit",
+            entries = loggedEntries,
+            keywords = fruitHabitKeywords,
+            suggestion = "Add fruit as a snack or side.",
+        ),
+        habitFromEntries(
+            id = "vegetables",
+            label = "Vegetables",
+            entries = loggedEntries,
+            keywords = vegetableHabitKeywords,
+            suggestion = "Add vegetables to a meal.",
+        ),
+        habitFromEntries(
+            id = "fish",
+            label = "Fish",
+            entries = loggedEntries,
+            keywords = fishHabitKeywords,
+            suggestion = "Plan fish or seafood this week.",
+        ),
+        FoodHabitTrackerUiState(
+            id = "water",
+            label = "Water",
+            valueLabel = "${waterConsumedMilliliters.roundToInt()} / ${waterGoalMilliliters.roundToInt()} ml",
+            progress = waterProgress,
+            status = when {
+                waterProgress >= 1.0 -> FoodHabitStatus.Complete
+                waterConsumedMilliliters > 0.0 -> FoodHabitStatus.InProgress
+                else -> FoodHabitStatus.Missing
+            },
+            tone = when {
+                waterProgress >= 1.0 -> FoodInsightTone.Positive
+                waterConsumedMilliliters > 0.0 -> FoodInsightTone.Neutral
+                else -> FoodInsightTone.Warning
+            },
+            suggestion = "Keep sipping through the day.",
+        ),
+    )
+}
+
+private fun habitFromEntries(
+    id: String,
+    label: String,
+    entries: List<FoodDiaryEntry>,
+    keywords: Set<String>,
+    suggestion: String,
+): FoodHabitTrackerUiState {
+    val matched = entries.any { entry ->
+        val key = "${entry.name} ${entry.brand.orEmpty()}".lowercase()
+        keywords.any { keyword -> keyword in key }
+    }
+    return FoodHabitTrackerUiState(
+        id = id,
+        label = label,
+        valueLabel = if (matched) "Logged" else "Not yet",
+        progress = if (matched) 1.0 else 0.0,
+        status = if (matched) FoodHabitStatus.Complete else FoodHabitStatus.Missing,
+        tone = if (matched) FoodInsightTone.Positive else FoodInsightTone.Warning,
+        suggestion = if (matched) "Covered today." else suggestion,
+    )
+}
+
+private val fruitHabitKeywords =
+    setOf(
+        "apple",
+        "banana",
+        "berry",
+        "berries",
+        "orange",
+        "fruit",
+        "mango",
+        "grape",
+        "pear",
+        "peach",
+        "pineapple",
+        "melon",
+        "kiwi",
+    )
+
+private val vegetableHabitKeywords =
+    setOf(
+        "vegetable",
+        "vegetables",
+        "salad",
+        "spinach",
+        "broccoli",
+        "carrot",
+        "tomato",
+        "cucumber",
+        "pepper",
+        "kale",
+        "lettuce",
+        "onion",
+        "zucchini",
+    )
+
+private val fishHabitKeywords =
+    setOf(
+        "fish",
+        "salmon",
+        "tuna",
+        "cod",
+        "sardine",
+        "trout",
+        "mackerel",
+        "seafood",
+        "shrimp",
+        "prawn",
+    )
 
 private fun Int.toFoodRatingLabel(): String =
     when {
@@ -4236,6 +5956,7 @@ private fun FoodDiary.toMealSections(
                     proteinContribution = entry.proteinGrams.fractionOf(totals?.proteinGrams ?: 0.0),
                     carbsContribution = entry.carbsGrams.fractionOf(totals?.carbsGrams ?: 0.0),
                     fatContribution = entry.fatGrams.fractionOf(totals?.fatGrams ?: 0.0),
+                    rating = entry.toFoodEntryRating(),
                     isPlanned = entry.status == FoodDiaryEntryStatus.Planned,
                     imageUrl = entry.imageUrl,
                 )
@@ -4251,8 +5972,9 @@ private fun Double.fractionOf(total: Double): Double =
         0.0
     }
 
-private fun SavedFoodItem.toUiState(): SavedFoodUiState {
+private fun SavedFoodItem.toUiState(isReported: Boolean = false): SavedFoodUiState {
     val servingMultiplier = defaultServingGrams / 100.0
+    val sourceLabel = sourceLabel()
     return SavedFoodUiState(
         id = id,
         imageUrl = imageUrl,
@@ -4281,7 +6003,17 @@ private fun SavedFoodItem.toUiState(): SavedFoodUiState {
         barcode = barcode,
         category = category,
         isFavorite = isFavorite,
-        sourceLabel = sourceLabel(),
+        sourceLabel = sourceLabel,
+        trust = buildFoodTrust(
+            sourceLabel = sourceLabel,
+            barcode = barcode,
+            category = category,
+            caloriesPer100g = nutritionPer100g.caloriesKcal,
+            proteinPer100g = nutritionPer100g.proteinGrams,
+            carbsPer100g = nutritionPer100g.carbsGrams,
+            fatPer100g = nutritionPer100g.fatGrams,
+            isReported = isReported,
+        ),
         servings = servings.map { serving ->
             SavedFoodServingUiState(
                 id = serving.id,
@@ -4290,6 +6022,71 @@ private fun SavedFoodItem.toUiState(): SavedFoodUiState {
             )
         },
     )
+}
+
+private fun SavedFoodUiState.withTrust(isReported: Boolean): SavedFoodUiState =
+    copy(
+        trust = buildFoodTrust(
+            sourceLabel = sourceLabel,
+            barcode = barcode,
+            category = category,
+            caloriesPer100g = caloriesPer100g,
+            proteinPer100g = proteinPer100g,
+            carbsPer100g = carbsPer100g,
+            fatPer100g = fatPer100g,
+            isReported = isReported,
+        ),
+    )
+
+private fun buildFoodTrust(
+    sourceLabel: String,
+    barcode: String?,
+    category: String?,
+    caloriesPer100g: Double,
+    proteinPer100g: Double,
+    carbsPer100g: Double,
+    fatPer100g: Double,
+    isReported: Boolean,
+): FoodTrustUiState {
+    val hasNutrition = listOf(caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g).any { it > 0.0 }
+    return when {
+        isReported ->
+            FoodTrustUiState(
+                level = FoodTrustLevel.NeedsReview,
+                label = "Needs review",
+                explanation = "Marked locally for correction. Review serving size and nutrition before relying on it.",
+                actionLabel = "Correct",
+                isReported = true,
+            )
+        !hasNutrition ->
+            FoodTrustUiState(
+                level = FoodTrustLevel.NeedsReview,
+                label = "Missing nutrition",
+                explanation = "This saved food has little nutrition data. Correct it before frequent logging.",
+                actionLabel = "Correct",
+            )
+        category.equals("Nutrition label", ignoreCase = true) ->
+            FoodTrustUiState(
+                level = FoodTrustLevel.NeedsReview,
+                label = "Review label scan",
+                explanation = "Label scans are best-effort. Check extracted values before saving or repeated logging.",
+                actionLabel = "Review",
+            )
+        sourceLabel == "Scanned" || !barcode.isNullOrBlank() ->
+            FoodTrustUiState(
+                level = FoodTrustLevel.Imported,
+                label = "Barcode import",
+                explanation = "Imported from barcode data. Serving size and brand should still be checked.",
+                actionLabel = "Check",
+            )
+        else ->
+            FoodTrustUiState(
+                level = FoodTrustLevel.Manual,
+                label = "Manual entry",
+                explanation = "Created locally. Accuracy depends on the values entered in MusFit.",
+                actionLabel = "Edit",
+            )
+    }
 }
 
 private fun FoodPlanDay.toUiState(): FoodPlanDayUiState =
@@ -4399,6 +6196,76 @@ private fun List<SavedFoodUiState>.toDuplicateFoodGroups(): List<FoodDuplicateGr
 
     return groups
 }
+
+private fun SavedFoodUiState.toBarcodeComparisonItem(): BarcodeComparisonItemUiState =
+    BarcodeComparisonItemUiState(
+        barcode = barcode.orEmpty(),
+        name = name,
+        brand = brand,
+        sourceLabel = "Saved food",
+        caloriesPer100g = caloriesPer100g,
+        proteinPer100g = proteinPer100g,
+        carbsPer100g = carbsPer100g,
+        fatPer100g = fatPer100g,
+        sugarPer100g = sugarPer100g,
+        sodiumMgPer100g = sodiumMgPer100g,
+        imageUrl = imageUrl,
+    )
+
+private fun ProductLookupResult.Found.toBarcodeComparisonItem(): BarcodeComparisonItemUiState =
+    BarcodeComparisonItemUiState(
+        barcode = barcode,
+        name = name,
+        brand = brand,
+        sourceLabel = "Open Food Facts",
+        caloriesPer100g = nutritionPer100g.caloriesKcal,
+        proteinPer100g = nutritionPer100g.proteinGrams,
+        carbsPer100g = nutritionPer100g.carbsGrams,
+        fatPer100g = nutritionPer100g.fatGrams,
+        sugarPer100g = nutritionDetailsPer100g.sugarGrams,
+        sodiumMgPer100g = nutritionDetailsPer100g.sodiumMilligrams,
+        imageUrl = imageUrl,
+    )
+
+private fun buildBarcodeComparisonHighlights(
+    leftItem: BarcodeComparisonItemUiState?,
+    rightItem: BarcodeComparisonItemUiState?,
+): List<BarcodeComparisonHighlightUiState> {
+    if (leftItem == null || rightItem == null) {
+        return emptyList()
+    }
+    return listOf(
+        barcodeComparisonHighlight("Calories", leftItem.caloriesPer100g, rightItem.caloriesPer100g, lowerIsBetter = true, unit = "kcal"),
+        barcodeComparisonHighlight("Protein", leftItem.proteinPer100g, rightItem.proteinPer100g, lowerIsBetter = false, unit = "g"),
+        barcodeComparisonHighlight("Carbs", leftItem.carbsPer100g, rightItem.carbsPer100g, lowerIsBetter = true, unit = "g"),
+        barcodeComparisonHighlight("Fat", leftItem.fatPer100g, rightItem.fatPer100g, lowerIsBetter = true, unit = "g"),
+        barcodeComparisonHighlight("Sugar", leftItem.sugarPer100g, rightItem.sugarPer100g, lowerIsBetter = true, unit = "g"),
+        barcodeComparisonHighlight("Sodium", leftItem.sodiumMgPer100g, rightItem.sodiumMgPer100g, lowerIsBetter = true, unit = "mg"),
+    )
+}
+
+private fun barcodeComparisonHighlight(
+    label: String,
+    leftValue: Double,
+    rightValue: Double,
+    lowerIsBetter: Boolean,
+    unit: String,
+): BarcodeComparisonHighlightUiState =
+    BarcodeComparisonHighlightUiState(
+        label = label,
+        leftValue = leftValue.toComparisonValueLabel(unit),
+        rightValue = rightValue.toComparisonValueLabel(unit),
+        winnerSide = when {
+            leftValue == rightValue -> null
+            lowerIsBetter && leftValue < rightValue -> BarcodeComparisonSide.Left
+            lowerIsBetter -> BarcodeComparisonSide.Right
+            leftValue > rightValue -> BarcodeComparisonSide.Left
+            else -> BarcodeComparisonSide.Right
+        },
+    )
+
+private fun Double.toComparisonValueLabel(unit: String): String =
+    "${formatInputNumber()} $unit"
 
 private fun MealTemplate.toUiState(): MealTemplateUiState =
     MealTemplateUiState(
@@ -4721,6 +6588,55 @@ private fun emptyDailyInsights(): List<FoodInsightUiState> =
             body = "Log a meal, favorite, or quick calories to see today clearly.",
             tone = FoodInsightTone.Neutral,
         ),
+    )
+
+private fun emptyWeeklyScore(): FoodWeeklyScoreUiState =
+    FoodWeeklyScoreUiState(
+        title = "Weekly MusFit score",
+        score = 0,
+        summary = "Log food to build a weekly score.",
+        suggestion = "Track a few meals and water to see weekly patterns.",
+        tone = FoodInsightTone.Neutral,
+        factors = emptyList(),
+    )
+
+private fun emptyProgressStats(): FoodProgressStatsUiState =
+    FoodProgressStatsUiState(
+        weekly = emptyProgressPeriod("Last 7 days"),
+        monthly = emptyProgressPeriod("Last 28 days"),
+    )
+
+private fun emptyProgressPeriod(title: String): FoodProgressPeriodUiState =
+    FoodProgressPeriodUiState(
+        title = title,
+        trackedDaysLabel = "0 tracked days",
+        averageCaloriesLabel = "0 kcal avg",
+        averageProteinLabel = "0 g protein avg",
+        calorieAdherenceLabel = "0/0 calorie target days",
+        hydrationLabel = "0/0 hydration days",
+        habitLabel = "0/0 habit days",
+        trendLabel = "Trend needs more tracked days",
+    )
+
+private fun emptyFoodPrograms(): List<FoodProgramUiState> =
+    buildFoodProgramUiStates(FoodGoalMode.Balanced)
+
+private fun emptyRecipeDiscoveryItems(): List<RecipeDiscoveryItemUiState> =
+    buildRecipeDiscoveryItems(emptyList(), FoodGoalMode.Balanced)
+
+private fun emptyFoodTrust(): FoodTrustUiState =
+    FoodTrustUiState(
+        level = FoodTrustLevel.Manual,
+        label = "Manual entry",
+        explanation = "Created locally. Accuracy depends on the values entered in MusFit.",
+        actionLabel = "Edit",
+    )
+
+private fun emptyHabitTrackers(): List<FoodHabitTrackerUiState> =
+    buildHabitTrackers(
+        diary = emptyFoodDiary(),
+        waterConsumedMilliliters = 0.0,
+        waterGoalMilliliters = WATER_GOAL_MILLILITERS,
     )
 
 private fun emptyFoodRating(): FoodRatingUiState =

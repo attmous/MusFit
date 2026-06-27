@@ -6,9 +6,35 @@ data class ParsedNutritionLabel(
     val proteinGrams: Double? = null,
     val carbsGrams: Double? = null,
     val fatGrams: Double? = null,
+    val fiberGrams: Double? = null,
+    val sugarGrams: Double? = null,
+    val saturatedFatGrams: Double? = null,
+    val sodiumMilligrams: Double? = null,
 ) {
     val hasAnyValue: Boolean
-        get() = listOfNotNull(caloriesKcal, proteinGrams, carbsGrams, fatGrams).isNotEmpty()
+        get() = parsedFieldCount > 0
+
+    val parsedFieldCount: Int
+        get() =
+            listOfNotNull(
+                caloriesKcal,
+                proteinGrams,
+                carbsGrams,
+                fatGrams,
+                fiberGrams,
+                sugarGrams,
+                saturatedFatGrams,
+                sodiumMilligrams,
+            ).size
+
+    val confidenceLabel: String
+        get() =
+            when {
+                parsedFieldCount >= 7 -> "Strong parse"
+                parsedFieldCount >= 4 -> "Partial parse"
+                parsedFieldCount > 0 -> "Low parse"
+                else -> "No parse"
+            }
 }
 
 /**
@@ -27,6 +53,10 @@ object NutritionLabelParser {
             proteinGrams = firstNumberOnLineMatching(lines, listOf("protein", "eiwei")),
             carbsGrams = firstNumberOnLineMatching(lines, listOf("carbohydrate", "kohlenhydrate", "carbs")),
             fatGrams = totalFat(lines),
+            fiberGrams = firstNumberOnLineMatching(lines, listOf("fibre", "fiber", "ballast")),
+            sugarGrams = firstNumberOnLineMatching(lines, listOf("sugar", "zucker")),
+            saturatedFatGrams = firstNumberOnLineMatching(lines, listOf("satur", "gesatt", "gesÃ¤tt")),
+            sodiumMilligrams = sodium(lines),
         )
     }
 
@@ -50,6 +80,12 @@ object NutritionLabelParser {
     }
 
     private fun firstNumber(line: String): Double? = NUMBER.find(line)?.value?.toNum()
+
+    private fun sodium(lines: List<String>): Double? {
+        val line = lines.firstOrNull { "sodium" in it.lowercase() } ?: return null
+        val value = firstNumber(line) ?: return null
+        return if ("mg" in line.lowercase()) value else value * 1000.0
+    }
 
     private fun String.toNum(): Double? = replace(',', '.').toDoubleOrNull()
 }

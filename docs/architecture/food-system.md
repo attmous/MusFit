@@ -13,7 +13,7 @@ It complements, and does not duplicate, the cross-cutting docs:
 - [Data models](data-models.md) — Room entities, repository models, and enums
   (the canonical model reference; not repeated here).
 
-Snapshot date: 2026-06-22. Schema version 21.
+Snapshot date: 2026-06-28. Schema version 21.
 
 ## Where Food lives
 
@@ -43,36 +43,73 @@ than introducing parallel ViewModels.
 
 **Diary (home).** Date navigation, planning mode, calorie ring, macro progress,
 advanced-nutrient and micronutrient progress, meal sections (default + custom),
-per-item macro rows, deterministic daily insights, a day-rating card, and a
-7-day plan strip.
+per-item macro rows, deterministic daily insights, day/meal/per-food ratings
+with factor drill-down, a weekly MusFit score, derived daily habit trackers, and
+a 7-day plan strip.
 
 **Add flow (`FoodAddMode`).** Saved (recents, same-as-yesterday, favorites,
 templates, recipes), Manual, Barcode (Open Food Facts lookup → edit → save and/or
-log), Quick calories (with favorite presets), and an AI shell. "Keep adding"
-mode keeps the sheet open after each log.
+log), Quick calories (with favorite presets), and AI text logging. AI text uses
+a deterministic local estimator for simple descriptions and always opens an
+editable review draft before logging. "Keep adding" mode keeps the sheet open
+after each log.
 
 **Saved food database.** Full editor (name, brand, barcode, category, favorite,
 per-100 g vs per-serving, custom servings, full macros + micros, delete,
 duplicate), local search, online search/import, duplicate detection + merge, and
-starter-food import.
+starter-food import. Saved foods expose local trust/source guidance
+(`FoodTrustUiState`) for barcode imports, manual entries, nutrition-label scans,
+and user-reported review needs. Reporting is local UI state; correction reuses
+the saved-food editor and repository upsert path. The database also exposes a
+barcode comparison sheet (`BarcodeComparisonUiState`) that compares two saved or
+Open Food Facts barcode products side by side using per-100 g calories, macros,
+sugar, and sodium.
 
 **Servings.** Per-food default plus custom units (label ↔ grams), with a live
 amount-based nutrition preview.
 
-**Recipes v2.** Ingredients, serving units, cooked yield, auto per-serving
-nutrition, edit/duplicate/delete/favorite, and fractional-serving logging.
+**Recipes v2 and discovery.** Ingredients, serving units, cooked yield, auto
+per-serving nutrition, edit/duplicate/delete/favorite, and fractional-serving
+logging. The recipe sheet also includes a local discovery catalog layered in the
+ViewModel/UI, with filters for high protein, low carb, vegetarian, quick,
+favorites, and selected-program relevance. Saved recipes are reused as catalog
+items via `RecipeUiState`; curated ideas prefill the existing recipe editor for
+review before saving.
 
 **Meal templates v2.** Editable items, duplicate/favorite, "save current meal as
 template", and log-to-any-meal.
 
 **Custom meals.** Rename, optional time, reorder.
 
-**Goals.** Calorie + macro + advanced-nutrient targets, diet modes
-(`FoodGoalMode`), include-training-calories, and a net-carbs toggle.
+**Goals and programs.** Calorie + macro + advanced-nutrient targets, diet modes
+(`FoodGoalMode`), include-training-calories, and a net-carbs toggle. The goals
+sheet also exposes a local program catalog: Balanced, High Protein, Muscle Gain,
+Weight Loss, Keto Low Carb, Mediterranean-style, and Clean Eating. Applying a
+program persists the matching `FoodGoal` targets and shows suggested habits and
+meal-planning guidance.
 
 **Planning, shopping, water.** Planned-vs-logged state, copy day/meal, shopping
 list generated from planned meals (grouped, checkable, manual adds), and water
 tracking with a goal.
+
+**Fasting.** A local-first fasting timer panel (`FastingTimerUiState`) exposes
+12:12, 14:10, 16:8, and custom 24-hour split programs. It stores only current
+UI state for the MVP: selected plan, start time, derived fasting/eating windows,
+and progress as the fast-hours share of the day.
+
+**Quality, habits, and weekly score.** Ratings remain deterministic/local-first.
+Day and meal ratings expose calorie, protein, fiber, sodium, and diet-mode
+factors; logged foods get compact quality ratings; fruit, vegetable, fish, and
+water habits are derived from today's diary and water progress. The weekly
+MusFit score combines seven-day nutrition consistency, tracked-day hydration,
+weekly fruit/vegetable/fish habit coverage, and a neutral training factor until
+Food has a real weekly training/Health Connect signal. The range is the
+selected date's trailing seven-day window.
+
+**Progress stats.** `FoodProgressSummary` reuses the range diary/water queries
+for 28-day local history. `FoodProgressStatsUiState` derives weekly and monthly
+cards with tracked days, average calories/protein, calorie-target adherence,
+hydration adherence, habit coverage, and calorie trend labels.
 
 **Health Connect.** Food/hydration export with a sync-state card.
 
@@ -80,8 +117,23 @@ tracking with a goal.
 delete, copy/move entries, and mark planned → logged.
 
 **Shells (intentional).** Nutrition-label OCR is a camera + ML Kit feed into a
-best-effort `NutritionLabelParser` (always reviewed before save); AI voice/photo
-logging are UX shells. Cloud AI is out of scope (local-first).
+best-effort `NutritionLabelParser` that extracts calories, macros, fiber, sugar,
+saturated fat, and sodium when present, then exposes a confidence label and
+parsed-field count for review before save/log. AI voice/photo logging are UX
+shells. Cloud AI is out of scope (local-first).
+
+## Remaining Food work
+
+The Lifesum-style Food parity loop is closed. Remaining Food work is intentionally
+limited to hardening and explicitly deferred local-first scope:
+
+- AI voice/photo logging remain UX shells; cloud AI stays out of scope.
+- Nutrition-label OCR parsing is best-effort and always review-before-save/log.
+- Weekly MusFit score uses a neutral training factor until a real weekly
+  Training/Health Connect signal is connected.
+- Food trust reports are local UI state, not a persisted review queue.
+- Fasting timer state is MVP-local UI state; notifications and fasting history
+  are out of scope for this loop.
 
 ## State-driven navigation
 
@@ -118,18 +170,26 @@ table):
 
 - Date / loading / message
 - Diary summary (eaten/remaining, macro + advanced + micronutrient progress,
-  insights, rating)
+  insights, rating, weekly score, progress stats, quality factors, habit
+  trackers)
 - Meals (sections, definitions, selected detail, sort)
 - Planning (weekly plan, planning mode)
 - Add flow (panel visibility, sheet mode, add mode, add tab, keep-adding,
-  recents, same-as-yesterday, database query)
+  recents, same-as-yesterday, database query, local AI draft review, nutrition
+  label scan review)
 - Barcode / manual draft (barcode, name, brand, per-100 g macros, quantity,
   lookup result, amount preview, serving choices)
-- Saved foods (all, visible, duplicates, detail) **+ saved-food editor inputs**
+- Saved foods (all, visible, duplicates, detail, trust state, local review flags)
+  **+ saved-food editor inputs**
+- Barcode comparison (`BarcodeComparisonUiState`, loaded comparison items,
+  nutrient highlights)
+- Fasting timer (`FastingTimerUiState`, preset/custom program inputs)
 - **Diary entry editor inputs**
 - **Recipe editor inputs**
+- Recipe discovery (`RecipeDiscoveryItemUiState`, `RecipeDiscoveryFilter`)
 - **Meal template editor inputs**
 - **Goal editor inputs**
+- Program catalog (`FoodProgramUiState`) derived from local goal presets
 - **Custom meal definition editor inputs**
 - Quick calories, water, shopping, Health Connect sync
 
@@ -144,9 +204,11 @@ Pure, Android-free calculators (see [data-models.md](data-models.md#domain-model
   amount-preview and progress-accumulation math currently inlined in the
   ViewModel** (Tier 1).
 - `domain/food/NutritionLabelParser` — best-effort OCR parsing.
-- Planned (Tier 1): `domain/food/DiaryInsightsCalculator` and
-  `domain/food/DayRatingCalculator` for the currently in-ViewModel
-  `buildDailyInsights` / `buildDayRating` heuristics.
+- Parser output includes label calories, macros, selected advanced nutrients,
+  parsed-field count, and a confidence label.
+- Planned (Tier 1): a `ui/food` presentation-calculator extraction for the
+  currently in-ViewModel `buildDailyInsights`, `buildDayRating`, and weekly
+  score heuristics.
 
 ## Testing
 

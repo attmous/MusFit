@@ -254,6 +254,7 @@ internal fun FoodDatabasePanel(
     onSearchChanged: (String) -> Unit,
     onSearchOnlineClick: () -> Unit,
     onNewFoodClick: () -> Unit,
+    onBarcodeCompareClick: () -> Unit,
     onOpenFoodDetailClick: (String) -> Unit,
     onEditFoodClick: (String) -> Unit,
     onSaveOnlineFoodClick: (String) -> Unit,
@@ -261,6 +262,7 @@ internal fun FoodDatabasePanel(
     onNutritionLabelScanClick: () -> Unit,
     onMergeDuplicateFoodsClick: (String, List<String>) -> Unit,
     onFavoriteClick: (String, Boolean) -> Unit,
+    onReportFoodClick: (String) -> Unit,
 ) {
     val foods = state.visibleSavedFoods
     Column(
@@ -298,6 +300,10 @@ internal fun FoodDatabasePanel(
 
         OutlinedButton(onClick = onImportStarterFoodsClick, modifier = Modifier.fillMaxWidth()) {
             Text("Import starter foods")
+        }
+
+        OutlinedButton(onClick = onBarcodeCompareClick, modifier = Modifier.fillMaxWidth()) {
+            Text("Compare barcodes")
         }
 
         OutlinedTextField(
@@ -375,6 +381,238 @@ internal fun FoodDatabasePanel(
                     onDetailClick = { onOpenFoodDetailClick(food.id) },
                     onEditClick = { onEditFoodClick(food.id) },
                     onFavoriteClick = { onFavoriteClick(food.id, !food.isFavorite) },
+                    onReportClick = { onReportFoodClick(food.id) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun FastingTimerPanel(
+    state: FoodUiState,
+    onProgramSelected: (String) -> Unit,
+    onStartTimeChanged: (String) -> Unit,
+    onCustomFastingChanged: (String) -> Unit,
+    onCustomEatingChanged: (String) -> Unit,
+    onApplyCustomClick: () -> Unit,
+) {
+    val timer = state.fastingTimer
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 640.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Fasting timer", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                text = timer.statusLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+        }
+
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            timer.programs.forEach { program ->
+                FilterChip(
+                    selected = program.isSelected,
+                    onClick = { onProgramSelected(program.id) },
+                    label = { Text(program.title) },
+                )
+            }
+        }
+
+        Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Today", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                ProgressBar(progress = timer.progress.toFloat(), color = MusFitTheme.colors.brand)
+                NutritionFactRow("Fast", timer.fastingWindowLabel, "Fasting window")
+                NutritionFactRow("Eat", timer.eatingWindowLabel, "Eating window")
+            }
+        }
+
+        OutlinedTextField(
+            value = timer.fastingStartInput,
+            onValueChange = onStartTimeChanged,
+            label = { Text("Fast starts") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Custom split", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = timer.customFastingHoursInput,
+                        onValueChange = onCustomFastingChanged,
+                        label = { Text("Fast h") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = timer.customEatingHoursInput,
+                        onValueChange = onCustomEatingChanged,
+                        label = { Text("Eat h") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Button(
+                    onClick = onApplyCustomClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+                ) {
+                    Text("Apply custom")
+                }
+            }
+        }
+
+        state.message?.let { message ->
+            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+internal fun BarcodeComparisonPanel(
+    state: FoodUiState,
+    onBarcodeChanged: (BarcodeComparisonSide, String) -> Unit,
+    onCompareClick: () -> Unit,
+) {
+    val comparison = state.barcodeComparison
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 640.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Barcode comparison", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                text = "Compare saved foods or Open Food Facts products per 100 g.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = comparison.leftBarcodeInput,
+                onValueChange = { onBarcodeChanged(BarcodeComparisonSide.Left, it) },
+                label = { Text("Left barcode") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = comparison.rightBarcodeInput,
+                onValueChange = { onBarcodeChanged(BarcodeComparisonSide.Right, it) },
+                label = { Text("Right barcode") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Button(
+            onClick = onCompareClick,
+            enabled = !state.isBarcodeComparisonLoading,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+        ) {
+            Text(if (state.isBarcodeComparisonLoading) "Comparing" else "Compare")
+        }
+
+        state.message?.let { message ->
+            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BarcodeComparisonItemCard(
+                title = "Left",
+                item = comparison.leftItem,
+                modifier = Modifier.weight(1f),
+            )
+            BarcodeComparisonItemCard(
+                title = "Right",
+                item = comparison.rightItem,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        if (comparison.highlights.isNotEmpty()) {
+            Text("Per 100 g comparison", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            comparison.highlights.forEach { highlight ->
+                Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(highlight.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "${highlight.leftValue} / ${highlight.rightValue}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                        Text(
+                            text = when (highlight.winnerSide) {
+                                BarcodeComparisonSide.Left -> "Left"
+                                BarcodeComparisonSide.Right -> "Right"
+                                null -> "Even"
+                            },
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MusFitTheme.colors.brand,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BarcodeComparisonItemCard(
+    title: String,
+    item: BarcodeComparisonItemUiState?,
+    modifier: Modifier = Modifier,
+) {
+    Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small, modifier = modifier) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = MaterialTheme.typography.labelLarge, color = MusFitTheme.colors.brand)
+            if (item == null) {
+                Text(
+                    text = "No product loaded",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            } else {
+                Text(item.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = listOfNotNull(item.sourceLabel, item.brand, item.barcode).joinToString(" - "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${item.caloriesPer100g.formatNutritionDisplay()} kcal - P ${item.proteinPer100g.formatNutritionDisplay()} - C ${item.carbsPer100g.formatNutritionDisplay()} - F ${item.fatPer100g.formatNutritionDisplay()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -473,6 +711,7 @@ private fun SavedFoodDatabaseRow(
     onDetailClick: () -> Unit,
     onEditClick: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onReportClick: () -> Unit,
 ) {
     Surface(
         color = MusFitTheme.colors.surfaceVariant,
@@ -496,7 +735,7 @@ private fun SavedFoodDatabaseRow(
                 )
                 Text(
                     text = listOfNotNull(
-                        food.sourceLabel,
+                        food.trust.label,
                         food.brand,
                         "${food.defaultServingGrams.roundToInt()} g",
                         "${food.caloriesPerServingKcal.roundToInt()} kcal",
@@ -510,6 +749,9 @@ private fun SavedFoodDatabaseRow(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = onFavoriteClick) {
                     Text(if (food.isFavorite) "Starred" else "Star")
+                }
+                OutlinedButton(onClick = onReportClick) {
+                    Text("Report")
                 }
                 OutlinedButton(onClick = onDetailClick) {
                     Text("Detail")
@@ -528,6 +770,8 @@ internal fun FoodDetailPanel(
     onEditClick: () -> Unit,
     onLogClick: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onReportClick: () -> Unit,
+    onCorrectClick: () -> Unit,
 ) {
     val food = state.selectedSavedFoodDetail
     Column(
@@ -573,6 +817,21 @@ internal fun FoodDetailPanel(
                 NutritionFactRow("Sugar", "${food.sugarPer100g.roundToInt()} g", "per 100 g")
                 NutritionFactRow("Sat fat", "${food.saturatedFatPer100g.roundToInt()} g", "per 100 g")
                 NutritionFactRow("Sodium", "${food.sodiumMgPer100g.roundToInt()} mg", "per 100 g")
+            }
+        }
+
+        Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Trust and source", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                NutritionFactRow(food.trust.label, food.sourceLabel, food.trust.explanation)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onReportClick, modifier = Modifier.weight(1f)) {
+                        Text(if (food.trust.isReported) "Reported" else "Report")
+                    }
+                    OutlinedButton(onClick = onCorrectClick, modifier = Modifier.weight(1f)) {
+                        Text(food.trust.actionLabel)
+                    }
+                }
             }
         }
 
@@ -1385,6 +1644,7 @@ internal fun GoalEditorPanel(
     onModeChanged: (FoodGoalMode) -> Unit,
     onTrainingChanged: (Boolean) -> Unit,
     onNetCarbsChanged: (Boolean) -> Unit,
+    onProgramApply: (String) -> Unit,
     onSaveClick: () -> Unit,
 ) {
     Column(
@@ -1396,6 +1656,12 @@ internal fun GoalEditorPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text("Nutrition goals", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        FoodProgramCatalog(
+            programs = state.foodPrograms,
+            isSaving = state.isSaving,
+            onProgramApply = onProgramApply,
+        )
+        HorizontalDivider(color = MusFitTheme.colors.outline)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             SmallNumberField("Calories", state.goalEditor.caloriesKcalInput, onCaloriesChanged, Modifier.weight(1f))
             SmallNumberField("Protein", state.goalEditor.proteinGramsInput, onProteinChanged, Modifier.weight(1f))
@@ -1450,6 +1716,93 @@ internal fun GoalEditorPanel(
 }
 
 @Composable
+private fun FoodProgramCatalog(
+    programs: List<FoodProgramUiState>,
+    isSaving: Boolean,
+    onProgramApply: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = "Programs",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MusFitTheme.colors.brandInk,
+        )
+        programs.forEach { program ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = if (program.isSelected) MusFitTheme.colors.brand.copy(alpha = 0.08f) else MusFitTheme.colors.surface,
+                shape = MusFitTheme.shapes.small,
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = program.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MusFitTheme.colors.brandInk,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = program.subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MusFitTheme.colors.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = { onProgramApply(program.id) },
+                            enabled = !isSaving && !program.isSelected,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Text(if (program.isSelected) "Active" else "Apply")
+                        }
+                    }
+                    Text(
+                        text = program.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = program.macroTargetsLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MusFitTheme.colors.brand,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "Habits: ${program.suggestedHabits.joinToString(", ")}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "Plan: ${program.mealPlanningTip}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 internal fun RecipeEditorPanel(
     state: FoodUiState,
     onNameChanged: (String) -> Unit,
@@ -1464,6 +1817,8 @@ internal fun RecipeEditorPanel(
     onEditRecipeClick: (String) -> Unit,
     onDuplicateRecipeClick: (String) -> Unit,
     onFavoriteClick: (String, Boolean) -> Unit,
+    onDiscoveryFilterChanged: (RecipeDiscoveryFilter) -> Unit,
+    onDiscoveryItemClick: (String) -> Unit,
     onSaveClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
@@ -1477,6 +1832,13 @@ internal fun RecipeEditorPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(if (editor.editingRecipeId == null) "Recipe" else "Edit recipe", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        if (editor.editingRecipeId == null) {
+            RecipeDiscoveryCatalog(
+                state = state,
+                onFilterChanged = onDiscoveryFilterChanged,
+                onItemClick = onDiscoveryItemClick,
+            )
+        }
         if (state.recipes.isNotEmpty() && editor.editingRecipeId == null) {
             Text("Saved recipes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             state.recipes.forEach { recipe ->
@@ -1615,6 +1977,87 @@ internal fun RecipeEditorPanel(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
             ) {
                 Text("Delete recipe")
+            }
+        }
+    }
+}
+
+private val RecipeDiscoveryFilter.label: String
+    get() =
+        when (this) {
+            RecipeDiscoveryFilter.All -> "All"
+            RecipeDiscoveryFilter.HighProtein -> "High protein"
+            RecipeDiscoveryFilter.LowCarb -> "Low carb"
+            RecipeDiscoveryFilter.Vegetarian -> "Vegetarian"
+            RecipeDiscoveryFilter.Quick -> "Quick"
+            RecipeDiscoveryFilter.Favorites -> "Favorites"
+            RecipeDiscoveryFilter.Program -> "Program"
+        }
+
+@Composable
+private fun RecipeDiscoveryCatalog(
+    state: FoodUiState,
+    onFilterChanged: (RecipeDiscoveryFilter) -> Unit,
+    onItemClick: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Recipe discovery", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RecipeDiscoveryFilter.entries.forEach { filter ->
+                FilterChip(
+                    selected = state.recipeDiscoveryFilter == filter,
+                    onClick = { onFilterChanged(filter) },
+                    label = { Text(filter.label) },
+                )
+            }
+        }
+        if (state.visibleRecipeDiscoveryItems.isEmpty()) {
+            Text(
+                text = "No recipes match this filter yet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+        } else {
+            state.visibleRecipeDiscoveryItems.take(8).forEach { item ->
+                Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                text = item.subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MusFitTheme.colors.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = "${item.caloriesKcal.formatNutritionDisplay()} kcal - P ${item.proteinGrams.formatNutritionDisplay()} - C ${item.carbsGrams.formatNutritionDisplay()} - F ${item.fatGrams.formatNutritionDisplay()}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MusFitTheme.colors.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (item.tagLabels.isNotEmpty()) {
+                                Text(
+                                    text = item.tagLabels.joinToString(" - "),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MusFitTheme.colors.brand,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        Button(onClick = { onItemClick(item.id) }, modifier = Modifier.width(96.dp)) {
+                            Text(if (item.isSavedRecipe) "Log" else "Use")
+                        }
+                    }
+                }
             }
         }
     }

@@ -7,6 +7,7 @@ import com.musfit.data.local.dao.FoodDiaryEntryRow
 import com.musfit.data.local.dao.MealNutritionRow
 import com.musfit.data.local.dao.MealTemplateItemRow
 import com.musfit.data.local.dao.RecipeIngredientRow
+import com.musfit.data.local.dao.WaterTotalRow
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
@@ -233,6 +234,25 @@ data class FoodWaterSummary(
     val goalMilliliters: Double,
 )
 
+data class FoodWeeklyDaySummary(
+    val date: LocalDate,
+    val diary: FoodDiary,
+    val water: FoodWaterSummary,
+)
+
+data class FoodWeeklySummary(
+    val startDate: LocalDate,
+    val days: List<FoodWeeklyDaySummary>,
+    val goal: FoodGoal,
+)
+
+data class FoodProgressSummary(
+    val startDate: LocalDate,
+    val dayCount: Int,
+    val days: List<FoodWeeklyDaySummary>,
+    val goal: FoodGoal,
+)
+
 data class FoodHealthConnectSyncState(
     val isEnabled: Boolean = false,
     val availability: HealthConnectAvailability = HealthConnectAvailability.NotSupported,
@@ -256,6 +276,8 @@ enum class FoodGoalMode {
     KetoLowCarb,
     MuscleGain,
     WeightLoss,
+    MediterraneanStyle,
+    CleanEating,
     Custom,
 }
 
@@ -460,6 +482,12 @@ interface FoodRepository {
     fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
         flowOf(FoodWaterSummary(date, 0.0, DEFAULT_WATER_GOAL_MILLILITERS))
 
+    fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> =
+        flowOf(FoodWeeklySummary(startDate = startDate, days = emptyList(), goal = DEFAULT_REPOSITORY_FOOD_GOAL))
+
+    fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> =
+        flowOf(FoodProgressSummary(startDate = startDate, dayCount = dayCount, days = emptyList(), goal = DEFAULT_REPOSITORY_FOOD_GOAL))
+
     suspend fun logWater(input: WaterLogInput): String = ""
 
     suspend fun updateWaterGoal(goalMilliliters: Double) = Unit
@@ -577,6 +605,50 @@ class LocalFoodRepository @Inject constructor(
             endEpochDay = endDate.toEpochDay(),
         ).map { rows ->
             rows.toFoodPlanDays(startDate)
+        }
+    }
+
+    override fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> {
+        val endDate = startDate.plusDays(6)
+        return combine(
+            foodDao.observeFoodDiaryEntryRowsForDateRange(
+                startEpochDay = startDate.toEpochDay(),
+                endEpochDay = endDate.toEpochDay(),
+            ),
+            foodDao.observeWaterTotalsForDateRange(
+                startEpochDay = startDate.toEpochDay(),
+                endEpochDay = endDate.toEpochDay(),
+            ),
+            observeFoodGoal(),
+        ) { rows, waterRows, goal ->
+            rows.toFoodWeeklySummary(
+                startDate = startDate,
+                waterRows = waterRows,
+                goal = goal,
+            )
+        }
+    }
+
+    override fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> {
+        val safeDayCount = dayCount.coerceAtLeast(1)
+        val endDate = startDate.plusDays((safeDayCount - 1).toLong())
+        return combine(
+            foodDao.observeFoodDiaryEntryRowsForDateRange(
+                startEpochDay = startDate.toEpochDay(),
+                endEpochDay = endDate.toEpochDay(),
+            ),
+            foodDao.observeWaterTotalsForDateRange(
+                startEpochDay = startDate.toEpochDay(),
+                endEpochDay = endDate.toEpochDay(),
+            ),
+            observeFoodGoal(),
+        ) { rows, waterRows, goal ->
+            rows.toFoodProgressSummary(
+                startDate = startDate,
+                dayCount = safeDayCount,
+                waterRows = waterRows,
+                goal = goal,
+            )
         }
     }
 
@@ -2117,6 +2189,53 @@ private fun List<FoodDiaryEntryRow>.toFoodPlanDays(startDate: LocalDate): List<F
             plannedTotals = plannedEntries.calculateTotals(),
             loggedEntryCount = loggedEntries.size,
             plannedEntryCount = plannedEntries.size,
+        )
+    }
+}
+
+private fun List<FoodDiaryEntryRow>.toFoodWeeklySummary(
+    startDate: LocalDate,
+    waterRows: List<WaterTotalRow>,
+    goal: FoodGoal,
+): FoodWeeklySummary =
+    FoodWeeklySummary(
+        startDate = startDate,
+        days = toFoodRangeDaySummaries(startDate = startDate, dayCount = 7, waterRows = waterRows, goal = goal),
+        goal = goal,
+    )
+
+private fun List<FoodDiaryEntryRow>.toFoodProgressSummary(
+    startDate: LocalDate,
+    dayCount: Int,
+    waterRows: List<WaterTotalRow>,
+    goal: FoodGoal,
+): FoodProgressSummary =
+    FoodProgressSummary(
+        startDate = startDate,
+        dayCount = dayCount,
+        days = toFoodRangeDaySummaries(startDate = startDate, dayCount = dayCount, waterRows = waterRows, goal = goal),
+        goal = goal,
+    )
+
+private fun List<FoodDiaryEntryRow>.toFoodRangeDaySummaries(
+    startDate: LocalDate,
+    dayCount: Int,
+    waterRows: List<WaterTotalRow>,
+    goal: FoodGoal,
+): List<FoodWeeklyDaySummary> {
+    val rowsByDate = groupBy { row -> row.dateEpochDay }
+    val waterByDate = waterRows.associateBy { row -> row.dateEpochDay }
+    return (0 until dayCount).map { offset ->
+        val date = startDate.plusDays(offset.toLong())
+        val epochDay = date.toEpochDay()
+        FoodWeeklyDaySummary(
+            date = date,
+            diary = rowsByDate[epochDay].orEmpty().toFoodDiary(),
+            water = FoodWaterSummary(
+                date = date,
+                consumedMilliliters = waterByDate[epochDay]?.consumedMilliliters ?: 0.0,
+                goalMilliliters = goal.waterGoalMilliliters,
+            ),
         )
     }
 }

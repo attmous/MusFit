@@ -639,13 +639,24 @@ private fun AiLoggingForm(
                 shape = MusFitTheme.shapes.small,
                 color = MusFitTheme.colors.positiveContainer,
             ) {
-                Text(
-                    text = "${state.aiLoggingDraftSourceLabel ?: "AI"} draft",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MusFitTheme.colors.brandInk,
+                Column(
                     modifier = Modifier.padding(12.dp),
-                )
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "${state.aiLoggingDraftSourceLabel ?: "AI"} draft",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MusFitTheme.colors.brandInk,
+                    )
+                    state.aiLoggingDraftReview?.let { review ->
+                        Text(
+                            text = review,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    }
+                }
             }
             ProductFields(
                 state = state,
@@ -764,6 +775,8 @@ private fun BarcodeFoodForm(
             BarcodeLookupSummary(state = state)
         }
 
+        NutritionLabelScanReview(state = state)
+
         ProductFields(
             state = state,
             onProductNameChanged = onProductNameChanged,
@@ -850,6 +863,50 @@ private fun BarcodeLookupSummary(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+    }
+}
+
+@Composable
+private fun NutritionLabelScanReview(
+    state: FoodUiState,
+) {
+    val review = state.nutritionLabelScanReview ?: return
+    val parsedDetails = listOfNotNull(
+        state.fiberPer100g.takeIf { it.isNotBlank() }?.let { "Fiber $it g" },
+        state.sugarPer100g.takeIf { it.isNotBlank() }?.let { "Sugar $it g" },
+        state.saturatedFatPer100g.takeIf { it.isNotBlank() }?.let { "Sat fat $it g" },
+        state.sodiumMgPer100g.takeIf { it.isNotBlank() }?.let { "Sodium $it mg" },
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MusFitTheme.shapes.small,
+        color = MusFitTheme.colors.positiveContainer,
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = review.confidenceLabel,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.brandInk,
+            )
+            Text(
+                text = "${review.parsedFieldCount} fields found. Review before saving.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+            if (parsedDetails.isNotEmpty()) {
+                Text(
+                    text = parsedDetails.joinToString("  |  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

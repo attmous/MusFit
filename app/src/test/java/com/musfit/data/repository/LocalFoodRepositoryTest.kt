@@ -836,7 +836,7 @@ class LocalFoodRepositoryTest {
                 sugarGrams = 60.0,
                 saturatedFatGrams = 22.0,
                 sodiumMilligrams = 2300.0,
-                mode = FoodGoalMode.HighProtein,
+                mode = FoodGoalMode.MediterraneanStyle,
                 includeTrainingCalories = true,
                 useNetCarbs = true,
             ),
@@ -847,7 +847,7 @@ class LocalFoodRepositoryTest {
         assertEquals(2400.0, goal.dailyCaloriesKcal, 0.01)
         assertEquals(180.0, goal.proteinGrams, 0.01)
         assertEquals(35.0, goal.fiberGrams, 0.01)
-        assertEquals(FoodGoalMode.HighProtein, goal.mode)
+        assertEquals(FoodGoalMode.MediterraneanStyle, goal.mode)
         assertTrue(goal.includeTrainingCalories)
         assertTrue(goal.useNetCarbs)
     }
@@ -1131,6 +1131,134 @@ class LocalFoodRepositoryTest {
         assertEquals(2400.0, summary.goalMilliliters, 0.01)
         assertEquals(1000.0, otherSummary.consumedMilliliters, 0.01)
         assertEquals(2400.0, otherSummary.goalMilliliters, 0.01)
+    }
+
+    @Test
+    fun weeklyFoodSummary_combinesLoggedNutritionAndWaterForSevenDays() = runTest {
+        val startDate = LocalDate.of(2026, 6, 22)
+        repository.updateFoodGoal(
+            FoodGoal(
+                dailyCaloriesKcal = 2000.0,
+                proteinGrams = 120.0,
+                carbsGrams = 220.0,
+                fatGrams = 70.0,
+                fiberGrams = 30.0,
+                sugarGrams = 50.0,
+                saturatedFatGrams = 20.0,
+                sodiumMilligrams = 2300.0,
+                mode = FoodGoalMode.Balanced,
+                includeTrainingCalories = false,
+                waterGoalMilliliters = 2000.0,
+            ),
+        )
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Balanced bowl",
+                brand = null,
+                nutritionPer100g = nutrition(calories = 2000.0, protein = 120.0, carbs = 220.0, fat = 70.0),
+                nutritionDetailsPer100g = NutritionDetails(fiberGrams = 30.0, sodiumMilligrams = 1800.0),
+                servingGrams = 100.0,
+                mealType = "lunch",
+                quantityGrams = 100.0,
+                date = startDate,
+            ),
+        )
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Light snack",
+                brand = null,
+                nutritionPer100g = nutrition(calories = 900.0, protein = 30.0, carbs = 120.0, fat = 25.0),
+                nutritionDetailsPer100g = NutritionDetails(fiberGrams = 5.0, sodiumMilligrams = 600.0),
+                servingGrams = 100.0,
+                mealType = "snacks",
+                quantityGrams = 100.0,
+                date = startDate.plusDays(1),
+            ),
+        )
+        repository.logWater(WaterLogInput(startDate, 2000.0))
+        repository.logWater(WaterLogInput(startDate.plusDays(1), 500.0))
+
+        val summary = repository.observeWeeklyFoodSummary(startDate).first()
+
+        assertEquals(startDate, summary.startDate)
+        assertEquals(7, summary.days.size)
+        assertEquals(2000.0, summary.goal.dailyCaloriesKcal, 0.01)
+        assertEquals(2000.0, summary.days[0].diary.totals.caloriesKcal, 0.01)
+        assertEquals(30.0, summary.days[0].diary.detailTotals.fiberGrams, 0.01)
+        assertEquals(2000.0, summary.days[0].water.consumedMilliliters, 0.01)
+        assertEquals(900.0, summary.days[1].diary.totals.caloriesKcal, 0.01)
+        assertEquals(500.0, summary.days[1].water.consumedMilliliters, 0.01)
+        assertTrue(
+            summary.days.drop(2).all { day ->
+                day.diary.meals.flatMap { meal -> meal.entries }.none { entry -> entry.status == FoodDiaryEntryStatus.Logged } &&
+                    day.water.consumedMilliliters == 0.0
+            },
+        )
+    }
+
+    @Test
+    fun foodProgressSummary_combinesLoggedNutritionAndWaterForTwentyEightDays() = runTest {
+        val startDate = LocalDate.of(2026, 6, 1)
+        repository.updateFoodGoal(
+            FoodGoal(
+                dailyCaloriesKcal = 2000.0,
+                proteinGrams = 120.0,
+                carbsGrams = 220.0,
+                fatGrams = 70.0,
+                fiberGrams = 30.0,
+                sugarGrams = 50.0,
+                saturatedFatGrams = 20.0,
+                sodiumMilligrams = 2300.0,
+                mode = FoodGoalMode.Balanced,
+                includeTrainingCalories = false,
+                waterGoalMilliliters = 2000.0,
+            ),
+        )
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Week one bowl",
+                brand = null,
+                nutritionPer100g = nutrition(calories = 1900.0, protein = 110.0, carbs = 210.0, fat = 60.0),
+                nutritionDetailsPer100g = NutritionDetails(fiberGrams = 28.0, sodiumMilligrams = 1900.0),
+                servingGrams = 100.0,
+                mealType = "lunch",
+                quantityGrams = 100.0,
+                date = startDate,
+            ),
+        )
+        repository.logFood(
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = "Month end bowl",
+                brand = null,
+                nutritionPer100g = nutrition(calories = 2100.0, protein = 130.0, carbs = 230.0, fat = 75.0),
+                nutritionDetailsPer100g = NutritionDetails(fiberGrams = 35.0, sodiumMilligrams = 2200.0),
+                servingGrams = 100.0,
+                mealType = "dinner",
+                quantityGrams = 100.0,
+                date = startDate.plusDays(27),
+            ),
+        )
+        repository.logWater(WaterLogInput(startDate, 2000.0))
+        repository.logWater(WaterLogInput(startDate.plusDays(27), 1600.0))
+
+        val summary = repository.observeFoodProgressSummary(startDate, dayCount = 28).first()
+
+        assertEquals(startDate, summary.startDate)
+        assertEquals(28, summary.days.size)
+        assertEquals(2000.0, summary.goal.dailyCaloriesKcal, 0.01)
+        assertEquals(1900.0, summary.days.first().diary.totals.caloriesKcal, 0.01)
+        assertEquals(2000.0, summary.days.first().water.consumedMilliliters, 0.01)
+        assertEquals(2100.0, summary.days.last().diary.totals.caloriesKcal, 0.01)
+        assertEquals(1600.0, summary.days.last().water.consumedMilliliters, 0.01)
+        assertTrue(summary.days.drop(1).dropLast(1).all { it.diary.totals.caloriesKcal == 0.0 })
     }
 
     @Test

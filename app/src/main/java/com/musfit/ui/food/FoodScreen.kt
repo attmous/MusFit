@@ -192,6 +192,7 @@ fun FoodScreen(
                     onRecipeClick = viewModel::openRecipeEditor,
                     onMealsClick = viewModel::openMealSettings,
                     onShoppingClick = viewModel::openShoppingList,
+                    onFastingClick = viewModel::openFastingTimer,
                     onPlanningModeClick = viewModel::togglePlanningMode,
                     onCopyDayToTomorrowClick = viewModel::copySelectedDayToTomorrow,
                 )
@@ -240,6 +241,9 @@ fun FoodScreen(
                     MoreSection(expanded = moreExpanded, onToggle = { moreExpanded = !moreExpanded }) {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             DayRatingCard(state.dayRating)
+                            WeeklyMusFitScoreCard(state.weeklyScore)
+                            FoodProgressStatsCard(state.progressStats)
+                            FoodHabitTrackerSection(state.habitTrackers)
                             DailyInsightsSection(state.dailyInsights)
                             WeeklyPlanStrip(state.weeklyPlan)
                             AdvancedNutritionProgressRow(state.advancedNutritionProgress)
@@ -375,6 +379,7 @@ fun FoodScreen(
                         onSearchChanged = viewModel::onFoodDatabaseQueryChanged,
                         onSearchOnlineClick = viewModel::searchOnlineFoods,
                         onNewFoodClick = viewModel::openNewSavedFoodEditor,
+                        onBarcodeCompareClick = viewModel::openBarcodeComparison,
                         onOpenFoodDetailClick = viewModel::openSavedFoodDetail,
                         onEditFoodClick = viewModel::openSavedFoodEditor,
                         onSaveOnlineFoodClick = viewModel::saveOnlineFoodResult,
@@ -382,6 +387,7 @@ fun FoodScreen(
                         onNutritionLabelScanClick = viewModel::openNutritionLabelScan,
                         onMergeDuplicateFoodsClick = viewModel::mergeDuplicateFoods,
                         onFavoriteClick = viewModel::toggleFavoriteFood,
+                        onReportFoodClick = viewModel::reportSavedFoodForReview,
                     )
 
                 FoodSheetMode.FoodDetail ->
@@ -393,6 +399,12 @@ fun FoodScreen(
                             state.selectedSavedFoodDetail?.let { food ->
                                 viewModel.toggleFavoriteFood(food.id, !food.isFavorite)
                             }
+                        },
+                        onReportClick = {
+                            state.selectedSavedFoodDetail?.id?.let(viewModel::reportSavedFoodForReview)
+                        },
+                        onCorrectClick = {
+                            state.selectedSavedFoodDetail?.id?.let(viewModel::startSavedFoodCorrection)
                         },
                     )
 
@@ -465,6 +477,23 @@ fun FoodScreen(
                         onSaveClick = viewModel::saveSavedFood,
                     )
 
+                FoodSheetMode.BarcodeComparison ->
+                    BarcodeComparisonPanel(
+                        state = state,
+                        onBarcodeChanged = viewModel::onBarcodeComparisonBarcodeChanged,
+                        onCompareClick = viewModel::compareBarcodeProducts,
+                    )
+
+                FoodSheetMode.FastingTimer ->
+                    FastingTimerPanel(
+                        state = state,
+                        onProgramSelected = viewModel::selectFastingProgram,
+                        onStartTimeChanged = viewModel::onFastingStartTimeChanged,
+                        onCustomFastingChanged = viewModel::onCustomFastingHoursChanged,
+                        onCustomEatingChanged = viewModel::onCustomEatingHoursChanged,
+                        onApplyCustomClick = viewModel::applyCustomFastingProgram,
+                    )
+
                 FoodSheetMode.GoalEditor ->
                     GoalEditorPanel(
                         state = state,
@@ -479,6 +508,7 @@ fun FoodScreen(
                         onModeChanged = viewModel::onGoalModeChanged,
                         onTrainingChanged = viewModel::onGoalIncludeTrainingChanged,
                         onNetCarbsChanged = viewModel::onGoalUseNetCarbsChanged,
+                        onProgramApply = viewModel::applyFoodProgram,
                         onSaveClick = viewModel::saveFoodGoal,
                     )
 
@@ -497,6 +527,8 @@ fun FoodScreen(
                         onEditRecipeClick = { recipeId -> viewModel.openRecipeEditor(recipeId) },
                         onDuplicateRecipeClick = viewModel::duplicateRecipe,
                         onFavoriteClick = viewModel::toggleFavoriteRecipe,
+                        onDiscoveryFilterChanged = viewModel::selectRecipeDiscoveryFilter,
+                        onDiscoveryItemClick = viewModel::useRecipeDiscoveryItem,
                         onSaveClick = viewModel::saveRecipe,
                         onDeleteClick = { state.recipeEditor?.editingRecipeId?.let(viewModel::deleteRecipe) },
                     )
@@ -595,6 +627,7 @@ private fun FoodSummaryHeader(
     onRecipeClick: () -> Unit,
     onMealsClick: () -> Unit,
     onShoppingClick: () -> Unit,
+    onFastingClick: () -> Unit,
     onPlanningModeClick: () -> Unit,
     onCopyDayToTomorrowClick: () -> Unit,
 ) {
@@ -627,6 +660,7 @@ private fun FoodSummaryHeader(
                         DropdownMenuItem(text = { Text("Templates") }, onClick = { menuOpen = false; onTemplatesClick() })
                         DropdownMenuItem(text = { Text("Recipes") }, onClick = { menuOpen = false; onRecipeClick() })
                         DropdownMenuItem(text = { Text("Shopping list") }, onClick = { menuOpen = false; onShoppingClick() })
+                        DropdownMenuItem(text = { Text("Fasting") }, onClick = { menuOpen = false; onFastingClick() })
                         DropdownMenuItem(
                             text = { Text(if (state.isPlanningMode) "Planning: on" else "Planning: off") },
                             onClick = { menuOpen = false; onPlanningModeClick() },
@@ -897,6 +931,133 @@ private fun EmptyDiaryStartCard(
 }
 
 @Composable
+private fun WeeklyMusFitScoreCard(score: FoodWeeklyScoreUiState) {
+    val accent = score.tone.ratingColor()
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.small,
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = score.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MusFitTheme.colors.brandInk,
+                    )
+                    Text(
+                        text = score.summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = score.score.toString(),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = accent,
+                        maxLines = 1,
+                    )
+                }
+            }
+            ProgressBar(progress = score.score / 100f, color = accent)
+            Text(
+                text = score.suggestion,
+                style = MaterialTheme.typography.bodySmall,
+                color = accent,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (score.factors.isNotEmpty()) {
+                HorizontalDivider(color = MusFitTheme.colors.outline)
+                RatingFactorColumn(score.factors)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FoodProgressStatsCard(stats: FoodProgressStatsUiState) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.small,
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Progress stats",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MusFitTheme.colors.brandInk,
+            )
+            FoodProgressPeriodRow(stats.weekly)
+            HorizontalDivider(color = MusFitTheme.colors.outline)
+            FoodProgressPeriodRow(stats.monthly)
+        }
+    }
+}
+
+@Composable
+private fun FoodProgressPeriodRow(period: FoodProgressPeriodUiState) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(period.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                period.trackedDaysLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = MusFitTheme.colors.brand,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            text = listOf(
+                period.averageCaloriesLabel,
+                period.averageProteinLabel,
+                period.calorieAdherenceLabel,
+                period.hydrationLabel,
+            ).joinToString(" - "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = "${period.habitLabel} - ${period.trendLabel}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
 private fun DayRatingCard(rating: FoodRatingUiState) {
     val accent = rating.tone.ratingColor()
     Surface(
@@ -937,7 +1098,155 @@ private fun DayRatingCard(rating: FoodRatingUiState) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (rating.factors.isNotEmpty()) {
+                HorizontalDivider(color = MusFitTheme.colors.outline)
+                RatingFactorColumn(rating.factors)
+            }
         }
+    }
+}
+
+@Composable
+private fun RatingFactorColumn(factors: List<FoodRatingFactorUiState>) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        factors.forEach { factor ->
+            RatingFactorRow(factor)
+        }
+    }
+}
+
+@Composable
+private fun RatingFactorRow(factor: FoodRatingFactorUiState) {
+    val accent = factor.tone.ratingColor()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 5.dp)
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(accent),
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = factor.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MusFitTheme.colors.brandInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = factor.valueLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = accent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = factor.explanation,
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FoodHabitTrackerSection(habits: List<FoodHabitTrackerUiState>) {
+    if (habits.isEmpty()) {
+        return
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.small,
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Daily habits",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MusFitTheme.colors.brandInk,
+                )
+                Text(
+                    text = "${habits.count { it.status == FoodHabitStatus.Complete }} / ${habits.size}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MusFitTheme.colors.brand,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            habits.forEach { habit ->
+                HabitTrackerRow(habit)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HabitTrackerRow(habit: FoodHabitTrackerUiState) {
+    val accent = habit.tone.ratingColor()
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = habit.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MusFitTheme.colors.brandInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = habit.suggestion,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = habit.status.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accent,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                Text(
+                    text = habit.valueLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
+        ProgressBar(progress = habit.progress.toFloat().coerceIn(0f, 1f), color = accent)
     }
 }
 
@@ -1024,6 +1333,14 @@ private fun FoodInsightTone.ratingColor(): Color =
         FoodInsightTone.Warning -> MusFitTheme.colors.warning
         FoodInsightTone.Neutral -> MusFitTheme.colors.onSurfaceVariant
     }
+
+private val FoodHabitStatus.label: String
+    get() =
+        when (this) {
+            FoodHabitStatus.Complete -> "Done"
+            FoodHabitStatus.InProgress -> "In progress"
+            FoodHabitStatus.Missing -> "Not yet"
+        }
 
 @Composable
 private fun AdvancedNutritionProgressRow(nutrients: List<FoodNutrientProgressUiState>) {
@@ -1484,6 +1801,10 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                 )
             }
 
+            meal.rating?.factors?.takeIf { it.isNotEmpty() }?.let { factors ->
+                HorizontalDivider(color = MusFitTheme.colors.outline)
+                RatingFactorColumn(factors)
+            }
             if (meal.advancedNutritionProgress.isNotEmpty()) {
                 HorizontalDivider(color = MusFitTheme.colors.outline)
                 AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
@@ -1781,6 +2102,10 @@ private fun DiaryEntryRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                entry.rating?.let { rating ->
+                    Spacer(modifier = Modifier.height(6.dp))
+                    RatingPill(rating)
+                }
                 if (showContributions) {
                     MealItemContributionBars(entry = entry)
                 }
@@ -1945,9 +2270,11 @@ internal val FoodGoalMode.label: String
         when (this) {
             FoodGoalMode.Balanced -> "Balanced"
             FoodGoalMode.HighProtein -> "High protein"
-            FoodGoalMode.KetoLowCarb -> "Keto / low carb"
+            FoodGoalMode.KetoLowCarb -> "Keto low carb"
             FoodGoalMode.MuscleGain -> "Muscle gain"
             FoodGoalMode.WeightLoss -> "Weight loss"
+            FoodGoalMode.MediterraneanStyle -> "Mediterranean-style"
+            FoodGoalMode.CleanEating -> "Clean eating"
             FoodGoalMode.Custom -> "Custom"
         }
 

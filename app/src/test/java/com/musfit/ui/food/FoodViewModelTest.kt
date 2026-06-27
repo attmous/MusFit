@@ -16,9 +16,12 @@ import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodMealDefinition
 import com.musfit.data.repository.FoodMealDefinitionInput
 import com.musfit.data.repository.FoodPlanDay
+import com.musfit.data.repository.FoodProgressSummary
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.FoodServingOption
 import com.musfit.data.repository.FoodWaterSummary
+import com.musfit.data.repository.FoodWeeklyDaySummary
+import com.musfit.data.repository.FoodWeeklySummary
 import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.MealTemplateItemInput
 import com.musfit.data.repository.MealTemplateItem
@@ -335,6 +338,190 @@ class FoodViewModelTest {
         val breakfastRating = requireNotNull(viewModel.state.value.mealSections.first { it.id == "breakfast" }.rating)
         assertEquals("Needs work", breakfastRating.label)
         assertTrue(breakfastRating.reason.contains("Protein"))
+    }
+
+    @Test
+    fun ratingDrillDownUsesDietModeAndPerFoodQuality() = runTest {
+        val yogurtDetails = NutritionDetails(fiberGrams = 0.0, sugarGrams = 6.0, saturatedFatGrams = 1.0, sodiumMilligrams = 90.0)
+        val pastryDetails = NutritionDetails(fiberGrams = 1.0, sugarGrams = 30.0, saturatedFatGrams = 9.0, sodiumMilligrams = 210.0)
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(570.0, 30.0, 70.0, 20.0),
+                    detailTotals = NutritionDetails(fiberGrams = 1.0, sugarGrams = 36.0, saturatedFatGrams = 10.0, sodiumMilligrams = 300.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "breakfast",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-yogurt",
+                                    foodId = "food-yogurt",
+                                    name = "Greek yogurt",
+                                    brand = null,
+                                    quantityGrams = 180.0,
+                                    caloriesKcal = 150.0,
+                                    proteinGrams = 25.0,
+                                    carbsGrams = 15.0,
+                                    fatGrams = 2.0,
+                                    nutritionDetails = yogurtDetails,
+                                ),
+                                FoodDiaryEntry(
+                                    id = "entry-pastry",
+                                    foodId = "food-pastry",
+                                    name = "Sweet pastry",
+                                    brand = null,
+                                    quantityGrams = 120.0,
+                                    caloriesKcal = 420.0,
+                                    proteinGrams = 5.0,
+                                    carbsGrams = 55.0,
+                                    fatGrams = 18.0,
+                                    nutritionDetails = pastryDetails,
+                                ),
+                            ),
+                            totals = NutritionTotals(570.0, 30.0, 70.0, 20.0),
+                            detailTotals = NutritionDetails(fiberGrams = 1.0, sugarGrams = 36.0, saturatedFatGrams = 10.0, sodiumMilligrams = 300.0),
+                        ),
+                    ),
+                ),
+                foodGoal = highProteinGoal(),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val dayRating = viewModel.state.value.dayRating
+        assertTrue(dayRating.score != null && dayRating.score < 70)
+        assertTrue(
+            dayRating.factors.any { factor ->
+                factor.label == "High protein focus" &&
+                    factor.tone == FoodInsightTone.Warning &&
+                    factor.explanation.contains("High Protein")
+            },
+        )
+
+        val entries = viewModel.state.value.mealSections.first { it.id == "breakfast" }.entries
+        val yogurtRating = requireNotNull(entries.first { it.id == "entry-yogurt" }.rating)
+        val pastryRating = requireNotNull(entries.first { it.id == "entry-pastry" }.rating)
+        assertEquals("Great", yogurtRating.label)
+        assertEquals("Needs work", pastryRating.label)
+        assertTrue(pastryRating.reason.contains("sugar", ignoreCase = true))
+    }
+
+    @Test
+    fun habitTrackersReflectFruitVegetableFishAndWaterProgress() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(760.0, 46.0, 62.0, 24.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "lunch",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-apple",
+                                    foodId = "food-apple",
+                                    name = "Apple slices",
+                                    brand = null,
+                                    quantityGrams = 120.0,
+                                    caloriesKcal = 70.0,
+                                    proteinGrams = 0.0,
+                                    carbsGrams = 18.0,
+                                    fatGrams = 0.0,
+                                ),
+                                FoodDiaryEntry(
+                                    id = "entry-spinach",
+                                    foodId = "food-spinach",
+                                    name = "Spinach vegetable salad",
+                                    brand = null,
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 190.0,
+                                    proteinGrams = 6.0,
+                                    carbsGrams = 20.0,
+                                    fatGrams = 9.0,
+                                ),
+                                FoodDiaryEntry(
+                                    id = "entry-salmon",
+                                    foodId = "food-salmon",
+                                    name = "Grilled salmon fish",
+                                    brand = null,
+                                    quantityGrams = 160.0,
+                                    caloriesKcal = 500.0,
+                                    proteinGrams = 40.0,
+                                    carbsGrams = 24.0,
+                                    fatGrams = 15.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(760.0, 46.0, 62.0, 24.0),
+                        ),
+                    ),
+                ),
+                waterSummary = FoodWaterSummary(LocalDate.now(), consumedMilliliters = 1500.0, goalMilliliters = 2000.0),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val habits = viewModel.state.value.habitTrackers.associateBy { it.id }
+        assertEquals(FoodHabitStatus.Complete, habits.getValue("fruit").status)
+        assertEquals(FoodHabitStatus.Complete, habits.getValue("vegetables").status)
+        assertEquals(FoodHabitStatus.Complete, habits.getValue("fish").status)
+        assertEquals(FoodHabitStatus.InProgress, habits.getValue("water").status)
+        assertEquals(0.75, habits.getValue("water").progress, 0.01)
+        assertEquals("1500 / 2000 ml", habits.getValue("water").valueLabel)
+    }
+
+    @Test
+    fun weeklyMusFitScoreExplainsNutritionHydrationHabitsAndUnavailableTrainingSignal() = runTest {
+        val startDate = LocalDate.now()
+        val repository =
+            FakeFoodRepository(
+                weeklySummary = weeklySummaryForScore(startDate),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val score = viewModel.state.value.weeklyScore
+        assertEquals("Weekly MusFit score", score.title)
+        assertTrue(score.score in 60..85)
+        assertTrue(score.summary.contains("3 tracked days"))
+        assertEquals(
+            listOf("Nutrition consistency", "Hydration", "Habits", "Training signal"),
+            score.factors.map { it.label },
+        )
+        assertTrue(score.factors.first { it.label == "Hydration" }.valueLabel.contains("72%"))
+        assertEquals(FoodInsightTone.Neutral, score.factors.first { it.label == "Training signal" }.tone)
+        assertTrue(score.suggestion.contains("water", ignoreCase = true) || score.suggestion.contains("protein", ignoreCase = true))
+    }
+
+    @Test
+    fun weeklyMusFitScoreUsesTrailingSevenDayWindow() = runTest {
+        val today = LocalDate.now()
+        val repository = FakeFoodRepository()
+        FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(today.minusDays(6), repository.weeklySummaryStartDates.last())
+    }
+
+    @Test
+    fun foodProgressStatsSummarizeWeeklyMonthlyAdherenceAndTrends() = runTest {
+        val startDate = LocalDate.now().minusDays(27)
+        val repository =
+            FakeFoodRepository(
+                progressSummary = progressSummaryForStats(startDate),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val stats = viewModel.state.value.progressStats
+
+        assertEquals("Last 7 days", stats.weekly.title)
+        assertEquals("3 tracked days", stats.weekly.trackedDaysLabel)
+        assertEquals("2160 kcal avg", stats.weekly.averageCaloriesLabel)
+        assertEquals("96 g protein avg", stats.weekly.averageProteinLabel)
+        assertEquals("2/3 calorie target days", stats.weekly.calorieAdherenceLabel)
+        assertEquals("2/3 hydration days", stats.weekly.hydrationLabel)
+        assertEquals("Last 28 days", stats.monthly.title)
+        assertTrue(stats.monthly.trackedDaysLabel.contains("5 tracked days"))
+        assertTrue(stats.monthly.trendLabel.contains("up", ignoreCase = true))
     }
 
     @Test
@@ -866,6 +1053,87 @@ class FoodViewModelTest {
         assertEquals("food-3", state.duplicateFoodGroups[1].primaryFoodId)
         assertEquals(listOf("food-4"), state.duplicateFoodGroups[1].duplicateFoodIds)
         assertEquals("Name and brand", state.duplicateFoodGroups[1].reason)
+    }
+
+    @Test
+    fun savedFoodsExposeTrustGuidanceForImportsManualEntriesAndLabelScans() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        barcode = "111",
+                    ),
+                    SavedFoodItem(
+                        id = "food-2",
+                        name = "Oats",
+                        brand = "Pantry",
+                        defaultServingGrams = 40.0,
+                        nutritionPer100g = FoodNutrition(389.0, 17.0, 66.0, 7.0),
+                    ),
+                    SavedFoodItem(
+                        id = "food-3",
+                        name = "Protein cereal",
+                        brand = null,
+                        defaultServingGrams = 100.0,
+                        nutritionPer100g = FoodNutrition(220.0, 12.0, 30.0, 8.0),
+                        category = "Nutrition label",
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val scanned = viewModel.state.value.savedFoods.first { it.id == "food-1" }
+        val manual = viewModel.state.value.savedFoods.first { it.id == "food-2" }
+        val labelScan = viewModel.state.value.savedFoods.first { it.id == "food-3" }
+
+        assertEquals(FoodTrustLevel.Imported, scanned.trust.level)
+        assertEquals("Barcode import", scanned.trust.label)
+        assertEquals("Check", scanned.trust.actionLabel)
+        assertEquals(FoodTrustLevel.Manual, manual.trust.level)
+        assertEquals("Manual entry", manual.trust.label)
+        assertEquals(FoodTrustLevel.NeedsReview, labelScan.trust.level)
+        assertEquals("Review label scan", labelScan.trust.label)
+    }
+
+    @Test
+    fun reportingSavedFoodMarksLocalReviewAndCorrectionOpensEditor() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        barcode = "111",
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openSavedFoodDetail("food-1")
+        viewModel.reportSavedFoodForReview("food-1")
+
+        assertEquals("Marked food for local review", viewModel.state.value.message)
+        assertTrue(viewModel.state.value.reportedSavedFoodIds.contains("food-1"))
+        assertEquals(FoodTrustLevel.NeedsReview, viewModel.state.value.savedFoods.single().trust.level)
+        assertEquals(FoodTrustLevel.NeedsReview, viewModel.state.value.selectedSavedFoodDetail?.trust?.level)
+        assertTrue(viewModel.state.value.selectedSavedFoodDetail?.trust?.isReported == true)
+
+        viewModel.startSavedFoodCorrection("food-1")
+
+        val editor = requireNotNull(viewModel.state.value.savedFoodEditor)
+        assertEquals(FoodSheetMode.SavedFoodEditor, viewModel.state.value.sheetMode)
+        assertEquals("Greek yogurt", editor.name)
+        assertEquals("Review and correct nutrition before saving.", viewModel.state.value.message)
     }
 
     @Test
@@ -2334,6 +2602,49 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun foodProgramsExposeTargetsHabitsAndPlanningGuidance() = runTest {
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = FakeFoodRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val programs = viewModel.state.value.foodPrograms
+
+        assertEquals(
+            listOf(
+                "Balanced",
+                "High protein",
+                "Muscle gain",
+                "Weight loss",
+                "Keto low carb",
+                "Mediterranean-style",
+                "Clean eating",
+            ),
+            programs.map { it.title },
+        )
+        assertTrue(programs.first { it.title == "Balanced" }.isSelected)
+        assertTrue(programs.first { it.title == "High protein" }.macroTargetsLabel.contains("156 g protein"))
+        assertTrue(programs.first { it.title == "Mediterranean-style" }.suggestedHabits.any { it.contains("olive", ignoreCase = true) })
+        assertTrue(programs.first { it.title == "Clean eating" }.mealPlanningTip.contains("prep", ignoreCase = true))
+    }
+
+    @Test
+    fun applyingMediterraneanProgramPersistsProgramTargetsAndSelection() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.applyFoodProgram("mediterranean-style")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodGoalMode.MediterraneanStyle, repository.foodGoalUpdate?.mode)
+        assertEquals(2083.0, repository.foodGoalUpdate?.dailyCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(120.0, repository.foodGoalUpdate?.proteinGrams ?: 0.0, 0.01)
+        assertEquals(240.0, repository.foodGoalUpdate?.carbsGrams ?: 0.0, 0.01)
+        assertEquals(77.0, repository.foodGoalUpdate?.fatGrams ?: 0.0, 0.01)
+        assertTrue(viewModel.state.value.foodPrograms.first { it.id == "mediterranean-style" }.isSelected)
+        assertEquals("Applied Mediterranean-style program", viewModel.state.value.message)
+    }
+
+    @Test
     fun manualGoalOverrideSwitchesModeToCustomAndPersistsOverride() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
@@ -3041,6 +3352,106 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun recipeDiscoveryFiltersLocalCatalogSavedFavoritesAndPrograms() = runTest {
+        val repository =
+            FakeFoodRepository(
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Dinner",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        isFavorite = true,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 150.0)),
+                        nutritionPerServing = FoodNutrition(250.0, 35.0, 20.0, 5.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                    Recipe(
+                        id = "recipe-2",
+                        name = "Pasta plate",
+                        category = "Dinner",
+                        servingName = "Plate",
+                        servingGrams = 420.0,
+                        isFavorite = false,
+                        ingredients = listOf(RecipeIngredient("food-2", "Pasta", null, 160.0)),
+                        nutritionPerServing = FoodNutrition(560.0, 18.0, 82.0, 16.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.recipeDiscoveryItems.any { it.sourceRecipeId == "recipe-1" && it.isSavedRecipe })
+        assertTrue(viewModel.state.value.recipeDiscoveryItems.any { it.id.startsWith("catalog-") })
+
+        viewModel.selectRecipeDiscoveryFilter(RecipeDiscoveryFilter.HighProtein)
+
+        val highProteinItems = viewModel.state.value.visibleRecipeDiscoveryItems
+        assertTrue(highProteinItems.any { it.title == "Chicken bowl" })
+        assertTrue(highProteinItems.all { "High protein" in it.tagLabels })
+
+        viewModel.selectRecipeDiscoveryFilter(RecipeDiscoveryFilter.Favorites)
+
+        assertEquals(listOf("Chicken bowl"), viewModel.state.value.visibleRecipeDiscoveryItems.map { it.title })
+
+        viewModel.applyFoodProgram("mediterranean-style")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.selectRecipeDiscoveryFilter(RecipeDiscoveryFilter.Program)
+
+        val programItems = viewModel.state.value.visibleRecipeDiscoveryItems
+        assertTrue(programItems.any { it.title == "Mediterranean chickpea bowl" })
+        assertTrue(programItems.all { it.programRelevant })
+    }
+
+    @Test
+    fun usingRecipeDiscoveryItemLogsSavedRecipeOrPrefillsCatalogRecipe() = runTest {
+        val repository =
+            FakeFoodRepository(
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Dinner",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 150.0)),
+                        nutritionPerServing = FoodNutrition(250.0, 35.0, 20.0, 5.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAddFood("lunch")
+        val savedRecipeDiscoveryId = viewModel.state.value.recipeDiscoveryItems.single { it.sourceRecipeId == "recipe-1" }.id
+        viewModel.useRecipeDiscoveryItem(savedRecipeDiscoveryId)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            LogRecipeCall(
+                recipeId = "recipe-1",
+                mealType = "lunch",
+                servings = 1.0,
+                date = LocalDate.now(),
+            ),
+            repository.logRecipeCall,
+        )
+
+        viewModel.useRecipeDiscoveryItem("catalog-mediterranean-chickpea-bowl")
+
+        val editor = requireNotNull(viewModel.state.value.recipeEditor)
+        assertEquals(FoodSheetMode.RecipeEditor, viewModel.state.value.sheetMode)
+        assertEquals("Mediterranean chickpea bowl", editor.name)
+        assertEquals("Vegetarian", editor.category)
+        assertEquals("Bowl", editor.servingName)
+        assertEquals("Review and save Mediterranean chickpea bowl", viewModel.state.value.message)
+        assertTrue(editor.ingredients.isEmpty())
+    }
+
+    @Test
     fun diaryEntryCanBeCopiedToAnotherMealAndDate() = runTest {
         val repository =
             FakeFoodRepository(
@@ -3134,6 +3545,148 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun barcodeComparisonUsesSavedFoodAndRemoteLookupWithMacroHighlights() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        nutritionDetailsPer100g = NutritionDetails(sugarGrams = 3.6, sodiumMilligrams = 36.0),
+                        barcode = "111",
+                    ),
+                ),
+            )
+        val viewModel =
+            FoodViewModel(
+                provider = FakeProductProvider(
+                    resultsByBarcode = mapOf(
+                        "222" to foundProduct(
+                            barcode = "222",
+                            name = "Protein bar",
+                            brand = "Fuel",
+                            nutrition = FoodNutrition(240.0, 20.0, 22.0, 8.0),
+                        ).copy(
+                            nutritionDetailsPer100g = NutritionDetails(sugarGrams = 9.0, sodiumMilligrams = 180.0),
+                        ),
+                    ),
+                ),
+                repository = repository,
+            )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openBarcodeComparison()
+        viewModel.onBarcodeComparisonBarcodeChanged(BarcodeComparisonSide.Left, "111abc")
+        viewModel.onBarcodeComparisonBarcodeChanged(BarcodeComparisonSide.Right, "222")
+        viewModel.compareBarcodeProducts()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val comparison = viewModel.state.value.barcodeComparison
+        assertEquals(FoodSheetMode.BarcodeComparison, viewModel.state.value.sheetMode)
+        assertEquals("111", comparison.leftBarcodeInput)
+        assertEquals("222", comparison.rightBarcodeInput)
+        assertEquals("Greek yogurt", comparison.leftItem?.name)
+        assertEquals("Saved food", comparison.leftItem?.sourceLabel)
+        assertEquals("Protein bar", comparison.rightItem?.name)
+        assertEquals("Open Food Facts", comparison.rightItem?.sourceLabel)
+        assertEquals(BarcodeComparisonSide.Right, comparison.highlights.first { it.label == "Protein" }.winnerSide)
+        assertEquals(BarcodeComparisonSide.Left, comparison.highlights.first { it.label == "Sugar" }.winnerSide)
+        assertEquals("Compared barcode products", viewModel.state.value.message)
+    }
+
+    @Test
+    fun barcodeComparisonCanCompareTwoSavedFoodsWithoutRemoteLookup() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Oats",
+                        brand = "Pantry",
+                        defaultServingGrams = 40.0,
+                        nutritionPer100g = FoodNutrition(389.0, 17.0, 66.0, 7.0),
+                        barcode = "111",
+                    ),
+                    SavedFoodItem(
+                        id = "food-2",
+                        name = "Granola",
+                        brand = "Pantry",
+                        defaultServingGrams = 45.0,
+                        nutritionPer100g = FoodNutrition(470.0, 10.0, 62.0, 18.0),
+                        barcode = "222",
+                    ),
+                ),
+            )
+        val provider = FakeProductProvider(resultsByBarcode = emptyMap())
+        val viewModel = FoodViewModel(provider = provider, repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openBarcodeComparison()
+        viewModel.onBarcodeComparisonBarcodeChanged(BarcodeComparisonSide.Left, "111")
+        viewModel.onBarcodeComparisonBarcodeChanged(BarcodeComparisonSide.Right, "222")
+        viewModel.compareBarcodeProducts()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val comparison = viewModel.state.value.barcodeComparison
+        assertEquals("Oats", comparison.leftItem?.name)
+        assertEquals("Granola", comparison.rightItem?.name)
+        assertEquals(listOf("111", "222"), comparison.items.map { it.barcode })
+        assertTrue(provider.lookupCalls.isEmpty())
+    }
+
+    @Test
+    fun fastingProgramsExposePresetWindowsAndStartTimeSchedule() = runTest {
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = FakeFoodRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openFastingTimer()
+
+        assertEquals(FoodSheetMode.FastingTimer, viewModel.state.value.sheetMode)
+        assertEquals(
+            listOf("12-12", "14-10", "16-8", "custom"),
+            viewModel.state.value.fastingTimer.programs.map { it.id },
+        )
+        assertEquals("16-8", viewModel.state.value.fastingTimer.selectedProgramId)
+        assertEquals("20:00 - 12:00", viewModel.state.value.fastingTimer.fastingWindowLabel)
+        assertEquals("12:00 - 20:00", viewModel.state.value.fastingTimer.eatingWindowLabel)
+        assertEquals(16.0 / 24.0, viewModel.state.value.fastingTimer.progress, 0.01)
+
+        viewModel.selectFastingProgram("14-10")
+        viewModel.onFastingStartTimeChanged("21:30")
+
+        assertEquals("14-10", viewModel.state.value.fastingTimer.selectedProgramId)
+        assertEquals("21:30 - 11:30", viewModel.state.value.fastingTimer.fastingWindowLabel)
+        assertEquals("11:30 - 21:30", viewModel.state.value.fastingTimer.eatingWindowLabel)
+    }
+
+    @Test
+    fun customFastingProgramAppliesValidatedLocalSplit() = runTest {
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = FakeFoodRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openFastingTimer()
+        viewModel.onCustomFastingHoursChanged("18")
+        viewModel.onCustomEatingHoursChanged("6")
+        viewModel.applyCustomFastingProgram()
+
+        val custom = viewModel.state.value.fastingTimer.programs.single { it.id == "custom" }
+        assertEquals("custom", viewModel.state.value.fastingTimer.selectedProgramId)
+        assertEquals("Custom 18:6", custom.title)
+        assertEquals("20:00 - 14:00", viewModel.state.value.fastingTimer.fastingWindowLabel)
+        assertEquals("Custom fasting plan active", viewModel.state.value.message)
+
+        viewModel.onCustomFastingHoursChanged("19")
+        viewModel.onCustomEatingHoursChanged("8")
+        viewModel.applyCustomFastingProgram()
+
+        assertEquals("Enter fasting and eating hours that total 24", viewModel.state.value.message)
+        assertEquals("custom", viewModel.state.value.fastingTimer.selectedProgramId)
+    }
+
+    @Test
     fun aiTextLoggingCreatesEditableDraftWithoutSavingUntilReviewed() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
@@ -3146,7 +3699,11 @@ class FoodViewModelTest {
         assertNull(repository.savedLog)
         assertTrue(viewModel.state.value.aiLoggingHasDraft)
         assertEquals("2 eggs and toast", viewModel.state.value.productName)
-        assertEquals("250", viewModel.state.value.caloriesPer100g)
+        assertEquals("240", viewModel.state.value.caloriesPer100g)
+        assertEquals("16", viewModel.state.value.proteinPer100g)
+        assertEquals("19", viewModel.state.value.carbsPer100g)
+        assertEquals("11", viewModel.state.value.fatPer100g)
+        assertEquals("Local estimate: eggs, toast", viewModel.state.value.aiLoggingDraftReview)
         assertEquals("Review AI suggestion before logging.", viewModel.state.value.message)
 
         viewModel.onCaloriesChanged("360")
@@ -3156,6 +3713,35 @@ class FoodViewModelTest {
         assertEquals("Logged food", viewModel.state.value.message)
         assertEquals("2 eggs and toast", repository.savedLog?.name)
         assertEquals(360.0, repository.savedLog?.nutritionPer100g?.caloriesKcal ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun scannedNutritionLabelParsesAdvancedNutrientsAndConfidence() = runTest {
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = FakeFoodRepository())
+
+        viewModel.onScannedLabel(
+            """
+            Energy 220 kcal
+            Fat 8 g
+            of which saturates 1.5 g
+            Carbohydrate 30 g
+            of which sugars 12 g
+            Fibre 5 g
+            Protein 10 g
+            Sodium 320 mg
+            """.trimIndent(),
+        )
+
+        assertEquals("220", viewModel.state.value.caloriesPer100g)
+        assertEquals("10", viewModel.state.value.proteinPer100g)
+        assertEquals("30", viewModel.state.value.carbsPer100g)
+        assertEquals("8", viewModel.state.value.fatPer100g)
+        assertEquals("5", viewModel.state.value.fiberPer100g)
+        assertEquals("12", viewModel.state.value.sugarPer100g)
+        assertEquals("1.5", viewModel.state.value.saturatedFatPer100g)
+        assertEquals("320", viewModel.state.value.sodiumMgPer100g)
+        assertEquals("Strong parse", viewModel.state.value.nutritionLabelScanReview?.confidenceLabel)
+        assertEquals(8, viewModel.state.value.nutritionLabelScanReview?.parsedFieldCount)
     }
 
     @Test
@@ -3316,12 +3902,18 @@ class FoodViewModelTest {
     private class FakeProductProvider(
         private val result: ProductLookupResult = foundProduct(),
         private val searchResult: ProductSearchResult = ProductSearchResult.Success("", emptyList()),
+        private val resultsByBarcode: Map<String, ProductLookupResult> = emptyMap(),
     ) : FoodProductProvider {
-        override suspend fun lookupBarcode(barcode: String): ProductLookupResult =
-            when (result) {
-                is ProductLookupResult.Found -> result.copy(barcode = barcode)
-                else -> result
+        val lookupCalls = mutableListOf<String>()
+
+        override suspend fun lookupBarcode(barcode: String): ProductLookupResult {
+            lookupCalls += barcode
+            return when (val lookupResult = resultsByBarcode[barcode] ?: result) {
+                is ProductLookupResult.Found -> lookupResult.copy(barcode = barcode)
+                is ProductLookupResult.NotFound -> lookupResult
+                is ProductLookupResult.Failed -> lookupResult
             }
+        }
 
         override suspend fun searchProducts(query: String, pageSize: Int): ProductSearchResult =
             searchResult
@@ -3356,6 +3948,104 @@ class FoodViewModelTest {
             throw IllegalStateException("network unavailable")
     }
 
+    private fun highProteinGoal(): FoodGoal =
+        FoodGoal(
+            dailyCaloriesKcal = 2083.0,
+            proteinGrams = 150.0,
+            carbsGrams = 210.0,
+            fatGrams = 70.0,
+            fiberGrams = 30.0,
+            sugarGrams = 50.0,
+            saturatedFatGrams = 20.0,
+            sodiumMilligrams = 2300.0,
+            mode = FoodGoalMode.HighProtein,
+            includeTrainingCalories = false,
+        )
+
+    private fun weeklySummaryForScore(startDate: LocalDate): FoodWeeklySummary {
+        val goal =
+            FoodGoal(
+                dailyCaloriesKcal = 2000.0,
+                proteinGrams = 120.0,
+                carbsGrams = 220.0,
+                fatGrams = 70.0,
+                fiberGrams = 30.0,
+                sugarGrams = 50.0,
+                saturatedFatGrams = 20.0,
+                sodiumMilligrams = 2300.0,
+                mode = FoodGoalMode.Balanced,
+                includeTrainingCalories = false,
+                waterGoalMilliliters = 2000.0,
+            )
+        val trackedDays =
+            listOf(
+                weeklyDay(startDate, calories = 1980.0, protein = 118.0, fiber = 32.0, sodium = 1800.0, water = 2000.0),
+                weeklyDay(startDate.plusDays(1), calories = 1900.0, protein = 104.0, fiber = 25.0, sodium = 2100.0, water = 1800.0),
+                weeklyDay(startDate.plusDays(2), calories = 2600.0, protein = 65.0, fiber = 8.0, sodium = 3400.0, water = 500.0),
+            )
+        val emptyDays =
+            (3L..6L).map { offset ->
+                FoodWeeklyDaySummary(
+                    date = startDate.plusDays(offset),
+                    diary = FoodDiary(NutritionTotals(0.0, 0.0, 0.0, 0.0), emptyList()),
+                    water = FoodWaterSummary(startDate.plusDays(offset), 0.0, 2000.0),
+                )
+            }
+        return FoodWeeklySummary(startDate = startDate, days = trackedDays + emptyDays, goal = goal)
+    }
+
+    private fun progressSummaryForStats(startDate: LocalDate): FoodProgressSummary {
+        val goal =
+            FoodGoal(
+                dailyCaloriesKcal = 2000.0,
+                proteinGrams = 120.0,
+                carbsGrams = 220.0,
+                fatGrams = 70.0,
+                fiberGrams = 30.0,
+                sugarGrams = 50.0,
+                saturatedFatGrams = 20.0,
+                sodiumMilligrams = 2300.0,
+                mode = FoodGoalMode.Balanced,
+                includeTrainingCalories = false,
+                waterGoalMilliliters = 2000.0,
+            )
+        val days =
+            (0L..27L).map { offset ->
+                when (offset) {
+                    2L -> weeklyDay(startDate.plusDays(offset), calories = 1500.0, protein = 80.0, fiber = 18.0, sodium = 2100.0, water = 2000.0)
+                    8L -> weeklyDay(startDate.plusDays(offset), calories = 1700.0, protein = 90.0, fiber = 22.0, sodium = 1900.0, water = 1800.0)
+                    21L -> weeklyDay(startDate.plusDays(offset), calories = 1980.0, protein = 118.0, fiber = 32.0, sodium = 1800.0, water = 2000.0)
+                    22L -> weeklyDay(startDate.plusDays(offset), calories = 1900.0, protein = 104.0, fiber = 25.0, sodium = 2100.0, water = 2000.0)
+                    23L -> weeklyDay(startDate.plusDays(offset), calories = 2600.0, protein = 65.0, fiber = 8.0, sodium = 3400.0, water = 500.0)
+                    else ->
+                        FoodWeeklyDaySummary(
+                            date = startDate.plusDays(offset),
+                            diary = FoodDiary(NutritionTotals(0.0, 0.0, 0.0, 0.0), emptyList()),
+                            water = FoodWaterSummary(startDate.plusDays(offset), 0.0, 2000.0),
+                        )
+                }
+            }
+        return FoodProgressSummary(startDate = startDate, dayCount = 28, days = days, goal = goal)
+    }
+
+    private fun weeklyDay(
+        date: LocalDate,
+        calories: Double,
+        protein: Double,
+        fiber: Double,
+        sodium: Double,
+        water: Double,
+    ): FoodWeeklyDaySummary =
+        FoodWeeklyDaySummary(
+            date = date,
+            diary = FoodDiary(
+                totals = NutritionTotals(calories, protein, carbsGrams = calories / 10.0, fatGrams = calories / 40.0),
+                meals = emptyList(),
+                detailTotals = NutritionDetails(fiberGrams = fiber, sodiumMilligrams = sodium),
+            ),
+            water = FoodWaterSummary(date, water, 2000.0),
+        )
+
     private class FakeFoodRepository(
         diary: FoodDiary = emptyFoodDiary(),
         savedFoods: List<SavedFoodItem> = emptyList(),
@@ -3364,6 +4054,39 @@ class FoodViewModelTest {
         quickCaloriePresets: List<QuickCaloriePreset> = emptyList(),
         customMealDefinitions: List<FoodMealDefinition> = emptyList(),
         weeklyPlan: List<FoodPlanDay> = emptyList(),
+        weeklySummary: FoodWeeklySummary = FoodWeeklySummary(
+            startDate = LocalDate.now(),
+            days = emptyList(),
+            goal = FoodGoal(
+                dailyCaloriesKcal = 2083.0,
+                proteinGrams = 104.0,
+                carbsGrams = 260.0,
+                fatGrams = 69.0,
+                fiberGrams = 30.0,
+                sugarGrams = 50.0,
+                saturatedFatGrams = 20.0,
+                sodiumMilligrams = 2300.0,
+                mode = FoodGoalMode.Balanced,
+                includeTrainingCalories = false,
+            ),
+        ),
+        progressSummary: FoodProgressSummary = FoodProgressSummary(
+            startDate = LocalDate.now().minusDays(27),
+            dayCount = 28,
+            days = emptyList(),
+            goal = FoodGoal(
+                dailyCaloriesKcal = 2083.0,
+                proteinGrams = 104.0,
+                carbsGrams = 260.0,
+                fatGrams = 69.0,
+                fiberGrams = 30.0,
+                sugarGrams = 50.0,
+                saturatedFatGrams = 20.0,
+                sodiumMilligrams = 2300.0,
+                mode = FoodGoalMode.Balanced,
+                includeTrainingCalories = false,
+            ),
+        ),
         shoppingGroups: List<ShoppingListGroup> = emptyList(),
         waterSummary: FoodWaterSummary = FoodWaterSummary(LocalDate.now(), 0.0, 2000.0),
         foodHealthConnectSyncState: FoodHealthConnectSyncState = FoodHealthConnectSyncState(),
@@ -3390,6 +4113,8 @@ class FoodViewModelTest {
         private val quickCaloriePresetsFlow = MutableStateFlow(quickCaloriePresets)
         private val customMealDefinitionsFlow = MutableStateFlow(customMealDefinitions)
         private val weeklyPlanFlow = MutableStateFlow(weeklyPlan)
+        private val weeklySummaryFlow = MutableStateFlow(weeklySummary)
+        private val progressSummaryFlow = MutableStateFlow(progressSummary)
         private val shoppingGroupsFlow = MutableStateFlow(shoppingGroups)
         private val waterSummaryFlow = MutableStateFlow(waterSummary)
         private val foodHealthConnectSyncStateFlow = MutableStateFlow(foodHealthConnectSyncState)
@@ -3401,6 +4126,7 @@ class FoodViewModelTest {
         var favoriteQuickLogSave: QuickCaloriePresetInput? = null
         var favoriteQuickLogToggle: Pair<String, Boolean>? = null
         var logFavoriteQuickLogCall: LogFavoriteQuickLogCall? = null
+        val weeklySummaryStartDates = mutableListOf<LocalDate>()
         var customMealDefinitionUpsert: FoodMealDefinitionInput? = null
         var diaryEntryUpdate: DiaryEntryUpdateInput? = null
         var deletedDiaryEntryId: String? = null
@@ -3490,6 +4216,14 @@ class FoodViewModelTest {
 
         override fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> =
             weeklyPlanFlow
+
+        override fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> {
+            weeklySummaryStartDates += startDate
+            return weeklySummaryFlow
+        }
+
+        override fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> =
+            progressSummaryFlow
 
         override fun observeShoppingList(): Flow<List<ShoppingListGroup>> =
             shoppingGroupsFlow

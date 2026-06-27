@@ -185,6 +185,8 @@ Source: `app/src/main/java/com/musfit/data/repository/FoodRepository.kt`
 | `FoodDiaryMeal` | Meal group with entries, logged totals, planned totals, and detail totals. |
 | `FoodDiary` | Whole-day diary totals and meal groups. |
 | `FoodPlanDay` | One date in the seven-day plan strip. |
+| `FoodWeeklyDaySummary` / `FoodWeeklySummary` | Seven-day diary, water, and goal summary for the weekly MusFit score. |
+| `FoodProgressSummary` | Local date-range diary, water, and goal summary; currently used for 28-day progress stats. |
 | `QuickCaloriePreset` | Favorite quick-log preset. |
 | `FoodGoal` | Food nutrition and hydration goals. |
 | `FoodWaterSummary` | Dated water consumed and water goal. |
@@ -200,7 +202,7 @@ Source: `app/src/main/java/com/musfit/data/repository/FoodRepository.kt`
 | Enum | Values |
 | --- | --- |
 | `FoodDiaryEntryStatus` | `Logged`, `Planned` |
-| `FoodGoalMode` | `Balanced`, `HighProtein`, `KetoLowCarb`, `MuscleGain`, `WeightLoss`, `Custom` |
+| `FoodGoalMode` | `Balanced`, `HighProtein`, `KetoLowCarb`, `MuscleGain`, `WeightLoss`, `MediterraneanStyle`, `CleanEating`, `Custom` |
 
 ### Food Repository Interface
 
@@ -218,6 +220,8 @@ fun observeMealTemplates(): Flow<List<MealTemplate>>
 fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>>
 fun observeShoppingList(): Flow<List<ShoppingListGroup>>
 fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary>
+fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary>
+fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary>
 fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState>
 fun observeRecipes(): Flow<List<Recipe>>
 fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>>
@@ -458,13 +462,14 @@ Source: `app/src/main/java/com/musfit/domain/food/NutritionLabelParser.kt`
 
 Models:
 
-- `ParsedNutritionLabel(caloriesKcal, proteinGrams, carbsGrams, fatGrams)`
+- `ParsedNutritionLabel(caloriesKcal, proteinGrams, carbsGrams, fatGrams, fiberGrams, sugarGrams, saturatedFatGrams, sodiumMilligrams)`
+- Derived parser metadata: `hasAnyValue`, `parsedFieldCount`, `confidenceLabel`
 
 Parser:
 
 - `NutritionLabelParser.parse(rawText)`
 
-The parser is best-effort and intentionally returns nullable values. UI must present parsed values for user review before saving.
+The parser is best-effort and intentionally returns nullable values. UI must present parsed values and parser confidence for user review before saving.
 
 ### Today
 
