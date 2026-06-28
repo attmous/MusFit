@@ -120,6 +120,7 @@ data class TrainingUiState(
     val exerciseEditor: ExerciseEditorState = ExerciseEditorState(),
     val selectedExerciseDetail: ExerciseDetail? = null,
     val exerciseDetailNotesInput: String = "",
+    val exerciseDetailTarget: String? = null,
     val exerciseName: String = "",
     val reps: String = "",
     val weightKg: String = "",
@@ -504,14 +505,26 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
-    fun openExerciseDetail(exerciseId: String) {
+    /** Opens the full-page exercise view from the library (switches to the Exercises section). */
+    fun openExerciseDetail(exerciseId: String) =
+        loadExerciseDetail(exerciseId, target = null, switchToExercises = true)
+
+    /**
+     * Opens the same exercise page from inside a routine, layered over the routine detail (no
+     * section switch) and carrying the planned sets x reps so the page can show the target.
+     */
+    fun openRoutineExerciseDetail(exerciseId: String, target: String?) =
+        loadExerciseDetail(exerciseId, target = target, switchToExercises = false)
+
+    private fun loadExerciseDetail(exerciseId: String, target: String?, switchToExercises: Boolean) {
         viewModelScope.launch {
             val detail = repository.getExerciseDetail(exerciseId)
             mutableState.update {
                 it.copy(
-                    selectedSection = TrainingSection.Exercises,
+                    selectedSection = if (switchToExercises) TrainingSection.Exercises else it.selectedSection,
                     selectedExerciseDetail = detail,
                     exerciseDetailNotesInput = detail?.localNotes.orEmpty(),
+                    exerciseDetailTarget = if (detail == null) null else target,
                     message = if (detail == null) "Exercise not found." else null,
                 )
             }
@@ -523,6 +536,7 @@ class TrainingViewModel @Inject constructor(
             it.copy(
                 selectedExerciseDetail = null,
                 exerciseDetailNotesInput = "",
+                exerciseDetailTarget = null,
             )
         }
     }

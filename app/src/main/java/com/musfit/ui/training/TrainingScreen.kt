@@ -1,5 +1,6 @@
 package com.musfit.ui.training
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -14,8 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -160,8 +163,9 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         when (state.selectedSection) {
             TrainingSection.Routines -> {
                 val routineDetail = state.selectedRoutineDetail
-                if (state.routineEditor.isOpen) {
-                    TrainingRoutineEditor(
+                val exerciseDetail = state.selectedExerciseDetail
+                when {
+                    state.routineEditor.isOpen -> TrainingRoutineEditor(
                         editor = state.routineEditor,
                         exercises = state.exercises,
                         accent = accent,
@@ -178,12 +182,21 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         onDuplicate = viewModel::duplicateRoutine,
                         onDelete = viewModel::deleteRoutine,
                     )
-                } else if (routineDetail != null) {
-                    RoutineDetailContent(
+                    exerciseDetail != null -> ExerciseDetailPage(
+                        detail = exerciseDetail,
+                        target = state.exerciseDetailTarget,
+                        notesInput = state.exerciseDetailNotesInput,
+                        accent = accent,
+                        onNotesChange = viewModel::onExerciseDetailNotesChanged,
+                        onSaveNotes = viewModel::saveExerciseDetailNotes,
+                        onClose = viewModel::closeExerciseDetail,
+                    )
+                    routineDetail != null -> RoutineDetailContent(
                         detail = routineDetail,
                         accent = accent,
                         onStart = { viewModel.startRoutine(routineDetail.id) },
                         onEdit = { viewModel.openRoutineEditor(routineDetail.id) },
+                        onOpenExercise = viewModel::openRoutineExerciseDetail,
                         onDuplicate = {
                             viewModel.closeRoutineDetail()
                             viewModel.duplicateRoutine(routineDetail.id)
@@ -194,8 +207,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         },
                         onClose = viewModel::closeRoutineDetail,
                     )
-                } else {
-                    TrainingRoutineContent(
+                    else -> TrainingRoutineContent(
                         routines = state.visibleRoutines,
                         programOptions = state.routineProgramOptions,
                         selectedProgram = state.selectedRoutineProgram,
@@ -208,33 +220,42 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     )
                 }
             }
-            TrainingSection.Exercises ->
-                TrainingExerciseLibraryContent(
-                    visibleExercises = state.visibleExercises,
-                    allExercises = state.exercises,
-                    searchQuery = state.exerciseSearchQuery,
-                    muscleFilter = state.exerciseMuscleFilter,
-                    equipmentFilter = state.exerciseEquipmentFilter,
-                    editor = state.exerciseEditor,
-                    selectedExerciseDetail = state.selectedExerciseDetail,
-                    exerciseDetailNotesInput = state.exerciseDetailNotesInput,
-                    accent = accent,
-                    onSearchChange = viewModel::onExerciseSearchQueryChanged,
-                    onMuscleFilterChange = viewModel::onExerciseMuscleFilterChanged,
-                    onEquipmentFilterChange = viewModel::onExerciseEquipmentFilterChanged,
-                    onClearFilters = viewModel::clearExerciseFilters,
-                    onOpenExerciseDetail = viewModel::openExerciseDetail,
-                    onCloseExerciseDetail = viewModel::closeExerciseDetail,
-                    onExerciseDetailNotesChange = viewModel::onExerciseDetailNotesChanged,
-                    onSaveExerciseDetailNotes = viewModel::saveExerciseDetailNotes,
-                    onOpenCustomExercise = viewModel::openCustomExerciseEditor,
-                    onCloseCustomExercise = viewModel::closeCustomExerciseEditor,
-                    onCustomExerciseNameChange = viewModel::onCustomExerciseNameChanged,
-                    onCustomExerciseCategoryChange = viewModel::onCustomExerciseCategoryChanged,
-                    onCustomExerciseEquipmentChange = viewModel::onCustomExerciseEquipmentChanged,
-                    onCustomExerciseTargetMusclesChange = viewModel::onCustomExerciseTargetMusclesChanged,
-                    onSaveCustomExercise = viewModel::saveCustomExercise,
-                )
+            TrainingSection.Exercises -> {
+                val exerciseDetail = state.selectedExerciseDetail
+                if (exerciseDetail != null) {
+                    ExerciseDetailPage(
+                        detail = exerciseDetail,
+                        target = state.exerciseDetailTarget,
+                        notesInput = state.exerciseDetailNotesInput,
+                        accent = accent,
+                        onNotesChange = viewModel::onExerciseDetailNotesChanged,
+                        onSaveNotes = viewModel::saveExerciseDetailNotes,
+                        onClose = viewModel::closeExerciseDetail,
+                    )
+                } else {
+                    TrainingExerciseLibraryContent(
+                        visibleExercises = state.visibleExercises,
+                        allExercises = state.exercises,
+                        searchQuery = state.exerciseSearchQuery,
+                        muscleFilter = state.exerciseMuscleFilter,
+                        equipmentFilter = state.exerciseEquipmentFilter,
+                        editor = state.exerciseEditor,
+                        accent = accent,
+                        onSearchChange = viewModel::onExerciseSearchQueryChanged,
+                        onMuscleFilterChange = viewModel::onExerciseMuscleFilterChanged,
+                        onEquipmentFilterChange = viewModel::onExerciseEquipmentFilterChanged,
+                        onClearFilters = viewModel::clearExerciseFilters,
+                        onOpenExerciseDetail = viewModel::openExerciseDetail,
+                        onOpenCustomExercise = viewModel::openCustomExerciseEditor,
+                        onCloseCustomExercise = viewModel::closeCustomExerciseEditor,
+                        onCustomExerciseNameChange = viewModel::onCustomExerciseNameChanged,
+                        onCustomExerciseCategoryChange = viewModel::onCustomExerciseCategoryChanged,
+                        onCustomExerciseEquipmentChange = viewModel::onCustomExerciseEquipmentChanged,
+                        onCustomExerciseTargetMusclesChange = viewModel::onCustomExerciseTargetMusclesChanged,
+                        onSaveCustomExercise = viewModel::saveCustomExercise,
+                    )
+                }
+            }
             TrainingSection.History ->
                 TrainingHistoryContent(
                     history = state.workoutHistory,
@@ -362,17 +383,12 @@ private fun TrainingExerciseLibraryContent(
     muscleFilter: String?,
     equipmentFilter: String?,
     editor: ExerciseEditorState,
-    selectedExerciseDetail: ExerciseDetail?,
-    exerciseDetailNotesInput: String,
     accent: TabAccent,
     onSearchChange: (String) -> Unit,
     onMuscleFilterChange: (String?) -> Unit,
     onEquipmentFilterChange: (String?) -> Unit,
     onClearFilters: () -> Unit,
     onOpenExerciseDetail: (String) -> Unit,
-    onCloseExerciseDetail: () -> Unit,
-    onExerciseDetailNotesChange: (String) -> Unit,
-    onSaveExerciseDetailNotes: () -> Unit,
     onOpenCustomExercise: () -> Unit,
     onCloseCustomExercise: () -> Unit,
     onCustomExerciseNameChange: (String) -> Unit,
@@ -401,16 +417,6 @@ private fun TrainingExerciseLibraryContent(
         FilterChipRow(title = "Muscle", options = muscleOptions.take(8), selected = muscleFilter, accent = accent, onSelected = onMuscleFilterChange)
         if (searchQuery.isNotBlank() || equipmentFilter != null || muscleFilter != null) {
             TextButton(onClick = onClearFilters) { Text("Clear filters", color = accent.color) }
-        }
-        selectedExerciseDetail?.let { detail ->
-            ExerciseDetailCard(
-                detail = detail,
-                notesInput = exerciseDetailNotesInput,
-                accent = accent,
-                onNotesChange = onExerciseDetailNotesChange,
-                onSaveNotes = onSaveExerciseDetailNotes,
-                onClose = onCloseExerciseDetail,
-            )
         }
         if (editor.isOpen) {
             Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
@@ -471,56 +477,99 @@ private fun TrainingExerciseLibraryContent(
     }
 }
 
+/**
+ * Full-page exercise view: a large demo (animated GIF when available), title with the planned
+ * target chip (only when opened from a routine), muscles as chips, instructions, and local notes.
+ * Shared by routine exercise rows and the library so there is one clean exercise screen everywhere.
+ */
 @Composable
-private fun ExerciseDetailCard(
+private fun ExerciseDetailPage(
     detail: ExerciseDetail,
+    target: String?,
     notesInput: String,
     accent: TabAccent,
     onNotesChange: (String) -> Unit,
     onSaveNotes: () -> Unit,
     onClose: () -> Unit,
 ) {
-    Surface(color = accent.container, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(detail.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = accent.onContainer)
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(
+            modifier = Modifier.clickable(onClick = onClose),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = accent.color,
+                modifier = Modifier.size(20.dp),
+            )
+            Text("Back", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = accent.color)
+        }
+
+        val gifUrl = detail.gifUrl
+        val imageUrl = detail.imageUrl
+        if (!gifUrl.isNullOrBlank()) {
+            ExerciseGif(gifUrl = gifUrl, contentDescription = detail.name)
+        } else if (!imageUrl.isNullOrBlank()) {
+            ExerciseThumb(
+                imageUrl = imageUrl,
+                contentDescription = detail.name,
+                accent = accent,
+                size = 200.dp,
+                shape = MusFitTheme.shapes.large,
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                detail.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MusFitTheme.colors.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            if (!target.isNullOrBlank()) {
+                Surface(color = accent.container, shape = RoundedCornerShape(999.dp)) {
                     Text(
-                        listOfNotNull(
-                            detail.equipment?.replaceFirstChar { it.titlecase(Locale.US) },
-                            detail.category.replaceFirstChar { it.titlecase(Locale.US) },
-                            if (detail.isCustom) "Custom" else "Library",
-                        ).joinToString(" - "),
-                        style = MaterialTheme.typography.bodySmall,
+                        target,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
                         color = accent.onContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
-                TextButton(onClick = onClose) { Text("Close", color = accent.color) }
             }
-            val gifUrl = detail.gifUrl
-            val imageUrl = detail.imageUrl
-            if (!gifUrl.isNullOrBlank()) {
-                ExerciseGif(gifUrl = gifUrl, contentDescription = detail.name)
-            } else if (!imageUrl.isNullOrBlank()) {
-                ExerciseThumb(
-                    imageUrl = imageUrl,
-                    contentDescription = detail.name,
-                    accent = accent,
-                    size = 200.dp,
-                    shape = MusFitTheme.shapes.large,
-                )
-            }
-            DetailLine(label = "Primary", value = detail.primaryMuscles, color = accent.onContainer)
-            if (detail.secondaryMuscles.isNotBlank()) {
-                DetailLine(label = "Secondary", value = detail.secondaryMuscles, color = accent.onContainer)
-            }
-            detail.instructions?.takeIf { it.isNotBlank() }?.let { instructions ->
-                Text(instructions, style = MaterialTheme.typography.bodyMedium, color = accent.onContainer)
-            }
+        }
+        Text(
+            listOfNotNull(
+                detail.equipment?.replaceFirstChar { it.titlecase(Locale.US) },
+                detail.category.replaceFirstChar { it.titlecase(Locale.US) },
+                if (detail.isCustom) "Custom" else "Library",
+            ).joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
+
+        MuscleChipRow(label = "Primary", muscles = detail.primaryMuscles, accent = accent, primary = true)
+        if (detail.secondaryMuscles.isNotBlank()) {
+            MuscleChipRow(label = "Secondary", muscles = detail.secondaryMuscles, accent = accent, primary = false)
+        }
+
+        detail.instructions?.takeIf { it.isNotBlank() }?.let { instructions ->
+            Text(instructions, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurface)
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Your notes", style = MaterialTheme.typography.labelLarge, color = MusFitTheme.colors.onSurfaceVariant)
             OutlinedTextField(
                 value = notesInput,
                 onValueChange = onNotesChange,
-                label = { Text("Local notes") },
+                placeholder = { Text("Add a cue, weight, or reminder") },
                 minLines = 2,
                 shape = MusFitTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
@@ -536,13 +585,45 @@ private fun ExerciseDetailCard(
 }
 
 @Composable
-private fun DetailLine(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
-    if (value.isBlank()) return
-    Text(
-        "$label - $value",
-        style = MaterialTheme.typography.bodySmall,
-        color = color,
-    )
+private fun MuscleChipRow(label: String, muscles: String, accent: TabAccent, primary: Boolean) {
+    val items = muscles.split(",")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .map { it.replaceFirstChar { ch -> ch.titlecase(Locale.US) } }
+    if (items.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items.forEach { muscle ->
+                if (primary) {
+                    Surface(color = accent.container, shape = RoundedCornerShape(999.dp)) {
+                        Text(
+                            muscle,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = accent.onContainer,
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp),
+                        )
+                    }
+                } else {
+                    Surface(
+                        color = MusFitTheme.colors.surface,
+                        shape = RoundedCornerShape(999.dp),
+                        border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+                    ) {
+                        Text(
+                            muscle,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

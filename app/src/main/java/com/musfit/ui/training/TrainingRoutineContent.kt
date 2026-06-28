@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
@@ -223,6 +224,7 @@ fun RoutineDetailContent(
     accent: TabAccent,
     onStart: () -> Unit,
     onEdit: () -> Unit,
+    onOpenExercise: (exerciseId: String, target: String) -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
     onClose: () -> Unit,
@@ -294,7 +296,12 @@ fun RoutineDetailContent(
             ) {
                 Column {
                     detail.exercises.forEachIndexed { index, exercise ->
-                        RoutineDetailExerciseRow(position = index + 1, exercise = exercise, accent = accent)
+                        RoutineDetailExerciseRow(
+                            position = index + 1,
+                            exercise = exercise,
+                            accent = accent,
+                            onOpen = { target -> onOpenExercise(exercise.exercise.id, target) },
+                        )
                         if (index < detail.exercises.lastIndex) {
                             HorizontalDivider(
                                 thickness = 0.5.dp,
@@ -331,10 +338,15 @@ private fun RoutineDetailExerciseRow(
     position: Int,
     exercise: com.musfit.data.repository.RoutineExerciseDetail,
     accent: TabAccent,
+    onOpen: (target: String) -> Unit,
 ) {
+    val target = exercise.targetReps?.takeIf { it.isNotBlank() }
+        ?.let { "${exercise.targetSets} × $it" }
+        ?: "${exercise.targetSets} sets"
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onOpen(target) }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -377,21 +389,28 @@ private fun RoutineDetailExerciseRow(
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
             }
         }
-        val target = exercise.targetReps?.takeIf { it.isNotBlank() }
-            ?.let { "${exercise.targetSets} × $it" }
-            ?: "${exercise.targetSets} sets"
         Text(target, style = MaterialTheme.typography.labelLarge, color = accent.color)
+        Icon(
+            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MusFitTheme.colors.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
 @Composable
 private fun RoutineMuscleChip(label: String) {
-    Surface(color = MusFitTheme.colors.background, shape = RoundedCornerShape(999.dp)) {
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = RoundedCornerShape(999.dp),
+        border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MusFitTheme.colors.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
         )
     }
 }
