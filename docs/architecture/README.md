@@ -17,7 +17,7 @@ Top-level navigation is a bottom bar with four destinations:
 | --- | --- | --- |
 | Today | `today` | Daily dashboard, rings, coaching cues, weekly goals, and shortcuts into feature areas. |
 | Food | `food` | Food diary, add food flow, saved foods, barcode lookup, nutrition goals, water, templates, recipes, shopping list, and food Health Connect sync. |
-| Training | `training` | Routines, exercise library, active workouts, rest timer, supersets, PR/plate hints, workout history, progress, and quick set logging. |
+| Training | `training` | Routines, exercise library, active workouts, rest timer, supersets, PR/plate hints, workout history/recaps, progress, and quick set logging. |
 | Health | `health` | Health Connect status, permission entrypoint, daily health import, and workout export. |
 
 The MVP is local-first. It has no account system, cloud sync, analytics, subscription layer, social features, or wearable cloud API integration.
@@ -151,7 +151,7 @@ Room migrations are registered from version 1 to 24 in `DatabaseModule`. The app
 
 ### Training Persistence Notes
 
-Training stores only local strength-training data. Exercise rows hold list metadata plus detail fields (`primaryMuscles`, `secondaryMuscles`, `instructions`, and `localNotes`). Routines store starter/custom status, optional `programName`, and CSV-backed tags, with ordered routine exercises in `routine_exercises`. Active and completed workouts use the same session/set tables, with session `status` separating active, completed, and discarded workouts. Supersets are represented by a nullable `supersetGroupId` on workout sets and are derived into grouped UI models by the repository. Global Training tool settings live in `training_settings` for default rest duration, bar weight, and available plate inventory.
+Training stores only local strength-training data. Exercise rows hold list metadata plus detail fields (`primaryMuscles`, `secondaryMuscles`, `instructions`, and `localNotes`). Routines store starter/custom status, optional `programName`, and CSV-backed tags, with ordered routine exercises in `routine_exercises`. Active and completed workouts use the same session/set tables, with session `status` separating active, completed, and discarded workouts. Completed workout recap data is derived from the session and completed set rows, including local session notes. Supersets are represented by a nullable `supersetGroupId` on workout sets and are derived into grouped UI models by the repository. Global Training tool settings live in `training_settings` for default rest duration, bar weight, and available plate inventory.
 
 ## Remote And Device Integrations
 

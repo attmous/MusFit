@@ -225,10 +225,20 @@ data class WorkoutHistorySummary(
     val totalVolumeKg: Double,
 )
 
+data class WorkoutRecapSummary(
+    val durationSeconds: Int = 0,
+    val exerciseCount: Int = 0,
+    val completedSetCount: Int = 0,
+    val totalVolumeKg: Double = 0.0,
+    val personalRecordCount: Int = 0,
+    val notes: String? = null,
+)
+
 data class WorkoutHistoryDetail(
     val summary: WorkoutHistorySummary,
     val exerciseBlocks: List<WorkoutExerciseBlock>,
     val exerciseGroupings: List<ExerciseGrouping> = emptyList(),
+    val recap: WorkoutRecapSummary = WorkoutRecapSummary(),
 )
 
 interface TrainingRepository {
@@ -471,8 +481,7 @@ class LocalTrainingRepository @Inject constructor(
 
     override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? {
         val session = trainingDao.getCompletedWorkoutSession(sessionId) ?: return null
-        val summary = trainingDao.observeWorkoutHistorySummaries().first()
-            .firstOrNull { it.sessionId == sessionId }
+        val summary = trainingDao.getWorkoutHistorySummary(sessionId)
             ?.toHistorySummary()
             ?: return null
         val detail = trainingDao.observeWorkoutSetDetailRows(session.id).first()
@@ -481,6 +490,7 @@ class LocalTrainingRepository @Inject constructor(
             summary = summary,
             exerciseBlocks = detail.exerciseBlocks,
             exerciseGroupings = detail.exerciseGroupings,
+            recap = detail.toWorkoutRecapSummary(summary),
         )
     }
 
@@ -1381,6 +1391,32 @@ private fun buildWorkoutExerciseBlock(
         },
     )
 }
+
+private fun ActiveWorkoutDetail.toWorkoutRecapSummary(summary: WorkoutHistorySummary): WorkoutRecapSummary =
+    WorkoutRecapSummary(
+        durationSeconds = summary.workoutDurationSeconds(),
+        exerciseCount = exerciseBlocks.size,
+        completedSetCount = summary.completedSetCount,
+        totalVolumeKg = summary.totalVolumeKg,
+        personalRecordCount = exerciseBlocks.sumOf { it.personalRecordSetCount() },
+        notes = notes,
+    )
+
+private fun WorkoutHistorySummary.workoutDurationSeconds(): Int {
+    val endedAt = endedAtEpochMillis ?: startedAtEpochMillis
+    return ((endedAt - startedAtEpochMillis).coerceAtLeast(0L) / 1000L).toInt()
+}
+
+private fun WorkoutExerciseBlock.personalRecordSetCount(): Int =
+    sets.count { set ->
+        val normalizedSetType = set.setType.lowercase()
+        val isWarmup = normalizedSetType == "warmup" || normalizedSetType == "warm-up"
+        val isDropSet = normalizedSetType == "drop"
+        val reps = set.reps
+        val weightKg = set.weightKg
+        !isWarmup && !isDropSet && set.completed && reps != null && weightKg != null &&
+            WorkoutCalculator.estimatedOneRepMax(weightKg, reps) > priorBestEstimatedOneRepMaxKg + 1e-6
+    }
 
 private fun WorkoutSetEntity.toPreviousLabel(): String? {
     val reps = reps ?: return null

@@ -611,6 +611,53 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun workoutHistoryDetail_includesWorkoutRecapAfterFinish() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val row = repository.observeExercises(query = "row").first().first()
+
+        currentInstant = WORKOUT_START.minusSeconds(86_400)
+        val previousSessionId = repository.startBlankWorkout()
+        repository.addSetToExercise(
+            previousSessionId,
+            bench.id,
+            WorkoutSetInputData("working", reps = 5, weightKg = 90.0, rpe = null, notes = null, completed = true),
+        )
+        repository.finishWorkout(previousSessionId)
+
+        currentInstant = WORKOUT_START
+        val sessionId = repository.startBlankWorkout()
+        repository.updateActiveWorkoutNotes(sessionId, "  Strong top set, kept rows strict.  ")
+        repository.addSetToExercise(
+            sessionId,
+            bench.id,
+            WorkoutSetInputData("working", reps = 5, weightKg = 100.0, rpe = 8.0, notes = null, completed = true),
+        )
+        repository.addSetToExercise(
+            sessionId,
+            bench.id,
+            WorkoutSetInputData("drop", reps = 10, weightKg = 70.0, rpe = null, notes = null, completed = true),
+        )
+        repository.addSetToExercise(
+            sessionId,
+            row.id,
+            WorkoutSetInputData("working", reps = 8, weightKg = 80.0, rpe = null, notes = null, completed = true),
+        )
+
+        currentInstant = WORKOUT_START.plusSeconds(2_700)
+        repository.finishWorkout(sessionId)
+
+        val recap = repository.getWorkoutHistoryDetail(sessionId)?.recap ?: error("Missing recap")
+
+        assertEquals(2_700, recap.durationSeconds)
+        assertEquals(2, recap.exerciseCount)
+        assertEquals(3, recap.completedSetCount)
+        assertEquals(1_840.0, recap.totalVolumeKg, 0.01)
+        assertEquals(2, recap.personalRecordCount)
+        assertEquals("Strong top set, kept rows strict.", recap.notes)
+    }
+
+    @Test
     fun addExerciseToActiveWorkout_addsVisibleIncompleteWorkingSet() = runTest {
         repository.seedStarterTrainingData()
         val bench = repository.observeExercises(query = "bench").first().single()
