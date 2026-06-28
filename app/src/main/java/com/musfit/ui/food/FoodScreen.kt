@@ -747,7 +747,7 @@ private fun WeeklyPlanStrip(planDays: List<FoodPlanDayUiState>) {
             Card(
                 modifier = Modifier.width(112.dp),
                 colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-                shape = MusFitTheme.shapes.small,
+                shape = MusFitTheme.shapes.extraLarge,
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Column(
@@ -856,7 +856,7 @@ private fun MacroProgressCard(
     Card(
         modifier = modifier.height(98.dp),
         colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -894,7 +894,7 @@ private fun EmptyDiaryStartCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -936,7 +936,7 @@ private fun WeeklyMusFitScoreCard(score: FoodWeeklyScoreUiState) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -999,7 +999,7 @@ private fun FoodProgressStatsCard(stats: FoodProgressStatsUiState) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -1063,7 +1063,7 @@ private fun DayRatingCard(rating: FoodRatingUiState) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -1173,7 +1173,7 @@ private fun FoodHabitTrackerSection(habits: List<FoodHabitTrackerUiState>) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -1275,7 +1275,7 @@ private fun DailyInsightCard(insight: FoodInsightUiState) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -1424,7 +1424,7 @@ private fun AdvancedNutritionProgressCard(
     Surface(
         modifier = modifier.height(82.dp),
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -1504,7 +1504,7 @@ private fun MicronutrientCard(
     Surface(
         modifier = modifier.height(68.dp),
         color = MusFitTheme.colors.surfaceVariant,
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -1592,7 +1592,7 @@ private fun MealDetailScreen(
         Surface(
             onClick = onAddFoodClick,
             color = MusFitTheme.colors.surface,
-            shape = MusFitTheme.shapes.small,
+            shape = MusFitTheme.shapes.extraLarge,
         ) {
             Row(
                 modifier = Modifier
@@ -1631,7 +1631,7 @@ private fun MealDetailScreen(
         if (meal.entries.isEmpty()) {
             Surface(
                 color = MusFitTheme.colors.surface,
-                shape = MusFitTheme.shapes.small,
+                shape = MusFitTheme.shapes.extraLarge,
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -1653,7 +1653,7 @@ private fun MealDetailScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-                shape = MusFitTheme.shapes.small,
+                shape = MusFitTheme.shapes.extraLarge,
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
@@ -1702,7 +1702,7 @@ private fun MessageBanner(
 
     Surface(
         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Row(
             modifier = Modifier
@@ -1734,7 +1734,7 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -1915,7 +1915,7 @@ private fun MealPickerItem(
     ) {
         Surface(
             color = MusFitTheme.colors.surface,
-            shape = MusFitTheme.shapes.small,
+            shape = MusFitTheme.shapes.extraLarge,
             shadowElevation = 3.dp,
         ) {
             Text(
@@ -1956,7 +1956,7 @@ private fun MealSectionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -1968,7 +1968,7 @@ private fun MealSectionCard(
                 Surface(
                     onClick = onMealClick,
                     color = Color.Transparent,
-                    shape = MusFitTheme.shapes.small,
+                    shape = MusFitTheme.shapes.extraLarge,
                     modifier = Modifier.weight(1f),
                 ) {
                     Row(
@@ -2058,7 +2058,7 @@ private fun DiaryEntryRow(
     Surface(
         onClick = onClick,
         color = Color.Transparent,
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.extraLarge,
     ) {
         Row(
             modifier = Modifier
@@ -2208,7 +2208,7 @@ private fun FoodDatabasePreview(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-            shape = MusFitTheme.shapes.small,
+            shape = MusFitTheme.shapes.extraLarge,
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
             Column(
