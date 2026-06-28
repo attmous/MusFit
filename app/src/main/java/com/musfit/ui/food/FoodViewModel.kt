@@ -204,6 +204,12 @@ data class FoodProgramUiState(
     val isSelected: Boolean,
 )
 
+data class RecipeDiscoveryUiState(
+    val filter: RecipeDiscoveryFilter = RecipeDiscoveryFilter.All,
+    val items: List<RecipeDiscoveryItemUiState> = emptyRecipeDiscoveryItems(),
+    val visibleItems: List<RecipeDiscoveryItemUiState> = emptyRecipeDiscoveryItems(),
+)
+
 data class RecipeDiscoveryItemUiState(
     val id: String,
     val title: String,
@@ -445,6 +451,7 @@ data class BarcodeComparisonUiState(
     val leftItem: BarcodeComparisonItemUiState? = null,
     val rightItem: BarcodeComparisonItemUiState? = null,
     val highlights: List<BarcodeComparisonHighlightUiState> = emptyList(),
+    val isLoading: Boolean = false,
 ) {
     val items: List<BarcodeComparisonItemUiState>
         get() = listOfNotNull(leftItem, rightItem)
@@ -718,14 +725,11 @@ data class FoodUiState(
     val duplicateFoodGroups: List<FoodDuplicateGroupUiState> = emptyList(),
     val mealTemplates: List<MealTemplateUiState> = emptyList(),
     val recipes: List<RecipeUiState> = emptyList(),
-    val recipeDiscoveryFilter: RecipeDiscoveryFilter = RecipeDiscoveryFilter.All,
-    val recipeDiscoveryItems: List<RecipeDiscoveryItemUiState> = emptyRecipeDiscoveryItems(),
-    val visibleRecipeDiscoveryItems: List<RecipeDiscoveryItemUiState> = emptyRecipeDiscoveryItems(),
+    val recipeDiscovery: RecipeDiscoveryUiState = RecipeDiscoveryUiState(),
     val quickCaloriePresets: List<QuickCaloriePresetUiState> = emptyList(),
     val onlineFoodResults: List<OnlineFoodResultUiState> = emptyList(),
     val isSearchingFoods: Boolean = false,
     val barcodeComparison: BarcodeComparisonUiState = BarcodeComparisonUiState(),
-    val isBarcodeComparisonLoading: Boolean = false,
     val fastingTimer: FastingTimerUiState = FastingTimerUiState(),
     val isAddPanelVisible: Boolean = false,
     val sheetMode: FoodSheetMode? = null,
@@ -1444,19 +1448,19 @@ class FoodViewModel @Inject constructor(
             mutableState.update { it.copy(message = "Enter two barcodes to compare") }
             return
         }
-        if (currentState.isBarcodeComparisonLoading) {
+        if (currentState.barcodeComparison.isLoading) {
             return
         }
         viewModelScope.launch {
-            mutableState.update { it.copy(isBarcodeComparisonLoading = true, message = null) }
+            mutableState.update { it.copy(barcodeComparison = it.barcodeComparison.copy(isLoading = true), message = null) }
             try {
                 val savedFoods = state.value.savedFoods
                 val leftItem = lookupBarcodeComparisonItem(leftBarcode, savedFoods)
                 val rightItem = lookupBarcodeComparisonItem(rightBarcode, savedFoods)
                 mutableState.update { latestState ->
                     latestState.copy(
-                        isBarcodeComparisonLoading = false,
                         barcodeComparison = latestState.barcodeComparison.copy(
+                            isLoading = false,
                             leftItem = leftItem,
                             rightItem = rightItem,
                             highlights = buildBarcodeComparisonHighlights(leftItem, rightItem),
@@ -1470,12 +1474,12 @@ class FoodViewModel @Inject constructor(
                     )
                 }
             } catch (error: CancellationException) {
-                mutableState.update { it.copy(isBarcodeComparisonLoading = false) }
+                mutableState.update { it.copy(barcodeComparison = it.barcodeComparison.copy(isLoading = false)) }
                 throw error
             } catch (error: Exception) {
                 mutableState.update {
                     it.copy(
-                        isBarcodeComparisonLoading = false,
+                        barcodeComparison = it.barcodeComparison.copy(isLoading = false),
                         message = error.message ?: "Failed to compare barcodes",
                     )
                 }
@@ -1768,15 +1772,17 @@ class FoodViewModel @Inject constructor(
     fun selectRecipeDiscoveryFilter(filter: RecipeDiscoveryFilter) {
         mutableState.update {
             it.copy(
-                recipeDiscoveryFilter = filter,
-                visibleRecipeDiscoveryItems = it.recipeDiscoveryItems.filterForRecipeDiscovery(filter),
+                recipeDiscovery = it.recipeDiscovery.copy(
+                    filter = filter,
+                    visibleItems = it.recipeDiscovery.items.filterForRecipeDiscovery(filter),
+                ),
                 message = null,
             )
         }
     }
 
     fun useRecipeDiscoveryItem(itemId: String) {
-        val item = state.value.recipeDiscoveryItems.firstOrNull { it.id == itemId } ?: run {
+        val item = state.value.recipeDiscovery.items.firstOrNull { it.id == itemId } ?: run {
             mutableState.update { it.copy(message = "Recipe idea unavailable") }
             return
         }
@@ -4915,8 +4921,10 @@ private fun FoodUiState.withRecipes(recipes: List<RecipeUiState>): FoodUiState {
     val discoveryItems = buildRecipeDiscoveryItems(recipes, goalMode)
     return copy(
         recipes = recipes,
-        recipeDiscoveryItems = discoveryItems,
-        visibleRecipeDiscoveryItems = discoveryItems.filterForRecipeDiscovery(recipeDiscoveryFilter),
+        recipeDiscovery = recipeDiscovery.copy(
+            items = discoveryItems,
+            visibleItems = discoveryItems.filterForRecipeDiscovery(recipeDiscovery.filter),
+        ),
     )
 }
 
@@ -5393,9 +5401,12 @@ private fun List<FoodWeeklyDaySummary>.toProgressPeriodUiState(
 }
 
 private fun List<FoodWeeklyDaySummary>.trendLabelForCalories(): String {
-    val midpoint = size / 2
-    val firstAverage = take(midpoint).filter { it.diary.hasTrackedNutrition() }.map { it.diary.totals.caloriesKcal }.averageOrNull()
-    val secondAverage = drop(midpoint).filter { it.diary.hasTrackedNutrition() }.map { it.diary.totals.caloriesKcal }.averageOrNull()
+    // Split the tracked days (not the calendar window, which includes untracked days) in half so each
+    // half holds a comparable number of real data points regardless of where logging happened to fall.
+    val trackedCalories = filter { it.diary.hasTrackedNutrition() }.map { it.diary.totals.caloriesKcal }
+    val midpoint = trackedCalories.size / 2
+    val firstAverage = trackedCalories.take(midpoint).averageOrNull()
+    val secondAverage = trackedCalories.drop(midpoint).averageOrNull()
     if (firstAverage == null || secondAverage == null) {
         return "Trend needs more tracked days"
     }
@@ -5510,10 +5521,17 @@ private fun buildWeeklyHabitFactor(days: List<FoodWeeklyDaySummary>): WeeklyScor
 }
 
 private fun List<FoodDiaryEntry>.anyHabitKeyword(keywords: Set<String>): Boolean =
-    any { entry ->
-        val key = "${entry.name} ${entry.brand.orEmpty()}".lowercase()
-        keywords.any { keyword -> keyword in key }
-    }
+    any { entry -> entry.matchesHabitKeyword(keywords) }
+
+/**
+ * Matches habit keywords against whole word tokens of the food name/brand, not raw substrings, so
+ * "Pepperoni pizza" no longer counts as a vegetable ("pepper") and "Blueberry muffin" no longer
+ * counts as fruit ("berry"). Keyword sets carry both singular and plural forms.
+ */
+private fun FoodDiaryEntry.matchesHabitKeyword(keywords: Set<String>): Boolean {
+    val tokens = "$name ${brand.orEmpty()}".lowercase().split(Regex("[^a-z]+"))
+    return tokens.any { it.isNotEmpty() && it in keywords }
+}
 
 private fun Double.weeklyRangeScore(goal: Double, low: Double, high: Double): Double {
     if (!isFinite() || !goal.isFinite() || goal <= 0.0) {
@@ -5771,10 +5789,7 @@ private fun habitFromEntries(
     keywords: Set<String>,
     suggestion: String,
 ): FoodHabitTrackerUiState {
-    val matched = entries.any { entry ->
-        val key = "${entry.name} ${entry.brand.orEmpty()}".lowercase()
-        keywords.any { keyword -> keyword in key }
-    }
+    val matched = entries.any { entry -> entry.matchesHabitKeyword(keywords) }
     return FoodHabitTrackerUiState(
         id = id,
         label = label,
@@ -6257,6 +6272,9 @@ private fun barcodeComparisonHighlight(
         rightValue = rightValue.toComparisonValueLabel(unit),
         winnerSide = when {
             leftValue == rightValue -> null
+            // Open Food Facts maps absent nutrients to 0.0, so a 0.0 on a lower-is-better nutrient
+            // is ambiguous (likely "unknown"): don't crown the data-missing product the healthier one.
+            lowerIsBetter && minOf(leftValue, rightValue) <= 0.0 -> null
             lowerIsBetter && leftValue < rightValue -> BarcodeComparisonSide.Left
             lowerIsBetter -> BarcodeComparisonSide.Right
             leftValue > rightValue -> BarcodeComparisonSide.Left

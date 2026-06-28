@@ -469,6 +469,54 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun habitTrackersIgnoreSubstringFalsePositives() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(900.0, 30.0, 110.0, 35.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "lunch",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-pepperoni",
+                                    foodId = "food-pepperoni",
+                                    name = "Pepperoni pizza",
+                                    brand = null,
+                                    quantityGrams = 200.0,
+                                    caloriesKcal = 540.0,
+                                    proteinGrams = 22.0,
+                                    carbsGrams = 60.0,
+                                    fatGrams = 24.0,
+                                ),
+                                FoodDiaryEntry(
+                                    id = "entry-shake",
+                                    foodId = "food-shake",
+                                    name = "Strawberry milkshake",
+                                    brand = null,
+                                    quantityGrams = 300.0,
+                                    caloriesKcal = 360.0,
+                                    proteinGrams = 8.0,
+                                    carbsGrams = 50.0,
+                                    fatGrams = 11.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(900.0, 30.0, 110.0, 35.0),
+                        ),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val habits = viewModel.state.value.habitTrackers.associateBy { it.id }
+        // "Pepperoni" must not count as the "pepper" vegetable; "Strawberry" must not count as "berry" fruit.
+        assertEquals(FoodHabitStatus.Missing, habits.getValue("vegetables").status)
+        assertEquals(FoodHabitStatus.Missing, habits.getValue("fruit").status)
+        assertEquals(FoodHabitStatus.Missing, habits.getValue("fish").status)
+    }
+
+    @Test
     fun weeklyMusFitScoreExplainsNutritionHydrationHabitsAndUnavailableTrainingSignal() = runTest {
         val startDate = LocalDate.now()
         val repository =
@@ -3383,24 +3431,24 @@ class FoodViewModelTest {
         val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.recipeDiscoveryItems.any { it.sourceRecipeId == "recipe-1" && it.isSavedRecipe })
-        assertTrue(viewModel.state.value.recipeDiscoveryItems.any { it.id.startsWith("catalog-") })
+        assertTrue(viewModel.state.value.recipeDiscovery.items.any { it.sourceRecipeId == "recipe-1" && it.isSavedRecipe })
+        assertTrue(viewModel.state.value.recipeDiscovery.items.any { it.id.startsWith("catalog-") })
 
         viewModel.selectRecipeDiscoveryFilter(RecipeDiscoveryFilter.HighProtein)
 
-        val highProteinItems = viewModel.state.value.visibleRecipeDiscoveryItems
+        val highProteinItems = viewModel.state.value.recipeDiscovery.visibleItems
         assertTrue(highProteinItems.any { it.title == "Chicken bowl" })
         assertTrue(highProteinItems.all { "High protein" in it.tagLabels })
 
         viewModel.selectRecipeDiscoveryFilter(RecipeDiscoveryFilter.Favorites)
 
-        assertEquals(listOf("Chicken bowl"), viewModel.state.value.visibleRecipeDiscoveryItems.map { it.title })
+        assertEquals(listOf("Chicken bowl"), viewModel.state.value.recipeDiscovery.visibleItems.map { it.title })
 
         viewModel.applyFoodProgram("mediterranean-style")
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.selectRecipeDiscoveryFilter(RecipeDiscoveryFilter.Program)
 
-        val programItems = viewModel.state.value.visibleRecipeDiscoveryItems
+        val programItems = viewModel.state.value.recipeDiscovery.visibleItems
         assertTrue(programItems.any { it.title == "Mediterranean chickpea bowl" })
         assertTrue(programItems.all { it.programRelevant })
     }
@@ -3426,7 +3474,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.openAddFood("lunch")
-        val savedRecipeDiscoveryId = viewModel.state.value.recipeDiscoveryItems.single { it.sourceRecipeId == "recipe-1" }.id
+        val savedRecipeDiscoveryId = viewModel.state.value.recipeDiscovery.items.single { it.sourceRecipeId == "recipe-1" }.id
         viewModel.useRecipeDiscoveryItem(savedRecipeDiscoveryId)
         dispatcher.scheduler.advanceUntilIdle()
 
@@ -3635,6 +3683,54 @@ class FoodViewModelTest {
         assertEquals("Granola", comparison.rightItem?.name)
         assertEquals(listOf("111", "222"), comparison.items.map { it.barcode })
         assertTrue(provider.lookupCalls.isEmpty())
+    }
+
+    @Test
+    fun barcodeComparisonDoesNotCrownMissingNutrientAsHealthier() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Kitchen",
+                        defaultServingGrams = 170.0,
+                        nutritionPer100g = FoodNutrition(61.0, 10.0, 4.0, 1.0),
+                        nutritionDetailsPer100g = NutritionDetails(sugarGrams = 4.0, sodiumMilligrams = 50.0),
+                        barcode = "111",
+                    ),
+                ),
+            )
+        val viewModel =
+            FoodViewModel(
+                provider = FakeProductProvider(
+                    resultsByBarcode = mapOf(
+                        // Open Food Facts reports this product's sodium as absent, which the provider maps to 0.0.
+                        "222" to foundProduct(
+                            barcode = "222",
+                            name = "Mystery bar",
+                            brand = "Fuel",
+                            nutrition = FoodNutrition(240.0, 20.0, 22.0, 8.0),
+                        ).copy(
+                            nutritionDetailsPer100g = NutritionDetails(sugarGrams = 9.0, sodiumMilligrams = 0.0),
+                        ),
+                    ),
+                ),
+                repository = repository,
+            )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openBarcodeComparison()
+        viewModel.onBarcodeComparisonBarcodeChanged(BarcodeComparisonSide.Left, "111")
+        viewModel.onBarcodeComparisonBarcodeChanged(BarcodeComparisonSide.Right, "222")
+        viewModel.compareBarcodeProducts()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val comparison = viewModel.state.value.barcodeComparison
+        // Right product's sodium is 0.0 (unknown), so neither side is crowned the healthier on sodium.
+        assertTrue(comparison.highlights.first { it.label == "Sodium" }.winnerSide == null)
+        // Sugar is populated on both sides, so the lower one still wins.
+        assertEquals(BarcodeComparisonSide.Left, comparison.highlights.first { it.label == "Sugar" }.winnerSide)
     }
 
     @Test

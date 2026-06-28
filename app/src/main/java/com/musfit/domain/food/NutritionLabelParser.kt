@@ -55,7 +55,7 @@ object NutritionLabelParser {
             fatGrams = totalFat(lines),
             fiberGrams = firstNumberOnLineMatching(lines, listOf("fibre", "fiber", "ballast")),
             sugarGrams = firstNumberOnLineMatching(lines, listOf("sugar", "zucker")),
-            saturatedFatGrams = firstNumberOnLineMatching(lines, listOf("satur", "gesatt", "gesÃ¤tt")),
+            saturatedFatGrams = firstNumberOnLineMatching(lines, listOf("satur", "gesatt", "gesätt")),
             sodiumMilligrams = sodium(lines),
         )
     }

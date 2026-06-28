@@ -22,7 +22,7 @@ Snapshot date: 2026-06-28. Schema version 21.
 | `ui/food/FoodScreen.kt` | Diary screen, summary/header, meal detail, and the `FoodSheetMode` dispatch (~2,000 lines). |
 | `ui/food/FoodComponents.kt` | Shared leaf composables + formatters (`ProgressBar`, `FoodThumb`, `SectionTitle`, …). |
 | `ui/food/FoodTrackersUi.kt` | Water + Health Connect "More details" cards. |
-| `ui/food/FoodModalSheets.kt` | The 10 `FoodSheetMode` panels (database, editors, goals, recipes, templates, shopping). |
+| `ui/food/FoodModalSheets.kt` | The `FoodSheetMode` panels (database, editors, goals, recipes, templates, shopping, barcode comparison, fasting timer). |
 | `ui/food/FoodAddPanelUi.kt` | The add-food panel and its entry-mode forms. |
 | `ui/food/AddFoodScreen.kt` | Full-screen add-food surface (the `AddFood` sheet mode). |
 | `ui/food/FoodViewModel.kt` | Single `@HiltViewModel`; owns `FoodUiState` and every Food action. |
@@ -282,7 +282,7 @@ change. **Done — FoodScreen.kt went from ~4,900 to ~1,980 lines.**
 - [x] `FoodComponents.kt` — shared primitives (`FoodThumb`, `ProgressBar`,
   `SectionTitle`, avatars, `SmallNumberField`, formatters).
 - [x] `FoodTrackersUi.kt` — water and Health Connect cards.
-- [x] `FoodModalSheets.kt` — the 10 `FoodSheetMode` panels and their helpers
+- [x] `FoodModalSheets.kt` — the `FoodSheetMode` panels and their helpers
   (the editor panels live here rather than a separate `FoodEditorsUi.kt`).
 - [x] `FoodAddPanelUi.kt` — the add-food panel and its entry-mode forms.
 - [x] `FoodScreen.kt` keeps the diary screen, summary/header, meal detail, and

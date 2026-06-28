@@ -525,11 +525,11 @@ internal fun BarcodeComparisonPanel(
 
         Button(
             onClick = onCompareClick,
-            enabled = !state.isBarcodeComparisonLoading,
+            enabled = !state.barcodeComparison.isLoading,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
         ) {
-            Text(if (state.isBarcodeComparisonLoading) "Comparing" else "Compare")
+            Text(if (state.barcodeComparison.isLoading) "Comparing" else "Compare")
         }
 
         state.message?.let { message ->
@@ -2005,20 +2005,20 @@ private fun RecipeDiscoveryCatalog(
         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RecipeDiscoveryFilter.entries.forEach { filter ->
                 FilterChip(
-                    selected = state.recipeDiscoveryFilter == filter,
+                    selected = state.recipeDiscovery.filter == filter,
                     onClick = { onFilterChanged(filter) },
                     label = { Text(filter.label) },
                 )
             }
         }
-        if (state.visibleRecipeDiscoveryItems.isEmpty()) {
+        if (state.recipeDiscovery.visibleItems.isEmpty()) {
             Text(
                 text = "No recipes match this filter yet.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
         } else {
-            state.visibleRecipeDiscoveryItems.take(8).forEach { item ->
+            state.recipeDiscovery.visibleItems.take(8).forEach { item ->
                 Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
                     Row(
                         modifier = Modifier
