@@ -18,6 +18,7 @@ import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.ExerciseProgressSetInput
 import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.PlateCalculator
+import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.domain.training.WorkoutCalculator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -108,6 +109,7 @@ data class RoutineSummary(
     val isStarter: Boolean,
     val programName: String? = null,
     val tags: List<String> = emptyList(),
+    val muscleGroups: List<String> = emptyList(),
 )
 
 data class RoutineExerciseDetail(
@@ -1123,6 +1125,7 @@ private fun RoutineSummaryRow.toSummary(): RoutineSummary =
         isStarter = isStarter,
         programName = programName,
         tags = tags.parseTags(),
+        muscleGroups = RoutineDisplayCalculator.topMuscles(primaryMuscles),
     )
 
 private fun String.parseTags(): List<String> =

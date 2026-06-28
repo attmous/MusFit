@@ -282,6 +282,34 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun observeRoutineSummaries_aggregatesMuscleGroupsWithoutInflatingCounts() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().first()
+        val squat = repository.observeExercises(query = "squat").first().first()
+
+        repository.createRoutine(
+            RoutineInput(
+                name = "Mixed Day",
+                notes = null,
+                exercises = listOf(
+                    RoutineExerciseInput(bench.id, targetSets = 3, targetReps = "5"),
+                    RoutineExerciseInput(squat.id, targetSets = 4, targetReps = "6"),
+                ),
+            ),
+        )
+
+        val summary = repository.observeRoutineSummaries().first().single { it.name == "Mixed Day" }
+
+        // Extra LEFT JOIN to exercises must not multiply the aggregate counts.
+        assertEquals(2, summary.exerciseCount)
+        assertEquals(7, summary.targetSetCount)
+        // Primary muscles aggregated across the routine's exercises, deduped + title-cased, capped at 3.
+        assertTrue(summary.muscleGroups.contains("Chest"))
+        assertTrue(summary.muscleGroups.contains("Quads"))
+        assertTrue(summary.muscleGroups.size <= 3)
+    }
+
+    @Test
     fun createUpdateDuplicateAndDeleteRoutine_persistsRoutineExerciseTargets() = runTest {
         repository.seedStarterTrainingData()
         val bench = repository.observeExercises(query = "bench").first().single()

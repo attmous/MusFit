@@ -29,6 +29,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -141,15 +144,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
             )
         }
 
-        TrainingDashboardCard(
-            dashboard = state.dashboard,
-            accent = accent,
-            onStartRoutine = viewModel::startRoutine,
-            onStartBlank = viewModel::startBlankWorkout,
-            onHistory = { viewModel.selectSection(TrainingSection.History) },
-        )
-
-        SectionChips(
+        SectionTabs(
             selected = state.selectedSection,
             accent = accent,
             onSelect = viewModel::selectSection,
@@ -266,61 +261,6 @@ private fun TrainingHeader(
 }
 
 @Composable
-private fun TrainingDashboardCard(
-    dashboard: TrainingDashboardState,
-    accent: TabAccent,
-    onStartRoutine: (String) -> Unit,
-    onStartBlank: () -> Unit,
-    onHistory: () -> Unit,
-) {
-    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Dashboard", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            dashboard.nextSuggestedRoutine?.let { routine ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Next routine", style = MaterialTheme.typography.labelMedium, color = MusFitTheme.colors.onSurfaceVariant)
-                        Text(routine.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Text("${routine.exerciseCount} exercises · ${routine.targetSetCount} sets", style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
-                    }
-                    Button(onClick = { onStartRoutine(routine.id) }, colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer)) {
-                        Text("Start")
-                    }
-                }
-            } ?: Text("Create or duplicate a routine to get a suggested next workout.", color = MusFitTheme.colors.onSurfaceVariant)
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-                TextButton(onClick = onStartBlank) { Text("Blank workout", color = accent.color) }
-                dashboard.quickStartRoutines.forEach { routine ->
-                    TextButton(onClick = { onStartRoutine(routine.id) }) {
-                        Text(routine.name, color = accent.color)
-                    }
-                }
-            }
-
-            dashboard.recentWorkout?.let { workout ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Recent workout", style = MaterialTheme.typography.labelMedium, color = MusFitTheme.colors.onSurfaceVariant)
-                        Text(workout.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Text("${workout.completedSetCount} sets · ${workout.totalVolumeKg.formatKg()} kg", style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
-                    }
-                    TextButton(onClick = onHistory) { Text("History", color = accent.color) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ResumeBanner(
     title: String,
     subtitle: String,
@@ -345,31 +285,35 @@ private fun ResumeBanner(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SectionChips(
+private fun SectionTabs(
     selected: TrainingSection,
     accent: TabAccent,
     onSelect: (TrainingSection) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        TrainingSection.entries.forEach { section ->
-            val isSelected = section == selected
-            Surface(
+    val sections = TrainingSection.entries
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        sections.forEachIndexed { index, section ->
+            SegmentedButton(
+                selected = section == selected,
                 onClick = { onSelect(section) },
-                color = if (isSelected) accent.container else MusFitTheme.colors.surface,
-                shape = MusFitTheme.shapes.large,
-                border = if (isSelected) null else androidx.compose.foundation.BorderStroke(0.5.dp, MusFitTheme.colors.outline),
-            ) {
-                Text(
-                    text = section.name,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isSelected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                )
-            }
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = sections.size),
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = accent.container,
+                    activeContentColor = accent.onContainer,
+                    activeBorderColor = accent.color,
+                    inactiveContainerColor = MusFitTheme.colors.surface,
+                    inactiveContentColor = MusFitTheme.colors.onSurfaceVariant,
+                ),
+                icon = {},
+                label = {
+                    Text(
+                        text = section.name,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (section == selected) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                    )
+                },
+            )
         }
     }
 }

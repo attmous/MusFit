@@ -1,6 +1,8 @@
 package com.musfit.ui.training
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,12 +20,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,11 +47,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineSummary
+import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 
@@ -102,80 +111,153 @@ fun TrainingRoutineContent(
                 }
             }
         }
-        routines.forEach { routine ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(routine.name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "${routine.exerciseCount} exercises - ${routine.targetSetCount} sets",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        if (routines.isNotEmpty()) {
+            Surface(
+                color = MusFitTheme.colors.surface,
+                shape = MusFitTheme.shapes.large,
+                border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column {
+                    routines.forEachIndexed { index, routine ->
+                        RoutineRow(
+                            routine = routine,
+                            accent = accent,
+                            onStart = { onStartRoutine(routine.id) },
+                            onEdit = { onEditRoutine(routine.id) },
+                            onDuplicate = { onDuplicateRoutine(routine.id) },
+                            onDelete = { onDeleteRoutine(routine.id) },
+                        )
+                        if (index < routines.lastIndex) {
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MusFitTheme.colors.outline,
+                                modifier = Modifier.padding(start = 61.dp),
                             )
-                            val meta = listOfNotNull(
-                                routine.programName,
-                                routine.tags.take(2).joinToString(", ").takeIf { it.isNotBlank() },
-                            ).joinToString(" - ")
-                            if (meta.isNotBlank()) {
-                                Text(
-                                    meta,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                    val actions = routineCardActions(routine.isStarter)
-                    if (ROUTINE_ACTION_START in actions) {
-                        Button(
-                            onClick = { onStartRoutine(routine.id) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-                        ) {
-                            Text("Start")
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        actions.filterNot { it == ROUTINE_ACTION_START }.forEach { action ->
-                            when (action) {
-                                ROUTINE_ACTION_EDIT -> {
-                                    TextButton(
-                                        onClick = { onEditRoutine(routine.id) },
-                                        colors = ButtonDefaults.textButtonColors(contentColor = accent.color),
-                                    ) {
-                                        Text("Edit")
-                                    }
-                                }
-                                ROUTINE_ACTION_DUPLICATE -> {
-                                    TextButton(
-                                        onClick = { onDuplicateRoutine(routine.id) },
-                                        colors = ButtonDefaults.textButtonColors(contentColor = accent.color),
-                                    ) {
-                                        Text("Duplicate")
-                                    }
-                                }
-                                ROUTINE_ACTION_DELETE -> {
-                                    TextButton(
-                                        onClick = { onDeleteRoutine(routine.id) },
-                                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                                    ) {
-                                        Text("Delete")
-                                    }
-                                }
-                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Dense, tappable routine row: tinted leading icon, name + meta + muscle chips, a compact tonal
+ * start button, and an overflow menu for edit/duplicate/delete. The single filled CTA on the
+ * screen stays the top "Start empty workout" button — every per-routine start is tonal here.
+ */
+@Composable
+private fun RoutineRow(
+    routine: RoutineSummary,
+    accent: TabAccent,
+    onStart: () -> Unit,
+    onEdit: () -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    val estimatedMinutes = RoutineDisplayCalculator.estimatedMinutes(routine.targetSetCount)
+    val meta = buildString {
+        append("${routine.exerciseCount} exercises · ${routine.targetSetCount} sets")
+        if (estimatedMinutes > 0) append(" · ~$estimatedMinutes min")
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { menuExpanded = true }
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(accent.container),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.FitnessCenter,
+                contentDescription = null,
+                tint = accent.onContainer,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                routine.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.onSurface,
+            )
+            Text(
+                meta,
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+            if (routine.muscleGroups.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    routine.muscleGroups.forEach { muscle -> RoutineMuscleChip(muscle) }
+                }
+            }
+        }
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(accent.container)
+                .clickable(onClick = onStart),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.PlayArrow,
+                contentDescription = "Start ${routine.name}",
+                tint = accent.onContainer,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Box {
+            IconButton(onClick = { menuExpanded = true }) {
+                Icon(
+                    imageVector = Icons.Outlined.MoreVert,
+                    contentDescription = "More options for ${routine.name}",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                routineCardActions(routine.isStarter)
+                    .filterNot { it == ROUTINE_ACTION_START }
+                    .forEach { action ->
+                        when (action) {
+                            ROUTINE_ACTION_EDIT -> DropdownMenuItem(
+                                text = { Text("Edit") },
+                                onClick = { menuExpanded = false; onEdit() },
+                            )
+                            ROUTINE_ACTION_DUPLICATE -> DropdownMenuItem(
+                                text = { Text("Duplicate") },
+                                onClick = { menuExpanded = false; onDuplicate() },
+                            )
+                            ROUTINE_ACTION_DELETE -> DropdownMenuItem(
+                                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                onClick = { menuExpanded = false; onDelete() },
+                            )
+                        }
+                    }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoutineMuscleChip(label: String) {
+    Surface(color = MusFitTheme.colors.background, shape = RoundedCornerShape(999.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+        )
     }
 }
 

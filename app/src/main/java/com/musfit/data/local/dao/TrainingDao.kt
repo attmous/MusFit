@@ -22,6 +22,7 @@ data class RoutineSummaryRow(
     val isStarter: Boolean,
     val programName: String?,
     val tags: String,
+    val primaryMuscles: String,
 )
 
 data class ActiveWorkoutSummaryRow(
@@ -133,9 +134,11 @@ interface TrainingDao {
             COALESCE(SUM(routine_exercises.targetSets), 0) AS targetSetCount,
             routines.isStarter AS isStarter,
             routines.programName AS programName,
-            routines.tags AS tags
+            routines.tags AS tags,
+            COALESCE(GROUP_CONCAT(exercises.primaryMuscles), '') AS primaryMuscles
         FROM routines
         LEFT JOIN routine_exercises ON routine_exercises.routineId = routines.id
+        LEFT JOIN exercises ON exercises.id = routine_exercises.exerciseId
         GROUP BY routines.id
         ORDER BY routines.isStarter DESC, routines.updatedAtEpochMillis DESC, routines.name ASC
         """,
