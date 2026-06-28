@@ -129,6 +129,7 @@ data class TrainingUiState(
     val bestEstimatedOneRepMaxKg: Double = 0.0,
     val routineEditor: RoutineEditorState = RoutineEditorState(),
     val selectedRoutineDetail: RoutineDetail? = null,
+    val replaceExerciseTargetId: String? = null,
     val activeWorkoutRouteOpen: Boolean = false,
     val activeWorkoutNotesInput: String = "",
     val trainingSettings: TrainingSettings = TrainingSettings(),
@@ -894,6 +895,32 @@ class TrainingViewModel @Inject constructor(
         if (setIds.isEmpty()) return
         viewModelScope.launch {
             setIds.forEach { repository.deleteWorkoutSet(it) }
+        }
+    }
+
+    /** Moves a standalone exercise up (-1) or down (+1) among the active workout's exercises. */
+    fun moveExerciseInActiveWorkout(exerciseId: String, direction: Int) {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        viewModelScope.launch {
+            repository.moveExerciseInActiveWorkout(sessionId, exerciseId, direction)
+        }
+    }
+
+    fun openReplaceExercisePicker(exerciseId: String) {
+        mutableState.update { it.copy(replaceExerciseTargetId = exerciseId) }
+    }
+
+    fun closeReplaceExercisePicker() {
+        mutableState.update { it.copy(replaceExerciseTargetId = null) }
+    }
+
+    /** Replaces the exercise selected for replacement, transferring its sets to [newExerciseId]. */
+    fun replaceActiveWorkoutExercise(newExerciseId: String) {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        val fromExerciseId = state.value.replaceExerciseTargetId ?: return
+        viewModelScope.launch {
+            repository.replaceExerciseInActiveWorkout(sessionId, fromExerciseId, newExerciseId)
+            mutableState.update { it.copy(replaceExerciseTargetId = null) }
         }
     }
 

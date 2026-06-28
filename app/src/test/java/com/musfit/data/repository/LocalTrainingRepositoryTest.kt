@@ -490,6 +490,51 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun moveExerciseInActiveWorkout_reordersExerciseBlocksAndKeepsSortOrdersContiguous() = runTest {
+        repository.seedStarterTrainingData()
+        val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
+        val sessionId = repository.startWorkoutFromRoutine(routine.id)
+
+        suspend fun exerciseOrder(): List<String> =
+            database.trainingDao().getWorkoutSets(sessionId)
+                .sortedBy { it.sortOrder }
+                .map { it.exerciseId }
+                .distinct()
+
+        val before = exerciseOrder()
+        assertTrue(before.size >= 2)
+        val second = before[1]
+
+        repository.moveExerciseInActiveWorkout(sessionId, second, direction = -1)
+
+        val after = exerciseOrder()
+        assertEquals(second, after[0])
+        assertEquals(before[0], after[1])
+        // All of the moved block's later exercises stay in place.
+        assertEquals(before.drop(2), after.drop(2))
+        val sets = database.trainingDao().getWorkoutSets(sessionId).sortedBy { it.sortOrder }
+        assertEquals(sets.indices.toList(), sets.map { it.sortOrder })
+    }
+
+    @Test
+    fun replaceExerciseInActiveWorkout_transfersSetsToNewExercise() = runTest {
+        repository.seedStarterTrainingData()
+        val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
+        val sessionId = repository.startWorkoutFromRoutine(routine.id)
+
+        val workoutExerciseIds = database.trainingDao().getWorkoutSets(sessionId).map { it.exerciseId }.toSet()
+        val original = database.trainingDao().getWorkoutSets(sessionId).sortedBy { it.sortOrder }.first().exerciseId
+        val originalSetCount = database.trainingDao().getWorkoutSets(sessionId).count { it.exerciseId == original }
+        val replacement = repository.observeExercises(query = "").first().first { it.id !in workoutExerciseIds }
+
+        repository.replaceExerciseInActiveWorkout(sessionId, fromExerciseId = original, toExerciseId = replacement.id)
+
+        val sets = database.trainingDao().getWorkoutSets(sessionId)
+        assertEquals(0, sets.count { it.exerciseId == original })
+        assertEquals(originalSetCount, sets.count { it.exerciseId == replacement.id })
+    }
+
+    @Test
     fun startBlankWorkout_createsActiveBlankWorkout() = runTest {
         val sessionId = repository.startBlankWorkout()
 

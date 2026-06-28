@@ -314,6 +314,10 @@ interface TrainingRepository {
 
     suspend fun deleteWorkoutSet(setId: String) = Unit
 
+    suspend fun moveExerciseInActiveWorkout(sessionId: String, exerciseId: String, direction: Int) = Unit
+
+    suspend fun replaceExerciseInActiveWorkout(sessionId: String, fromExerciseId: String, toExerciseId: String) = Unit
+
     suspend fun updateActiveWorkoutNotes(sessionId: String, notes: String?) = Unit
 
     suspend fun moveWorkoutSet(setId: String, direction: Int) = Unit
@@ -778,6 +782,44 @@ class LocalTrainingRepository @Inject constructor(
                 trainingDao.upsertWorkoutSet(set.copy(sortOrder = index))
             }
         }
+    }
+
+    override suspend fun moveExerciseInActiveWorkout(sessionId: String, exerciseId: String, direction: Int) {
+        if (direction == 0) return
+        val session = trainingDao.getWorkoutSession(sessionId) ?: return
+        if (session.status != WORKOUT_STATUS_ACTIVE) return
+
+        // Group the session's sets into exercise blocks in their current display order, swap the
+        // target block with its neighbour, then re-flatten the sort orders sequentially.
+        val ordered = trainingDao.getWorkoutSets(sessionId)
+        val blocks = LinkedHashMap<String, MutableList<WorkoutSetEntity>>()
+        ordered.forEach { blocks.getOrPut(it.exerciseId) { mutableListOf() }.add(it) }
+        val exerciseOrder = blocks.keys.toMutableList()
+        val currentIndex = exerciseOrder.indexOf(exerciseId)
+        if (currentIndex < 0) return
+        val targetIndex = (currentIndex + direction.coerceIn(-1, 1)).coerceIn(0, exerciseOrder.lastIndex)
+        if (targetIndex == currentIndex) return
+        exerciseOrder.removeAt(currentIndex)
+        exerciseOrder.add(targetIndex, exerciseId)
+
+        var sortOrder = 0
+        exerciseOrder.forEach { exId ->
+            blocks.getValue(exId).forEach { set ->
+                if (set.sortOrder != sortOrder) {
+                    trainingDao.upsertWorkoutSet(set.copy(sortOrder = sortOrder))
+                }
+                sortOrder++
+            }
+        }
+    }
+
+    override suspend fun replaceExerciseInActiveWorkout(sessionId: String, fromExerciseId: String, toExerciseId: String) {
+        if (fromExerciseId == toExerciseId) return
+        val session = trainingDao.getWorkoutSession(sessionId) ?: return
+        if (session.status != WORKOUT_STATUS_ACTIVE) return
+        trainingDao.getWorkoutSets(sessionId)
+            .filter { it.exerciseId == fromExerciseId }
+            .forEach { trainingDao.upsertWorkoutSet(it.copy(exerciseId = toExerciseId)) }
     }
 
     override suspend fun updateTrainingSettings(input: TrainingSettingsInput) {
