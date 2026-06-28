@@ -634,21 +634,31 @@ private fun FoodSummaryHeader(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
             .background(Brush.linearGradient(MusFitTheme.colors.brandGradient))
-            .padding(start = 20.dp, top = 18.dp, end = 8.dp, bottom = 24.dp),
+            .padding(start = 12.dp, top = 12.dp, end = 8.dp, bottom = 22.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Food",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MusFitTheme.colors.brandInk,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onPreviousDayClick) {
+                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = MusFitTheme.colors.brandInk)
+                    }
+                    Text(
+                        text = state.selectedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MusFitTheme.colors.brandInk,
+                        modifier = Modifier.clickable(onClick = onTodayClick),
+                    )
+                    IconButton(onClick = onNextDayClick) {
+                        Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = MusFitTheme.colors.brandInk)
+                    }
+                }
                 Box {
                     var menuOpen by remember { mutableStateOf(false) }
                     IconButton(onClick = { menuOpen = true }) {
@@ -675,29 +685,9 @@ private fun FoodSummaryHeader(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onPreviousDayClick) {
-                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = MusFitTheme.colors.brandInk)
-                }
-                Text(
-                    text = state.selectedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MusFitTheme.colors.brandInk,
-                    modifier = Modifier.clickable(onClick = onTodayClick),
-                )
-                IconButton(onClick = onNextDayClick) {
-                    Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = MusFitTheme.colors.brandInk)
-                }
-            }
-
-            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(end = 12.dp),
+                    .padding(start = 8.dp, end = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -791,7 +781,7 @@ private fun CalorieRing(
             val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
             val topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
             drawArc(
-                color = brandInk.copy(alpha = 0.18f),
+                color = brandInk.copy(alpha = 0.22f),
                 startAngle = 145f,
                 sweepAngle = 250f,
                 useCenter = false,
@@ -800,7 +790,7 @@ private fun CalorieRing(
                 style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
             )
             drawArc(
-                color = brandInk.copy(alpha = 0.62f),
+                color = brandInk.copy(alpha = 0.92f),
                 startAngle = 145f,
                 sweepAngle = 250f * progress,
                 useCenter = false,
@@ -812,17 +802,13 @@ private fun CalorieRing(
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Remaining",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.brandInk,
-            )
-            Text(
                 text = remainingCalories.roundToInt().toString(),
                 style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Bold,
                 color = MusFitTheme.colors.brandInk,
             )
             Text(
-                text = "Goal ${calorieGoal.roundToInt()} kcal",
+                text = "kcal left",
                 style = MaterialTheme.typography.labelLarge,
                 color = MusFitTheme.colors.brandInk.copy(alpha = 0.78f),
             )
@@ -833,56 +819,58 @@ private fun CalorieRing(
 @Composable
 internal fun MacroProgressRow(macros: List<FoodMacroProgressUiState>) {
     val macroColors = MusFitTheme.colors.macroColors
-    Row(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
+        shape = MusFitTheme.shapes.extraLarge,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        macros.forEachIndexed { index, macro ->
-            MacroProgressCard(
-                macro = macro,
-                color = macroColors[index % macroColors.size],
-                modifier = Modifier.weight(1f),
-            )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            macros.forEachIndexed { index, macro ->
+                MacroProgressColumn(
+                    macro = macro,
+                    color = macroColors[index % macroColors.size],
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun MacroProgressCard(
+private fun MacroProgressColumn(
     macro: FoodMacroProgressUiState,
     color: Color,
     modifier: Modifier = Modifier,
 ) {
-    Card(
-        modifier = modifier.height(98.dp),
-        colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = MusFitTheme.shapes.extraLarge,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = macro.label,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${macro.currentGrams.roundToInt()}/${macro.goalGrams.roundToInt()}g",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "${macro.currentGrams.roundToInt()}/${macro.goalGrams.roundToInt()}",
+                style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
             )
-            ProgressBar(
-                progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
-                color = color,
-            )
         }
+        ProgressBar(
+            progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
+            color = color,
+        )
     }
 }
 
@@ -2012,17 +2000,20 @@ private fun MealSectionCard(
                     }
                 }
 
-                Button(
+                Surface(
                     onClick = onAddClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MusFitTheme.colors.accent,
-                        contentColor = MusFitTheme.colors.onAccent,
-                    ),
+                    color = MusFitTheme.colors.brand.copy(alpha = 0.12f),
                     shape = CircleShape,
-                    modifier = Modifier.size(48.dp),
-                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.size(38.dp),
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add to ${meal.title}")
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = "Add to ${meal.title}",
+                            tint = MusFitTheme.colors.brand,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                 }
             }
 
@@ -2073,13 +2064,24 @@ private fun DiaryEntryRow(
                 modifier = Modifier.padding(end = 12.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = entry.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = entry.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    entry.rating?.let { rating ->
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(rating.tone.ratingColor()),
+                        )
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "${entry.quantityGrams.roundToInt()} g",
@@ -2102,10 +2104,6 @@ private fun DiaryEntryRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                entry.rating?.let { rating ->
-                    Spacer(modifier = Modifier.height(6.dp))
-                    RatingPill(rating)
-                }
                 if (showContributions) {
                     MealItemContributionBars(entry = entry)
                 }
