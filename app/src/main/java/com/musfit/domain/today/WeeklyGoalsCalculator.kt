@@ -68,7 +68,7 @@ object WeeklyGoalsCalculator {
             calorieGoalKcal = calorieGoalKcal,
             stepsPerDay = stepsPerDay,
             stepGoal = stepGoal,
-            weightPoints = weights.map { WeightPoint(it.first, it.second) },
+            weightPoints = weights.sortedBy { it.first }.map { WeightPoint(it.first, it.second) },
         )
     }
 

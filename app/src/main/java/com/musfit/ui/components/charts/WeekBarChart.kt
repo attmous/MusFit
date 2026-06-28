@@ -119,7 +119,7 @@ fun WeekBarChart(
         // Value bubble over the selected, tracked bar.
         val sel = selectedIndex ?: return@Canvas
         val selFraction = geometry.bars.getOrNull(sel) ?: return@Canvas
-        val selValue = bars[sel].value ?: return@Canvas
+        val selValue = bars.getOrNull(sel)?.value ?: return@Canvas
         val cx = slot * sel + slot / 2f
         val top = baseline - plotH * selFraction.toFloat()
         val bubble = textMeasurer.measure(valueFormatter(selValue), bubbleStyle)
