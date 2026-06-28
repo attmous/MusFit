@@ -62,6 +62,32 @@ val lightMusFitColors = MusFitColors(
     water = Water,
 )
 
+val darkMusFitColors = MusFitColors(
+    brand = EmeraldBright,
+    onBrand = EmeraldOnDark,
+    brandInk = EmeraldInkDark,
+    brandGradient = listOf(GradientLime, GradientGreen, EmeraldBright),
+    accent = CoralBright,
+    onAccent = Color(0xFF3A1606),
+    accentContainer = CoralContainerDark,
+    onAccentContainer = CoralInkDark,
+    background = DarkBg,
+    surface = DarkSurface,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurface = DarkOnSurface,
+    onSurfaceVariant = DarkOnSurfaceVariant,
+    outline = DarkOutline,
+    track = DarkTrack,
+    macroProtein = MacroProteinDark,
+    macroCarbs = MacroCarbsDark,
+    macroFat = MacroFatDark,
+    positive = EmeraldBright,
+    positiveContainer = PositiveContainerDark,
+    warning = CoralBright,
+    warningContainer = CoralContainerDark,
+    water = WaterDark,
+)
+
 val LocalMusFitColors = staticCompositionLocalOf<MusFitColors> {
     error("MusFitColors not provided. Wrap content in MusFitTheme.")
 }

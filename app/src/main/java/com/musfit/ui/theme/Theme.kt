@@ -1,41 +1,61 @@
 package com.musfit.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 
-private fun musFitColorScheme(colors: MusFitColors) = lightColorScheme(
-    primary = colors.brand,
-    onPrimary = colors.onBrand,
-    secondary = colors.accent,
-    onSecondary = colors.onAccent,
-    secondaryContainer = colors.accentContainer,
-    onSecondaryContainer = colors.onAccentContainer,
-    background = colors.background,
-    onBackground = colors.onSurface,
-    surface = colors.surface,
-    onSurface = colors.onSurface,
-    surfaceVariant = colors.surfaceVariant,
-    onSurfaceVariant = colors.onSurfaceVariant,
-    outline = colors.outline,
-)
+private fun musFitColorScheme(colors: MusFitColors, dark: Boolean) =
+    if (dark) {
+        darkColorScheme(
+            primary = colors.brand,
+            onPrimary = colors.onBrand,
+            secondary = colors.accent,
+            onSecondary = colors.onAccent,
+            secondaryContainer = colors.accentContainer,
+            onSecondaryContainer = colors.onAccentContainer,
+            background = colors.background,
+            onBackground = colors.onSurface,
+            surface = colors.surface,
+            onSurface = colors.onSurface,
+            surfaceVariant = colors.surfaceVariant,
+            onSurfaceVariant = colors.onSurfaceVariant,
+            outline = colors.outline,
+        )
+    } else {
+        lightColorScheme(
+            primary = colors.brand,
+            onPrimary = colors.onBrand,
+            secondary = colors.accent,
+            onSecondary = colors.onAccent,
+            secondaryContainer = colors.accentContainer,
+            onSecondaryContainer = colors.onAccentContainer,
+            background = colors.background,
+            onBackground = colors.onSurface,
+            surface = colors.surface,
+            onSurface = colors.onSurface,
+            surfaceVariant = colors.surfaceVariant,
+            onSurfaceVariant = colors.onSurfaceVariant,
+            outline = colors.outline,
+        )
+    }
 
 @Composable
 fun MusFitTheme(
-    darkTheme: Boolean = false,
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    // Light only in Slice 1; `darkTheme` is the seam for a later slice.
-    val colors = lightMusFitColors
+    val colors = if (darkTheme) darkMusFitColors else lightMusFitColors
     CompositionLocalProvider(
         LocalMusFitColors provides colors,
         LocalMusFitSpacing provides MusFitSpacing(),
     ) {
         MaterialTheme(
-            colorScheme = musFitColorScheme(colors),
+            colorScheme = musFitColorScheme(colors, darkTheme),
             typography = MusFitTypography,
             shapes = MusFitShapes,
             content = content,

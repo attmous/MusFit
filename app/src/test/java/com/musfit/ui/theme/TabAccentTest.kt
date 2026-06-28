@@ -6,10 +6,18 @@ import org.junit.Test
 
 class TabAccentTest {
     @Test
-    fun eachDestinationMapsToItsAccentColor() {
-        assertEquals(Coral, tabAccentFor(AppDestination.Today).color)
-        assertEquals(Emerald, tabAccentFor(AppDestination.Food).color)
-        assertEquals(Indigo, tabAccentFor(AppDestination.Training).color)
-        assertEquals(Teal, tabAccentFor(AppDestination.Profile).color)
+    fun eachDestinationMapsToItsLightAccentColor() {
+        assertEquals(Coral, tabAccentForLight(AppDestination.Today).color)
+        assertEquals(Emerald, tabAccentForLight(AppDestination.Food).color)
+        assertEquals(Indigo, tabAccentForLight(AppDestination.Training).color)
+        assertEquals(Teal, tabAccentForLight(AppDestination.Profile).color)
+    }
+
+    @Test
+    fun eachDestinationMapsToItsDarkAccentColor() {
+        assertEquals(CoralBright, tabAccentForDark(AppDestination.Today).color)
+        assertEquals(EmeraldBright, tabAccentForDark(AppDestination.Food).color)
+        assertEquals(IndigoBright, tabAccentForDark(AppDestination.Training).color)
+        assertEquals(TealBright, tabAccentForDark(AppDestination.Profile).color)
     }
 }
