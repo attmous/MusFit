@@ -162,7 +162,7 @@ private fun DailyRingsCard(
     Surface(
         onClick = onClick,
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.large,
+        shape = MusFitTheme.shapes.extraLarge,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -264,7 +264,7 @@ private fun WeeklyCaloriesCard(
     selectedIndex: Int?,
     onDaySelected: (Int) -> Unit,
 ) {
-    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -313,7 +313,7 @@ private fun WeeklyCaloriesCard(
 
 @Composable
 private fun WeightTrendCard(charts: WeeklyChartsUiState, accent: TabAccent) {
-    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -328,7 +328,7 @@ private fun WeightTrendCard(charts: WeeklyChartsUiState, accent: TabAccent) {
                     )
                     Text(
                         text = charts.latestWeightKg?.let { "${it.formatMetric()} kg" } ?: "—",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MusFitTheme.colors.onSurface,
                     )
@@ -470,7 +470,7 @@ private fun CoachBriefingCard(briefing: CoachBriefing, onAction: (CoachAction) -
 
     Surface(
         color = MusFitTheme.colors.brand,
-        shape = MusFitTheme.shapes.large,
+        shape = MusFitTheme.shapes.extraLarge,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
