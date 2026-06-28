@@ -118,6 +118,27 @@ class TodayViewModelTest {
         assertTrue(healthRepository.observedDates.isNotEmpty() && healthRepository.observedDates.all { it == targetDate })
     }
 
+    @Test
+    fun state_buildsWeeklyChartsWithSevenBarsAndTracksSelection() = runTest {
+        val date = LocalDate.now()
+        val viewModel = TodayViewModel(
+            foodRepository = FakeFoodRepository(),
+            trainingRepository = FakeTrainingRepository(),
+            healthRepository = FakeHealthRepository(date),
+            goalsRepository = FakeGoalsRepository(),
+            dateProvider = { date },
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val charts = viewModel.state.value.weeklyCharts
+        assertEquals(7, charts!!.calorieBars.size)
+        assertEquals(listOf("M", "T", "W", "T", "F", "S", "S"), charts.calorieBars.map { it.label })
+
+        assertEquals(null, viewModel.state.value.selectedCalorieDayIndex)
+        viewModel.onCalorieDaySelected(3)
+        assertEquals(3, viewModel.state.value.selectedCalorieDayIndex)
+    }
+
     private class FakeFoodRepository : FoodRepository {
         val observedDates = mutableListOf<LocalDate>()
 

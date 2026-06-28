@@ -51,6 +51,22 @@ data class MacroBreakdownUiState(
     val fatGrams: Double = 0.0,
 )
 
+data class DayBar(val label: String, val calories: Double?)
+
+data class WeeklyChartsUiState(
+    val calorieBars: List<DayBar>,
+    val calorieTarget: Double?,
+    val onTargetDays: Int,
+    val trackedDays: Int,
+    val defaultSelectedIndex: Int?,
+    val weightTrend: List<Double>,
+    val weightDeltaKg: Double?,
+    val latestWeightKg: Double?,
+    val sessionsDone: Int,
+    val sessionTarget: Int,
+    val stepGoalDays: Int,
+)
+
 data class TrainingGlimpseUiState(
     val title: String = "No workout yet",
     val subtitle: String = "Tap to start",
@@ -64,6 +80,8 @@ data class TodayUiState(
     val training: TrainingGlimpseUiState = TrainingGlimpseUiState(),
     val weightKg: Double? = null,
     val weekly: WeeklyGoals? = null,
+    val weeklyCharts: WeeklyChartsUiState? = null,
+    val selectedCalorieDayIndex: Int? = null,
     val isGoalsEditorVisible: Boolean = false,
     val stepGoalInput: String = "",
     val sessionTargetInput: String = "",
@@ -136,7 +154,7 @@ class TodayViewModel internal constructor(
         val weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val weekEnd = weekStart.plusDays(6)
         val weekStartMillis = weekStart.toEpochDay() * DAY_MILLIS
-        val weightFromMillis = (weekStart.toEpochDay() - 7L) * DAY_MILLIS
+        val weightFromMillis = (weekStart.toEpochDay() - 30L) * DAY_MILLIS
         viewModelScope.launch {
             val foodAndTraining = combine(
                 foodRepository.observeFoodPlan(weekStart),
@@ -163,7 +181,8 @@ class TodayViewModel internal constructor(
                     targetWeightKg = userGoals.targetWeightKg,
                 )
             }.collect { weekly ->
-                mutableState.update { it.copy(weekly = weekly) }
+                val todayIndex = date.dayOfWeek.value - 1
+                mutableState.update { it.copy(weekly = weekly, weeklyCharts = buildWeeklyCharts(weekly, todayIndex)) }
             }
         }
     }
@@ -260,6 +279,10 @@ class TodayViewModel internal constructor(
         mutableState.update { it.copy(isGoalsEditorVisible = false) }
     }
 
+    fun onCalorieDaySelected(index: Int) {
+        mutableState.update { it.copy(selectedCalorieDayIndex = index) }
+    }
+
     fun onStepGoalInputChanged(value: String) {
         mutableState.update { it.copy(stepGoalInput = value.filter(Char::isDigit)) }
     }
@@ -298,6 +321,30 @@ private data class TodayDaily(
     val training: TrainingGlimpseUiState,
     val weightKg: Double?,
 )
+
+internal val DAY_LABELS = listOf("M", "T", "W", "T", "F", "S", "S")
+
+/** Pure mapping from the weekly rollup to chart UI state. [todayIndex] is Monday=0..Sunday=6. */
+internal fun buildWeeklyCharts(weekly: WeeklyGoals, todayIndex: Int): WeeklyChartsUiState {
+    val bars = DAY_LABELS.mapIndexed { i, label -> DayBar(label = label, calories = weekly.caloriesPerDay.getOrNull(i)) }
+    val defaultSelected = when {
+        bars.getOrNull(todayIndex)?.calories != null -> todayIndex
+        else -> bars.indexOfLast { it.calories != null }.takeIf { it >= 0 }
+    }
+    return WeeklyChartsUiState(
+        calorieBars = bars,
+        calorieTarget = weekly.calorieGoalKcal.takeIf { it > 0.0 },
+        onTargetDays = weekly.calorieOnTargetDays,
+        trackedDays = weekly.trackedDays,
+        defaultSelectedIndex = defaultSelected,
+        weightTrend = weekly.weightPoints.map { it.valueKg },
+        weightDeltaKg = weekly.weightDeltaKg,
+        latestWeightKg = weekly.weightPoints.lastOrNull()?.valueKg ?: weekly.weightAvgKg,
+        sessionsDone = weekly.sessionsDone,
+        sessionTarget = weekly.sessionTarget,
+        stepGoalDays = weekly.stepGoalDays,
+    )
+}
 
 private fun buildDaily(
     date: LocalDate,
