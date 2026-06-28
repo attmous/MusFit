@@ -1,7 +1,10 @@
 package com.musfit.ui.components.charts
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -9,14 +12,16 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import com.musfit.domain.training.ChartPoint
 import com.musfit.domain.training.TrendChartScaler
+import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 
 /**
  * A smooth area-filled trend line in the Google-Health style: a Catmull-Rom-smoothed curve, a soft
- * area fill to the baseline, and an end-dot ringed in the surface colour. Reuses TrendChartScaler
- * for value→pixel geometry. Degrades to a single dot / nothing for 1 / 0 points.
+ * area fill to the baseline, and an end-dot ringed in the surface colour. The line draws in
+ * left-to-right with a spring when it appears. Reuses TrendChartScaler for value→pixel geometry.
  */
 @Composable
 fun TrendLineChart(
@@ -27,6 +32,11 @@ fun TrendLineChart(
     val surface = MusFitTheme.colors.surface
     val areaColor = accent.copy(alpha = ChartDefaults.areaAlpha)
     val pad = 8f
+    val draw = remember { Animatable(0f) }
+    LaunchedEffect(values) {
+        draw.snapTo(0f)
+        draw.animateTo(1f, MusFitMotion.spatial())
+    }
 
     Canvas(modifier = modifier) {
         if (values.isEmpty()) return@Canvas
@@ -46,15 +56,18 @@ fun TrendLineChart(
             lineTo(points.first().x, baseline)
             close()
         }
-        drawPath(areaPath, areaColor)
-        drawPath(
-            linePath,
-            color = accent,
-            style = Stroke(width = ChartDefaults.lineStroke.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
-        )
-        val last = points.last()
-        drawCircle(color = surface, radius = ChartDefaults.dotRadius.toPx() + 2f, center = Offset(last.x, last.y))
-        drawCircle(color = accent, radius = ChartDefaults.dotRadius.toPx(), center = Offset(last.x, last.y))
+        val reveal = size.width * draw.value.coerceIn(0f, 1f)
+        clipRect(right = reveal) {
+            drawPath(areaPath, areaColor)
+            drawPath(
+                linePath,
+                color = accent,
+                style = Stroke(width = ChartDefaults.lineStroke.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+            )
+            val last = points.last()
+            drawCircle(color = surface, radius = ChartDefaults.dotRadius.toPx() + 2f, center = Offset(last.x, last.y))
+            drawCircle(color = accent, radius = ChartDefaults.dotRadius.toPx(), center = Offset(last.x, last.y))
+        }
     }
 }
 

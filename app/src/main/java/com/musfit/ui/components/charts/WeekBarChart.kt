@@ -1,9 +1,11 @@
 package com.musfit.ui.components.charts
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -13,12 +15,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.musfit.domain.charts.BarChartScaler
+import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import kotlin.math.roundToInt
 
@@ -50,6 +54,20 @@ fun WeekBarChart(
     val bubbleStyle = MaterialTheme.typography.labelMedium.copy(color = onAccent, fontWeight = FontWeight.Bold)
 
     val geometry = remember(bars, target) { BarChartScaler.compute(bars.map { it.value }, target) }
+
+    // Bars grow in, staggered left→right; the value bubble pops on (re)selection.
+    val grow = remember { Animatable(0f) }
+    LaunchedEffect(bars) {
+        grow.snapTo(0f)
+        grow.animateTo(1f + 0.08f * (bars.size - 1).coerceAtLeast(0), MusFitMotion.spatialFast())
+    }
+    val bubblePop = remember { Animatable(0f) }
+    LaunchedEffect(selectedIndex) {
+        if (selectedIndex != null) {
+            bubblePop.snapTo(0f)
+            bubblePop.animateTo(1f, MusFitMotion.spatial())
+        }
+    }
 
     Canvas(
         modifier = modifier.pointerInput(bars) {
@@ -96,7 +114,8 @@ fun WeekBarChart(
                     cap = StrokeCap.Round,
                 )
             } else {
-                val top = baseline - plotH * fraction.toFloat()
+                val barProgress = (grow.value - index * 0.08f).coerceIn(0f, 1f)
+                val top = baseline - plotH * fraction.toFloat() * barProgress
                 val r = ChartDefaults.barCorner.toPx().coerceAtMost(barW / 2f).coerceAtMost(baseline - top).coerceAtLeast(0f)
                 val barPath = Path().apply {
                     moveTo(left, baseline)
@@ -121,7 +140,8 @@ fun WeekBarChart(
         val selFraction = geometry.bars.getOrNull(sel) ?: return@Canvas
         val selValue = bars.getOrNull(sel)?.value ?: return@Canvas
         val cx = slot * sel + slot / 2f
-        val top = baseline - plotH * selFraction.toFloat()
+        val selBarProgress = (grow.value - sel * 0.08f).coerceIn(0f, 1f)
+        val top = baseline - plotH * selFraction.toFloat() * selBarProgress
         val bubble = textMeasurer.measure(valueFormatter(selValue), bubbleStyle)
         val padX = 8.dp.toPx()
         val padY = 4.dp.toPx()
@@ -129,12 +149,14 @@ fun WeekBarChart(
         val bh = bubble.size.height + padY * 2
         val bx = (cx - bw / 2f).coerceIn(0f, (size.width - bw).coerceAtLeast(0f))
         val by = (top - bh - 6.dp.toPx()).coerceAtLeast(0f)
-        drawRoundRect(
-            color = accent,
-            topLeft = Offset(bx, by),
-            size = Size(bw, bh),
-            cornerRadius = CornerRadius(bh / 2f, bh / 2f),
-        )
-        drawText(bubble, topLeft = Offset(bx + padX, by + padY))
+        scale(scale = bubblePop.value.coerceIn(0f, 1.1f), pivot = Offset(cx, by + bh)) {
+            drawRoundRect(
+                color = accent,
+                topLeft = Offset(bx, by),
+                size = Size(bw, bh),
+                cornerRadius = CornerRadius(bh / 2f, bh / 2f),
+            )
+            drawText(bubble, topLeft = Offset(bx + padX, by + padY))
+        }
     }
 }
