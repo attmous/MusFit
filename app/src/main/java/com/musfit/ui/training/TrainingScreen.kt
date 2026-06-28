@@ -155,7 +155,8 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         }
 
         when (state.selectedSection) {
-            TrainingSection.Routines ->
+            TrainingSection.Routines -> {
+                val routineDetail = state.selectedRoutineDetail
                 if (state.routineEditor.isOpen) {
                     TrainingRoutineEditor(
                         editor = state.routineEditor,
@@ -174,6 +175,22 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         onDuplicate = viewModel::duplicateRoutine,
                         onDelete = viewModel::deleteRoutine,
                     )
+                } else if (routineDetail != null) {
+                    RoutineDetailContent(
+                        detail = routineDetail,
+                        accent = accent,
+                        onStart = { viewModel.startRoutine(routineDetail.id) },
+                        onEdit = { viewModel.openRoutineEditor(routineDetail.id) },
+                        onDuplicate = {
+                            viewModel.closeRoutineDetail()
+                            viewModel.duplicateRoutine(routineDetail.id)
+                        },
+                        onDelete = {
+                            viewModel.closeRoutineDetail()
+                            viewModel.deleteRoutine(routineDetail.id)
+                        },
+                        onClose = viewModel::closeRoutineDetail,
+                    )
                 } else {
                     TrainingRoutineContent(
                         routines = state.visibleRoutines,
@@ -184,10 +201,10 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         onStartRoutine = viewModel::startRoutine,
                         onStartBlank = viewModel::startBlankWorkout,
                         onEditRoutine = viewModel::openRoutineEditor,
-                        onDuplicateRoutine = viewModel::duplicateRoutine,
-                        onDeleteRoutine = viewModel::deleteRoutine,
+                        onOpenRoutineDetail = viewModel::openRoutineDetail,
                     )
                 }
+            }
             TrainingSection.Exercises ->
                 TrainingExerciseLibraryContent(
                     visibleExercises = state.visibleExercises,

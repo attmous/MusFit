@@ -13,6 +13,7 @@ import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineInput
+import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingProgressAnalytics
@@ -126,6 +127,7 @@ data class TrainingUiState(
     val totalVolumeKg: Double = 0.0,
     val bestEstimatedOneRepMaxKg: Double = 0.0,
     val routineEditor: RoutineEditorState = RoutineEditorState(),
+    val selectedRoutineDetail: RoutineDetail? = null,
     val activeWorkoutRouteOpen: Boolean = false,
     val activeWorkoutNotesInput: String = "",
     val trainingSettings: TrainingSettings = TrainingSettings(),
@@ -301,6 +303,7 @@ class TrainingViewModel @Inject constructor(
                         }.orEmpty(),
                         isOpen = true,
                     ),
+                    selectedRoutineDetail = null,
                 )
             }
         }
@@ -308,6 +311,23 @@ class TrainingViewModel @Inject constructor(
 
     fun closeRoutineEditor() {
         mutableState.update { it.copy(routineEditor = RoutineEditorState()) }
+    }
+
+    fun openRoutineDetail(routineId: String) {
+        viewModelScope.launch {
+            val detail = repository.getRoutineDetail(routineId)
+            mutableState.update {
+                it.copy(
+                    selectedSection = TrainingSection.Routines,
+                    selectedRoutineDetail = detail,
+                    message = if (detail == null) "Routine not found." else null,
+                )
+            }
+        }
+    }
+
+    fun closeRoutineDetail() {
+        mutableState.update { it.copy(selectedRoutineDetail = null) }
     }
 
     fun onRoutineNameChanged(value: String) {
@@ -448,7 +468,7 @@ class TrainingViewModel @Inject constructor(
     fun startRoutine(routineId: String) {
         viewModelScope.launch {
             repository.startWorkoutFromRoutine(routineId)
-            mutableState.update { it.copy(activeWorkoutRouteOpen = true) }
+            mutableState.update { it.copy(activeWorkoutRouteOpen = true, selectedRoutineDetail = null) }
         }
     }
 

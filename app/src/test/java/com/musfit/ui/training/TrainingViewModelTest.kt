@@ -313,6 +313,37 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun routineDetail_opensFromRow_thenEditAndStartBothCloseIt() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineDetail("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
+        assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
+        assertTrue(repository.requestedRoutineDetailIds.contains("routine-upper-a"))
+
+        // Editing from the detail closes the detail and opens the editor.
+        viewModel.openRoutineEditor("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(null, viewModel.state.value.selectedRoutineDetail)
+        assertTrue(viewModel.state.value.routineEditor.isOpen)
+
+        // Re-open the detail, then starting the workout closes it.
+        viewModel.closeRoutineEditor()
+        viewModel.openRoutineDetail("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
+
+        viewModel.startRoutine("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(null, viewModel.state.value.selectedRoutineDetail)
+        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
+    }
+
+    @Test
     fun resumeActiveWorkout_updatesVisibleMessageState() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
