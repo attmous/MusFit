@@ -754,10 +754,15 @@ private fun ActiveExerciseBlockBody(
         SetTableHeader()
         val rows = formatWorkoutSetRowsForDisplay(block.sets, block.priorBestEstimatedOneRepMaxKg)
         rows.forEachIndexed { rowIndex, row ->
+            if (rowIndex > 0) {
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MusFitTheme.colors.outline.copy(alpha = 0.4f),
+                )
+            }
             WorkoutSetTableRow(
                 row = row,
                 accent = accent,
-                isAlternate = rowIndex % 2 == 1,
                 onUpdateSet = onUpdateSet,
                 onDeleteSet = onDeleteSet,
                 onToggleSet = onToggleSet,
@@ -998,7 +1003,6 @@ private fun HeaderCell(
 private fun WorkoutSetTableRow(
     row: WorkoutSetRowDisplay,
     accent: TabAccent,
-    isAlternate: Boolean,
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
     onToggleSet: (String, Boolean) -> Unit,
@@ -1030,18 +1034,10 @@ private fun WorkoutSetTableRow(
         onUpdateSet(set.id, nextSetType, nextReps, nextWeightKg, nextRpe, nextNotes)
     }
 
-    val rowColor = if (isAlternate) {
-        MusFitTheme.colors.surfaceVariant.copy(alpha = 0.5f)
-    } else {
-        Color.Transparent
-    }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MusFitTheme.shapes.small)
-            .background(rowColor)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .padding(horizontal = 4.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(
