@@ -8,6 +8,7 @@ import androidx.room.Update
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
+import com.musfit.data.local.entity.TrainingSettingsEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +20,8 @@ data class RoutineSummaryRow(
     val exerciseCount: Int,
     val targetSetCount: Int,
     val isStarter: Boolean,
+    val programName: String?,
+    val tags: String,
 )
 
 data class ActiveWorkoutSummaryRow(
@@ -93,8 +96,8 @@ interface TrainingDao {
         """
         SELECT *
         FROM exercises
-        WHERE (:query = '' OR name LIKE '%' || :query || '%')
-        AND (:muscle IS NULL OR targetMuscles LIKE '%' || :muscle || '%')
+        WHERE (:query = '' OR name LIKE '%' || :query || '%' OR targetMuscles LIKE '%' || :query || '%' OR primaryMuscles LIKE '%' || :query || '%' OR secondaryMuscles LIKE '%' || :query || '%')
+        AND (:muscle IS NULL OR targetMuscles LIKE '%' || :muscle || '%' OR primaryMuscles LIKE '%' || :muscle || '%' OR secondaryMuscles LIKE '%' || :muscle || '%')
         AND (:equipment IS NULL OR equipment = :equipment)
         ORDER BY isCustom ASC, name ASC
         """,
@@ -108,8 +111,14 @@ interface TrainingDao {
     @Query("SELECT * FROM exercises WHERE name = :name LIMIT 1")
     suspend fun getExerciseByName(name: String): ExerciseEntity?
 
+    @Query("SELECT * FROM exercises WHERE id = :exerciseId LIMIT 1")
+    suspend fun getExercise(exerciseId: String): ExerciseEntity?
+
     @Query("SELECT * FROM exercises WHERE LOWER(name) = LOWER(:name) LIMIT 1")
     suspend fun getExerciseByNormalizedName(name: String): ExerciseEntity?
+
+    @Query("UPDATE exercises SET localNotes = :notes WHERE id = :exerciseId")
+    suspend fun updateExerciseLocalNotes(exerciseId: String, notes: String?)
 
     @Query("SELECT * FROM routines ORDER BY createdAtEpochMillis DESC")
     fun observeRoutines(): Flow<List<RoutineEntity>>
@@ -121,7 +130,9 @@ interface TrainingDao {
             routines.notes AS notes,
             COUNT(routine_exercises.id) AS exerciseCount,
             COALESCE(SUM(routine_exercises.targetSets), 0) AS targetSetCount,
-            routines.isStarter AS isStarter
+            routines.isStarter AS isStarter,
+            routines.programName AS programName,
+            routines.tags AS tags
         FROM routines
         LEFT JOIN routine_exercises ON routine_exercises.routineId = routines.id
         GROUP BY routines.id
@@ -152,6 +163,12 @@ interface TrainingDao {
 
     @Query("SELECT * FROM workout_sessions WHERE status = 'active' ORDER BY startedAtEpochMillis DESC LIMIT 1")
     fun observeActiveWorkoutSession(): Flow<WorkoutSessionEntity?>
+
+    @Query("SELECT * FROM training_settings WHERE id = 'default' LIMIT 1")
+    fun observeTrainingSettings(): Flow<TrainingSettingsEntity?>
+
+    @Query("SELECT * FROM training_settings WHERE id = 'default' LIMIT 1")
+    suspend fun getTrainingSettings(): TrainingSettingsEntity?
 
     @Query("SELECT * FROM workout_sessions WHERE id = :sessionId LIMIT 1")
     suspend fun getWorkoutSession(sessionId: String): WorkoutSessionEntity?
@@ -365,6 +382,9 @@ interface TrainingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertExercise(exercise: ExerciseEntity)
 
+    @Update
+    suspend fun updateExercise(exercise: ExerciseEntity): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertExercises(exercises: List<ExerciseEntity>)
 
@@ -397,6 +417,9 @@ interface TrainingDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertWorkoutSet(set: WorkoutSetEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertTrainingSettings(settings: TrainingSettingsEntity)
 
     @Query("UPDATE workout_sets SET completed = :completed WHERE id = :setId")
     suspend fun updateWorkoutSetCompletion(setId: String, completed: Boolean)

@@ -5,6 +5,7 @@ import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
 import com.musfit.data.repository.ExerciseInput
+import com.musfit.data.repository.ExerciseDetail
 import com.musfit.data.repository.ExerciseGrouping
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineSummary
@@ -13,6 +14,8 @@ import com.musfit.data.repository.RoutineExerciseDetail
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.TrainingRepository
+import com.musfit.data.repository.TrainingSettings
+import com.musfit.data.repository.TrainingSettingsInput
 import com.musfit.data.repository.TrainingSummary
 import com.musfit.data.repository.WorkoutExerciseBlock
 import com.musfit.data.repository.WorkoutHistoryDetail
@@ -215,6 +218,22 @@ class TrainingViewModelTest {
         viewModel.onExerciseMuscleFilterChanged("chest")
 
         assertTrue(viewModel.state.value.visibleExercises.isEmpty())
+
+        viewModel.clearExerciseFilters()
+        viewModel.onExerciseSearchQueryChanged("lats")
+
+        assertEquals(
+            listOf("Chest Supported Row"),
+            viewModel.state.value.visibleExercises.map { it.name },
+        )
+
+        viewModel.onExerciseSearchQueryChanged("")
+        viewModel.onExerciseMuscleFilterChanged("lats")
+
+        assertEquals(
+            listOf("Chest Supported Row"),
+            viewModel.state.value.visibleExercises.map { it.name },
+        )
     }
 
     @Test
@@ -243,6 +262,37 @@ class TrainingViewModelTest {
         assertFalse(viewModel.state.value.exerciseEditor.isOpen)
         assertEquals("", viewModel.state.value.exerciseEditor.name)
         assertEquals(TrainingSection.Exercises, viewModel.state.value.selectedSection)
+    }
+
+    @Test
+    fun exerciseDetail_loadsMetadataAndSavesLocalNotes() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.selectSection(TrainingSection.Exercises)
+        viewModel.openExerciseDetail("exercise-bench-press")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val detail = viewModel.state.value.selectedExerciseDetail
+        assertEquals("Barbell Bench Press", detail?.name)
+        assertEquals("chest", detail?.primaryMuscles)
+        assertEquals("triceps, shoulders", detail?.secondaryMuscles)
+        assertEquals("Existing setup note", viewModel.state.value.exerciseDetailNotesInput)
+
+        viewModel.onExerciseDetailNotesChanged("  Use comp grip  ")
+        viewModel.saveExerciseDetailNotes()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("exercise-bench-press", repository.updatedExerciseNotesId)
+        assertEquals("Use comp grip", repository.updatedExerciseNotes)
+        assertEquals("Use comp grip", viewModel.state.value.selectedExerciseDetail?.localNotes)
+        assertEquals("Use comp grip", viewModel.state.value.exerciseDetailNotesInput)
+
+        viewModel.closeExerciseDetail()
+
+        assertEquals(null, viewModel.state.value.selectedExerciseDetail)
+        assertEquals("", viewModel.state.value.exerciseDetailNotesInput)
     }
 
     @Test
@@ -283,6 +333,26 @@ class TrainingViewModelTest {
         assertEquals("Custom routine", editor.notes)
         assertEquals(1, editor.exercises.size)
         assertEquals("exercise-bench-press", editor.exercises.single().exerciseId)
+    }
+
+    @Test
+    fun routineProgramFilter_showsProgramOptionsAndVisibleRoutines() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("Full Body", "Upper Lower"), viewModel.state.value.routineProgramOptions)
+        assertEquals(listOf("Full Body A", "Upper A"), viewModel.state.value.visibleRoutines.map { it.name })
+
+        viewModel.onRoutineProgramFilterChanged("Upper Lower")
+
+        assertEquals("Upper Lower", viewModel.state.value.selectedRoutineProgram)
+        assertEquals(listOf("Upper A"), viewModel.state.value.visibleRoutines.map { it.name })
+
+        viewModel.onRoutineProgramFilterChanged(null)
+
+        assertEquals(null, viewModel.state.value.selectedRoutineProgram)
+        assertEquals(listOf("Full Body A", "Upper A"), viewModel.state.value.visibleRoutines.map { it.name })
     }
 
     @Test
@@ -517,6 +587,67 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun trainingToolSettings_saveAndApplyRestDefaultToNextCompletedSet() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("120", viewModel.state.value.restTimerDefaultSecondsInput)
+        assertEquals("20", viewModel.state.value.plateBarWeightInput)
+        assertEquals("25, 20, 15, 10, 5, 2.5, 1.25", viewModel.state.value.availablePlatesInput)
+
+        viewModel.onRestTimerDefaultSecondsChanged("90")
+        viewModel.onPlateBarWeightChanged("15")
+        viewModel.onAvailablePlatesChanged("20, 10, 5, 2.5, 2.5")
+        viewModel.saveTrainingToolSettings()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            TrainingSettingsInput(
+                defaultRestSeconds = 90,
+                barWeightKg = 15.0,
+                availablePlatesKg = listOf(20.0, 10.0, 5.0, 2.5),
+            ),
+            repository.updatedTrainingSettings,
+        )
+        assertEquals("90", viewModel.state.value.restTimerDefaultSecondsInput)
+        assertEquals("15", viewModel.state.value.plateBarWeightInput)
+        assertEquals("20, 10, 5, 2.5", viewModel.state.value.availablePlatesInput)
+
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(90, viewModel.state.value.restTimer.durationSeconds)
+        assertEquals(90, viewModel.state.value.restTimer.remainingSeconds)
+    }
+
+    @Test
+    fun addSuggestedWarmupSet_addsWarmupSetWithSuggestedValues() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.addSuggestedWarmupSet("exercise-bench-press", reps = 8, weightKg = 50.0)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("session-1", repository.addedSetSessionId)
+        assertEquals("exercise-bench-press", repository.addedSetExerciseId)
+        assertEquals(
+            WorkoutSetInputData(
+                setType = "warmup",
+                reps = 8,
+                weightKg = 50.0,
+                rpe = null,
+                notes = null,
+                completed = false,
+            ),
+            repository.addedSetInput,
+        )
+    }
+
+    @Test
     fun makeSupersetWithNext_pairsWithNextStandalone_andDissolveDelegates() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
@@ -697,6 +828,24 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun activeWorkoutNotesAndReorder_delegateToRepository() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.onActiveWorkoutNotesChanged("  Keep rest strict  ")
+        viewModel.saveActiveWorkoutNotes()
+        viewModel.moveWorkoutSetUp("set-2")
+        viewModel.moveWorkoutSetDown("set-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Keep rest strict", repository.updatedActiveWorkoutNotes)
+        assertEquals(listOf("set-2" to -1, "set-1" to 1), repository.movedWorkoutSets)
+        assertEquals("Keep rest strict", viewModel.state.value.activeWorkoutNotesInput)
+    }
+
+    @Test
     fun updateWorkoutSetFields_propagatesEditedValues() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
@@ -769,6 +918,8 @@ class TrainingViewModelTest {
         var dissolveSupersetArgs: Pair<String, String>? = null
         var createdRoutineInput: RoutineInput? = null
         var createdExerciseInput: ExerciseInput? = null
+        var updatedExerciseNotesId: String? = null
+        var updatedExerciseNotes: String? = null
         var updatedRoutineId: String? = null
         var updatedRoutineInput: RoutineInput? = null
         var startedRoutineId: String? = null
@@ -781,6 +932,9 @@ class TrainingViewModelTest {
         var duplicatedSessionId: String? = null
         var duplicatedExerciseId: String? = null
         var deletedSetId: String? = null
+        var updatedActiveWorkoutNotes: String? = null
+        val movedWorkoutSets = mutableListOf<Pair<String, Int>>()
+        var updatedTrainingSettings: TrainingSettingsInput? = null
         var finishedSessionId: String? = null
         var discardedSessionId: String? = null
         val openedWorkoutDetailSessionIds = mutableListOf<String>()
@@ -797,6 +951,8 @@ class TrainingViewModelTest {
                     exerciseCount = 5,
                     targetSetCount = 15,
                     isStarter = true,
+                    programName = "Full Body",
+                    tags = listOf("beginner", "strength"),
                 ),
                 RoutineSummary(
                     id = "routine-upper-a",
@@ -805,6 +961,8 @@ class TrainingViewModelTest {
                     exerciseCount = 1,
                     targetSetCount = 3,
                     isStarter = false,
+                    programName = "Upper Lower",
+                    tags = listOf("upper"),
                 ),
             ),
         )
@@ -826,8 +984,39 @@ class TrainingViewModelTest {
                     equipment = "machine",
                     targetMuscles = "back,biceps",
                     isCustom = false,
+                    primaryMuscles = "lats",
+                    secondaryMuscles = "upper back, biceps",
                 ),
             ),
+        )
+
+        private val exerciseDetails = mutableMapOf(
+            "exercise-bench-press" to
+                ExerciseDetail(
+                    id = "exercise-bench-press",
+                    name = "Barbell Bench Press",
+                    category = "strength",
+                    equipment = "barbell",
+                    targetMuscles = "chest,triceps,shoulders",
+                    primaryMuscles = "chest",
+                    secondaryMuscles = "triceps, shoulders",
+                    instructions = "Brace, lower with control, and press evenly.",
+                    localNotes = "Existing setup note",
+                    isCustom = false,
+                ),
+            "exercise-row" to
+                ExerciseDetail(
+                    id = "exercise-row",
+                    name = "Chest Supported Row",
+                    category = "strength",
+                    equipment = "machine",
+                    targetMuscles = "back,biceps",
+                    primaryMuscles = "back",
+                    secondaryMuscles = "biceps",
+                    instructions = "Pull elbows back without shrugging.",
+                    localNotes = null,
+                    isCustom = false,
+                ),
         )
 
         private val workoutHistoryFlow = MutableStateFlow(
@@ -845,6 +1034,7 @@ class TrainingViewModelTest {
 
         private val activeWorkoutFlow = MutableStateFlow<ActiveWorkoutSummary?>(null)
         private val progressFlow = MutableStateFlow<ExerciseProgress?>(null)
+        private val trainingSettingsFlow = MutableStateFlow(TrainingSettings())
 
         val activeWorkoutDetail = MutableStateFlow<ActiveWorkoutDetail?>(
             ActiveWorkoutDetail(
@@ -922,6 +1112,8 @@ class TrainingViewModelTest {
                     name = "Full Body A",
                     notes = "Starter routine",
                     isStarter = true,
+                    programName = "Full Body",
+                    tags = listOf("beginner", "strength"),
                     exercises = listOf(
                         RoutineExerciseDetail(
                             id = "routine-exercise-1",
@@ -938,6 +1130,8 @@ class TrainingViewModelTest {
                     name = "Upper A",
                     notes = "Custom routine",
                     isStarter = false,
+                    programName = "Upper Lower",
+                    tags = listOf("upper"),
                     exercises = listOf(
                         RoutineExerciseDetail(
                             id = "routine-upper-a-exercise-1",
@@ -985,6 +1179,8 @@ class TrainingViewModelTest {
 
         override fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?> = activeWorkoutDetail
 
+        override fun observeTrainingSettings(): Flow<TrainingSettings> = trainingSettingsFlow
+
         override fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = workoutHistoryFlow
 
         override fun observeExerciseProgress(exerciseId: String): Flow<ExerciseProgress?> {
@@ -1015,7 +1211,28 @@ class TrainingViewModelTest {
                 targetMuscles = input.targetMuscles,
                 isCustom = true,
             )
+            exerciseDetails["custom-exercise-id"] = ExerciseDetail(
+                id = "custom-exercise-id",
+                name = input.name,
+                category = input.category,
+                equipment = input.equipment,
+                targetMuscles = input.targetMuscles,
+                primaryMuscles = input.targetMuscles,
+                secondaryMuscles = "",
+                instructions = null,
+                localNotes = null,
+                isCustom = true,
+            )
             return "custom-exercise-id"
+        }
+
+        override suspend fun getExerciseDetail(exerciseId: String): ExerciseDetail? =
+            exerciseDetails[exerciseId]
+
+        override suspend fun updateExerciseLocalNotes(exerciseId: String, notes: String?) {
+            updatedExerciseNotesId = exerciseId
+            updatedExerciseNotes = notes
+            exerciseDetails[exerciseId] = exerciseDetails.getValue(exerciseId).copy(localNotes = notes)
         }
 
         override suspend fun updateRoutine(routineId: String, input: RoutineInput) {
@@ -1069,6 +1286,24 @@ class TrainingViewModelTest {
 
         override suspend fun deleteWorkoutSet(setId: String) {
             deletedSetId = setId
+        }
+
+        override suspend fun updateActiveWorkoutNotes(sessionId: String, notes: String?) {
+            updatedActiveWorkoutNotes = notes
+            activeWorkoutDetail.value = activeWorkoutDetail.value?.copy(notes = notes)
+        }
+
+        override suspend fun moveWorkoutSet(setId: String, direction: Int) {
+            movedWorkoutSets += setId to direction
+        }
+
+        override suspend fun updateTrainingSettings(input: TrainingSettingsInput) {
+            updatedTrainingSettings = input
+            trainingSettingsFlow.value = TrainingSettings(
+                defaultRestSeconds = input.defaultRestSeconds,
+                barWeightKg = input.barWeightKg,
+                availablePlatesKg = input.availablePlatesKg,
+            )
         }
 
         override suspend fun createSuperset(sessionId: String, exerciseAId: String, exerciseBId: String): String? {

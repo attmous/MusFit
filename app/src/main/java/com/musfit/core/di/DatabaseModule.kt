@@ -46,6 +46,9 @@ object DatabaseModule {
                 MIGRATION_18_19,
                 MIGRATION_19_20,
                 MIGRATION_20_21,
+                MIGRATION_21_22,
+                MIGRATION_22_23,
+                MIGRATION_23_24,
             )
             .build()
 
@@ -478,6 +481,50 @@ object DatabaseModule {
                     """.trimIndent(),
                 )
                 db.execSQL("DELETE FROM user_goals WHERE id = 'default'")
+            }
+        }
+
+    internal val MIGRATION_21_22 =
+        object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE exercises ADD COLUMN primaryMuscles TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN secondaryMuscles TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN instructions TEXT")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN localNotes TEXT")
+                db.execSQL("UPDATE exercises SET primaryMuscles = targetMuscles WHERE primaryMuscles = ''")
+            }
+        }
+
+    internal val MIGRATION_22_23 =
+        object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE routines ADD COLUMN programName TEXT")
+                db.execSQL("ALTER TABLE routines ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+    internal val MIGRATION_23_24 =
+        object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS training_settings (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        defaultRestSeconds INTEGER NOT NULL,
+                        barWeightKg REAL NOT NULL,
+                        availablePlatesKg TEXT NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO training_settings (
+                        id, defaultRestSeconds, barWeightKg, availablePlatesKg
+                    ) VALUES (
+                        'default', 120, 20.0, '25,20,15,10,5,2.5,1.25'
+                    )
+                    """.trimIndent(),
+                )
             }
         }
 }

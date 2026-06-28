@@ -30,7 +30,7 @@ Database:
 - Class: `MusFitDatabase`
 - File: `data/local/MusFitDatabase.kt`
 - Name: `musfit.db`
-- Version: 21
+- Version: 24
 - Exported schemas: `app/schemas/com.musfit.data.local.MusFitDatabase/`
 - DAOs: `AccountDao`, `FoodDao`, `TrainingDao`, `HealthDao`, `ProfileDao`, `UserGoalsDao`
 
@@ -85,17 +85,23 @@ Source: `app/src/main/java/com/musfit/data/local/entity/TrainingEntities.kt`
 
 | Entity | Table | Purpose | Key fields |
 | --- | --- | --- | --- |
-| `ExerciseEntity` | `exercises` | Exercise library row. | name, category, equipment, target muscles, custom flag. |
-| `RoutineEntity` | `routines` | Routine metadata. | name, notes, created/updated time, starter flag. |
+| `ExerciseEntity` | `exercises` | Exercise library and detail row. | name, category, equipment, target muscles, primary muscles, secondary muscles, instructions, local notes, custom flag. |
+| `RoutineEntity` | `routines` | Routine metadata and organization. | name, notes, created/updated time, starter flag, program name, tags. |
 | `RoutineExerciseEntity` | `routine_exercises` | Exercises inside routines. | routine id, exercise id, sort order, target sets, target reps. |
 | `WorkoutSessionEntity` | `workout_sessions` | Workout session header. | routine id, title, status, start/end, notes, Health Connect export ids. |
-| `WorkoutSetEntity` | `workout_sets` | Logged workout set. | session id, exercise id, sort order, set type, reps, weight, duration, distance, RPE, notes, completed. |
+| `WorkoutSetEntity` | `workout_sets` | Logged workout set. | session id, exercise id, sort order, set type, reps, weight, duration, distance, RPE, notes, completed, superset group id. |
+| `TrainingSettingsEntity` | `training_settings` | Local Training tool preferences. | default rest seconds, bar weight, available plates CSV. |
 
 Training indexes:
 
 - `workout_sessions`: routine id, started time, status.
 - `workout_sets`: session id, exercise id.
 - `routine_exercises`: routine id, exercise id.
+
+Current Training schema limitations:
+
+- Routine organization uses an optional program name plus CSV-backed tags; there is not yet a separate multi-week program schedule table.
+- Rest timer defaults, bar weight, and available plates are persisted as global Training tool settings; there are no per-exercise rest defaults yet.
 
 ### Health Tables
 
@@ -263,18 +269,22 @@ Source: `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
 | `LoggedWorkoutSet` | Quick logger row and summary input. |
 | `TrainingSummary` | Daily completed sets, total volume, and best estimated one-rep max. |
 | `WorkoutForExport` | Latest completed session plus sets for Health Connect export. |
-| `ExerciseSummary` | Exercise library row exposed to UI. |
+| `ExerciseSummary` | Exercise library row exposed to UI, including primary/secondary muscles for local search/filtering. |
+| `ExerciseDetail` | Exercise detail/drill-down row with equipment, category, primary/secondary muscles, instructions, and local notes. |
 | `ExerciseInput` | New custom exercise input. |
-| `RoutineSummary` | Routine list row. |
+| `RoutineSummary` | Routine list row with program name and tags. |
 | `RoutineExerciseDetail` | One exercise inside a routine detail. |
-| `RoutineDetail` | Full routine detail for editing. |
-| `RoutineInput` | Routine create/update input. |
+| `RoutineDetail` | Full routine detail for editing, including organization metadata. |
+| `RoutineInput` | Routine create/update input, including optional program name and tags. |
 | `RoutineExerciseInput` | Exercise target inside routine input. |
 | `ActiveWorkoutSummary` | Resume banner data. |
 | `WorkoutSetInputData` | Active workout set edit input. |
 | `LoggedWorkoutSetDetail` | Active/history set row. |
-| `WorkoutExerciseBlock` | Exercise plus sets in active/history detail. |
-| `ActiveWorkoutDetail` | Full active workout state. |
+| `TrainingSettings` / `TrainingSettingsInput` | Local rest timer and plate-tool settings exposed as repository models. |
+| `WorkoutExerciseBlock` | Exercise plus sets, target reps, prior best estimated 1RM, and optional superset label in active/history detail. |
+| `SupersetGroup` | Grouped exercise blocks sharing one active workout superset id. |
+| `ExerciseGrouping` | Active workout render grouping: `Single` for standalone exercises or `Superset` for grouped exercise blocks. |
+| `ActiveWorkoutDetail` | Full active workout state, including session notes. |
 | `WorkoutHistorySummary` | Completed workout list row. |
 | `WorkoutHistoryDetail` | Completed workout detail. |
 
@@ -282,11 +292,14 @@ Key read APIs:
 
 ```kotlin
 fun observeExercises(query: String = "", muscle: String? = null, equipment: String? = null): Flow<List<ExerciseSummary>>
+suspend fun getExerciseDetail(exerciseId: String): ExerciseDetail?
 fun observeRoutineSummaries(): Flow<List<RoutineSummary>>
 fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?>
 fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?>
+fun observeTrainingSettings(): Flow<TrainingSettings>
 fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>>
 fun observeExerciseProgress(exerciseId: String): Flow<ExerciseProgress?>
+suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail?
 fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary>
 ```
 
@@ -294,6 +307,7 @@ Key write APIs:
 
 ```kotlin
 suspend fun createCustomExercise(input: ExerciseInput): String
+suspend fun updateExerciseLocalNotes(exerciseId: String, notes: String?)
 suspend fun createRoutine(input: RoutineInput): String
 suspend fun updateRoutine(routineId: String, input: RoutineInput)
 suspend fun duplicateRoutine(routineId: String): String
@@ -305,9 +319,16 @@ suspend fun addSetToExercise(sessionId: String, exerciseId: String, input: Worko
 suspend fun duplicateLastSet(sessionId: String, exerciseId: String): String?
 suspend fun updateWorkoutSet(setId: String, input: WorkoutSetInputData)
 suspend fun deleteWorkoutSet(setId: String)
+suspend fun updateActiveWorkoutNotes(sessionId: String, notes: String?)
+suspend fun moveWorkoutSet(setId: String, direction: Int)
+suspend fun updateTrainingSettings(input: TrainingSettingsInput)
+suspend fun createSuperset(sessionId: String, exerciseAId: String, exerciseBId: String): String?
+suspend fun dissolveSuperset(sessionId: String, groupId: String)
 suspend fun finishWorkout(sessionId: String)
 suspend fun discardWorkout(sessionId: String)
+suspend fun getLatestWorkoutForExport(): WorkoutForExport?
 suspend fun seedStarterTrainingData()
+suspend fun markWorkoutExported(sessionId: String, recordId: String, exportedAtEpochMillis: Long)
 ```
 
 ## Health Repository Models
@@ -440,6 +461,9 @@ Source:
 
 - `app/src/main/java/com/musfit/domain/model/TrainingModels.kt`
 - `app/src/main/java/com/musfit/domain/training/WorkoutCalculator.kt`
+- `app/src/main/java/com/musfit/domain/training/PlateCalculator.kt`
+- `app/src/main/java/com/musfit/domain/training/WarmupSetCalculator.kt`
+- `app/src/main/java/com/musfit/domain/training/TrendChartScaler.kt`
 
 Models:
 
@@ -448,6 +472,8 @@ Models:
 - `ExerciseProgressSetInput`
 - `TrainingTrendPoint`
 - `ExerciseProgress`
+- `ChartPoint`
+- `ChartGeometry`
 
 Calculator:
 
@@ -455,6 +481,10 @@ Calculator:
 - `WorkoutCalculator.estimatedOneRepMax(weightKg, reps)`
 - `WorkoutCalculator.personalRecords(sets)`
 - `WorkoutCalculator.exerciseProgress(...)`
+- `PlateCalculator.platesPerSide(totalWeightKg, barWeightKg, availablePlatesKg)`
+- `WarmupSetCalculator.suggestions(workingWeightKg, workingReps, barWeightKg)`
+- `TrendChartScaler.computeChartGeometry(values, widthPx, heightPx, paddingLeftPx, paddingRightPx, paddingTopPx, paddingBottomPx, tickCount)`
+- `TrendChartScaler.nearestIndex(touchX, pointXs)`
 
 ### Food OCR
 

@@ -50,6 +50,28 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun trainingSettings_defaultAndUpdatePersistRestAndPlateTools() = runTest {
+        val defaults = repository.observeTrainingSettings().first()
+
+        assertEquals(120, defaults.defaultRestSeconds)
+        assertEquals(20.0, defaults.barWeightKg, 0.01)
+        assertEquals(listOf(25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25), defaults.availablePlatesKg)
+
+        repository.updateTrainingSettings(
+            TrainingSettingsInput(
+                defaultRestSeconds = 90,
+                barWeightKg = 15.0,
+                availablePlatesKg = listOf(20.0, 10.0, 5.0, 2.5, 2.5),
+            ),
+        )
+
+        val updated = repository.observeTrainingSettings().first()
+        assertEquals(90, updated.defaultRestSeconds)
+        assertEquals(15.0, updated.barWeightKg, 0.01)
+        assertEquals(listOf(20.0, 10.0, 5.0, 2.5), updated.availablePlatesKg)
+    }
+
+    @Test
     fun addCompletedSet_persistsExerciseSessionSetAndDailySummary() = runTest {
         val savedSet = repository.addCompletedSet(
             exerciseName = "Bench Press",
@@ -221,6 +243,45 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun getExerciseDetail_exposesStarterMetadataAndPersistsLocalNotes() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+
+        val detail = repository.getExerciseDetail(bench.id)
+
+        assertEquals("Barbell Bench Press", detail?.name)
+        assertEquals("chest", detail?.primaryMuscles)
+        assertEquals("triceps, shoulders", detail?.secondaryMuscles)
+        assertTrue(detail?.instructions?.isNotBlank() == true)
+        assertEquals(null, detail?.localNotes)
+
+        repository.updateExerciseLocalNotes(bench.id, "  Competition grip. Pause the first rep.  ")
+
+        val updated = repository.getExerciseDetail(bench.id)
+        assertEquals("Competition grip. Pause the first rep.", updated?.localNotes)
+    }
+
+    @Test
+    fun createCustomExercise_detailUsesTargetMusclesAsPrimaryMuscles() = runTest {
+        val exerciseId = repository.createCustomExercise(
+            ExerciseInput(
+                name = "  Meadows Row  ",
+                category = "strength",
+                equipment = "landmine",
+                targetMuscles = "lats, upper back",
+            ),
+        )
+
+        val detail = repository.getExerciseDetail(exerciseId)
+
+        assertEquals("Meadows Row", detail?.name)
+        assertEquals("lats, upper back", detail?.primaryMuscles)
+        assertEquals("", detail?.secondaryMuscles)
+        assertEquals(null, detail?.instructions)
+        assertEquals(null, detail?.localNotes)
+    }
+
+    @Test
     fun createUpdateDuplicateAndDeleteRoutine_persistsRoutineExerciseTargets() = runTest {
         repository.seedStarterTrainingData()
         val bench = repository.observeExercises(query = "bench").first().single()
@@ -258,6 +319,32 @@ class LocalTrainingRepositoryTest {
         assertEquals(1, duplicate?.exercises?.size)
         assertEquals("Back Squat", duplicate?.exercises?.single()?.exercise?.name)
         assertEquals(5, duplicate?.exercises?.single()?.targetSets)
+    }
+
+    @Test
+    fun seedStarterTrainingData_exposesProgramCatalogAndDuplicateKeepsOrganization() = runTest {
+        repository.seedStarterTrainingData()
+
+        val summaries = repository.observeRoutineSummaries().first()
+
+        assertTrue(summaries.any { it.programName == "Full Body" && it.name == "Full Body A" })
+        assertTrue(summaries.any { it.programName == "Push Pull Legs" && it.name == "Push" })
+        assertTrue(summaries.any { it.programName == "Upper Lower" })
+        assertTrue(summaries.any { it.programName == "Strength" })
+        assertTrue(summaries.any { it.programName == "Hypertrophy" })
+        assertTrue(summaries.any { it.programName == "Beginner" })
+
+        val fullBody = summaries.first { it.name == "Full Body A" }
+        assertTrue("beginner" in fullBody.tags)
+        assertTrue("strength" in fullBody.tags)
+
+        val duplicateId = repository.duplicateRoutine(fullBody.id)
+        val duplicate = repository.getRoutineDetail(duplicateId)
+
+        assertEquals("Full Body A Copy", duplicate?.name)
+        assertEquals(false, duplicate?.isStarter)
+        assertEquals("Full Body", duplicate?.programName)
+        assertTrue("beginner" in duplicate?.tags.orEmpty())
     }
 
     @Test
@@ -374,6 +461,34 @@ class LocalTrainingRepositoryTest {
 
         assertEquals(null, repository.observeActiveWorkoutDetail().first())
         assertEquals(null, repository.observeActiveWorkoutSummary().first())
+    }
+
+    @Test
+    fun activeWorkoutNotesAndSetReorder_persistInActiveDetail() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val sessionId = repository.startBlankWorkout()
+        repository.addExerciseToActiveWorkout(sessionId, bench.id)
+        val initialSetId = repository.observeActiveWorkoutDetail()
+            .first()
+            ?.exerciseBlocks
+            ?.single()
+            ?.sets
+            ?.single()
+            ?.id ?: error("Missing initial set")
+        val firstSetId = repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("working", 5, 100.0, null, null, false))
+        val secondSetId = repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("drop", 8, 80.0, null, null, false))
+        val thirdSetId = repository.addSetToExercise(sessionId, bench.id, WorkoutSetInputData("failure", 10, 60.0, null, null, false))
+
+        repository.updateActiveWorkoutNotes(sessionId, "  Keep rest strict  ")
+        repository.moveWorkoutSet(thirdSetId, direction = -1)
+
+        val detail = repository.observeActiveWorkoutDetail().first()
+        val sets = detail?.exerciseBlocks?.single()?.sets.orEmpty()
+
+        assertEquals("Keep rest strict", detail?.notes)
+        assertEquals(listOf(initialSetId, firstSetId, thirdSetId, secondSetId), sets.map { it.id })
+        assertEquals(listOf("working", "working", "failure", "drop"), sets.map { it.setType })
     }
 
     @Test

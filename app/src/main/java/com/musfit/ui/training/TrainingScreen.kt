@@ -1,6 +1,7 @@
 package com.musfit.ui.training
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.data.repository.ExerciseSummary
+import com.musfit.data.repository.ExerciseDetail
 import com.musfit.ui.AppDestination
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
@@ -67,13 +69,28 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 workout = activeWorkout,
                 exercises = state.exercises,
                 restTimer = state.restTimer,
+                workoutNotes = state.activeWorkoutNotesInput,
+                restTimerDefaultSecondsInput = state.restTimerDefaultSecondsInput,
+                plateBarWeightInput = state.plateBarWeightInput,
+                availablePlatesInput = state.availablePlatesInput,
+                barWeightKg = state.trainingSettings.barWeightKg,
+                availablePlatesKg = state.trainingSettings.availablePlatesKg,
                 accent = accent,
                 onAddExercise = viewModel::addExerciseToActiveWorkout,
                 onAddSet = viewModel::addWorkoutSet,
+                onAddSuggestedWarmupSet = viewModel::addSuggestedWarmupSet,
                 onDuplicateSet = viewModel::duplicateLastWorkoutSet,
                 onUpdateSet = viewModel::updateWorkoutSetFields,
                 onDeleteSet = viewModel::deleteWorkoutSet,
                 onToggleSet = viewModel::toggleWorkoutSetCompletion,
+                onWorkoutNotesChange = viewModel::onActiveWorkoutNotesChanged,
+                onSaveWorkoutNotes = viewModel::saveActiveWorkoutNotes,
+                onRestTimerDefaultSecondsChange = viewModel::onRestTimerDefaultSecondsChanged,
+                onPlateBarWeightChange = viewModel::onPlateBarWeightChanged,
+                onAvailablePlatesChange = viewModel::onAvailablePlatesChanged,
+                onSaveTrainingTools = viewModel::saveTrainingToolSettings,
+                onMoveSetUp = viewModel::moveWorkoutSetUp,
+                onMoveSetDown = viewModel::moveWorkoutSetDown,
                 onTickRestTimer = viewModel::tickRestTimer,
                 onPauseRestTimer = viewModel::pauseRestTimer,
                 onResumeRestTimer = viewModel::resumeRestTimer,
@@ -156,8 +173,11 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     )
                 } else {
                     TrainingRoutineContent(
-                        routines = state.routines,
+                        routines = state.visibleRoutines,
+                        programOptions = state.routineProgramOptions,
+                        selectedProgram = state.selectedRoutineProgram,
                         accent = accent,
+                        onProgramSelected = viewModel::onRoutineProgramFilterChanged,
                         onStartRoutine = viewModel::startRoutine,
                         onStartBlank = viewModel::startBlankWorkout,
                         onEditRoutine = viewModel::openRoutineEditor,
@@ -173,11 +193,17 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     muscleFilter = state.exerciseMuscleFilter,
                     equipmentFilter = state.exerciseEquipmentFilter,
                     editor = state.exerciseEditor,
+                    selectedExerciseDetail = state.selectedExerciseDetail,
+                    exerciseDetailNotesInput = state.exerciseDetailNotesInput,
                     accent = accent,
                     onSearchChange = viewModel::onExerciseSearchQueryChanged,
                     onMuscleFilterChange = viewModel::onExerciseMuscleFilterChanged,
                     onEquipmentFilterChange = viewModel::onExerciseEquipmentFilterChanged,
                     onClearFilters = viewModel::clearExerciseFilters,
+                    onOpenExerciseDetail = viewModel::openExerciseDetail,
+                    onCloseExerciseDetail = viewModel::closeExerciseDetail,
+                    onExerciseDetailNotesChange = viewModel::onExerciseDetailNotesChanged,
+                    onSaveExerciseDetailNotes = viewModel::saveExerciseDetailNotes,
                     onOpenCustomExercise = viewModel::openCustomExerciseEditor,
                     onCloseCustomExercise = viewModel::closeCustomExerciseEditor,
                     onCustomExerciseNameChange = viewModel::onCustomExerciseNameChanged,
@@ -309,11 +335,17 @@ private fun TrainingExerciseLibraryContent(
     muscleFilter: String?,
     equipmentFilter: String?,
     editor: ExerciseEditorState,
+    selectedExerciseDetail: ExerciseDetail?,
+    exerciseDetailNotesInput: String,
     accent: TabAccent,
     onSearchChange: (String) -> Unit,
     onMuscleFilterChange: (String?) -> Unit,
     onEquipmentFilterChange: (String?) -> Unit,
     onClearFilters: () -> Unit,
+    onOpenExerciseDetail: (String) -> Unit,
+    onCloseExerciseDetail: () -> Unit,
+    onExerciseDetailNotesChange: (String) -> Unit,
+    onSaveExerciseDetailNotes: () -> Unit,
     onOpenCustomExercise: () -> Unit,
     onCloseCustomExercise: () -> Unit,
     onCustomExerciseNameChange: (String) -> Unit,
@@ -323,7 +355,15 @@ private fun TrainingExerciseLibraryContent(
     onSaveCustomExercise: () -> Unit,
 ) {
     val equipmentOptions = allExercises.mapNotNull { it.equipment?.takeIf(String::isNotBlank) }.distinct().sorted()
-    val muscleOptions = allExercises.flatMap { it.targetMuscles.split(",") }.map { it.trim() }.filter { it.isNotBlank() }.distinct().sorted()
+    val muscleOptions = allExercises
+        .flatMap { exercise ->
+            listOf(exercise.targetMuscles, exercise.primaryMuscles, exercise.secondaryMuscles)
+                .flatMap { muscles -> muscles.split(",") }
+        }
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .sorted()
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -334,6 +374,16 @@ private fun TrainingExerciseLibraryContent(
         FilterChipRow(title = "Muscle", options = muscleOptions.take(8), selected = muscleFilter, accent = accent, onSelected = onMuscleFilterChange)
         if (searchQuery.isNotBlank() || equipmentFilter != null || muscleFilter != null) {
             TextButton(onClick = onClearFilters) { Text("Clear filters", color = accent.color) }
+        }
+        selectedExerciseDetail?.let { detail ->
+            ExerciseDetailCard(
+                detail = detail,
+                notesInput = exerciseDetailNotesInput,
+                accent = accent,
+                onNotesChange = onExerciseDetailNotesChange,
+                onSaveNotes = onSaveExerciseDetailNotes,
+                onClose = onCloseExerciseDetail,
+            )
         }
         if (editor.isOpen) {
             Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
@@ -357,7 +407,13 @@ private fun TrainingExerciseLibraryContent(
             Text(text = "No exercises match these filters.", style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
         }
         visibleExercises.forEach { exercise ->
-            Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+            Surface(
+                color = MusFitTheme.colors.surface,
+                shape = MusFitTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenExerciseDetail(exercise.id) },
+            ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(exercise.name, style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
                     Text(
@@ -369,6 +425,67 @@ private fun TrainingExerciseLibraryContent(
             }
         }
     }
+}
+
+@Composable
+private fun ExerciseDetailCard(
+    detail: ExerciseDetail,
+    notesInput: String,
+    accent: TabAccent,
+    onNotesChange: (String) -> Unit,
+    onSaveNotes: () -> Unit,
+    onClose: () -> Unit,
+) {
+    Surface(color = accent.container, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(detail.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = accent.onContainer)
+                    Text(
+                        listOfNotNull(
+                            detail.equipment?.replaceFirstChar { it.titlecase(Locale.US) },
+                            detail.category.replaceFirstChar { it.titlecase(Locale.US) },
+                            if (detail.isCustom) "Custom" else "Library",
+                        ).joinToString(" - "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = accent.onContainer,
+                    )
+                }
+                TextButton(onClick = onClose) { Text("Close", color = accent.color) }
+            }
+            DetailLine(label = "Primary", value = detail.primaryMuscles, color = accent.onContainer)
+            if (detail.secondaryMuscles.isNotBlank()) {
+                DetailLine(label = "Secondary", value = detail.secondaryMuscles, color = accent.onContainer)
+            }
+            detail.instructions?.takeIf { it.isNotBlank() }?.let { instructions ->
+                Text(instructions, style = MaterialTheme.typography.bodyMedium, color = accent.onContainer)
+            }
+            OutlinedTextField(
+                value = notesInput,
+                onValueChange = onNotesChange,
+                label = { Text("Local notes") },
+                minLines = 2,
+                shape = MusFitTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = onSaveNotes,
+                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+            ) {
+                Text("Save notes")
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailLine(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
+    if (value.isBlank()) return
+    Text(
+        "$label - $value",
+        style = MaterialTheme.typography.bodySmall,
+        color = color,
+    )
 }
 
 @Composable

@@ -1,6 +1,6 @@
 # MusFit App Architecture
 
-This documentation describes the current MusFit Android app architecture as implemented in source on 2026-06-22. It is intended for product planning, engineering handoff, and future feature work.
+This documentation describes the current MusFit Android app architecture as implemented in source on 2026-06-28. It is intended for product planning, engineering handoff, and future feature work.
 
 Related documents:
 
@@ -17,7 +17,7 @@ Top-level navigation is a bottom bar with four destinations:
 | --- | --- | --- |
 | Today | `today` | Daily dashboard, rings, coaching cues, weekly goals, and shortcuts into feature areas. |
 | Food | `food` | Food diary, add food flow, saved foods, barcode lookup, nutrition goals, water, templates, recipes, shopping list, and food Health Connect sync. |
-| Training | `training` | Routines, exercise library, active workouts, workout history, progress, and quick set logging. |
+| Training | `training` | Routines, exercise library, active workouts, rest timer, supersets, PR/plate hints, workout history, progress, and quick set logging. |
 | Health | `health` | Health Connect status, permission entrypoint, daily health import, and workout export. |
 
 The MVP is local-first. It has no account system, cloud sync, analytics, subscription layer, social features, or wearable cloud API integration.
@@ -30,7 +30,7 @@ The MVP is local-first. It has no account system, cloud sync, analytics, subscri
 | UI | Jetpack Compose with Material 3 |
 | Navigation | Navigation Compose, single activity |
 | State | Hilt ViewModels exposing immutable `StateFlow` UI state |
-| Storage | Room local database, schema version 21 |
+| Storage | Room local database, schema version 24 |
 | Async | Kotlin coroutines and Flow |
 | DI | Hilt |
 | Food remote data | Retrofit and Moshi client for Open Food Facts |
@@ -54,7 +54,7 @@ The MVP is local-first. It has no account system, cloud sync, analytics, subscri
 | `app/src/main/java/com/musfit/domain/` | Pure Kotlin domain models and calculators. No Android, Compose, Retrofit, Room, or Health Connect dependencies. |
 | `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect gateway, record mapping, and permission rationale activity. |
 | `app/src/test/java/com/musfit/` | Unit tests for ViewModels, repositories, DAOs, domain calculators, and integration boundaries. |
-| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Exported Room schema JSON files for versions 1 through 21. |
+| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Exported Room schema JSON files for versions 1 through 24. |
 
 ## Layering
 
@@ -138,16 +138,20 @@ Food and Today use date-scoped Flow collection. Food owns a `selectedDateFlow` a
 
 ## Persistence
 
-The database is `MusFitDatabase`, version 21, with `exportSchema = true`.
+The database is `MusFitDatabase`, version 24, with `exportSchema = true`.
 
 Major table groups:
 
 - Food: foods, servings, meals, meal items, barcode products, goals, quick presets, meal definitions, templates, recipes, shopping list, water entries, food Health Connect sync state.
-- Training: exercises, routines, routine exercises, workout sessions, workout sets.
+- Training: exercises, routines, routine exercises, workout sessions, workout sets with set type, RPE, notes, completion state, optional superset grouping, and local tool settings.
 - Health: body metrics, daily health summaries, Health Connect sync state.
 - Today goals: user goals.
 
-Room migrations are registered from version 1 to 21 in `DatabaseModule`. The app does not use destructive migration fallback, so schema changes must include a migration and a committed schema JSON.
+Room migrations are registered from version 1 to 24 in `DatabaseModule`. The app does not use destructive migration fallback, so schema changes must include a migration and a committed schema JSON.
+
+### Training Persistence Notes
+
+Training stores only local strength-training data. Exercise rows hold list metadata plus detail fields (`primaryMuscles`, `secondaryMuscles`, `instructions`, and `localNotes`). Routines store starter/custom status, optional `programName`, and CSV-backed tags, with ordered routine exercises in `routine_exercises`. Active and completed workouts use the same session/set tables, with session `status` separating active, completed, and discarded workouts. Supersets are represented by a nullable `supersetGroupId` on workout sets and are derived into grouped UI models by the repository. Global Training tool settings live in `training_settings` for default rest duration, bar weight, and available plate inventory.
 
 ## Remote And Device Integrations
 

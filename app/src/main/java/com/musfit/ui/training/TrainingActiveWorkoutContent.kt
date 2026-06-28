@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -64,6 +65,8 @@ import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.SupersetGroup
 import com.musfit.data.repository.WorkoutExerciseBlock
 import com.musfit.domain.training.PlateCalculator
+import com.musfit.domain.training.WarmupSetCalculator
+import com.musfit.domain.training.WarmupSetSuggestion
 import com.musfit.domain.training.WorkoutCalculator
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
@@ -75,13 +78,28 @@ fun TrainingActiveWorkoutContent(
     workout: ActiveWorkoutDetail,
     exercises: List<ExerciseSummary>,
     restTimer: RestTimerState,
+    workoutNotes: String,
+    restTimerDefaultSecondsInput: String,
+    plateBarWeightInput: String,
+    availablePlatesInput: String,
+    barWeightKg: Double,
+    availablePlatesKg: List<Double>,
     accent: TabAccent,
     onAddExercise: (String) -> Unit,
     onAddSet: (String) -> Unit,
+    onAddSuggestedWarmupSet: (exerciseId: String, reps: Int, weightKg: Double) -> Unit,
     onDuplicateSet: (String) -> Unit,
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
     onToggleSet: (String, Boolean) -> Unit,
+    onWorkoutNotesChange: (String) -> Unit,
+    onSaveWorkoutNotes: () -> Unit,
+    onRestTimerDefaultSecondsChange: (String) -> Unit,
+    onPlateBarWeightChange: (String) -> Unit,
+    onAvailablePlatesChange: (String) -> Unit,
+    onSaveTrainingTools: () -> Unit,
+    onMoveSetUp: (String) -> Unit,
+    onMoveSetDown: (String) -> Unit,
     onTickRestTimer: () -> Unit,
     onPauseRestTimer: () -> Unit,
     onResumeRestTimer: () -> Unit,
@@ -103,6 +121,22 @@ fun TrainingActiveWorkoutContent(
             onDiscard = onDiscard,
         )
         WorkoutStatRow(workout = workout)
+        ActiveWorkoutNotesCard(
+            notes = workoutNotes,
+            accent = accent,
+            onNotesChange = onWorkoutNotesChange,
+            onSave = onSaveWorkoutNotes,
+        )
+        TrainingToolsCard(
+            restTimerDefaultSecondsInput = restTimerDefaultSecondsInput,
+            plateBarWeightInput = plateBarWeightInput,
+            availablePlatesInput = availablePlatesInput,
+            accent = accent,
+            onRestTimerDefaultSecondsChange = onRestTimerDefaultSecondsChange,
+            onPlateBarWeightChange = onPlateBarWeightChange,
+            onAvailablePlatesChange = onAvailablePlatesChange,
+            onSave = onSaveTrainingTools,
+        )
         RestTimerBar(
             restTimer = restTimer,
             accent = accent,
@@ -126,11 +160,16 @@ fun TrainingActiveWorkoutContent(
                     ActiveExerciseBlock(
                         block = grouping.block,
                         accent = accent,
+                        barWeightKg = barWeightKg,
+                        availablePlatesKg = availablePlatesKg,
                         onAddSet = onAddSet,
+                        onAddSuggestedWarmupSet = onAddSuggestedWarmupSet,
                         onDuplicateSet = onDuplicateSet,
                         onUpdateSet = onUpdateSet,
                         onDeleteSet = onDeleteSet,
                         onToggleSet = onToggleSet,
+                        onMoveSetUp = onMoveSetUp,
+                        onMoveSetDown = onMoveSetDown,
                         canMakeSuperset = canMakeSuperset,
                         onMakeSuperset = onMakeSuperset,
                     )
@@ -140,22 +179,32 @@ fun TrainingActiveWorkoutContent(
                         SupersetGroupCard(
                             group = grouping.group,
                             accent = accent,
+                            barWeightKg = barWeightKg,
+                            availablePlatesKg = availablePlatesKg,
                             onAddSet = onAddSet,
+                            onAddSuggestedWarmupSet = onAddSuggestedWarmupSet,
                             onDuplicateSet = onDuplicateSet,
                             onUpdateSet = onUpdateSet,
                             onDeleteSet = onDeleteSet,
                             onToggleSet = onToggleSet,
+                            onMoveSetUp = onMoveSetUp,
+                            onMoveSetDown = onMoveSetDown,
                             onDissolveSuperset = onDissolveSuperset,
                         )
                     } else {
                         ActiveExerciseBlock(
                             block = grouping.group.exerciseBlocks.first(),
                             accent = accent,
+                            barWeightKg = barWeightKg,
+                            availablePlatesKg = availablePlatesKg,
                             onAddSet = onAddSet,
+                            onAddSuggestedWarmupSet = onAddSuggestedWarmupSet,
                             onDuplicateSet = onDuplicateSet,
                             onUpdateSet = onUpdateSet,
                             onDeleteSet = onDeleteSet,
                             onToggleSet = onToggleSet,
+                            onMoveSetUp = onMoveSetUp,
+                            onMoveSetDown = onMoveSetDown,
                         )
                     }
             }
@@ -260,6 +309,105 @@ private fun StatCell(
     Column(modifier = modifier) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MusFitTheme.colors.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MusFitTheme.colors.onSurface)
+    }
+}
+
+@Composable
+private fun ActiveWorkoutNotesCard(
+    notes: String,
+    accent: TabAccent,
+    onNotesChange: (String) -> Unit,
+    onSave: () -> Unit,
+) {
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = notes,
+                onValueChange = onNotesChange,
+                modifier = Modifier.weight(1f),
+                label = { Text("Workout notes") },
+                minLines = 1,
+                maxLines = 3,
+            )
+            Button(
+                onClick = onSave,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accent.color,
+                    contentColor = accent.onColor,
+                ),
+            ) {
+                Text("Save")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrainingToolsCard(
+    restTimerDefaultSecondsInput: String,
+    plateBarWeightInput: String,
+    availablePlatesInput: String,
+    accent: TabAccent,
+    onRestTimerDefaultSecondsChange: (String) -> Unit,
+    onPlateBarWeightChange: (String) -> Unit,
+    onAvailablePlatesChange: (String) -> Unit,
+    onSave: () -> Unit,
+) {
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = restTimerDefaultSecondsInput,
+                    onValueChange = onRestTimerDefaultSecondsChange,
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Rest sec") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                OutlinedTextField(
+                    value = plateBarWeightInput,
+                    onValueChange = onPlateBarWeightChange,
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Bar kg") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = availablePlatesInput,
+                    onValueChange = onAvailablePlatesChange,
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Plates kg") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                )
+                Button(
+                    onClick = onSave,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accent.color,
+                        contentColor = accent.onColor,
+                    ),
+                ) {
+                    Text("Save")
+                }
+            }
+        }
     }
 }
 
@@ -446,11 +594,16 @@ private fun AddExerciseCompactBar(
 private fun ActiveExerciseBlock(
     block: WorkoutExerciseBlock,
     accent: TabAccent,
+    barWeightKg: Double,
+    availablePlatesKg: List<Double>,
     onAddSet: (String) -> Unit,
+    onAddSuggestedWarmupSet: (exerciseId: String, reps: Int, weightKg: Double) -> Unit,
     onDuplicateSet: (String) -> Unit,
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
     onToggleSet: (String, Boolean) -> Unit,
+    onMoveSetUp: (String) -> Unit,
+    onMoveSetDown: (String) -> Unit,
     nested: Boolean = false,
     canMakeSuperset: Boolean = false,
     onMakeSuperset: ((String) -> Unit)? = null,
@@ -462,11 +615,16 @@ private fun ActiveExerciseBlock(
             contentPadding = 12.dp,
             canMakeSuperset = false,
             onMakeSuperset = null,
+            barWeightKg = barWeightKg,
+            availablePlatesKg = availablePlatesKg,
             onAddSet = onAddSet,
+            onAddSuggestedWarmupSet = onAddSuggestedWarmupSet,
             onDuplicateSet = onDuplicateSet,
             onUpdateSet = onUpdateSet,
             onDeleteSet = onDeleteSet,
             onToggleSet = onToggleSet,
+            onMoveSetUp = onMoveSetUp,
+            onMoveSetDown = onMoveSetDown,
         )
     } else {
         Surface(
@@ -480,11 +638,16 @@ private fun ActiveExerciseBlock(
                 contentPadding = 14.dp,
                 canMakeSuperset = canMakeSuperset,
                 onMakeSuperset = onMakeSuperset,
+                barWeightKg = barWeightKg,
+                availablePlatesKg = availablePlatesKg,
                 onAddSet = onAddSet,
+                onAddSuggestedWarmupSet = onAddSuggestedWarmupSet,
                 onDuplicateSet = onDuplicateSet,
                 onUpdateSet = onUpdateSet,
                 onDeleteSet = onDeleteSet,
                 onToggleSet = onToggleSet,
+                onMoveSetUp = onMoveSetUp,
+                onMoveSetDown = onMoveSetDown,
             )
         }
     }
@@ -497,11 +660,16 @@ private fun ActiveExerciseBlockBody(
     contentPadding: Dp,
     canMakeSuperset: Boolean,
     onMakeSuperset: ((String) -> Unit)?,
+    barWeightKg: Double,
+    availablePlatesKg: List<Double>,
     onAddSet: (String) -> Unit,
+    onAddSuggestedWarmupSet: (exerciseId: String, reps: Int, weightKg: Double) -> Unit,
     onDuplicateSet: (String) -> Unit,
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
     onToggleSet: (String, Boolean) -> Unit,
+    onMoveSetUp: (String) -> Unit,
+    onMoveSetDown: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -583,10 +751,22 @@ private fun ActiveExerciseBlockBody(
                 onUpdateSet = onUpdateSet,
                 onDeleteSet = onDeleteSet,
                 onToggleSet = onToggleSet,
+                onMoveSetUp = onMoveSetUp,
+                onMoveSetDown = onMoveSetDown,
             )
         }
 
-        PlateLine(block = block)
+        WarmupSuggestionRow(
+            block = block,
+            barWeightKg = barWeightKg,
+            accent = accent,
+            onAddSuggestedWarmupSet = onAddSuggestedWarmupSet,
+        )
+        PlateLine(
+            block = block,
+            barWeightKg = barWeightKg,
+            availablePlatesKg = availablePlatesKg,
+        )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -612,11 +792,16 @@ private fun ActiveExerciseBlockBody(
 private fun SupersetGroupCard(
     group: SupersetGroup,
     accent: TabAccent,
+    barWeightKg: Double,
+    availablePlatesKg: List<Double>,
     onAddSet: (String) -> Unit,
+    onAddSuggestedWarmupSet: (exerciseId: String, reps: Int, weightKg: Double) -> Unit,
     onDuplicateSet: (String) -> Unit,
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
     onToggleSet: (String, Boolean) -> Unit,
+    onMoveSetUp: (String) -> Unit,
+    onMoveSetDown: (String) -> Unit,
     onDissolveSuperset: (String) -> Unit,
 ) {
     Surface(
@@ -658,11 +843,16 @@ private fun SupersetGroupCard(
                     ActiveExerciseBlock(
                         block = member,
                         accent = accent,
+                        barWeightKg = barWeightKg,
+                        availablePlatesKg = availablePlatesKg,
                         onAddSet = onAddSet,
+                        onAddSuggestedWarmupSet = onAddSuggestedWarmupSet,
                         onDuplicateSet = onDuplicateSet,
                         onUpdateSet = onUpdateSet,
                         onDeleteSet = onDeleteSet,
                         onToggleSet = onToggleSet,
+                        onMoveSetUp = onMoveSetUp,
+                        onMoveSetDown = onMoveSetDown,
                         nested = true,
                     )
                 }
@@ -690,16 +880,76 @@ private fun SupersetBadge(label: String, accent: TabAccent) {
 }
 
 @Composable
-private fun PlateLine(block: WorkoutExerciseBlock) {
+private fun WarmupSuggestionRow(
+    block: WorkoutExerciseBlock,
+    barWeightKg: Double,
+    accent: TabAccent,
+    onAddSuggestedWarmupSet: (exerciseId: String, reps: Int, weightKg: Double) -> Unit,
+) {
+    val workingSet = block.sets.lastOrNull { set ->
+        !set.setType.equals(SET_TYPE_WARMUP, ignoreCase = true) &&
+            set.reps != null &&
+            set.weightKg != null
+    } ?: return
+    val suggestions = WarmupSetCalculator.suggestions(
+        workingWeightKg = workingSet.weightKg,
+        workingReps = workingSet.reps,
+        barWeightKg = barWeightKg,
+    )
+    if (suggestions.isEmpty()) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = "Warm-up",
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
+        suggestions.forEach { suggestion ->
+            TextButton(
+                onClick = {
+                    onAddSuggestedWarmupSet(block.exercise.id, suggestion.reps, suggestion.weightKg)
+                },
+            ) {
+                Text(
+                    text = suggestion.label(),
+                    color = accent.color,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlateLine(
+    block: WorkoutExerciseBlock,
+    barWeightKg: Double,
+    availablePlatesKg: List<Double>,
+) {
     val weight = block.sets.lastOrNull { (it.weightKg ?: 0.0) > 0.0 }?.weightKg ?: return
-    val plates = PlateCalculator.platesPerSide(weight)
-    if (plates.isEmpty()) return
+    val text = plateLineText(weight, barWeightKg, availablePlatesKg) ?: return
     Text(
-        text = "Plates · ${plates.joinToString(" + ") { it.formatPlate() }} / side",
+        text = text,
         style = MaterialTheme.typography.bodySmall,
         color = MusFitTheme.colors.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 8.dp),
     )
+}
+
+internal fun plateLineText(
+    weightKg: Double,
+    barWeightKg: Double,
+    availablePlatesKg: List<Double>,
+): String? {
+    val plates = PlateCalculator.platesPerSide(weightKg, barWeightKg, availablePlatesKg)
+    if (plates.isEmpty()) return null
+    return "Plates · ${plates.joinToString(" + ") { it.formatPlate() }} / side"
 }
 
 @Composable
@@ -742,6 +992,8 @@ private fun WorkoutSetTableRow(
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
     onToggleSet: (String, Boolean) -> Unit,
+    onMoveSetUp: (String) -> Unit,
+    onMoveSetDown: (String) -> Unit,
 ) {
     val set = row.set
     var reps by remember(set.id) { mutableStateOf(row.reps) }
@@ -749,6 +1001,7 @@ private fun WorkoutSetTableRow(
     var rpe by remember(set.id) { mutableStateOf(row.rpe) }
     var notes by remember(set.id) { mutableStateOf(set.notes.orEmpty()) }
     var expanded by remember(set.id) { mutableStateOf(!set.notes.isNullOrBlank()) }
+    var setTypeMenuOpen by remember(set.id) { mutableStateOf(false) }
 
     LaunchedEffect(set.reps, set.weightKg, set.rpe, set.notes) {
         reps = row.reps
@@ -758,12 +1011,13 @@ private fun WorkoutSetTableRow(
     }
 
     fun persist(
+        nextSetType: String = set.setType,
         nextReps: String = reps,
         nextWeightKg: String = weightKg,
         nextRpe: String = rpe,
         nextNotes: String = notes,
     ) {
-        onUpdateSet(set.id, set.setType, nextReps, nextWeightKg, nextRpe, nextNotes)
+        onUpdateSet(set.id, nextSetType, nextReps, nextWeightKg, nextRpe, nextNotes)
     }
 
     val rowColor = if (isAlternate) {
@@ -790,16 +1044,30 @@ private fun WorkoutSetTableRow(
                 modifier = Modifier.width(40.dp),
                 horizontalAlignment = Alignment.Start,
             ) {
-                Text(
-                    row.setLabel,
-                    modifier = Modifier.clickable {
-                        val nextType = if (row.setLabel == "W") SET_TYPE_WORKING else SET_TYPE_WARMUP
-                        onUpdateSet(set.id, nextType, reps, weightKg, rpe, notes)
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (row.setLabel == "W") MusFitTheme.colors.macroCarbs else MusFitTheme.colors.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Box {
+                    Text(
+                        row.setLabel,
+                        modifier = Modifier.clickable { setTypeMenuOpen = true },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = when (row.setLabel) {
+                            "W" -> MusFitTheme.colors.macroCarbs
+                            "D", "F" -> accent.color
+                            else -> MusFitTheme.colors.onSurface
+                        },
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    DropdownMenu(expanded = setTypeMenuOpen, onDismissRequest = { setTypeMenuOpen = false }) {
+                        SET_TYPE_OPTIONS.forEach { (type, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    setTypeMenuOpen = false
+                                    persist(nextSetType = type)
+                                },
+                            )
+                        }
+                    }
+                }
                 if (row.isPr) {
                     PrChip(accent = accent)
                 }
@@ -875,6 +1143,26 @@ private fun WorkoutSetTableRow(
                     },
                     modifier = Modifier.weight(1f),
                 )
+                IconButton(
+                    onClick = { onMoveSetUp(set.id) },
+                    modifier = Modifier.size(34.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.KeyboardArrowUp,
+                        contentDescription = "Move set up",
+                        tint = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+                IconButton(
+                    onClick = { onMoveSetDown(set.id) },
+                    modifier = Modifier.size(34.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.KeyboardArrowDown,
+                        contentDescription = "Move set down",
+                        tint = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
                 IconButton(
                     onClick = { onDeleteSet(set.id) },
                     modifier = Modifier.size(34.dp),
@@ -1077,17 +1365,22 @@ internal fun formatWorkoutSetRowsForDisplay(
 ): List<WorkoutSetRowDisplay> {
     var workingSetNumber = 0
     return sets.map { set ->
-        val isWarmup = set.setType.equals("warmup", ignoreCase = true) ||
-            set.setType.equals("warm-up", ignoreCase = true)
-        val setLabel = if (isWarmup) {
-            "W"
-        } else {
-            workingSetNumber += 1
-            workingSetNumber.toString()
+        val normalizedSetType = set.setType.lowercase(Locale.US)
+        val isWarmup = normalizedSetType == SET_TYPE_WARMUP || normalizedSetType == "warm-up"
+        val isDropSet = normalizedSetType == SET_TYPE_DROP
+        val isFailureSet = normalizedSetType == SET_TYPE_FAILURE
+        val setLabel = when {
+            isWarmup -> "W"
+            isDropSet -> "D"
+            isFailureSet -> "F"
+            else -> {
+                workingSetNumber += 1
+                workingSetNumber.toString()
+            }
         }
         val reps = set.reps
         val weightKg = set.weightKg
-        val isPr = !isWarmup && set.completed && reps != null && weightKg != null &&
+        val isPr = !isWarmup && !isDropSet && set.completed && reps != null && weightKg != null &&
             WorkoutCalculator.estimatedOneRepMax(weightKg, reps) > priorBestEstimatedOneRepMaxKg + 1e-6
         WorkoutSetRowDisplay(
             set = set,
@@ -1114,6 +1407,8 @@ private fun Double.formatPlate(): String =
     } else {
         String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
     }
+
+private fun WarmupSetSuggestion.label(): String = "${weightKg.formatPlate()} kg x $reps"
 
 private fun Int.toMinSec(): String {
     val minutes = this / 60
@@ -1158,3 +1453,11 @@ private fun Double.formatKg(): String =
 
 private const val SET_TYPE_WARMUP = "warmup"
 private const val SET_TYPE_WORKING = "working"
+private const val SET_TYPE_DROP = "drop"
+private const val SET_TYPE_FAILURE = "failure"
+private val SET_TYPE_OPTIONS = listOf(
+    SET_TYPE_WARMUP to "Warmup",
+    SET_TYPE_WORKING to "Working",
+    SET_TYPE_DROP to "Drop set",
+    SET_TYPE_FAILURE to "Failure",
+)

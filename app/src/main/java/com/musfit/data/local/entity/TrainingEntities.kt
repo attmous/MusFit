@@ -13,6 +13,10 @@ data class ExerciseEntity(
     val equipment: String?,
     val targetMuscles: String,
     val isCustom: Boolean,
+    val primaryMuscles: String = targetMuscles,
+    val secondaryMuscles: String = "",
+    val instructions: String? = null,
+    val localNotes: String? = null,
 )
 
 @Entity(tableName = "routines")
@@ -23,6 +27,8 @@ data class RoutineEntity(
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long = createdAtEpochMillis,
     val isStarter: Boolean = false,
+    val programName: String? = null,
+    val tags: String = "",
 )
 
 @Entity(
@@ -108,4 +114,12 @@ data class WorkoutSetEntity(
     val notes: String?,
     val completed: Boolean,
     val supersetGroupId: String? = null,
+)
+
+@Entity(tableName = "training_settings")
+data class TrainingSettingsEntity(
+    @PrimaryKey val id: String = "default",
+    val defaultRestSeconds: Int = 120,
+    val barWeightKg: Double = 20.0,
+    val availablePlatesKg: String = "25,20,15,10,5,2.5,1.25",
 )

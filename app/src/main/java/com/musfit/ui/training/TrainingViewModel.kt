@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
+import com.musfit.data.repository.ExerciseDetail
 import com.musfit.data.repository.ExerciseGrouping
 import com.musfit.data.repository.ExerciseInput
 import com.musfit.data.repository.ExerciseSummary
@@ -14,10 +15,14 @@ import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
+import com.musfit.data.repository.TrainingSettings
+import com.musfit.data.repository.TrainingSettingsInput
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.model.ExerciseProgress
+import com.musfit.domain.training.PlateCalculator
+import com.musfit.domain.training.WarmupSetCalculator
 import com.musfit.domain.training.WorkoutCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -63,6 +68,9 @@ data class RestTimerState(
 data class TrainingUiState(
     val selectedSection: TrainingSection = TrainingSection.Routines,
     val routines: List<RoutineSummary> = emptyList(),
+    val visibleRoutines: List<RoutineSummary> = emptyList(),
+    val routineProgramOptions: List<String> = emptyList(),
+    val selectedRoutineProgram: String? = null,
     val exercises: List<ExerciseSummary> = emptyList(),
     val visibleExercises: List<ExerciseSummary> = emptyList(),
     val activeWorkoutSummary: ActiveWorkoutSummary? = null,
@@ -75,6 +83,8 @@ data class TrainingUiState(
     val exerciseMuscleFilter: String? = null,
     val exerciseEquipmentFilter: String? = null,
     val exerciseEditor: ExerciseEditorState = ExerciseEditorState(),
+    val selectedExerciseDetail: ExerciseDetail? = null,
+    val exerciseDetailNotesInput: String = "",
     val exerciseName: String = "",
     val reps: String = "",
     val weightKg: String = "",
@@ -83,6 +93,11 @@ data class TrainingUiState(
     val bestEstimatedOneRepMaxKg: Double = 0.0,
     val routineEditor: RoutineEditorState = RoutineEditorState(),
     val activeWorkoutRouteOpen: Boolean = false,
+    val activeWorkoutNotesInput: String = "",
+    val trainingSettings: TrainingSettings = TrainingSettings(),
+    val restTimerDefaultSecondsInput: String = "120",
+    val plateBarWeightInput: String = "20",
+    val availablePlatesInput: String = "25, 20, 15, 10, 5, 2.5, 1.25",
     val restTimer: RestTimerState = RestTimerState(),
     val finishConfirmationOpen: Boolean = false,
     val discardConfirmationOpen: Boolean = false,
@@ -114,13 +129,44 @@ class TrainingViewModel @Inject constructor(
                         routines = routines,
                         exercises = exercises,
                         activeWorkoutSummary = activeWorkout,
-                    ).withFilteredExercises()
+                    ).withVisibleRoutines()
+                        .withFilteredExercises()
                 }
             }
         }
         viewModelScope.launch {
             repository.observeActiveWorkoutDetail().collect { activeWorkout ->
-                mutableState.update { it.copy(activeWorkout = activeWorkout) }
+                mutableState.update { current ->
+                    val previousActiveWorkout = current.activeWorkout
+                    val shouldSyncNotes = activeWorkout == null ||
+                        previousActiveWorkout?.sessionId != activeWorkout.sessionId ||
+                        previousActiveWorkout.notes != activeWorkout.notes
+                    current.copy(
+                        activeWorkout = activeWorkout,
+                        activeWorkoutNotesInput = if (shouldSyncNotes) {
+                            activeWorkout?.notes.orEmpty()
+                        } else {
+                            current.activeWorkoutNotesInput
+                        },
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            repository.observeTrainingSettings().collect { settings ->
+                mutableState.update { current ->
+                    current.copy(
+                        trainingSettings = settings,
+                        restTimerDefaultSecondsInput = settings.defaultRestSeconds.toString(),
+                        plateBarWeightInput = settings.barWeightKg.formatSettingsNumber(),
+                        availablePlatesInput = settings.availablePlatesKg.formatPlateListInput(),
+                        restTimer = if (current.restTimer.isVisible) {
+                            current.restTimer
+                        } else {
+                            current.restTimer.copy(durationSeconds = settings.defaultRestSeconds)
+                        },
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -177,6 +223,13 @@ class TrainingViewModel @Inject constructor(
                 activeWorkoutRouteOpen = false,
                 selectedSection = TrainingSection.Routines,
             )
+        }
+    }
+
+    fun onRoutineProgramFilterChanged(value: String?) {
+        mutableState.update {
+            it.copy(selectedRoutineProgram = value?.trim()?.takeIf(String::isNotBlank))
+                .withVisibleRoutines()
         }
     }
 
@@ -385,6 +438,49 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    fun openExerciseDetail(exerciseId: String) {
+        viewModelScope.launch {
+            val detail = repository.getExerciseDetail(exerciseId)
+            mutableState.update {
+                it.copy(
+                    selectedSection = TrainingSection.Exercises,
+                    selectedExerciseDetail = detail,
+                    exerciseDetailNotesInput = detail?.localNotes.orEmpty(),
+                    message = if (detail == null) "Exercise not found." else null,
+                )
+            }
+        }
+    }
+
+    fun closeExerciseDetail() {
+        mutableState.update {
+            it.copy(
+                selectedExerciseDetail = null,
+                exerciseDetailNotesInput = "",
+            )
+        }
+    }
+
+    fun onExerciseDetailNotesChanged(value: String) {
+        mutableState.update { it.copy(exerciseDetailNotesInput = value) }
+    }
+
+    fun saveExerciseDetailNotes() {
+        val detail = state.value.selectedExerciseDetail ?: return
+        val notes = state.value.exerciseDetailNotesInput.trim().takeIf { it.isNotBlank() }
+        viewModelScope.launch {
+            repository.updateExerciseLocalNotes(detail.id, notes)
+            val updated = repository.getExerciseDetail(detail.id)?.copy(localNotes = notes)
+            mutableState.update {
+                it.copy(
+                    selectedExerciseDetail = updated,
+                    exerciseDetailNotesInput = notes.orEmpty(),
+                    message = "Exercise notes saved.",
+                )
+            }
+        }
+    }
+
     fun openCustomExerciseEditor() {
         mutableState.update {
             it.copy(
@@ -580,6 +676,49 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    fun onRestTimerDefaultSecondsChanged(value: String) {
+        mutableState.update { it.copy(restTimerDefaultSecondsInput = value.filter(Char::isDigit)) }
+    }
+
+    fun onPlateBarWeightChanged(value: String) {
+        mutableState.update { it.copy(plateBarWeightInput = value.sanitizeDecimalInput()) }
+    }
+
+    fun onAvailablePlatesChanged(value: String) {
+        mutableState.update { it.copy(availablePlatesInput = value.filter { char -> char.isDigit() || char == '.' || char == ',' || char == ' ' }) }
+    }
+
+    fun saveTrainingToolSettings() {
+        val current = state.value
+        val input = TrainingSettingsInput(
+            defaultRestSeconds = current.restTimerDefaultSecondsInput.toIntOrNull() ?: current.trainingSettings.defaultRestSeconds,
+            barWeightKg = current.plateBarWeightInput.toDoubleOrNull() ?: current.trainingSettings.barWeightKg,
+            availablePlatesKg = current.availablePlatesInput.parsePlateListInput()
+                .ifEmpty { current.trainingSettings.availablePlatesKg.ifEmpty { PlateCalculator.DEFAULT_PLATES } },
+        ).normalized()
+        viewModelScope.launch {
+            repository.updateTrainingSettings(input)
+            mutableState.update {
+                it.copy(
+                    trainingSettings = TrainingSettings(
+                        defaultRestSeconds = input.defaultRestSeconds,
+                        barWeightKg = input.barWeightKg,
+                        availablePlatesKg = input.availablePlatesKg,
+                    ),
+                    restTimerDefaultSecondsInput = input.defaultRestSeconds.toString(),
+                    plateBarWeightInput = input.barWeightKg.formatSettingsNumber(),
+                    availablePlatesInput = input.availablePlatesKg.formatPlateListInput(),
+                    restTimer = if (it.restTimer.isVisible) {
+                        it.restTimer
+                    } else {
+                        it.restTimer.copy(durationSeconds = input.defaultRestSeconds)
+                    },
+                    message = "Training tools saved.",
+                )
+            }
+        }
+    }
+
     fun addExerciseToActiveWorkout(exerciseId: String) {
         val sessionId = state.value.activeWorkout?.sessionId ?: return
         viewModelScope.launch {
@@ -597,6 +736,24 @@ class TrainingViewModel @Inject constructor(
                     setType = "working",
                     reps = null,
                     weightKg = null,
+                    rpe = null,
+                    notes = null,
+                    completed = false,
+                ),
+            )
+        }
+    }
+
+    fun addSuggestedWarmupSet(exerciseId: String, reps: Int, weightKg: Double) {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        viewModelScope.launch {
+            repository.addSetToExercise(
+                sessionId = sessionId,
+                exerciseId = exerciseId,
+                input = WorkoutSetInputData(
+                    setType = "warmup",
+                    reps = reps,
+                    weightKg = weightKg,
                     rpe = null,
                     notes = null,
                     completed = false,
@@ -643,6 +800,38 @@ class TrainingViewModel @Inject constructor(
     fun deleteWorkoutSet(setId: String) {
         viewModelScope.launch {
             repository.deleteWorkoutSet(setId)
+        }
+    }
+
+    fun onActiveWorkoutNotesChanged(value: String) {
+        mutableState.update { it.copy(activeWorkoutNotesInput = value) }
+    }
+
+    fun saveActiveWorkoutNotes() {
+        val sessionId = state.value.activeWorkout?.sessionId ?: return
+        val notes = state.value.activeWorkoutNotesInput.trim().takeIf { it.isNotBlank() }
+        viewModelScope.launch {
+            repository.updateActiveWorkoutNotes(sessionId, notes)
+            mutableState.update {
+                it.copy(
+                    activeWorkoutNotesInput = notes.orEmpty(),
+                    message = "Workout notes saved.",
+                )
+            }
+        }
+    }
+
+    fun moveWorkoutSetUp(setId: String) {
+        moveWorkoutSet(setId, direction = -1)
+    }
+
+    fun moveWorkoutSetDown(setId: String) {
+        moveWorkoutSet(setId, direction = 1)
+    }
+
+    private fun moveWorkoutSet(setId: String, direction: Int) {
+        viewModelScope.launch {
+            repository.moveWorkoutSet(setId, direction)
         }
     }
 
@@ -757,15 +946,34 @@ class TrainingViewModel @Inject constructor(
             val matchesQuery = query.isBlank() ||
                 exercise.name.contains(query, ignoreCase = true) ||
                 exercise.targetMuscles.contains(query, ignoreCase = true) ||
+                exercise.primaryMuscles.contains(query, ignoreCase = true) ||
+                exercise.secondaryMuscles.contains(query, ignoreCase = true) ||
                 exercise.equipment.orEmpty().contains(query, ignoreCase = true)
             val matchesMuscle = muscle == null ||
-                exercise.targetMuscles.contains(muscle, ignoreCase = true)
+                exercise.targetMuscles.contains(muscle, ignoreCase = true) ||
+                exercise.primaryMuscles.contains(muscle, ignoreCase = true) ||
+                exercise.secondaryMuscles.contains(muscle, ignoreCase = true)
             val matchesEquipment = equipment == null ||
                 exercise.equipment.equals(equipment, ignoreCase = true)
 
             matchesQuery && matchesMuscle && matchesEquipment
         }
         return copy(visibleExercises = filtered)
+    }
+
+    private fun TrainingUiState.withVisibleRoutines(): TrainingUiState {
+        val options = routines.mapNotNull { it.programName?.takeIf(String::isNotBlank) }.distinct().sorted()
+        val selected = selectedRoutineProgram?.takeIf { it in options }
+        val filtered = if (selected == null) {
+            routines
+        } else {
+            routines.filter { it.programName == selected }
+        }
+        return copy(
+            routineProgramOptions = options,
+            selectedRoutineProgram = selected,
+            visibleRoutines = filtered,
+        )
     }
 
     private fun moveRoutineExercise(fromIndex: Int, toIndex: Int) {
@@ -800,12 +1008,40 @@ class TrainingViewModel @Inject constructor(
         return builder.toString()
     }
 
+    private fun String.parsePlateListInput(): List<Double> =
+        split(",")
+            .mapNotNull { it.trim().toDoubleOrNull() }
+            .filter { it > 0.0 }
+            .distinct()
+            .sortedDescending()
+
+    private fun TrainingSettingsInput.normalized(): TrainingSettingsInput =
+        copy(
+            defaultRestSeconds = defaultRestSeconds.coerceIn(15, 900),
+            barWeightKg = barWeightKg.takeIf { it > 0.0 } ?: 20.0,
+            availablePlatesKg = availablePlatesKg
+                .filter { it > 0.0 }
+                .distinct()
+                .sortedDescending()
+                .ifEmpty { PlateCalculator.DEFAULT_PLATES },
+        )
+
+    private fun List<Double>.formatPlateListInput(): String =
+        joinToString(", ") { it.formatSettingsNumber() }
+
+    private fun Double.formatSettingsNumber(): String =
+        if (this % 1.0 == 0.0) {
+            toInt().toString()
+        } else {
+            toString()
+        }
+
     private fun LoggedWorkoutSetDetail.isValidForCompletion(): Boolean =
         (reps ?: 0) > 0 && (weightKg ?: 0.0) > 0.0
 
     private fun startRestTimer(setId: String) {
         mutableState.update { current ->
-            val durationSeconds = current.restTimer.durationSeconds.coerceAtLeast(1)
+            val durationSeconds = current.trainingSettings.defaultRestSeconds.coerceAtLeast(1)
             current.copy(
                 restTimer = RestTimerState(
                     isVisible = true,

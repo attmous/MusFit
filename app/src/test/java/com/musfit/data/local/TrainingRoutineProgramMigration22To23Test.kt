@@ -9,7 +9,6 @@ import java.io.File
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -17,7 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class AccountMigration20To21Test {
+class TrainingRoutineProgramMigration22To23Test {
     private lateinit var context: Context
 
     @Before
@@ -32,15 +31,13 @@ class AccountMigration20To21Test {
     }
 
     @Test
-    fun migration20To21_remapsLegacySingletonRowsToLocalDefault() {
-        createDatabaseFromExportedSchema(version = 20)
-        seedLegacySingletonRows()
+    fun migration22To23_addsRoutineProgramColumnsAndPreservesExistingRows() {
+        createDatabaseFromExportedSchema(version = 22)
+        seedLegacyRoutine()
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
                 .addMigrations(
-                    DatabaseModule.MIGRATION_20_21,
-                    DatabaseModule.MIGRATION_21_22,
                     DatabaseModule.MIGRATION_22_23,
                     DatabaseModule.MIGRATION_23_24,
                 )
@@ -58,61 +55,27 @@ class AccountMigration20To21Test {
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
+            assertTrue(tableHasColumn(migratedDatabase, "routines", "programName"))
+            assertTrue(tableHasColumn(migratedDatabase, "routines", "tags"))
             migratedDatabase.rawQuery(
                 """
-                SELECT sex, birthDateEpochDay, heightCm, activityLevel, goalType, goalPaceKgPerWeek, goalWeightKg,
-                    updatedAtEpochMillis
-                FROM user_profile
-                WHERE id = 'local-default'
+                SELECT name, programName, tags
+                FROM routines
+                WHERE id = 'legacy-routine'
                 """.trimIndent(),
                 null,
             ).use { cursor ->
                 assertTrue(cursor.moveToFirst())
-                assertEquals("Female", cursor.getString(0))
-                assertEquals(8_765L, cursor.getLong(1))
-                assertEquals(168.5, cursor.getDouble(2), 0.0)
-                assertEquals("Light", cursor.getString(3))
-                assertEquals("Gain", cursor.getString(4))
-                assertEquals(0.25, cursor.getDouble(5), 0.0)
-                assertEquals(64.2, cursor.getDouble(6), 0.0)
-                assertEquals(123_456L, cursor.getLong(7))
+                assertEquals("Legacy Routine", cursor.getString(0))
+                assertTrue(cursor.isNull(1))
+                assertEquals("", cursor.getString(2))
             }
-            migratedDatabase.rawQuery(
-                """
-                SELECT unitSystem, themeMode, updatedAtEpochMillis
-                FROM app_settings
-                WHERE id = 'local-default'
-                """.trimIndent(),
-                null,
-            ).use { cursor ->
-                assertTrue(cursor.moveToFirst())
-                assertEquals("imperial", cursor.getString(0))
-                assertEquals("dark", cursor.getString(1))
-                assertEquals(222_333L, cursor.getLong(2))
-            }
-            migratedDatabase.rawQuery(
-                """
-                SELECT stepGoal, weeklySessionTarget, targetWeightKg, updatedAtEpochMillis
-                FROM user_goals
-                WHERE id = 'local-default'
-                """.trimIndent(),
-                null,
-            ).use { cursor ->
-                assertTrue(cursor.moveToFirst())
-                assertEquals(9_500L, cursor.getLong(0))
-                assertEquals(5, cursor.getInt(1))
-                assertEquals(71.4, cursor.getDouble(2), 0.0)
-                assertEquals(444_555L, cursor.getLong(3))
-            }
-            assertFalse(rowExists(migratedDatabase, "user_profile", "user"))
-            assertFalse(rowExists(migratedDatabase, "app_settings", "app"))
-            assertFalse(rowExists(migratedDatabase, "user_goals", "default"))
         } finally {
             migratedDatabase.close()
         }
     }
 
-    private fun seedLegacySingletonRows() {
+    private fun seedLegacyRoutine() {
         val database =
             SQLiteDatabase.openDatabase(
                 context.getDatabasePath(TEST_DATABASE_NAME).path,
@@ -122,29 +85,10 @@ class AccountMigration20To21Test {
         try {
             database.execSQL(
                 """
-                INSERT INTO user_profile (
-                    id, sex, birthDateEpochDay, heightCm, activityLevel, goalType,
-                    goalPaceKgPerWeek, goalWeightKg, updatedAtEpochMillis
+                INSERT INTO routines (
+                    id, name, notes, createdAtEpochMillis, updatedAtEpochMillis, isStarter
                 ) VALUES (
-                    'user', 'Female', 8765, 168.5, 'Light', 'Gain', 0.25, 64.2, 123456
-                )
-                """.trimIndent(),
-            )
-            database.execSQL(
-                """
-                INSERT INTO app_settings (
-                    id, unitSystem, themeMode, updatedAtEpochMillis
-                ) VALUES (
-                    'app', 'imperial', 'dark', 222333
-                )
-                """.trimIndent(),
-            )
-            database.execSQL(
-                """
-                INSERT INTO user_goals (
-                    id, stepGoal, weeklySessionTarget, targetWeightKg, updatedAtEpochMillis
-                ) VALUES (
-                    'default', 9500, 5, 71.4, 444555
+                    'legacy-routine', 'Legacy Routine', NULL, 1000, 1000, 0
                 )
                 """.trimIndent(),
             )
@@ -153,12 +97,11 @@ class AccountMigration20To21Test {
         }
     }
 
-    private fun rowExists(database: SQLiteDatabase, tableName: String, id: String): Boolean =
-        database.rawQuery(
-            "SELECT 1 FROM $tableName WHERE id = ?",
-            arrayOf(id),
-        ).use { cursor ->
-            cursor.moveToFirst()
+    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean =
+        database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
+                .any { it == columnName }
         }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
@@ -212,6 +155,6 @@ class AccountMigration20To21Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "account-migration-20-21-test"
+        const val TEST_DATABASE_NAME = "routine-mig-22-23"
     }
 }

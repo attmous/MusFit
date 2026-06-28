@@ -1,0 +1,139 @@
+# Training Hevy Parity Loop Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Complete the MusFit Training tab to practical local-first Hevy-style parity, one scoped slice at a time.
+
+**Architecture:** Training stays Android-only, local-first, and built on the existing Compose screen, Hilt ViewModel, Room repository, Flow, and pure domain calculator boundaries. Existing Training features must be verified before any new behavior is added so implemented surfaces are not rebuilt.
+
+**Tech Stack:** Android Kotlin, Jetpack Compose Material 3, Hilt ViewModels, Room, Kotlin Flow/coroutines, local domain calculators.
+
+## Global Constraints
+
+- Do not copy Hevy assets, proprietary scoring, names, or exact layouts.
+- No accounts, cloud sync, analytics, subscriptions, social feed, followers, public profiles, or community features.
+- Keep Training focused on strength training unless a narrow local cardio/duration field already exists and can be supported safely.
+- Keep Today and Health Connect export compatible with completed workouts.
+- Any Room schema change must bump the database version, add/register a migration in `DatabaseModule.kt`, and commit the new schema JSON under `app/schemas`.
+- Do not push to origin unless explicitly instructed.
+
+---
+
+## Slice Queue
+
+1. Slice 0: Training Parity Audit And Ledger
+2. Slice 1: Training Architecture And Docs Sync
+3. Slice 2: Exercise Library Detail
+4. Slice 3: Routine Organization And Program Library
+5. Slice 4: Active Workout Logger Completion
+6. Slice 5: Rest, Warm-Up, And Plate Tools
+7. Slice 6: Superset And Grouping Polish
+8. Slice 7: Workout History Calendar And Consistency
+9. Slice 8: Progress Analytics
+10. Slice 9: Training Dashboard Polish
+11. Slice 10: Finish Flow And Workout Recap
+12. Slice 11: Performance, Reliability, And Closeout
+
+## Current Status Per Slice
+
+| Slice | Status | Audit notes | Files touched | Tests added/changed | Verification |
+| --- | --- | --- | --- | --- | --- |
+| 0. Training Parity Audit And Ledger | Complete | Ledger created from current docs, previous Training plans, current Training source/tests, and passing focused baseline Training tests. | `docs/superpowers/plans/2026-06-28-training-hevy-parity-loop.md` | None | Passed: four focused Training baseline commands on 2026-06-28 |
+| 1. Training Architecture And Docs Sync | Complete | Synced Training docs for implemented supersets, rest timer controls, plate hints, PR badges, active route finish/discard polish, repository/grouping models, and current schema limitations. | `docs/architecture/screen-contracts.md`, `docs/architecture/data-models.md`, `docs/architecture/README.md`, `docs/superpowers/plans/2026-06-28-training-hevy-parity-loop.md` | None | Docs-only; focused Training baseline tests passed before docs sync |
+| 2. Exercise Library Detail | Complete | Added reachable inline exercise detail cards with equipment/category, primary/secondary muscles, original starter instructions, editable local notes, and richer local search/filter coverage. Added DB v22 detail columns and migration. | `app/src/main/java/com/musfit/data/local/MusFitDatabase.kt`, `app/src/main/java/com/musfit/core/di/DatabaseModule.kt`, `app/src/main/java/com/musfit/data/local/entity/TrainingEntities.kt`, `app/src/main/java/com/musfit/data/local/dao/TrainingDao.kt`, `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`, `app/src/main/java/com/musfit/data/repository/TrainingStarterData.kt`, `app/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`, `app/src/main/java/com/musfit/ui/training/TrainingScreen.kt`, `app/schemas/com.musfit.data.local.MusFitDatabase/22.json`, docs | Added repository detail/local-notes tests, ViewModel detail/filter tests, and `TrainingExerciseDetailMigration21To22Test` | Passed focused repository, ViewModel, and migration tests on 2026-06-28 |
+| 3. Routine Organization And Program Library | Complete | Added routine `programName` plus tags, program filter chips in Routines, local starter program catalog covering Full Body, Push Pull Legs, Upper Lower, Strength, Hypertrophy, and Beginner, and duplicate preservation of program metadata. Added DB v23 migration. | `app/src/main/java/com/musfit/data/local/MusFitDatabase.kt`, `app/src/main/java/com/musfit/core/di/DatabaseModule.kt`, `app/src/main/java/com/musfit/data/local/entity/TrainingEntities.kt`, `app/src/main/java/com/musfit/data/local/dao/TrainingDao.kt`, `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`, `app/src/main/java/com/musfit/data/repository/TrainingStarterData.kt`, `app/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`, `app/src/main/java/com/musfit/ui/training/TrainingScreen.kt`, `app/src/main/java/com/musfit/ui/training/TrainingRoutineContent.kt`, `app/schemas/com.musfit.data.local.MusFitDatabase/23.json`, docs | Added repository program catalog/duplicate test, ViewModel program filter test, and `TrainingRoutineProgramMigration22To23Test` | Passed focused repository, ViewModel, and migration tests on 2026-06-28 |
+| 4. Active Workout Logger Completion | Complete | Added active workout session notes, persisted note trimming/nulling, set up/down reorder by active-session sort order, compact set-type menu for warmup/working/drop/failure, and D/F display labels while preserving add/edit/duplicate/delete/complete, rest timer, PR, plate, and superset behavior. Empty active route placeholder remains in place for stale route state. | `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`, `app/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`, `app/src/main/java/com/musfit/ui/training/TrainingScreen.kt`, `app/src/main/java/com/musfit/ui/training/TrainingActiveWorkoutContent.kt`, `app/src/test/java/com/musfit/data/repository/LocalTrainingRepositoryTest.kt`, `app/src/test/java/com/musfit/ui/training/TrainingViewModelTest.kt`, `app/src/test/java/com/musfit/ui/training/TrainingActiveWorkoutContentTest.kt`, docs | Added repository active-notes/reorder test, ViewModel notes/reorder delegation test, and active set formatter drop/failure label test | Passed focused repository, ViewModel, active content, and calculator tests on 2026-06-28 |
+| 5. Rest, Warm-Up, And Plate Tools | Complete | Added persisted global Training settings for default rest seconds, bar weight, and available plates; active Training tools card; deterministic warm-up suggestions from the latest work set; add-suggested-warmup action; configurable plate hints; and DB v24 migration/schema. Settings remain global rather than per-exercise. | `app/src/main/java/com/musfit/data/local/MusFitDatabase.kt`, `app/src/main/java/com/musfit/core/di/DatabaseModule.kt`, `app/src/main/java/com/musfit/data/local/entity/TrainingEntities.kt`, `app/src/main/java/com/musfit/data/local/dao/TrainingDao.kt`, `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`, `app/src/main/java/com/musfit/domain/training/WarmupSetCalculator.kt`, `app/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`, `app/src/main/java/com/musfit/ui/training/TrainingScreen.kt`, `app/src/main/java/com/musfit/ui/training/TrainingActiveWorkoutContent.kt`, `app/schemas/com.musfit.data.local.MusFitDatabase/24.json`, docs | Added repository settings persistence test, ViewModel settings/rest/warmup tests, active plate-line test, `WarmupSetCalculatorTest`, and `TrainingSettingsMigration23To24Test` | Passed focused repository, ViewModel, active content, warmup calculator, plate calculator, and migration tests on 2026-06-28 |
+| 6. Superset And Grouping Polish | Pending | Repository, ViewModel, and active workout UI include create/dissolve/grouping labels and inheritance/auto-dissolve behavior. History/detail grouping display and UI hardening still need verification. | None yet | None | Pending |
+| 7. Workout History Calendar And Consistency | Pending | Completed workout list and detail exist; Training header derives a weekly count/volume summary. No calendar/month overview, streaks, training-day consistency summary, or richer completed-set/volume overview. | None yet | None | Pending |
+| 8. Progress Analytics | Pending | Exercise-level PRs and trend chart exist for volume, estimated 1RM, and heaviest weight. No muscle group volume/sets, weekly volume trend, PR timeline, exercise-level history table, or best-set summary cards. | None yet | None | Pending |
+| 9. Training Dashboard Polish | Pending | Training top surface has weekly summary, section tabs, active workout resume, quick log, and routine list. No next suggested routine, recent history card, dashboard quick-start rail, or complete dashboard composition. | None yet | None | Pending |
+| 10. Finish Flow And Workout Recap | Pending | Finish/discard confirmations and history detail exist. No immediate post-workout recap surface with PRs, exercises, notes, duration, sets, and volume. | None yet | None | Pending |
+| 11. Performance, Reliability, And Closeout | Pending | Needs final query/state audit, missing high-risk tests, full Gradle verification, and final ledger closeout. | None yet | None | Pending |
+
+## Audit Evidence
+
+Current Training implementation:
+
+- UI: `TrainingScreen.kt`, `TrainingRoutineContent.kt`, `TrainingActiveWorkoutContent.kt`, `TrainingHistoryContent.kt`, `TrainingProgressContent.kt`, `ExerciseTrendChart.kt`.
+- ViewModel: `TrainingViewModel.kt` exposes `TrainingUiState`, section routing, routine editor state, exercise filters/editor, active workout route state, rest timer state, finish/discard confirmations, and action handlers.
+- Repository/data: `TrainingRepository.kt`, `TrainingDao.kt`, `TrainingEntities.kt`, and `TrainingStarterData.kt`.
+- Domain calculators: `WorkoutCalculator.kt`, `PlateCalculator.kt`, `WarmupSetCalculator.kt`, `TrendChartScaler.kt`.
+- Tests: `TrainingViewModelTest.kt`, `TrainingHomeContentTest.kt`, `TrainingActiveWorkoutContentTest.kt`, `LocalTrainingRepositoryTest.kt`, `WorkoutCalculatorTest.kt`, `WarmupSetCalculatorTest.kt`, `PlateCalculatorTest.kt`, `TrendChartScalerTest.kt`, and `ExerciseTrendChartLogicTest.kt`.
+
+Existing implemented parity foundations:
+
+- Starter exercises and starter routines are seeded locally.
+- Custom exercises can be created and searched.
+- Exercise library search and muscle/equipment filters exist.
+- Routine create/edit/duplicate/delete/start and exercise reordering exist.
+- Active workouts can be started blank or from routines.
+- Active workout set logging supports edit, duplicate, delete, completion, RPE, notes, previous labels, warmup/working/drop/failure labels, rest timer settings, warm-up suggestions, PR badge logic, configurable plate hints, and supersets.
+- Completed workout history and detail exist.
+- Exercise progress PR metrics and trend chart exist.
+- Completed workouts feed Today and Health Connect export boundaries.
+
+Known gaps from Slice 0 audit:
+
+- Training architecture docs are stale compared with implemented active workout, supersets, PR, plate, rest timer, and finish/discard behavior.
+- Exercise library lacks a true detail/drill-down surface and richer original MusFit exercise metadata.
+- Routine organization is limited to a flat routine list and starter routines.
+- Active logger does not expose drop/failure set type choices or set reorder.
+- History lacks calendar/month and consistency summaries.
+- Progress lacks muscle group analytics, weekly volume trend, PR timeline, and exercise history.
+- Dashboard lacks next suggested routine and recent-history/quick-start polish.
+- Finish flow lacks a post-workout recap surface.
+
+## Verification Log
+
+| Date | Scope | Command | Result |
+| --- | --- | --- | --- |
+| 2026-06-28 | Baseline focused Training tests | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Baseline focused Training tests | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Baseline focused Training tests | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.domain.training.WorkoutCalculatorTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Baseline focused Training tests | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingActiveWorkoutContentTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 1 docs sync | Reviewed `screen-contracts.md`, `data-models.md`, and `README.md` against Training repository/domain signatures. | Passed; docs-only, no Gradle rerun |
+| 2026-06-28 | Slice 2 red test | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --no-daemon --console=plain` | Failed as expected before implementation: missing exercise detail APIs and migration |
+| 2026-06-28 | Slice 2 repository | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 2 ViewModel | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 2 migration | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.local.TrainingExerciseDetailMigration21To22Test" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 2 shared focused check | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.domain.training.WorkoutCalculatorTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 2 active UI focused check | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingActiveWorkoutContentTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 3 red test | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --no-daemon --console=plain` | Failed as expected before implementation: missing routine program fields, filter state, and migration |
+| 2026-06-28 | Slice 3 repository | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 3 ViewModel | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 3 migration | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.local.TrainingRoutineProgramMigration22To23Test" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 4 red test | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --no-daemon --console=plain` | Failed as expected before implementation: missing active workout notes/reorder APIs and detail notes field |
+| 2026-06-28 | Slice 4 repository | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 4 ViewModel | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 4 active UI focused check | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingActiveWorkoutContentTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 4 shared focused check | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.domain.training.WorkoutCalculatorTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 5 red test | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.domain.training.WarmupSetCalculatorTest" --no-daemon --console=plain` | Failed as expected before implementation: missing Training settings, warm-up calculator, and settings migration |
+| 2026-06-28 | Slice 5 repository | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 5 ViewModel | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 5 active UI focused check | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingActiveWorkoutContentTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 5 warm-up calculator | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.domain.training.WarmupSetCalculatorTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 5 plate calculator regression | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.domain.training.PlateCalculatorTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 5 migration | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.local.TrainingSettingsMigration23To24Test" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Pre-push full verification after Slice 5 | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain` | Passed |
+
+## Known Limitations
+
+- Training remains local-first and has no social feed, public profiles, followers, cloud sync, subscriptions, accounts, or analytics.
+- Hevy-style parity here means practical local feature parity for repeated strength logging, not exact visual cloning or proprietary behavior.
+- Any richer exercise metadata must use original MusFit copy and local storage/content.
+- Training tool settings are global. Per-exercise rest defaults and personalized warm-up profiles are intentionally left for a later slice.
+
+## Blocked Items
+
+- None currently blocked.
+
+## Next Steps
+
+- [x] Run the four focused baseline Training tests and update this ledger with results.
+- [x] Complete Slice 1 by syncing `screen-contracts.md`, `data-models.md`, and architecture notes with the verified current Training surface.
+- [x] Start Slice 2 with failing tests before any behavior changes.
+- [x] Start Slice 3 with failing tests before any behavior changes.
+- [x] Start Slice 4 with failing tests before any behavior changes.
+- [x] Start Slice 5 with failing tests before any behavior changes.
+- [ ] Start Slice 6 with failing tests before any behavior changes.

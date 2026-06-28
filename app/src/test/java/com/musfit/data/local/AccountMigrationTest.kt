@@ -38,7 +38,13 @@ class AccountMigrationTest {
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_19_20, DatabaseModule.MIGRATION_20_21)
+                .addMigrations(
+                    DatabaseModule.MIGRATION_19_20,
+                    DatabaseModule.MIGRATION_20_21,
+                    DatabaseModule.MIGRATION_21_22,
+                    DatabaseModule.MIGRATION_22_23,
+                    DatabaseModule.MIGRATION_23_24,
+                )
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -95,7 +101,12 @@ class AccountMigrationTest {
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_20_21)
+                .addMigrations(
+                    DatabaseModule.MIGRATION_20_21,
+                    DatabaseModule.MIGRATION_21_22,
+                    DatabaseModule.MIGRATION_22_23,
+                    DatabaseModule.MIGRATION_23_24,
+                )
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()

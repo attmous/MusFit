@@ -396,7 +396,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel())
 
 ### Purpose
 
-Training handles routine management, exercise library filtering and custom exercise creation, active workout logging, quick set logging, workout history, progress, and rest timer behavior.
+Training handles strength routine management, exercise library filtering and custom exercise creation, active workout logging, quick set logging, workout history, exercise progress, rest timer behavior, plate hints, PR badges, supersets, and Health Connect-compatible completed workouts.
 
 ### Internal Sections
 
@@ -404,10 +404,10 @@ Training handles routine management, exercise library filtering and custom exerc
 
 | Section | Purpose |
 | --- | --- |
-| `Routines` | Routine list, starter routines, routine editor, start routine, start blank workout. |
-| `Exercises` | Exercise library, search/filter, custom exercise creation. |
-| `History` | Completed workout list and workout detail. |
-| `Progress` | Exercise PRs and trend points. |
+| `Routines` | Routine list, local program filters, starter routines, routine editor, duplicate/delete/start routine, and start blank workout. |
+| `Exercises` | Exercise library, search/filter, equipment/muscle chips, exercise detail, local notes, and custom exercise creation. |
+| `History` | Completed workout list and workout detail with set rows. |
+| `Progress` | Exercise PR cards and trend chart points. |
 
 ### ViewModel State
 
@@ -423,21 +423,29 @@ val state: StateFlow<TrainingUiState>
 | --- | --- |
 | `selectedSection` | Current Training tab. |
 | `routines` | Routine summaries. |
+| `visibleRoutines` | Routine summaries filtered by selected program. |
+| `routineProgramOptions` | Distinct local program names from routine summaries. |
+| `selectedRoutineProgram` | Current routine program filter, or null for all routines. |
 | `exercises` | All exercise summaries. |
 | `visibleExercises` | Search/filter result list. |
 | `activeWorkoutSummary` | Compact resume banner data. |
-| `activeWorkout` | Full active workout detail with exercise blocks and sets. |
+| `activeWorkout` | Full active workout detail with flat exercise blocks, grouped superset blocks, sets, completed count, and volume. |
 | `workoutHistory` | Completed workout summaries. |
 | `selectedProgressExerciseId` | Selected exercise for progress. |
-| `selectedExerciseProgress` | PRs and trend for selected exercise. |
-| `selectedWorkoutDetail` | Expanded workout history detail. |
+| `selectedExerciseProgress` | Heaviest, max reps, best estimated 1RM, best day volume, and trend points for the selected exercise. |
+| `selectedWorkoutDetail` | Expanded completed-workout history detail. |
 | `exerciseSearchQuery`, `exerciseMuscleFilter`, `exerciseEquipmentFilter` | Exercise library filters. |
 | `exerciseEditor` | Custom exercise editor state. |
+| `selectedExerciseDetail` | Open exercise detail/drill-down row, including instructions and local notes. |
+| `exerciseDetailNotesInput` | Editable local notes draft for the selected exercise detail. |
 | `exerciseName`, `reps`, `weightKg`, `sets` | Quick set logger state. |
 | `totalVolumeKg`, `bestEstimatedOneRepMaxKg` | Quick logger summaries. |
 | `routineEditor` | Routine create/edit state. |
 | `activeWorkoutRouteOpen` | Controls full active workout route-like UI. |
-| `restTimer` | Timer visibility, remaining time, and running state. |
+| `activeWorkoutNotesInput` | Editable notes draft for the current active workout session. |
+| `restTimer` | Timer visibility, source set id, duration, remaining time, and running state. |
+| `trainingSettings` | Persisted global Training tool settings for default rest duration, bar weight, and available plates. |
+| `restTimerDefaultSecondsInput`, `plateBarWeightInput`, `availablePlatesInput` | Editable drafts for Training tool settings. |
 | `finishConfirmationOpen`, `discardConfirmationOpen` | Active workout dialogs. |
 | `message` | User-facing result/error text. |
 
@@ -446,6 +454,12 @@ Supporting models:
 - `RoutineEditorState`
 - `ExerciseEditorState`
 - `RestTimerState`
+
+Repository models that are important to the active logger:
+
+- `WorkoutExerciseBlock` contains exercise metadata, target reps, sets, prior best estimated 1RM, optional superset group id, and optional A/B superset label.
+- `ExerciseGrouping.Single` and `ExerciseGrouping.Superset` allow the UI to render standalone exercises and grouped supersets from the same active workout detail.
+- `LoggedWorkoutSetDetail` carries set type, reps, weight, RPE, user note, completion, previous-set label, and superset group id.
 
 ### ViewModel Actions
 
@@ -457,6 +471,7 @@ Section and route state:
 
 Routine management:
 
+- `onRoutineProgramFilterChanged(value)`
 - `openRoutineEditor(routineId)`
 - `closeRoutineEditor()`
 - `onRoutineNameChanged(value)`, `onRoutineNotesChanged(value)`
@@ -469,6 +484,8 @@ Exercise library:
 
 - `onExerciseSearchQueryChanged(value)`
 - `onExerciseMuscleFilterChanged(value)`, `onExerciseEquipmentFilterChanged(value)`, `clearExerciseFilters()`
+- `openExerciseDetail(exerciseId)`, `closeExerciseDetail()`
+- `onExerciseDetailNotesChanged(value)`, `saveExerciseDetailNotes()`
 - `openCustomExerciseEditor()`, `closeCustomExerciseEditor()`
 - `onCustomExerciseNameChanged(value)`, `onCustomExerciseCategoryChanged(value)`, `onCustomExerciseEquipmentChanged(value)`, `onCustomExerciseTargetMusclesChanged(value)`
 - `saveCustomExercise()`
@@ -479,7 +496,10 @@ Workout flows:
 - `addExerciseToActiveWorkout(exerciseId)`
 - `addWorkoutSet(exerciseId)`, `duplicateLastWorkoutSet(exerciseId)`
 - `updateWorkoutSetFields(setId, setType, reps, weightKg, rpe, notes)`
+- `onActiveWorkoutNotesChanged(value)`, `saveActiveWorkoutNotes()`
+- `moveWorkoutSetUp(setId)`, `moveWorkoutSetDown(setId)`
 - `deleteWorkoutSet(setId)`, `toggleWorkoutSetCompletion(setId, completed)`
+- `makeSupersetWithNext(exerciseId)`, `dissolveSuperset(groupId)`
 - `requestFinishActiveWorkout()`, `finishActiveWorkout()`, `cancelFinishActiveWorkout()`
 - `requestDiscardActiveWorkout()`, `discardActiveWorkout()`, `cancelDiscardActiveWorkout()`
 
@@ -496,16 +516,47 @@ Rest timer:
 - `resumeRestTimer()`
 - `skipRestTimer()`
 - `adjustRestTimerSeconds(deltaSeconds)`
+- `onRestTimerDefaultSecondsChanged(value)`, `onPlateBarWeightChanged(value)`, `onAvailablePlatesChanged(value)`
+- `saveTrainingToolSettings()`
+- `addSuggestedWarmupSet(exerciseId, reps, weightKg)`
 
 ### Content Composables
 
 | Composable | Inputs | Outputs |
 | --- | --- | --- |
-| `TrainingRoutineContent` | `routines` | Start, edit, duplicate, delete routine callbacks. |
+| `TrainingRoutineContent` | visible routines, program options, selected program | Program filter, start, edit, duplicate, delete routine callbacks. |
 | `TrainingRoutineEditor` | `RoutineEditorState`, exercises | Edit routine metadata and exercise targets. |
-| `TrainingActiveWorkoutContent` | `ActiveWorkoutDetail`, exercises, `RestTimerState` | Set edits, add exercise/set, timer controls, finish/discard. |
+| `TrainingActiveWorkoutContent` | `ActiveWorkoutDetail`, exercises, `RestTimerState`, active workout notes draft, Training tool setting drafts | Set edits, set type changes, set reorder, workout notes, add exercise/set, timer controls, Training tool save, warm-up suggestions, PR/plate display, superset create/dissolve, finish/discard. |
 | `TrainingHistoryContent` | `history`, selected detail | Open/close workout detail. |
 | `TrainingProgressContent` | exercises, selected id, progress | Select exercise for trend/PR display. |
+
+Exercise library detail behavior:
+
+- Tapping an exercise row opens an inline detail card in the Exercises section.
+- Detail displays equipment, category, library/custom state, primary muscles, secondary muscles, original MusFit instructions when available, and editable local notes.
+- Saving notes trims blank space and stores notes locally through `TrainingRepository.updateExerciseLocalNotes`; blank notes are stored as null.
+- Starter exercises have original MusFit instruction copy. Custom exercises use their target muscles as primary muscles and start with no instructions.
+
+Routine organization behavior:
+
+- Starter routines carry local `programName` and tags for Full Body, Push Pull Legs, Upper Lower, Strength, Hypertrophy, and Beginner programs.
+- The Routines section shows horizontal program chips derived from available routines.
+- Selecting a program filters the routine cards without changing persistence or active workouts.
+- Duplicating a starter/program routine creates an editable non-starter local copy and preserves the program name/tags.
+
+Active workout UI behavior:
+
+- Full-screen route-like surface opens when an active workout is resumed or started.
+- Top bar shows elapsed time, completed sets, total volume, `Finish`, and a discard overflow action.
+- Completing a valid active set starts the deterministic rest timer at the saved default duration; the user can pause, resume, skip, or adjust by 15 seconds.
+- The Training tools card persists default rest seconds, bar weight, and available plate inventory through local Training settings.
+- Workout-level notes are editable from the active workout route and are stored on the active session.
+- Set rows support warmup/working/drop/failure display labels, reps, weight, RPE, notes, delete, duplicate-last-set, up/down reorder, and completion.
+- Warm-up suggestions are deterministic from the latest non-warmup working set and can be added as warmup rows.
+- PR badges compare completed working sets against the prior best estimated 1RM captured before the active session.
+- Plate hints use `PlateCalculator` with the saved bar and plate settings.
+- Superset creation pairs a standalone exercise with the next standalone exercise below it; grouped rows show A/B labels and can be dissolved.
+- Finish and discard both require confirmation dialogs.
 
 ### Data Sources
 
@@ -515,10 +566,21 @@ Training ViewModel observes:
 - `TrainingRepository.observeExercises()`
 - `TrainingRepository.observeActiveWorkoutSummary()`
 - `TrainingRepository.observeActiveWorkoutDetail()`
+- `TrainingRepository.observeTrainingSettings()`
 - `TrainingRepository.observeWorkoutHistory()`
 - `TrainingRepository.observeExerciseProgress(exerciseId)`
+- `TrainingRepository.getWorkoutHistoryDetail(sessionId)`
 
-It calls write APIs for routine CRUD, active workout lifecycle, set edits, custom exercises, and starter data seeding.
+It calls write APIs for routine CRUD, active workout lifecycle, set edits, custom exercises, starter data seeding, superset creation/dissolve, workout finish/discard, and workout history detail.
+
+### Current Training Limitations
+
+- Exercise detail exists as an inline card, but there is no media, animation, or externally sourced technique library.
+- Routine organization is program/tag based; there is no separate multi-week program calendar or progression schedule yet.
+- Rest timer duration, bar weight, and available plates are global Training settings; there are no per-exercise rest defaults or warm-up preference profiles yet.
+- History is list/detail only; calendar and streak/consistency summaries are not implemented.
+- Progress is exercise-focused; muscle group volume, weekly volume trend, PR timeline, and exercise history tables are not implemented.
+- Finish flow returns to Training/history; a dedicated post-workout recap surface is not implemented.
 
 ## Health Screen
 

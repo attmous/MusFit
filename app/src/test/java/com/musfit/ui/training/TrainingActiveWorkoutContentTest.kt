@@ -74,6 +74,20 @@ class TrainingActiveWorkoutContentTest {
     }
 
     @Test
+    fun formatWorkoutSetRowsForDisplay_labelsDropAndFailureSets() {
+        val rows = formatWorkoutSetRowsForDisplay(
+            listOf(
+                set(id = "warmup", setType = "warmup", previousLabel = null, reps = 10, weightKg = 40.0),
+                set(id = "working", setType = "working", previousLabel = null, reps = 6, weightKg = 80.0),
+                set(id = "drop", setType = "drop", previousLabel = null, reps = 10, weightKg = 60.0),
+                set(id = "failure", setType = "failure", previousLabel = null, reps = 12, weightKg = 50.0),
+            ),
+        )
+
+        assertEquals(listOf("W", "1", "D", "F"), rows.map { it.setLabel })
+    }
+
+    @Test
     fun formatWorkoutSetRowsForDisplay_flagsPrOnlyForCompletedWorkingSetsBeatingPriorBest() {
         val rows = formatWorkoutSetRowsForDisplay(
             listOf(
@@ -136,6 +150,26 @@ class TrainingActiveWorkoutContentTest {
                     remainingSeconds = 65,
                     isRunning = false,
                 ),
+            ),
+        )
+    }
+
+    @Test
+    fun plateLineText_usesConfiguredBarAndPlates() {
+        assertEquals(
+            "Plates · 20 + 2.5 / side",
+            plateLineText(
+                weightKg = 60.0,
+                barWeightKg = 15.0,
+                availablePlatesKg = listOf(20.0, 10.0, 5.0, 2.5),
+            ),
+        )
+        assertEquals(
+            null,
+            plateLineText(
+                weightKg = 20.0,
+                barWeightKg = 20.0,
+                availablePlatesKg = listOf(20.0, 10.0, 5.0, 2.5),
             ),
         )
     }

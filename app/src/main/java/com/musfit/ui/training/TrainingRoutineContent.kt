@@ -1,6 +1,7 @@
 package com.musfit.ui.training
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -49,7 +51,10 @@ import com.musfit.ui.theme.TabAccent
 @Composable
 fun TrainingRoutineContent(
     routines: List<RoutineSummary>,
+    programOptions: List<String> = emptyList(),
+    selectedProgram: String? = null,
     accent: TabAccent,
+    onProgramSelected: (String?) -> Unit = {},
     onStartRoutine: (String) -> Unit,
     onStartBlank: () -> Unit,
     onEditRoutine: (String?) -> Unit,
@@ -74,6 +79,29 @@ fun TrainingRoutineContent(
                 Text("New routine", color = accent.color)
             }
         }
+        if (programOptions.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                RoutineProgramChip(
+                    label = "All",
+                    selected = selectedProgram == null,
+                    accent = accent,
+                    onClick = { onProgramSelected(null) },
+                )
+                programOptions.forEach { program ->
+                    RoutineProgramChip(
+                        label = program,
+                        selected = selectedProgram == program,
+                        accent = accent,
+                        onClick = { onProgramSelected(program) },
+                    )
+                }
+            }
+        }
         routines.forEach { routine ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
@@ -92,6 +120,17 @@ fun TrainingRoutineContent(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            val meta = listOfNotNull(
+                                routine.programName,
+                                routine.tags.take(2).joinToString(", ").takeIf { it.isNotBlank() },
+                            ).joinToString(" - ")
+                            if (meta.isNotBlank()) {
+                                Text(
+                                    meta,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                     val actions = routineCardActions(routine.isStarter)
@@ -137,6 +176,29 @@ fun TrainingRoutineContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RoutineProgramChip(
+    label: String,
+    selected: Boolean,
+    accent: TabAccent,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = if (selected) accent.container else MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.large,
+        border = if (selected) null else androidx.compose.foundation.BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
     }
 }
 
