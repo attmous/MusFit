@@ -1,5 +1,6 @@
 package com.musfit.data.local
 
+import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
@@ -16,7 +17,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class TrainingSettingsMigration23To24Test {
+class ExerciseMediaMigration24To25Test {
     private lateinit var context: Context
 
     @Before
@@ -31,15 +32,13 @@ class TrainingSettingsMigration23To24Test {
     }
 
     @Test
-    fun migration23To24_addsTrainingSettingsWithDefaults() {
-        createDatabaseFromExportedSchema(version = 23)
+    fun migration24To25_addsExerciseMediaColumnsAndPreservesRows() {
+        createDatabaseFromExportedSchema(version = 24)
+        insertExerciseRow()
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(
-                    DatabaseModule.MIGRATION_23_24,
-                    DatabaseModule.MIGRATION_24_25,
-                )
+                .addMigrations(DatabaseModule.MIGRATION_24_25)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -54,24 +53,43 @@ class TrainingSettingsMigration23To24Test {
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            assertTrue(tableHasColumn(migratedDatabase, "training_settings", "defaultRestSeconds"))
-            assertTrue(tableHasColumn(migratedDatabase, "training_settings", "barWeightKg"))
-            assertTrue(tableHasColumn(migratedDatabase, "training_settings", "availablePlatesKg"))
+            assertTrue(tableHasColumn(migratedDatabase, "exercises", "imageUrl"))
+            assertTrue(tableHasColumn(migratedDatabase, "exercises", "gifUrl"))
             migratedDatabase.rawQuery(
-                """
-                SELECT defaultRestSeconds, barWeightKg, availablePlatesKg
-                FROM training_settings
-                WHERE id = 'default'
-                """.trimIndent(),
+                "SELECT name, imageUrl, gifUrl FROM exercises WHERE id = 'ex-existing'",
                 null,
             ).use { cursor ->
                 assertTrue(cursor.moveToFirst())
-                assertEquals(120, cursor.getInt(0))
-                assertEquals(20.0, cursor.getDouble(1), 0.01)
-                assertEquals("25,20,15,10,5,2.5,1.25", cursor.getString(2))
+                assertEquals("Existing Exercise", cursor.getString(0))
+                assertTrue(cursor.isNull(1))
+                assertTrue(cursor.isNull(2))
             }
         } finally {
             migratedDatabase.close()
+        }
+    }
+
+    private fun insertExerciseRow() {
+        val database =
+            SQLiteDatabase.openDatabase(
+                context.getDatabasePath(TEST_DATABASE_NAME).path,
+                null,
+                SQLiteDatabase.OPEN_READWRITE,
+            )
+        try {
+            val values = ContentValues().apply {
+                put("id", "ex-existing")
+                put("name", "Existing Exercise")
+                put("category", "strength")
+                put("equipment", "barbell")
+                put("targetMuscles", "chest")
+                put("isCustom", 0)
+                put("primaryMuscles", "chest")
+                put("secondaryMuscles", "")
+            }
+            database.insertOrThrow("exercises", null, values)
+        } finally {
+            database.close()
         }
     }
 
@@ -99,10 +117,7 @@ class TrainingSettingsMigration23To24Test {
                 for (indexPosition in 0 until indices.length()) {
                     val entityIndex = indices.getJSONObject(indexPosition)
                     database.execSQL(
-                        resolveSchemaSql(
-                            entityIndex.getString("createSql"),
-                            entity.getString("tableName"),
-                        ),
+                        resolveSchemaSql(entityIndex.getString("createSql"), entity.getString("tableName")),
                     )
                 }
             }
@@ -120,19 +135,12 @@ class TrainingSettingsMigration23To24Test {
 
     private fun resolveSchemaFile(version: Int): File {
         val relativePath = "schemas/com.musfit.data.local.MusFitDatabase/$version.json"
-        val candidates =
-            listOf(
-                File(relativePath),
-                File("app/$relativePath"),
-                File("../app/$relativePath"),
-            )
+        val candidates = listOf(File(relativePath), File("app/$relativePath"), File("../app/$relativePath"))
         return candidates.firstOrNull(File::exists)
-            ?: throw IllegalStateException(
-                "Could not find exported Room schema for version $version. Checked: ${candidates.joinToString()}",
-            )
+            ?: throw IllegalStateException("Could not find exported Room schema for version $version.")
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "training-settings-23-24"
+        const val TEST_DATABASE_NAME = "exercise-media-24-25"
     }
 }

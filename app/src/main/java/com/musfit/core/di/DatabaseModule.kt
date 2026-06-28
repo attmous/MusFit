@@ -49,6 +49,7 @@ object DatabaseModule {
                 MIGRATION_21_22,
                 MIGRATION_22_23,
                 MIGRATION_23_24,
+                MIGRATION_24_25,
             )
             .build()
 
@@ -525,6 +526,14 @@ object DatabaseModule {
                     )
                     """.trimIndent(),
                 )
+            }
+        }
+
+    internal val MIGRATION_24_25 =
+        object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE exercises ADD COLUMN imageUrl TEXT")
+                db.execSQL("ALTER TABLE exercises ADD COLUMN gifUrl TEXT")
             }
         }
 }

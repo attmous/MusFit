@@ -78,6 +78,8 @@ data class ExerciseSummary(
     val isCustom: Boolean,
     val primaryMuscles: String = targetMuscles,
     val secondaryMuscles: String = "",
+    val imageUrl: String? = null,
+    val gifUrl: String? = null,
 )
 
 data class ExerciseDetail(
@@ -91,6 +93,8 @@ data class ExerciseDetail(
     val instructions: String?,
     val localNotes: String?,
     val isCustom: Boolean,
+    val imageUrl: String? = null,
+    val gifUrl: String? = null,
 )
 
 data class ExerciseInput(
@@ -340,6 +344,7 @@ interface TrainingRepository {
 class LocalTrainingRepository @Inject constructor(
     private val database: MusFitDatabase,
     private val trainingDao: TrainingDao,
+    private val exerciseDataset: ExerciseDatasetProvider,
 ) : TrainingRepository {
     private var clock: () -> Long = { System.currentTimeMillis() }
     private var activeSessionId: String? = null
@@ -348,7 +353,8 @@ class LocalTrainingRepository @Inject constructor(
         database: MusFitDatabase,
         trainingDao: TrainingDao,
         clock: () -> Long,
-    ) : this(database, trainingDao) {
+        exerciseDataset: ExerciseDatasetProvider = ExerciseDatasetProvider { emptyList() },
+    ) : this(database, trainingDao, exerciseDataset) {
         this.clock = clock
     }
 
@@ -583,6 +589,8 @@ class LocalTrainingRepository @Inject constructor(
                     equipment = row.equipment,
                     targetMuscles = row.targetMuscles,
                     isCustom = row.isCustom,
+                    imageUrl = row.imageUrl,
+                    gifUrl = row.gifUrl,
                 ),
                 sortOrder = row.sortOrder,
                 targetSets = row.targetSets,
@@ -878,6 +886,14 @@ class LocalTrainingRepository @Inject constructor(
     }
 
     override suspend fun seedStarterTrainingData() {
+        // The bundled catalog (1,324 exercises) is imported once; reads/parsing happen off the
+        // transaction. Backfill then attaches dataset media to the built-in starter exercises.
+        val needsDatasetImport = trainingDao.getExercise(DATASET_GATE_EXERCISE_ID) == null
+        val datasetEntities = if (needsDatasetImport) {
+            exerciseDataset.load().map { it.toExerciseEntity() }
+        } else {
+            emptyList()
+        }
         database.withTransaction {
             val now = clock()
             val resolvedExerciseIds =
@@ -952,6 +968,30 @@ class LocalTrainingRepository @Inject constructor(
                         )
                     }
                 },
+            )
+            if (datasetEntities.isNotEmpty()) {
+                trainingDao.upsertExercises(datasetEntities)
+            }
+            backfillStarterExerciseMedia()
+        }
+    }
+
+    /**
+     * Attaches dataset thumbnails/animations (and instructions, when missing) to the built-in
+     * starter exercises via the curated [STARTER_EXERCISE_DATASET_IDS] map. Idempotent and cheap:
+     * skips any starter that already has media, a custom exercise, or an unmapped/absent source.
+     */
+    private suspend fun backfillStarterExerciseMedia() {
+        STARTER_EXERCISE_DATASET_IDS.forEach { (exerciseName, datasetId) ->
+            val starter = trainingDao.getExerciseByName(exerciseName) ?: return@forEach
+            if (starter.isCustom || starter.imageUrl != null) return@forEach
+            val source = trainingDao.getExercise("$EXERCISE_DATASET_ID_PREFIX$datasetId") ?: return@forEach
+            trainingDao.updateExercise(
+                starter.copy(
+                    imageUrl = source.imageUrl,
+                    gifUrl = source.gifUrl,
+                    instructions = starter.instructions ?: source.instructions,
+                ),
             )
         }
     }
@@ -1081,6 +1121,9 @@ class LocalTrainingRepository @Inject constructor(
         const val SET_TYPE_WORKING = "working"
         const val SET_TYPE_WARM_UP = "warmup"
         const val DEFAULT_WORKOUT_TITLE = "Blank workout"
+
+        /** Presence of the first dataset exercise marks the bundled catalog as already imported. */
+        private const val DATASET_GATE_EXERCISE_ID = "${EXERCISE_DATASET_ID_PREFIX}0001"
     }
 }
 
@@ -1099,6 +1142,8 @@ private fun ExerciseEntity.toSummary(): ExerciseSummary =
         isCustom = isCustom,
         primaryMuscles = primaryMuscles.ifBlank { targetMuscles },
         secondaryMuscles = secondaryMuscles,
+        imageUrl = imageUrl,
+        gifUrl = gifUrl,
     )
 
 private fun ExerciseEntity.toDetail(): ExerciseDetail =
@@ -1113,6 +1158,8 @@ private fun ExerciseEntity.toDetail(): ExerciseDetail =
         instructions = instructions,
         localNotes = localNotes,
         isCustom = isCustom,
+        imageUrl = imageUrl,
+        gifUrl = gifUrl,
     )
 
 private fun RoutineSummaryRow.toSummary(): RoutineSummary =

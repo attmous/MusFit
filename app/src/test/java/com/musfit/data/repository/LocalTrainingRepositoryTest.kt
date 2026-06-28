@@ -282,6 +282,57 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun seedStarterTrainingData_importsDatasetAndBackfillsStarterMedia() = runTest {
+        val dataset = ExerciseDatasetProvider {
+            listOf(
+                ExerciseDatasetRecord(
+                    id = "0025",
+                    name = "barbell bench press",
+                    category = "chest",
+                    equipment = "barbell",
+                    target = "pectorals",
+                    secondary = "triceps, front delts",
+                    instructions = "Lower the bar then press up.",
+                    image = "images/0025-x.jpg",
+                    gif = "videos/0025-x.gif",
+                ),
+                ExerciseDatasetRecord(
+                    id = "9999",
+                    name = "some other move",
+                    category = "cardio",
+                    equipment = "body weight",
+                    target = "abs",
+                    secondary = "",
+                    instructions = "Do the thing.",
+                    image = "images/9999-y.jpg",
+                    gif = "videos/9999-y.gif",
+                ),
+            )
+        }
+        val repositoryWithDataset = LocalTrainingRepository(
+            database = database,
+            trainingDao = database.trainingDao(),
+            clock = { currentInstant.toEpochMilli() },
+            exerciseDataset = dataset,
+        )
+
+        repositoryWithDataset.seedStarterTrainingData()
+
+        val imported = database.trainingDao().getExercise("ds-0025")
+        assertNotNull(imported)
+        assertEquals(
+            "https://cdn.jsdelivr.net/gh/hasaneyldrm/exercises-dataset@main/images/0025-x.jpg",
+            imported?.imageUrl,
+        )
+
+        // The built-in "Barbell Bench Press" starter is backfilled from its curated dataset id (0025).
+        val starter = database.trainingDao().getExerciseByName("Barbell Bench Press")
+        assertNotNull(starter)
+        assertEquals(imported?.imageUrl, starter?.imageUrl)
+        assertEquals(imported?.gifUrl, starter?.gifUrl)
+    }
+
+    @Test
     fun observeRoutineSummaries_aggregatesMuscleGroupsWithoutInflatingCounts() = runTest {
         repository.seedStarterTrainingData()
         val bench = repository.observeExercises(query = "bench").first().first()

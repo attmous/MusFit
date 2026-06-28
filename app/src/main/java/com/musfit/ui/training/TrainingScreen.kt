@@ -53,6 +53,9 @@ import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import java.util.Locale
 
+/** Max exercise rows rendered in the (non-lazy) library list before nudging the user to search. */
+private const val EXERCISE_LIST_DISPLAY_LIMIT = 40
+
 @Composable
 fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -430,7 +433,10 @@ private fun TrainingExerciseLibraryContent(
         if (visibleExercises.isEmpty()) {
             Text(text = "No exercises match these filters.", style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
         }
-        visibleExercises.forEach { exercise ->
+        // The catalog holds ~1,300 exercises; this list is a plain (non-lazy) column, so cap the
+        // rendered rows and steer the user to search/filter instead of materialising them all.
+        val shownExercises = visibleExercises.take(EXERCISE_LIST_DISPLAY_LIMIT)
+        shownExercises.forEach { exercise ->
             Surface(
                 color = MusFitTheme.colors.surface,
                 shape = MusFitTheme.shapes.medium,
@@ -438,15 +444,29 @@ private fun TrainingExerciseLibraryContent(
                     .fillMaxWidth()
                     .clickable { onOpenExerciseDetail(exercise.id) },
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(exercise.name, style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
-                    Text(
-                        text = listOfNotNull(exercise.equipment, exercise.targetMuscles.takeIf(String::isNotBlank), if (exercise.isCustom) "Custom" else "Library").joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    ExerciseThumb(imageUrl = exercise.imageUrl, contentDescription = exercise.name, accent = accent, size = 44.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(exercise.name, style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
+                        Text(
+                            text = listOfNotNull(exercise.equipment, exercise.targetMuscles.takeIf(String::isNotBlank), if (exercise.isCustom) "Custom" else "Library").joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    }
                 }
             }
+        }
+        if (visibleExercises.size > EXERCISE_LIST_DISPLAY_LIMIT) {
+            Text(
+                text = "Showing ${shownExercises.size} of ${visibleExercises.size}. Search or filter to narrow.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
         }
     }
 }
@@ -476,6 +496,19 @@ private fun ExerciseDetailCard(
                     )
                 }
                 TextButton(onClick = onClose) { Text("Close", color = accent.color) }
+            }
+            val gifUrl = detail.gifUrl
+            val imageUrl = detail.imageUrl
+            if (!gifUrl.isNullOrBlank()) {
+                ExerciseGif(gifUrl = gifUrl, contentDescription = detail.name)
+            } else if (!imageUrl.isNullOrBlank()) {
+                ExerciseThumb(
+                    imageUrl = imageUrl,
+                    contentDescription = detail.name,
+                    accent = accent,
+                    size = 200.dp,
+                    shape = MusFitTheme.shapes.large,
+                )
             }
             DetailLine(label = "Primary", value = detail.primaryMuscles, color = accent.onContainer)
             if (detail.secondaryMuscles.isNotBlank()) {

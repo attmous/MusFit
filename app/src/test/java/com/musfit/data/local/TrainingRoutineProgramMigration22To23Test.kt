@@ -40,6 +40,7 @@ class TrainingRoutineProgramMigration22To23Test {
                 .addMigrations(
                     DatabaseModule.MIGRATION_22_23,
                     DatabaseModule.MIGRATION_23_24,
+                    DatabaseModule.MIGRATION_24_25,
                 )
                 .build()
         try {

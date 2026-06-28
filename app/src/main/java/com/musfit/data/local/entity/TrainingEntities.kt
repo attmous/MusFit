@@ -17,6 +17,8 @@ data class ExerciseEntity(
     val secondaryMuscles: String = "",
     val instructions: String? = null,
     val localNotes: String? = null,
+    val imageUrl: String? = null,
+    val gifUrl: String? = null,
 )
 
 @Entity(tableName = "routines")

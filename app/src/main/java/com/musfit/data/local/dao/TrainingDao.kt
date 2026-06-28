@@ -45,6 +45,8 @@ data class RoutineExerciseDetailRow(
     val sortOrder: Int,
     val targetSets: Int,
     val targetReps: String?,
+    val imageUrl: String?,
+    val gifUrl: String?,
 )
 
 data class WorkoutSetDetailRow(
@@ -192,7 +194,9 @@ interface TrainingDao {
             exercises.isCustom AS isCustom,
             routine_exercises.sortOrder AS sortOrder,
             routine_exercises.targetSets AS targetSets,
-            routine_exercises.targetReps AS targetReps
+            routine_exercises.targetReps AS targetReps,
+            exercises.imageUrl AS imageUrl,
+            exercises.gifUrl AS gifUrl
         FROM routine_exercises
         INNER JOIN exercises ON exercises.id = routine_exercises.exerciseId
         WHERE routine_exercises.routineId = :routineId

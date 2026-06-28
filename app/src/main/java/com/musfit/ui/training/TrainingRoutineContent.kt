@@ -299,7 +299,7 @@ fun RoutineDetailContent(
                             HorizontalDivider(
                                 thickness = 0.5.dp,
                                 color = MusFitTheme.colors.outline,
-                                modifier = Modifier.padding(start = 52.dp),
+                                modifier = Modifier.padding(start = 66.dp),
                             )
                         }
                     }
@@ -339,18 +339,28 @@ private fun RoutineDetailExerciseRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(accent.container),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                position.toString(),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = accent.onContainer,
+        val imageUrl = exercise.exercise.imageUrl
+        if (imageUrl.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(accent.container),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    position.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = accent.onContainer,
+                )
+            }
+        } else {
+            ExerciseThumb(
+                imageUrl = imageUrl,
+                contentDescription = exercise.exercise.name,
+                accent = accent,
+                size = 44.dp,
             )
         }
         Column(modifier = Modifier.weight(1f)) {
