@@ -682,18 +682,28 @@ private fun ActiveExerciseBlockBody(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(accent.container),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.FitnessCenter,
-                    contentDescription = null,
-                    tint = accent.onContainer,
-                    modifier = Modifier.size(22.dp),
+            val exerciseImage = block.exercise.imageUrl
+            if (exerciseImage.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(accent.container),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.FitnessCenter,
+                        contentDescription = null,
+                        tint = accent.onContainer,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            } else {
+                ExerciseThumb(
+                    imageUrl = exerciseImage,
+                    contentDescription = block.exercise.name,
+                    accent = accent,
+                    size = 40.dp,
                 )
             }
             Column(modifier = Modifier.weight(1f)) {

@@ -233,7 +233,7 @@ fun RoutineDetailContent(
     val estimatedMinutes = RoutineDisplayCalculator.estimatedMinutes(totalSets)
     val muscles = RoutineDisplayCalculator.topMuscles(
         detail.exercises.joinToString(",") { it.exercise.primaryMuscles },
-        limit = 6,
+        limit = 4,
     )
     val actions = routineCardActions(detail.isStarter)
     val meta = buildString {
@@ -266,15 +266,13 @@ fun RoutineDetailContent(
             }
         }
         Text(meta, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
-        val context = listOfNotNull(
-            detail.programName,
-            detail.tags.take(2).joinToString(", ").takeIf { it.isNotBlank() },
-        ).joinToString(" · ")
-        if (context.isNotBlank()) {
-            Text(context, style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
-        }
-        if (muscles.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        val program = detail.programName?.takeIf { it.isNotBlank() }
+        if (program != null || muscles.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                program?.let { RoutineProgramTag(label = it, accent = accent) }
                 muscles.forEach { muscle -> RoutineMuscleChip(muscle) }
             }
         }
@@ -395,6 +393,19 @@ private fun RoutineDetailExerciseRow(
             contentDescription = null,
             tint = MusFitTheme.colors.onSurfaceVariant,
             modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@Composable
+private fun RoutineProgramTag(label: String, accent: TabAccent) {
+    Surface(color = accent.container, shape = RoundedCornerShape(999.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = accent.onContainer,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
         )
     }
 }

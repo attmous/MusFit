@@ -1420,6 +1420,8 @@ private fun buildWorkoutExerciseBlock(
             equipment = first.equipment,
             targetMuscles = first.targetMuscles,
             isCustom = first.isCustom,
+            imageUrl = first.imageUrl,
+            gifUrl = first.gifUrl,
         ),
         targetReps = exerciseRows.firstNotNullOfOrNull { row -> parsedNotes.getValue(row.setId).targetReps },
         priorBestEstimatedOneRepMaxKg = priorBest1RM[first.exerciseId] ?: 0.0,

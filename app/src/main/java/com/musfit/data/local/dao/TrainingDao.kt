@@ -66,6 +66,8 @@ data class WorkoutSetDetailRow(
     val notes: String?,
     val completed: Boolean,
     val supersetGroupId: String? = null,
+    val imageUrl: String? = null,
+    val gifUrl: String? = null,
 )
 
 data class WorkoutHistorySummaryRow(
@@ -336,7 +338,9 @@ interface TrainingDao {
             workout_sets.rpe AS rpe,
             workout_sets.notes AS notes,
             workout_sets.completed AS completed,
-            workout_sets.supersetGroupId AS supersetGroupId
+            workout_sets.supersetGroupId AS supersetGroupId,
+            exercises.imageUrl AS imageUrl,
+            exercises.gifUrl AS gifUrl
         FROM workout_sets
         INNER JOIN exercises ON exercises.id = workout_sets.exerciseId
         WHERE workout_sets.sessionId = :sessionId
