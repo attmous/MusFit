@@ -189,7 +189,17 @@ The Food sync card handles availability, permission summary, enable/disable stat
 - `MusFitShapes`
 - `MusFitTypography`
 
-The current implementation ships a light theme. The color token object is structured so a later dark color set can be introduced without changing call sites.
+The current implementation ships light and dark token sets, selected through
+`isSystemInDarkTheme()`. The app uses a stable-Compose interpretation of
+Material 3 Expressive: standard `MaterialTheme`, fixed MusFit tab accents,
+Google Sans Flex display/title type, rounded content cards, and spring motion
+tokens.
+
+Design-system guidance:
+
+- [Material 3 Expressive reference](../design/material-3-expressive.md)
+- [MusFit design system](../design/musfit-design-system.md)
+- [Food UI guidelines](../design/food-ui-guidelines.md)
 
 UI direction:
 

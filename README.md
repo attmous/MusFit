@@ -57,6 +57,12 @@ Architecture and screen/model contracts are documented under `docs/architecture/
 - `docs/architecture/screen-contracts.md`
 - `docs/architecture/data-models.md`
 
+Design-system guidance is documented under `docs/design/`:
+
+- `docs/design/material-3-expressive.md`
+- `docs/design/musfit-design-system.md`
+- `docs/design/food-ui-guidelines.md`
+
 ## Privacy
 
 The MVP stores health, meal, and workout data on-device. It has no account system, cloud sync, analytics, subscriptions, social features, AI coaching, or direct wearable cloud API integrations.
