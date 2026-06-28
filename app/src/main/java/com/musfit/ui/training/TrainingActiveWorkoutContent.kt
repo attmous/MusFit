@@ -1,6 +1,7 @@
 package com.musfit.ui.training
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -361,50 +362,87 @@ private fun TrainingToolsCard(
     onAvailablePlatesChange: (String) -> Unit,
     onSave: () -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(false) }
     Surface(
         color = MusFitTheme.colors.surface,
         shape = MusFitTheme.shapes.large,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = restTimerDefaultSecondsInput,
-                    onValueChange = onRestTimerDefaultSecondsChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Rest sec") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
-                OutlinedTextField(
-                    value = plateBarWeightInput,
-                    onValueChange = onPlateBarWeightChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Bar kg") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        Column(modifier = Modifier.padding(horizontal = 14.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Rest & equipment",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MusFitTheme.colors.onSurface,
+                    )
+                    Text(
+                        "${restTimerDefaultSecondsInput.ifBlank { "—" }}s rest · ${plateBarWeightInput.ifBlank { "—" }} kg bar",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Collapse tools" else "Expand tools",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                    modifier = Modifier.rotate(if (expanded) 180f else 0f),
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = availablePlatesInput,
-                    onValueChange = onAvailablePlatesChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Plates kg") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                )
-                Button(
-                    onClick = onSave,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = accent.color,
-                        contentColor = accent.onColor,
-                    ),
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text("Save")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = restTimerDefaultSecondsInput,
+                            onValueChange = onRestTimerDefaultSecondsChange,
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Rest sec") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        )
+                        OutlinedTextField(
+                            value = plateBarWeightInput,
+                            onValueChange = onPlateBarWeightChange,
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Bar kg") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        OutlinedTextField(
+                            value = availablePlatesInput,
+                            onValueChange = onAvailablePlatesChange,
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Plates kg") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        )
+                        Button(
+                            onClick = onSave,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = accent.color,
+                                contentColor = accent.onColor,
+                            ),
+                        ) {
+                            Text("Save")
+                        }
+                    }
                 }
             }
         }
@@ -1242,7 +1280,7 @@ private fun CompactCellTextField(
                     .fillMaxWidth()
                     .heightIn(min = 32.dp)
                     .clip(MusFitTheme.shapes.small)
-                    .background(MusFitTheme.colors.surfaceVariant)
+                    .border(0.5.dp, MusFitTheme.colors.outline, MusFitTheme.shapes.small)
                     .padding(horizontal = 4.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1274,7 +1312,7 @@ private fun CompactRpeField(
                     .fillMaxWidth()
                     .heightIn(min = 32.dp)
                     .clip(MusFitTheme.shapes.small)
-                    .background(MusFitTheme.colors.surfaceVariant)
+                    .border(0.5.dp, MusFitTheme.colors.outline, MusFitTheme.shapes.small)
                     .padding(horizontal = 4.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1310,7 +1348,7 @@ private fun CompactNotesField(
                     .fillMaxWidth()
                     .heightIn(min = 32.dp)
                     .clip(MusFitTheme.shapes.small)
-                    .background(MusFitTheme.colors.surfaceVariant.copy(alpha = 0.6f))
+                    .border(0.5.dp, MusFitTheme.colors.outline, MusFitTheme.shapes.small)
                     .padding(horizontal = 10.dp, vertical = 5.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
