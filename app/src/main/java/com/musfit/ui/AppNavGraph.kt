@@ -1,13 +1,19 @@
 package com.musfit.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -20,13 +26,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.musfit.ui.theme.MusFitMotion
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -122,7 +134,14 @@ fun AppNavGraph() {
     }
 }
 
-/** M3E-style floating bottom nav: a rounded pill of destinations + a separate rounded-square FAB. */
+/** Spacing between nav items, used both for layout and the sliding-indicator math. */
+private val NavItemSpacing = 2.dp
+
+/**
+ * M3E-style floating bottom nav: a rounded pill of destinations + a separate rounded-square FAB.
+ * A single pill indicator sits behind the items and springs to the selected tab on navigation —
+ * the one motion in the bar.
+ */
 @Composable
 private fun FloatingPillNav(
     destinations: List<AppDestination>,
@@ -130,6 +149,14 @@ private fun FloatingPillNav(
     onSelect: (AppDestination) -> Unit,
     onFab: () -> Unit,
 ) {
+    val selectedIndex = destinations.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
+    val selectedAccent = tabAccentFor(destinations[selectedIndex])
+    val indicatorColor by animateColorAsState(
+        targetValue = selectedAccent.container,
+        animationSpec = MusFitMotion.effects(),
+        label = "navIndicatorColor",
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -143,18 +170,48 @@ private fun FloatingPillNav(
             shadowElevation = 4.dp,
             modifier = Modifier.weight(1f),
         ) {
-            Row(
-                modifier = Modifier.padding(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                destinations.forEach { destination ->
-                    NavPillItem(
-                        destination = destination,
-                        selected = currentRoute == destination.route,
-                        accent = tabAccentFor(destination),
-                        onClick = { onSelect(destination) },
+            val density = LocalDensity.current
+            var rowSize by remember { mutableStateOf(IntSize.Zero) }
+            val count = destinations.size
+            val itemWidth = with(density) {
+                if (count > 0 && rowSize.width > 0) {
+                    (rowSize.width.toDp() - NavItemSpacing * (count - 1)) / count
+                } else 0.dp
+            }
+            val rowHeight = with(density) { rowSize.height.toDp() }
+            val indicatorOffset by animateDpAsState(
+                targetValue = (itemWidth + NavItemSpacing) * selectedIndex,
+                animationSpec = MusFitMotion.spatial(),
+                label = "navIndicatorOffset",
+            )
+
+            Box(modifier = Modifier.padding(6.dp)) {
+                // Sliding pill behind the items — the single nav animation.
+                if (itemWidth > 0.dp) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = indicatorOffset)
+                            .width(itemWidth)
+                            .height(rowHeight)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(indicatorColor),
                     )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { rowSize = it },
+                    horizontalArrangement = Arrangement.spacedBy(NavItemSpacing),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    destinations.forEach { destination ->
+                        NavPillItem(
+                            destination = destination,
+                            selected = currentRoute == destination.route,
+                            accent = tabAccentFor(destination),
+                            onClick = { onSelect(destination) },
+                        )
+                    }
                 }
             }
         }
@@ -171,9 +228,20 @@ private fun RowScope.NavPillItem(
     accent: TabAccent,
     onClick: () -> Unit,
 ) {
+    // Tint crossfades with the sliding pill so the label/icon don't pop mid-slide.
+    val iconTint by animateColorAsState(
+        targetValue = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
+        animationSpec = MusFitMotion.effects(),
+        label = "navIconTint",
+    )
+    val labelColor by animateColorAsState(
+        targetValue = if (selected) accent.color else MusFitTheme.colors.onSurfaceVariant,
+        animationSpec = MusFitMotion.effects(),
+        label = "navLabelColor",
+    )
     Surface(
         onClick = onClick,
-        color = if (selected) accent.container else Color.Transparent,
+        color = Color.Transparent,
         shape = RoundedCornerShape(22.dp),
         modifier = Modifier.weight(1f),
     ) {
@@ -184,14 +252,14 @@ private fun RowScope.NavPillItem(
             Icon(
                 destination.icon,
                 contentDescription = destination.label,
-                tint = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
+                tint = iconTint,
                 modifier = Modifier.size(22.dp),
             )
             Text(
                 text = destination.label,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (selected) accent.color else MusFitTheme.colors.onSurfaceVariant,
+                color = labelColor,
                 maxLines = 1,
             )
         }
