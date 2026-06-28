@@ -1,6 +1,5 @@
 package com.musfit.ui.today
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,14 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FitnessCenter
-import androidx.compose.material.icons.outlined.MonitorWeight
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,11 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -53,8 +46,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachBriefing
-import com.musfit.domain.today.WeeklyGoals
+import com.musfit.ui.AppDestination
+import com.musfit.ui.components.charts.BarDatum
+import com.musfit.ui.components.charts.MetricRing
+import com.musfit.ui.components.charts.TrendLineChart
+import com.musfit.ui.components.charts.WeekBarChart
 import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.tabAccentFor
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -111,8 +110,21 @@ fun TodayScreen(
             }
         }
 
+        val accent = tabAccentFor(AppDestination.Today)
+
         if (state.rings.isNotEmpty()) {
             DailyRingsCard(rings = state.rings, macros = state.macros, onClick = onOpenFood)
+        }
+
+        state.weeklyCharts?.let { charts ->
+            WeeklyCaloriesCard(
+                charts = charts,
+                accent = accent,
+                selectedIndex = state.selectedCalorieDayIndex ?: charts.defaultSelectedIndex,
+                onDaySelected = viewModel::onCalorieDaySelected,
+            )
+            WeightTrendCard(charts = charts, accent = accent)
+            WeekStatsRow(charts = charts)
         }
 
         Row(
@@ -125,15 +137,7 @@ fun TodayScreen(
                 label = state.training.subtitle,
                 onClick = onOpenTraining,
             )
-            GlimpseTile(
-                icon = Icons.Outlined.MonitorWeight,
-                value = state.weightKg?.let { "${it.formatMetric()} kg" } ?: "—",
-                label = "Body weight",
-                onClick = onOpenHealth,
-            )
         }
-
-        state.weekly?.let { WeeklyGoalsCard(it) }
     }
 
     if (state.isGoalsEditorVisible) {
@@ -168,7 +172,14 @@ private fun DailyRingsCard(
             ) {
                 rings.forEach { ring ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GoalRing(progress = ring.progress, color = ringColor(ring.kind), centerLabel = ring.centerLabel)
+                        MetricRing(progress = ring.progress, color = ringColor(ring.kind)) {
+                            Text(
+                                text = ring.centerLabel,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MusFitTheme.colors.onSurface,
+                            )
+                        }
                         Spacer(Modifier.height(7.dp))
                         Text(
                             text = ring.kind.label,
@@ -187,46 +198,6 @@ private fun DailyRingsCard(
             Spacer(Modifier.height(16.dp))
             MacroBar(macros)
         }
-    }
-}
-
-@Composable
-private fun GoalRing(
-    progress: Float,
-    color: Color,
-    centerLabel: String,
-) {
-    val track = MusFitTheme.colors.track
-    Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val stroke = 7.dp.toPx()
-            val inset = stroke / 2f
-            val arcSize = Size(size.width - stroke, size.height - stroke)
-            drawArc(
-                color = track,
-                startAngle = 0f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = arcSize,
-                style = Stroke(width = stroke, cap = StrokeCap.Round),
-            )
-            drawArc(
-                color = color,
-                startAngle = -90f,
-                sweepAngle = progress.coerceIn(0f, 1f) * 360f,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = arcSize,
-                style = Stroke(width = stroke, cap = StrokeCap.Round),
-            )
-        }
-        Text(
-            text = centerLabel,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = MusFitTheme.colors.onSurface,
-        )
     }
 }
 
@@ -287,39 +258,119 @@ private fun RowScope.GlimpseTile(
 }
 
 @Composable
-private fun WeeklyGoalsCard(weekly: WeeklyGoals) {
-    val weightTitle = weekly.targetWeightKg?.let { "Weight → ${it.formatMetric()} kg" } ?: "Weight (7-day)"
-    val weightValue = weekly.weightAvgKg?.let { avg ->
-        val delta = weekly.weightDeltaKg?.let { d ->
-            val arrow = if (d < -0.05) "↓" else if (d > 0.05) "↑" else "→"
-            " $arrow${abs(d).formatMetric()}"
-        } ?: ""
-        "${avg.formatMetric()} kg$delta"
-    } ?: "—"
-
-    Surface(
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.large,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+private fun WeeklyCaloriesCard(
+    charts: WeeklyChartsUiState,
+    accent: TabAccent,
+    selectedIndex: Int?,
+    onDaySelected: (Int) -> Unit,
+) {
+    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "This week",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.onSurface,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = "Calories",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MusFitTheme.colors.onSurface,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "this week",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+                Surface(color = accent.container, shape = MusFitTheme.shapes.small) {
+                    Text(
+                        text = "${charts.onTargetDays}/${charts.trackedDays} on target",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accent.onContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            WeekBarChart(
+                bars = charts.calorieBars.map { BarDatum(value = it.calories, label = it.label) },
+                accent = accent.color,
+                onAccent = accent.onColor,
+                target = charts.calorieTarget,
+                selectedIndex = selectedIndex,
+                onBarSelected = onDaySelected,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp),
             )
-            Spacer(Modifier.height(12.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                WeeklyMiniTracker(Modifier.weight(1f), "Sessions", "${weekly.sessionsDone} / ${weekly.sessionTarget}")
-                WeeklyMiniTracker(Modifier.weight(1f), "Calories on target", "${weekly.calorieOnTargetDays} / ${weekly.trackedDays}")
+        }
+    }
+}
+
+@Composable
+private fun WeightTrendCard(charts: WeeklyChartsUiState, accent: TabAccent) {
+    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column {
+                    Text(
+                        text = "Weight · 30 days",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                    Text(
+                        text = charts.latestWeightKg?.let { "${it.formatMetric()} kg" } ?: "—",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MusFitTheme.colors.onSurface,
+                    )
+                }
+                charts.weightDeltaKg?.let { d ->
+                    val arrow = if (d < -0.05) "↓" else if (d > 0.05) "↑" else "→"
+                    Surface(color = MusFitTheme.colors.positiveContainer, shape = MusFitTheme.shapes.small) {
+                        Text(
+                            text = "$arrow ${abs(d).formatMetric()} kg",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MusFitTheme.colors.positive,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(10.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                WeeklyMiniTracker(Modifier.weight(1f), weightTitle, weightValue)
-                WeeklyMiniTracker(Modifier.weight(1f), "Step-goal days", "${weekly.stepGoalDays} / ${weekly.trackedDays}")
+            if (charts.weightTrend.isEmpty()) {
+                Text(
+                    text = "Log your weight to see the trend.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            } else {
+                TrendLineChart(
+                    values = charts.weightTrend,
+                    accent = accent.color,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(96.dp),
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun WeekStatsRow(charts: WeeklyChartsUiState) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        WeeklyMiniTracker(Modifier.weight(1f), "Sessions", "${charts.sessionsDone} / ${charts.sessionTarget}")
+        WeeklyMiniTracker(Modifier.weight(1f), "Step-goal days", "${charts.stepGoalDays} / ${charts.trackedDays}")
     }
 }
 
