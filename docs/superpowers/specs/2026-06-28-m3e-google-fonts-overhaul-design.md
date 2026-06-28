@@ -17,7 +17,7 @@ The approved visual target is the light/dark M3E mockup of the Today screen (rou
 - **Fonts:** Google Sans Flex (display/headline/title + big numbers) + Roboto (body/label), **bundled** in `res/font/` (offline-first; ~0.5–1 MB APK).
 - **Fixed per-tab accents** (Coral/Emerald/Indigo/Teal), light + dark variants — **no Dynamic Color** (matches Google Health's fixed accent).
 - **Adopt M3E motion** (springy specs) for chart load-in, sheet expand, FAB feedback, and selection.
-- **Implementation approach = hybrid:** wrap `MaterialExpressiveTheme` so standard components get M3E for free, *and* keep MusFit's token layer (`MusFitTheme`, `TabAccent`, spacing) on top. Keep the hand-rolled Canvas chart kit (it adopts the new tokens; we do not switch to a chart library).
+- **Implementation approach = M3E look on stable Compose.** `composeBom 2026.04.01` pins `material3` to stable **1.4.0, which has no M3E APIs** (they were removed in 1.4.0-beta01 and live only in `material3 1.5.0-alpha`, which we deliberately avoid). We reproduce the approved look on stable: keep `MaterialTheme`, and build the expressive feel from MusFit's own tokens — bundled Google fonts, vibrant light/dark color, expanded rounded shapes, springy `spring()` motion — using standard components (`SegmentedButton`, `NavigationBar`, `FloatingActionButton`, `Card`) styled expressively. Keep MusFit's token layer + the hand-rolled Canvas chart kit. **No alpha dependency, no chart library.**
 
 ## Non-goals (YAGNI)
 
@@ -42,17 +42,17 @@ The approved visual target is the light/dark M3E mockup of the Today screen (rou
 
 ### Foundation (the design-system layer — restyles ~80% via tokens)
 
-1. **Theme entry.** `MusFitTheme(darkTheme)` switches between `lightMusFitColors` / `darkMusFitColors` and wraps `MaterialExpressiveTheme(colorScheme = …, motionScheme = …, shapes = …, typography = …)` instead of `MaterialTheme`. The `MusFitTheme` object accessors and `TabAccent` are unchanged in shape (gain dark awareness). Default `darkTheme = isSystemInDarkTheme()` at the call site (`MainActivity`/root).
+1. **Theme entry.** `MusFitTheme(darkTheme)` switches between `lightMusFitColors` / `darkMusFitColors`, keeping the **standard `MaterialTheme(colorScheme, typography, shapes)`** (stable). The `MusFitTheme` object accessors and `TabAccent` are unchanged in shape (gain dark awareness). Default `darkTheme = isSystemInDarkTheme()` at the call site (`MainActivity`/root).
 
-2. **Color, light + dark.** Add `darkMusFitColors` (warm near-black surfaces, brighter accents) alongside `lightMusFitColors`. `musFitColorScheme(colors, dark)` returns `expressiveLightColorScheme(...)` / `expressiveDarkColorScheme(...)` mapped from MusFit tokens. `TabAccent` gains light + dark variants per tab (brighter container/onContainer in dark). All token hues stay; we add the dark counterparts + any M3E tonal roles the components need.
+2. **Color, light + dark.** Add `darkMusFitColors` (warm near-black surfaces, brighter accents) alongside `lightMusFitColors`. `musFitColorScheme(colors, dark)` returns `lightColorScheme(...)` / `darkColorScheme(...)` mapped from MusFit tokens (stable factories; the expressive `*ColorScheme` factories are alpha-only and unused). `TabAccent` gains light + dark variants per tab (brighter container/onContainer in dark). All token hues stay; we add the dark counterparts + the tonal roles the components need.
 
 3. **Fonts.** Bundle Google Sans Flex (variable) + Roboto in `res/font/`. Build two `FontFamily`s via `Font(resId, variationSettings = FontVariation.Settings(...))` (variable-font axes; min API 26 ≤ minSdk 28 ✓). Rebuild `MusFitTypography` as a full M3 type scale: display/headline/title roles → Google Sans Flex (heavier/rounded for the expressive feel), body/label → Roboto. Big numeric values (rings, hero stats) use the Google Sans Flex display weights.
 
-4. **Shape.** Expand `MusFitShapes` to the M3E scale (larger radii — cards ~28dp). Add `androidx.graphics:graphics-shapes` and use `MaterialShapes`/`RoundedPolygon`+`Morph` for expressive shape-morph elements (loaders, selection states).
+4. **Shape.** Expand `MusFitShapes` to the M3E scale (larger radii — cards ~28dp). *Optional polish (later):* the standalone **stable** `androidx.graphics:graphics-shapes` gives `RoundedPolygon`/`Morph` for shape-morph accents — not required for the foundation, and the alpha-only `MaterialShapes` is out of scope.
 
-5. **Motion.** Adopt the M3E `MotionScheme` (springy spatial/effects specs) via `MaterialExpressiveTheme`; expose a small `MusFitMotion` token surface (or read `MaterialTheme.motionScheme`) for: chart load-in (left-to-right), sheet/expander transitions, FAB and selection feedback.
+5. **Motion.** Define a small `MusFitMotion` token surface of springy `spring()` specs (mirroring M3E's spatial/effects spring values — overshoot-friendly for bounds/shape, no-overshoot for color/alpha) using **stable** Compose animation APIs (no `MotionScheme`/expressive opt-in). Apply to: chart load-in (left-to-right), sheet/expander transitions, FAB and selection feedback.
 
-> The exact M3E API surface at this BOM (whether `MaterialExpressiveTheme`/components are stable or `@ExperimentalMaterial3ExpressiveApi`, the precise component names, the `graphics-shapes` version, and the variable-font wiring) is verified in a dedicated research pass and pinned in the implementation plan's first tasks.
+> **Verified:** at `composeBom 2026.04.01`, `material3` = stable **1.4.0** with **no** M3E APIs (removed in 1.4.0-beta01; they exist only in `material3 1.5.0-alpha`). We stay on stable and reproduce the look with our own tokens + standard components — no alpha dependency. Variable fonts use `Font(resId, variationSettings = FontVariation.Settings(...))`, which needs API 26 ≤ our minSdk 28. Sources: [Compose BOM mapping](https://developer.android.com/develop/ui/compose/bom/bom-mapping), [compose-material3 release notes](https://developer.android.com/jetpack/androidx/releases/compose-material3).
 
 ### Rollout (per miniapp — adopt M3E components + motion, verify dark)
 
@@ -76,7 +76,7 @@ The implementation plan written now covers **Phase 1**; Phases 2–3 get their o
 
 ## Risks & mitigations
 
-- **Experimental M3E APIs.** `MaterialExpressiveTheme` and several expressive components may require `@OptIn(ExperimentalMaterial3ExpressiveApi::class)` and could shift between versions. Mitigation: pin the Compose BOM, isolate all expressive usage behind `MusFitTheme`/the component kit, and centralize opt-ins. **Fallback:** if the expressive APIs are too unstable, evolve MusFit's own tokens (custom theme) to mimic M3E — same visuals (Google fonts, shapes, color, hand-rolled springy motion), more custom code, no `MaterialExpressiveTheme`. The visual target and fonts are unaffected either way.
+- **(Resolved) Stable-only foundation.** Real M3E APIs require an alpha `material3` (1.5.0-alpha). We chose to stay on **stable 1.4.0** and reproduce the look with MusFit tokens + standard components, so there is **no alpha/experimental dependency**. Trade-off accepted: a few alpha-only components (FloatingToolbar, ButtonGroup, `MaterialShapes` morphing) are out of scope — none appear in the approved mockup.
 - **Dark mode doubles the color surface** (tokens + per-screen QA). Mitigation: drive everything through tokens; the dark pass is an explicit phase per miniapp.
 - **APK size** from bundled variable fonts (~0.5–1 MB). Acceptable for offline-first; revisit only if it becomes an issue.
 - **Hardcoded colors** that bypass `MusFitTheme.colors` will break in dark. Mitigation: a grep/audit task per phase to route them through tokens.
