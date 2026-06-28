@@ -16,7 +16,10 @@ import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSettings
 import com.musfit.data.repository.TrainingSettingsInput
+import com.musfit.data.repository.MuscleGroupProgress
 import com.musfit.data.repository.TrainingSummary
+import com.musfit.data.repository.TrainingProgressAnalytics
+import com.musfit.data.repository.WeeklyTrainingVolume
 import com.musfit.data.repository.WorkoutExerciseBlock
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
@@ -40,6 +43,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrainingViewModelTest {
@@ -353,6 +357,25 @@ class TrainingViewModelTest {
 
         assertEquals(null, viewModel.state.value.selectedRoutineProgram)
         assertEquals(listOf("Full Body A", "Upper A"), viewModel.state.value.visibleRoutines.map { it.name })
+    }
+
+    @Test
+    fun dashboard_suggestsRoutineRecentWorkoutAndQuickStarts() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val initialDashboard = viewModel.state.value.dashboard
+        assertEquals("Full Body A", initialDashboard.nextSuggestedRoutine?.name)
+        assertEquals(listOf("Full Body A", "Upper A"), initialDashboard.quickStartRoutines.map { it.name })
+        assertEquals("Push", initialDashboard.recentWorkout?.title)
+
+        viewModel.onRoutineProgramFilterChanged("Upper Lower")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val filteredDashboard = viewModel.state.value.dashboard
+        assertEquals("Upper A", filteredDashboard.nextSuggestedRoutine?.name)
+        assertEquals(listOf("Upper A"), filteredDashboard.quickStartRoutines.map { it.name })
     }
 
     @Test
@@ -890,6 +913,55 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun buildTrainingHistoryOverview_summarizesWeekCalendarAndStreaks() {
+        val today = LocalDate.of(2026, 6, 28)
+        val overview = buildTrainingHistoryOverview(
+            history = listOf(
+                historySummary("mon", LocalDate.of(2026, 6, 22), sets = 3, volume = 300.0),
+                historySummary("fri", LocalDate.of(2026, 6, 26), sets = 4, volume = 400.0),
+                historySummary("sat", LocalDate.of(2026, 6, 27), sets = 5, volume = 500.0),
+                historySummary("sun-a", today, sets = 6, volume = 600.0),
+                historySummary("sun-b", today, sets = 2, volume = 200.0),
+                historySummary("old", LocalDate.of(2026, 5, 31), sets = 8, volume = 800.0),
+            ),
+            today = today,
+        )
+
+        val todayCell = overview.calendarWeeks.flatten().filterNotNull().single { it.date == today }
+
+        assertEquals("June 2026", overview.monthLabel)
+        assertEquals(5, overview.currentWeekWorkoutCount)
+        assertEquals(4, overview.currentWeekTrainingDayCount)
+        assertEquals(20, overview.currentWeekCompletedSetCount)
+        assertEquals(2000.0, overview.currentWeekVolumeKg, 0.01)
+        assertEquals(3, overview.currentStreakDays)
+        assertEquals(3, overview.bestStreakDays)
+        assertEquals(2, todayCell.workoutCount)
+        assertEquals(8, todayCell.completedSetCount)
+        assertEquals(800.0, todayCell.totalVolumeKg, 0.01)
+    }
+
+    @Test
+    fun historyOverview_updatesFromObservedHistory() = runTest {
+        val repository = FakeTrainingRepository()
+        val today = LocalDate.now()
+        repository.setWorkoutHistory(
+            listOf(
+                historySummary("today", today, sets = 4, volume = 420.0),
+            ),
+        )
+
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val overview = viewModel.state.value.historyOverview
+        assertEquals(1, overview.currentWeekWorkoutCount)
+        assertEquals(1, overview.currentWeekTrainingDayCount)
+        assertEquals(4, overview.currentWeekCompletedSetCount)
+        assertEquals(420.0, overview.currentWeekVolumeKg, 0.01)
+    }
+
+    @Test
     fun selectProgressExercise_loadsProgressForSelectedExercise() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
@@ -903,6 +975,23 @@ class TrainingViewModelTest {
         assertEquals("exercise-bench-press", viewModel.state.value.selectedProgressExerciseId)
         assertEquals("Barbell Bench Press", viewModel.state.value.selectedExerciseProgress?.exerciseName)
         assertEquals(120.0, viewModel.state.value.selectedExerciseProgress?.heaviestWeightKg ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun progressAnalytics_updatesFromRepository() = runTest {
+        val repository = FakeTrainingRepository()
+        repository.progressAnalyticsFlow.value = TrainingProgressAnalytics(
+            muscleGroups = listOf(MuscleGroupProgress("chest", completedSetCount = 4, totalVolumeKg = 1200.0)),
+            weeklyVolume = listOf(WeeklyTrainingVolume(weekStartEpochDay = 20_100L, workoutCount = 2, completedSetCount = 8, totalVolumeKg = 2400.0)),
+        )
+
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val analytics = viewModel.state.value.progressAnalytics
+        assertEquals("chest", analytics.muscleGroups.single().muscle)
+        assertEquals(4, analytics.muscleGroups.single().completedSetCount)
+        assertEquals(2, analytics.weeklyVolume.single().workoutCount)
     }
 
     private class FakeTrainingRepository : TrainingRepository {
@@ -1035,6 +1124,7 @@ class TrainingViewModelTest {
         private val activeWorkoutFlow = MutableStateFlow<ActiveWorkoutSummary?>(null)
         private val progressFlow = MutableStateFlow<ExerciseProgress?>(null)
         private val trainingSettingsFlow = MutableStateFlow(TrainingSettings())
+        val progressAnalyticsFlow = MutableStateFlow(TrainingProgressAnalytics())
 
         val activeWorkoutDetail = MutableStateFlow<ActiveWorkoutDetail?>(
             ActiveWorkoutDetail(
@@ -1104,6 +1194,10 @@ class TrainingViewModelTest {
                     exerciseBlocks = activeWorkoutDetail.value?.exerciseBlocks.orEmpty(),
                 ),
         )
+
+        fun setWorkoutHistory(history: List<WorkoutHistorySummary>) {
+            workoutHistoryFlow.value = history
+        }
 
         private val routineDetails = mutableMapOf(
             "routine-full-body-a" to
@@ -1187,6 +1281,8 @@ class TrainingViewModelTest {
             observedProgressExerciseIds += exerciseId
             return progressFlow
         }
+
+        override fun observeTrainingProgressAnalytics(): Flow<TrainingProgressAnalytics> = progressAnalyticsFlow
 
         override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? {
             openedWorkoutDetailSessionIds += sessionId
@@ -1350,4 +1446,19 @@ class TrainingViewModelTest {
             exportedAtEpochMillis: Long,
         ) = Unit
     }
+
+    private fun historySummary(
+        id: String,
+        date: LocalDate,
+        sets: Int,
+        volume: Double,
+    ): WorkoutHistorySummary =
+        WorkoutHistorySummary(
+            sessionId = id,
+            title = id,
+            startedAtEpochMillis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            endedAtEpochMillis = date.atStartOfDay(ZoneId.systemDefault()).plusHours(1).toInstant().toEpochMilli(),
+            completedSetCount = sets,
+            totalVolumeKg = volume,
+        )
 }

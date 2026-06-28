@@ -406,8 +406,8 @@ Training handles strength routine management, exercise library filtering and cus
 | --- | --- |
 | `Routines` | Routine list, local program filters, starter routines, routine editor, duplicate/delete/start routine, and start blank workout. |
 | `Exercises` | Exercise library, search/filter, equipment/muscle chips, exercise detail, local notes, and custom exercise creation. |
-| `History` | Completed workout list and workout detail with set rows. |
-| `Progress` | Exercise PR cards and trend chart points. |
+| `History` | Completed workout overview, month grid, consistency metrics, list, and workout detail with set rows. |
+| `Progress` | All-training analytics, muscle volume, weekly volume, exercise PR cards, history rows, best sets, PR timeline, and trend chart points. |
 
 ### ViewModel State
 
@@ -426,14 +426,17 @@ val state: StateFlow<TrainingUiState>
 | `visibleRoutines` | Routine summaries filtered by selected program. |
 | `routineProgramOptions` | Distinct local program names from routine summaries. |
 | `selectedRoutineProgram` | Current routine program filter, or null for all routines. |
+| `dashboard` | Derived dashboard state: next suggested visible routine, quick-start routines, and most recent completed workout. |
 | `exercises` | All exercise summaries. |
 | `visibleExercises` | Search/filter result list. |
 | `activeWorkoutSummary` | Compact resume banner data. |
 | `activeWorkout` | Full active workout detail with flat exercise blocks, grouped superset blocks, sets, completed count, and volume. |
 | `workoutHistory` | Completed workout summaries. |
+| `historyOverview` | Derived month calendar, current-week totals, training-day counts, and streak metrics from completed workout summaries. |
 | `selectedProgressExerciseId` | Selected exercise for progress. |
-| `selectedExerciseProgress` | Heaviest, max reps, best estimated 1RM, best day volume, and trend points for the selected exercise. |
-| `selectedWorkoutDetail` | Expanded completed-workout history detail. |
+| `selectedExerciseProgress` | Heaviest, max reps, best estimated 1RM, best day volume, trend points, history rows, best sets, and PR timeline for the selected exercise. |
+| `progressAnalytics` | Derived all-training muscle group volume and weekly volume from completed workout sets. |
+| `selectedWorkoutDetail` | Expanded completed-workout history detail with flat exercise blocks and derived superset groupings. |
 | `exerciseSearchQuery`, `exerciseMuscleFilter`, `exerciseEquipmentFilter` | Exercise library filters. |
 | `exerciseEditor` | Custom exercise editor state. |
 | `selectedExerciseDetail` | Open exercise detail/drill-down row, including instructions and local notes. |
@@ -527,8 +530,8 @@ Rest timer:
 | `TrainingRoutineContent` | visible routines, program options, selected program | Program filter, start, edit, duplicate, delete routine callbacks. |
 | `TrainingRoutineEditor` | `RoutineEditorState`, exercises | Edit routine metadata and exercise targets. |
 | `TrainingActiveWorkoutContent` | `ActiveWorkoutDetail`, exercises, `RestTimerState`, active workout notes draft, Training tool setting drafts | Set edits, set type changes, set reorder, workout notes, add exercise/set, timer controls, Training tool save, warm-up suggestions, PR/plate display, superset create/dissolve, finish/discard. |
-| `TrainingHistoryContent` | `history`, selected detail | Open/close workout detail. |
-| `TrainingProgressContent` | exercises, selected id, progress | Select exercise for trend/PR display. |
+| `TrainingHistoryContent` | `history`, `historyOverview`, selected detail | Render month overview, consistency metrics, open/close workout detail, and completed supersets with grouped sections and A/B labels. |
+| `TrainingProgressContent` | exercises, selected id, progress, progress analytics | Select exercise and render all-training analytics plus selected-exercise trend/PR/history display. |
 
 Exercise library detail behavior:
 
@@ -544,6 +547,12 @@ Routine organization behavior:
 - Selecting a program filters the routine cards without changing persistence or active workouts.
 - Duplicating a starter/program routine creates an editable non-starter local copy and preserves the program name/tags.
 
+Training dashboard behavior:
+
+- The home dashboard shows the next visible routine, quick-start routine buttons, blank-workout start, and most recent completed workout.
+- The next-routine suggestion is a deterministic local heuristic from the currently visible routine list; program filtering changes the suggestion.
+- The dashboard keeps the existing active workout resume banner and weekly header behavior intact.
+
 Active workout UI behavior:
 
 - Full-screen route-like surface opens when an active workout is resumed or started.
@@ -557,6 +566,19 @@ Active workout UI behavior:
 - Plate hints use `PlateCalculator` with the saved bar and plate settings.
 - Superset creation pairs a standalone exercise with the next standalone exercise below it; grouped rows show A/B labels and can be dissolved.
 - Finish and discard both require confirmation dialogs.
+
+History detail behavior:
+
+- History list mode shows a current-month workout grid, current-week workouts/training days/sets/volume, current streak, and best streak.
+- Completed workout detail preserves the same derived `ExerciseGrouping` shape as the active workout detail.
+- Completed supersets render as grouped history sections with a `SUPERSET` label and each member's A/B badge.
+- Older details or fallback repository implementations that provide only flat blocks still render as standalone exercise cards.
+
+Progress analytics behavior:
+
+- Progress analytics are derived from completed local workout sets; no derived stats are stored.
+- The Progress tab shows top muscle groups by completed volume/set count and recent weekly volume totals.
+- Selecting an exercise shows PR totals, trend charts, per-day exercise history rows, best daily sets, and estimated-1RM PR timeline entries.
 
 ### Data Sources
 
@@ -578,8 +600,10 @@ It calls write APIs for routine CRUD, active workout lifecycle, set edits, custo
 - Exercise detail exists as an inline card, but there is no media, animation, or externally sourced technique library.
 - Routine organization is program/tag based; there is no separate multi-week program calendar or progression schedule yet.
 - Rest timer duration, bar weight, and available plates are global Training settings; there are no per-exercise rest defaults or warm-up preference profiles yet.
-- History is list/detail only; calendar and streak/consistency summaries are not implemented.
-- Progress is exercise-focused; muscle group volume, weekly volume trend, PR timeline, and exercise history tables are not implemented.
+- Supersets are intentionally pair-oriented through "make with next"; there is no arbitrary multi-exercise superset editor yet.
+- History overview is current-month/current-week focused; there is no drillable multi-month calendar or per-day workout filter yet.
+- Progress analytics are local and deterministic; there is no advanced chart filtering, period picker, or stored analytics cache yet.
+- Dashboard routine suggestions are deterministic and local; there is no adaptive progression or fatigue model yet.
 - Finish flow returns to Training/history; a dedicated post-workout recap surface is not implemented.
 
 ## Health Screen

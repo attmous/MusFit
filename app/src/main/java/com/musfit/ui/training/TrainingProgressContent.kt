@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.ExerciseSummary
+import com.musfit.data.repository.TrainingProgressAnalytics
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
@@ -32,10 +33,12 @@ fun TrainingProgressContent(
     exercises: List<ExerciseSummary>,
     selectedExerciseId: String?,
     progress: ExerciseProgress?,
+    analytics: TrainingProgressAnalytics,
     accent: TabAccent,
     onSelectExercise: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ProgressAnalyticsOverview(analytics = analytics, accent = accent)
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -69,6 +72,7 @@ fun TrainingProgressContent(
                 Text("Best day volume · ${progress.bestWorkoutVolumeKg.formatKg()} kg", color = MusFitTheme.colors.onSurfaceVariant)
             }
         }
+        SelectedExerciseDeepDive(progress = progress)
         if (progress.trend.isEmpty()) {
             Text(
                 text = "No history yet",
@@ -86,6 +90,71 @@ fun TrainingProgressContent(
                     .fillMaxWidth()
                     .height(168.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun ProgressAnalyticsOverview(
+    analytics: TrainingProgressAnalytics,
+    accent: TabAccent,
+) {
+    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Training analytics", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (analytics.muscleGroups.isEmpty() && analytics.weeklyVolume.isEmpty()) {
+                Text("Complete workouts to build muscle and weekly volume analytics.", color = MusFitTheme.colors.onSurfaceVariant)
+                return@Column
+            }
+            if (analytics.muscleGroups.isNotEmpty()) {
+                Text("Muscle volume", style = MaterialTheme.typography.labelLarge, color = accent.color)
+                analytics.muscleGroups.take(4).forEach { muscle ->
+                    Text(
+                        "${muscle.muscle.replaceFirstChar { it.uppercase() }} · ${muscle.completedSetCount} sets · ${muscle.totalVolumeKg.formatKg()} kg",
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+            }
+            if (analytics.weeklyVolume.isNotEmpty()) {
+                Text("Weekly volume", style = MaterialTheme.typography.labelLarge, color = accent.color)
+                analytics.weeklyVolume.takeLast(4).forEach { week ->
+                    Text(
+                        "Week ${week.weekStartEpochDay} · ${week.workoutCount} workouts · ${week.completedSetCount} sets · ${week.totalVolumeKg.formatKg()} kg",
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectedExerciseDeepDive(progress: ExerciseProgress) {
+    if (progress.history.isEmpty() && progress.bestSets.isEmpty() && progress.prTimeline.isEmpty()) return
+    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Exercise history", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            progress.bestSets.firstOrNull()?.let { best ->
+                Text(
+                    "Best set · ${best.weightKg.formatKg()} kg x ${best.reps} · est. ${best.estimatedOneRepMaxKg.formatKg()} kg",
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            progress.history.takeLast(4).forEach { entry ->
+                Text(
+                    "Day ${entry.dateEpochDay} · ${entry.completedSetCount} sets · ${entry.volumeKg.formatKg()} kg · ${entry.bestSetLabel}",
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            if (progress.prTimeline.isNotEmpty()) {
+                Text("PR timeline", style = MaterialTheme.typography.labelLarge)
+                progress.prTimeline.takeLast(4).forEach { pr ->
+                    Text(
+                        "Day ${pr.dateEpochDay} · ${pr.weightKg.formatKg()} kg x ${pr.reps} · est. ${pr.estimatedOneRepMaxKg.formatKg()} kg",
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }

@@ -1,19 +1,26 @@
 package com.musfit.ui.training
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.musfit.data.repository.ExerciseGrouping
+import com.musfit.data.repository.SupersetGroup
+import com.musfit.data.repository.WorkoutExerciseBlock
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.ui.theme.TabAccent
@@ -23,6 +30,7 @@ import java.util.Locale
 fun TrainingHistoryContent(
     history: List<WorkoutHistorySummary>,
     selectedDetail: WorkoutHistoryDetail?,
+    overview: TrainingHistoryOverview,
     accent: TabAccent,
     onOpenDetail: (String) -> Unit,
     onCloseDetail: () -> Unit,
@@ -60,52 +68,10 @@ fun TrainingHistoryContent(
                     }
                 }
             }
-            selectedDetail.exerciseBlocks.forEach { block ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(block.exercise.name, style = MaterialTheme.typography.titleMedium)
-                        block.sets.forEachIndexed { index, set ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Text(
-                                    text = if (set.setType.equals("warmup", ignoreCase = true)) "W" else "${index + 1}",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    modifier = Modifier.weight(0.35f),
-                                )
-                                Text(
-                                    text = set.setType.replaceFirstChar { it.uppercase() },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(0.9f),
-                                )
-                                Text(
-                                    text = "${set.weightKg?.formatKg() ?: "-"} kg",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(0.9f),
-                                )
-                                Text(
-                                    text = "${set.reps ?: "-"} reps",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(0.9f),
-                                )
-                                Text(
-                                    text = set.rpe?.let { "RPE ${it.formatKg()}" } ?: "",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(0.9f),
-                                )
-                            }
-                            if (index < block.sets.lastIndex) {
-                                HorizontalDivider()
-                            }
-                        }
-                    }
+            historyDetailGroupingsForDisplay(selectedDetail).forEach { grouping ->
+                when (grouping) {
+                    is ExerciseGrouping.Single -> HistoryExerciseBlockCard(grouping.block)
+                    is ExerciseGrouping.Superset -> HistorySupersetGroupCard(grouping.group, accent)
                 }
             }
         }
@@ -114,6 +80,7 @@ fun TrainingHistoryContent(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("History", style = MaterialTheme.typography.titleMedium)
+        HistoryOverviewCard(overview = overview, accent = accent)
         if (history.isEmpty()) {
             Text("Finish a workout to build history.")
         }
@@ -135,6 +102,235 @@ fun TrainingHistoryContent(
 }
 
 @Composable
+private fun HistoryOverviewCard(
+    overview: TrainingHistoryOverview,
+    accent: TabAccent,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                HistorySummaryMetric(
+                    label = "This week",
+                    value = overview.currentWeekWorkoutCount.toString(),
+                    modifier = Modifier.weight(1f),
+                )
+                HistorySummaryMetric(
+                    label = "Days",
+                    value = overview.currentWeekTrainingDayCount.toString(),
+                    modifier = Modifier.weight(1f),
+                )
+                HistorySummaryMetric(
+                    label = "Sets",
+                    value = overview.currentWeekCompletedSetCount.toString(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                HistorySummaryMetric(
+                    label = "Volume",
+                    value = "${overview.currentWeekVolumeKg.formatKg()} kg",
+                    modifier = Modifier.weight(1f),
+                )
+                HistorySummaryMetric(
+                    label = "Streak",
+                    value = "${overview.currentStreakDays}d",
+                    modifier = Modifier.weight(1f),
+                )
+                HistorySummaryMetric(
+                    label = "Best",
+                    value = "${overview.bestStreakDays}d",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Text(
+                text = overview.monthLabel.ifBlank { "This month" },
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            HistoryCalendarGrid(overview = overview, accent = accent)
+        }
+    }
+}
+
+@Composable
+private fun HistoryCalendarGrid(
+    overview: TrainingHistoryOverview,
+    accent: TabAccent,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+            listOf("M", "T", "W", "T", "F", "S", "S").forEach { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        overview.calendarWeeks.forEach { week ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                week.forEach { day ->
+                    HistoryCalendarDayCell(day = day, accent = accent, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryCalendarDayCell(
+    day: TrainingHistoryCalendarDay?,
+    accent: TabAccent,
+    modifier: Modifier = Modifier,
+) {
+    if (day == null) {
+        Box(modifier = modifier.height(34.dp))
+        return
+    }
+    val hasWorkout = day.workoutCount > 0
+    Surface(
+        color = if (hasWorkout) accent.container else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        shape = MaterialTheme.shapes.small,
+        modifier = modifier.height(34.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = day.date.dayOfMonth.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (hasWorkout) FontWeight.Bold else FontWeight.Normal,
+                color = if (hasWorkout) accent.onContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistorySupersetGroupCard(
+    group: SupersetGroup,
+    accent: TabAccent,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(color = accent.container, shape = MaterialTheme.shapes.small) {
+                    Text(
+                        text = "SUPERSET",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = accent.onContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
+                Text(
+                    text = "${group.exerciseBlocks.size} exercises",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            group.exerciseBlocks.forEachIndexed { index, block ->
+                HistoryExerciseBlockSection(block)
+                if (index < group.exerciseBlocks.lastIndex) {
+                    HorizontalDivider()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryExerciseBlockCard(block: WorkoutExerciseBlock) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        HistoryExerciseBlockSection(
+            block = block,
+            modifier = Modifier.padding(12.dp),
+        )
+    }
+}
+
+@Composable
+private fun HistoryExerciseBlockSection(
+    block: WorkoutExerciseBlock,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            block.supersetLabel?.let { label ->
+                Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                    )
+                }
+            }
+            Text(block.exercise.name, style = MaterialTheme.typography.titleMedium)
+        }
+        block.sets.forEachIndexed { index, set ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = historySetLabel(index, set.setType),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.weight(0.35f),
+                )
+                Text(
+                    text = set.setType.replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(0.9f),
+                )
+                Text(
+                    text = "${set.weightKg?.formatKg() ?: "-"} kg",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(0.9f),
+                )
+                Text(
+                    text = "${set.reps ?: "-"} reps",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(0.9f),
+                )
+                Text(
+                    text = set.rpe?.let { "RPE ${it.formatKg()}" } ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(0.9f),
+                )
+            }
+            if (index < block.sets.lastIndex) {
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
+@Composable
 private fun HistorySummaryMetric(
     label: String,
     value: String,
@@ -149,6 +345,19 @@ private fun HistorySummaryMetric(
         Text(value, style = MaterialTheme.typography.titleMedium)
     }
 }
+
+internal fun historyDetailGroupingsForDisplay(detail: WorkoutHistoryDetail): List<ExerciseGrouping> =
+    detail.exerciseGroupings.ifEmpty {
+        detail.exerciseBlocks.map { ExerciseGrouping.Single(it) }
+    }
+
+private fun historySetLabel(index: Int, setType: String): String =
+    when (setType.lowercase()) {
+        "warmup" -> "W"
+        "drop" -> "D"
+        "failure" -> "F"
+        else -> "${index + 1}"
+    }
 
 private fun WorkoutHistorySummary.durationLabel(): String? {
     val endedAt = endedAtEpochMillis ?: return null

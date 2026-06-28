@@ -28,6 +28,28 @@ data class TrainingTrendPoint(
     val heaviestWeightKg: Double = 0.0,
 )
 
+data class ExerciseProgressHistoryEntry(
+    val dateEpochDay: Long,
+    val completedSetCount: Int,
+    val volumeKg: Double,
+    val bestEstimatedOneRepMaxKg: Double,
+    val bestSetLabel: String,
+)
+
+data class ExerciseBestSetSummary(
+    val dateEpochDay: Long,
+    val reps: Int,
+    val weightKg: Double,
+    val estimatedOneRepMaxKg: Double,
+)
+
+data class ExercisePrTimelineEntry(
+    val dateEpochDay: Long,
+    val reps: Int,
+    val weightKg: Double,
+    val estimatedOneRepMaxKg: Double,
+)
+
 data class ExerciseProgress(
     val exerciseId: String,
     val exerciseName: String,
@@ -38,4 +60,7 @@ data class ExerciseProgress(
     val bestEstimatedOneRepMaxKg: Double,
     val bestWorkoutVolumeKg: Double,
     val trend: List<TrainingTrendPoint>,
+    val history: List<ExerciseProgressHistoryEntry> = emptyList(),
+    val bestSets: List<ExerciseBestSetSummary> = emptyList(),
+    val prTimeline: List<ExercisePrTimelineEntry> = emptyList(),
 )

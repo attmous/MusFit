@@ -66,5 +66,12 @@ class WorkoutCalculatorTest {
         // Per-day heaviest = max completed single-set weight that day (incomplete 120kg excluded).
         assertEquals(102.5, progress.trend.first().heaviestWeightKg, 0.01)
         assertEquals(110.0, progress.trend.last().heaviestWeightKg, 0.01)
+        assertEquals(2, progress.history.size)
+        assertEquals(2, progress.history.first().completedSetCount)
+        assertEquals("102.5 kg x 5", progress.history.first().bestSetLabel)
+        assertEquals(2, progress.bestSets.size)
+        assertEquals(110.0, progress.bestSets.first().weightKg, 0.01)
+        assertEquals(3, progress.bestSets.first().reps)
+        assertEquals(listOf(116.67, 119.58, 121.0), progress.prTimeline.map { it.estimatedOneRepMaxKg })
     }
 }

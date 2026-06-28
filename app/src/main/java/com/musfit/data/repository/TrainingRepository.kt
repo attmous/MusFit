@@ -45,6 +45,24 @@ data class TrainingSummary(
     val bestEstimatedOneRepMaxKg: Double = 0.0,
 )
 
+data class MuscleGroupProgress(
+    val muscle: String,
+    val completedSetCount: Int,
+    val totalVolumeKg: Double,
+)
+
+data class WeeklyTrainingVolume(
+    val weekStartEpochDay: Long,
+    val workoutCount: Int,
+    val completedSetCount: Int,
+    val totalVolumeKg: Double,
+)
+
+data class TrainingProgressAnalytics(
+    val muscleGroups: List<MuscleGroupProgress> = emptyList(),
+    val weeklyVolume: List<WeeklyTrainingVolume> = emptyList(),
+)
+
 data class WorkoutForExport(
     val session: WorkoutSessionEntity,
     val sets: List<WorkoutSetEntity>,
@@ -210,6 +228,7 @@ data class WorkoutHistorySummary(
 data class WorkoutHistoryDetail(
     val summary: WorkoutHistorySummary,
     val exerciseBlocks: List<WorkoutExerciseBlock>,
+    val exerciseGroupings: List<ExerciseGrouping> = emptyList(),
 )
 
 interface TrainingRepository {
@@ -244,6 +263,8 @@ interface TrainingRepository {
     fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = flowOf(emptyList())
 
     fun observeExerciseProgress(exerciseId: String): Flow<ExerciseProgress?> = flowOf(null)
+
+    fun observeTrainingProgressAnalytics(): Flow<TrainingProgressAnalytics> = flowOf(TrainingProgressAnalytics())
 
     suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? = null
 
@@ -443,6 +464,11 @@ class LocalTrainingRepository @Inject constructor(
             rows.toExerciseProgress()
         }
 
+    override fun observeTrainingProgressAnalytics(): Flow<TrainingProgressAnalytics> =
+        trainingDao.observeCompletedExerciseProgressSetRows().map { rows ->
+            rows.toTrainingProgressAnalytics()
+        }
+
     override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? {
         val session = trainingDao.getCompletedWorkoutSession(sessionId) ?: return null
         val summary = trainingDao.observeWorkoutHistorySummaries().first()
@@ -454,6 +480,7 @@ class LocalTrainingRepository @Inject constructor(
         return WorkoutHistoryDetail(
             summary = summary,
             exerciseBlocks = detail.exerciseBlocks,
+            exerciseGroupings = detail.exerciseGroupings,
         )
     }
 
@@ -1188,6 +1215,58 @@ private fun List<ExerciseProgressSetRow>.toExerciseProgress(): ExerciseProgress?
         sets = inputs,
     )
 }
+
+private fun List<ExerciseProgressSetRow>.toTrainingProgressAnalytics(): TrainingProgressAnalytics {
+    val validRows = filter { row ->
+        row.completed && (row.reps ?: 0) > 0 && (row.weightKg ?: 0.0) > 0.0
+    }
+    val muscleGroups = validRows
+        .flatMap { row ->
+            row.targetMuscles.parseMuscleList().map { muscle -> muscle to row }
+        }
+        .groupBy({ it.first }, { it.second })
+        .map { (muscle, rows) ->
+            MuscleGroupProgress(
+                muscle = muscle,
+                completedSetCount = rows.size,
+                totalVolumeKg = rows.sumOf { it.volumeKg() },
+            )
+        }
+        .sortedWith(compareByDescending<MuscleGroupProgress> { it.totalVolumeKg }.thenBy { it.muscle })
+
+    val weeklyVolume = validRows
+        .groupBy { row -> row.startedAtEpochMillis.trainingDate().weekStartEpochDay() }
+        .toSortedMap()
+        .map { (weekStartEpochDay, rows) ->
+            WeeklyTrainingVolume(
+                weekStartEpochDay = weekStartEpochDay,
+                workoutCount = rows.map { it.sessionId }.distinct().size,
+                completedSetCount = rows.size,
+                totalVolumeKg = rows.sumOf { it.volumeKg() },
+            )
+        }
+
+    return TrainingProgressAnalytics(
+        muscleGroups = muscleGroups,
+        weeklyVolume = weeklyVolume,
+    )
+}
+
+private fun String.parseMuscleList(): List<String> =
+    split(",")
+        .map { it.trim().lowercase() }
+        .filter { it.isNotBlank() }
+        .distinct()
+
+private fun ExerciseProgressSetRow.volumeKg(): Double = (reps ?: 0) * (weightKg ?: 0.0)
+
+private fun Long.trainingDate(): LocalDate =
+    Instant.ofEpochMilli(this)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDate()
+
+private fun LocalDate.weekStartEpochDay(): Long =
+    minusDays((dayOfWeek.value - 1).toLong()).toEpochDay()
 
 private data class ParsedWorkoutSetNotes(
     val targetReps: String?,

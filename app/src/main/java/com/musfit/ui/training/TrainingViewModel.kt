@@ -15,6 +15,7 @@ import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
+import com.musfit.data.repository.TrainingProgressAnalytics
 import com.musfit.data.repository.TrainingSettings
 import com.musfit.data.repository.TrainingSettingsInput
 import com.musfit.data.repository.WorkoutHistoryDetail
@@ -32,6 +33,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import javax.inject.Inject
 
 enum class TrainingSection {
@@ -65,6 +72,30 @@ data class RestTimerState(
     val isRunning: Boolean = false,
 )
 
+data class TrainingHistoryCalendarDay(
+    val date: LocalDate,
+    val workoutCount: Int,
+    val completedSetCount: Int,
+    val totalVolumeKg: Double,
+)
+
+data class TrainingHistoryOverview(
+    val monthLabel: String = "",
+    val calendarWeeks: List<List<TrainingHistoryCalendarDay?>> = emptyList(),
+    val currentWeekWorkoutCount: Int = 0,
+    val currentWeekTrainingDayCount: Int = 0,
+    val currentWeekCompletedSetCount: Int = 0,
+    val currentWeekVolumeKg: Double = 0.0,
+    val currentStreakDays: Int = 0,
+    val bestStreakDays: Int = 0,
+)
+
+data class TrainingDashboardState(
+    val nextSuggestedRoutine: RoutineSummary? = null,
+    val quickStartRoutines: List<RoutineSummary> = emptyList(),
+    val recentWorkout: WorkoutHistorySummary? = null,
+)
+
 data class TrainingUiState(
     val selectedSection: TrainingSection = TrainingSection.Routines,
     val routines: List<RoutineSummary> = emptyList(),
@@ -76,8 +107,11 @@ data class TrainingUiState(
     val activeWorkoutSummary: ActiveWorkoutSummary? = null,
     val activeWorkout: ActiveWorkoutDetail? = null,
     val workoutHistory: List<WorkoutHistorySummary> = emptyList(),
+    val historyOverview: TrainingHistoryOverview = TrainingHistoryOverview(),
+    val dashboard: TrainingDashboardState = TrainingDashboardState(),
     val selectedProgressExerciseId: String? = null,
     val selectedExerciseProgress: ExerciseProgress? = null,
+    val progressAnalytics: TrainingProgressAnalytics = TrainingProgressAnalytics(),
     val selectedWorkoutDetail: WorkoutHistoryDetail? = null,
     val exerciseSearchQuery: String = "",
     val exerciseMuscleFilter: String? = null,
@@ -130,6 +164,7 @@ class TrainingViewModel @Inject constructor(
                         exercises = exercises,
                         activeWorkoutSummary = activeWorkout,
                     ).withVisibleRoutines()
+                        .withDashboard()
                         .withFilteredExercises()
                 }
             }
@@ -171,7 +206,17 @@ class TrainingViewModel @Inject constructor(
         }
         viewModelScope.launch {
             repository.observeWorkoutHistory().collect { history ->
-                mutableState.update { it.copy(workoutHistory = history) }
+                mutableState.update {
+                    it.copy(
+                        workoutHistory = history,
+                        historyOverview = buildTrainingHistoryOverview(history),
+                    ).withDashboard()
+                }
+            }
+        }
+        viewModelScope.launch {
+            repository.observeTrainingProgressAnalytics().collect { analytics ->
+                mutableState.update { it.copy(progressAnalytics = analytics) }
             }
         }
     }
@@ -230,6 +275,7 @@ class TrainingViewModel @Inject constructor(
         mutableState.update {
             it.copy(selectedRoutineProgram = value?.trim()?.takeIf(String::isNotBlank))
                 .withVisibleRoutines()
+                .withDashboard()
         }
     }
 
@@ -976,6 +1022,9 @@ class TrainingViewModel @Inject constructor(
         )
     }
 
+    private fun TrainingUiState.withDashboard(): TrainingUiState =
+        copy(dashboard = buildTrainingDashboard(visibleRoutines, workoutHistory))
+
     private fun moveRoutineExercise(fromIndex: Int, toIndex: Int) {
         mutableState.update { current ->
             val exercises = current.routineEditor.exercises
@@ -1056,6 +1105,93 @@ class TrainingViewModel @Inject constructor(
 
     private fun isStarterRoutine(routineId: String?): Boolean =
         routineId != null && state.value.routines.any { it.id == routineId && it.isStarter }
+}
+
+internal fun buildTrainingHistoryOverview(
+    history: List<WorkoutHistorySummary>,
+    today: LocalDate = LocalDate.now(),
+): TrainingHistoryOverview {
+    val workoutsByDate = history.groupBy { it.trainingDate() }
+    val currentMonth = YearMonth.from(today)
+    val firstOfMonth = currentMonth.atDay(1)
+    val monthCells = mutableListOf<TrainingHistoryCalendarDay?>()
+    repeat(firstOfMonth.dayOfWeek.value - 1) {
+        monthCells += null
+    }
+    repeat(currentMonth.lengthOfMonth()) { dayIndex ->
+        val date = currentMonth.atDay(dayIndex + 1)
+        val workouts = workoutsByDate[date].orEmpty()
+        monthCells += TrainingHistoryCalendarDay(
+            date = date,
+            workoutCount = workouts.size,
+            completedSetCount = workouts.sumOf { it.completedSetCount },
+            totalVolumeKg = workouts.sumOf { it.totalVolumeKg },
+        )
+    }
+    while (monthCells.size % 7 != 0) {
+        monthCells += null
+    }
+
+    val startOfWeek = today.minusDays((today.dayOfWeek.value - 1).toLong())
+    val endOfWeek = startOfWeek.plusDays(6)
+    val currentWeekWorkouts = history.filter { workout ->
+        val date = workout.trainingDate()
+        !date.isBefore(startOfWeek) && !date.isAfter(endOfWeek)
+    }
+    val trainingDays = workoutsByDate.keys.sorted()
+
+    return TrainingHistoryOverview(
+        monthLabel = currentMonth.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)),
+        calendarWeeks = monthCells.chunked(7),
+        currentWeekWorkoutCount = currentWeekWorkouts.size,
+        currentWeekTrainingDayCount = currentWeekWorkouts.map { it.trainingDate() }.distinct().size,
+        currentWeekCompletedSetCount = currentWeekWorkouts.sumOf { it.completedSetCount },
+        currentWeekVolumeKg = currentWeekWorkouts.sumOf { it.totalVolumeKg },
+        currentStreakDays = currentStreakDays(trainingDays, today),
+        bestStreakDays = bestStreakDays(trainingDays),
+    )
+}
+
+internal fun buildTrainingDashboard(
+    visibleRoutines: List<RoutineSummary>,
+    history: List<WorkoutHistorySummary>,
+): TrainingDashboardState =
+    TrainingDashboardState(
+        nextSuggestedRoutine = visibleRoutines.firstOrNull(),
+        quickStartRoutines = visibleRoutines.take(3),
+        recentWorkout = history.maxByOrNull { it.startedAtEpochMillis },
+    )
+
+private fun WorkoutHistorySummary.trainingDate(): LocalDate =
+    Instant.ofEpochMilli(startedAtEpochMillis)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDate()
+
+private fun currentStreakDays(trainingDays: List<LocalDate>, today: LocalDate): Int {
+    val daySet = trainingDays.toSet()
+    var cursor = when {
+        today in daySet -> today
+        today.minusDays(1) in daySet -> today.minusDays(1)
+        else -> return 0
+    }
+    var streak = 0
+    while (cursor in daySet) {
+        streak += 1
+        cursor = cursor.minusDays(1)
+    }
+    return streak
+}
+
+private fun bestStreakDays(trainingDays: List<LocalDate>): Int {
+    var best = 0
+    var current = 0
+    var previous: LocalDate? = null
+    trainingDays.forEach { day ->
+        current = if (previous?.plusDays(1) == day) current + 1 else 1
+        if (current > best) best = current
+        previous = day
+    }
+    return best
 }
 
 private const val DEFAULT_REST_TIMER_SECONDS = 120

@@ -589,6 +589,28 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun workoutHistoryDetail_preservesSupersetGroupingsAfterFinish() = runTest {
+        repository.seedStarterTrainingData()
+        val exercises = repository.observeExercises(query = "").first()
+        val a = exercises[0]
+        val b = exercises[1]
+        val sessionId = repository.startBlankWorkout()
+        repository.addExerciseToActiveWorkout(sessionId, a.id)
+        repository.addExerciseToActiveWorkout(sessionId, b.id)
+        val groupId = repository.createSuperset(sessionId, a.id, b.id) ?: error("expected group")
+
+        repository.finishWorkout(sessionId)
+
+        val detail = repository.getWorkoutHistoryDetail(sessionId)
+        val groupings = detail?.exerciseGroupings.orEmpty()
+        val superset = groupings.filterIsInstance<ExerciseGrouping.Superset>().single()
+
+        assertEquals(groupId, superset.group.supersetGroupId)
+        assertEquals(listOf("A", "B"), superset.group.exerciseBlocks.map { it.supersetLabel })
+        assertEquals(listOf(a.id, b.id), superset.group.exerciseBlocks.map { it.exercise.id })
+    }
+
+    @Test
     fun addExerciseToActiveWorkout_addsVisibleIncompleteWorkingSet() = runTest {
         repository.seedStarterTrainingData()
         val bench = repository.observeExercises(query = "bench").first().single()
@@ -1339,6 +1361,35 @@ class LocalTrainingRepositoryTest {
         val progress = repository.observeExerciseProgress(bench.id).first()
 
         assertEquals(null, progress)
+    }
+
+    @Test
+    fun observeTrainingProgressAnalytics_groupsMusclesAndWeeklyVolume() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val row = repository.observeExercises(query = "row").first().first()
+
+        currentInstant = WORKOUT_START.minusSeconds(6 * 86_400L)
+        val previousWeekSession = repository.startBlankWorkout()
+        repository.addSetToExercise(previousWeekSession, bench.id, WorkoutSetInputData("working", 5, 100.0, null, null, true))
+        repository.finishWorkout(previousWeekSession)
+
+        currentInstant = WORKOUT_START
+        val currentWeekSession = repository.startBlankWorkout()
+        repository.addSetToExercise(currentWeekSession, row.id, WorkoutSetInputData("working", 10, 50.0, null, null, true))
+        repository.finishWorkout(currentWeekSession)
+
+        val analytics = repository.observeTrainingProgressAnalytics().first()
+        val muscles = analytics.muscleGroups.associateBy { it.muscle }
+
+        assertEquals(500.0, muscles.getValue("chest").totalVolumeKg, 0.01)
+        assertEquals(1, muscles.getValue("chest").completedSetCount)
+        assertEquals(500.0, muscles.getValue("back").totalVolumeKg, 0.01)
+        assertEquals(1, muscles.getValue("back").completedSetCount)
+        assertEquals(2, analytics.weeklyVolume.size)
+        assertTrue(analytics.weeklyVolume.first().weekStartEpochDay < analytics.weeklyVolume.last().weekStartEpochDay)
+        assertEquals(listOf(1, 1), analytics.weeklyVolume.map { it.workoutCount })
+        assertEquals(listOf(500.0, 500.0), analytics.weeklyVolume.map { it.totalVolumeKg })
     }
 
     @Test

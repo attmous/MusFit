@@ -268,6 +268,9 @@ Source: `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
 | --- | --- |
 | `LoggedWorkoutSet` | Quick logger row and summary input. |
 | `TrainingSummary` | Daily completed sets, total volume, and best estimated one-rep max. |
+| `TrainingProgressAnalytics` | Derived all-training progress analytics for muscle-group volume and weekly volume. |
+| `MuscleGroupProgress` | Completed set count and volume for one target muscle. |
+| `WeeklyTrainingVolume` | Completed workout count, set count, and volume for one calendar week. |
 | `WorkoutForExport` | Latest completed session plus sets for Health Connect export. |
 | `ExerciseSummary` | Exercise library row exposed to UI, including primary/secondary muscles for local search/filtering. |
 | `ExerciseDetail` | Exercise detail/drill-down row with equipment, category, primary/secondary muscles, instructions, and local notes. |
@@ -286,7 +289,7 @@ Source: `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
 | `ExerciseGrouping` | Active workout render grouping: `Single` for standalone exercises or `Superset` for grouped exercise blocks. |
 | `ActiveWorkoutDetail` | Full active workout state, including session notes. |
 | `WorkoutHistorySummary` | Completed workout list row. |
-| `WorkoutHistoryDetail` | Completed workout detail. |
+| `WorkoutHistoryDetail` | Completed workout detail, including flat exercise blocks and derived superset groupings for history display. |
 
 Key read APIs:
 
@@ -299,6 +302,7 @@ fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?>
 fun observeTrainingSettings(): Flow<TrainingSettings>
 fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>>
 fun observeExerciseProgress(exerciseId: String): Flow<ExerciseProgress?>
+fun observeTrainingProgressAnalytics(): Flow<TrainingProgressAnalytics>
 suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail?
 fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary>
 ```
@@ -471,6 +475,9 @@ Models:
 - `PersonalRecords`
 - `ExerciseProgressSetInput`
 - `TrainingTrendPoint`
+- `ExerciseProgressHistoryEntry`
+- `ExerciseBestSetSummary`
+- `ExercisePrTimelineEntry`
 - `ExerciseProgress`
 - `ChartPoint`
 - `ChartGeometry`

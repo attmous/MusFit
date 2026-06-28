@@ -127,7 +127,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         TrainingHeader(
-            history = state.workoutHistory,
+            overview = state.historyOverview,
             accent = accent,
             onHistory = { viewModel.selectSection(TrainingSection.History) },
         )
@@ -140,6 +140,14 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 onResume = viewModel::resumeActiveWorkout,
             )
         }
+
+        TrainingDashboardCard(
+            dashboard = state.dashboard,
+            accent = accent,
+            onStartRoutine = viewModel::startRoutine,
+            onStartBlank = viewModel::startBlankWorkout,
+            onHistory = { viewModel.selectSection(TrainingSection.History) },
+        )
 
         SectionChips(
             selected = state.selectedSection,
@@ -216,6 +224,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 TrainingHistoryContent(
                     history = state.workoutHistory,
                     selectedDetail = state.selectedWorkoutDetail,
+                    overview = state.historyOverview,
                     accent = accent,
                     onOpenDetail = viewModel::openWorkoutDetail,
                     onCloseDetail = viewModel::closeWorkoutDetail,
@@ -225,6 +234,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     exercises = state.exercises,
                     selectedExerciseId = state.selectedProgressExerciseId,
                     progress = state.selectedExerciseProgress,
+                    analytics = state.progressAnalytics,
                     accent = accent,
                     onSelectExercise = viewModel::selectProgressExercise,
                 )
@@ -234,17 +244,15 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
 
 @Composable
 private fun TrainingHeader(
-    history: List<com.musfit.data.repository.WorkoutHistorySummary>,
+    overview: TrainingHistoryOverview,
     accent: TabAccent,
     onHistory: () -> Unit,
 ) {
-    val weekAgo = System.currentTimeMillis() - 7L * 86_400_000L
-    val thisWeek = history.filter { it.startedAtEpochMillis >= weekAgo }
     val subtitle =
-        if (thisWeek.isEmpty()) {
+        if (overview.currentWeekWorkoutCount == 0) {
             "No workouts yet this week"
         } else {
-            "This week · ${thisWeek.size} ${if (thisWeek.size == 1) "workout" else "workouts"} · ${thisWeek.sumOf { it.totalVolumeKg }.formatKg()} kg"
+            "This week · ${overview.currentWeekWorkoutCount} ${if (overview.currentWeekWorkoutCount == 1) "workout" else "workouts"} · ${overview.currentWeekVolumeKg.formatKg()} kg"
         }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
@@ -253,6 +261,61 @@ private fun TrainingHeader(
         }
         IconButton(onClick = onHistory) {
             Icon(Icons.Outlined.History, contentDescription = "Workout history", tint = accent.color)
+        }
+    }
+}
+
+@Composable
+private fun TrainingDashboardCard(
+    dashboard: TrainingDashboardState,
+    accent: TabAccent,
+    onStartRoutine: (String) -> Unit,
+    onStartBlank: () -> Unit,
+    onHistory: () -> Unit,
+) {
+    Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Dashboard", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            dashboard.nextSuggestedRoutine?.let { routine ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Next routine", style = MaterialTheme.typography.labelMedium, color = MusFitTheme.colors.onSurfaceVariant)
+                        Text(routine.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text("${routine.exerciseCount} exercises · ${routine.targetSetCount} sets", style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
+                    }
+                    Button(onClick = { onStartRoutine(routine.id) }, colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer)) {
+                        Text("Start")
+                    }
+                }
+            } ?: Text("Create or duplicate a routine to get a suggested next workout.", color = MusFitTheme.colors.onSurfaceVariant)
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                TextButton(onClick = onStartBlank) { Text("Blank workout", color = accent.color) }
+                dashboard.quickStartRoutines.forEach { routine ->
+                    TextButton(onClick = { onStartRoutine(routine.id) }) {
+                        Text(routine.name, color = accent.color)
+                    }
+                }
+            }
+
+            dashboard.recentWorkout?.let { workout ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Recent workout", style = MaterialTheme.typography.labelMedium, color = MusFitTheme.colors.onSurfaceVariant)
+                        Text(workout.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text("${workout.completedSetCount} sets · ${workout.totalVolumeKg.formatKg()} kg", style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
+                    }
+                    TextButton(onClick = onHistory) { Text("History", color = accent.color) }
+                }
+            }
         }
     }
 }
