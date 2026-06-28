@@ -289,7 +289,8 @@ Source: `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
 | `ExerciseGrouping` | Active workout render grouping: `Single` for standalone exercises or `Superset` for grouped exercise blocks. |
 | `ActiveWorkoutDetail` | Full active workout state, including session notes. |
 | `WorkoutHistorySummary` | Completed workout list row. |
-| `WorkoutHistoryDetail` | Completed workout detail, including flat exercise blocks and derived superset groupings for history display. |
+| `WorkoutRecapSummary` | Completed workout recap: duration, exercises, completed sets, volume, PR count, and session notes. |
+| `WorkoutHistoryDetail` | Completed workout detail, including flat exercise blocks, derived superset groupings for history display, and a recap summary. |
 
 Key read APIs:
 
@@ -632,9 +633,10 @@ sequenceDiagram
     UI->>VM: finishActiveWorkout()
     VM->>Repo: finishWorkout(sessionId)
     Repo->>Dao: update workout session status
+    VM->>Repo: getWorkoutHistoryDetail(sessionId)
     Dao-->>Repo: Flow invalidation
     Repo-->>VM: observeActiveWorkoutDetail/summary/history
-    VM-->>UI: active workout closes and history updates
+    VM-->>UI: active workout closes and History opens selected recap detail
 ```
 
 ## Schema Change Checklist

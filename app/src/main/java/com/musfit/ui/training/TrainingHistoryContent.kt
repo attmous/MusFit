@@ -23,6 +23,7 @@ import com.musfit.data.repository.SupersetGroup
 import com.musfit.data.repository.WorkoutExerciseBlock
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
+import com.musfit.data.repository.WorkoutRecapSummary
 import com.musfit.ui.theme.TabAccent
 import java.util.Locale
 
@@ -38,36 +39,7 @@ fun TrainingHistoryContent(
     if (selectedDetail != null) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             TextButton(onClick = onCloseDetail) { Text("Back", color = accent.color) }
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(selectedDetail.summary.title, style = MaterialTheme.typography.headlineSmall)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        HistorySummaryMetric(
-                            label = "Sets",
-                            value = selectedDetail.summary.completedSetCount.toString(),
-                            modifier = Modifier.weight(1f),
-                        )
-                        HistorySummaryMetric(
-                            label = "Volume",
-                            value = "${selectedDetail.summary.totalVolumeKg.formatKg()} kg",
-                            modifier = Modifier.weight(1f),
-                        )
-                        selectedDetail.summary.durationLabel()?.let { duration ->
-                            HistorySummaryMetric(
-                                label = "Duration",
-                                value = duration,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
-            }
+            WorkoutRecapCard(selectedDetail)
             historyDetailGroupingsForDisplay(selectedDetail).forEach { grouping ->
                 when (grouping) {
                     is ExerciseGrouping.Single -> HistoryExerciseBlockCard(grouping.block)
@@ -96,6 +68,51 @@ fun TrainingHistoryContent(
                         Text("Open", color = accent.color)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutRecapCard(detail: WorkoutHistoryDetail) {
+    val recap = detail.effectiveRecap()
+    val metrics = workoutRecapMetricsForDisplay(recap)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(detail.summary.title, style = MaterialTheme.typography.headlineSmall)
+            Text(
+                "Workout recap",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            metrics.chunked(3).forEach { rowMetrics ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    rowMetrics.forEach { metric ->
+                        HistorySummaryMetric(
+                            label = metric.label,
+                            value = metric.value,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    repeat(3 - rowMetrics.size) {
+                        Box(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+            recap.notes?.takeIf { it.isNotBlank() }?.let { notes ->
+                HorizontalDivider()
+                Text(
+                    "Notes",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(notes, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -351,6 +368,50 @@ internal fun historyDetailGroupingsForDisplay(detail: WorkoutHistoryDetail): Lis
         detail.exerciseBlocks.map { ExerciseGrouping.Single(it) }
     }
 
+internal data class RecapMetric(
+    val label: String,
+    val value: String,
+)
+
+internal fun workoutRecapMetricsForDisplay(recap: WorkoutRecapSummary): List<RecapMetric> =
+    listOf(
+        RecapMetric("Duration", recap.durationSeconds.durationLabel()),
+        RecapMetric("Sets", recap.completedSetCount.toString()),
+        RecapMetric("Volume", "${recap.totalVolumeKg.formatKg()} kg"),
+        RecapMetric("Exercises", recap.exerciseCount.toString()),
+        RecapMetric("PRs", recap.personalRecordCount.toString()),
+    )
+
+internal fun workoutRecapMetricsForDisplay(detail: WorkoutHistoryDetail): List<RecapMetric> =
+    workoutRecapMetricsForDisplay(detail.effectiveRecap())
+
+private fun WorkoutHistoryDetail.effectiveRecap(): WorkoutRecapSummary =
+    if (recap.hasVisibleData()) {
+        recap
+    } else {
+        WorkoutRecapSummary(
+            durationSeconds = summary.durationSeconds(),
+            exerciseCount = exerciseBlocks.size,
+            completedSetCount = summary.completedSetCount,
+            totalVolumeKg = summary.totalVolumeKg,
+            personalRecordCount = 0,
+            notes = null,
+        )
+    }
+
+private fun WorkoutRecapSummary.hasVisibleData(): Boolean =
+    durationSeconds > 0 ||
+        exerciseCount > 0 ||
+        completedSetCount > 0 ||
+        totalVolumeKg > 0.0 ||
+        personalRecordCount > 0 ||
+        !notes.isNullOrBlank()
+
+private fun WorkoutHistorySummary.durationSeconds(): Int {
+    val endedAt = endedAtEpochMillis ?: startedAtEpochMillis
+    return ((endedAt - startedAtEpochMillis).coerceAtLeast(0L) / 1000L).toInt()
+}
+
 private fun historySetLabel(index: Int, setType: String): String =
     when (setType.lowercase()) {
         "warmup" -> "W"
@@ -359,9 +420,8 @@ private fun historySetLabel(index: Int, setType: String): String =
         else -> "${index + 1}"
     }
 
-private fun WorkoutHistorySummary.durationLabel(): String? {
-    val endedAt = endedAtEpochMillis ?: return null
-    val totalSeconds = ((endedAt - startedAtEpochMillis).coerceAtLeast(0L) / 1000L).toInt()
+private fun Int.durationLabel(): String {
+    val totalSeconds = coerceAtLeast(0)
     val hours = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60

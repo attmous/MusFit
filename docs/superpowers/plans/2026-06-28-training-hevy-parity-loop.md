@@ -48,8 +48,8 @@
 | 7. Workout History Calendar And Consistency | Complete | Added derived `TrainingHistoryOverview` state with current-month calendar weeks, current-week workouts, distinct training days, completed sets, volume, current streak, and best streak. History screen now shows a compact month grid and consistency summary while preserving list/detail and superset detail behavior. Overview remains current-month/current-week focused rather than a drillable multi-month calendar. | `app/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`, `app/src/main/java/com/musfit/ui/training/TrainingScreen.kt`, `app/src/main/java/com/musfit/ui/training/TrainingHistoryContent.kt`, `app/src/test/java/com/musfit/ui/training/TrainingViewModelTest.kt`, docs | Added overview builder/state tests for week totals, calendar aggregation, and streaks | Passed focused ViewModel, repository, active content, history content, and calculator tests on 2026-06-28 |
 | 8. Progress Analytics | Complete | Added derived all-training analytics for muscle-group volume/set counts and weekly volume; extended selected exercise progress with per-day history rows, best daily set summaries, and estimated-1RM PR timeline; Progress tab now renders analytics overview and selected-exercise deep dive. Analytics are local/deterministic and not cached. | `app/src/main/java/com/musfit/domain/model/TrainingModels.kt`, `app/src/main/java/com/musfit/domain/training/WorkoutCalculator.kt`, `app/src/main/java/com/musfit/data/local/dao/TrainingDao.kt`, `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`, `app/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`, `app/src/main/java/com/musfit/ui/training/TrainingScreen.kt`, `app/src/main/java/com/musfit/ui/training/TrainingProgressContent.kt`, tests, docs | Added domain progress history/best-set/PR timeline assertions, repository muscle/weekly analytics test, and ViewModel analytics-state test | Passed focused domain, repository, ViewModel, active content, and history content tests on 2026-06-28 |
 | 9. Training Dashboard Polish | Complete | Added derived dashboard state and a top dashboard card with next visible routine, quick-start routines, blank workout start, and recent completed workout while preserving active workout resume and weekly header. Next routine is a deterministic visible-routine heuristic, not adaptive progression. | `app/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`, `app/src/main/java/com/musfit/ui/training/TrainingScreen.kt`, `app/src/test/java/com/musfit/ui/training/TrainingViewModelTest.kt`, docs | Added ViewModel dashboard state test for routine suggestion, quick starts, recent workout, and program filter coherence | Passed focused ViewModel, repository, active content, history content, and calculator tests on 2026-06-28 |
-| 10. Finish Flow And Workout Recap | Pending | Finish/discard confirmations and history detail exist. No immediate post-workout recap surface with PRs, exercises, notes, duration, sets, and volume. | None yet | None | Pending |
-| 11. Performance, Reliability, And Closeout | Pending | Needs final query/state audit, missing high-risk tests, full Gradle verification, and final ledger closeout. | None yet | None | Pending |
+| 10. Finish Flow And Workout Recap | Complete | Finish/discard confirmations already existed. Added completed-workout recap data and History detail recap card with duration, exercises, completed sets, volume, PR count, and session notes; finishing a workout already opens that detail route. No social sharing/feed was added. | `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`, `app/src/main/java/com/musfit/ui/training/TrainingHistoryContent.kt`, `app/src/test/java/com/musfit/data/repository/LocalTrainingRepositoryTest.kt`, `app/src/test/java/com/musfit/ui/training/TrainingHistoryContentTest.kt`, docs | Added repository recap derivation test and history recap metric formatting test | Passed focused repository/history tests and focused Training regression on 2026-06-28 |
+| 11. Performance, Reliability, And Closeout | Complete | Audited DAO query shape, active route stale-state fallback, history/progress empty states, migration risk, and full verification. Tightened history recap fallback for older/fake details and replaced completed-detail summary lookup with a direct DAO query. No schema change was made. | `app/src/main/java/com/musfit/data/local/dao/TrainingDao.kt`, `app/src/main/java/com/musfit/ui/training/TrainingHistoryContent.kt`, `app/src/test/java/com/musfit/ui/training/TrainingHistoryContentTest.kt`, `docs/superpowers/plans/2026-06-28-training-hevy-parity-loop.md` | Added history recap fallback metric test | Passed focused Training regression and full `testDebugUnitTest lintDebug assembleDebug` on 2026-06-28 |
 
 ## Audit Evidence
 
@@ -69,7 +69,7 @@ Existing implemented parity foundations:
 - Routine create/edit/duplicate/delete/start and exercise reordering exist.
 - Active workouts can be started blank or from routines.
 - Active workout set logging supports edit, duplicate, delete, completion, RPE, notes, previous labels, warmup/working/drop/failure labels, rest timer settings, warm-up suggestions, PR badge logic, configurable plate hints, and supersets.
-- Completed workout history overview, month grid, consistency metrics, list, and detail exist, including grouped superset display after finish.
+- Completed workout history overview, month grid, consistency metrics, list, recap, and detail exist, including grouped superset display after finish.
 - Exercise progress PR metrics, trend chart, history rows, best sets, PR timeline, muscle group analytics, and weekly volume analytics exist.
 - Completed workouts feed Today and Health Connect export boundaries.
 
@@ -79,7 +79,7 @@ Known gaps from Slice 0 audit:
 - Exercise library lacks a true detail/drill-down surface and richer original MusFit exercise metadata.
 - Routine organization is limited to a flat routine list and starter routines.
 - Active logger does not expose drop/failure set type choices or set reorder.
-- Finish flow lacks a post-workout recap surface.
+- Finish flow opens the completed workout in History with a local recap surface.
 
 ## Verification Log
 
@@ -125,6 +125,14 @@ Known gaps from Slice 0 audit:
 | 2026-06-28 | Slice 9 red test | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --no-daemon --console=plain` | Failed as expected before implementation: missing dashboard state |
 | 2026-06-28 | Slice 9 ViewModel | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --no-daemon --console=plain` | Passed |
 | 2026-06-28 | Slice 9 focused Training regression | `. .\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --tests "com.musfit.ui.training.TrainingActiveWorkoutContentTest" --tests "com.musfit.ui.training.TrainingHistoryContentTest" --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --tests "com.musfit.domain.training.WorkoutCalculatorTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 10 focused Training baseline in isolated worktree | `. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --tests "com.musfit.ui.training.TrainingActiveWorkoutContentTest" --tests "com.musfit.ui.training.TrainingHistoryContentTest" --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --tests "com.musfit.domain.training.WorkoutCalculatorTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 10 red test | `. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest.workoutHistoryDetail_includesWorkoutRecapAfterFinish" --tests "com.musfit.ui.training.TrainingHistoryContentTest.workoutRecapMetricsForDisplay_formatsCoreRecapStats" --no-daemon --console=plain` | Failed as expected before implementation: missing recap model/detail field/display helper |
+| 2026-06-28 | Slice 10 repository/history focused check | `. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalTrainingRepositoryTest.workoutHistoryDetail_includesWorkoutRecapAfterFinish" --tests "com.musfit.ui.training.TrainingHistoryContentTest.workoutRecapMetricsForDisplay_formatsCoreRecapStats" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 10 focused Training regression | `. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --tests "com.musfit.ui.training.TrainingActiveWorkoutContentTest" --tests "com.musfit.ui.training.TrainingHistoryContentTest" --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --tests "com.musfit.domain.training.WorkoutCalculatorTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 11 red test | `. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingHistoryContentTest.workoutRecapMetricsForDisplay_fallsBackToSummaryWhenRecapIsEmpty" --no-daemon --console=plain` | Failed as expected before implementation: recap metric helper only accepted explicit recap data |
+| 2026-06-28 | Slice 11 focused fallback check | `. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingHistoryContentTest.workoutRecapMetricsForDisplay_fallsBackToSummaryWhenRecapIsEmpty" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Slice 11 focused Training regression | `. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.training.TrainingViewModelTest" --tests "com.musfit.ui.training.TrainingActiveWorkoutContentTest" --tests "com.musfit.ui.training.TrainingHistoryContentTest" --tests "com.musfit.data.repository.LocalTrainingRepositoryTest" --tests "com.musfit.domain.training.WorkoutCalculatorTest" --no-daemon --console=plain` | Passed |
+| 2026-06-28 | Final full Training parity verification | `. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1; .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain` | Passed; debug APK assembled at `app/build/outputs/apk/debug/app-debug.apk` |
 
 ## Known Limitations
 
@@ -136,10 +144,15 @@ Known gaps from Slice 0 audit:
 - History overview is intentionally compact: current month/current week only, without multi-month navigation or day drill-down.
 - Progress analytics are derived on-device from completed sets and intentionally avoid advanced filters, cloud analytics, or cached aggregate tables.
 - Dashboard suggestions use visible routine order and do not yet model fatigue, rotation schedules, or progression.
+- Workout recap is local/private and intentionally has no social sharing, public feed, or exported share image.
 
 ## Blocked Items
 
 - None currently blocked.
+
+## Final APK
+
+- Debug APK: `app/build/outputs/apk/debug/app-debug.apk`
 
 ## Next Steps
 
@@ -153,4 +166,6 @@ Known gaps from Slice 0 audit:
 - [x] Start Slice 7 with failing tests before any behavior changes.
 - [x] Start Slice 8 with failing tests before any behavior changes.
 - [x] Start Slice 9 with failing tests before any behavior changes.
-- [ ] Start Slice 10 with failing tests before any behavior changes.
+- [x] Start Slice 10 with failing tests before any behavior changes.
+- [x] Start Slice 11 closeout audit and full verification.
+- [x] Complete final Training parity closeout.

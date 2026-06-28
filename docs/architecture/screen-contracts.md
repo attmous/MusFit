@@ -406,7 +406,7 @@ Training handles strength routine management, exercise library filtering and cus
 | --- | --- |
 | `Routines` | Routine list, local program filters, starter routines, routine editor, duplicate/delete/start routine, and start blank workout. |
 | `Exercises` | Exercise library, search/filter, equipment/muscle chips, exercise detail, local notes, and custom exercise creation. |
-| `History` | Completed workout overview, month grid, consistency metrics, list, and workout detail with set rows. |
+| `History` | Completed workout overview, month grid, consistency metrics, list, workout recap, and workout detail with set rows. |
 | `Progress` | All-training analytics, muscle volume, weekly volume, exercise PR cards, history rows, best sets, PR timeline, and trend chart points. |
 
 ### ViewModel State
@@ -436,7 +436,7 @@ val state: StateFlow<TrainingUiState>
 | `selectedProgressExerciseId` | Selected exercise for progress. |
 | `selectedExerciseProgress` | Heaviest, max reps, best estimated 1RM, best day volume, trend points, history rows, best sets, and PR timeline for the selected exercise. |
 | `progressAnalytics` | Derived all-training muscle group volume and weekly volume from completed workout sets. |
-| `selectedWorkoutDetail` | Expanded completed-workout history detail with flat exercise blocks and derived superset groupings. |
+| `selectedWorkoutDetail` | Expanded completed-workout history detail with recap metrics, flat exercise blocks, and derived superset groupings. |
 | `exerciseSearchQuery`, `exerciseMuscleFilter`, `exerciseEquipmentFilter` | Exercise library filters. |
 | `exerciseEditor` | Custom exercise editor state. |
 | `selectedExerciseDetail` | Open exercise detail/drill-down row, including instructions and local notes. |
@@ -530,7 +530,7 @@ Rest timer:
 | `TrainingRoutineContent` | visible routines, program options, selected program | Program filter, start, edit, duplicate, delete routine callbacks. |
 | `TrainingRoutineEditor` | `RoutineEditorState`, exercises | Edit routine metadata and exercise targets. |
 | `TrainingActiveWorkoutContent` | `ActiveWorkoutDetail`, exercises, `RestTimerState`, active workout notes draft, Training tool setting drafts | Set edits, set type changes, set reorder, workout notes, add exercise/set, timer controls, Training tool save, warm-up suggestions, PR/plate display, superset create/dissolve, finish/discard. |
-| `TrainingHistoryContent` | `history`, `historyOverview`, selected detail | Render month overview, consistency metrics, open/close workout detail, and completed supersets with grouped sections and A/B labels. |
+| `TrainingHistoryContent` | `history`, `historyOverview`, selected detail | Render month overview, consistency metrics, open/close workout detail, completed-workout recap, and completed supersets with grouped sections and A/B labels. |
 | `TrainingProgressContent` | exercises, selected id, progress, progress analytics | Select exercise and render all-training analytics plus selected-exercise trend/PR/history display. |
 
 Exercise library detail behavior:
@@ -566,10 +566,13 @@ Active workout UI behavior:
 - Plate hints use `PlateCalculator` with the saved bar and plate settings.
 - Superset creation pairs a standalone exercise with the next standalone exercise below it; grouped rows show A/B labels and can be dissolved.
 - Finish and discard both require confirmation dialogs.
+- Finishing a workout closes the active route and opens the completed workout detail in History.
 
 History detail behavior:
 
 - History list mode shows a current-month workout grid, current-week workouts/training days/sets/volume, current streak, and best streak.
+- Completed workout detail starts with a recap card covering duration, completed sets, volume, exercise count, PR count, and stored workout notes.
+- Recap PR count follows the active-workout PR badge rule: completed non-warmup/non-drop sets that beat the prior best estimated 1RM for that exercise.
 - Completed workout detail preserves the same derived `ExerciseGrouping` shape as the active workout detail.
 - Completed supersets render as grouped history sections with a `SUPERSET` label and each member's A/B badge.
 - Older details or fallback repository implementations that provide only flat blocks still render as standalone exercise cards.
@@ -604,7 +607,7 @@ It calls write APIs for routine CRUD, active workout lifecycle, set edits, custo
 - History overview is current-month/current-week focused; there is no drillable multi-month calendar or per-day workout filter yet.
 - Progress analytics are local and deterministic; there is no advanced chart filtering, period picker, or stored analytics cache yet.
 - Dashboard routine suggestions are deterministic and local; there is no adaptive progression or fatigue model yet.
-- Finish flow returns to Training/history; a dedicated post-workout recap surface is not implemented.
+- Post-workout recap is local and private only; there is no social sharing, public feed, or exported recap image.
 
 ## Health Screen
 
