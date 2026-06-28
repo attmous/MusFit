@@ -53,4 +53,28 @@ class WeeklyGoalsCalculatorTest {
         assertNull(result.weightDeltaKg)
         assertNull(result.targetWeightKg)
     }
+
+    @Test
+    fun surfacesPerDaySeriesForCharts() {
+        val result = WeeklyGoalsCalculator.compute(
+            weekStartMillis = weekStart,
+            sessionStartMillis = emptyList(),
+            sessionTarget = 4,
+            loggedCaloriesPerDay = listOf(2000.0, 1900.0, null, 2100.0, 2050.0, 1800.0, 2200.0),
+            calorieGoalKcal = 2000.0,
+            stepsPerDay = listOf(12_000L, 8_000L, 10_000L, 9_000L, 11_000L, 7_000L, 10_500L),
+            stepGoal = 10_000L,
+            weights = listOf(weekStart - 2 * day to 81.0, weekStart + day to 80.0),
+            targetWeightKg = 78.0,
+        )
+
+        assertEquals(listOf(2000.0, 1900.0, null, 2100.0, 2050.0, 1800.0, 2200.0), result.caloriesPerDay)
+        assertEquals(2000.0, result.calorieGoalKcal, 0.001)
+        assertEquals(listOf(12_000L, 8_000L, 10_000L, 9_000L, 11_000L, 7_000L, 10_500L), result.stepsPerDay)
+        assertEquals(10_000L, result.stepGoal)
+        assertEquals(
+            listOf(WeightPoint(weekStart - 2 * day, 81.0), WeightPoint(weekStart + day, 80.0)),
+            result.weightPoints,
+        )
+    }
 }

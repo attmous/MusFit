@@ -10,7 +10,16 @@ data class WeeklyGoals(
     val weightAvgKg: Double?,
     val weightDeltaKg: Double?,
     val targetWeightKg: Double?,
+    // Per-day series for the Today charts. Defaults keep existing callsites/tests compiling unchanged.
+    val caloriesPerDay: List<Double?> = emptyList(), // 7 entries Mon..Sun, null = untracked
+    val calorieGoalKcal: Double = 0.0,               // for the bar target line
+    val stepsPerDay: List<Long> = emptyList(),       // 7 entries Mon..Sun
+    val stepGoal: Long = 0L,
+    val weightPoints: List<WeightPoint> = emptyList(), // chronological, for the trend line
 )
+
+/** A single weight measurement, surfaced for the trend chart. */
+data class WeightPoint(val epochMillis: Long, val valueKg: Double)
 
 object WeeklyGoalsCalculator {
     private const val DAY_MILLIS = 86_400_000L
@@ -55,6 +64,11 @@ object WeeklyGoalsCalculator {
             weightAvgKg = thisWeekAvg,
             weightDeltaKg = weightDelta,
             targetWeightKg = targetWeightKg.takeIf { it > 0.0 },
+            caloriesPerDay = loggedCaloriesPerDay,
+            calorieGoalKcal = calorieGoalKcal,
+            stepsPerDay = stepsPerDay,
+            stepGoal = stepGoal,
+            weightPoints = weights.map { WeightPoint(it.first, it.second) },
         )
     }
 
