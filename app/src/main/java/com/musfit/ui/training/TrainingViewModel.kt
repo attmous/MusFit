@@ -883,6 +883,20 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    /** Removes a standalone exercise from the active workout by deleting all of its logged sets. */
+    fun removeExerciseFromActiveWorkout(exerciseId: String) {
+        val setIds = state.value.activeWorkout
+            ?.exerciseBlocks
+            ?.firstOrNull { it.exercise.id == exerciseId }
+            ?.sets
+            ?.map { it.id }
+            .orEmpty()
+        if (setIds.isEmpty()) return
+        viewModelScope.launch {
+            setIds.forEach { repository.deleteWorkoutSet(it) }
+        }
+    }
+
     fun onActiveWorkoutNotesChanged(value: String) {
         mutableState.update { it.copy(activeWorkoutNotesInput = value) }
     }

@@ -35,10 +35,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -108,6 +111,7 @@ fun TrainingActiveWorkoutContent(
     onAdjustRestTimer: (Int) -> Unit,
     onMakeSuperset: (String) -> Unit,
     onDissolveSuperset: (String) -> Unit,
+    onRemoveExercise: (String) -> Unit,
     onClose: () -> Unit,
     onFinish: () -> Unit,
     onDiscard: () -> Unit,
@@ -121,7 +125,7 @@ fun TrainingActiveWorkoutContent(
             onFinish = onFinish,
             onDiscard = onDiscard,
         )
-        WorkoutStatRow(workout = workout)
+        WorkoutStatStrip(workout = workout, accent = accent)
         ActiveWorkoutNotesCard(
             notes = workoutNotes,
             accent = accent,
@@ -173,6 +177,7 @@ fun TrainingActiveWorkoutContent(
                         onMoveSetDown = onMoveSetDown,
                         canMakeSuperset = canMakeSuperset,
                         onMakeSuperset = onMakeSuperset,
+                        onRemoveExercise = onRemoveExercise,
                     )
                 }
                 is ExerciseGrouping.Superset ->
@@ -206,6 +211,7 @@ fun TrainingActiveWorkoutContent(
                             onToggleSet = onToggleSet,
                             onMoveSetUp = onMoveSetUp,
                             onMoveSetDown = onMoveSetDown,
+                            onRemoveExercise = onRemoveExercise,
                         )
                     }
             }
@@ -221,15 +227,6 @@ private fun ActiveWorkoutTopBar(
     onFinish: () -> Unit,
     onDiscard: () -> Unit,
 ) {
-    var nowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(workout.sessionId) {
-        while (true) {
-            nowMillis = System.currentTimeMillis()
-            delay(1_000)
-        }
-    }
-    val elapsedSeconds = ((nowMillis - workout.startedAtEpochMillis) / 1_000L).coerceAtLeast(0L)
-
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -242,20 +239,14 @@ private fun ActiveWorkoutTopBar(
                 tint = MusFitTheme.colors.onSurface,
             )
         }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                workout.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.onSurface,
-            )
-            Text(
-                text = elapsedSeconds.toElapsedClock(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = accent.color,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
+        Text(
+            workout.title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MusFitTheme.colors.onSurface,
+            maxLines = 1,
+        )
         Button(
             onClick = onFinish,
             colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
@@ -284,20 +275,32 @@ private fun ActiveWorkoutTopBar(
     }
 }
 
+/** Compact inline stats strip (Duration · Volume · Sets) — replaces the old stat card. */
 @Composable
-private fun WorkoutStatRow(workout: ActiveWorkoutDetail) {
-    Surface(
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.large,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            StatCell(label = "Sets", value = workout.completedSetCount.toString(), modifier = Modifier.weight(1f))
-            StatCell(label = "Volume", value = "${workout.totalVolumeKg.formatKg()} kg", modifier = Modifier.weight(1f))
+private fun WorkoutStatStrip(workout: ActiveWorkoutDetail, accent: TabAccent) {
+    var nowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(workout.sessionId) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            delay(1_000)
         }
+    }
+    val elapsedSeconds = ((nowMillis - workout.startedAtEpochMillis) / 1_000L).coerceAtLeast(0L)
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            StatCell(
+                label = "Duration",
+                value = elapsedSeconds.toElapsedClock(),
+                valueColor = accent.color,
+                modifier = Modifier.weight(1f),
+            )
+            StatCell(label = "Volume", value = "${workout.totalVolumeKg.formatKg()} kg", modifier = Modifier.weight(1f))
+            StatCell(label = "Sets", value = workout.completedSetCount.toString(), modifier = Modifier.weight(1f))
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MusFitTheme.colors.outline.copy(alpha = 0.4f))
     }
 }
 
@@ -306,10 +309,11 @@ private fun StatCell(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    valueColor: Color = MusFitTheme.colors.onSurface,
 ) {
     Column(modifier = modifier) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MusFitTheme.colors.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MusFitTheme.colors.onSurface)
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = valueColor)
     }
 }
 
@@ -645,6 +649,7 @@ private fun ActiveExerciseBlock(
     nested: Boolean = false,
     canMakeSuperset: Boolean = false,
     onMakeSuperset: ((String) -> Unit)? = null,
+    onRemoveExercise: ((String) -> Unit)? = null,
 ) {
     if (nested) {
         ActiveExerciseBlockBody(
@@ -676,6 +681,7 @@ private fun ActiveExerciseBlock(
                 contentPadding = 12.dp,
                 canMakeSuperset = canMakeSuperset,
                 onMakeSuperset = onMakeSuperset,
+                onRemoveExercise = onRemoveExercise,
                 barWeightKg = barWeightKg,
                 availablePlatesKg = availablePlatesKg,
                 onAddSet = onAddSet,
@@ -691,6 +697,65 @@ private fun ActiveExerciseBlock(
     }
 }
 
+/** Hevy-style exercise options bottom sheet (replaces the cramped dropdown). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExerciseOptionsSheet(
+    exerciseName: String,
+    canMakeSuperset: Boolean,
+    onMakeSuperset: (() -> Unit)?,
+    onRemoveExercise: (() -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MusFitTheme.colors.surface) {
+        Column(modifier = Modifier.padding(bottom = 24.dp)) {
+            Text(
+                exerciseName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+            if (onMakeSuperset != null && canMakeSuperset) {
+                ExerciseSheetItem(
+                    icon = Icons.Outlined.Add,
+                    label = "Add to superset",
+                    tint = MusFitTheme.colors.onSurface,
+                    onClick = { onMakeSuperset(); onDismiss() },
+                )
+            }
+            if (onRemoveExercise != null) {
+                ExerciseSheetItem(
+                    icon = Icons.Outlined.Delete,
+                    label = "Remove exercise",
+                    tint = MusFitTheme.colors.warning,
+                    onClick = { onRemoveExercise(); onDismiss() },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExerciseSheetItem(
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = tint)
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = tint)
+    }
+}
+
 @Composable
 private fun ActiveExerciseBlockBody(
     block: WorkoutExerciseBlock,
@@ -698,6 +763,7 @@ private fun ActiveExerciseBlockBody(
     contentPadding: Dp,
     canMakeSuperset: Boolean,
     onMakeSuperset: ((String) -> Unit)?,
+    onRemoveExercise: ((String) -> Unit)? = null,
     barWeightKg: Double,
     availablePlatesKg: List<Double>,
     onAddSet: (String) -> Unit,
@@ -765,26 +831,23 @@ private fun ActiveExerciseBlockBody(
                     )
                 }
             }
-            if (onMakeSuperset != null) {
-                Box {
-                    var menu by remember { mutableStateOf(false) }
-                    IconButton(onClick = { menu = true }) {
-                        Icon(
-                            imageVector = Icons.Outlined.MoreVert,
-                            contentDescription = "Exercise options",
-                            tint = accent.color,
-                        )
-                    }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Make superset with next") },
-                            enabled = canMakeSuperset,
-                            onClick = {
-                                menu = false
-                                onMakeSuperset(block.exercise.id)
-                            },
-                        )
-                    }
+            if (onMakeSuperset != null || onRemoveExercise != null) {
+                var optionsOpen by remember { mutableStateOf(false) }
+                IconButton(onClick = { optionsOpen = true }) {
+                    Icon(
+                        imageVector = Icons.Outlined.MoreVert,
+                        contentDescription = "Exercise options",
+                        tint = accent.color,
+                    )
+                }
+                if (optionsOpen) {
+                    ExerciseOptionsSheet(
+                        exerciseName = block.exercise.name,
+                        canMakeSuperset = canMakeSuperset && onMakeSuperset != null,
+                        onMakeSuperset = onMakeSuperset?.let { cb -> { cb(block.exercise.id) } },
+                        onRemoveExercise = onRemoveExercise?.let { cb -> { cb(block.exercise.id) } },
+                        onDismiss = { optionsOpen = false },
+                    )
                 }
             }
         }

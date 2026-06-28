@@ -107,6 +107,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 onAdjustRestTimer = viewModel::adjustRestTimerSeconds,
                 onMakeSuperset = viewModel::makeSupersetWithNext,
                 onDissolveSuperset = viewModel::dissolveSuperset,
+                onRemoveExercise = viewModel::removeExerciseFromActiveWorkout,
                 onClose = viewModel::closeActiveWorkoutRoute,
                 onFinish = viewModel::requestFinishActiveWorkout,
                 onDiscard = viewModel::requestDiscardActiveWorkout,
