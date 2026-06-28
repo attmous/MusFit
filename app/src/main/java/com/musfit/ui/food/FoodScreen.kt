@@ -588,7 +588,7 @@ private fun MoreSection(
         Surface(
             onClick = onToggle,
             color = MusFitTheme.colors.surface,
-            shape = MusFitTheme.shapes.small,
+            shape = MusFitTheme.shapes.extraLarge,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(

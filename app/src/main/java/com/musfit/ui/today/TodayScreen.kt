@@ -174,8 +174,8 @@ private fun DailyRingsCard(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         MetricRing(progress = ring.progress, color = ringColor(ring.kind)) {
                             Text(
-                                text = ring.centerLabel,
-                                style = MaterialTheme.typography.titleSmall,
+                                text = "${(ring.progress * 100).roundToInt()}%",
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MusFitTheme.colors.onSurface,
                             )
@@ -186,11 +186,6 @@ private fun DailyRingsCard(
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = MusFitTheme.colors.onSurface,
-                        )
-                        Text(
-                            text = ring.goalLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MusFitTheme.colors.onSurfaceVariant,
                         )
                     }
                 }

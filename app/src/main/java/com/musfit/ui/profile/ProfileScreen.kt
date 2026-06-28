@@ -177,7 +177,7 @@ fun ProfileScreen(
 
 @Composable
 private fun AccountCard(state: ProfileUiState, onEdit: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -260,7 +260,7 @@ private fun AccountEditDialog(
 
 @Composable
 private fun IdentityCard(state: ProfileUiState, onEdit: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit), shape = MaterialTheme.shapes.extraLarge) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(
@@ -293,7 +293,7 @@ private fun IdentityCard(state: ProfileUiState, onEdit: () -> Unit) {
 
 @Composable
 private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Goal", style = MaterialTheme.typography.titleMedium)
             val profile = state.profile
@@ -346,7 +346,7 @@ private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () 
 
 @Composable
 private fun WeightCard(state: ProfileUiState, onLog: () -> Unit, onOpenEntries: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenEntries)) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenEntries), shape = MaterialTheme.shapes.extraLarge) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Weight", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -402,7 +402,7 @@ private fun Sparkline(values: List<Double>, modifier: Modifier) {
 
 @Composable
 private fun MeasurementsCard(state: ProfileUiState, onLog: () -> Unit, onOpenType: (String) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Measurements", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -455,7 +455,7 @@ private fun MeasurementCell(row: MeasurementRow, onClick: () -> Unit, modifier: 
 
 @Composable
 private fun VitalsCard(state: ProfileUiState, onManage: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("From Health Connect", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
