@@ -113,7 +113,7 @@ fun TrainingActiveWorkoutContent(
     onDiscard: () -> Unit,
 ) {
     RestTimerTicker(restTimer = restTimer, onTick = onTickRestTimer)
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ActiveWorkoutTopBar(
             workout = workout,
             accent = accent,
@@ -292,7 +292,7 @@ private fun WorkoutStatRow(workout: ActiveWorkoutDetail) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatCell(label = "Sets", value = workout.completedSetCount.toString(), modifier = Modifier.weight(1f))
@@ -326,7 +326,7 @@ private fun ActiveWorkoutNotesCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -673,7 +673,7 @@ private fun ActiveExerciseBlock(
             ActiveExerciseBlockBody(
                 block = block,
                 accent = accent,
-                contentPadding = 14.dp,
+                contentPadding = 12.dp,
                 canMakeSuperset = canMakeSuperset,
                 onMakeSuperset = onMakeSuperset,
                 barWeightKg = barWeightKg,
@@ -1075,7 +1075,7 @@ private fun WorkoutSetTableRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 8.dp),
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(
