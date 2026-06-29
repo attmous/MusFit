@@ -74,6 +74,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Color
 import com.musfit.ui.theme.MusFitTheme
 import androidx.compose.ui.graphics.StrokeCap
@@ -922,7 +923,7 @@ private fun WeeklyMusFitScoreCard(score: FoodWeeklyScoreUiState) {
     val accent = score.tone.ratingColor()
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MusFitTheme.colors.surface,
+        color = accent.copy(alpha = 0.10f).compositeOver(MusFitTheme.colors.surface),
         shape = MusFitTheme.shapes.extraLarge,
     ) {
         Column(
@@ -1049,7 +1050,7 @@ private fun DayRatingCard(rating: FoodRatingUiState) {
     val accent = rating.tone.ratingColor()
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MusFitTheme.colors.surface,
+        color = accent.copy(alpha = 0.10f).compositeOver(MusFitTheme.colors.surface),
         shape = MusFitTheme.shapes.extraLarge,
     ) {
         Column(
