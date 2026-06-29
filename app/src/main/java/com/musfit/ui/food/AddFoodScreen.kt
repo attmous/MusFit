@@ -161,7 +161,10 @@ fun AddFoodScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 28.dp),
         ) {
-            DailyIntakeCard(state)
+            // Daily-intake context is redundant while authoring a new food; show it on the browse tabs only.
+            if (state.addTab != AddTab.Create) {
+                DailyIntakeCard(state)
+            }
             AddTabRow(selected = state.addTab, onTabSelected = onTabSelected)
 
             val query = state.foodDatabaseQuery
@@ -200,7 +203,7 @@ fun AddFoodScreen(
                     }
 
                     AddTab.Create -> {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(6.dp))
                         CreateFoodForm(
                             state = state,
                             onScanBarcode = onScanClick,
@@ -217,7 +220,7 @@ fun AddFoodScreen(
                             onLogFood = onLogFood,
                             onCreateRecipe = onCreateRecipe,
                         )
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }

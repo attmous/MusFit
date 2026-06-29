@@ -928,7 +928,9 @@ internal fun CreateFoodForm(
     onLogFood: () -> Unit,
     onCreateRecipe: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // Outer = section rhythm (10dp); inner field-group gaps (ProductFields/NutritionFields)
+    // are tighter (8dp) so grouping reads as inner < outer, per M3 spacing hierarchy.
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1013,7 +1015,7 @@ private fun ProductFields(
     onQuantityChanged: (String) -> Unit,
     onAmountServingChoiceSelected: (String) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = state.productName,
             onValueChange = onProductNameChanged,
@@ -1068,11 +1070,12 @@ private fun NutritionFields(
     onFatChanged: (String) -> Unit,
     showAmountPreview: Boolean = true,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "Per 100 g",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
+            color = MusFitTheme.colors.brand,
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
