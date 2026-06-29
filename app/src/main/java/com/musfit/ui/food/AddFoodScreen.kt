@@ -33,6 +33,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -252,29 +255,35 @@ private fun DailyIntakeCard(state: FoodUiState) {
 
 @Composable
 private fun AddTabRow(selected: AddTab, onTabSelected: (AddTab) -> Unit) {
-    Row(
+    val tabs = AddTab.entries
+    SingleChoiceSegmentedButtonRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        AddTab.entries.forEach { tab ->
+        tabs.forEachIndexed { index, tab ->
             val isSelected = tab == selected
-            Surface(
+            SegmentedButton(
+                selected = isSelected,
                 onClick = { onTabSelected(tab) },
-                color = if (isSelected) MusFitTheme.colors.positiveContainer else MusFitTheme.colors.surface,
-                shape = MusFitTheme.shapes.small,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(
-                    text = tab.label,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isSelected) MusFitTheme.colors.brand else MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 10.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
-            }
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = tabs.size),
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = MusFitTheme.colors.positiveContainer,
+                    activeContentColor = MusFitTheme.colors.brand,
+                    activeBorderColor = MusFitTheme.colors.brand,
+                    inactiveContainerColor = MusFitTheme.colors.surface,
+                    inactiveContentColor = MusFitTheme.colors.onSurfaceVariant,
+                ),
+                icon = {},
+                label = {
+                    Text(
+                        text = tab.label,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                    )
+                },
+            )
         }
     }
 }
@@ -340,12 +349,12 @@ private fun AddFoodRow(food: SavedFoodUiState, onFoodClick: (String) -> Unit) {
             }
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(34.dp)
                     .clip(CircleShape)
-                    .background(MusFitTheme.colors.accent),
+                    .background(MusFitTheme.colors.positiveContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add ${food.name}", tint = MusFitTheme.colors.onAccent)
+                Icon(Icons.Filled.Add, contentDescription = "Add ${food.name}", tint = MusFitTheme.colors.brand)
             }
         }
     }
