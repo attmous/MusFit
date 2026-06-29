@@ -177,7 +177,7 @@ internal fun ShoppingListPanel(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                OutlinedButton(onClick = onAddManualClick, enabled = !state.isSaving, modifier = Modifier.fillMaxWidth()) {
+                MusFitOutlinedButton(onClick = onAddManualClick, enabled = !state.isSaving, modifier = Modifier.fillMaxWidth()) {
                     Text("Add item")
                 }
             }
@@ -298,11 +298,11 @@ internal fun FoodDatabasePanel(
             }
         }
 
-        OutlinedButton(onClick = onImportStarterFoodsClick, modifier = Modifier.fillMaxWidth()) {
+        MusFitOutlinedButton(onClick = onImportStarterFoodsClick, modifier = Modifier.fillMaxWidth()) {
             Text("Import starter foods")
         }
 
-        OutlinedButton(onClick = onBarcodeCompareClick, modifier = Modifier.fillMaxWidth()) {
+        MusFitOutlinedButton(onClick = onBarcodeCompareClick, modifier = Modifier.fillMaxWidth()) {
             Text("Compare barcodes")
         }
 
@@ -647,7 +647,7 @@ private fun OnlineFoodResultRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            OutlinedButton(onClick = onSaveClick, enabled = !isSaving) {
+            MusFitOutlinedButton(onClick = onSaveClick, enabled = !isSaving) {
                 Text("Save")
             }
         }
@@ -693,7 +693,7 @@ private fun DuplicateFoodGroupsSection(
                             color = MusFitTheme.colors.onSurfaceVariant,
                         )
                     }
-                    OutlinedButton(
+                    MusFitOutlinedButton(
                         onClick = { onMergeDuplicateFoodsClick(group.primaryFoodId, group.duplicateFoodIds) },
                         enabled = !isSaving,
                     ) {
@@ -747,16 +747,16 @@ private fun SavedFoodDatabaseRow(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onFavoriteClick) {
+                MusFitOutlinedButton(onClick = onFavoriteClick) {
                     Text(if (food.isFavorite) "Starred" else "Star")
                 }
-                OutlinedButton(onClick = onReportClick) {
+                MusFitOutlinedButton(onClick = onReportClick) {
                     Text("Report")
                 }
-                OutlinedButton(onClick = onDetailClick) {
+                MusFitOutlinedButton(onClick = onDetailClick) {
                     Text("Detail")
                 }
-                OutlinedButton(onClick = onEditClick) {
+                MusFitOutlinedButton(onClick = onEditClick) {
                     Text("Edit")
                 }
             }
@@ -825,10 +825,10 @@ internal fun FoodDetailPanel(
                 Text("Trust and source", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 NutritionFactRow(food.trust.label, food.sourceLabel, food.trust.explanation)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onReportClick, modifier = Modifier.weight(1f)) {
+                    MusFitOutlinedButton(onClick = onReportClick, modifier = Modifier.weight(1f)) {
                         Text(if (food.trust.isReported) "Reported" else "Report")
                     }
-                    OutlinedButton(onClick = onCorrectClick, modifier = Modifier.weight(1f)) {
+                    MusFitOutlinedButton(onClick = onCorrectClick, modifier = Modifier.weight(1f)) {
                         Text(food.trust.actionLabel)
                     }
                 }
@@ -857,10 +857,10 @@ internal fun FoodDetailPanel(
             ) {
                 Text("Log")
             }
-            OutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(1f)) {
+            MusFitOutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(1f)) {
                 Text(if (food.isFavorite) "Unstar" else "Star")
             }
-            OutlinedButton(onClick = onEditClick, modifier = Modifier.weight(1f)) {
+            MusFitOutlinedButton(onClick = onEditClick, modifier = Modifier.weight(1f)) {
                 Text("Edit")
             }
         }
@@ -1013,7 +1013,7 @@ internal fun DiaryEntryEditorPanel(
         }
 
         if (editor.isPlanned) {
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onMarkLoggedClick,
                 enabled = !state.isSaving,
                 modifier = Modifier.fillMaxWidth(),
@@ -1028,14 +1028,14 @@ internal fun DiaryEntryEditorPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             state.mealDefinitions.forEach { choice ->
-                OutlinedButton(
+                MusFitOutlinedButton(
                     onClick = { onCopyToMealClick(choice.id) },
                     enabled = !state.isSaving,
                 ) {
                     Text(choice.title)
                 }
             }
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onCopyTomorrowClick,
                 enabled = !state.isSaving,
             ) {
@@ -1116,7 +1116,7 @@ internal fun MealSettingsPanel(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    OutlinedButton(onClick = { onEditClick(meal.id) }) {
+                    MusFitOutlinedButton(onClick = { onEditClick(meal.id) }) {
                         Text("Edit")
                     }
                 }
@@ -1323,7 +1323,7 @@ internal fun SavedFoodEditorPanel(
         }
 
         if (isExistingFood) {
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onDuplicateClick,
                 enabled = !state.isSaving,
                 modifier = Modifier.fillMaxWidth(),
@@ -1389,7 +1389,7 @@ internal fun NutritionLabelScanPanel(
             )
         }
 
-        OutlinedButton(
+        MusFitOutlinedButton(
             onClick = {},
             enabled = false,
             modifier = Modifier.fillMaxWidth(),
@@ -1760,7 +1760,7 @@ private fun FoodProgramCatalog(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        OutlinedButton(
+                        MusFitOutlinedButton(
                             onClick = { onProgramApply(program.id) },
                             enabled = !isSaving && !program.isSelected,
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
@@ -1865,13 +1865,13 @@ internal fun RecipeEditorPanel(
                             )
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
-                            OutlinedButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
+                            MusFitOutlinedButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
                                 Text(if (recipe.isFavorite) "Starred" else "Star")
                             }
-                            OutlinedButton(onClick = { onEditRecipeClick(recipe.id) }) {
+                            MusFitOutlinedButton(onClick = { onEditRecipeClick(recipe.id) }) {
                                 Text("Edit")
                             }
-                            OutlinedButton(onClick = { onDuplicateRecipeClick(recipe.id) }) {
+                            MusFitOutlinedButton(onClick = { onDuplicateRecipeClick(recipe.id) }) {
                                 Text("Copy")
                             }
                         }
@@ -2185,16 +2185,16 @@ internal fun MealTemplatesPanel(
                             }
                         }
                         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { onTemplateClick(template.id) }) {
+                            MusFitOutlinedButton(onClick = { onTemplateClick(template.id) }) {
                                 Text("Log")
                             }
-                            OutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
+                            MusFitOutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
                                 Text(if (template.isFavorite) "Starred" else "Star")
                             }
-                            OutlinedButton(onClick = { onEditClick(template.id) }) {
+                            MusFitOutlinedButton(onClick = { onEditClick(template.id) }) {
                                 Text("Edit")
                             }
-                            OutlinedButton(onClick = { onDuplicateClick(template.id) }) {
+                            MusFitOutlinedButton(onClick = { onDuplicateClick(template.id) }) {
                                 Text("Duplicate")
                             }
                             OutlinedButton(

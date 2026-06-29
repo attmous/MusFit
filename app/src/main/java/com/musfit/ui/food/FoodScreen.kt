@@ -33,7 +33,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -899,7 +898,7 @@ private fun EmptyDiaryStartCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 actions.forEach { action ->
-                    OutlinedButton(
+                    MusFitOutlinedButton(
                         onClick = { onActionClick(action.type) },
                         modifier = Modifier
                             .weight(1f)
@@ -1542,7 +1541,7 @@ private fun MealDetailScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onBackClick,
                 modifier = Modifier.size(48.dp),
                 contentPadding = PaddingValues(0.dp),
@@ -1563,10 +1562,10 @@ private fun MealDetailScreen(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OutlinedButton(onClick = onCopyYesterdayClick) {
+            MusFitOutlinedButton(onClick = onCopyYesterdayClick) {
                 Text("Copy yesterday")
             }
-            OutlinedButton(onClick = onSaveTemplateClick) {
+            MusFitOutlinedButton(onClick = onSaveTemplateClick) {
                 Text("Save template")
             }
         }
@@ -1706,7 +1705,7 @@ private fun MessageBanner(
                 modifier = Modifier.weight(1f),
             )
             if (canUndoDelete) {
-                OutlinedButton(
+                MusFitOutlinedButton(
                     onClick = onUndoDeleteClick,
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                 ) {
@@ -2198,7 +2197,7 @@ private fun FoodDatabasePreview(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SectionTitle("Food database")
-            OutlinedButton(onClick = onOpenClick) {
+            MusFitOutlinedButton(onClick = onOpenClick) {
                 Text("Open")
             }
         }

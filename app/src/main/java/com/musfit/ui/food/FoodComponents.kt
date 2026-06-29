@@ -1,7 +1,10 @@
 package com.musfit.ui.food
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,8 +17,10 @@ import androidx.compose.material.icons.outlined.Cookie
 import androidx.compose.material.icons.outlined.DinnerDining
 import androidx.compose.material.icons.outlined.LunchDining
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -145,6 +150,33 @@ internal fun FoodAvatar(
             fontWeight = FontWeight.Bold,
         )
     }
+}
+
+/**
+ * The shared Food "secondary" button: an [OutlinedButton] with an emerald (brand)
+ * border and brand content, so secondary actions pair with the brand-filled primary
+ * buttons instead of reading as neutral grey. Use for all non-destructive secondary
+ * actions across the Food surfaces; keep a plain [OutlinedButton] with error colors
+ * for destructive (delete/remove) actions.
+ */
+@Composable
+internal fun MusFitOutlinedButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    content: @Composable RowScope.() -> Unit,
+) {
+    val brand = MusFitTheme.colors.brand
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = brand),
+        border = BorderStroke(1.dp, brand.copy(alpha = if (enabled) 0.45f else 0.15f)),
+        contentPadding = contentPadding,
+        content = content,
+    )
 }
 
 @Composable

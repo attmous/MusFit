@@ -11,7 +11,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -71,14 +70,14 @@ internal fun WaterTrackerCard(
             ProgressBar(progress = state.waterProgress.toFloat().coerceIn(0f, 1f), color = MusFitTheme.colors.water)
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
+                MusFitOutlinedButton(
                     onClick = { onQuickWaterClick(250.0) },
                     enabled = !state.isSaving,
                     modifier = Modifier.weight(1f),
                 ) {
                     Text("250 ml")
                 }
-                OutlinedButton(
+                MusFitOutlinedButton(
                     onClick = { onQuickWaterClick(500.0) },
                     enabled = !state.isSaving,
                     modifier = Modifier.weight(1f),
@@ -114,7 +113,7 @@ internal fun WaterTrackerCard(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
-                OutlinedButton(onClick = onGoalSaveClick, enabled = !state.isSaving) {
+                MusFitOutlinedButton(onClick = onGoalSaveClick, enabled = !state.isSaving) {
                     Text("Save")
                 }
             }
@@ -175,14 +174,14 @@ internal fun FoodHealthConnectSyncCard(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
+                MusFitOutlinedButton(
                     onClick = onRequestPermissionsClick,
                     enabled = state.foodHealthConnectCanRequestPermissions && !state.isSaving,
                     modifier = Modifier.weight(1f),
                 ) {
                     Text("Permissions", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                OutlinedButton(
+                MusFitOutlinedButton(
                     onClick = onRefreshClick,
                     enabled = !state.isSaving,
                     modifier = Modifier.weight(1f),

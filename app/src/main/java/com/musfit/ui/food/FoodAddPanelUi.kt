@@ -35,7 +35,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -507,10 +506,10 @@ private fun TemplateQuickList(
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
+                        MusFitOutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
                             Text(if (template.isFavorite) "Starred" else "Star")
                         }
-                        OutlinedButton(onClick = { onTemplateClick(template.id) }) {
+                        MusFitOutlinedButton(onClick = { onTemplateClick(template.id) }) {
                             Text("Log")
                         }
                     }
@@ -569,10 +568,10 @@ private fun RecipeQuickList(
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
+                        MusFitOutlinedButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
                             Text(if (recipe.isFavorite) "Starred" else "Star")
                         }
-                        OutlinedButton(onClick = { onRecipeClick(recipe.id) }) {
+                        MusFitOutlinedButton(onClick = { onRecipeClick(recipe.id) }) {
                             Text("Log")
                         }
                     }
@@ -617,14 +616,14 @@ private fun AiLoggingForm(
             ) {
                 Text("Review text", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onAiVoiceClick,
                 enabled = !state.isSaving,
                 modifier = Modifier.weight(1f),
             ) {
                 Text("Voice", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onAiPhotoClick,
                 enabled = !state.isSaving,
                 modifier = Modifier.weight(1f),
@@ -763,7 +762,7 @@ private fun BarcodeFoodForm(
             }
         }
 
-        OutlinedButton(
+        MusFitOutlinedButton(
             onClick = onScanClick,
             enabled = !state.isLoading && !state.isSaving,
             modifier = Modifier.fillMaxWidth(),
@@ -796,7 +795,7 @@ private fun BarcodeFoodForm(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedButton(
+                MusFitOutlinedButton(
                     onClick = onSaveProductClick,
                     enabled = !state.isLoading && !state.isSaving,
                     modifier = Modifier.weight(1f),
@@ -935,7 +934,7 @@ internal fun CreateFoodForm(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onScanBarcode,
                 enabled = !state.isLoading && !state.isSaving,
                 modifier = Modifier.weight(1f),
@@ -944,7 +943,7 @@ internal fun CreateFoodForm(
                 Spacer(Modifier.width(6.dp))
                 Text("Scan barcode")
             }
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onScanLabel,
                 enabled = !state.isLoading && !state.isSaving,
                 modifier = Modifier.weight(1f),
@@ -983,7 +982,7 @@ internal fun CreateFoodForm(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onSaveProduct,
                 enabled = !state.isLoading && !state.isSaving,
                 modifier = Modifier.weight(1f),
@@ -1238,10 +1237,10 @@ private fun QuickCalorieForm(
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedButton(onClick = { onFavoriteQuickLogFavoriteClick(preset.id, !preset.isFavorite) }) {
+                            MusFitOutlinedButton(onClick = { onFavoriteQuickLogFavoriteClick(preset.id, !preset.isFavorite) }) {
                                 Text(if (preset.isFavorite) "Starred" else "Star")
                             }
-                            OutlinedButton(onClick = { onFavoriteQuickLogClick(preset.id) }) {
+                            MusFitOutlinedButton(onClick = { onFavoriteQuickLogClick(preset.id) }) {
                                 Text("Log")
                             }
                         }
@@ -1281,7 +1280,7 @@ private fun QuickCalorieForm(
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(
+            MusFitOutlinedButton(
                 onClick = onQuickSaveFavoriteClick,
                 enabled = !state.isSaving,
                 modifier = Modifier.weight(1f),
