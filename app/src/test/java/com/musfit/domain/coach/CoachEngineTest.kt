@@ -202,4 +202,51 @@ class CoachEngineTest {
             CoachEngine.messages(input).map { it.ruleKey },
         )
     }
+
+    @Test
+    fun messages_recapOmitsGoalWhenUnset() {
+        val messages = CoachEngine.messages(
+            messageInput(timeOfDay = TimeOfDay.Evening, hasLoggedToday = true, calorieGoalKcal = 0.0),
+        )
+        val recap = messages.first { it.ruleKey == "recap_evening" }
+        assertTrue(recap.body.contains("kcal"))
+        assertTrue(!recap.body.contains("of 0"))
+    }
+
+    @Test
+    fun messages_proteinGapBoundaryAtTenGrams() {
+        val atBoundary = CoachEngine.messages(messageInput(proteinGrams = 140.0, proteinGoalGrams = 150.0))
+        val underBoundary = CoachEngine.messages(messageInput(proteinGrams = 140.5, proteinGoalGrams = 150.0))
+        assertTrue(atBoundary.any { it.ruleKey == "protein_gap" })
+        assertTrue(underBoundary.none { it.ruleKey == "protein_gap" })
+    }
+
+    @Test
+    fun messages_calorieDeadZoneEmitsNothing() {
+        val messages = CoachEngine.messages(messageInput(caloriesKcal = 1900.0, calorieGoalKcal = 2000.0))
+        assertTrue(messages.none { it.ruleKey == "calorie_pacing" })
+        assertTrue(messages.none { it.ruleKey == "calorie_over" })
+    }
+
+    @Test
+    fun messages_waterExactlyHalfIsSilent() {
+        val messages = CoachEngine.messages(messageInput(waterMl = 1000.0, waterGoalMl = 2000.0))
+        assertTrue(messages.none { it.ruleKey == "water_low" })
+    }
+
+    @Test
+    fun messages_trainingFallsBackToOpenTrainingWithoutRoutineId() {
+        val messages = CoachEngine.messages(messageInput(daysSinceLastWorkout = 4, nextRoutineId = null))
+        val nudge = messages.first { it.ruleKey == "train_recency" }
+        assertEquals(CoachAction.OpenTraining, nudge.action)
+    }
+
+    @Test
+    fun messages_planWithoutGoalsUsesFallbackBody() {
+        val messages = CoachEngine.messages(
+            messageInput(timeOfDay = TimeOfDay.Morning, calorieGoalKcal = 0.0),
+        )
+        val plan = messages.first { it.ruleKey == "plan_morning" }
+        assertTrue(plan.body.contains("Log your first meal"))
+    }
 }

@@ -231,7 +231,11 @@ object CoachEngine {
 
     private fun recapMessage(input: CoachInput): CoachMessageCandidate? {
         if (input.timeOfDay != TimeOfDay.Evening || !input.hasLoggedToday) return null
-        val calories = "${input.caloriesKcal.roundToInt()} of ${input.calorieGoalKcal.roundToInt()} kcal"
+        val calories = if (input.calorieGoalKcal > 0.0) {
+            "${input.caloriesKcal.roundToInt()} of ${input.calorieGoalKcal.roundToInt()} kcal"
+        } else {
+            "${input.caloriesKcal.roundToInt()} kcal"
+        }
         val macros = "${input.proteinGrams.roundToInt()} g protein · " +
             "${input.carbsGrams.roundToInt()} g carbs · ${input.fatGrams.roundToInt()} g fat"
         return CoachMessageCandidate(
