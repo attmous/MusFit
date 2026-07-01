@@ -51,6 +51,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.ExerciseDetail
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.MusFitScreenScaffold
+import com.musfit.ui.components.MusFitSummaryCard
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -133,20 +135,14 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MusFitTheme.colors.background)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    MusFitScreenScaffold(
+        title = "Training",
+        actions = {
+            IconButton(onClick = { viewModel.selectSection(TrainingSection.History) }) {
+                Icon(Icons.Outlined.History, contentDescription = "Workout history", tint = MusFitTheme.colors.onSurfaceVariant)
+            }
+        },
     ) {
-        TrainingHeader(
-            overview = state.historyOverview,
-            accent = accent,
-            onHistory = { viewModel.selectSection(TrainingSection.History) },
-        )
-
         state.activeWorkoutSummary?.let { summary ->
             ResumeBanner(
                 title = summary.title,
@@ -155,6 +151,8 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 onResume = viewModel::resumeActiveWorkout,
             )
         }
+
+        TrainingWeekSummaryCard(overview = state.historyOverview, accent = accent)
 
         SectionTabs(
             selected = state.selectedSection,
@@ -285,25 +283,52 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun TrainingHeader(
-    overview: TrainingHistoryOverview,
-    accent: TabAccent,
-    onHistory: () -> Unit,
-) {
-    val subtitle =
-        if (overview.currentWeekWorkoutCount == 0) {
-            "No workouts yet this week"
-        } else {
-            "This week · ${overview.currentWeekWorkoutCount} ${if (overview.currentWeekWorkoutCount == 1) "workout" else "workouts"} · ${overview.currentWeekVolumeKg.formatKg()} kg"
+private fun TrainingWeekSummaryCard(overview: TrainingHistoryOverview, accent: TabAccent) {
+    MusFitSummaryCard(accent = accent) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = "This week",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.onSurface,
+            )
+            if (overview.currentWeekWorkoutCount == 0) {
+                Text(
+                    text = "No workouts yet — start one whenever you're ready.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurface,
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    TrainingWeekStat(
+                        value = overview.currentWeekWorkoutCount.toString(),
+                        label = if (overview.currentWeekWorkoutCount == 1) "workout" else "workouts",
+                    )
+                    TrainingWeekStat(value = "${overview.currentWeekVolumeKg.formatKg()} kg", label = "volume")
+                    TrainingWeekStat(value = overview.currentStreakDays.toString(), label = "day streak")
+                }
+            }
         }
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = "Training", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MusFitTheme.colors.onSurface)
-            Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
-        }
-        IconButton(onClick = onHistory) {
-            Icon(Icons.Outlined.History, contentDescription = "Workout history", tint = accent.color)
-        }
+    }
+}
+
+@Composable
+private fun TrainingWeekStat(value: String, label: String) {
+    Column {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MusFitTheme.colors.onSurface,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MusFitTheme.colors.onSurface,
+        )
     }
 }
 
