@@ -21,6 +21,18 @@ data class CoachCue(
     val action: CoachAction?,
 )
 
+/** Feed-message categories (supersede CoachCategory for the persistent feed). */
+enum class CoachMessageCategory { Plan, Nutrition, Training, Trend, Achievement, Recap }
+
+/** One candidate feed message produced by the rules engine for a given day. */
+data class CoachMessageCandidate(
+    val ruleKey: String,
+    val category: CoachMessageCategory,
+    val title: String,
+    val body: String,
+    val action: CoachAction?,
+)
+
 enum class TimeOfDay { Morning, Afternoon, Evening }
 
 data class CoachInput(

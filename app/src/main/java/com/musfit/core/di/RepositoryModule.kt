@@ -2,11 +2,13 @@ package com.musfit.core.di
 
 import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.AssetExerciseDatasetProvider
+import com.musfit.data.repository.CoachRepository
 import com.musfit.data.repository.ExerciseDatasetProvider
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.LocalAccountRepository
+import com.musfit.data.repository.LocalCoachRepository
 import com.musfit.data.repository.LocalFoodRepository
 import com.musfit.data.repository.LocalGoalsRepository
 import com.musfit.data.repository.LocalHealthRepository
@@ -26,6 +28,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindAccountRepository(repository: LocalAccountRepository): AccountRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCoachRepository(repository: LocalCoachRepository): CoachRepository
 
     @Binds
     @Singleton
