@@ -45,6 +45,13 @@ Full verification before claiming completion or pushing:
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
 ```
 
+Seeded emulator setup and verification:
+
+```powershell
+.\scripts\android\setup-musfit-emulator.ps1
+.\scripts\android\install-seed-musfit.ps1 -Reset
+```
+
 Debug APK:
 
 ```text
@@ -167,13 +174,47 @@ docs/superpowers/plans/2026-06-21-food-meal-detail-menu.md
 
 ## Development Expectations
 
+- New tasks use a branch + PR flow. Start from current `origin/master`, create a
+  scoped branch (`codex/<task-name>`), implement, verify, push the branch, open a
+  draft PR, and merge only after verification is complete.
 - Prefer TDD for behavior changes: add/adjust failing ViewModel or repository tests first, run them red, then implement.
 - Keep changes scoped to Food unless the user explicitly asks for Training, Today, Settings/Profile, or architecture changes.
 - Follow existing repository/ViewModel/Compose patterns before introducing new abstractions.
 - Keep UI dense but clean. Avoid marketing-style layouts inside the app.
 - Do not add accounts, cloud sync, analytics, subscriptions, or social features unless explicitly requested.
 - Keep data local-first.
-- Push to `origin/master` when the user asks to push or when continuing the established deploy workflow after verified changes.
+- Before PR/merge, run full verification and install the debug build onto the
+  seeded emulator. Use `.\scripts\android\install-seed-musfit.ps1 -Reset` and
+  verify the touched workflow in-app with the seeded data.
+- Do not push directly to `origin/master`; use PRs for integration unless the
+  user explicitly asks for a different emergency workflow.
+
+## Standard Task Flow
+
+For each new task:
+
+1. Sync from `origin/master` and create a scoped branch.
+2. Read the relevant architecture docs and existing code before changing files.
+3. Add or adjust focused tests first for behavior changes where practical.
+4. Implement the change in the smallest relevant surface area.
+5. Run focused tests for the touched area, then run:
+
+   ```powershell
+   .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+   ```
+
+6. Install and seed the emulator:
+
+   ```powershell
+   .\scripts\android\install-seed-musfit.ps1 -Reset
+   ```
+
+7. Verify the changed user workflow on `MusFit_API36` / `emulator-5554` with
+   screenshots or UI-tree evidence when the task is UI-visible.
+8. Commit, push the branch, open a draft PR, and include the Gradle and emulator
+   verification in the PR body.
+9. Merge only after the PR is verified and approved by the user or required
+   checks.
 
 ## Food Roadmap Status
 
