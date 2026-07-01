@@ -24,3 +24,17 @@ enum class TodayMetric(val id: String, val label: String) {
         val DEFAULT_PINS = listOf(Calories, Steps, Protein)
     }
 }
+
+/** Consecutive logged days counting back from today (from yesterday if today is still empty). */
+object LoggingStreakCalculator {
+    fun streakDays(loggedEpochDays: List<Long>, todayEpochDay: Long): Int {
+        val logged = loggedEpochDays.toHashSet()
+        var cursor = if (todayEpochDay in logged) todayEpochDay else todayEpochDay - 1
+        var streak = 0
+        while (cursor in logged) {
+            streak++
+            cursor--
+        }
+        return streak
+    }
+}
