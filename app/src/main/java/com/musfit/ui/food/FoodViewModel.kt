@@ -5777,8 +5777,7 @@ private fun buildHabitTrackers(
             },
             tone = when {
                 waterProgress >= 1.0 -> FoodInsightTone.Positive
-                waterConsumedMilliliters > 0.0 -> FoodInsightTone.Neutral
-                else -> FoodInsightTone.Warning
+                else -> FoodInsightTone.Neutral
             },
             suggestion = "Keep sipping through the day.",
         ),
@@ -5799,7 +5798,9 @@ private fun habitFromEntries(
         valueLabel = if (matched) "Logged" else "Not yet",
         progress = if (matched) 1.0 else 0.0,
         status = if (matched) FoodHabitStatus.Complete else FoodHabitStatus.Missing,
-        tone = if (matched) FoodInsightTone.Positive else FoodInsightTone.Warning,
+        // "Not yet" is incomplete, not a problem — keep it neutral so coral stays
+        // reserved for real warnings (over-limit sodium, etc.).
+        tone = if (matched) FoodInsightTone.Positive else FoodInsightTone.Neutral,
         suggestion = if (matched) "Covered today." else suggestion,
     )
 }
