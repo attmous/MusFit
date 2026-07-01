@@ -74,7 +74,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Color
 import com.musfit.ui.theme.MusFitTheme
@@ -91,6 +90,11 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.musfit.ui.AppDestination
+import com.musfit.ui.components.MusFitScreenHeader
+import com.musfit.ui.components.MusFitSummaryCard
+import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,6 +109,7 @@ fun FoodScreen(
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val accent = tabAccentFor(AppDestination.Food)
     val selectedMealDetail = state.selectedMealDetailForDisplay()
     var moreExpanded by rememberSaveable { mutableStateOf(false) }
     val foodHealthConnectPermissionLauncher = rememberLauncherForActivityResult(
@@ -188,29 +193,34 @@ fun FoodScreen(
                     .padding(bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                FoodSummaryHeader(
-                    state = state,
-                    onPreviousDayClick = viewModel::goToPreviousDay,
-                    onNextDayClick = viewModel::goToNextDay,
-                    onTodayClick = viewModel::goToToday,
-                    onQuickAddClick = {
-                        viewModel.openAddFood("snacks")
-                        viewModel.selectAddMode(FoodAddMode.Quick)
-                    },
-                    onGoalClick = viewModel::openGoalEditor,
-                    onTemplatesClick = viewModel::openMealTemplates,
-                    onRecipeClick = viewModel::openRecipeEditor,
-                    onMealsClick = viewModel::openMealSettings,
-                    onShoppingClick = viewModel::openShoppingList,
-                    onFastingClick = viewModel::openFastingTimer,
-                    onPlanningModeClick = viewModel::togglePlanningMode,
-                    onCopyDayToTomorrowClick = viewModel::copySelectedDayToTomorrow,
-                )
-
                 Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    MusFitScreenHeader(
+                        title = "Food",
+                        actions = {
+                            FoodDiaryOverflowAction(
+                                state = state,
+                                onGoalClick = viewModel::openGoalEditor,
+                                onMealsClick = viewModel::openMealSettings,
+                                onTemplatesClick = viewModel::openMealTemplates,
+                                onRecipeClick = viewModel::openRecipeEditor,
+                                onShoppingClick = viewModel::openShoppingList,
+                                onFastingClick = viewModel::openFastingTimer,
+                                onPlanningModeClick = viewModel::togglePlanningMode,
+                                onCopyDayToTomorrowClick = viewModel::copySelectedDayToTomorrow,
+                            )
+                        },
+                    )
+                    FoodDiarySummaryCard(
+                        state = state,
+                        accent = accent,
+                        onPreviousDayClick = viewModel::goToPreviousDay,
+                        onNextDayClick = viewModel::goToNextDay,
+                        onTodayClick = viewModel::goToToday,
+                    )
+
                     MacroProgressRow(state.macroProgress)
 
                     MessageBanner(
@@ -634,78 +644,71 @@ private fun MoreSection(
 }
 
 @Composable
-private fun FoodSummaryHeader(
+private fun FoodDiaryOverflowAction(
     state: FoodUiState,
-    onPreviousDayClick: () -> Unit,
-    onNextDayClick: () -> Unit,
-    onTodayClick: () -> Unit,
-    onQuickAddClick: () -> Unit,
     onGoalClick: () -> Unit,
+    onMealsClick: () -> Unit,
     onTemplatesClick: () -> Unit,
     onRecipeClick: () -> Unit,
-    onMealsClick: () -> Unit,
     onShoppingClick: () -> Unit,
     onFastingClick: () -> Unit,
     onPlanningModeClick: () -> Unit,
     onCopyDayToTomorrowClick: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .background(Brush.linearGradient(MusFitTheme.colors.brandGradient))
-            .padding(start = 12.dp, top = 12.dp, end = 8.dp, bottom = 22.dp),
-    ) {
+    var menuOpen by remember { mutableStateOf(false) }
+    IconButton(onClick = { menuOpen = true }) {
+        Icon(Icons.Filled.MoreVert, contentDescription = "More actions", tint = MusFitTheme.colors.onSurfaceVariant)
+    }
+    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        DropdownMenuItem(text = { Text("Goals") }, onClick = { menuOpen = false; onGoalClick() })
+        DropdownMenuItem(text = { Text("Meals") }, onClick = { menuOpen = false; onMealsClick() })
+        DropdownMenuItem(text = { Text("Templates") }, onClick = { menuOpen = false; onTemplatesClick() })
+        DropdownMenuItem(text = { Text("Recipes") }, onClick = { menuOpen = false; onRecipeClick() })
+        DropdownMenuItem(text = { Text("Shopping list") }, onClick = { menuOpen = false; onShoppingClick() })
+        DropdownMenuItem(text = { Text("Fasting") }, onClick = { menuOpen = false; onFastingClick() })
+        DropdownMenuItem(
+            text = { Text(if (state.isPlanningMode) "Planning: on" else "Planning: off") },
+            onClick = { menuOpen = false; onPlanningModeClick() },
+        )
+        DropdownMenuItem(
+            text = { Text("Copy day to tomorrow") },
+            enabled = !state.isSaving,
+            onClick = { menuOpen = false; onCopyDayToTomorrowClick() },
+        )
+    }
+}
+
+@Composable
+private fun FoodDiarySummaryCard(
+    state: FoodUiState,
+    accent: TabAccent,
+    onPreviousDayClick: () -> Unit,
+    onNextDayClick: () -> Unit,
+    onTodayClick: () -> Unit,
+) {
+    MusFitSummaryCard(accent = accent) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onPreviousDayClick) {
-                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = MusFitTheme.colors.brandInk)
-                    }
-                    Text(
-                        text = state.selectedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MusFitTheme.colors.brandInk,
-                        modifier = Modifier.clickable(onClick = onTodayClick),
-                    )
-                    IconButton(onClick = onNextDayClick) {
-                        Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = MusFitTheme.colors.brandInk)
-                    }
+                IconButton(onClick = onPreviousDayClick) {
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = MusFitTheme.colors.onSurface)
                 }
-                Box {
-                    var menuOpen by remember { mutableStateOf(false) }
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More actions", tint = MusFitTheme.colors.brandInk)
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(text = { Text("Goals") }, onClick = { menuOpen = false; onGoalClick() })
-                        DropdownMenuItem(text = { Text("Meals") }, onClick = { menuOpen = false; onMealsClick() })
-                        DropdownMenuItem(text = { Text("Templates") }, onClick = { menuOpen = false; onTemplatesClick() })
-                        DropdownMenuItem(text = { Text("Recipes") }, onClick = { menuOpen = false; onRecipeClick() })
-                        DropdownMenuItem(text = { Text("Shopping list") }, onClick = { menuOpen = false; onShoppingClick() })
-                        DropdownMenuItem(text = { Text("Fasting") }, onClick = { menuOpen = false; onFastingClick() })
-                        DropdownMenuItem(
-                            text = { Text(if (state.isPlanningMode) "Planning: on" else "Planning: off") },
-                            onClick = { menuOpen = false; onPlanningModeClick() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Copy day to tomorrow") },
-                            enabled = !state.isSaving,
-                            onClick = { menuOpen = false; onCopyDayToTomorrowClick() },
-                        )
-                    }
+                Text(
+                    text = state.selectedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MusFitTheme.colors.onSurface,
+                    modifier = Modifier.clickable(onClick = onTodayClick),
+                )
+                IconButton(onClick = onNextDayClick) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = MusFitTheme.colors.onSurface)
                 }
             }
-
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 8.dp, end = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -730,12 +733,12 @@ private fun SummarySideMetric(
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MusFitTheme.colors.brandInk.copy(alpha = 0.76f),
+            color = MusFitTheme.colors.onSurface.copy(alpha = 0.7f),
         )
         Text(
             text = value.roundToInt().toString(),
             style = MaterialTheme.typography.headlineSmall,
-            color = MusFitTheme.colors.brandInk,
+            color = MusFitTheme.colors.onSurface,
         )
     }
 }
@@ -788,7 +791,8 @@ private fun CalorieRing(
     calorieGoal: Double,
 ) {
     val progress = (eatenCalories / calorieGoal).toFloat().coerceIn(0f, 1f)
-    val brandInk = MusFitTheme.colors.brandInk
+    val trackColor = MusFitTheme.colors.onSurface.copy(alpha = 0.12f)
+    val progressColor = MusFitTheme.colors.brand
 
     Box(
         modifier = Modifier.size(176.dp),
@@ -799,7 +803,7 @@ private fun CalorieRing(
             val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
             val topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
             drawArc(
-                color = brandInk.copy(alpha = 0.22f),
+                color = trackColor,
                 startAngle = 145f,
                 sweepAngle = 250f,
                 useCenter = false,
@@ -808,7 +812,7 @@ private fun CalorieRing(
                 style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
             )
             drawArc(
-                color = brandInk.copy(alpha = 0.92f),
+                color = progressColor,
                 startAngle = 145f,
                 sweepAngle = 250f * progress,
                 useCenter = false,
@@ -823,12 +827,12 @@ private fun CalorieRing(
                 text = remainingCalories.roundToInt().toString(),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.brandInk,
+                color = MusFitTheme.colors.onSurface,
             )
             Text(
                 text = "kcal left",
                 style = MaterialTheme.typography.labelLarge,
-                color = MusFitTheme.colors.brandInk.copy(alpha = 0.78f),
+                color = MusFitTheme.colors.onSurface.copy(alpha = 0.78f),
             )
         }
     }
