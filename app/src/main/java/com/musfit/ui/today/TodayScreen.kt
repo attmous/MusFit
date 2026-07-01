@@ -76,7 +76,6 @@ fun TodayScreen(
             }
         },
     ) {
-
         state.coach?.let { briefing ->
             CoachBriefingCard(briefing) { action ->
                 when (action) {
@@ -144,12 +143,16 @@ private fun DailyRingsCard(
         ) {
             rings.forEach { ring ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    MetricRing(progress = ring.progress, color = ringColor(ring.kind)) {
+                    MetricRing(
+                        progress = ring.progress,
+                        color = ringColor(ring.kind),
+                        trackColor = MusFitTheme.colors.onSurface.copy(alpha = 0.12f),
+                    ) {
                         Text(
                             text = "${(ring.progress * 100).roundToInt()}%",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = accent.onContainer,
+                            color = MusFitTheme.colors.onSurface,
                         )
                     }
                     Spacer(Modifier.height(7.dp))
@@ -157,13 +160,13 @@ private fun DailyRingsCard(
                         text = ring.kind.label,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = accent.onContainer,
+                        color = MusFitTheme.colors.onSurface,
                     )
                 }
             }
         }
         Spacer(Modifier.height(16.dp))
-        MacroBar(macros = macros, labelColor = accent.onContainer)
+        MacroBar(macros = macros, labelColor = MusFitTheme.colors.onSurface)
     }
 }
 
