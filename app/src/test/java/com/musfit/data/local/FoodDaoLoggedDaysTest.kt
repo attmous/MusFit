@@ -3,6 +3,9 @@ package com.musfit.data.local
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.musfit.data.local.entity.FoodEntity
+import com.musfit.data.local.entity.MealEntity
+import com.musfit.data.local.entity.MealItemEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -29,25 +32,45 @@ class FoodDaoLoggedDaysTest {
         database.close()
     }
 
-    private fun insertParentFood() {
+    private suspend fun insertParentFood() {
         // meal_items has FOREIGN KEY(foodId) → foods(id) and Room enables PRAGMA foreign_keys —
         // a parent foods row must exist or every meal_items insert throws SQLiteConstraintException.
-        database.openHelper.writableDatabase.execSQL(
-            "INSERT INTO foods (id, name, brand, defaultServingGrams, caloriesPer100g, proteinPer100g, " +
-                "carbsPer100g, fatPer100g, createdAtEpochMillis, updatedAtEpochMillis) " +
-                "VALUES ('food-1', 'Test food', NULL, 100.0, 100.0, 10.0, 10.0, 5.0, 1, 1)",
+        database.foodDao().upsertFood(
+            FoodEntity(
+                id = "food-1",
+                name = "Test food",
+                brand = null,
+                defaultServingGrams = 100.0,
+                caloriesPer100g = 100.0,
+                proteinPer100g = 10.0,
+                carbsPer100g = 10.0,
+                fatPer100g = 5.0,
+                createdAtEpochMillis = 1,
+                updatedAtEpochMillis = 1,
+            ),
         )
     }
 
-    private fun insertMealWithItem(mealId: String, epochDay: Long, status: String) {
-        val db = database.openHelper.writableDatabase
-        db.execSQL(
-            "INSERT INTO meals (id, dateEpochDay, type, notes, createdAtEpochMillis, updatedAtEpochMillis) " +
-                "VALUES ('$mealId', $epochDay, 'breakfast', NULL, 1, 1)",
+    private suspend fun insertMealWithItem(mealId: String, epochDay: Long, status: String) {
+        val dao = database.foodDao()
+        dao.upsertMeal(
+            MealEntity(
+                id = mealId,
+                dateEpochDay = epochDay,
+                type = "breakfast",
+                notes = null,
+                createdAtEpochMillis = 1,
+                updatedAtEpochMillis = 1,
+            ),
         )
-        db.execSQL(
-            "INSERT INTO meal_items (id, mealId, foodId, quantityGrams, status) " +
-                "VALUES ('$mealId-item', '$mealId', 'food-1', 100.0, '$status')",
+        dao.upsertMealItem(
+            MealItemEntity(
+                id = "$mealId-item",
+                mealId = mealId,
+                foodId = "food-1",
+                quantityGrams = 100.0,
+                status = status,
+            ),
         )
     }
 
@@ -59,6 +82,16 @@ class FoodDaoLoggedDaysTest {
         insertMealWithItem("m2b", 20_001L, "logged") // same day twice → distinct
         insertMealWithItem("m3", 20_002L, "planned") // planned-only day excluded
         insertMealWithItem("m0", 19_000L, "logged") // before the window → excluded
+        database.foodDao().upsertMealItem(
+            // mixed day: planned item alongside m1's logged item → day still appears exactly once
+            MealItemEntity(
+                id = "m1-planned-item",
+                mealId = "m1",
+                foodId = "food-1",
+                quantityGrams = 50.0,
+                status = "planned",
+            ),
+        )
 
         val days = database.foodDao().observeLoggedDayEpochDays(fromEpochDay = 19_500L).first()
 
