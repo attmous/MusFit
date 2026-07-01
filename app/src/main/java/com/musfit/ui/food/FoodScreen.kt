@@ -1,6 +1,7 @@
 package com.musfit.ui.food
 
 import com.musfit.data.repository.FoodGoalMode
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -125,6 +126,15 @@ fun FoodScreen(
             onScannedLabelConsumed()
         }
     }
+
+    // A system/gesture back on a full-screen Food surface (meal detail or add-food)
+    // closes it and returns to the diary, instead of falling through to the NavHost
+    // and popping the whole Food tab out to Today. Only one is ever active at a time;
+    // the modal sheets handle their own back.
+    BackHandler(enabled = selectedMealDetail != null) { viewModel.closeMealDetail() }
+    BackHandler(
+        enabled = state.isAddPanelVisible && state.sheetMode == FoodSheetMode.AddFood,
+    ) { viewModel.closeAddFood() }
 
     Box(
         modifier = Modifier

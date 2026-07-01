@@ -64,9 +64,13 @@ fun AppNavGraph() {
     var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun go(route: String) {
+        // Standard bottom-nav model: back from any tab returns to Today (the start
+        // destination), and from Today it exits. saveState/restoreState keep each
+        // tab's own scroll and UI state across switches.
         navController.navigate(route) {
-            popUpTo(AppDestination.Today.route)
+            popUpTo(AppDestination.Today.route) { saveState = true }
             launchSingleTop = true
+            restoreState = true
         }
     }
 
