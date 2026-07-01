@@ -184,6 +184,14 @@ interface FoodDao {
     @Query("SELECT * FROM meals WHERE dateEpochDay = :dateEpochDay AND type = :mealType ORDER BY createdAtEpochMillis")
     suspend fun getMealsForDateAndType(dateEpochDay: Long, mealType: String): List<MealEntity>
 
+    @Query(
+        "SELECT DISTINCT meals.dateEpochDay FROM meals " +
+            "INNER JOIN meal_items ON meal_items.mealId = meals.id " +
+            "WHERE meal_items.status = 'logged' AND meals.dateEpochDay >= :fromEpochDay " +
+            "ORDER BY meals.dateEpochDay DESC",
+    )
+    fun observeLoggedDayEpochDays(fromEpochDay: Long): Flow<List<Long>>
+
     @Query("SELECT * FROM meal_definitions ORDER BY sortOrder, name")
     fun observeMealDefinitions(): Flow<List<MealDefinitionEntity>>
 

@@ -396,6 +396,9 @@ interface FoodRepository {
 
     fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> = flowOf(emptyList())
 
+    /** Distinct epoch-days (newest first) with at least one logged diary entry, for streaks. */
+    fun observeLoggedDayEpochDays(fromEpochDay: Long): Flow<List<Long>> = flowOf(emptyList())
+
     fun observeShoppingList(): Flow<List<ShoppingListGroup>> = flowOf(emptyList())
 
     fun observeSavedFoods(): Flow<List<SavedFoodItem>>
@@ -607,6 +610,9 @@ class LocalFoodRepository @Inject constructor(
             rows.toFoodPlanDays(startDate)
         }
     }
+
+    override fun observeLoggedDayEpochDays(fromEpochDay: Long): Flow<List<Long>> =
+        foodDao.observeLoggedDayEpochDays(fromEpochDay)
 
     override fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> {
         val endDate = startDate.plusDays(6)
