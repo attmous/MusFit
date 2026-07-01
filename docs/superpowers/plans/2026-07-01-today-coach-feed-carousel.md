@@ -1284,7 +1284,12 @@ Then add to the `CoachEngine` object (below `briefing`):
 
     private fun recapMessage(input: CoachInput): CoachMessageCandidate? {
         if (input.timeOfDay != TimeOfDay.Evening || !input.hasLoggedToday) return null
-        val calories = "${input.caloriesKcal.roundToInt()} of ${input.calorieGoalKcal.roundToInt()} kcal"
+        // Guard: without a calorie goal the copy must not read "of 0 kcal" (persisted for the day).
+        val calories = if (input.calorieGoalKcal > 0.0) {
+            "${input.caloriesKcal.roundToInt()} of ${input.calorieGoalKcal.roundToInt()} kcal"
+        } else {
+            "${input.caloriesKcal.roundToInt()} kcal"
+        }
         val macros = "${input.proteinGrams.roundToInt()} g protein · " +
             "${input.carbsGrams.roundToInt()} g carbs · ${input.fatGrams.roundToInt()} g fat"
         return CoachMessageCandidate(
@@ -1555,6 +1560,25 @@ Then the behavior tests:
     }
 
     @Test
+    fun sync_candidatesIncludeNewFieldRules_waterLowWiredEndToEnd() = runTest {
+        // Pins that the extended CoachInput fields are actually wired (they are defaulted,
+        // so a wiring omission fails no compile — only this test).
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(coachRepository.lastCandidates.any { it.ruleKey == "water_low" })
+    }
+    // Requires FakeFoodRepository to override observeWaterSummary(date) returning
+    // FoodWaterSummary(date, consumedMilliliters = 100.0, goalMilliliters = 2000.0)
+    // — add that override to the fake. The todayViewModel() helper pins an afternoon
+    // clock, so the NOT-morning water gate is deterministic. Test-file imports gain
+    // java.time.ZoneId and com.musfit.data.repository.FoodWaterSummary.
+
+    @Test
     fun onScreenResumed_syncsUsingCurrentDate_midnightRollover() = runTest {
         var date = LocalDate.of(2026, 7, 1)
         val coachRepository = FakeCoachRepository()
@@ -1622,6 +1646,9 @@ And a construction helper (place above the fakes; reuse for all new tests):
         goalsRepository = FakeGoalsRepository(),
         coachRepository = coachRepository,
         dateProvider = dateProvider ?: { date },
+        // Deterministic afternoon clock: the engine's time-gated rules (water_low is
+        // NOT-morning, plan_morning is morning-only) must not flake with wall time.
+        clock = { date.atTime(14, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() },
     )
 ```
 
@@ -3429,7 +3456,7 @@ Delete the `WeeklyCaloriesCard`, `WeightTrendCard`, `WeekStatsRow`, `WeeklyMiniT
 
 - [ ] **Step 3: Remove the legacy briefing API from `CoachEngine.kt`**
 
-Delete `CoachCategory`, `CoachCue`, `CoachBriefing`, `CoachEngine.briefing()` and its private cue functions (`greeting`, `proteinCue`, `caloriesCue`, `trainingCue`, `weightCue`, `stepsCue`, `welcomeCue`). Keep `CoachAction`, `TimeOfDay`, `CoachInput`, `CoachMessageCategory`, `CoachMessageCandidate`, `messages()` and its private helpers, and the two `Double` format extensions. In `CoachEngineTest.kt` delete the `briefing()` tests. In `TodayViewModelTest.kt` delete the two legacy tests made obsolete by the removals — `state_aggregatesFoodTrainingAndHealthDataForToday` and `state_buildsWeeklyChartsWithSevenBarsAndTracksSelection` — plus anything else still referencing removed types. In `state_usesInjectedDateProviderBeforeStartingRepositoryFlows`, **remove the `trainingRepository.observedDates` assertion** — its feeder `observeDailyTrainingSummary(date)` loses its last caller when `observeDaily()` is deleted (the surviving flows use the date-less `observeWorkoutHistory`/`observeRoutineSummaries`); keep the food and health assertions, which stay exercised via `observeDailyNutrition`/`observeDailySummary`. Delete `BuildWeeklyChartsTest.kt`.
+Delete `CoachCategory`, `CoachCue`, `CoachBriefing`, `CoachEngine.briefing()` and its private cue functions (`greeting`, `proteinCue`, `caloriesCue`, `trainingCue`, `weightCue`, `stepsCue`, `welcomeCue`). Keep `CoachAction`, `TimeOfDay`, `CoachInput`, `CoachMessageCategory`, `CoachMessageCandidate`, `messages()` and its private helpers, and the two `Double` format extensions. **Also remove the default values from the 8 `CoachInput` fields added in Task 4** (they existed only so the legacy `briefing()` call site kept compiling) — once the only producer is the new wiring, the compiler must force full snapshot wiring; fix any call sites/tests the removal exposes. In `CoachEngineTest.kt` delete the `briefing()` tests. In `TodayViewModelTest.kt` delete the two legacy tests made obsolete by the removals — `state_aggregatesFoodTrainingAndHealthDataForToday` and `state_buildsWeeklyChartsWithSevenBarsAndTracksSelection` — plus anything else still referencing removed types. In `state_usesInjectedDateProviderBeforeStartingRepositoryFlows`, **remove the `trainingRepository.observedDates` assertion** — its feeder `observeDailyTrainingSummary(date)` loses its last caller when `observeDaily()` is deleted (the surviving flows use the date-less `observeWorkoutHistory`/`observeRoutineSummaries`); keep the food and health assertions, which stay exercised via `observeDailyNutrition`/`observeDailySummary`. Delete `BuildWeeklyChartsTest.kt`.
 
 - [ ] **Step 4: Full test pass**
 
