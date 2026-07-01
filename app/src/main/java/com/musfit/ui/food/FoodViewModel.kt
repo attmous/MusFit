@@ -176,14 +176,15 @@ data class FoodProgressStatsUiState(
     val monthly: FoodProgressPeriodUiState,
 )
 
+data class FoodProgressMetricUiState(
+    val caption: String,
+    val value: String,
+)
+
 data class FoodProgressPeriodUiState(
     val title: String,
     val trackedDaysLabel: String,
-    val averageCaloriesLabel: String,
-    val averageProteinLabel: String,
-    val calorieAdherenceLabel: String,
-    val hydrationLabel: String,
-    val habitLabel: String,
+    val metrics: List<FoodProgressMetricUiState>,
     val trendLabel: String,
 )
 
@@ -5391,11 +5392,13 @@ private fun List<FoodWeeklyDaySummary>.toProgressPeriodUiState(
     return FoodProgressPeriodUiState(
         title = title,
         trackedDaysLabel = "$trackedCount tracked days",
-        averageCaloriesLabel = "${averageCalories.roundToInt()} kcal avg",
-        averageProteinLabel = "${averageProtein.roundToInt()} g protein avg",
-        calorieAdherenceLabel = "$calorieTargetDays/$trackedCount calorie target days",
-        hydrationLabel = "$hydrationDays/$trackedCount hydration days",
-        habitLabel = "$habitDays/$trackedCount habit days",
+        metrics = listOf(
+            FoodProgressMetricUiState("Avg calories", "${averageCalories.roundToInt()} kcal"),
+            FoodProgressMetricUiState("Avg protein", "${averageProtein.roundToInt()} g"),
+            FoodProgressMetricUiState("Calorie target", "$calorieTargetDays/$trackedCount days"),
+            FoodProgressMetricUiState("Hydration", "$hydrationDays/$trackedCount days"),
+            FoodProgressMetricUiState("Habit days", "$habitDays/$trackedCount"),
+        ),
         trendLabel = trendLabelForCalories(),
     )
 }
@@ -6628,11 +6631,13 @@ private fun emptyProgressPeriod(title: String): FoodProgressPeriodUiState =
     FoodProgressPeriodUiState(
         title = title,
         trackedDaysLabel = "0 tracked days",
-        averageCaloriesLabel = "0 kcal avg",
-        averageProteinLabel = "0 g protein avg",
-        calorieAdherenceLabel = "0/0 calorie target days",
-        hydrationLabel = "0/0 hydration days",
-        habitLabel = "0/0 habit days",
+        metrics = listOf(
+            FoodProgressMetricUiState("Avg calories", "0 kcal"),
+            FoodProgressMetricUiState("Avg protein", "0 g"),
+            FoodProgressMetricUiState("Calorie target", "0/0 days"),
+            FoodProgressMetricUiState("Hydration", "0/0 days"),
+            FoodProgressMetricUiState("Habit days", "0/0"),
+        ),
         trendLabel = "Trend needs more tracked days",
     )
 

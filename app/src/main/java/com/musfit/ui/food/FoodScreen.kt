@@ -1008,7 +1008,7 @@ private fun FoodProgressStatsCard(stats: FoodProgressStatsUiState) {
 
 @Composable
 private fun FoodProgressPeriodRow(period: FoodProgressPeriodUiState) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1023,22 +1023,48 @@ private fun FoodProgressPeriodRow(period: FoodProgressPeriodUiState) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        // Scannable caption/value grid instead of a run-on sentence of metrics.
+        period.metrics.chunked(2).forEach { pair ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                pair.forEach { metric ->
+                    FoodProgressMetricCell(metric = metric, modifier = Modifier.weight(1f))
+                }
+                if (pair.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
         Text(
-            text = listOf(
-                period.averageCaloriesLabel,
-                period.averageProteinLabel,
-                period.calorieAdherenceLabel,
-                period.hydrationLabel,
-            ).joinToString(" - "),
+            text = period.trendLabel,
             style = MaterialTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
-            maxLines = 2,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun FoodProgressMetricCell(
+    metric: FoodProgressMetricUiState,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Text(
+            text = metric.caption,
+            style = MaterialTheme.typography.labelSmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = "${period.habitLabel} - ${period.trendLabel}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
+            text = metric.value,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MusFitTheme.colors.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

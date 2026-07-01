@@ -563,10 +563,11 @@ class FoodViewModelTest {
 
         assertEquals("Last 7 days", stats.weekly.title)
         assertEquals("3 tracked days", stats.weekly.trackedDaysLabel)
-        assertEquals("2160 kcal avg", stats.weekly.averageCaloriesLabel)
-        assertEquals("96 g protein avg", stats.weekly.averageProteinLabel)
-        assertEquals("2/3 calorie target days", stats.weekly.calorieAdherenceLabel)
-        assertEquals("2/3 hydration days", stats.weekly.hydrationLabel)
+        val weeklyMetrics = stats.weekly.metrics.associate { it.caption to it.value }
+        assertEquals("2160 kcal", weeklyMetrics["Avg calories"])
+        assertEquals("96 g", weeklyMetrics["Avg protein"])
+        assertEquals("2/3 days", weeklyMetrics["Calorie target"])
+        assertEquals("2/3 days", weeklyMetrics["Hydration"])
         assertEquals("Last 28 days", stats.monthly.title)
         assertTrue(stats.monthly.trackedDaysLabel.contains("5 tracked days"))
         assertTrue(stats.monthly.trendLabel.contains("up", ignoreCase = true))
