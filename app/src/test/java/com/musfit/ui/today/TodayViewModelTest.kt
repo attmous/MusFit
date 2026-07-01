@@ -1,11 +1,14 @@
 package com.musfit.ui.today
 
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.repository.CoachMessage
+import com.musfit.data.repository.CoachRepository
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
+import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.HealthRepository
@@ -23,11 +26,14 @@ import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutForExport
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.domain.coach.CoachMessageCandidate
+import com.musfit.domain.coach.CoachMessageCategory
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.domain.today.TodayMetric
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -42,6 +48,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TodayViewModelTest {
@@ -69,6 +76,7 @@ class TodayViewModelTest {
             trainingRepository = trainingRepository,
             healthRepository = healthRepository,
             goalsRepository = FakeGoalsRepository(),
+            coachRepository = FakeCoachRepository(),
             dateProvider = { date },
         )
         dispatcher.scheduler.advanceUntilIdle()
@@ -109,6 +117,7 @@ class TodayViewModelTest {
             trainingRepository = trainingRepository,
             healthRepository = healthRepository,
             goalsRepository = FakeGoalsRepository(),
+            coachRepository = FakeCoachRepository(),
             dateProvider = { targetDate },
         )
         dispatcher.scheduler.advanceUntilIdle()
@@ -126,6 +135,7 @@ class TodayViewModelTest {
             trainingRepository = FakeTrainingRepository(),
             healthRepository = FakeHealthRepository(date),
             goalsRepository = FakeGoalsRepository(),
+            coachRepository = FakeCoachRepository(),
             dateProvider = { date },
         )
         dispatcher.scheduler.advanceUntilIdle()
@@ -137,6 +147,151 @@ class TodayViewModelTest {
         assertEquals(null, viewModel.state.value.selectedCalorieDayIndex)
         viewModel.onCalorieDaySelected(3)
         assertEquals(3, viewModel.state.value.selectedCalorieDayIndex)
+    }
+
+    @Test
+    fun feed_groupsByDayWithTodayAndYesterdayLabelsNewestFirst() = runTest {
+        val date = LocalDate.now()
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository, date = date)
+        coachRepository.feed.value = listOf(
+            message(3, date, firstSeenAt = 300L),
+            message(2, date, firstSeenAt = 100L),
+            message(1, date.minusDays(1), firstSeenAt = 50L),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val groups = viewModel.state.value.feed
+        assertEquals(listOf("Today", "Yesterday"), groups.map { it.label })
+        assertEquals(listOf(3L, 2L), groups[0].messages.map { it.id })
+        assertEquals(listOf(1L), groups[1].messages.map { it.id })
+    }
+
+    @Test
+    fun sync_candidatesIncludeNewFieldRules_waterLowWiredEndToEnd() = runTest {
+        // Pins that the extended CoachInput fields are actually wired (they are defaulted,
+        // so a wiring omission fails no compile — only this test).
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(coachRepository.lastCandidates.any { it.ruleKey == "water_low" })
+    }
+
+    @Test
+    fun onScreenResumed_syncsUsingCurrentDate_midnightRollover() = runTest {
+        var date = LocalDate.of(2026, 7, 1)
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository, dateProvider = { date })
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+        date = LocalDate.of(2026, 7, 2) // midnight passes while the process lives
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(coachRepository.syncedDays.contains(LocalDate.of(2026, 7, 1)))
+        assertTrue(coachRepository.syncedDays.contains(LocalDate.of(2026, 7, 2)))
+        assertTrue(coachRepository.lastCandidates.isNotEmpty())
+    }
+
+    @Test
+    fun onScreenPaused_marksAllRead() = runTest {
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onScreenPaused()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, coachRepository.markAllReadCount)
+    }
+
+    @Test
+    fun dismissMessage_delegatesToRepository() = runTest {
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.dismissMessage(42L)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(42L), coachRepository.dismissedIds)
+    }
+
+    @Test
+    fun chatPreview_togglesVisibility() = runTest {
+        val viewModel = todayViewModel(coachRepository = FakeCoachRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openChatPreview()
+        assertTrue(viewModel.state.value.isChatPreviewVisible)
+        viewModel.closeChatPreview()
+        assertEquals(false, viewModel.state.value.isChatPreviewVisible)
+    }
+
+    private fun todayViewModel(
+        coachRepository: CoachRepository,
+        date: LocalDate = LocalDate.now(),
+        dateProvider: (() -> LocalDate)? = null,
+    ) = TodayViewModel(
+        foodRepository = FakeFoodRepository(),
+        trainingRepository = FakeTrainingRepository(),
+        healthRepository = FakeHealthRepository(date),
+        goalsRepository = FakeGoalsRepository(),
+        coachRepository = coachRepository,
+        dateProvider = dateProvider ?: { date },
+        // Deterministic afternoon clock: the engine's time-gated rules (water_low is
+        // NOT-morning, plan_morning is morning-only) must not flake with wall time.
+        clock = { date.atTime(14, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() },
+    )
+
+    private fun message(
+        id: Long,
+        day: LocalDate,
+        firstSeenAt: Long,
+        isRead: Boolean = false,
+        ruleKey: String = "rule-$id",
+    ) = CoachMessage(
+        id = id,
+        day = day,
+        ruleKey = ruleKey,
+        category = CoachMessageCategory.Nutrition,
+        title = "t$id",
+        body = "b$id",
+        action = null,
+        firstSeenAtEpochMillis = firstSeenAt,
+        isRead = isRead,
+        source = "rules",
+    )
+
+    private class FakeCoachRepository : CoachRepository {
+        val feed = MutableStateFlow<List<CoachMessage>>(emptyList())
+        val syncedDays = mutableListOf<LocalDate>()
+        var lastCandidates: List<CoachMessageCandidate> = emptyList()
+        val dismissedIds = mutableListOf<Long>()
+        var markAllReadCount = 0
+        val pins = MutableStateFlow(TodayMetric.DEFAULT_PINS)
+        var savedPins: List<TodayMetric>? = null
+
+        override fun observeFeed(): Flow<List<CoachMessage>> = feed
+
+        override suspend fun syncToday(day: LocalDate, candidates: List<CoachMessageCandidate>) {
+            syncedDays += day
+            lastCandidates = candidates
+        }
+
+        override suspend fun dismiss(id: Long) { dismissedIds += id }
+
+        override suspend fun markAllRead() { markAllReadCount++ }
+
+        override fun observeDashboardPins(): Flow<List<TodayMetric>> = pins
+
+        override suspend fun saveDashboardPins(ordered: List<TodayMetric>) { savedPins = ordered }
     }
 
     private class FakeFoodRepository : FoodRepository {
@@ -174,6 +329,9 @@ class TodayViewModelTest {
 
         override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
             MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
+
+        override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
+            MutableStateFlow(FoodWaterSummary(date, consumedMilliliters = 100.0, goalMilliliters = 2000.0))
 
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
             MutableStateFlow(emptyList())
