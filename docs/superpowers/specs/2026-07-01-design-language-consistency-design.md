@@ -109,8 +109,14 @@ is the single new abstraction** — everything else reuses existing patterns.
 hero and gives every tab the same anchor.
 
 - **Contained, inset** card — `shapes.large` (28dp), inside the normal `spacing.lg` margins (not edge-to-edge).
-- **Soft accent tint**: background = `TabAccent.container`, text = `TabAccent.onContainer`, ring/figure strokes
-  = `TabAccent.color`. Restrained, not a saturated gradient.
+- **Soft accent tint**: background = `TabAccent.container`. Restrained, not a saturated gradient.
+- **Legible text on the tint**: primary figures/labels use `MusFitColors.onSurface` (near-black ink, ~12:1
+  on the light container) — **not** `TabAccent.onContainer`, whose mid-tone inks (e.g. Coral's `#E45B43`)
+  fall below WCAG AA (~3:1) on their own container. `TabAccent.onContainer` is reserved for small accented
+  pills/badges, not body figures. (This rule came out of the Phase 1 light-mode contrast review.)
+- **Figure strokes**: data strokes use their semantic color (`TabAccent.color` / macro / ring-kind colors); any
+  progress-ring **track** uses a tint-safe neutral — `onSurface.copy(alpha = 0.12f)` — so the unfilled arc stays
+  visible on the tint (the theme `track` token nearly matches the container and disappears).
 - **A content slot** each tab fills.
 
 | Tab | Summary card content | Notes |
@@ -120,7 +126,8 @@ hero and gives every tab the same anchor.
 | Training | "this week": sessions, volume, 7-day mini-bar | **new lightweight card** (Indigo) surfacing data already in state; stats stop living only in the header subtitle |
 | Profile | weight-vs-goal | Profile's existing top card gains the Teal tint and becomes the summary card; Identity/Measurements/Vitals stay neutral cards |
 
-Confirmed intensity: **soft `TabAccent.container` tint**, not the bold `TabAccent.color`.
+Confirmed intensity: **soft `TabAccent.container` tint**, not the bold `TabAccent.color`, with near-black
+`onSurface` text on top (per the legibility rule above).
 
 ## Section 4 — Content rhythm (shared component language)
 
