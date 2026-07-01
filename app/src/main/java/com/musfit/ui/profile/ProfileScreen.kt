@@ -25,7 +25,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +34,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -55,16 +54,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
+import com.musfit.ui.AppDestination
+import com.musfit.ui.components.MusFitScreenHeader
+import com.musfit.ui.components.MusFitSummaryCard
+import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.tabAccentFor
 import java.util.Locale
 import kotlin.math.abs
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onSettingsClick: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val accent = tabAccentFor(AppDestination.Profile)
     val snackbarHostState = remember { SnackbarHostState() }
     var showEditor by remember { mutableStateOf(false) }
     var showLogWeight by remember { mutableStateOf(false) }
@@ -81,16 +85,6 @@ fun ProfileScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Profile") },
-                actions = {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Outlined.Settings, contentDescription = "Settings")
-                    }
-                },
-            )
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
@@ -101,10 +95,18 @@ fun ProfileScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            MusFitScreenHeader(
+                title = "Profile",
+                actions = {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+            )
             AccountCard(state = state, onEdit = viewModel::openAccountEditor)
             IdentityCard(state = state, onEdit = { showEditor = true })
             GoalCard(state = state, onApply = viewModel::applyTargetsToFood, onComplete = { showEditor = true })
-            WeightCard(state = state, onLog = { showLogWeight = true }, onOpenEntries = { showWeightSheet = true })
+            WeightCard(state = state, accent = accent, onLog = { showLogWeight = true }, onOpenEntries = { showWeightSheet = true })
             MeasurementsCard(state = state, onLog = { showLogMeasurement = true }, onOpenType = { measurementSheetType = it })
             VitalsCard(state = state, onManage = onSettingsClick)
         }
@@ -345,35 +347,44 @@ private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () 
 }
 
 @Composable
-private fun WeightCard(state: ProfileUiState, onLog: () -> Unit, onOpenEntries: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenEntries), shape = MaterialTheme.shapes.extraLarge) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Unit, onOpenEntries: () -> Unit) {
+    MusFitSummaryCard(accent = accent, onClick = onOpenEntries) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Weight", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text(
+                    "Weight",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
                 TextButton(onClick = onLog) { Text("Log") }
             }
             if (state.latestWeightKg != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("${state.latestWeightKg.format1()} kg", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "${state.latestWeightKg.format1()} kg",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                         state.weeklyWeightDeltaKg?.let { delta ->
                             val arrow = if (delta < 0) "▼" else if (delta > 0) "▲" else "•"
                             Text(
                                 "$arrow ${abs(delta).format1()} kg this week",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
                     }
                     if (state.weightTrend.size >= 2) {
-                        Sparkline(values = state.weightTrend, modifier = Modifier.width(120.dp).height(36.dp))
+                        Sparkline(values = state.weightTrend, color = accent.color, modifier = Modifier.width(120.dp).height(36.dp))
                     }
                 }
             } else {
                 Text(
                     "No weight logged yet.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
@@ -381,8 +392,7 @@ private fun WeightCard(state: ProfileUiState, onLog: () -> Unit, onOpenEntries: 
 }
 
 @Composable
-private fun Sparkline(values: List<Double>, modifier: Modifier) {
-    val lineColor = MaterialTheme.colorScheme.primary
+private fun Sparkline(values: List<Double>, color: Color, modifier: Modifier) {
     Canvas(modifier = modifier) {
         if (values.size < 2) return@Canvas
         val minV = values.min()
@@ -396,7 +406,7 @@ private fun Sparkline(values: List<Double>, modifier: Modifier) {
             moveTo(offsets.first().x, offsets.first().y)
             offsets.drop(1).forEach { lineTo(it.x, it.y) }
         }
-        drawPath(path, color = lineColor, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(path, color = color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 
