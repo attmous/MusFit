@@ -242,7 +242,15 @@ fun FoodScreen(
                     state.mealSections.forEach { meal ->
                         MealSectionCard(
                             meal = meal,
-                            onMealClick = { viewModel.openAddFood(meal.id) },
+                            // Tapping a meal opens its detail once it has logged items;
+                            // an empty meal jumps straight to add-food. The + is always quick-add.
+                            onMealClick = {
+                                if (meal.entries.isNotEmpty()) {
+                                    viewModel.openMealDetail(meal.id)
+                                } else {
+                                    viewModel.openAddFood(meal.id)
+                                }
+                            },
                             onAddClick = { viewModel.openAddFood(meal.id) },
                             onEntryClick = viewModel::openDiaryEntryEditor,
                         )
