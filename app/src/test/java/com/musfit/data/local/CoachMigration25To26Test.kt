@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class TrainingRoutineProgramMigration22To23Test {
+class CoachMigration25To26Test {
     private lateinit var context: Context
 
     @Before
@@ -31,18 +31,12 @@ class TrainingRoutineProgramMigration22To23Test {
     }
 
     @Test
-    fun migration22To23_addsRoutineProgramColumnsAndPreservesExistingRows() {
-        createDatabaseFromExportedSchema(version = 22)
-        seedLegacyRoutine()
+    fun migration25To26_createsCoachTablesAndSeedsDefaultPins() {
+        createDatabaseFromExportedSchema(version = 25)
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(
-                    DatabaseModule.MIGRATION_22_23,
-                    DatabaseModule.MIGRATION_23_24,
-                    DatabaseModule.MIGRATION_24_25,
-                    DatabaseModule.MIGRATION_25_26,
-                )
+                .addMigrations(DatabaseModule.MIGRATION_25_26)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -50,52 +44,32 @@ class TrainingRoutineProgramMigration22To23Test {
             roomDatabase.close()
         }
 
-        val migratedDatabase =
+        val migrated =
             SQLiteDatabase.openDatabase(
                 context.getDatabasePath(TEST_DATABASE_NAME).path,
                 null,
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            assertTrue(tableHasColumn(migratedDatabase, "routines", "programName"))
-            assertTrue(tableHasColumn(migratedDatabase, "routines", "tags"))
-            migratedDatabase.rawQuery(
-                """
-                SELECT name, programName, tags
-                FROM routines
-                WHERE id = 'legacy-routine'
-                """.trimIndent(),
+            assertTrue(tableHasColumn(migrated, "coach_messages", "ruleKey"))
+            assertTrue(tableHasColumn(migrated, "coach_messages", "firstSeenAtEpochMillis"))
+            assertTrue(tableHasColumn(migrated, "coach_messages", "source"))
+            // Existing users exit the migration with the three default pins seeded.
+            migrated.rawQuery(
+                "SELECT metricId, position FROM dashboard_pins ORDER BY position",
                 null,
             ).use { cursor ->
+                assertEquals(3, cursor.count)
                 assertTrue(cursor.moveToFirst())
-                assertEquals("Legacy Routine", cursor.getString(0))
-                assertTrue(cursor.isNull(1))
-                assertEquals("", cursor.getString(2))
+                assertEquals("calories", cursor.getString(0))
+                assertEquals(0, cursor.getInt(1))
+                assertTrue(cursor.moveToNext())
+                assertEquals("steps", cursor.getString(0))
+                assertTrue(cursor.moveToNext())
+                assertEquals("protein", cursor.getString(0))
             }
         } finally {
-            migratedDatabase.close()
-        }
-    }
-
-    private fun seedLegacyRoutine() {
-        val database =
-            SQLiteDatabase.openDatabase(
-                context.getDatabasePath(TEST_DATABASE_NAME).path,
-                null,
-                SQLiteDatabase.OPEN_READWRITE,
-            )
-        try {
-            database.execSQL(
-                """
-                INSERT INTO routines (
-                    id, name, notes, createdAtEpochMillis, updatedAtEpochMillis, isStarter
-                ) VALUES (
-                    'legacy-routine', 'Legacy Routine', NULL, 1000, 1000, 0
-                )
-                """.trimIndent(),
-            )
-        } finally {
-            database.close()
+            migrated.close()
         }
     }
 
@@ -123,10 +97,7 @@ class TrainingRoutineProgramMigration22To23Test {
                 for (indexPosition in 0 until indices.length()) {
                     val entityIndex = indices.getJSONObject(indexPosition)
                     database.execSQL(
-                        resolveSchemaSql(
-                            entityIndex.getString("createSql"),
-                            entity.getString("tableName"),
-                        ),
+                        resolveSchemaSql(entityIndex.getString("createSql"), entity.getString("tableName")),
                     )
                 }
             }
@@ -144,19 +115,12 @@ class TrainingRoutineProgramMigration22To23Test {
 
     private fun resolveSchemaFile(version: Int): File {
         val relativePath = "schemas/com.musfit.data.local.MusFitDatabase/$version.json"
-        val candidates =
-            listOf(
-                File(relativePath),
-                File("app/$relativePath"),
-                File("../app/$relativePath"),
-            )
+        val candidates = listOf(File(relativePath), File("app/$relativePath"), File("../app/$relativePath"))
         return candidates.firstOrNull(File::exists)
-            ?: throw IllegalStateException(
-                "Could not find exported Room schema for version $version. Checked: ${candidates.joinToString()}",
-            )
+            ?: throw IllegalStateException("Could not find exported Room schema for version $version.")
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "routine-mig-22-23"
+        const val TEST_DATABASE_NAME = "coach-25-26"
     }
 }

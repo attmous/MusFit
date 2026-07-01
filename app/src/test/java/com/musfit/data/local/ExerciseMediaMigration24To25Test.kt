@@ -38,7 +38,10 @@ class ExerciseMediaMigration24To25Test {
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_24_25)
+                .addMigrations(
+                    DatabaseModule.MIGRATION_24_25,
+                    DatabaseModule.MIGRATION_25_26,
+                )
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()

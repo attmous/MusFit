@@ -6,6 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.AccountDao
+import com.musfit.data.local.dao.CoachDao
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
 import com.musfit.data.local.dao.ProfileDao
@@ -50,6 +51,7 @@ object DatabaseModule {
                 MIGRATION_22_23,
                 MIGRATION_23_24,
                 MIGRATION_24_25,
+                MIGRATION_25_26,
             )
             .build()
 
@@ -70,6 +72,9 @@ object DatabaseModule {
 
     @Provides
     fun provideUserGoalsDao(database: MusFitDatabase): UserGoalsDao = database.userGoalsDao()
+
+    @Provides
+    fun provideCoachDao(database: MusFitDatabase): CoachDao = database.coachDao()
 
     private val MIGRATION_1_2 =
         object : Migration(1, 2) {
@@ -534,6 +539,50 @@ object DatabaseModule {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE exercises ADD COLUMN imageUrl TEXT")
                 db.execSQL("ALTER TABLE exercises ADD COLUMN gifUrl TEXT")
+            }
+        }
+
+    internal val MIGRATION_25_26 =
+        object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS coach_messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        dayEpochDay INTEGER NOT NULL,
+                        ruleKey TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        body TEXT NOT NULL,
+                        actionType TEXT,
+                        actionData TEXT,
+                        firstSeenAtEpochMillis INTEGER NOT NULL,
+                        isRead INTEGER NOT NULL,
+                        isDismissed INTEGER NOT NULL,
+                        source TEXT NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_coach_messages_dayEpochDay_ruleKey_source " +
+                        "ON coach_messages(dayEpochDay, ruleKey, source)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_coach_messages_dayEpochDay ON coach_messages(dayEpochDay)",
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS dashboard_pins (
+                        metricId TEXT NOT NULL PRIMARY KEY,
+                        position INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                // Seed defaults so existing users see the default carousel after upgrade.
+                db.execSQL(
+                    "INSERT OR IGNORE INTO dashboard_pins (metricId, position) " +
+                        "VALUES ('calories', 0), ('steps', 1), ('protein', 2)",
+                )
             }
         }
 }
