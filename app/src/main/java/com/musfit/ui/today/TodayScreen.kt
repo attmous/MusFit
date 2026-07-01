@@ -7,14 +7,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Tune
@@ -47,6 +44,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachBriefing
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.MusFitScreenScaffold
+import com.musfit.ui.components.MusFitSummaryCard
 import com.musfit.ui.components.charts.BarDatum
 import com.musfit.ui.components.charts.MetricRing
 import com.musfit.ui.components.charts.TrendLineChart
@@ -68,36 +67,15 @@ fun TodayScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MusFitTheme.colors.background)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Today",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MusFitTheme.colors.onSurface,
-                )
-                Text(
-                    text = state.dateLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
+    MusFitScreenScaffold(
+        title = "Today",
+        subtitle = state.dateLabel,
+        actions = {
             IconButton(onClick = viewModel::openGoalsEditor) {
                 Icon(Icons.Outlined.Tune, contentDescription = "Edit goals", tint = MusFitTheme.colors.onSurfaceVariant)
             }
-        }
+        },
+    ) {
 
         state.coach?.let { briefing ->
             CoachBriefingCard(briefing) { action ->
@@ -152,52 +130,45 @@ fun TodayScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DailyRingsCard(
     rings: List<DailyRingUiState>,
     macros: MacroBreakdownUiState,
     onClick: () -> Unit,
 ) {
-    Surface(
-        onClick = onClick,
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.extraLarge,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround,
-            ) {
-                rings.forEach { ring ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        MetricRing(progress = ring.progress, color = ringColor(ring.kind)) {
-                            Text(
-                                text = "${(ring.progress * 100).roundToInt()}%",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MusFitTheme.colors.onSurface,
-                            )
-                        }
-                        Spacer(Modifier.height(7.dp))
+    val accent = tabAccentFor(AppDestination.Today)
+    MusFitSummaryCard(accent = accent, onClick = onClick) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround,
+        ) {
+            rings.forEach { ring ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    MetricRing(progress = ring.progress, color = ringColor(ring.kind)) {
                         Text(
-                            text = ring.kind.label,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MusFitTheme.colors.onSurface,
+                            text = "${(ring.progress * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = accent.onContainer,
                         )
                     }
+                    Spacer(Modifier.height(7.dp))
+                    Text(
+                        text = ring.kind.label,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accent.onContainer,
+                    )
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            MacroBar(macros)
         }
+        Spacer(Modifier.height(16.dp))
+        MacroBar(macros = macros, labelColor = accent.onContainer)
     }
 }
 
 @Composable
-private fun MacroBar(macros: MacroBreakdownUiState) {
+private fun MacroBar(macros: MacroBreakdownUiState, labelColor: Color = MusFitTheme.colors.onSurfaceVariant) {
     val macroColors = MusFitTheme.colors.macroColors
     val values = listOf(macros.carbsGrams, macros.proteinGrams, macros.fatGrams)
     val total = values.sum().takeIf { it > 0.0 } ?: 1.0
@@ -215,7 +186,7 @@ private fun MacroBar(macros: MacroBreakdownUiState) {
         Text(
             text = "C ${macros.carbsGrams.roundToInt()} · P ${macros.proteinGrams.roundToInt()} · F ${macros.fatGrams.roundToInt()}",
             style = MaterialTheme.typography.labelSmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
+            color = labelColor,
         )
     }
 }
