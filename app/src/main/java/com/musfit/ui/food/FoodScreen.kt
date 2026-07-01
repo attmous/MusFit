@@ -694,17 +694,17 @@ private fun FoodDiarySummaryCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onPreviousDayClick) {
-                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = MusFitTheme.colors.onSurface)
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = accent.onContainer)
                 }
                 Text(
                     text = state.selectedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MusFitTheme.colors.onSurface,
+                    color = accent.onContainer,
                     modifier = Modifier.clickable(onClick = onTodayClick),
                 )
                 IconButton(onClick = onNextDayClick) {
-                    Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = MusFitTheme.colors.onSurface)
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = accent.onContainer)
                 }
             }
             Row(
@@ -712,13 +712,14 @@ private fun FoodDiarySummaryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SummarySideMetric(label = "Eaten", value = state.eatenCaloriesKcal)
+                SummarySideMetric(label = "Eaten", value = state.eatenCaloriesKcal, color = accent.onContainer)
                 CalorieRing(
                     eatenCalories = state.eatenCaloriesKcal,
                     remainingCalories = state.remainingCaloriesKcal,
                     calorieGoal = state.calorieGoalKcal,
+                    contentColor = accent.onContainer,
                 )
-                SummarySideMetric(label = "Goal", value = state.calorieGoalKcal)
+                SummarySideMetric(label = "Goal", value = state.calorieGoalKcal, color = accent.onContainer)
             }
         }
     }
@@ -728,17 +729,18 @@ private fun FoodDiarySummaryCard(
 private fun SummarySideMetric(
     label: String,
     value: Double,
+    color: Color,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MusFitTheme.colors.onSurface.copy(alpha = 0.7f),
+            color = color.copy(alpha = 0.7f),
         )
         Text(
             text = value.roundToInt().toString(),
             style = MaterialTheme.typography.headlineSmall,
-            color = MusFitTheme.colors.onSurface,
+            color = color,
         )
     }
 }
@@ -789,6 +791,7 @@ private fun CalorieRing(
     eatenCalories: Double,
     remainingCalories: Double,
     calorieGoal: Double,
+    contentColor: Color,
 ) {
     val progress = (eatenCalories / calorieGoal).toFloat().coerceIn(0f, 1f)
     val trackColor = MusFitTheme.colors.onSurface.copy(alpha = 0.12f)
@@ -827,12 +830,12 @@ private fun CalorieRing(
                 text = remainingCalories.roundToInt().toString(),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.onSurface,
+                color = contentColor,
             )
             Text(
                 text = "kcal left",
                 style = MaterialTheme.typography.labelLarge,
-                color = MusFitTheme.colors.onSurface.copy(alpha = 0.78f),
+                color = contentColor.copy(alpha = 0.78f),
             )
         }
     }

@@ -287,13 +287,13 @@ private fun TrainingWeekSummaryCard(overview: TrainingHistoryOverview, accent: T
                 text = "This week",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MusFitTheme.colors.onSurface,
+                color = accent.onContainer,
             )
             if (overview.currentWeekWorkoutCount == 0) {
                 Text(
                     text = "No workouts yet — start one whenever you're ready.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MusFitTheme.colors.onSurface,
+                    color = accent.onContainer,
                 )
             } else {
                 Row(
@@ -303,9 +303,10 @@ private fun TrainingWeekSummaryCard(overview: TrainingHistoryOverview, accent: T
                     TrainingWeekStat(
                         value = overview.currentWeekWorkoutCount.toString(),
                         label = if (overview.currentWeekWorkoutCount == 1) "workout" else "workouts",
+                        color = accent.onContainer,
                     )
-                    TrainingWeekStat(value = "${overview.currentWeekVolumeKg.formatKg()} kg", label = "volume")
-                    TrainingWeekStat(value = overview.currentStreakDays.toString(), label = "day streak")
+                    TrainingWeekStat(value = "${overview.currentWeekVolumeKg.formatKg()} kg", label = "volume", color = accent.onContainer)
+                    TrainingWeekStat(value = overview.currentStreakDays.toString(), label = "day streak", color = accent.onContainer)
                 }
             }
         }
@@ -313,18 +314,18 @@ private fun TrainingWeekSummaryCard(overview: TrainingHistoryOverview, accent: T
 }
 
 @Composable
-private fun TrainingWeekStat(value: String, label: String) {
+private fun TrainingWeekStat(value: String, label: String, color: androidx.compose.ui.graphics.Color) {
     Column {
         Text(
             text = value,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            color = MusFitTheme.colors.onSurface,
+            color = color,
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MusFitTheme.colors.onSurface,
+            color = color,
         )
     }
 }

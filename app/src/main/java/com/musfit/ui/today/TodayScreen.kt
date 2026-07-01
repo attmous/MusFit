@@ -152,7 +152,7 @@ private fun DailyRingsCard(
                             text = "${(ring.progress * 100).roundToInt()}%",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MusFitTheme.colors.onSurface,
+                            color = accent.onContainer,
                         )
                     }
                     Spacer(Modifier.height(7.dp))
@@ -160,13 +160,13 @@ private fun DailyRingsCard(
                         text = ring.kind.label,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = MusFitTheme.colors.onSurface,
+                        color = accent.onContainer,
                     )
                 }
             }
         }
         Spacer(Modifier.height(16.dp))
-        MacroBar(macros = macros, labelColor = MusFitTheme.colors.onSurface)
+        MacroBar(macros = macros, labelColor = accent.onContainer)
     }
 }
 

@@ -354,7 +354,7 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Un
                 Text(
                     "Weight",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = accent.onContainer,
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = onLog) { Text("Log") }
@@ -365,14 +365,14 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Un
                         Text(
                             "${state.latestWeightKg.format1()} kg",
                             style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = accent.onContainer,
                         )
                         state.weeklyWeightDeltaKg?.let { delta ->
                             val arrow = if (delta < 0) "▼" else if (delta > 0) "▲" else "•"
                             Text(
                                 "$arrow ${abs(delta).format1()} kg this week",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = accent.onContainer,
                             )
                         }
                     }
@@ -384,7 +384,7 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Un
                 Text(
                     "No weight logged yet.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = accent.onContainer,
                 )
             }
         }

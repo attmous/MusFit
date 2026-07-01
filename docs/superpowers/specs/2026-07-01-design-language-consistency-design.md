@@ -110,10 +110,10 @@ hero and gives every tab the same anchor.
 
 - **Contained, inset** card — `shapes.large` (28dp), inside the normal `spacing.lg` margins (not edge-to-edge).
 - **Soft accent tint**: background = `TabAccent.container`. Restrained, not a saturated gradient.
-- **Legible text on the tint**: primary figures/labels use `MusFitColors.onSurface` (near-black ink, ~12:1
-  on the light container) — **not** `TabAccent.onContainer`, whose mid-tone inks (e.g. Coral's `#E45B43`)
-  fall below WCAG AA (~3:1) on their own container. `TabAccent.onContainer` is reserved for small accented
-  pills/badges, not body figures. (This rule came out of the Phase 1 light-mode contrast review.)
+- **Legible, accent-colored text on the tint**: primary figures/labels use **`TabAccent.onContainer`** (the
+  accent ink) so numbers read as tab-colored, not near-black. Each accent ink must be dark enough (light mode) /
+  light enough (dark mode) to pass WCAG AA on its own container — `CoralInk` was darkened to `#993C1D` for this.
+  (This rule superseded an earlier near-black `onSurface` over-correction from the Phase 1 contrast review.)
 - **Figure strokes**: data strokes use their semantic color (`TabAccent.color` / macro / ring-kind colors); any
   progress-ring **track** uses a tint-safe neutral — `onSurface.copy(alpha = 0.12f)` — so the unfilled arc stays
   visible on the tint (the theme `track` token nearly matches the container and disappears).
