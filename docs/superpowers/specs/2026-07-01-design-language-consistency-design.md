@@ -121,13 +121,13 @@ hero and gives every tab the same anchor.
 
 | Tab | Summary card content | Notes |
 |---|---|---|
-| Today | daily rings (calories/steps/…) + macro bars | existing `DailyRingsCard` becomes an instance of `MusFitSummaryCard` (Coral) |
+| Today | daily rings (calories/steps/…) + macro bars | existing `DailyRingsCard` becomes an instance of `MusFitSummaryCard` (Coral). *Superseded 2026-07-01: the Today rethink replaces this content with the configurable metric carousel — see `2026-07-01-today-coach-feed-design.md`* |
 | Food | `‹ date ›` nav row + calorie ring + macro bars | this *is* the old hero, now a contained Emerald tinted card |
 | Training | "this week": sessions, volume, 7-day mini-bar | **new lightweight card** (Indigo) surfacing data already in state; stats stop living only in the header subtitle |
 | Profile | weight-vs-goal | Profile's existing top card gains the Teal tint and becomes the summary card; Identity/Measurements/Vitals stay neutral cards |
 
-Confirmed intensity: **soft `TabAccent.container` tint**, not the bold `TabAccent.color`, with near-black
-`onSurface` text on top (per the legibility rule above).
+Confirmed intensity: **soft `TabAccent.container` tint**, not the bold `TabAccent.color`, with accent-ink
+(`TabAccent.onContainer`) figures on top (per the legibility rule above).
 
 ## Section 4 — Content rhythm (shared component language)
 
