@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.entity.CoachMessageEntity
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCandidate
 import com.musfit.domain.coach.CoachMessageCategory
@@ -111,6 +112,35 @@ class LocalCoachRepositoryTest {
         repository.syncToday(day, listOf(candidate()))
 
         assertTrue(repository.observeFeed().first().isEmpty())
+    }
+
+    @Test
+    fun sync_neverTouchesAiRowsWithSameRuleKey() = runTest {
+        val day = LocalDate.of(2026, 7, 1)
+        database.coachDao().insert(
+            CoachMessageEntity(
+                dayEpochDay = day.toEpochDay(),
+                ruleKey = "protein_gap",
+                category = "Nutrition",
+                title = "ai title",
+                body = "ai body",
+                actionType = null,
+                actionData = null,
+                firstSeenAtEpochMillis = 42L,
+                isRead = false,
+                isDismissed = false,
+                source = "ai",
+            ),
+        )
+
+        repository.syncToday(day, listOf(candidate()))
+
+        val feed = repository.observeFeed().first()
+        assertEquals(2, feed.size)
+        val aiMessage = feed.single { it.source == "ai" }
+        assertEquals("ai title", aiMessage.title)
+        assertEquals("ai body", aiMessage.body)
+        assertEquals(42L, aiMessage.firstSeenAtEpochMillis)
     }
 
     @Test

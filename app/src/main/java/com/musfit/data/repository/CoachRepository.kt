@@ -37,8 +37,10 @@ interface CoachRepository {
     /**
      * Transactional upsert of today's candidates, deduped by (day, ruleKey, source):
      * new keys insert with firstSeenAt = now; existing keys refresh content only when
-     * changed; dismissed rows are tombstones and never resurrected. Prunes rows older
-     * than [COACH_RETENTION_DAYS]. Never back-fills prior days.
+     * changed; dismissed rows are tombstones and never resurrected. Duplicate ruleKeys
+     * within [candidates] are collapsed (first wins). Prunes rows older than
+     * [COACH_RETENTION_DAYS]. Never back-fills prior days. [day] must be the current
+     * date — it drives both the dedupe day and the retention cutoff.
      */
     suspend fun syncToday(day: LocalDate, candidates: List<CoachMessageCandidate>)
 
@@ -73,7 +75,7 @@ class LocalCoachRepository @Inject constructor(
         database.withTransaction {
             val existing =
                 coachDao.getMessagesForDay(dayEpochDay, COACH_SOURCE_RULES).associateBy { it.ruleKey }
-            candidates.forEach { candidate ->
+            candidates.distinctBy { it.ruleKey }.forEach { candidate ->
                 val row = existing[candidate.ruleKey]
                 when {
                     row == null ->
@@ -95,6 +97,7 @@ class LocalCoachRepository @Inject constructor(
                     row.isDismissed -> Unit // tombstone: never resurrect
                     else -> {
                         val refreshed = row.copy(
+                            category = candidate.category.name,
                             title = candidate.title,
                             body = candidate.body,
                             actionType = candidate.action?.type(),
@@ -114,8 +117,7 @@ class LocalCoachRepository @Inject constructor(
 
     override fun observeDashboardPins(): Flow<List<TodayMetric>> =
         coachDao.observePins().map { rows ->
-            rows.sortedBy { it.position }
-                .mapNotNull { TodayMetric.fromId(it.metricId) }
+            rows.mapNotNull { TodayMetric.fromId(it.metricId) }
                 .ifEmpty { TodayMetric.DEFAULT_PINS }
         }
 
