@@ -25,16 +25,12 @@ import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +48,7 @@ import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.ExerciseDetail
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.MusFitScreenScaffold
+import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.components.MusFitSummaryCard
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
@@ -355,39 +352,19 @@ private fun ResumeBanner(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SectionTabs(
     selected: TrainingSection,
     accent: TabAccent,
     onSelect: (TrainingSection) -> Unit,
 ) {
-    val sections = TrainingSection.entries
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        sections.forEachIndexed { index, section ->
-            SegmentedButton(
-                selected = section == selected,
-                onClick = { onSelect(section) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = sections.size),
-                colors = SegmentedButtonDefaults.colors(
-                    activeContainerColor = accent.container,
-                    activeContentColor = accent.onContainer,
-                    activeBorderColor = accent.color,
-                    inactiveContainerColor = MusFitTheme.colors.surface,
-                    inactiveContentColor = MusFitTheme.colors.onSurfaceVariant,
-                ),
-                icon = {},
-                label = {
-                    Text(
-                        text = section.name,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (section == selected) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                    )
-                },
-            )
-        }
-    }
+    MusFitSegmented(
+        options = TrainingSection.entries,
+        selected = selected,
+        accent = accent,
+        label = { it.name },
+        onSelect = onSelect,
+    )
 }
 
 @Composable
