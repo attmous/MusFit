@@ -40,6 +40,7 @@ class TrainingSettingsMigration23To24Test {
                     DatabaseModule.MIGRATION_23_24,
                     DatabaseModule.MIGRATION_24_25,
                     DatabaseModule.MIGRATION_25_26,
+                    DatabaseModule.MIGRATION_26_27,
                 )
                 .build()
         try {

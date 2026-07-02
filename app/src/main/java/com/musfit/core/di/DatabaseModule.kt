@@ -52,6 +52,7 @@ object DatabaseModule {
                 MIGRATION_23_24,
                 MIGRATION_24_25,
                 MIGRATION_25_26,
+                MIGRATION_26_27,
             )
             .build()
 
@@ -582,6 +583,42 @@ object DatabaseModule {
                 db.execSQL(
                     "INSERT OR IGNORE INTO dashboard_pins (metricId, position) " +
                         "VALUES ('calories', 0), ('steps', 1), ('protein', 2)",
+                )
+            }
+        }
+
+    internal val MIGRATION_26_27 =
+        object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Data-only: user_profile.goalWeightKg becomes the canonical target weight.
+                // The retired runtime reads preferred user_goals.targetWeightKg when > 0, so
+                // that value is carried over — recency-aware, and creating the profile row
+                // when the user only ever set the target in Today's sheet.
+                db.execSQL(
+                    """
+                    INSERT INTO user_profile (
+                        id, sex, birthDateEpochDay, heightCm, activityLevel, goalType,
+                        goalPaceKgPerWeek, goalWeightKg, updatedAtEpochMillis
+                    )
+                    SELECT g.id, NULL, NULL, NULL, 'Moderate', 'Maintain', 0.5,
+                           g.targetWeightKg, g.updatedAtEpochMillis
+                    FROM user_goals g
+                    WHERE g.targetWeightKg > 0
+                      AND NOT EXISTS (SELECT 1 FROM user_profile p WHERE p.id = g.id)
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    UPDATE user_profile SET goalWeightKg = (
+                        SELECT g.targetWeightKg FROM user_goals g WHERE g.id = user_profile.id
+                    )
+                    WHERE EXISTS (
+                        SELECT 1 FROM user_goals g
+                        WHERE g.id = user_profile.id AND g.targetWeightKg > 0
+                          AND (user_profile.goalWeightKg IS NULL OR user_profile.goalWeightKg <= 0
+                               OR g.updatedAtEpochMillis > user_profile.updatedAtEpochMillis)
+                    )
+                    """.trimIndent(),
                 )
             }
         }

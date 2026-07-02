@@ -1,6 +1,5 @@
 package com.musfit.data.local
 
-import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
@@ -17,7 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class ExerciseMediaMigration24To25Test {
+class GoalWeightMigration26To27Test {
     private lateinit var context: Context
 
     @Before
@@ -32,48 +31,81 @@ class ExerciseMediaMigration24To25Test {
     }
 
     @Test
-    fun migration24To25_addsExerciseMediaColumnsAndPreservesRows() {
-        createDatabaseFromExportedSchema(version = 24)
-        insertExerciseRow()
+    fun migration26To27_insertsProfileRowWhenMissing() {
+        createDatabaseFromExportedSchema(version = 26)
+        insertGoals("local-default", targetWeightKg = 75.0, updatedAt = 100L)
 
+        runMigration()
+
+        queryProfile("local-default") { goalWeight, activityLevel, goalType, pace ->
+            assertEquals(75.0, goalWeight!!, 0.001)
+            assertEquals("Moderate", activityLevel) // DEFAULT_USER_PROFILE values
+            assertEquals("Maintain", goalType)
+            assertEquals(0.5, pace, 0.001)
+        }
+    }
+
+    @Test
+    fun migration26To27_copiesIntoNullProfileGoal() {
+        createDatabaseFromExportedSchema(version = 26)
+        insertGoals("local-default", targetWeightKg = 75.0, updatedAt = 100L)
+        insertProfile("local-default", goalWeightKg = null, updatedAt = 200L)
+
+        runMigration()
+
+        queryProfile("local-default") { goalWeight, _, _, _ -> assertEquals(75.0, goalWeight!!, 0.001) }
+    }
+
+    @Test
+    fun migration26To27_doesNotOverwriteNewerProfileValue() {
+        createDatabaseFromExportedSchema(version = 26)
+        insertGoals("local-default", targetWeightKg = 70.0, updatedAt = 100L)
+        insertProfile("local-default", goalWeightKg = 80.0, updatedAt = 200L) // profile is newer
+
+        runMigration()
+
+        queryProfile("local-default") { goalWeight, _, _, _ -> assertEquals(80.0, goalWeight!!, 0.001) }
+    }
+
+    @Test
+    fun migration26To27_overwritesStaleProfileValueWithNewerGoals() {
+        createDatabaseFromExportedSchema(version = 26)
+        insertGoals("local-default", targetWeightKg = 70.0, updatedAt = 300L) // Today-set, newer
+        insertProfile("local-default", goalWeightKg = 80.0, updatedAt = 200L)
+
+        runMigration()
+
+        queryProfile("local-default") { goalWeight, _, _, _ -> assertEquals(70.0, goalWeight!!, 0.001) }
+    }
+
+    private fun runMigration() {
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(
-                    DatabaseModule.MIGRATION_24_25,
-                    DatabaseModule.MIGRATION_25_26,
-                    DatabaseModule.MIGRATION_26_27,
-                )
+                .addMigrations(DatabaseModule.MIGRATION_26_27)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
         } finally {
             roomDatabase.close()
         }
-
-        val migratedDatabase =
-            SQLiteDatabase.openDatabase(
-                context.getDatabasePath(TEST_DATABASE_NAME).path,
-                null,
-                SQLiteDatabase.OPEN_READONLY,
-            )
-        try {
-            assertTrue(tableHasColumn(migratedDatabase, "exercises", "imageUrl"))
-            assertTrue(tableHasColumn(migratedDatabase, "exercises", "gifUrl"))
-            migratedDatabase.rawQuery(
-                "SELECT name, imageUrl, gifUrl FROM exercises WHERE id = 'ex-existing'",
-                null,
-            ).use { cursor ->
-                assertTrue(cursor.moveToFirst())
-                assertEquals("Existing Exercise", cursor.getString(0))
-                assertTrue(cursor.isNull(1))
-                assertTrue(cursor.isNull(2))
-            }
-        } finally {
-            migratedDatabase.close()
-        }
     }
 
-    private fun insertExerciseRow() {
+    private fun insertGoals(id: String, targetWeightKg: Double, updatedAt: Long) {
+        exec(
+            "INSERT INTO user_goals (id, stepGoal, weeklySessionTarget, targetWeightKg, updatedAtEpochMillis) " +
+                "VALUES ('$id', 10000, 4, $targetWeightKg, $updatedAt)",
+        )
+    }
+
+    private fun insertProfile(id: String, goalWeightKg: Double?, updatedAt: Long) {
+        exec(
+            "INSERT INTO user_profile (id, sex, birthDateEpochDay, heightCm, activityLevel, goalType, " +
+                "goalPaceKgPerWeek, goalWeightKg, updatedAtEpochMillis) " +
+                "VALUES ('$id', NULL, NULL, NULL, 'Moderate', 'Maintain', 0.5, ${goalWeightKg ?: "NULL"}, $updatedAt)",
+        )
+    }
+
+    private fun exec(sql: String) {
         val database =
             SQLiteDatabase.openDatabase(
                 context.getDatabasePath(TEST_DATABASE_NAME).path,
@@ -81,28 +113,32 @@ class ExerciseMediaMigration24To25Test {
                 SQLiteDatabase.OPEN_READWRITE,
             )
         try {
-            val values = ContentValues().apply {
-                put("id", "ex-existing")
-                put("name", "Existing Exercise")
-                put("category", "strength")
-                put("equipment", "barbell")
-                put("targetMuscles", "chest")
-                put("isCustom", 0)
-                put("primaryMuscles", "chest")
-                put("secondaryMuscles", "")
-            }
-            database.insertOrThrow("exercises", null, values)
+            database.execSQL(sql)
         } finally {
             database.close()
         }
     }
 
-    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean =
-        database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
-            val nameIndex = cursor.getColumnIndex("name")
-            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
-                .any { it == columnName }
+    private fun queryProfile(id: String, block: (goalWeight: Double?, activityLevel: String, goalType: String, pace: Double) -> Unit) {
+        val database =
+            SQLiteDatabase.openDatabase(
+                context.getDatabasePath(TEST_DATABASE_NAME).path,
+                null,
+                SQLiteDatabase.OPEN_READONLY,
+            )
+        try {
+            database.rawQuery(
+                "SELECT goalWeightKg, activityLevel, goalType, goalPaceKgPerWeek FROM user_profile WHERE id = ?",
+                arrayOf(id),
+            ).use { cursor ->
+                assertTrue("Expected a user_profile row for id=$id", cursor.moveToFirst())
+                val goalWeight = if (cursor.isNull(0)) null else cursor.getDouble(0)
+                block(goalWeight, cursor.getString(1), cursor.getString(2), cursor.getDouble(3))
+            }
+        } finally {
+            database.close()
         }
+    }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
         val schemaFile = resolveSchemaFile(version)
@@ -145,6 +181,6 @@ class ExerciseMediaMigration24To25Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "exercise-media-24-25"
+        const val TEST_DATABASE_NAME = "goal-weight-26-27"
     }
 }

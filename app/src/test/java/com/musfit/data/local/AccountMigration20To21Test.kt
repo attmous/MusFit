@@ -45,6 +45,7 @@ class AccountMigration20To21Test {
                     DatabaseModule.MIGRATION_23_24,
                     DatabaseModule.MIGRATION_24_25,
                     DatabaseModule.MIGRATION_25_26,
+                    DatabaseModule.MIGRATION_26_27,
                 )
                 .build()
         try {
@@ -76,7 +77,9 @@ class AccountMigration20To21Test {
                 assertEquals("Light", cursor.getString(3))
                 assertEquals("Gain", cursor.getString(4))
                 assertEquals(0.25, cursor.getDouble(5), 0.0)
-                assertEquals(64.2, cursor.getDouble(6), 0.0)
+                // MIGRATION_26_27 carries the newer user_goals.targetWeightKg (71.4 @ 444555)
+                // over the stale profile goal weight (64.2 @ 123456).
+                assertEquals(71.4, cursor.getDouble(6), 0.0)
                 assertEquals(123_456L, cursor.getLong(7))
             }
             migratedDatabase.rawQuery(
