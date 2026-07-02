@@ -61,6 +61,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -145,6 +146,22 @@ class TodayViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertFalse(viewModel.state.value.isRefreshing)
+    }
+
+    @Test
+    fun todayRefreshIndicatorState_showsDeterminateProgressWhilePulling() {
+        val indicator = todayRefreshIndicatorUiState(isRefreshing = false, pullDistanceFraction = 0.42f)
+
+        assertTrue(indicator.isVisible)
+        assertEquals(0.42f, indicator.progress ?: -1f, 0.001f)
+    }
+
+    @Test
+    fun todayRefreshIndicatorState_showsIndeterminateProgressWhileRefreshing() {
+        val indicator = todayRefreshIndicatorUiState(isRefreshing = true, pullDistanceFraction = 0.42f)
+
+        assertTrue(indicator.isVisible)
+        assertNull(indicator.progress)
     }
 
     @Test

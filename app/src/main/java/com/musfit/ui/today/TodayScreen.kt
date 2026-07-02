@@ -1,13 +1,16 @@
 package com.musfit.ui.today
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -57,11 +60,19 @@ fun TodayScreen(
         }
     }
     val onCoachAction: (CoachAction) -> Unit = { action -> navigateTo(coachActionDestination(action)) }
+    val todayAccent = tabAccentFor(AppDestination.Today)
+    val pullRefreshState = rememberPullToRefreshState()
+    val refreshIndicator = todayRefreshIndicatorUiState(
+        isRefreshing = state.isRefreshing,
+        pullDistanceFraction = pullRefreshState.distanceFraction,
+    )
 
     PullToRefreshBox(
         isRefreshing = state.isRefreshing,
         onRefresh = viewModel::refreshTodayData,
         modifier = Modifier.fillMaxSize(),
+        state = pullRefreshState,
+        indicator = {},
     ) {
         MusFitScreenScaffold(
             title = "Today",
@@ -72,6 +83,24 @@ fun TodayScreen(
                 }
             },
         ) {
+            if (refreshIndicator.isVisible) {
+                val progress = refreshIndicator.progress
+                if (progress != null) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = todayAccent.color,
+                        trackColor = todayAccent.container,
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = todayAccent.color,
+                        trackColor = todayAccent.container,
+                    )
+                }
+            }
+
             MetricCarouselCard(
                 carousel = state.carousel,
                 onMetricClick = { metric -> navigateTo(metricDestination(metric)) },
@@ -83,7 +112,7 @@ fun TodayScreen(
                     icon = Icons.Outlined.ChatBubbleOutline,
                     title = "Let's get started",
                     body = "Log your first meal and I'll take it from there.",
-                    accent = tabAccentFor(AppDestination.Today),
+                    accent = todayAccent,
                     actionLabel = "Log a meal",
                     onAction = onOpenFood,
                 )
@@ -105,3 +134,21 @@ fun TodayScreen(
         )
     }
 }
+
+internal data class TodayRefreshIndicatorUiState(
+    val isVisible: Boolean,
+    val progress: Float?,
+)
+
+internal fun todayRefreshIndicatorUiState(
+    isRefreshing: Boolean,
+    pullDistanceFraction: Float,
+): TodayRefreshIndicatorUiState =
+    when {
+        isRefreshing -> TodayRefreshIndicatorUiState(isVisible = true, progress = null)
+        pullDistanceFraction > 0f -> TodayRefreshIndicatorUiState(
+            isVisible = true,
+            progress = pullDistanceFraction.coerceIn(0f, 1f),
+        )
+        else -> TodayRefreshIndicatorUiState(isVisible = false, progress = null)
+    }
