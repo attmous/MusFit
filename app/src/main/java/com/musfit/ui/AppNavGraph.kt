@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -81,7 +79,6 @@ fun AppNavGraph() {
                 destinations = destinations,
                 currentRoute = currentRoute,
                 onSelect = { go(it.route) },
-                onFab = { go(AppDestination.Food.route) },
             )
         },
     ) { padding ->
@@ -142,16 +139,15 @@ fun AppNavGraph() {
 private val NavItemSpacing = 2.dp
 
 /**
- * M3E-style floating bottom nav: a rounded pill of destinations + a separate rounded-square FAB.
- * A single pill indicator sits behind the items and springs to the selected tab on navigation —
- * the one motion in the bar.
+ * M3E-style floating bottom nav: a rounded pill of destinations. A single pill indicator sits
+ * behind the items and springs to the selected tab on navigation — the one motion in the bar.
+ * Floating actions belong to tab content (Today's chat FAB, Food's quick-add), not this bar.
  */
 @Composable
 private fun FloatingPillNav(
     destinations: List<AppDestination>,
     currentRoute: String,
     onSelect: (AppDestination) -> Unit,
-    onFab: () -> Unit,
 ) {
     val selectedIndex = destinations.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
     val selectedAccent = tabAccentFor(destinations[selectedIndex])
@@ -165,8 +161,6 @@ private fun FloatingPillNav(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Surface(
             color = MusFitTheme.colors.surface,
@@ -219,8 +213,6 @@ private fun FloatingPillNav(
                 }
             }
         }
-        val fab = tabAccentFor(AppDestination.Today)
-        FabSquare(color = fab.color, contentColor = fab.onColor, onClick = onFab)
     }
 }
 
@@ -265,27 +257,6 @@ private fun RowScope.NavPillItem(
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 color = labelColor,
                 maxLines = 1,
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FabSquare(color: Color, contentColor: Color, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = color,
-        shape = RoundedCornerShape(18.dp),
-        shadowElevation = 4.dp,
-        modifier = Modifier.size(56.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                Icons.Outlined.Add,
-                contentDescription = "Add food",
-                tint = contentColor,
-                modifier = Modifier.size(26.dp),
             )
         }
     }
