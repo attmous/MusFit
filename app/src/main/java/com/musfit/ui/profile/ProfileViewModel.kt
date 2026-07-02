@@ -35,16 +35,6 @@ data class VitalsSummary(
     val restingHeartRateBpm: Long?,
 )
 
-// Kept alongside MeasurementTile until Task 5 reworks MeasurementsCard; the tile carries
-// the windowed sparkline and all-time entry count the new grid needs.
-data class MeasurementRow(
-    val type: String,
-    val label: String,
-    val value: Double?,
-    val unit: String,
-    val deltaFromPrevious: Double?,
-)
-
 data class WeightHeroState(
     val latestWeightKg: Double? = null,
     val deltaKg: Double? = null,
@@ -91,7 +81,6 @@ data class ProfileUiState(
     val tiles: List<MeasurementTile> = emptyList(),
     val isProfileComplete: Boolean = false,
     val recommendedTargets: RecommendedTargets? = null,
-    val measurements: List<MeasurementRow> = emptyList(),
     val weightEntries: List<WeightEntry> = emptyList(),
     val measurementEntries: Map<String, List<BodyMeasurement>> = emptyMap(),
     val vitals: VitalsSummary? = null,
@@ -146,66 +135,23 @@ class ProfileViewModel internal constructor(
         profileRepository.observeWeightSeries(0L),
         profileRepository.observeRecentMeasurements(0L),
     ) { profile, targets, weightSeries, measurements ->
-        // Windows are epoch-day anchored (UTC day boundaries), matching the Today carousel's
-        // weight-delta convention so both tabs report the same number. One date per emission:
-        // the window anchors and the age must never disagree across a midnight rollover.
+        // One date per emission: the window anchors and the age must never disagree across
+        // a midnight rollover.
         val today = dateProvider()
         val todayEpochDay = today.toEpochDay()
-        val deltaAnchorMillis = (todayEpochDay - 7L) * DAY_MILLIS
-        val chartFromMillis = (todayEpochDay - 30L) * DAY_MILLIS
         val sparkFromMillis = (todayEpochDay - 90L) * DAY_MILLIS
-        val latest = weightSeries.firstOrNull() // newest-first
-        val (_, delta) = WeeklyGoalsCalculator.weightTrend(
-            weightSeries.map { it.measuredAtEpochMillis to it.weightKg },
-            deltaAnchorMillis,
-        )
-        val goalWeight = profile.goalWeightKg?.takeIf { it > 0.0 }
-        val start = weightSeries.lastOrNull() // all-time first entry
-        val progress = if (start != null && latest != null && goalWeight != null) {
-            BodyMetricsCalculator.goalProgressFraction(start.weightKg, latest.weightKg, goalWeight)
-        } else {
-            null
-        }
-        val height = profile.heightCm
-        val hero = WeightHeroState(
-            latestWeightKg = latest?.weightKg,
-            deltaKg = delta,
-            goalWeightKg = goalWeight,
-            goalProgressFraction = progress?.coerceAtMost(1.0),
-            bmi = if (latest != null && height != null) {
-                BodyMetricsCalculator.bodyMassIndex(latest.weightKg, height)
-            } else {
-                null
-            },
-            chartSeries = weightSeries.filter { it.measuredAtEpochMillis >= chartFromMillis }
-                .map { it.weightKg }.reversed(),
-            hasAnyEntry = weightSeries.isNotEmpty(),
-        )
-        val tiles = MEASUREMENT_TYPES.map { type ->
-            val history = measurements[type].orEmpty() // newest-first
-            MeasurementTile(
-                type = type,
-                label = MEASUREMENT_LABELS[type] ?: type,
-                value = history.firstOrNull()?.value,
-                unit = history.firstOrNull()?.unit ?: defaultUnitFor(type),
-                // Deltas subtract raw values across rows; safe while the log dialog fixes one unit per type.
-                deltaFromPrevious = history.getOrNull(1)?.let { prev -> history.first().value - prev.value },
-                sparkline = history.filter { it.measuredAtEpochMillis >= sparkFromMillis }
-                    .map { it.value }.reversed(),
-                entryCount = history.size,
-            )
-        }
         val complete = profile.sex != null && profile.heightCm != null &&
-            profile.birthDateEpochDay != null && latest != null
+            profile.birthDateEpochDay != null && weightSeries.isNotEmpty()
         ProfileUiState(
             isLoaded = true,
             profile = profile,
             ageYears = profile.birthDateEpochDay?.let { ageYears(it, today) },
-            hero = hero,
-            tiles = tiles,
+            hero = buildWeightHero(profile, weightSeries, todayEpochDay),
+            tiles = MEASUREMENT_TYPES.map { type ->
+                buildMeasurementTile(type, measurements[type].orEmpty(), sparkFromMillis)
+            },
             isProfileComplete = complete,
             recommendedTargets = targets,
-            measurements = MEASUREMENT_TYPES.map { type -> measurementRow(type, measurements[type].orEmpty()) },
             weightEntries = weightSeries,
             measurementEntries = measurements,
         )
@@ -330,21 +276,63 @@ class ProfileViewModel internal constructor(
         messageFlow.value = null
     }
 
-    private fun measurementRow(type: String, history: List<BodyMeasurement>): MeasurementRow {
-        val latest = history.firstOrNull()
-        val previous = history.getOrNull(1)
-        return MeasurementRow(
-            type = type,
-            label = MEASUREMENT_LABELS[type] ?: type,
-            value = latest?.value,
-            unit = latest?.unit ?: defaultUnitFor(type),
-            deltaFromPrevious = if (latest != null && previous != null) latest.value - previous.value else null,
-        )
-    }
-
     private fun ageYears(birthDateEpochDay: Long, today: LocalDate): Int =
         Period.between(LocalDate.ofEpochDay(birthDateEpochDay), today).years.coerceAtLeast(0)
 }
+
+// Windows are epoch-day anchored (UTC day boundaries), matching the Today carousel's
+// weight-delta convention so both tabs report the same number.
+private fun buildWeightHero(
+    profile: UserProfile,
+    weightSeries: List<WeightEntry>, // newest-first
+    todayEpochDay: Long,
+): WeightHeroState {
+    val deltaAnchorMillis = (todayEpochDay - 7L) * DAY_MILLIS
+    val chartFromMillis = (todayEpochDay - 30L) * DAY_MILLIS
+    val latest = weightSeries.firstOrNull()
+    val (_, delta) = WeeklyGoalsCalculator.weightTrend(
+        weightSeries.map { it.measuredAtEpochMillis to it.weightKg },
+        deltaAnchorMillis,
+    )
+    val goalWeight = profile.goalWeightKg?.takeIf { it > 0.0 }
+    val start = weightSeries.lastOrNull() // all-time first entry
+    val progress = if (start != null && latest != null && goalWeight != null) {
+        BodyMetricsCalculator.goalProgressFraction(start.weightKg, latest.weightKg, goalWeight)
+    } else {
+        null
+    }
+    val height = profile.heightCm
+    return WeightHeroState(
+        latestWeightKg = latest?.weightKg,
+        deltaKg = delta,
+        goalWeightKg = goalWeight,
+        goalProgressFraction = progress?.coerceAtMost(1.0),
+        bmi = if (latest != null && height != null) {
+            BodyMetricsCalculator.bodyMassIndex(latest.weightKg, height)
+        } else {
+            null
+        },
+        chartSeries = weightSeries.filter { it.measuredAtEpochMillis >= chartFromMillis }
+            .map { it.weightKg }.reversed(),
+        hasAnyEntry = weightSeries.isNotEmpty(),
+    )
+}
+
+private fun buildMeasurementTile(
+    type: String,
+    history: List<BodyMeasurement>, // newest-first
+    sparkFromMillis: Long,
+): MeasurementTile = MeasurementTile(
+    type = type,
+    label = MEASUREMENT_LABELS[type] ?: type,
+    value = history.firstOrNull()?.value,
+    unit = history.firstOrNull()?.unit ?: defaultUnitFor(type),
+    // Deltas subtract raw values across rows; safe while the log dialog fixes one unit per type.
+    deltaFromPrevious = history.getOrNull(1)?.let { prev -> history.first().value - prev.value },
+    sparkline = history.filter { it.measuredAtEpochMillis >= sparkFromMillis }
+        .map { it.value }.reversed(),
+    entryCount = history.size,
+)
 
 private fun DailyHealthSummaryEntity.toVitals() =
     VitalsSummary(steps = steps, activeCaloriesKcal = activeCaloriesKcal, restingHeartRateBpm = restingHeartRateBpm)

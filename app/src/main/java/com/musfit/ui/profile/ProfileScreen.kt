@@ -1,6 +1,5 @@
 package com.musfit.ui.profile
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -33,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,12 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -58,10 +51,12 @@ import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.components.MusFitSummaryCard
+import com.musfit.ui.components.charts.TrendLineChart
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun ProfileScreen(
@@ -74,6 +69,7 @@ fun ProfileScreen(
     var showEditor by remember { mutableStateOf(false) }
     var showLogWeight by remember { mutableStateOf(false) }
     var showLogMeasurement by remember { mutableStateOf(false) }
+    var logMeasurementInitialType by remember { mutableStateOf<String?>(null) }
     var showWeightSheet by remember { mutableStateOf(false) }
     var measurementSheetType by remember { mutableStateOf<String?>(null) }
 
@@ -112,7 +108,14 @@ fun ProfileScreen(
             IdentityCard(state = state, onEdit = { showEditor = true })
             GoalCard(state = state, onApply = viewModel::applyTargetsToFood, onComplete = { showEditor = true })
             WeightCard(state = state, accent = accent, onLog = { showLogWeight = true }, onOpenEntries = { showWeightSheet = true })
-            MeasurementsCard(state = state, onLog = { showLogMeasurement = true }, onOpenType = { measurementSheetType = it })
+            MeasurementsCard(
+                state = state,
+                onLog = { showLogMeasurement = true },
+                onOpenType = { type ->
+                    val tile = state.tiles.first { it.type == type }
+                    if (tile.entryCount == 0) logMeasurementInitialType = type else measurementSheetType = type
+                },
+            )
             VitalsCard(state = state, onManage = onSettingsClick)
         }
     }
@@ -148,6 +151,16 @@ fun ProfileScreen(
             },
         )
     }
+    logMeasurementInitialType?.let { initialType ->
+        LogMeasurementDialog(
+            initialType = initialType,
+            onDismiss = { logMeasurementInitialType = null },
+            onConfirm = { type, value, unit ->
+                viewModel.logMeasurement(type, value, unit)
+                logMeasurementInitialType = null
+            },
+        )
+    }
     if (showWeightSheet) {
         EntriesSheet(
             title = "Weight history",
@@ -157,6 +170,8 @@ fun ProfileScreen(
             onDismiss = { showWeightSheet = false },
             onEdit = viewModel::editEntry,
             onDelete = viewModel::deleteEntry,
+            // Full all-time series — the sheet's chart is deliberately unwindowed.
+            chartSeries = state.weightEntries.map { it.weightKg }.reversed(),
         )
     }
     measurementSheetType?.let { type ->
@@ -167,6 +182,7 @@ fun ProfileScreen(
             onDismiss = { measurementSheetType = null },
             onEdit = viewModel::editEntry,
             onDelete = viewModel::deleteEntry,
+            chartSeries = rows.map { it.value }.reversed(),
         )
     }
     if (state.accountEditorOpen) {
@@ -355,66 +371,52 @@ private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () 
 
 @Composable
 private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Unit, onOpenEntries: () -> Unit) {
+    val hero = state.hero
     MusFitSummaryCard(accent = accent, onClick = onOpenEntries) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Weight",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = accent.onContainer,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onLog) { Text("Log") }
-            }
-            val latestWeight = state.hero.latestWeightKg
-            if (latestWeight != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
+                Text("Weight", style = MaterialTheme.typography.titleMedium, color = accent.onContainer, modifier = Modifier.weight(1f))
+                hero.goalWeightKg?.let { goal ->
+                    val percent = hero.goalProgressFraction?.let { " · ${(it * 100).roundToInt()}%" } ?: ""
+                    Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), shape = MaterialTheme.shapes.small) {
                         Text(
-                            "${latestWeight.format1()} kg",
-                            style = MaterialTheme.typography.titleLarge,
+                            "goal ${goal.format1()} kg$percent",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                             color = accent.onContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         )
-                        state.hero.deltaKg?.let { delta ->
-                            val arrow = if (delta < 0) "▼" else if (delta > 0) "▲" else "•"
-                            Text(
-                                "$arrow ${abs(delta).format1()} kg this week",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = accent.onContainer,
-                            )
-                        }
-                    }
-                    if (state.hero.chartSeries.size >= 2) {
-                        Sparkline(values = state.hero.chartSeries, color = accent.color, modifier = Modifier.width(120.dp).height(36.dp))
                     }
                 }
+            }
+            if (hero.latestWeightKg != null) {
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${hero.latestWeightKg.format1()} kg", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = accent.onContainer)
+                    Text(
+                        hero.deltaKg?.let { d -> "${if (d < 0) "−" else "+"}${abs(d).format1()} kg · 7d" } ?: "latest",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = accent.onContainer,
+                    )
+                }
+                hero.bmi?.let { Text("BMI ${it.format1()}", style = MaterialTheme.typography.labelSmall, color = accent.onContainer) }
+                when {
+                    hero.chartSeries.size >= 2 ->
+                        TrendLineChart(values = hero.chartSeries, accent = accent.color, modifier = Modifier.fillMaxWidth().height(72.dp))
+                    hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
+                        Text("No entries in the last 30 days.", style = MaterialTheme.typography.bodySmall, color = accent.onContainer)
+                    else -> // exactly one point in the window — a chart or "no entries" text would both mislead
+                        Text("Log again to see a trend.", style = MaterialTheme.typography.bodySmall, color = accent.onContainer)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("30 days", style = MaterialTheme.typography.labelSmall, color = accent.onContainer, modifier = Modifier.weight(1f))
+                    // Accent-tonal per spec: content colored with the accent ink on the tinted card.
+                    TextButton(onClick = onLog) { Text("+ Log weight", color = accent.onContainer, fontWeight = FontWeight.SemiBold) }
+                }
             } else {
-                Text(
-                    "No weight logged yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = accent.onContainer,
-                )
+                Text("No weight logged yet.", style = MaterialTheme.typography.bodyMedium, color = accent.onContainer)
+                TextButton(onClick = onLog) { Text("+ Log weight", color = accent.onContainer, fontWeight = FontWeight.SemiBold) }
             }
         }
-    }
-}
-
-@Composable
-private fun Sparkline(values: List<Double>, color: Color, modifier: Modifier) {
-    Canvas(modifier = modifier) {
-        if (values.size < 2) return@Canvas
-        val minV = values.min()
-        val maxV = values.max()
-        val range = (maxV - minV).takeIf { it > 0.0 } ?: 1.0
-        val stepX = size.width / (values.size - 1)
-        val offsets = values.mapIndexed { i, v ->
-            Offset(stepX * i, (size.height - ((v - minV) / range * size.height)).toFloat())
-        }
-        val path = Path().apply {
-            moveTo(offsets.first().x, offsets.first().y)
-            offsets.drop(1).forEach { lineTo(it.x, it.y) }
-        }
-        drawPath(path, color = color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 
@@ -426,12 +428,12 @@ private fun MeasurementsCard(state: ProfileUiState, onLog: () -> Unit, onOpenTyp
                 Text("Measurements", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 TextButton(onClick = onLog) { Text("Log") }
             }
-            state.measurements.chunked(2).forEach { row ->
+            state.tiles.chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    row.forEach { measurement ->
+                    row.forEach { tile ->
                         MeasurementCell(
-                            row = measurement,
-                            onClick = { onOpenType(measurement.type) },
+                            tile = tile,
+                            onClick = { onOpenType(tile.type) },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -443,7 +445,7 @@ private fun MeasurementsCard(state: ProfileUiState, onLog: () -> Unit, onOpenTyp
 }
 
 @Composable
-private fun MeasurementCell(row: MeasurementRow, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun MeasurementCell(tile: MeasurementTile, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
@@ -451,21 +453,28 @@ private fun MeasurementCell(row: MeasurementRow, onClick: () -> Unit, modifier: 
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
-        Text(row.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                row.value?.let { "${it.format1()} ${row.unit}" } ?: "—",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium,
-            )
-            row.deltaFromPrevious?.let { d ->
-                if (d != 0.0) {
-                    Text(
-                        "${if (d < 0) "▼" else "▲"}${abs(d).format1()}",
+        Text(tile.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (tile.entryCount == 0) {
+            Text("— · Tap to log", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("${tile.value!!.format1()} ${tile.unit}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                val delta = tile.deltaFromPrevious
+                when {
+                    delta == null -> Text("—", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) // spec: 1-entry state shows value + "—" delta
+                    delta != 0.0 -> Text(
+                        "${if (delta < 0) "▼" else "▲"}${abs(delta).format1()}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            if (tile.sparkline.size >= 2) {
+                TrendLineChart(
+                    values = tile.sparkline,
+                    accent = tabAccentFor(AppDestination.Profile).color,
+                    modifier = Modifier.fillMaxWidth().height(24.dp).padding(top = 4.dp),
+                )
             }
         }
     }
