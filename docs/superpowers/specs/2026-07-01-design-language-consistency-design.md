@@ -139,7 +139,15 @@ Five accent-aware reusable composables in `com.musfit.ui.components`, so tab bod
    surface + `onSurfaceVariant` inactive. Training adopts it; available to other tabs.
 3. **Buttons — three tiers, accent-driven**: primary = accent-filled (`TabAccent.color`/`onColor`);
    secondary = accent-tonal (`container`/`onContainer`); text = accent. Generalizes the recent
-   "unified emerald secondary-button" work in Food to per-tab accent.
+   "unified emerald secondary-button" work in Food to per-tab accent. Every `color`/`onColor` pair
+   must pass WCAG AA (4.5:1, button labels are normal-size text) in **both** modes — enforced by
+   contrast assertions in `TabAccentTest`. *Superseded 2026-07-02 (accent-fill contrast audit): the
+   original values left two light-mode pairs failing — white on `Coral` measured 2.55:1 and white on
+   `Teal` 3.66:1 (Emerald 5.30:1, Indigo 5.34:1, and all four dark pairs 6.48–7.19:1 already passed).
+   Today's light `onColor` is now the deep coral ink `CoralOnAccent` `#3A1606` — the same pairing dark
+   mode already used — giving 6.34:1 on the unchanged brand `Coral`; `Teal` was darkened `#0E9594` →
+   `#0E7A79` keeping white content (5.15:1). This mirrors how `CoralInk` was darkened to `#993C1D`
+   for container ink (Section 3).*
 4. **Chips** — selected = accent container + accent border; unselected = surface + outline.
 5. **`EmptyState(icon, title, body, action?)`** — muted icon, one-line calm body in sentence case, optional
    accent-tonal button. Matches the neutral "not-yet" tone recently adopted.
