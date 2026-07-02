@@ -33,7 +33,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.Period
 import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 import kotlin.math.roundToInt
@@ -64,7 +63,6 @@ data class PlanCard(val id: String, val title: String, val subtitle: String)
 data class ProfileUiState(
     val isLoaded: Boolean = false,
     val profile: UserProfile? = null,
-    val ageYears: Int? = null,
     val hero: WeightHeroState = WeightHeroState(),
     val tiles: List<MeasurementTile> = emptyList(),
     val isProfileComplete: Boolean = false,
@@ -121,8 +119,8 @@ class ProfileViewModel internal constructor(
         profileRepository.observeWeightSeries(0L),
         profileRepository.observeRecentMeasurements(0L),
     ) { profile, targets, weightSeries, measurements ->
-        // One date per emission: the window anchors and the age must never disagree across
-        // a midnight rollover.
+        // One date per emission: the window anchors must never disagree across a
+        // midnight rollover.
         val today = dateProvider()
         val todayEpochDay = today.toEpochDay()
         val sparkFromMillis = (todayEpochDay - 90L) * DAY_MILLIS
@@ -131,7 +129,6 @@ class ProfileViewModel internal constructor(
         ProfileUiState(
             isLoaded = true,
             profile = profile,
-            ageYears = profile.birthDateEpochDay?.let { ageYears(it, today) },
             hero = buildWeightHero(profile, weightSeries, todayEpochDay),
             tiles = MEASUREMENT_TYPES.map { type ->
                 buildMeasurementTile(type, measurements[type].orEmpty(), sparkFromMillis)
@@ -179,7 +176,10 @@ class ProfileViewModel internal constructor(
     }
 
     fun saveProfile(profile: UserProfile) {
-        viewModelScope.launch { profileRepository.saveProfile(profile) }
+        viewModelScope.launch {
+            runCatching { profileRepository.saveProfile(profile) }
+                .onFailure { messageFlow.value = it.message ?: "Could not save profile." }
+        }
     }
 
     fun logWeight(weightKg: Double) {
@@ -234,9 +234,6 @@ class ProfileViewModel internal constructor(
     fun dismissMessage() {
         messageFlow.value = null
     }
-
-    private fun ageYears(birthDateEpochDay: Long, today: LocalDate): Int =
-        Period.between(LocalDate.ofEpochDay(birthDateEpochDay), today).years.coerceAtLeast(0)
 }
 
 // Windows are epoch-day anchored (UTC day boundaries), matching the Today carousel's

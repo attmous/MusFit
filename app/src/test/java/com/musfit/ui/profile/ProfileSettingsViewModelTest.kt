@@ -212,9 +212,34 @@ class ProfileSettingsViewModelTest {
         val viewModel = settingsViewModel(accountRepository = accountRepository)
         dispatcher.scheduler.advanceUntilIdle()
 
+        assertTrue(accountRepository.ensured) // init must guarantee an active account row exists
         assertEquals("Ava", viewModel.state.value.account.displayName)
         assertEquals("ava@example.com", viewModel.state.value.account.email)
         assertEquals(true, viewModel.state.value.account.isLocalOnly)
+    }
+
+    @Test
+    fun init_ensureActiveAccountFailureSurfacesMessage() = runTest {
+        val accountRepository = FakeAccountRepository()
+        accountRepository.ensureError = IllegalStateException("account table corrupt")
+
+        val viewModel = settingsViewModel(accountRepository = accountRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("account table corrupt", viewModel.state.value.message)
+    }
+
+    @Test
+    fun saveProfile_failureSurfacesMessage() = runTest {
+        val profileRepo = FakeProfileRepository()
+        profileRepo.saveProfileError = IllegalStateException("disk full")
+        val viewModel = settingsViewModel(profileRepository = profileRepo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.saveProfile(DEFAULT_USER_PROFILE)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("disk full", viewModel.state.value.message)
     }
 
     @Test
@@ -330,12 +355,14 @@ class ProfileSettingsViewModelTest {
         var updatedName: String? = null
         var updatedEmail: String? = null
         var ensured = false
+        var ensureError: Throwable? = null
 
         override fun observeActiveAccount(): Flow<Account> = active
 
         override fun observeAccounts(): Flow<List<Account>> = MutableStateFlow(listOf(active.value))
 
         override suspend fun ensureActiveAccount(): Account {
+            ensureError?.let { throw it }
             ensured = true
             return active.value
         }
@@ -355,8 +382,11 @@ class ProfileSettingsViewModelTest {
         private val profile: UserProfile = DEFAULT_USER_PROFILE,
         private val latestWeight: WeightEntry? = null,
     ) : ProfileRepository {
+        var saveProfileError: Throwable? = null
         override fun observeProfile(): Flow<UserProfile> = flowOf(profile)
-        override suspend fun saveProfile(profile: UserProfile) = Unit
+        override suspend fun saveProfile(profile: UserProfile) {
+            saveProfileError?.let { throw it }
+        }
         override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = flowOf(null)
         override suspend fun logWeight(weightKg: Double, source: String) = Unit
         override fun observeLatestWeight(): Flow<WeightEntry?> = flowOf(latestWeight)

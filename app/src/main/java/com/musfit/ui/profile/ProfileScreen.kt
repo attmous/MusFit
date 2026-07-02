@@ -223,6 +223,8 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            // Clip before clickable so the ripple stays inside the rounded shape.
+            .clip(MaterialTheme.shapes.extraLarge)
             .clickable(onClickLabel = "Open Health Connect settings", onClick = onOpen),
         shape = MaterialTheme.shapes.extraLarge,
     ) {
@@ -246,6 +248,8 @@ private fun PlanCardRow(card: PlanCard, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            // Clip before clickable so the ripple stays inside the rounded shape.
+            .clip(MaterialTheme.shapes.extraLarge)
             .clickable(
                 onClickLabel = if (card.id == "diet") "Manage diet in Food" else "Manage program in Training",
                 onClick = onClick,

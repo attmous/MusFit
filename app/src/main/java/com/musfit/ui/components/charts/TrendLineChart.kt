@@ -33,9 +33,12 @@ fun TrendLineChart(
         val geometry = TrendChartScaler.computeChartGeometry(values, size.width, size.height, pad, pad, pad, pad)
         val points = geometry.points
         val baseline = size.height - pad
+        // The standard 5dp endpoint dot overwhelms the 24dp tile sparklines, so scale it
+        // with height on short charts; anything ≥40dp tall keeps the full radius.
+        val dotRadius = minOf(ChartDefaults.dotRadius.toPx(), size.height / 8f)
 
         if (points.size == 1) {
-            drawCircle(color = accent, radius = ChartDefaults.dotRadius.toPx(), center = Offset(points[0].x, points[0].y))
+            drawCircle(color = accent, radius = dotRadius, center = Offset(points[0].x, points[0].y))
             return@Canvas
         }
 
@@ -53,8 +56,8 @@ fun TrendLineChart(
             style = Stroke(width = ChartDefaults.lineStroke.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
         val last = points.last()
-        drawCircle(color = surface, radius = ChartDefaults.dotRadius.toPx() + 2f, center = Offset(last.x, last.y))
-        drawCircle(color = accent, radius = ChartDefaults.dotRadius.toPx(), center = Offset(last.x, last.y))
+        drawCircle(color = surface, radius = dotRadius + 2f, center = Offset(last.x, last.y))
+        drawCircle(color = accent, radius = dotRadius, center = Offset(last.x, last.y))
     }
 }
 

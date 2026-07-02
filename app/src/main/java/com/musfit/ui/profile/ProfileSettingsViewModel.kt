@@ -20,13 +20,15 @@ import java.time.LocalDate
 import java.util.Locale
 import javax.inject.Inject
 
+private const val DEFAULT_STATUS_MESSAGE = "Refresh status to check whether Health Connect is ready."
+
 data class ProfileSettingsUiState(
     val availabilityLabel: String = "Unknown",
     val grantedPermissionCount: Int = 0,
     val requestablePermissionCount: Int = 0,
     val requestablePermissions: Set<String> = emptySet(),
     val canRequestPermissions: Boolean = false,
-    val message: String = "Refresh status to check whether Health Connect is ready.",
+    val message: String = DEFAULT_STATUS_MESSAGE,
     val account: AccountUiState = AccountUiState(),
     val accountEditorOpen: Boolean = false,
     val accountNameInput: String = "",
@@ -34,6 +36,21 @@ data class ProfileSettingsUiState(
     val accountErrorMessage: String? = null,
     val profile: UserProfile = DEFAULT_USER_PROFILE,
     val latestWeightKg: Double? = null,
+)
+
+/**
+ * Only the fields the mutable base flow actually owns (Health Connect status plus the
+ * shared message line). The account/editor/profile fields of [ProfileSettingsUiState]
+ * are derived from other flows in the combine, so keeping them off this type means a
+ * future `mutableState.update { it.copy(...) }` can never silently drop them.
+ */
+private data class HealthConnectState(
+    val availabilityLabel: String = "Unknown",
+    val grantedPermissionCount: Int = 0,
+    val requestablePermissionCount: Int = 0,
+    val requestablePermissions: Set<String> = emptySet(),
+    val canRequestPermissions: Boolean = false,
+    val message: String = DEFAULT_STATUS_MESSAGE,
 )
 
 private data class AccountEditorState(
@@ -51,7 +68,7 @@ class ProfileSettingsViewModel @Inject constructor(
 ) : ViewModel() {
     // Health Connect fields live in this mutable base; account/profile fields are
     // layered on top of it in the combined [state] below.
-    private val mutableState = MutableStateFlow(ProfileSettingsUiState())
+    private val mutableState = MutableStateFlow(HealthConnectState())
     private val accountEditorFlow = MutableStateFlow(AccountEditorState())
 
     init {
@@ -72,7 +89,13 @@ class ProfileSettingsViewModel @Inject constructor(
         profileRepository.observeProfile(),
         profileRepository.observeLatestWeight(),
     ) { base, account, editor, profile, latestWeight ->
-        base.copy(
+        ProfileSettingsUiState(
+            availabilityLabel = base.availabilityLabel,
+            grantedPermissionCount = base.grantedPermissionCount,
+            requestablePermissionCount = base.requestablePermissionCount,
+            requestablePermissions = base.requestablePermissions,
+            canRequestPermissions = base.canRequestPermissions,
+            message = base.message,
             account = account.toUiState(),
             accountEditorOpen = editor.open,
             accountNameInput = editor.nameInput,
@@ -158,7 +181,12 @@ class ProfileSettingsViewModel @Inject constructor(
     }
 
     fun saveProfile(profile: UserProfile) {
-        viewModelScope.launch { profileRepository.saveProfile(profile) }
+        viewModelScope.launch {
+            runCatching { profileRepository.saveProfile(profile) }
+                .onFailure { error ->
+                    mutableState.update { it.copy(message = error.message ?: "Could not save profile.") }
+                }
+        }
     }
 
     fun logWeight(weightKg: Double) {

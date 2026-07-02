@@ -294,6 +294,19 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun saveProfile_failureSurfacesMessage() = runTest {
+        val repo = FakeProfileRepository()
+        repo.saveProfileError = IllegalStateException("disk full")
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.saveProfile(DEFAULT_USER_PROFILE)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("disk full", viewModel.state.value.message)
+    }
+
+    @Test
     fun logWeight_callsRepository() = runTest {
         val repo = FakeProfileRepository()
         val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
@@ -458,9 +471,12 @@ class ProfileViewModelTest {
         var updatedId: String? = null
         var updatedValue: Double? = null
         var deletedId: String? = null
+        var saveProfileError: Throwable? = null
         var weightSeries: List<WeightEntry> = listOfNotNull(latestWeight) // newest-first like the real DAO
         override fun observeProfile(): Flow<UserProfile> = flowOf(profile)
-        override suspend fun saveProfile(profile: UserProfile) = Unit
+        override suspend fun saveProfile(profile: UserProfile) {
+            saveProfileError?.let { throw it }
+        }
         override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = flowOf(targets)
         override suspend fun logWeight(weightKg: Double, source: String) { loggedWeight = weightKg }
         override fun observeLatestWeight(): Flow<WeightEntry?> = flowOf(latestWeight)
