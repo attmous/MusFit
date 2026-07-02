@@ -225,7 +225,10 @@ private fun CoachMessageCategory.icon(): ImageVector = when (this) {
     CoachMessageCategory.Recap -> Icons.Outlined.NightsStay
 }
 
-/** Coach chat button in the bottom bar — opens the "coming soon" preview sheet. */
+/**
+ * Coach chat button in the bottom bar — opens the "coming soon" preview sheet.
+ * Has no intrinsic size: callers must provide sizing (the nav bar matches it to the pill height).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {

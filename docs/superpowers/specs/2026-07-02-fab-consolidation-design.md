@@ -93,6 +93,7 @@ No repository or Room changes. All Food code untouched.
 - Existing test suite (minus the deleted chat-preview ViewModel test) must stay green
   (`testDebugUnitTest lintDebug assembleDebug`).
 - On-device (Pixel 8 Pro) screenshots: Today AND one other tab (e.g. Training) showing the
-  chat square beside the pill with the "Soon" badge and no other floating button; Food showing
-  chat square + its own quick-add FAB; tapping the chat square opens the "coming soon" sheet —
-  light mode is sufficient since the change is structural, not color.
+  chat square beside the pill — top/bottom aligned with it, **no** "Soon" badge (Phase 3) — and
+  no other floating button; Food showing chat square + its own quick-add FAB; tapping the chat
+  square opens the "coming soon" sheet — light mode is sufficient since the change is
+  structural, not color.
