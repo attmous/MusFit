@@ -40,4 +40,26 @@ class MusFitColorsTest {
             darkMusFitColors.macroColors,
         )
     }
+
+    // accent/onAccent and brand/onBrand style filled controls (Food FAB, onSecondary);
+    // their content must meet WCAG AA 4.5:1 on the fill in both palettes.
+    @Test
+    fun accentAndBrandFillPairsMeetWcagAa() {
+        listOf("light" to lightMusFitColors, "dark" to darkMusFitColors).forEach { (mode, colors) ->
+            assertTrue(
+                "$mode onAccent-on-accent contrast is ${contrastRatio(colors.accent, colors.onAccent)}, needs >= 4.5",
+                contrastRatio(colors.accent, colors.onAccent) >= 4.5,
+            )
+            assertTrue(
+                "$mode onBrand-on-brand contrast is ${contrastRatio(colors.brand, colors.onBrand)}, needs >= 4.5",
+                contrastRatio(colors.brand, colors.onBrand) >= 4.5,
+            )
+        }
+    }
+
+    private fun contrastRatio(a: Color, b: Color): Double {
+        val lighter = maxOf(a.luminance(), b.luminance()).toDouble()
+        val darker = minOf(a.luminance(), b.luminance()).toDouble()
+        return (lighter + 0.05) / (darker + 0.05)
+    }
 }

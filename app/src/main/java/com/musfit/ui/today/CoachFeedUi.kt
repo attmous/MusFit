@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,7 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -227,43 +225,27 @@ private fun CoachMessageCategory.icon(): ImageVector = when (this) {
     CoachMessageCategory.Recap -> Icons.Outlined.NightsStay
 }
 
-/** Preview chat FAB with a visible "Soon" badge — opens the "coming soon" sheet. */
+/**
+ * Coach chat button in the bottom bar — opens the "coming soon" preview sheet.
+ * Has no intrinsic size: callers must provide sizing (the nav bar matches it to the pill height).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val accent = tabAccentFor(AppDestination.Today)
-    Box(modifier = modifier) {
-        Surface(
-            onClick = onClick,
-            color = accent.color,
-            shape = MusFitTheme.shapes.medium,
-            shadowElevation = 4.dp,
-            modifier = Modifier.size(52.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Outlined.ChatBubbleOutline,
-                    contentDescription = "Coach chat (coming soon)",
-                    tint = accent.onColor,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-        }
-        Surface(
-            color = MusFitTheme.colors.onSurface,
-            shape = MusFitTheme.shapes.small,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 6.dp, y = (-6).dp)
-                // The FAB's contentDescription already says "coming soon" — don't
-                // surface a duplicate "Soon" node to TalkBack.
-                .clearAndSetSemantics {},
-        ) {
-            Text(
-                text = "Soon",
-                style = MusFitTheme.typography.labelSmall,
-                color = MusFitTheme.colors.surface,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+    Surface(
+        onClick = onClick,
+        color = accent.color,
+        shape = MusFitTheme.shapes.medium,
+        shadowElevation = 4.dp,
+        modifier = modifier,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Outlined.ChatBubbleOutline,
+                contentDescription = "Coach chat (coming soon)",
+                tint = accent.onColor,
+                modifier = Modifier.size(24.dp),
             )
         }
     }

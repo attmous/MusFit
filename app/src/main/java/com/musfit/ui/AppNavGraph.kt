@@ -6,8 +6,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -15,8 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +52,8 @@ import com.musfit.ui.profile.ProfileSettingsScreen
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
+import com.musfit.ui.today.ChatPreviewFab
+import com.musfit.ui.today.ChatPreviewSheet
 import com.musfit.ui.today.TodayScreen
 import com.musfit.ui.training.TrainingScreen
 
@@ -62,6 +65,7 @@ fun AppNavGraph() {
     val currentRoute = backStackEntry?.destination?.route ?: AppDestination.Today.route
     var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
     var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
+    var chatPreviewVisible by rememberSaveable { mutableStateOf(false) }
 
     fun go(route: String) {
         // Standard bottom-nav model: back from any tab returns to Today (the start
@@ -81,7 +85,7 @@ fun AppNavGraph() {
                 destinations = destinations,
                 currentRoute = currentRoute,
                 onSelect = { go(it.route) },
-                onFab = { go(AppDestination.Food.route) },
+                onChat = { chatPreviewVisible = true },
             )
         },
     ) { padding ->
@@ -136,22 +140,26 @@ fun AppNavGraph() {
             }
         }
     }
+
+    if (chatPreviewVisible) {
+        ChatPreviewSheet(onDismiss = { chatPreviewVisible = false })
+    }
 }
 
 /** Spacing between nav items, used both for layout and the sliding-indicator math. */
 private val NavItemSpacing = 2.dp
 
 /**
- * M3E-style floating bottom nav: a rounded pill of destinations + a separate rounded-square FAB.
+ * M3E-style floating bottom nav: a rounded pill of destinations + the coach-chat button.
  * A single pill indicator sits behind the items and springs to the selected tab on navigation —
- * the one motion in the bar.
+ * the one motion in the bar. Add-food floating actions belong to Food's own content.
  */
 @Composable
 private fun FloatingPillNav(
     destinations: List<AppDestination>,
     currentRoute: String,
     onSelect: (AppDestination) -> Unit,
-    onFab: () -> Unit,
+    onChat: () -> Unit,
 ) {
     val selectedIndex = destinations.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
     val selectedAccent = tabAccentFor(destinations[selectedIndex])
@@ -164,6 +172,7 @@ private fun FloatingPillNav(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -219,8 +228,12 @@ private fun FloatingPillNav(
                 }
             }
         }
-        val fab = tabAccentFor(AppDestination.Today)
-        FabSquare(color = fab.color, contentColor = fab.onColor, onClick = onFab)
+        ChatPreviewFab(
+            onClick = onChat,
+            modifier = Modifier
+                .fillMaxHeight()
+                .aspectRatio(1f),
+        )
     }
 }
 
@@ -265,27 +278,6 @@ private fun RowScope.NavPillItem(
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 color = labelColor,
                 maxLines = 1,
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FabSquare(color: Color, contentColor: Color, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = color,
-        shape = RoundedCornerShape(18.dp),
-        shadowElevation = 4.dp,
-        modifier = Modifier.size(56.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                Icons.Outlined.Add,
-                contentDescription = "Add food",
-                tint = contentColor,
-                modifier = Modifier.size(26.dp),
             )
         }
     }

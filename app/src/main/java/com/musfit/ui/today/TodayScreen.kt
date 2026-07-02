@@ -1,10 +1,5 @@
 package com.musfit.ui.today
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Edit
@@ -15,9 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -29,9 +22,6 @@ import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.tabAccentFor
-
-/** Scroll clearance under the chat FAB: FAB 52 + lg padding 16 + 8 slack. */
-private val ChatFabClearance = 76.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,47 +56,33 @@ fun TodayScreen(
     }
     val onCoachAction: (CoachAction) -> Unit = { action -> navigateTo(coachActionDestination(action)) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        MusFitScreenScaffold(
-            title = "Today",
-            subtitle = state.dateLabel,
-            actions = {
-                IconButton(onClick = viewModel::openDashboardEditor) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "Edit dashboard", tint = MusFitTheme.colors.onSurfaceVariant)
-                }
-            },
-        ) {
-            MetricCarouselCard(
-                carousel = state.carousel,
-                onMetricClick = { metric -> navigateTo(metricDestination(metric)) },
-            )
-
-            SectionHeader(title = "Coach")
-            if (state.feed.isEmpty()) {
-                EmptyState(
-                    icon = Icons.Outlined.ChatBubbleOutline,
-                    title = "Let's get started",
-                    body = "Log your first meal and I'll take it from there.",
-                    accent = tabAccentFor(AppDestination.Today),
-                    actionLabel = "Log a meal",
-                    onAction = onOpenFood,
-                )
-            } else {
-                CoachFeed(groups = state.feed, onAction = onCoachAction, onDismiss = viewModel::dismissMessage)
+    MusFitScreenScaffold(
+        title = "Today",
+        subtitle = state.dateLabel,
+        actions = {
+            IconButton(onClick = viewModel::openDashboardEditor) {
+                Icon(Icons.Outlined.Edit, contentDescription = "Edit dashboard", tint = MusFitTheme.colors.onSurfaceVariant)
             }
-            Spacer(Modifier.height(ChatFabClearance))
-        }
-
-        ChatPreviewFab(
-            onClick = viewModel::openChatPreview,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(MusFitTheme.spacing.lg),
+        },
+    ) {
+        MetricCarouselCard(
+            carousel = state.carousel,
+            onMetricClick = { metric -> navigateTo(metricDestination(metric)) },
         )
-    }
 
-    if (state.isChatPreviewVisible) {
-        ChatPreviewSheet(onDismiss = viewModel::closeChatPreview)
+        SectionHeader(title = "Coach")
+        if (state.feed.isEmpty()) {
+            EmptyState(
+                icon = Icons.Outlined.ChatBubbleOutline,
+                title = "Let's get started",
+                body = "Log your first meal and I'll take it from there.",
+                accent = tabAccentFor(AppDestination.Today),
+                actionLabel = "Log a meal",
+                onAction = onOpenFood,
+            )
+        } else {
+            CoachFeed(groups = state.feed, onAction = onCoachAction, onDismiss = viewModel::dismissMessage)
+        }
     }
 
     if (state.isDashboardEditorVisible) {

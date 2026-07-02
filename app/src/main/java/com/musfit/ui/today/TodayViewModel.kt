@@ -76,7 +76,6 @@ data class TodayUiState(
     val sessionTargetInput: String = "",
     val targetWeightInput: String = "",
     val feed: List<CoachFeedDayGroup> = emptyList(),
-    val isChatPreviewVisible: Boolean = false,
 )
 
 @HiltViewModel
@@ -248,10 +247,6 @@ class TodayViewModel internal constructor(
     fun dismissMessage(id: Long) {
         viewModelScope.launch { coachRepository.dismiss(id) }
     }
-
-    fun openChatPreview() = mutableState.update { it.copy(isChatPreviewVisible = true) }
-
-    fun closeChatPreview() = mutableState.update { it.copy(isChatPreviewVisible = false) }
 
     private fun syncCoachFeed() {
         val (anchor, input) = latestCoachInput ?: return
