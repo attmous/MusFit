@@ -30,7 +30,7 @@ Database:
 - Class: `MusFitDatabase`
 - File: `data/local/MusFitDatabase.kt`
 - Name: `musfit.db`
-- Version: 24
+- Version: 28
 - Exported schemas: `app/schemas/com.musfit.data.local.MusFitDatabase/`
 - DAOs: `AccountDao`, `FoodDao`, `TrainingDao`, `HealthDao`, `ProfileDao`, `UserGoalsDao`
 
@@ -40,10 +40,10 @@ Source: `app/src/main/java/com/musfit/data/local/entity/AccountEntities.kt`
 
 | Entity | Table | Purpose | Key fields |
 | --- | --- | --- | --- |
-| `AccountEntity` | `accounts` | Local account identity for user-owned data. | `id`, `displayName`, optional `email`, optional future `remoteUserId`, timestamps. |
+| `AccountEntity` | `accounts` | Local account identity for user-owned data and optional provider sign-in. | `id`, `displayName`, optional `email`, optional provider-scoped `remoteUserId`, `authProvider`, optional `avatarUrl`, timestamps. |
 | `AccountSessionEntity` | `account_session` | Device-local active account pointer. | `key = "active"`, `activeAccountId`, `updatedAtEpochMillis`. |
 
-The first account id is `local-default`. Profile, app settings, and Today goals use the active account id as their singleton row id. Food, Training, and Health ownership are separate follow-up slices.
+The first account id is `local-default`. Profile, app settings, and Today goals use the active account id as their singleton row id. Food, Training, and Health ownership are separate follow-up slices. Google and GitHub sign-in only link identity metadata to the active local account; access tokens and cloud sync state are not stored.
 
 ### Food Tables
 

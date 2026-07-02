@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class TrainingSettingsMigration23To24Test {
+class AccountProviderMigration27To28Test {
     private lateinit var context: Context
 
     @Before
@@ -31,18 +31,13 @@ class TrainingSettingsMigration23To24Test {
     }
 
     @Test
-    fun migration23To24_addsTrainingSettingsWithDefaults() {
-        createDatabaseFromExportedSchema(version = 23)
+    fun migration27To28_addsProviderColumnsToExistingAccounts() {
+        createDatabaseFromExportedSchema(version = 27)
+        insertLocalDefaultAccount()
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(
-                    DatabaseModule.MIGRATION_23_24,
-                    DatabaseModule.MIGRATION_24_25,
-                    DatabaseModule.MIGRATION_25_26,
-                    DatabaseModule.MIGRATION_26_27,
-                    DatabaseModule.MIGRATION_27_28,
-                )
+                .addMigrations(DatabaseModule.MIGRATION_27_28)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -50,40 +45,29 @@ class TrainingSettingsMigration23To24Test {
             roomDatabase.close()
         }
 
-        val migratedDatabase =
+        val database =
             SQLiteDatabase.openDatabase(
                 context.getDatabasePath(TEST_DATABASE_NAME).path,
                 null,
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            assertTrue(tableHasColumn(migratedDatabase, "training_settings", "defaultRestSeconds"))
-            assertTrue(tableHasColumn(migratedDatabase, "training_settings", "barWeightKg"))
-            assertTrue(tableHasColumn(migratedDatabase, "training_settings", "availablePlatesKg"))
-            migratedDatabase.rawQuery(
+            database.rawQuery(
                 """
-                SELECT defaultRestSeconds, barWeightKg, availablePlatesKg
-                FROM training_settings
-                WHERE id = 'default'
+                SELECT authProvider, avatarUrl
+                FROM accounts
+                WHERE id = 'local-default'
                 """.trimIndent(),
                 null,
             ).use { cursor ->
                 assertTrue(cursor.moveToFirst())
-                assertEquals(120, cursor.getInt(0))
-                assertEquals(20.0, cursor.getDouble(1), 0.01)
-                assertEquals("25,20,15,10,5,2.5,1.25", cursor.getString(2))
+                assertEquals("local", cursor.getString(0))
+                assertTrue(cursor.isNull(1))
             }
         } finally {
-            migratedDatabase.close()
+            database.close()
         }
     }
-
-    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean =
-        database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
-            val nameIndex = cursor.getColumnIndex("name")
-            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
-                .any { it == columnName }
-        }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
         val schemaFile = resolveSchemaFile(version)
@@ -121,21 +105,36 @@ class TrainingSettingsMigration23To24Test {
 
     private fun resolveSchemaSql(sql: String, tableName: String): String = sql.replace("\${TABLE_NAME}", tableName)
 
+    private fun insertLocalDefaultAccount() {
+        val database =
+            SQLiteDatabase.openDatabase(
+                context.getDatabasePath(TEST_DATABASE_NAME).path,
+                null,
+                SQLiteDatabase.OPEN_READWRITE,
+            )
+        try {
+            database.execSQL(
+                """
+                INSERT INTO accounts (
+                    id, displayName, email, remoteUserId, createdAtEpochMillis, updatedAtEpochMillis
+                ) VALUES (
+                    'local-default', 'You', NULL, NULL, 0, 0
+                )
+                """.trimIndent(),
+            )
+        } finally {
+            database.close()
+        }
+    }
+
     private fun resolveSchemaFile(version: Int): File {
         val relativePath = "schemas/com.musfit.data.local.MusFitDatabase/$version.json"
-        val candidates =
-            listOf(
-                File(relativePath),
-                File("app/$relativePath"),
-                File("../app/$relativePath"),
-            )
+        val candidates = listOf(File(relativePath), File("app/$relativePath"), File("../app/$relativePath"))
         return candidates.firstOrNull(File::exists)
-            ?: throw IllegalStateException(
-                "Could not find exported Room schema for version $version. Checked: ${candidates.joinToString()}",
-            )
+            ?: throw IllegalStateException("Could not find exported Room schema for version $version.")
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "training-settings-23-24"
+        const val TEST_DATABASE_NAME = "account-provider-27-28"
     }
 }

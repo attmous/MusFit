@@ -13,7 +13,7 @@ It complements, and does not duplicate, the cross-cutting docs:
 - [Data models](data-models.md) — Room entities, repository models, and enums
   (the canonical model reference; not repeated here).
 
-Snapshot date: 2026-06-28. Schema version 21.
+Snapshot date: 2026-07-03. Schema version 28.
 
 ## Where Food lives
 

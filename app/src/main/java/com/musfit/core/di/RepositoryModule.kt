@@ -4,7 +4,9 @@ import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.AssetExerciseDatasetProvider
 import com.musfit.data.repository.CoachRepository
 import com.musfit.data.repository.ExerciseDatasetProvider
+import com.musfit.data.repository.ExternalAuthRepository
 import com.musfit.data.repository.FoodRepository
+import com.musfit.data.repository.GitHubExternalAuthRepository
 import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.LocalAccountRepository
@@ -28,6 +30,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindAccountRepository(repository: LocalAccountRepository): AccountRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindExternalAuthRepository(repository: GitHubExternalAuthRepository): ExternalAuthRepository
 
     @Binds
     @Singleton

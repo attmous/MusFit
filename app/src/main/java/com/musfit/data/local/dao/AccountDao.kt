@@ -16,6 +16,9 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE id = :id LIMIT 1")
     suspend fun getAccount(id: String): AccountEntity?
 
+    @Query("SELECT * FROM accounts WHERE remoteUserId = :remoteUserId LIMIT 1")
+    suspend fun getAccountByRemoteUserId(remoteUserId: String): AccountEntity?
+
     @Query("SELECT * FROM accounts ORDER BY updatedAtEpochMillis DESC LIMIT 1")
     suspend fun getMostRecentlyUpdatedAccount(): AccountEntity?
 

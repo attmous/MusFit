@@ -34,6 +34,7 @@ import com.musfit.data.local.entity.UserProfileEntity
 import com.musfit.data.local.entity.WaterEntryEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.TrainingRepository
 import dagger.hilt.android.AndroidEntryPoint
@@ -94,6 +95,8 @@ class MusFitDebugSeedReceiver : BroadcastReceiver() {
                     displayName = "MusFit Tester",
                     email = "tester@musfit.local",
                     remoteUserId = null,
+                    authProvider = AccountAuthProvider.Local.storageValue,
+                    avatarUrl = null,
                     createdAtEpochMillis = now,
                     updatedAtEpochMillis = now,
                 ),

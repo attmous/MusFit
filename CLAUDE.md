@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-MusFit is an **Android-only** fitness and nutrition tracker (Kotlin, Jetpack Compose Material 3, Hilt, Room, Coroutines/Flow). It is local-first: no accounts, cloud sync, analytics, subscriptions, social features, or cloud AI. Single Gradle module (`:app`), application id `com.musfit`.
+MusFit is an **Android-only** fitness and nutrition tracker (Kotlin, Jetpack Compose Material 3, Hilt, Room, Coroutines/Flow). It is local-first: local account identity exists, but there is no cloud sync, analytics, subscriptions, social features, or cloud AI. Single Gradle module (`:app`), application id `com.musfit`.
 
 The product is organized as menu-by-menu "miniapps" reached from a bottom nav: **Today, Food, Training, Health**. **Food is the active focus** and by far the largest area — keep changes scoped to Food unless the user explicitly asks for Training, Today, Health, or cross-cutting architecture work.
 
@@ -65,7 +65,7 @@ Strict layering, one direction of dependency: **Compose screen → ViewModel →
 
 ### Room database — migrations are mandatory
 
-`MusFitDatabase` is at **version 21** with `exportSchema = true`; every version's schema JSON is committed under `app/schemas/` and ships as a test asset. Any entity/schema change **must**: (1) add a `MIGRATION_x_y` to `core/di/DatabaseModule.kt` and register it in `addMigrations(...)`, (2) bump `version`, and (3) commit the new `app/schemas/...json`. There is no `fallbackToDestructiveMigration` — a missing migration crashes existing installs. Match the column names/types Room expects exactly (compare against the generated schema JSON).
+`MusFitDatabase` is at **version 28** with `exportSchema = true`; every version's schema JSON is committed under `app/schemas/` and ships as a test asset. Any entity/schema change **must**: (1) add a `MIGRATION_x_y` to `core/di/DatabaseModule.kt` and register it in `addMigrations(...)`, (2) bump `version`, and (3) commit the new `app/schemas/...json`. There is no `fallbackToDestructiveMigration` — a missing migration crashes existing installs. Match the column names/types Room expects exactly (compare against the generated schema JSON).
 
 ### The Food miniapp is concentrated and large
 
@@ -83,7 +83,7 @@ TDD is expected for behavior changes: add/adjust a failing test, run it red, the
 
 ## Conventions
 
-- Android-only; do not add accounts, cloud sync, analytics, subscriptions, social, or cloud-AI features unless explicitly requested. Keep data local-first.
+- Android-only; do not add cloud sync, analytics, subscriptions, social, cloud-AI features, or new account providers unless explicitly requested. Keep data local-first.
 - UI should be dense, clean, and practical (Lifesum-like information architecture, original layouts — do not copy Lifesum assets). Avoid marketing-style layouts inside the app.
 - Plans and specs live in `docs/superpowers/plans/` and `docs/superpowers/specs/`.
 - The established deploy flow is to push verified work to `origin/master` when the user asks.

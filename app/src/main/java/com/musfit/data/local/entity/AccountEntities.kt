@@ -13,6 +13,7 @@ const val LOCAL_DEFAULT_ACCOUNT_ID = "local-default"
     indices = [
         Index("email"),
         Index(value = ["remoteUserId"], unique = true),
+        Index("authProvider"),
     ],
 )
 data class AccountEntity(
@@ -20,6 +21,8 @@ data class AccountEntity(
     val displayName: String,
     val email: String?,
     val remoteUserId: String?,
+    val authProvider: String,
+    val avatarUrl: String?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
 )

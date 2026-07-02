@@ -2,11 +2,15 @@ package com.musfit.ui.profile
 
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.Account
+import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.DEFAULT_APP_SETTINGS
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
+import com.musfit.data.repository.ExternalAuthRepository
+import com.musfit.data.repository.ExternalAccountProfile
+import com.musfit.data.repository.GitHubDeviceAuthorization
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserProfile
@@ -42,7 +46,13 @@ class ProfileSettingsViewModelTest {
         healthRepository: HealthRepository = FakeHealthRepository(),
         accountRepository: AccountRepository = FakeAccountRepository(),
         profileRepository: ProfileRepository = FakeProfileRepository(),
-    ) = ProfileSettingsViewModel(healthRepository, accountRepository, profileRepository)
+        externalAuthRepository: ExternalAuthRepository = FakeExternalAuthRepository(),
+    ) = ProfileSettingsViewModel(
+        healthRepository,
+        accountRepository,
+        profileRepository,
+        externalAuthRepository,
+    )
 
     @Before
     fun setUp() {
@@ -215,6 +225,7 @@ class ProfileSettingsViewModelTest {
         assertTrue(accountRepository.ensured) // init must guarantee an active account row exists
         assertEquals("Ava", viewModel.state.value.account.displayName)
         assertEquals("ava@example.com", viewModel.state.value.account.email)
+        assertEquals("Local account", viewModel.state.value.account.providerLabel)
     }
 
     @Test
@@ -257,6 +268,78 @@ class ProfileSettingsViewModelTest {
         assertEquals("ava@example.com", accountRepository.updatedEmail)
         assertEquals(false, viewModel.state.value.accountEditorOpen)
         assertEquals(null, viewModel.state.value.accountErrorMessage)
+    }
+
+    @Test
+    fun signInWithProvider_updatesRepositoryAndShowsLinkedProvider() = runTest {
+        val accountRepository = FakeAccountRepository()
+        val viewModel = settingsViewModel(accountRepository = accountRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.signInWithProvider(
+            ExternalAccountProfile(
+                provider = AccountAuthProvider.Google,
+                providerUserId = "google-sub-1",
+                displayName = "Ava",
+                email = "ava@gmail.com",
+                avatarUrl = "https://example.com/avatar.png",
+            ),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AccountAuthProvider.Google, accountRepository.linkedProfile?.provider)
+        assertEquals("Ava", viewModel.state.value.account.displayName)
+        assertEquals("ava@gmail.com", viewModel.state.value.account.email)
+        assertEquals("Google", viewModel.state.value.account.providerLabel)
+        assertEquals("Signed in with Google.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun signInWithProvider_failureSurfacesMessage() = runTest {
+        val accountRepository = FakeAccountRepository()
+        accountRepository.signInError = IllegalStateException("Google sign-in failed")
+        val viewModel = settingsViewModel(accountRepository = accountRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.signInWithProvider(
+            ExternalAccountProfile(
+                provider = AccountAuthProvider.Google,
+                providerUserId = "google-sub-1",
+                displayName = "Ava",
+                email = "ava@gmail.com",
+                avatarUrl = null,
+            ),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Google sign-in failed", viewModel.state.value.message)
+    }
+
+    @Test
+    fun signInWithGitHub_exposesDeviceCodeAndLinksAccount() = runTest {
+        val accountRepository = FakeAccountRepository()
+        val externalAuthRepository = FakeExternalAuthRepository(
+            profile = ExternalAccountProfile(
+                provider = AccountAuthProvider.GitHub,
+                providerUserId = "42",
+                displayName = "octocat",
+                email = "octo@github.com",
+                avatarUrl = "https://avatars.githubusercontent.com/u/42",
+            ),
+        )
+        val viewModel = settingsViewModel(
+            accountRepository = accountRepository,
+            externalAuthRepository = externalAuthRepository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.signInWithGitHub()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("WDJB-MJHT", viewModel.state.value.githubDeviceCode?.userCode)
+        assertEquals("https://github.com/login/device", viewModel.state.value.githubDeviceCode?.verificationUri)
+        assertEquals(AccountAuthProvider.GitHub, accountRepository.linkedProfile?.provider)
+        assertEquals("Signed in with GitHub.", viewModel.state.value.message)
     }
 
     @Test
@@ -355,6 +438,8 @@ class ProfileSettingsViewModelTest {
         var updatedEmail: String? = null
         var ensured = false
         var ensureError: Throwable? = null
+        var signInError: Throwable? = null
+        var linkedProfile: ExternalAccountProfile? = null
 
         override fun observeActiveAccount(): Flow<Account> = active
 
@@ -375,6 +460,20 @@ class ProfileSettingsViewModelTest {
         }
 
         override suspend fun switchAccount(accountId: String) = Unit
+
+        override suspend fun signInWithProvider(profile: ExternalAccountProfile): Account {
+            signInError?.let { throw it }
+            linkedProfile = profile
+            val linked = active.value.copy(
+                displayName = profile.displayName,
+                email = profile.email,
+                remoteUserId = "${profile.provider.storageValue}:${profile.providerUserId}",
+                authProvider = profile.provider,
+                avatarUrl = profile.avatarUrl,
+            )
+            active.value = linked
+            return linked
+        }
     }
 
     private class FakeProfileRepository(
@@ -398,5 +497,30 @@ class ProfileSettingsViewModelTest {
             flowOf(emptyMap())
         override fun observeSettings(): Flow<AppSettings> = flowOf(DEFAULT_APP_SETTINGS)
         override suspend fun saveSettings(settings: AppSettings) = Unit
+    }
+
+    private class FakeExternalAuthRepository(
+        private val profile: ExternalAccountProfile = ExternalAccountProfile(
+            provider = AccountAuthProvider.GitHub,
+            providerUserId = "42",
+            displayName = "octocat",
+            email = null,
+            avatarUrl = null,
+        ),
+    ) : ExternalAuthRepository {
+        override val isGitHubConfigured: Boolean = true
+
+        override suspend fun signInWithGitHub(
+            onDeviceAuthorization: suspend (GitHubDeviceAuthorization) -> Unit,
+        ): ExternalAccountProfile {
+            onDeviceAuthorization(
+                GitHubDeviceAuthorization(
+                    userCode = "WDJB-MJHT",
+                    verificationUri = "https://github.com/login/device",
+                    expiresInSeconds = 900,
+                ),
+            )
+            return profile
+        }
     }
 }

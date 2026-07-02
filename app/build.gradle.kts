@@ -5,6 +5,21 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+fun String.asBuildConfigString(): String =
+    "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+val musfitGoogleWebClientId =
+    providers.gradleProperty("MUSFIT_GOOGLE_WEB_CLIENT_ID")
+        .orElse(providers.environmentVariable("MUSFIT_GOOGLE_WEB_CLIENT_ID"))
+        .orElse("")
+        .get()
+
+val musfitGitHubOAuthClientId =
+    providers.gradleProperty("MUSFIT_GITHUB_OAUTH_CLIENT_ID")
+        .orElse(providers.environmentVariable("MUSFIT_GITHUB_OAUTH_CLIENT_ID"))
+        .orElse("")
+        .get()
+
 android {
     namespace = "com.musfit"
     compileSdk = 37
@@ -17,6 +32,8 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", musfitGoogleWebClientId.asBuildConfigString())
+        buildConfigField("String", "GITHUB_OAUTH_CLIENT_ID", musfitGitHubOAuthClientId.asBuildConfigString())
     }
 
     sourceSets {
@@ -25,6 +42,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -60,6 +78,9 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.health.connect)
     implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
