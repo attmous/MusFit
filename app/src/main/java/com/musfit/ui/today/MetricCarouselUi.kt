@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +26,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -34,6 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -101,9 +106,20 @@ private fun HeroPage(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.lg),
     ) {
+        val heroFigure = when (val value = hero.value) {
+            is MetricValue.WithGoal -> value.figure
+            is MetricValue.Plain -> value.figure
+            is MetricValue.NoData -> "—"
+        }
+        val heroCaption = when (val value = hero.value) {
+            is MetricValue.WithGoal -> value.caption
+            is MetricValue.Plain -> value.caption
+            is MetricValue.NoData -> value.caption
+        }
         Surface(
             onClick = { onMetricClick(hero.metric) },
             color = Color.Transparent,
+            modifier = Modifier.semantics { contentDescription = "${hero.label}: $heroFigure $heroCaption" },
         ) {
             when (val value = hero.value) {
                 is MetricValue.WithGoal ->
@@ -115,22 +131,20 @@ private fun HeroPage(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = value.figure,
+                                text = heroFigure,
                                 style = MusFitTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = accent.onContainer,
                             )
                             Text(
-                                text = value.caption,
+                                text = heroCaption,
                                 style = MusFitTheme.typography.labelSmall,
                                 color = accent.onContainer,
                             )
                         }
                     }
-                is MetricValue.Plain ->
-                    HeroFigure(figure = value.figure, caption = value.caption, accent = accent)
-                is MetricValue.NoData ->
-                    HeroFigure(figure = "—", caption = value.caption, accent = accent)
+                is MetricValue.Plain, is MetricValue.NoData ->
+                    HeroFigure(figure = heroFigure, caption = heroCaption, accent = accent)
             }
         }
         Column(
@@ -186,7 +200,7 @@ private fun MetricChip(chip: MetricCardUiState, accent: TabAccent, onClick: () -
         shape = MusFitTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+        Column(modifier = Modifier.padding(horizontal = MusFitTheme.spacing.md, vertical = MusFitTheme.spacing.sm)) {
             val figure = when (val value = chip.value) {
                 is MetricValue.WithGoal -> value.figure
                 is MetricValue.Plain -> value.figure
@@ -206,7 +220,7 @@ private fun MetricChip(chip: MetricCardUiState, accent: TabAccent, onClick: () -
             Text(
                 text = "${chip.label} · $caption",
                 style = MusFitTheme.typography.labelSmall,
-                color = accent.onContainer.copy(alpha = 0.8f),
+                color = accent.onContainer,
                 maxLines = 1,
             )
         }
@@ -260,28 +274,54 @@ fun DashboardEditSheet(
 
             // Pinned first (in order, with reorder controls), then the rest of the pool.
             val pinned = state.editPins
-            val unpinned = TodayMetric.entries.filter { it !in pinned }
-            (pinned + unpinned).forEach { metric ->
-                val isPinned = metric in pinned
+            pinned.forEachIndexed { index, metric ->
+                // The last remaining pin cannot be unpinned — surface the rule as disabled.
+                val toggleEnabled = pinned.size > 1
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = true,
+                            enabled = toggleEnabled,
+                            role = Role.Checkbox,
+                            onValueChange = { onTogglePin(metric) },
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Checkbox(checked = isPinned, onCheckedChange = { onTogglePin(metric) })
+                    Checkbox(checked = true, onCheckedChange = null, enabled = toggleEnabled)
                     Text(
                         text = metric.label,
                         style = MusFitTheme.typography.bodyMedium,
                         color = MusFitTheme.colors.onSurface,
                         modifier = Modifier.weight(1f),
                     )
-                    if (isPinned) {
-                        IconButton(onClick = { onMovePin(metric, true) }) {
-                            Icon(Icons.Outlined.ArrowUpward, contentDescription = "Move ${metric.label} up", tint = MusFitTheme.colors.onSurfaceVariant)
-                        }
-                        IconButton(onClick = { onMovePin(metric, false) }) {
-                            Icon(Icons.Outlined.ArrowDownward, contentDescription = "Move ${metric.label} down", tint = MusFitTheme.colors.onSurfaceVariant)
-                        }
+                    val arrowColors = IconButtonDefaults.iconButtonColors(contentColor = MusFitTheme.colors.onSurfaceVariant)
+                    IconButton(onClick = { onMovePin(metric, true) }, enabled = index > 0, colors = arrowColors) {
+                        Icon(Icons.Outlined.ArrowUpward, contentDescription = "Move ${metric.label} up")
                     }
+                    IconButton(onClick = { onMovePin(metric, false) }, enabled = index < pinned.lastIndex, colors = arrowColors) {
+                        Icon(Icons.Outlined.ArrowDownward, contentDescription = "Move ${metric.label} down")
+                    }
+                }
+            }
+            TodayMetric.entries.filter { it !in pinned }.forEach { metric ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = false,
+                            role = Role.Checkbox,
+                            onValueChange = { onTogglePin(metric) },
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = false, onCheckedChange = null)
+                    Text(
+                        text = metric.label,
+                        style = MusFitTheme.typography.bodyMedium,
+                        color = MusFitTheme.colors.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
 
