@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
@@ -25,13 +27,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,11 +40,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.musfit.domain.coach.CoachAction
-import com.musfit.domain.coach.CoachBriefing
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.EmptyState
 import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.MusFitSummaryCard
+import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.charts.BarDatum
 import com.musfit.ui.components.charts.MetricRing
 import com.musfit.ui.components.charts.TrendLineChart
@@ -66,55 +69,70 @@ fun TodayScreen(
     onOpenHealth: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    MusFitScreenScaffold(
-        title = "Today",
-        subtitle = state.dateLabel,
-        actions = {
-            IconButton(onClick = viewModel::openGoalsEditor) {
-                Icon(Icons.Outlined.Tune, contentDescription = "Edit goals", tint = MusFitTheme.colors.onSurfaceVariant)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> viewModel.onScreenResumed()
+                Lifecycle.Event.ON_PAUSE -> viewModel.onScreenPaused()
+                else -> Unit
             }
-        },
-    ) {
-        state.coach?.let { briefing ->
-            CoachBriefingCard(briefing) { action ->
-                when (action) {
-                    CoachAction.OpenFood -> onOpenFood()
-                    CoachAction.OpenTraining -> onOpenTraining()
-                    CoachAction.OpenHealth -> onOpenHealth()
-                    is CoachAction.StartRoutine -> onOpenTraining()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val navigateTo: (AppDestination) -> Unit = { destination ->
+        when (destination) {
+            AppDestination.Food -> onOpenFood()
+            AppDestination.Training -> onOpenTraining()
+            AppDestination.Profile -> onOpenHealth()
+            else -> Unit
+        }
+    }
+    val onCoachAction: (CoachAction) -> Unit = { action -> navigateTo(coachActionDestination(action)) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        MusFitScreenScaffold(
+            title = "Today",
+            subtitle = state.dateLabel,
+            actions = {
+                IconButton(onClick = viewModel::openGoalsEditor) {
+                    Icon(Icons.Outlined.Tune, contentDescription = "Edit goals", tint = MusFitTheme.colors.onSurfaceVariant)
                 }
-            }
-        }
-
-        val accent = tabAccentFor(AppDestination.Today)
-
-        if (state.rings.isNotEmpty()) {
-            DailyRingsCard(rings = state.rings, macros = state.macros, onClick = onOpenFood)
-        }
-
-        state.weeklyCharts?.let { charts ->
-            WeeklyCaloriesCard(
-                charts = charts,
-                accent = accent,
-                selectedIndex = state.selectedCalorieDayIndex ?: charts.defaultSelectedIndex,
-                onDaySelected = viewModel::onCalorieDaySelected,
-            )
-            WeightTrendCard(charts = charts, accent = accent)
-            WeekStatsRow(charts = charts)
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            },
         ) {
-            GlimpseTile(
-                icon = Icons.Outlined.FitnessCenter,
-                value = state.training.title,
-                label = state.training.subtitle,
-                onClick = onOpenTraining,
-            )
+            if (state.rings.isNotEmpty()) {
+                DailyRingsCard(rings = state.rings, macros = state.macros, onClick = onOpenFood)
+            }
+
+            SectionHeader(title = "Coach")
+            if (state.feed.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Outlined.ChatBubbleOutline,
+                    title = "Let's get started",
+                    body = "Log your first meal and I'll take it from there.",
+                    accent = tabAccentFor(AppDestination.Today),
+                    actionLabel = "Log a meal",
+                    onAction = onOpenFood,
+                )
+            } else {
+                CoachFeed(groups = state.feed, onAction = onCoachAction, onDismiss = viewModel::dismissMessage)
+            }
+            Spacer(Modifier.height(72.dp)) // scroll clearance under the chat FAB
         }
+
+        ChatPreviewFab(
+            onClick = viewModel::openChatPreview,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(MusFitTheme.spacing.lg),
+        )
+    }
+
+    if (state.isChatPreviewVisible) {
+        ChatPreviewSheet(onDismiss = viewModel::closeChatPreview)
     }
 
     if (state.isGoalsEditorVisible) {
@@ -426,91 +444,6 @@ private fun TodayGoalsEditorSheet(
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CoachBriefingCard(briefing: CoachBriefing, onAction: (CoachAction) -> Unit) {
-    val cues = briefing.cues
-    if (cues.isEmpty()) return
-    var index by rememberSaveable { mutableStateOf(0) }
-    val safeIndex = index.coerceIn(0, cues.size - 1)
-    val cue = cues[safeIndex]
-
-    Surface(
-        color = MusFitTheme.colors.brand,
-        shape = MusFitTheme.shapes.extraLarge,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Coach briefing",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MusFitTheme.colors.positiveContainer,
-                )
-                if (cues.size > 1) {
-                    Text(
-                        text = "${safeIndex + 1} / ${cues.size}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MusFitTheme.colors.positiveContainer,
-                    )
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = briefing.greeting,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.onBrand,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = cue.text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onBrand,
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                cue.action?.let { action ->
-                    Surface(
-                        onClick = { onAction(action) },
-                        color = MusFitTheme.colors.onBrand,
-                        shape = MusFitTheme.shapes.small,
-                    ) {
-                        Text(
-                            text = actionLabel(action),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MusFitTheme.colors.brandInk,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                        )
-                    }
-                }
-                if (cues.size > 1) {
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { index = (safeIndex + 1) % cues.size }) {
-                        Text("Next", color = MusFitTheme.colors.positiveContainer)
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun actionLabel(action: CoachAction): String = when (action) {
-    CoachAction.OpenFood -> "Open food"
-    CoachAction.OpenTraining -> "Open training"
-    CoachAction.OpenHealth -> "Open health"
-    is CoachAction.StartRoutine -> "Start workout"
 }
 
 @Composable

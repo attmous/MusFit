@@ -16,7 +16,6 @@ import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
 import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.WorkoutHistorySummary
-import com.musfit.domain.coach.CoachBriefing
 import com.musfit.domain.coach.CoachEngine
 import com.musfit.domain.coach.CoachInput
 import com.musfit.domain.coach.TimeOfDay
@@ -99,7 +98,6 @@ data class TodayUiState(
     val stepGoalInput: String = "",
     val sessionTargetInput: String = "",
     val targetWeightInput: String = "",
-    val coach: CoachBriefing? = null,
     val feed: List<CoachFeedDayGroup> = emptyList(),
     val isChatPreviewVisible: Boolean = false,
 )
@@ -220,7 +218,6 @@ class TodayViewModel internal constructor(
                 .collect { anchored ->
                     latestCoachInput = anchored
                     if (isResumed) syncCoachFeed()
-                    mutableState.update { it.copy(coach = CoachEngine.briefing(anchored.second)) }
                 }
         }
     }

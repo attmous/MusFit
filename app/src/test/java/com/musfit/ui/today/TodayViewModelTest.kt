@@ -26,6 +26,7 @@ import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutForExport
 import com.musfit.data.remote.food.ProductLookupResult
+import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCandidate
 import com.musfit.domain.coach.CoachMessageCategory
 import com.musfit.domain.health.HealthConnectAvailability
@@ -34,6 +35,7 @@ import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.today.TodayMetric
+import com.musfit.ui.AppDestination
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -273,6 +275,15 @@ class TodayViewModelTest {
         assertTrue(viewModel.state.value.isChatPreviewVisible)
         viewModel.closeChatPreview()
         assertEquals(false, viewModel.state.value.isChatPreviewVisible)
+    }
+
+    @Test
+    fun coachActionDestination_mapsAllActionsIncludingDeletedRoutineFallback() {
+        assertEquals(AppDestination.Food, coachActionDestination(CoachAction.OpenFood))
+        assertEquals(AppDestination.Training, coachActionDestination(CoachAction.OpenTraining))
+        assertEquals(AppDestination.Profile, coachActionDestination(CoachAction.OpenHealth))
+        // Deleted or live, StartRoutine lands on the Training tab in v1 (spec non-goal: no sub-route anchors).
+        assertEquals(AppDestination.Training, coachActionDestination(CoachAction.StartRoutine("deleted-routine")))
     }
 
     private fun todayViewModel(
