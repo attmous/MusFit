@@ -14,14 +14,24 @@ import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
+import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.HealthRepository
+import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.QuickCalorieLogInput
+import com.musfit.data.repository.RoutineDetail
+import com.musfit.data.repository.RoutineInput
+import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.SavedFoodItem
 import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.SavedFoodUpsertInput
+import com.musfit.data.repository.TrainingRepository
+import com.musfit.data.repository.TrainingSummary
+import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.UserProfile
 import com.musfit.data.repository.WeightEntry
+import com.musfit.data.repository.WorkoutForExport
+import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
@@ -64,11 +74,15 @@ class ProfileViewModelTest {
         profileRepository: ProfileRepository = FakeProfileRepository(),
         healthRepository: HealthRepository = FakeHealthRepo(),
         foodRepository: FoodRepository = FakeFoodGoalRepo(),
+        trainingRepository: TrainingRepository = FakeTrainingRepo(),
+        goalsRepository: GoalsRepository = FakeGoalsRepo(),
     ) = ProfileViewModel(
         accountRepository = accountRepository,
         profileRepository = profileRepository,
         healthRepository = healthRepository,
         foodRepository = foodRepository,
+        trainingRepository = trainingRepository,
+        goalsRepository = goalsRepository,
         dateProvider = { fixedDate },
         clock = { nowMillis },
     )
@@ -81,7 +95,7 @@ class ProfileViewModelTest {
 
     @Test
     fun incompleteProfile_hidesRecommendation() = runTest {
-        val viewModel = ProfileViewModel(FakeAccountRepository(), FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isLoaded)
@@ -96,7 +110,7 @@ class ProfileViewModelTest {
             latestWeight = WeightEntry("w1", 1_000L, 80.0, "manual"),
             targets = RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
         )
-        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(true, viewModel.state.value.isProfileComplete)
@@ -269,7 +283,7 @@ class ProfileViewModelTest {
             latestWeight = WeightEntry("w1", 1_000L, 80.0, "manual"),
             targets = RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
         )
-        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), food)
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), food, FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.applyTargetsToFood()
@@ -293,7 +307,7 @@ class ProfileViewModelTest {
                 restingHeartRateBpm = 58L, updatedAtEpochMillis = 1L,
             ),
         )
-        val viewModel = ProfileViewModel(FakeAccountRepository(), FakeProfileRepository(), health, FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), FakeProfileRepository(), health, FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(7420L, viewModel.state.value.vitals!!.steps)
@@ -303,7 +317,7 @@ class ProfileViewModelTest {
     @Test
     fun logWeight_callsRepository() = runTest {
         val repo = FakeProfileRepository()
-        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.logWeight(83.6)
@@ -315,7 +329,7 @@ class ProfileViewModelTest {
     @Test
     fun editEntry_callsRepositoryWithIdAndValue() = runTest {
         val repo = FakeProfileRepository()
-        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.editEntry("abc", 81.3)
@@ -328,7 +342,7 @@ class ProfileViewModelTest {
     @Test
     fun deleteEntry_callsRepositoryWithId() = runTest {
         val repo = FakeProfileRepository()
-        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.deleteEntry("xyz")
@@ -340,7 +354,7 @@ class ProfileViewModelTest {
     @Test
     fun state_exposesWeightEntriesForSheet() = runTest {
         val repo = FakeProfileRepository(latestWeight = WeightEntry("w9", 1_000L, 84.0, "manual"))
-        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("w9", viewModel.state.value.weightEntries.first().id)
@@ -357,7 +371,7 @@ class ProfileViewModelTest {
             ),
         )
 
-        val viewModel = ProfileViewModel(accountRepository, FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(accountRepository, FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("Ava", viewModel.state.value.account.displayName)
@@ -368,7 +382,7 @@ class ProfileViewModelTest {
     @Test
     fun saveAccount_updatesRepositoryAndClosesEditor() = runTest {
         val accountRepository = FakeAccountRepository()
-        val viewModel = ProfileViewModel(accountRepository, FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(accountRepository, FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.openAccountEditor()
@@ -386,7 +400,7 @@ class ProfileViewModelTest {
     @Test
     fun saveAccount_blankNameKeepsEditorOpenWithValidation() = runTest {
         val accountRepository = FakeAccountRepository()
-        val viewModel = ProfileViewModel(accountRepository, FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo())
+        val viewModel = ProfileViewModel(accountRepository, FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.openAccountEditor()
@@ -397,6 +411,108 @@ class ProfileViewModelTest {
         assertEquals(true, viewModel.state.value.accountEditorOpen)
         assertEquals("Account name is required.", viewModel.state.value.accountErrorMessage)
         assertEquals(null, accountRepository.updatedName)
+    }
+
+    @Test
+    fun planCards_dietAlwaysAndTrainingWithProgram() = runTest {
+        val training = FakeTrainingRepo()
+        training.routines.value = listOf(
+            RoutineSummary(id = "r1", name = "Machine A", notes = null, exerciseCount = 5, targetSetCount = 15, isStarter = false, programName = "Beginner Program"),
+        )
+        training.history.value = listOf(
+            WorkoutHistorySummary("s1", "Machine A", nowMillis - 86_400_000L, null, 12, 1000.0),
+        )
+        val goals = FakeGoalsRepo() // default weeklySessionTarget = 4
+        val viewModel = profileViewModel(trainingRepository = training, goalsRepository = goals)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val cards = viewModel.state.value.planCards
+        assertEquals("diet", cards[0].id)
+        assertEquals("Balanced diet", cards[0].title)                    // FakeFoodGoalRepo mode = Balanced
+        assertTrue(cards[0].subtitle.contains("2000 kcal target"))       // calorie figure for non-protein-led modes
+        assertEquals("training", cards[1].id)
+        assertEquals("Beginner Program", cards[1].title)
+        assertTrue(cards[1].subtitle.contains("1 of 4 sessions this week"))
+    }
+
+    @Test
+    fun planCards_proteinLedModeShowsProteinFigure() = runTest {
+        val food = FakeFoodGoalRepo(
+            initial = FoodGoal(
+                2400.0, 180.0, 220.0, 70.0, 30.0, 50.0, 20.0, 2300.0,
+                FoodGoalMode.HighProtein, includeTrainingCalories = false,
+            ),
+        )
+        val viewModel = profileViewModel(foodRepository = food)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val diet = viewModel.state.value.planCards.first { it.id == "diet" }
+        assertEquals("High protein diet", diet.title)
+        assertTrue(diet.subtitle.contains("180 g protein target"))
+    }
+
+    @Test
+    fun planCards_noRoutinesShowsSetupCard_andZeroTargetDropsDenominator() = runTest {
+        val training = FakeTrainingRepo() // no routines, no history
+        val goals = FakeGoalsRepo(userGoals = UserGoals(weeklySessionTarget = 0))
+        val viewModel = profileViewModel(trainingRepository = training, goalsRepository = goals)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val card = viewModel.state.value.planCards.first { it.id == "training" }
+        assertEquals("No program yet", card.title)
+        assertEquals("Set one up in Training", card.subtitle)
+
+        training.routines.value = listOf(
+            RoutineSummary(id = "r1", name = "Machine A", notes = null, exerciseCount = 5, targetSetCount = 15, isStarter = false),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        val withRoutine = viewModel.state.value.planCards.first { it.id == "training" }
+        assertEquals("Machine A", withRoutine.title)                     // no programName → routine name
+        assertTrue(withRoutine.subtitle.contains("0 sessions this week"))
+        assertEquals(false, withRoutine.subtitle.contains(" of "))       // target 0 drops the denominator
+    }
+
+    @Test
+    fun planCards_allEightModesGetLabelAndFigureKind() = runTest {
+        val proteinLed = setOf(FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain)
+        FoodGoalMode.entries.forEach { mode ->
+            val food = FakeFoodGoalRepo(
+                initial = FoodGoal(
+                    2100.0, 160.0, 220.0, 70.0, 30.0, 50.0, 20.0, 2300.0,
+                    mode, includeTrainingCalories = false,
+                ),
+            )
+            val viewModel = profileViewModel(foodRepository = food)
+            dispatcher.scheduler.advanceUntilIdle()
+
+            val diet = viewModel.state.value.planCards.first { it.id == "diet" }
+            assertTrue("$mode title", diet.title.endsWith(" diet"))
+            if (mode in proteinLed) {
+                assertTrue("$mode figure", diet.subtitle.contains("160 g protein target"))
+            } else {
+                assertTrue("$mode figure", diet.subtitle.contains("2100 kcal target"))
+            }
+        }
+    }
+
+    @Test
+    fun hcNudge_visibleWhenNoPermissionsGranted() = runTest {
+        val health = FakeHealthRepo() // status(): Available + granted setOf("steps") → hidden
+        val viewModel = profileViewModel(healthRepository = health)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, viewModel.state.value.isHealthConnectNudgeVisible)
+
+        val disconnected = FakeHealthRepoMutableStatus() // starts with no granted permissions
+        val viewModel2 = profileViewModel(healthRepository = disconnected)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, viewModel2.state.value.isHealthConnectNudgeVisible)
+
+        // Spec: "disappears once connected" — the user grants permissions in the HC app
+        // and returns; the resume refresh must hide the nudge.
+        disconnected.granted = setOf("steps")
+        viewModel2.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, viewModel2.state.value.isHealthConnectNudgeVisible)
     }
 
     private class FakeProfileRepository(
@@ -436,6 +552,68 @@ class ProfileViewModelTest {
         override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
             ImportedDailyHealthSummary(null, null, null, null)
         override suspend fun exportLatestWorkout(): String? = null
+    }
+
+    /** [FakeHealthRepo] whose granted-permission set can change between [status] calls. */
+    private class FakeHealthRepoMutableStatus : HealthRepository {
+        var granted: Set<String> = emptySet()
+        override suspend fun status(): HealthConnectStatus =
+            HealthConnectStatus(HealthConnectAvailability.Available, granted)
+        override suspend fun requestablePermissions(): Set<String> = setOf("steps")
+        override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
+        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
+            ImportedDailyHealthSummary(null, null, null, null)
+        override suspend fun exportLatestWorkout(): String? = null
+    }
+
+    private class FakeTrainingRepo : TrainingRepository {
+        val routines = MutableStateFlow<List<RoutineSummary>>(emptyList())
+        val history = MutableStateFlow<List<WorkoutHistorySummary>>(emptyList())
+
+        override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = routines
+
+        override fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = history
+
+        override suspend fun addCompletedSet(
+            exerciseName: String,
+            reps: Int,
+            weightKg: Double,
+        ): LoggedWorkoutSet = LoggedWorkoutSet("set-1", exerciseName, reps, weightKg, true)
+
+        override suspend fun setCompletion(setId: String, completed: Boolean) = Unit
+
+        override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> =
+            MutableStateFlow(TrainingSummary())
+
+        override suspend fun createRoutine(input: RoutineInput): String = "routine-1"
+
+        override suspend fun updateRoutine(routineId: String, input: RoutineInput) = Unit
+
+        override suspend fun duplicateRoutine(routineId: String): String = "$routineId-copy"
+
+        override suspend fun deleteRoutine(routineId: String) = Unit
+
+        override suspend fun getRoutineDetail(routineId: String): RoutineDetail? = null
+
+        override suspend fun startBlankWorkout(): String = "session-blank"
+
+        override suspend fun startWorkoutFromRoutine(routineId: String): String = "session-$routineId"
+
+        override suspend fun getLatestWorkoutForExport(): WorkoutForExport? = null
+
+        override suspend fun markWorkoutExported(
+            sessionId: String,
+            recordId: String,
+            exportedAtEpochMillis: Long,
+        ) = Unit
+    }
+
+    private class FakeGoalsRepo(
+        private val userGoals: UserGoals = UserGoals(),
+    ) : GoalsRepository {
+        override fun observeUserGoals(): Flow<UserGoals> = flowOf(userGoals)
+
+        override suspend fun updateUserGoals(goals: UserGoals) = Unit
     }
 
     private class FakeAccountRepository(
