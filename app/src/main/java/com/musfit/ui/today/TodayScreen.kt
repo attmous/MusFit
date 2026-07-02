@@ -148,7 +148,7 @@ internal fun todayRefreshIndicatorUiState(
         isRefreshing -> TodayRefreshIndicatorUiState(isVisible = true, progress = null)
         pullDistanceFraction > 0f -> TodayRefreshIndicatorUiState(
             isVisible = true,
-            progress = pullDistanceFraction.coerceIn(0f, 1f),
+            progress = null,
         )
         else -> TodayRefreshIndicatorUiState(isVisible = false, progress = null)
     }

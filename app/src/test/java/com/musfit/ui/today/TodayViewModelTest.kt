@@ -149,11 +149,11 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun todayRefreshIndicatorState_showsDeterminateProgressWhilePulling() {
+    fun todayRefreshIndicatorState_showsIndeterminateProgressWhilePulling() {
         val indicator = todayRefreshIndicatorUiState(isRefreshing = false, pullDistanceFraction = 0.42f)
 
         assertTrue(indicator.isVisible)
-        assertEquals(0.42f, indicator.progress ?: -1f, 0.001f)
+        assertNull(indicator.progress)
     }
 
     @Test
