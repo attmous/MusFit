@@ -12,19 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FitnessCenter
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,10 +29,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -47,10 +40,8 @@ import com.musfit.domain.coach.CoachAction
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.EmptyState
 import com.musfit.ui.components.MusFitScreenScaffold
-import com.musfit.ui.components.MusFitSummaryCard
 import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.charts.BarDatum
-import com.musfit.ui.components.charts.MetricRing
 import com.musfit.ui.components.charts.TrendLineChart
 import com.musfit.ui.components.charts.WeekBarChart
 import com.musfit.ui.theme.MusFitTheme
@@ -58,7 +49,6 @@ import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /** Scroll clearance under the chat FAB: FAB 52 + lg padding 16 + 8 slack. */
 private val ChatFabClearance = 76.dp
@@ -102,13 +92,14 @@ fun TodayScreen(
             subtitle = state.dateLabel,
             actions = {
                 IconButton(onClick = viewModel::openDashboardEditor) {
-                    Icon(Icons.Outlined.Tune, contentDescription = "Edit goals", tint = MusFitTheme.colors.onSurfaceVariant)
+                    Icon(Icons.Outlined.Edit, contentDescription = "Edit dashboard", tint = MusFitTheme.colors.onSurfaceVariant)
                 }
             },
         ) {
-            if (state.rings.isNotEmpty()) {
-                DailyRingsCard(rings = state.rings, macros = state.macros, onClick = onOpenFood)
-            }
+            MetricCarouselCard(
+                carousel = state.carousel,
+                onMetricClick = { metric -> navigateTo(metricDestination(metric)) },
+            )
 
             SectionHeader(title = "Coach")
             if (state.feed.isEmpty()) {
@@ -139,78 +130,15 @@ fun TodayScreen(
     }
 
     if (state.isDashboardEditorVisible) {
-        TodayGoalsEditorSheet(
+        DashboardEditSheet(
             state = state,
+            onTogglePin = viewModel::togglePin,
+            onMovePin = viewModel::movePin,
             onStepGoalChanged = viewModel::onStepGoalInputChanged,
             onSessionTargetChanged = viewModel::onSessionTargetInputChanged,
             onTargetWeightChanged = viewModel::onTargetWeightInputChanged,
             onSave = viewModel::saveDashboard,
             onDismiss = viewModel::closeDashboardEditor,
-        )
-    }
-}
-
-@Composable
-private fun DailyRingsCard(
-    rings: List<DailyRingUiState>,
-    macros: MacroBreakdownUiState,
-    onClick: () -> Unit,
-) {
-    val accent = tabAccentFor(AppDestination.Today)
-    MusFitSummaryCard(accent = accent, onClick = onClick) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceAround,
-        ) {
-            rings.forEach { ring ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    MetricRing(
-                        progress = ring.progress,
-                        color = ringColor(ring.kind),
-                        trackColor = MusFitTheme.colors.onSurface.copy(alpha = 0.12f),
-                    ) {
-                        Text(
-                            text = "${(ring.progress * 100).roundToInt()}%",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = accent.onContainer,
-                        )
-                    }
-                    Spacer(Modifier.height(7.dp))
-                    Text(
-                        text = ring.kind.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = accent.onContainer,
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        MacroBar(macros = macros, labelColor = accent.onContainer)
-    }
-}
-
-@Composable
-private fun MacroBar(macros: MacroBreakdownUiState, labelColor: Color = MusFitTheme.colors.onSurfaceVariant) {
-    val macroColors = MusFitTheme.colors.macroColors
-    val values = listOf(macros.carbsGrams, macros.proteinGrams, macros.fatGrams)
-    val total = values.sum().takeIf { it > 0.0 } ?: 1.0
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        values.forEachIndexed { index, value ->
-            Box(
-                modifier = Modifier
-                    .weight((value / total).toFloat().coerceAtLeast(0.001f))
-                    .height(6.dp)
-                    .clip(MusFitTheme.shapes.small)
-                    .background(macroColors[index]),
-            )
-        }
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = "C ${macros.carbsGrams.roundToInt()} · P ${macros.proteinGrams.roundToInt()} · F ${macros.fatGrams.roundToInt()}",
-            style = MaterialTheme.typography.labelSmall,
-            color = labelColor,
         )
     }
 }
@@ -387,81 +315,6 @@ private fun WeeklyMiniTracker(modifier: Modifier, label: String, value: String) 
         )
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TodayGoalsEditorSheet(
-    state: TodayUiState,
-    onStepGoalChanged: (String) -> Unit,
-    onSessionTargetChanged: (String) -> Unit,
-    onTargetWeightChanged: (String) -> Unit,
-    onSave: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MusFitTheme.colors.surface) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text(
-                text = "Goals",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.onSurface,
-            )
-            OutlinedTextField(
-                value = state.stepGoalInput,
-                onValueChange = onStepGoalChanged,
-                label = { Text("Daily step goal") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.sessionTargetInput,
-                onValueChange = onSessionTargetChanged,
-                label = { Text("Workouts per week") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.targetWeightInput,
-                onValueChange = onTargetWeightChanged,
-                label = { Text("Target weight (kg)") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Button(
-                onClick = onSave,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MusFitTheme.colors.brand,
-                    contentColor = MusFitTheme.colors.onBrand,
-                ),
-            ) {
-                Text("Save goals")
-            }
-        }
-    }
-}
-
-@Composable
-private fun ringColor(kind: RingKind): Color = when (kind) {
-    RingKind.Calories -> MusFitTheme.colors.brand
-    RingKind.Protein -> MusFitTheme.colors.macroProtein
-    RingKind.Steps -> MusFitTheme.colors.water
-}
-
-private val RingKind.label: String
-    get() = when (this) {
-        RingKind.Calories -> "Calories"
-        RingKind.Protein -> "Protein"
-        RingKind.Steps -> "Steps"
-    }
 
 private fun Double.formatMetric(): String =
     if (this % 1.0 == 0.0) {

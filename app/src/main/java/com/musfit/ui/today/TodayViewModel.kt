@@ -51,21 +51,6 @@ import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import javax.inject.Inject
 
-enum class RingKind { Calories, Protein, Steps }
-
-data class DailyRingUiState(
-    val kind: RingKind,
-    val centerLabel: String,
-    val goalLabel: String,
-    val progress: Float,
-)
-
-data class MacroBreakdownUiState(
-    val carbsGrams: Double = 0.0,
-    val proteinGrams: Double = 0.0,
-    val fatGrams: Double = 0.0,
-)
-
 data class DayBar(val label: String, val calories: Double?)
 
 data class WeeklyChartsUiState(
@@ -108,8 +93,6 @@ data class CarouselUiState(val pages: List<CarouselPageUiState> = emptyList())
 
 data class TodayUiState(
     val dateLabel: String = "",
-    val rings: List<DailyRingUiState> = emptyList(),
-    val macros: MacroBreakdownUiState = MacroBreakdownUiState(),
     val training: TrainingGlimpseUiState = TrainingGlimpseUiState(),
     val weightKg: Double? = null,
     val weekly: WeeklyGoals? = null,
@@ -192,8 +175,6 @@ class TodayViewModel internal constructor(
                 mutableState.update {
                     it.copy(
                         dateLabel = daily.dateLabel,
-                        rings = daily.rings,
-                        macros = daily.macros,
                         training = daily.training,
                         weightKg = daily.weightKg,
                     )
@@ -510,8 +491,6 @@ private val DATE_FORMATTER = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.
 
 private data class TodayDaily(
     val dateLabel: String,
-    val rings: List<DailyRingUiState>,
-    val macros: MacroBreakdownUiState,
     val training: TrainingGlimpseUiState,
     val weightKg: Double?,
 )
@@ -621,40 +600,12 @@ private fun buildDaily(
     training: TrainingSummary,
     health: DailyHealthSummaryEntity?,
     userGoals: UserGoals,
-): TodayDaily {
-    val steps = health?.steps ?: 0L
-    val stepGoal = userGoals.stepGoal.coerceAtLeast(DEFAULT_STEP_GOAL_FLOOR)
-    return TodayDaily(
+): TodayDaily =
+    TodayDaily(
         dateLabel = date.format(DATE_FORMATTER),
-        rings = listOf(
-            DailyRingUiState(
-                kind = RingKind.Calories,
-                centerLabel = nutrition.caloriesKcal.formatMetric(),
-                goalLabel = "of ${goal.dailyCaloriesKcal.formatMetric()}",
-                progress = ratio(nutrition.caloriesKcal, goal.dailyCaloriesKcal),
-            ),
-            DailyRingUiState(
-                kind = RingKind.Protein,
-                centerLabel = "${nutrition.proteinGrams.formatMetric()} g",
-                goalLabel = "of ${goal.proteinGrams.formatMetric()} g",
-                progress = ratio(nutrition.proteinGrams, goal.proteinGrams),
-            ),
-            DailyRingUiState(
-                kind = RingKind.Steps,
-                centerLabel = formatCount(steps),
-                goalLabel = "of ${formatCount(stepGoal)}",
-                progress = ratio(steps.toDouble(), stepGoal.toDouble()),
-            ),
-        ),
-        macros = MacroBreakdownUiState(
-            carbsGrams = nutrition.carbsGrams,
-            proteinGrams = nutrition.proteinGrams,
-            fatGrams = nutrition.fatGrams,
-        ),
         training = training.toGlimpse(),
         weightKg = health?.latestWeightKg,
     )
-}
 
 private fun ratio(value: Double, goal: Double): Float =
     if (goal <= 0.0) 0f else (value / goal).coerceIn(0.0, 1.0).toFloat()

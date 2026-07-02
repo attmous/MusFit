@@ -96,21 +96,6 @@ class TodayViewModelTest {
 
         val state = viewModel.state.value
 
-        val calories = state.rings.first { it.kind == RingKind.Calories }
-        assertEquals("600", calories.centerLabel)
-        assertEquals(0.3f, calories.progress, 0.001f)
-
-        val protein = state.rings.first { it.kind == RingKind.Protein }
-        assertEquals("45 g", protein.centerLabel)
-        assertEquals(0.3f, protein.progress, 0.001f)
-
-        val steps = state.rings.first { it.kind == RingKind.Steps }
-        assertEquals("8.2k", steps.centerLabel)
-        assertEquals(0.82f, steps.progress, 0.001f)
-
-        assertEquals(70.0, state.macros.carbsGrams, 0.01)
-        assertEquals(18.0, state.macros.fatGrams, 0.01)
-
         assertEquals("2 sets", state.training.title)
         assertEquals("1250 kg volume", state.training.subtitle)
         assertEquals(true, state.training.hasWorkout)
@@ -353,6 +338,16 @@ class TodayViewModelTest {
             coachRepository.savedPins,
         )
         assertEquals(false, viewModel.state.value.isDashboardEditorVisible)
+    }
+
+    @Test
+    fun metricDestination_mapsEveryMetricToItsHomeTab() {
+        assertEquals(AppDestination.Food, metricDestination(TodayMetric.Calories))
+        assertEquals(AppDestination.Food, metricDestination(TodayMetric.Water))
+        assertEquals(AppDestination.Training, metricDestination(TodayMetric.Sessions))
+        assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Steps))
+        assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Weight))
+        assertEquals(AppDestination.Profile, metricDestination(TodayMetric.RestingHeartRate))
     }
 
     @Test
