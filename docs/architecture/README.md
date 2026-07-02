@@ -18,7 +18,7 @@ Top-level navigation is a bottom bar with four destinations:
 | Today | `today` | Daily dashboard, rings, coaching cues, weekly goals, and shortcuts into feature areas. |
 | Food | `food` | Food diary, add food flow, saved foods, barcode lookup, nutrition goals, water, templates, recipes, shopping list, and food Health Connect sync. |
 | Training | `training` | Routines, exercise library, active workouts, rest timer, supersets, PR/plate hints, workout history/recaps, progress, and quick set logging. |
-| Health | `health` | Health Connect status, permission entrypoint, daily health import, and workout export. |
+| Health | `health` | Health Connect status, permission entrypoint, recent health import, and workout export. |
 
 The MVP is local-first. It has no account system, cloud sync, analytics, subscription layer, social features, or wearable cloud API integration.
 
@@ -30,7 +30,7 @@ The MVP is local-first. It has no account system, cloud sync, analytics, subscri
 | UI | Jetpack Compose with Material 3 |
 | Navigation | Navigation Compose, single activity |
 | State | Hilt ViewModels exposing immutable `StateFlow` UI state |
-| Storage | Room local database, schema version 24 |
+| Storage | Room local database, schema version 28 |
 | Async | Kotlin coroutines and Flow |
 | DI | Hilt |
 | Food remote data | Retrofit and Moshi client for Open Food Facts |
@@ -138,7 +138,7 @@ Food and Today use date-scoped Flow collection. Food owns a `selectedDateFlow` a
 
 ## Persistence
 
-The database is `MusFitDatabase`, version 24, with `exportSchema = true`.
+The database is `MusFitDatabase`, version 28, with `exportSchema = true`.
 
 Major table groups:
 
@@ -147,7 +147,7 @@ Major table groups:
 - Health: body metrics, daily health summaries, Health Connect sync state.
 - Today goals: user goals.
 
-Room migrations are registered from version 1 to 24 in `DatabaseModule`. The app does not use destructive migration fallback, so schema changes must include a migration and a committed schema JSON.
+Room migrations are registered from version 1 to 28 in `DatabaseModule`. The app does not use destructive migration fallback, so schema changes must include a migration and a committed schema JSON.
 
 ### Training Persistence Notes
 
@@ -174,7 +174,7 @@ Health Connect is behind `HealthConnectGateway`.
 The app currently supports:
 
 - Status and permission availability checks.
-- Reading daily steps, weight, active calories, and resting heart rate.
+- Reading recent steps, calories, distance, sleep, exercise sessions, weight, body fat, and resting heart rate.
 - Exporting completed workouts.
 - Food and hydration export boundary through `HealthConnectFoodExportPayload`.
 

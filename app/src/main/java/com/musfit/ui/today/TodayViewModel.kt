@@ -234,7 +234,9 @@ class TodayViewModel internal constructor(
         isResumed = true
         // Re-anchor date-scoped coach flows — a cached process crossing midnight must
         // generate the new day's messages from the new day's data, never stale flows.
-        activeDate.value = dateProvider()
+        val today = dateProvider()
+        activeDate.value = today
+        refreshHealthConnectData(today)
         syncCoachFeed()
     }
 
@@ -258,6 +260,12 @@ class TodayViewModel internal constructor(
             val today = dateProvider()
             if (anchor != today) return@launch
             coachRepository.syncToday(today, CoachEngine.messages(input))
+        }
+    }
+
+    private fun refreshHealthConnectData(date: LocalDate) {
+        viewModelScope.launch {
+            runCatching { healthRepository.refreshRecentData(date) }
         }
     }
 
@@ -452,6 +460,9 @@ private fun buildCarousel(
         sessionsDone = countSessionsInWeek(history.map { it.startedAtEpochMillis }, weekStartMillis),
         sessionTarget = userGoals.weeklySessionTarget,
         activeCaloriesKcal = health?.activeCaloriesKcal,
+        sleepMinutes = health?.sleepMinutes,
+        exerciseMinutes = health?.exerciseMinutes,
+        exerciseSessionCount = health?.exerciseSessionCount,
         restingHeartRateBpm = health?.restingHeartRateBpm,
         loggingStreakDays = LoggingStreakCalculator.streakDays(food.loggedDays, date.toEpochDay()),
     )

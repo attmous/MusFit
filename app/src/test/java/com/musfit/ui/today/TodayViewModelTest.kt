@@ -14,6 +14,7 @@ import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.GoalsRepository
+import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.UserProfile
@@ -100,6 +101,23 @@ class TodayViewModelTest {
 
         assertTrue(foodRepository.observedDates.isNotEmpty() && foodRepository.observedDates.all { it == targetDate })
         assertTrue(healthRepository.observedDates.isNotEmpty() && healthRepository.observedDates.all { it == targetDate })
+    }
+
+    @Test
+    fun onScreenResumed_refreshesRecentHealthConnectDataForActiveDate() = runTest {
+        val date = LocalDate.of(2026, 7, 2)
+        val healthRepository = FakeHealthRepository(date)
+        val viewModel = todayViewModel(
+            coachRepository = FakeCoachRepository(),
+            date = date,
+            healthRepository = healthRepository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(date), healthRepository.refreshDates)
     }
 
     @Test
@@ -351,7 +369,9 @@ class TodayViewModelTest {
         assertEquals(AppDestination.Food, metricDestination(TodayMetric.Calories))
         assertEquals(AppDestination.Food, metricDestination(TodayMetric.Water))
         assertEquals(AppDestination.Training, metricDestination(TodayMetric.Sessions))
+        assertEquals(AppDestination.Training, metricDestination(TodayMetric.Exercise))
         assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Steps))
+        assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Sleep))
         assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Weight))
         assertEquals(AppDestination.Profile, metricDestination(TodayMetric.RestingHeartRate))
     }
@@ -592,6 +612,7 @@ class TodayViewModelTest {
         private val date: LocalDate,
     ) : HealthRepository {
         val observedDates = mutableListOf<LocalDate>()
+        val refreshDates = mutableListOf<LocalDate>()
         val weightSeries = MutableStateFlow<List<BodyMetricEntity>>(emptyList())
 
         override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = weightSeries
@@ -608,7 +629,13 @@ class TodayViewModelTest {
                     dateEpochDay = this.date.toEpochDay(),
                     steps = 8200L,
                     activeCaloriesKcal = 420.0,
+                    totalCaloriesKcal = 2_300.0,
+                    distanceMeters = 5_000.0,
+                    sleepMinutes = 450L,
+                    exerciseMinutes = 40L,
+                    exerciseSessionCount = 1,
                     latestWeightKg = 82.4,
+                    latestBodyFatPercent = null,
                     restingHeartRateBpm = 58,
                     updatedAtEpochMillis = 1L,
                 ),
@@ -616,7 +643,23 @@ class TodayViewModelTest {
         }
 
         override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary(8200L, 420.0, 82.4, 58)
+            ImportedDailyHealthSummary(
+                steps = 8200L,
+                activeCaloriesKcal = 420.0,
+                totalCaloriesKcal = 2_300.0,
+                distanceMeters = 5_000.0,
+                sleepMinutes = 450L,
+                exerciseMinutes = 40L,
+                exerciseSessionCount = 1,
+                latestWeightKg = 82.4,
+                latestBodyFatPercent = null,
+                restingHeartRateBpm = 58,
+            )
+
+        override suspend fun refreshRecentData(endDate: LocalDate, days: Int): HealthConnectRefreshResult {
+            refreshDates += endDate
+            return HealthConnectRefreshResult(importedDayCount = days, bodyMetricCount = 0)
+        }
 
         override suspend fun exportLatestWorkout(): String? = null
     }

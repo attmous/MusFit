@@ -4,11 +4,15 @@ import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.BodyFatRecord
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HydrationRecord
 import androidx.health.connect.client.records.NutritionRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
+import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
@@ -17,6 +21,7 @@ import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
@@ -43,8 +48,13 @@ class HealthConnectManager @Inject constructor(
 
     private val permissions = setOf(
         READ_STEPS_PERMISSION,
-        READ_WEIGHT_PERMISSION,
         READ_ACTIVE_CALORIES_PERMISSION,
+        READ_TOTAL_CALORIES_PERMISSION,
+        READ_DISTANCE_PERMISSION,
+        READ_SLEEP_PERMISSION,
+        READ_EXERCISE_PERMISSION,
+        READ_WEIGHT_PERMISSION,
+        READ_BODY_FAT_PERMISSION,
         READ_RESTING_HEART_RATE_PERMISSION,
         WRITE_EXERCISE_PERMISSION,
     )
@@ -68,10 +78,25 @@ class HealthConnectManager @Inject constructor(
         val grantedPermissions = currentStatus.grantedPermissions
         val canReadSteps = READ_STEPS_PERMISSION in grantedPermissions
         val canReadActiveCalories = READ_ACTIVE_CALORIES_PERMISSION in grantedPermissions
+        val canReadTotalCalories = READ_TOTAL_CALORIES_PERMISSION in grantedPermissions
+        val canReadDistance = READ_DISTANCE_PERMISSION in grantedPermissions
+        val canReadSleep = READ_SLEEP_PERMISSION in grantedPermissions
+        val canReadExercise = READ_EXERCISE_PERMISSION in grantedPermissions
         val canReadWeight = READ_WEIGHT_PERMISSION in grantedPermissions
+        val canReadBodyFat = READ_BODY_FAT_PERMISSION in grantedPermissions
         val canReadRestingHeartRate = READ_RESTING_HEART_RATE_PERMISSION in grantedPermissions
 
-        if (!canReadSteps && !canReadActiveCalories && !canReadWeight && !canReadRestingHeartRate) {
+        if (
+            !canReadSteps &&
+            !canReadActiveCalories &&
+            !canReadTotalCalories &&
+            !canReadDistance &&
+            !canReadSleep &&
+            !canReadExercise &&
+            !canReadWeight &&
+            !canReadBodyFat &&
+            !canReadRestingHeartRate
+        ) {
             return EMPTY_SUMMARY
         }
 
@@ -90,8 +115,44 @@ class HealthConnectManager @Inject constructor(
             null
         }
 
+        val totalCalories = if (canReadTotalCalories) {
+            runCatching { client.aggregateTotalCalories(range) }.getOrNull()
+        } else {
+            null
+        }
+
+        val distance = if (canReadDistance) {
+            runCatching { client.aggregateDistanceMeters(range) }.getOrNull()
+        } else {
+            null
+        }
+
+        val sleepMinutes = if (canReadSleep) {
+            runCatching { client.aggregateSleepMinutes(range) }.getOrNull()
+        } else {
+            null
+        }
+
+        val exerciseMinutes = if (canReadExercise) {
+            runCatching { client.aggregateExerciseMinutes(range) }.getOrNull()
+        } else {
+            null
+        }
+
+        val exerciseSessionCount = if (canReadExercise) {
+            runCatching { client.readExerciseSessionCount(range) }.getOrNull()
+        } else {
+            null
+        }
+
         val latestWeight = if (canReadWeight) {
-            runCatching { client.readLatestWeight(range) }.getOrNull()
+            runCatching { client.readLatestWeightMetric(range) }.getOrNull()
+        } else {
+            null
+        }
+
+        val latestBodyFat = if (canReadBodyFat) {
+            runCatching { client.readLatestBodyFatMetric(range) }.getOrNull()
         } else {
             null
         }
@@ -105,8 +166,15 @@ class HealthConnectManager @Inject constructor(
         return ImportedDailyHealthSummary(
             steps = steps,
             activeCaloriesKcal = activeCalories,
-            latestWeightKg = latestWeight,
+            totalCaloriesKcal = totalCalories,
+            distanceMeters = distance,
+            sleepMinutes = sleepMinutes,
+            exerciseMinutes = exerciseMinutes,
+            exerciseSessionCount = exerciseSessionCount,
+            latestWeightKg = latestWeight?.value,
+            latestBodyFatPercent = latestBodyFat?.value,
             restingHeartRateBpm = restingHeartRate,
+            bodyMetrics = listOfNotNull(latestWeight, latestBodyFat),
         )
     }
 
@@ -179,8 +247,14 @@ class HealthConnectManager @Inject constructor(
         const val HEALTH_CONNECT_PROVIDER_PACKAGE = "com.google.android.apps.healthdata"
         val READ_STEPS_PERMISSION = HealthPermission.getReadPermission(StepsRecord::class)
         val READ_WEIGHT_PERMISSION = HealthPermission.getReadPermission(WeightRecord::class)
+        val READ_BODY_FAT_PERMISSION = HealthPermission.getReadPermission(BodyFatRecord::class)
         val READ_ACTIVE_CALORIES_PERMISSION =
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
+        val READ_TOTAL_CALORIES_PERMISSION =
+            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
+        val READ_DISTANCE_PERMISSION = HealthPermission.getReadPermission(DistanceRecord::class)
+        val READ_SLEEP_PERMISSION = HealthPermission.getReadPermission(SleepSessionRecord::class)
+        val READ_EXERCISE_PERMISSION = HealthPermission.getReadPermission(ExerciseSessionRecord::class)
         val READ_RESTING_HEART_RATE_PERMISSION =
             HealthPermission.getReadPermission(RestingHeartRateRecord::class)
         val WRITE_EXERCISE_PERMISSION =
@@ -192,8 +266,15 @@ class HealthConnectManager @Inject constructor(
         val EMPTY_SUMMARY = ImportedDailyHealthSummary(
             steps = null,
             activeCaloriesKcal = null,
+            totalCaloriesKcal = null,
+            distanceMeters = null,
+            sleepMinutes = null,
+            exerciseMinutes = null,
+            exerciseSessionCount = null,
             latestWeightKg = null,
+            latestBodyFatPercent = null,
             restingHeartRateBpm = null,
+            bodyMetrics = emptyList(),
         )
 
         suspend fun readStatus(context: Context): HealthConnectStatus {
@@ -238,7 +319,19 @@ internal interface HealthConnectClientAdapter {
 
     suspend fun aggregateActiveCalories(range: HealthConnectTimeRange): Double?
 
-    suspend fun readLatestWeight(range: HealthConnectTimeRange): Double?
+    suspend fun aggregateTotalCalories(range: HealthConnectTimeRange): Double?
+
+    suspend fun aggregateDistanceMeters(range: HealthConnectTimeRange): Double?
+
+    suspend fun aggregateSleepMinutes(range: HealthConnectTimeRange): Long?
+
+    suspend fun aggregateExerciseMinutes(range: HealthConnectTimeRange): Long?
+
+    suspend fun readExerciseSessionCount(range: HealthConnectTimeRange): Int?
+
+    suspend fun readLatestWeightMetric(range: HealthConnectTimeRange): ImportedBodyMetric?
+
+    suspend fun readLatestBodyFatMetric(range: HealthConnectTimeRange): ImportedBodyMetric?
 
     suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long?
 
@@ -267,13 +360,77 @@ private class DefaultHealthConnectClientAdapter(
             ),
         )[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
 
-    override suspend fun readLatestWeight(range: HealthConnectTimeRange): Double? =
+    override suspend fun aggregateTotalCalories(range: HealthConnectTimeRange): Double? =
+        client.aggregate(
+            AggregateRequest(
+                metrics = setOf(TotalCaloriesBurnedRecord.ENERGY_TOTAL),
+                timeRangeFilter = range.asTimeRangeFilter(),
+            ),
+        )[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories
+
+    override suspend fun aggregateDistanceMeters(range: HealthConnectTimeRange): Double? =
+        client.aggregate(
+            AggregateRequest(
+                metrics = setOf(DistanceRecord.DISTANCE_TOTAL),
+                timeRangeFilter = range.asTimeRangeFilter(),
+            ),
+        )[DistanceRecord.DISTANCE_TOTAL]?.inMeters
+
+    override suspend fun aggregateSleepMinutes(range: HealthConnectTimeRange): Long? =
+        client.aggregate(
+            AggregateRequest(
+                metrics = setOf(SleepSessionRecord.SLEEP_DURATION_TOTAL),
+                timeRangeFilter = range.asTimeRangeFilter(),
+            ),
+        )[SleepSessionRecord.SLEEP_DURATION_TOTAL]?.toMinutes()
+
+    override suspend fun aggregateExerciseMinutes(range: HealthConnectTimeRange): Long? =
+        client.aggregate(
+            AggregateRequest(
+                metrics = setOf(ExerciseSessionRecord.EXERCISE_DURATION_TOTAL),
+                timeRangeFilter = range.asTimeRangeFilter(),
+            ),
+        )[ExerciseSessionRecord.EXERCISE_DURATION_TOTAL]?.toMinutes()
+
+    override suspend fun readExerciseSessionCount(range: HealthConnectTimeRange): Int? =
+        client.readRecords(
+            ReadRecordsRequest(
+                recordType = ExerciseSessionRecord::class,
+                timeRangeFilter = range.asTimeRangeFilter(),
+            ),
+        ).records.size
+
+    override suspend fun readLatestWeightMetric(range: HealthConnectTimeRange): ImportedBodyMetric? =
         client.readRecords(
             ReadRecordsRequest(
                 recordType = WeightRecord::class,
                 timeRangeFilter = range.asTimeRangeFilter(),
             ),
-        ).records.maxByOrNull { it.time }?.weight?.inKilograms
+        ).records.maxByOrNull { it.time }?.let { record ->
+            ImportedBodyMetric(
+                type = "weight",
+                value = record.weight.inKilograms,
+                unit = "kg",
+                measuredAtEpochMillis = record.time.toEpochMilli(),
+                externalId = record.metadata.id.takeIf { it.isNotBlank() },
+            )
+        }
+
+    override suspend fun readLatestBodyFatMetric(range: HealthConnectTimeRange): ImportedBodyMetric? =
+        client.readRecords(
+            ReadRecordsRequest(
+                recordType = BodyFatRecord::class,
+                timeRangeFilter = range.asTimeRangeFilter(),
+            ),
+        ).records.maxByOrNull { it.time }?.let { record ->
+            ImportedBodyMetric(
+                type = "body_fat",
+                value = record.percentage.value,
+                unit = "%",
+                measuredAtEpochMillis = record.time.toEpochMilli(),
+                externalId = record.metadata.id.takeIf { it.isNotBlank() },
+            )
+        }
 
     override suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long? =
         client.readRecords(

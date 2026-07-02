@@ -9,6 +9,7 @@ import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
@@ -63,11 +64,42 @@ class LocalHealthRepositoryTest {
 
         assertEquals(1234L, summary?.steps)
         assertEquals(250.0, summary?.activeCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(2_050.0, summary?.totalCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(4_200.0, summary?.distanceMeters ?: 0.0, 0.01)
+        assertEquals(435L, summary?.sleepMinutes)
+        assertEquals(47L, summary?.exerciseMinutes)
+        assertEquals(2, summary?.exerciseSessionCount)
         assertEquals(82.5, summary?.latestWeightKg ?: 0.0, 0.01)
+        assertEquals(18.2, summary?.latestBodyFatPercent ?: 0.0, 0.01)
         assertEquals(58L, summary?.restingHeartRateBpm)
         assertEquals(1_000L, summary?.updatedAtEpochMillis)
+        val weights = database.healthDao().getBodyMetrics("weight", 0L)
+        val bodyFat = database.healthDao().getBodyMetrics("body_fat", 0L)
+        assertEquals(1, weights.size)
+        assertEquals(82.5, weights.single().value, 0.01)
+        assertEquals("health_connect", weights.single().source)
+        assertEquals("hc-weight-1", weights.single().externalId)
+        assertEquals(1, bodyFat.size)
+        assertEquals(18.2, bodyFat.single().value, 0.01)
+        assertEquals("%", bodyFat.single().unit)
+        assertEquals("hc-body-fat-1", bodyFat.single().externalId)
         assertEquals(1_000L, syncState?.lastImportAtEpochMillis)
         assertEquals(true, syncState?.isAvailable)
+    }
+
+    @Test
+    fun refreshRecentData_importsSevenDayWindowEndingAtAnchor() = runTest {
+        val anchor = LocalDate.of(2026, 6, 20)
+
+        val result = repository.refreshRecentData(anchor)
+
+        assertEquals(
+            (0L..6L).map { anchor.minusDays(6L - it) },
+            gateway.importedDates,
+        )
+        assertEquals(7, result.importedDayCount)
+        assertEquals(14, result.bodyMetricCount)
+        assertEquals(7, database.healthDao().observeDailySummariesInRange(anchor.minusDays(6).toEpochDay(), anchor.toEpochDay()).first().size)
     }
 
     @Test
@@ -414,6 +446,7 @@ class LocalHealthRepositoryTest {
     private class FakeHealthConnectGateway : HealthConnectGateway {
         var exportedSession: WorkoutSessionEntity? = null
         var exportedSets: List<WorkoutSetEntity> = emptyList()
+        val importedDates = mutableListOf<LocalDate>()
 
         override suspend fun status(): HealthConnectStatus =
             HealthConnectStatus(
@@ -425,13 +458,37 @@ class LocalHealthRepositoryTest {
 
         override suspend fun foodRequestablePermissions(): Set<String> = emptySet()
 
-        override suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary(
+        override suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary {
+            importedDates += date
+            return ImportedDailyHealthSummary(
                 steps = 1234L,
                 activeCaloriesKcal = 250.0,
+                totalCaloriesKcal = 2_050.0,
+                distanceMeters = 4_200.0,
+                sleepMinutes = 435L,
+                exerciseMinutes = 47L,
+                exerciseSessionCount = 2,
                 latestWeightKg = 82.5,
+                latestBodyFatPercent = 18.2,
                 restingHeartRateBpm = 58L,
+                bodyMetrics = listOf(
+                    ImportedBodyMetric(
+                        type = "weight",
+                        value = 82.5,
+                        unit = "kg",
+                        measuredAtEpochMillis = date.toEpochDay() * 86_400_000L + 8 * 60 * 60 * 1_000L,
+                        externalId = "hc-weight-1",
+                    ),
+                    ImportedBodyMetric(
+                        type = "body_fat",
+                        value = 18.2,
+                        unit = "%",
+                        measuredAtEpochMillis = date.toEpochDay() * 86_400_000L + 8 * 60 * 60 * 1_000L,
+                        externalId = "hc-body-fat-1",
+                    ),
+                ),
             )
+        }
 
         override suspend fun exportWorkout(
             session: WorkoutSessionEntity,

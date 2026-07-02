@@ -175,8 +175,16 @@ class ProfileViewModel internal constructor(
      *  Also re-anchors the date windows: MutableStateFlow dedupes equal values, so
      *  same-day resumes are free. */
     fun onScreenResumed() {
-        activeDate.value = dateProvider()
+        val today = dateProvider()
+        activeDate.value = today
+        refreshHealthConnectData(today)
         refreshHealthConnectNudge()
+    }
+
+    private fun refreshHealthConnectData(date: LocalDate) {
+        viewModelScope.launch {
+            runCatching { healthRepository.refreshRecentData(date) }
+        }
     }
 
     private fun refreshHealthConnectNudge() {

@@ -15,6 +15,8 @@ enum class TodayMetric(val id: String, val label: String) {
     Weight("weight", "Weight"),
     BodyFat("body_fat", "Body fat"),
     Sessions("sessions", "Sessions"),
+    Sleep("sleep", "Sleep"),
+    Exercise("exercise", "Exercise"),
     ActiveCalories("active_calories", "Active kcal"),
     RestingHeartRate("resting_hr", "Resting HR"),
     CalorieBalance("calorie_balance", "Balance"),
@@ -73,6 +75,9 @@ data class MetricSnapshot(
     val sessionsDone: Int,
     val sessionTarget: Int,
     val activeCaloriesKcal: Double?,
+    val sleepMinutes: Long?,
+    val exerciseMinutes: Long?,
+    val exerciseSessionCount: Int?,
     val restingHeartRateBpm: Long?, // Long to match DailyHealthSummaryEntity
     val loggingStreakDays: Int,
 )
@@ -143,6 +148,19 @@ object MetricResolver {
             } else {
                 MetricValue.Plain(s.sessionsDone.toString(), "this week")
             }
+        TodayMetric.Sleep -> {
+            val minutes = s.sleepMinutes ?: return MetricValue.NoData("Not connected")
+            MetricValue.Plain(formatDuration(minutes), "sleep")
+        }
+        TodayMetric.Exercise -> {
+            val minutes = s.exerciseMinutes ?: return MetricValue.NoData("Not connected")
+            val caption = when (val count = s.exerciseSessionCount) {
+                null -> "exercise"
+                1 -> "1 session"
+                else -> "$count sessions"
+            }
+            MetricValue.Plain(formatDuration(minutes), caption)
+        }
         TodayMetric.ActiveCalories -> {
             val active = s.activeCaloriesKcal ?: return MetricValue.NoData("Not connected")
             MetricValue.Plain(active.roundToInt().toString(), "active kcal")
@@ -182,6 +200,17 @@ object MetricResolver {
         } else {
             value.toString()
         }
+
+    private fun formatDuration(minutes: Long): String {
+        val safeMinutes = minutes.coerceAtLeast(0L)
+        val hours = safeMinutes / 60L
+        val remainder = safeMinutes % 60L
+        return if (hours > 0L) {
+            "${hours}h ${remainder.toString().padStart(2, '0')}m"
+        } else {
+            "${remainder}m"
+        }
+    }
 
     private fun Double.format1(): String =
         if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)

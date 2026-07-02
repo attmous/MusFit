@@ -7,6 +7,7 @@ import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.DEFAULT_APP_SETTINGS
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
+import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserProfile
@@ -29,6 +30,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -144,7 +146,20 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(LocalDate.now(), repository.importedDate)
-        assertEquals("Imported 1200 steps and 100 kcal from Health Connect.", viewModel.state.value.message)
+        assertEquals("Imported 1200 steps, 100 kcal, 7h 30m sleep, and 35 min exercise from Health Connect.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun syncRecentHealthData_refreshesRecentWindowAndReportsResult() = runTest {
+        val repository = FakeHealthRepository(refreshResult = HealthConnectRefreshResult(7, 2))
+        val viewModel = settingsViewModel(healthRepository = repository)
+
+        viewModel.syncRecentHealthData()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(LocalDate.now(), repository.refreshDate)
+        assertFalse(viewModel.state.value.isHealthConnectSyncing)
+        assertEquals("Synced 7 days and 2 body metrics from Health Connect.", viewModel.state.value.message)
     }
 
     @Test
@@ -316,9 +331,11 @@ class ProfileSettingsViewModelTest {
         ),
         private val requestablePermissions: Set<String> = setOf("steps"),
         private val exportedRecordId: String? = "record-id",
+        private val refreshResult: HealthConnectRefreshResult = HealthConnectRefreshResult(1, 0),
     ) : HealthRepository {
         var statusException: Throwable? = null
         var importedDate: LocalDate? = null
+        var refreshDate: LocalDate? = null
         var exportCalls = 0
 
         override suspend fun status(): HealthConnectStatus {
@@ -336,9 +353,20 @@ class ProfileSettingsViewModelTest {
             return ImportedDailyHealthSummary(
                 steps = 1200,
                 activeCaloriesKcal = 100.0,
+                totalCaloriesKcal = 2_000.0,
+                distanceMeters = 3_000.0,
+                sleepMinutes = 450,
+                exerciseMinutes = 35,
+                exerciseSessionCount = 1,
                 latestWeightKg = null,
+                latestBodyFatPercent = null,
                 restingHeartRateBpm = null,
             )
+        }
+
+        override suspend fun refreshRecentData(endDate: LocalDate, days: Int): HealthConnectRefreshResult {
+            refreshDate = endDate
+            return refreshResult
         }
 
         override suspend fun exportLatestWorkout(): String? {

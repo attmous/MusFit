@@ -110,7 +110,7 @@ Source: `app/src/main/java/com/musfit/data/local/entity/HealthEntities.kt`
 | Entity | Table | Purpose | Key fields |
 | --- | --- | --- | --- |
 | `BodyMetricEntity` | `body_metrics` | Imported or local body metrics. | type, value, unit, measured time, source, external id. |
-| `DailyHealthSummaryEntity` | `daily_health_summaries` | Dated health summary. | date, steps, active calories, latest weight, resting heart rate. |
+| `DailyHealthSummaryEntity` | `daily_health_summaries` | Dated Health Connect summary. | date, steps, active/total calories, distance, sleep minutes, exercise minutes/session count, latest weight, latest body fat, resting heart rate. |
 | `HealthConnectSyncStateEntity` | `health_connect_sync_state` | Generic Health Connect sync state. | availability, granted permissions CSV, import/export timestamps, failure. |
 
 ### Profile And Goals Tables
@@ -345,7 +345,8 @@ Health uses domain and Room models directly for small boundary surfaces:
 | Model | Source | Purpose |
 | --- | --- | --- |
 | `HealthConnectStatus` | `domain/health` | Availability and granted permission set. |
-| `ImportedDailyHealthSummary` | `domain/health` | Imported steps, calories, weight, and resting heart rate. |
+| `ImportedDailyHealthSummary` | `domain/health` | Imported steps, calories, distance, sleep, exercise, latest body metrics, and resting heart rate. |
+| `ImportedBodyMetric` | `domain/health` | Imported body metric sample from Health Connect. |
 | `DailyHealthSummaryEntity` | `data/local/entity` | Persisted daily summary. |
 | `BodyMetricEntity` | `data/local/entity` | Weight and other body metric series. |
 
@@ -356,6 +357,7 @@ suspend fun status(): HealthConnectStatus
 suspend fun requestablePermissions(): Set<String>
 fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?>
 suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary
+suspend fun refreshRecentData(endDate: LocalDate, days: Int = 7): HealthConnectRefreshResult
 suspend fun exportLatestWorkout(): String?
 fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>>
 fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>>
@@ -386,7 +388,7 @@ UI state models are documented screen-by-screen in [screen-contracts.md](screen-
 
 - `TodayUiState`
 - `TrainingUiState`
-- `HealthUiState`
+- `ProfileSettingsUiState`
 
 UI state models may contain:
 
@@ -550,6 +552,7 @@ Models:
 - `HealthConnectStatus`
 - `HealthConnectAvailability`
 - `ImportedDailyHealthSummary`
+- `ImportedBodyMetric`
 
 ## Health Connect Integration Models
 
@@ -560,6 +563,7 @@ Source: `app/src/main/java/com/musfit/integrations/healthconnect`
 | `HealthConnectFoodExportPayload` | Dated food/hydration export input. |
 | `HealthConnectFoodMealExport` | One meal's nutrition payload. |
 | `HealthConnectFoodExportResult` | Nutrition and hydration record counts after export. |
+| `ImportedDailyHealthSummary` | Read model for steps, calories, distance, sleep, exercise, weight, body fat, and resting heart rate. |
 
 Gateway:
 

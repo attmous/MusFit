@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
+import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserProfile
@@ -28,6 +29,7 @@ data class ProfileSettingsUiState(
     val requestablePermissionCount: Int = 0,
     val requestablePermissions: Set<String> = emptySet(),
     val canRequestPermissions: Boolean = false,
+    val isHealthConnectSyncing: Boolean = false,
     val message: String = DEFAULT_STATUS_MESSAGE,
     val account: AccountUiState = AccountUiState(),
     val accountEditorOpen: Boolean = false,
@@ -50,6 +52,7 @@ private data class HealthConnectState(
     val requestablePermissionCount: Int = 0,
     val requestablePermissions: Set<String> = emptySet(),
     val canRequestPermissions: Boolean = false,
+    val isHealthConnectSyncing: Boolean = false,
     val message: String = DEFAULT_STATUS_MESSAGE,
 )
 
@@ -95,6 +98,7 @@ class ProfileSettingsViewModel @Inject constructor(
             requestablePermissionCount = base.requestablePermissionCount,
             requestablePermissions = base.requestablePermissions,
             canRequestPermissions = base.canRequestPermissions,
+            isHealthConnectSyncing = base.isHealthConnectSyncing,
             message = base.message,
             account = account.toUiState(),
             accountEditorOpen = editor.open,
@@ -153,6 +157,29 @@ class ProfileSettingsViewModel @Inject constructor(
             }.onFailure { error ->
                 mutableState.update {
                     it.copy(message = error.message ?: "Unable to import from Health Connect.")
+                }
+            }
+        }
+    }
+
+    fun syncRecentHealthData() {
+        viewModelScope.launch {
+            mutableState.update { it.copy(isHealthConnectSyncing = true) }
+            runCatching {
+                healthRepository.refreshRecentData(LocalDate.now())
+            }.onSuccess { result ->
+                mutableState.update {
+                    it.copy(
+                        isHealthConnectSyncing = false,
+                        message = result.toMessage(),
+                    )
+                }
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(
+                        isHealthConnectSyncing = false,
+                        message = error.message ?: "Unable to sync Health Connect data.",
+                    )
                 }
             }
         }
@@ -245,11 +272,20 @@ class ProfileSettingsViewModel @Inject constructor(
 private fun com.musfit.domain.health.ImportedDailyHealthSummary.importMessage(): String {
     val stepsText = steps?.let { "$it steps" } ?: "health data"
     val caloriesText = activeCaloriesKcal?.let { "${it.formatMetric()} kcal" }
-    return if (caloriesText != null) {
-        "Imported $stepsText and $caloriesText from Health Connect."
-    } else {
-        "Imported $stepsText from Health Connect."
+    val sleepText = sleepMinutes?.let { it.formatDuration() + " sleep" }
+    val exerciseText = exerciseMinutes?.let { it.formatDuration() + " exercise" }
+    val parts = listOfNotNull(stepsText, caloriesText, sleepText, exerciseText)
+    return "Imported ${parts.joinForSentence()} from Health Connect."
+}
+
+private fun HealthConnectRefreshResult.toMessage(): String {
+    val dayText = if (importedDayCount == 1) "1 day" else "$importedDayCount days"
+    val metricText = when (bodyMetricCount) {
+        0 -> null
+        1 -> "1 body metric"
+        else -> "$bodyMetricCount body metrics"
     }
+    return "Synced ${listOfNotNull(dayText, metricText).joinForSentence()} from Health Connect."
 }
 
 private fun Double.formatMetric(): String =
@@ -258,6 +294,23 @@ private fun Double.formatMetric(): String =
     } else {
         String.format(Locale.US, "%.1f", this)
     }
+
+private fun Long.formatDuration(): String {
+    val hours = this / 60L
+    val minutes = this % 60L
+    return if (hours > 0L) {
+        "${hours}h ${minutes.toString().padStart(2, '0')}m"
+    } else {
+        "$minutes min"
+    }
+}
+
+private fun List<String>.joinForSentence(): String = when (size) {
+    0 -> "health data"
+    1 -> single()
+    2 -> "${this[0]} and ${this[1]}"
+    else -> dropLast(1).joinToString(", ") + ", and " + last()
+}
 
 private fun HealthConnectAvailability.label(): String = when (this) {
     HealthConnectAvailability.Available -> "Available"
