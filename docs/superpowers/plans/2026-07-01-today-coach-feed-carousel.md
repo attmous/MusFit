@@ -1681,7 +1681,10 @@ Constructor: add `private val coachRepository: CoachRepository,` to both the int
 Generation + feed wiring (add to the class):
 
 ```kotlin
-    private var latestCoachInput: CoachInput? = null
+    // REVIEW FIX (Task 6 quality review): the input cache is pinned to the day it was
+    // built from — a stale input must never be synced under a different day (midnight
+    // rollover would otherwise persist e.g. yesterday's recap into today's feed).
+    private var latestCoachInput: Pair<LocalDate, CoachInput>? = null
     private var isResumed = false
 
     /** The day the coach's date-scoped flows are anchored to; re-resolved on every resume. */
@@ -1691,8 +1694,11 @@ Generation + feed wiring (add to the class):
 
     private fun observeFeed() {
         viewModelScope.launch {
-            coachRepository.observeFeed().collect { messages ->
-                mutableState.update { it.copy(feed = buildFeedGroups(messages, dateProvider())) }
+            // Labels re-derive on re-anchor even when the rollover sync writes nothing.
+            combine(coachRepository.observeFeed(), activeDate) { messages, today ->
+                buildFeedGroups(messages, today)
+            }.collect { groups ->
+                mutableState.update { it.copy(feed = groups) }
             }
         }
     }
@@ -1719,11 +1725,14 @@ Generation + feed wiring (add to the class):
     fun closeChatPreview() = mutableState.update { it.copy(isChatPreviewVisible = false) }
 
     private fun syncCoachFeed() {
-        val input = latestCoachInput ?: return
+        val (anchor, input) = latestCoachInput ?: return
         viewModelScope.launch {
-            // Resolve "today" at invocation time — a cached process crossing midnight
-            // must write under the new day, never back-fill the old one.
-            coachRepository.syncToday(dateProvider(), CoachEngine.messages(input))
+            // Resolve "today" at invocation time; skip when the cached input was built
+            // from another day's flows — the re-anchored emission drives the first sync
+            // of the new day instead (REVIEW FIX: stale-input rollover).
+            val today = dateProvider()
+            if (anchor != today) return@launch
+            coachRepository.syncToday(today, CoachEngine.messages(input))
         }
     }
 ```
@@ -1734,10 +1743,12 @@ Rework `observeCoach()` to add water + logged-days flows, cache the input, and r
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeCoach() {
         viewModelScope.launch {
-            activeDate.flatMapLatest { date -> coachInputFlow(date) }.collect { input ->
-                latestCoachInput = input
+            activeDate.flatMapLatest { date ->
+                coachInputFlow(date).map { input -> date to input } // pin input to its day
+            }.collect { anchored ->
+                latestCoachInput = anchored
                 if (isResumed) syncCoachFeed()
-                mutableState.update { it.copy(coach = CoachEngine.briefing(input)) }
+                mutableState.update { it.copy(coach = CoachEngine.briefing(anchored.second)) }
             }
         }
     }
