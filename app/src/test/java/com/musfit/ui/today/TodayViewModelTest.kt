@@ -182,6 +182,47 @@ class TodayViewModelTest {
     }
 
     @Test
+    fun sync_regeneratesOnDataChangeWhileResumed() = runTest {
+        val date = LocalDate.now()
+        val coachRepository = FakeCoachRepository()
+        val foodRepository = FakeFoodRepository()
+        val viewModel = todayViewModel(
+            coachRepository = coachRepository,
+            date = date,
+            foodRepository = foodRepository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(coachRepository.lastCandidates.any { it.ruleKey == "water_low" })
+
+        foodRepository.waterSummary.value =
+            FoodWaterSummary(date, consumedMilliliters = 1900.0, goalMilliliters = 2000.0)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(coachRepository.lastCandidates.none { it.ruleKey == "water_low" })
+    }
+
+    @Test
+    fun buildFeedGroups_labelsOlderDaysWithDate() {
+        val today = LocalDate.now()
+        val groups = buildFeedGroups(
+            listOf(
+                message(1, today, firstSeenAt = 10L),
+                message(2, today.minusDays(1), firstSeenAt = 20L),
+                message(3, today.minusDays(3), firstSeenAt = 30L),
+            ),
+            today,
+        )
+
+        assertEquals(listOf(1L, 2L, 3L), groups.map { it.messages.single().id })
+        assertEquals("Today", groups[0].label)
+        assertEquals("Yesterday", groups[1].label)
+        assertTrue(groups[2].label != "Today" && groups[2].label != "Yesterday")
+    }
+
+    @Test
     fun onScreenResumed_syncsUsingCurrentDate_midnightRollover() = runTest {
         var date = LocalDate.of(2026, 7, 1)
         val coachRepository = FakeCoachRepository()
@@ -238,8 +279,9 @@ class TodayViewModelTest {
         coachRepository: CoachRepository,
         date: LocalDate = LocalDate.now(),
         dateProvider: (() -> LocalDate)? = null,
+        foodRepository: FakeFoodRepository = FakeFoodRepository(),
     ) = TodayViewModel(
-        foodRepository = FakeFoodRepository(),
+        foodRepository = foodRepository,
         trainingRepository = FakeTrainingRepository(),
         healthRepository = FakeHealthRepository(date),
         goalsRepository = FakeGoalsRepository(),
@@ -296,6 +338,9 @@ class TodayViewModelTest {
 
     private class FakeFoodRepository : FoodRepository {
         val observedDates = mutableListOf<LocalDate>()
+        val waterSummary = MutableStateFlow(
+            FoodWaterSummary(LocalDate.now(), consumedMilliliters = 100.0, goalMilliliters = 2000.0),
+        )
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -330,8 +375,7 @@ class TodayViewModelTest {
         override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
             MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
 
-        override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
-            MutableStateFlow(FoodWaterSummary(date, consumedMilliliters = 100.0, goalMilliliters = 2000.0))
+        override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> = waterSummary
 
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
             MutableStateFlow(emptyList())

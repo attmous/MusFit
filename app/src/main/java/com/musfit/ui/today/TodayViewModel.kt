@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -118,7 +119,8 @@ class TodayViewModel internal constructor(
 
     private var currentUserGoals = UserGoals()
 
-    private var latestCoachInput: CoachInput? = null
+    /** The freshest coach input, pinned to the [activeDate] its flows were anchored to. */
+    private var latestCoachInput: Pair<LocalDate, CoachInput>? = null
     private var isResumed = false
 
     /** The day the coach's date-scoped flows are anchored to; re-resolved on every resume. */
@@ -214,11 +216,12 @@ class TodayViewModel internal constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeCoach() {
         viewModelScope.launch {
-            activeDate.flatMapLatest { date -> coachInputFlow(date) }.collect { input ->
-                latestCoachInput = input
-                if (isResumed) syncCoachFeed()
-                mutableState.update { it.copy(coach = CoachEngine.briefing(input)) }
-            }
+            activeDate.flatMapLatest { date -> coachInputFlow(date).map { input -> date to input } }
+                .collect { anchored ->
+                    latestCoachInput = anchored
+                    if (isResumed) syncCoachFeed()
+                    mutableState.update { it.copy(coach = CoachEngine.briefing(anchored.second)) }
+                }
         }
     }
 
@@ -258,8 +261,12 @@ class TodayViewModel internal constructor(
 
     private fun observeFeed() {
         viewModelScope.launch {
-            coachRepository.observeFeed().collect { messages ->
-                mutableState.update { it.copy(feed = buildFeedGroups(messages, dateProvider())) }
+            // Combining with activeDate re-derives Today/Yesterday labels on every
+            // resume re-anchor, even when the sync writes nothing new.
+            combine(coachRepository.observeFeed(), activeDate) { messages, today ->
+                buildFeedGroups(messages, today)
+            }.collect { groups ->
+                mutableState.update { it.copy(feed = groups) }
             }
         }
     }
@@ -286,11 +293,16 @@ class TodayViewModel internal constructor(
     fun closeChatPreview() = mutableState.update { it.copy(isChatPreviewVisible = false) }
 
     private fun syncCoachFeed() {
-        val input = latestCoachInput ?: return
+        val (anchor, input) = latestCoachInput ?: return
         viewModelScope.launch {
             // Resolve "today" at invocation time — a cached process crossing midnight
-            // must write under the new day, never back-fill the old one.
-            coachRepository.syncToday(dateProvider(), CoachEngine.messages(input))
+            // must write under the new day, never back-fill the old one. An input built
+            // from another day's flows is never written at all: after a rollover the
+            // stale-anchored sync self-suppresses and the re-anchored emission from
+            // observeCoach drives the first sync of the new day.
+            val today = dateProvider()
+            if (anchor != today) return@launch
+            coachRepository.syncToday(today, CoachEngine.messages(input))
         }
     }
 
