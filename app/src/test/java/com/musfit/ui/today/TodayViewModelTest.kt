@@ -256,13 +256,16 @@ class TodayViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         val weightMessage = coachRepository.lastCandidates.first { it.ruleKey == "weight_trend" }
-        assertTrue(weightMessage.body.contains("75"))
+        assertTrue(weightMessage.body, weightMessage.body.contains("75 kg"))
     }
 
     @Test
     fun dashboardEditor_prefillsPinsAndGoals() = runTest {
         val coachRepository = FakeCoachRepository()
-        val viewModel = todayViewModel(coachRepository = coachRepository)
+        val viewModel = todayViewModel(
+            coachRepository = coachRepository,
+            goalsRepository = FakeGoalsRepository(UserGoals(stepGoal = 12_345)),
+        )
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.openDashboardEditor()
@@ -270,7 +273,7 @@ class TodayViewModelTest {
         val state = viewModel.state.value
         assertEquals(true, state.isDashboardEditorVisible)
         assertEquals(TodayMetric.DEFAULT_PINS, state.editPins)
-        assertEquals("10000", state.stepGoalInput)
+        assertEquals("12345", state.stepGoalInput)
     }
 
     @Test
@@ -482,8 +485,10 @@ class TodayViewModelTest {
         override suspend fun deleteSavedFood(foodId: String) = Unit
     }
 
-    private class FakeGoalsRepository : GoalsRepository {
-        override fun observeUserGoals(): Flow<UserGoals> = MutableStateFlow(UserGoals())
+    private class FakeGoalsRepository(
+        private val userGoals: UserGoals = UserGoals(),
+    ) : GoalsRepository {
+        override fun observeUserGoals(): Flow<UserGoals> = MutableStateFlow(userGoals)
 
         override suspend fun updateUserGoals(goals: UserGoals) = Unit
     }

@@ -14,6 +14,7 @@ import com.musfit.data.repository.UserProfile
 import com.musfit.data.repository.WeightEntry
 import com.musfit.domain.profile.BodyMetricsCalculator
 import com.musfit.domain.profile.RecommendedTargets
+import com.musfit.domain.today.WeeklyGoalsCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,12 +35,34 @@ data class VitalsSummary(
     val restingHeartRateBpm: Long?,
 )
 
+// Kept alongside MeasurementTile until Task 5 reworks MeasurementsCard; the tile carries
+// the windowed sparkline and all-time entry count the new grid needs.
 data class MeasurementRow(
     val type: String,
     val label: String,
     val value: Double?,
     val unit: String,
     val deltaFromPrevious: Double?,
+)
+
+data class WeightHeroState(
+    val latestWeightKg: Double? = null,
+    val deltaKg: Double? = null,
+    val goalWeightKg: Double? = null,
+    val goalProgressFraction: Double? = null,
+    val bmi: Double? = null,
+    val chartSeries: List<Double> = emptyList(),
+    val hasAnyEntry: Boolean = false,
+)
+
+data class MeasurementTile(
+    val type: String,
+    val label: String,
+    val value: Double?,
+    val unit: String,
+    val deltaFromPrevious: Double?,
+    val sparkline: List<Double>,
+    val entryCount: Int,
 )
 
 data class AccountUiState(
@@ -64,17 +87,13 @@ data class ProfileUiState(
     val accountErrorMessage: String? = null,
     val profile: UserProfile? = null,
     val ageYears: Int? = null,
-    val latestWeightKg: Double? = null,
-    val bmi: Double? = null,
-    val bodyFatPercent: Double? = null,
+    val hero: WeightHeroState = WeightHeroState(),
+    val tiles: List<MeasurementTile> = emptyList(),
     val isProfileComplete: Boolean = false,
     val recommendedTargets: RecommendedTargets? = null,
-    val weightTrend: List<Double> = emptyList(),
-    val goalProgressFraction: Double? = null,
     val measurements: List<MeasurementRow> = emptyList(),
     val weightEntries: List<WeightEntry> = emptyList(),
     val measurementEntries: Map<String, List<BodyMeasurement>> = emptyMap(),
-    val weeklyWeightDeltaKg: Double? = null,
     val vitals: VitalsSummary? = null,
     val message: String? = null,
 )
@@ -85,13 +104,15 @@ private val MEASUREMENT_LABELS = mapOf(
 )
 
 @HiltViewModel
-class ProfileViewModel @Inject constructor(
+class ProfileViewModel internal constructor(
     private val accountRepository: AccountRepository,
     private val profileRepository: ProfileRepository,
     private val healthRepository: HealthRepository,
     private val foodRepository: FoodRepository,
+    private val dateProvider: () -> LocalDate,
+    private val clock: () -> Long,
 ) : ViewModel() {
-    private val today = LocalDate.now()
+    private val today = dateProvider()
     private val messageFlow = MutableStateFlow<String?>(null)
     private val accountEditorFlow = MutableStateFlow(AccountEditorState())
 
@@ -102,49 +123,86 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    @Inject
+    constructor(
+        accountRepository: AccountRepository,
+        profileRepository: ProfileRepository,
+        healthRepository: HealthRepository,
+        foodRepository: FoodRepository,
+    ) : this(
+        accountRepository = accountRepository,
+        profileRepository = profileRepository,
+        healthRepository = healthRepository,
+        foodRepository = foodRepository,
+        dateProvider = { LocalDate.now() },
+        clock = { System.currentTimeMillis() },
+    )
+
     private val dataState: Flow<ProfileUiState> = combine(
         profileRepository.observeProfile(),
         profileRepository.observeRecommendedTargets(),
         profileRepository.observeWeightSeries(0L),
         profileRepository.observeRecentMeasurements(0L),
     ) { profile, targets, weightSeries, measurements ->
-        val latestWeight = weightSeries.firstOrNull()?.weightKg
-        val height = profile.heightCm
-        val bmi = if (latestWeight != null && height != null) {
-            BodyMetricsCalculator.bodyMassIndex(latestWeight, height)
-        } else {
-            null
-        }
-        val bodyFat = measurements["body_fat"]?.firstOrNull()?.value
-        val complete = profile.sex != null && profile.heightCm != null &&
-            profile.birthDateEpochDay != null && latestWeight != null
-        val startWeight = weightSeries.lastOrNull()?.weightKg
-        val goalWeight = profile.goalWeightKg
-        val progress = if (startWeight != null && latestWeight != null && goalWeight != null) {
-            BodyMetricsCalculator.goalProgressFraction(startWeight, latestWeight, goalWeight)
-        } else {
-            null
-        }
-        val weeklyDelta = BodyMetricsCalculator.changeOverWindow(
-            points = weightSeries.map { it.measuredAtEpochMillis to it.weightKg },
-            windowMillis = 7L * 86_400_000L,
-            nowMillis = System.currentTimeMillis(),
+        // Windows are epoch-day anchored (UTC day boundaries), matching the Today carousel's
+        // weight-delta convention so both tabs report the same number.
+        val todayEpochDay = dateProvider().toEpochDay()
+        val deltaAnchorMillis = (todayEpochDay - 7L) * DAY_MILLIS
+        val chartFromMillis = (todayEpochDay - 30L) * DAY_MILLIS
+        val sparkFromMillis = (todayEpochDay - 90L) * DAY_MILLIS
+        val latest = weightSeries.firstOrNull() // newest-first
+        val (_, delta) = WeeklyGoalsCalculator.weightTrend(
+            weightSeries.map { it.measuredAtEpochMillis to it.weightKg },
+            deltaAnchorMillis,
         )
+        val goalWeight = profile.goalWeightKg?.takeIf { it > 0.0 }
+        val start = weightSeries.lastOrNull() // all-time first entry
+        val progress = if (start != null && latest != null && goalWeight != null) {
+            BodyMetricsCalculator.goalProgressFraction(start.weightKg, latest.weightKg, goalWeight)
+        } else {
+            null
+        }
+        val height = profile.heightCm
+        val hero = WeightHeroState(
+            latestWeightKg = latest?.weightKg,
+            deltaKg = delta,
+            goalWeightKg = goalWeight,
+            goalProgressFraction = progress?.coerceAtMost(1.0),
+            bmi = if (latest != null && height != null) {
+                BodyMetricsCalculator.bodyMassIndex(latest.weightKg, height)
+            } else {
+                null
+            },
+            chartSeries = weightSeries.filter { it.measuredAtEpochMillis >= chartFromMillis }
+                .map { it.weightKg }.reversed(),
+            hasAnyEntry = weightSeries.isNotEmpty(),
+        )
+        val tiles = MEASUREMENT_TYPES.map { type ->
+            val history = measurements[type].orEmpty() // newest-first
+            MeasurementTile(
+                type = type,
+                label = MEASUREMENT_LABELS[type] ?: type,
+                value = history.firstOrNull()?.value,
+                unit = history.firstOrNull()?.unit ?: if (type == "body_fat") "%" else "cm",
+                deltaFromPrevious = history.getOrNull(1)?.let { prev -> history.first().value - prev.value },
+                sparkline = history.filter { it.measuredAtEpochMillis >= sparkFromMillis }
+                    .map { it.value }.reversed(),
+                entryCount = history.size,
+            )
+        }
+        val complete = profile.sex != null && profile.heightCm != null &&
+            profile.birthDateEpochDay != null && latest != null
         ProfileUiState(
             isLoaded = true,
             profile = profile,
             ageYears = profile.birthDateEpochDay?.let { ageYears(it) },
-            latestWeightKg = latestWeight,
-            bmi = bmi,
-            bodyFatPercent = bodyFat,
+            hero = hero,
+            tiles = tiles,
             isProfileComplete = complete,
             recommendedTargets = targets,
-            weightTrend = weightSeries.map { it.weightKg }.reversed(),
-            goalProgressFraction = progress,
             measurements = MEASUREMENT_TYPES.map { type -> measurementRow(type, measurements[type].orEmpty()) },
             weightEntries = weightSeries,
             measurementEntries = measurements,
-            weeklyWeightDeltaKg = weeklyDelta,
         )
     }
 
@@ -291,3 +349,5 @@ private fun Account.toUiState() =
         email = email,
         isLocalOnly = remoteUserId == null,
     )
+
+private const val DAY_MILLIS = 86_400_000L

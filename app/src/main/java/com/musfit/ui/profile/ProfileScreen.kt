@@ -120,7 +120,7 @@ fun ProfileScreen(
     if (showEditor) {
         ProfileEditDialog(
             initial = state.profile ?: DEFAULT_USER_PROFILE,
-            initialWeightKg = state.latestWeightKg,
+            initialWeightKg = state.hero.latestWeightKg,
             onDismiss = { showEditor = false },
             onSave = { profile, weightKg ->
                 viewModel.saveProfile(profile)
@@ -131,7 +131,7 @@ fun ProfileScreen(
     }
     if (showLogWeight) {
         LogWeightDialog(
-            prefillKg = state.latestWeightKg,
+            prefillKg = state.hero.latestWeightKg,
             onDismiss = { showLogWeight = false },
             onConfirm = { weightKg ->
                 viewModel.logWeight(weightKg)
@@ -290,9 +290,9 @@ private fun IdentityCard(state: ProfileUiState, onEdit: () -> Unit) {
                 Text("Edit", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                MiniMetric("Weight", state.latestWeightKg?.let { "${it.format1()} kg" }, Modifier.weight(1f))
-                MiniMetric("BMI", state.bmi?.let { it.format1() }, Modifier.weight(1f))
-                MiniMetric("Body fat", state.bodyFatPercent?.let { "${it.format1()} %" }, Modifier.weight(1f))
+                MiniMetric("Weight", state.hero.latestWeightKg?.let { "${it.format1()} kg" }, Modifier.weight(1f))
+                MiniMetric("BMI", state.hero.bmi?.let { it.format1() }, Modifier.weight(1f))
+                MiniMetric("Body fat", state.tiles.firstOrNull { it.type == "body_fat" }?.value?.let { "${it.format1()} %" }, Modifier.weight(1f))
             }
         }
     }
@@ -312,15 +312,17 @@ private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () 
                     }
                 }
                 Text(goalText, style = MaterialTheme.typography.bodyMedium)
-                if (state.latestWeightKg != null && profile.goalWeightKg != null) {
+                val currentWeight = state.hero.latestWeightKg
+                if (currentWeight != null && profile.goalWeightKg != null) {
                     Text(
-                        "${state.latestWeightKg.format1()} kg → ${profile.goalWeightKg.format1()} kg",
+                        "${currentWeight.format1()} kg → ${profile.goalWeightKg.format1()} kg",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (state.goalProgressFraction != null) {
-                    ProgressBar(fraction = state.goalProgressFraction.toFloat())
+                val progress = state.hero.goalProgressFraction
+                if (progress != null) {
+                    ProgressBar(fraction = progress.toFloat())
                 }
             }
             val targets = state.recommendedTargets
@@ -364,15 +366,16 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Un
                 )
                 TextButton(onClick = onLog) { Text("Log") }
             }
-            if (state.latestWeightKg != null) {
+            val latestWeight = state.hero.latestWeightKg
+            if (latestWeight != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "${state.latestWeightKg.format1()} kg",
+                            "${latestWeight.format1()} kg",
                             style = MaterialTheme.typography.titleLarge,
                             color = accent.onContainer,
                         )
-                        state.weeklyWeightDeltaKg?.let { delta ->
+                        state.hero.deltaKg?.let { delta ->
                             val arrow = if (delta < 0) "▼" else if (delta > 0) "▲" else "•"
                             Text(
                                 "$arrow ${abs(delta).format1()} kg this week",
@@ -381,8 +384,8 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Un
                             )
                         }
                     }
-                    if (state.weightTrend.size >= 2) {
-                        Sparkline(values = state.weightTrend, color = accent.color, modifier = Modifier.width(120.dp).height(36.dp))
+                    if (state.hero.chartSeries.size >= 2) {
+                        Sparkline(values = state.hero.chartSeries, color = accent.color, modifier = Modifier.width(120.dp).height(36.dp))
                     }
                 }
             } else {

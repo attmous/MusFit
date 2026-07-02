@@ -52,6 +52,27 @@ import java.time.LocalDate
 class ProfileViewModelTest {
     private val dispatcher = StandardTestDispatcher()
 
+    // UTC epoch-day anchors: the ViewModel's window math is epoch-day based, so
+    // local-zone times would flake in far-west zones.
+    private val fixedDate = LocalDate.of(2026, 7, 2)
+    private val DAY = 86_400_000L
+    private val nowMillis = fixedDate.toEpochDay() * DAY + 14L * 3_600_000L
+    private fun daysAgo(n: Long) = (fixedDate.toEpochDay() - n) * DAY + 12L * 3_600_000L
+
+    private fun profileViewModel(
+        accountRepository: AccountRepository = FakeAccountRepository(),
+        profileRepository: ProfileRepository = FakeProfileRepository(),
+        healthRepository: HealthRepository = FakeHealthRepo(),
+        foodRepository: FoodRepository = FakeFoodGoalRepo(),
+    ) = ProfileViewModel(
+        accountRepository = accountRepository,
+        profileRepository = profileRepository,
+        healthRepository = healthRepository,
+        foodRepository = foodRepository,
+        dateProvider = { fixedDate },
+        clock = { nowMillis },
+    )
+
     @Before
     fun setUp() = Dispatchers.setMain(dispatcher)
 
@@ -80,7 +101,147 @@ class ProfileViewModelTest {
 
         assertEquals(true, viewModel.state.value.isProfileComplete)
         assertEquals(2759.0, viewModel.state.value.recommendedTargets!!.caloriesKcal, 0.001)
-        assertEquals(24.7, viewModel.state.value.bmi!!, 0.05)
+        assertEquals(24.7, viewModel.state.value.hero.bmi!!, 0.05)
+    }
+
+    @Test
+    fun hero_deltaUsesWeeklyAverages_andChartWindows30Days() = runTest {
+        val repo = FakeProfileRepository(
+            profile = UserProfile(Sex.Male, 0L, 180.0, ActivityLevel.Moderate, GoalType.Lose, 0.5, 75.0),
+        )
+        repo.weightSeries = listOf(
+            WeightEntry("w3", daysAgo(1), 82.0, "manual"),   // this week
+            WeightEntry("w2", daysAgo(10), 83.0, "manual"),  // prior week
+            WeightEntry("w1", daysAgo(45), 85.0, "manual"),  // outside the 30-day chart window
+        )
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val hero = viewModel.state.value.hero
+        assertEquals(82.0, hero.latestWeightKg!!, 0.001)
+        assertEquals(-1.0, hero.deltaKg!!, 0.001)              // avg(82) − avg(83)
+        assertEquals(75.0, hero.goalWeightKg!!, 0.001)
+        // progress baseline is the ALL-TIME first entry (85): (85−82)/(85−75) = 0.3
+        assertEquals(0.3, hero.goalProgressFraction!!, 0.001)
+        assertEquals(listOf(83.0, 82.0), hero.chartSeries)     // 30-day window, oldest→newest
+        assertEquals(true, hero.hasAnyEntry)
+    }
+
+    @Test
+    fun hero_singleEntryHasNoDeltaButKeepsFigure() = runTest {
+        val repo = FakeProfileRepository()
+        repo.weightSeries = listOf(WeightEntry("w1", daysAgo(2), 82.0, "manual"))
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val hero = viewModel.state.value.hero
+        assertEquals(82.0, hero.latestWeightKg!!, 0.001)
+        assertNull(hero.deltaKg)
+    }
+
+    @Test
+    fun hero_goalBadgeHiddenWithoutGoalWeight() = runTest {
+        val repo = FakeProfileRepository() // DEFAULT_USER_PROFILE: goalWeightKg null
+        repo.weightSeries = listOf(WeightEntry("w1", daysAgo(2), 82.0, "manual"))
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.state.value.hero.goalWeightKg)
+        assertNull(viewModel.state.value.hero.goalProgressFraction)
+    }
+
+    @Test
+    fun hero_staleLoggerKeepsFigureWithEmptyChart() = runTest {
+        val repo = FakeProfileRepository()
+        repo.weightSeries = listOf(WeightEntry("w1", daysAgo(40), 84.0, "manual"))
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val hero = viewModel.state.value.hero
+        assertEquals(84.0, hero.latestWeightKg!!, 0.001)   // all-time latest survives
+        assertTrue(hero.chartSeries.isEmpty())              // 30-day window empty
+        assertEquals(true, hero.hasAnyEntry)                // → "no entries in last 30 days", not first-log
+    }
+
+    @Test
+    fun hero_goalBadgePercentlessWhenStartEqualsGoal() = runTest {
+        val repo = FakeProfileRepository(
+            profile = UserProfile(Sex.Male, 0L, 180.0, ActivityLevel.Moderate, GoalType.Lose, 0.5, 82.0),
+        )
+        repo.weightSeries = listOf(WeightEntry("w1", daysAgo(2), 82.0, "manual")) // start == goal → progress null
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(82.0, viewModel.state.value.hero.goalWeightKg!!, 0.001)
+        assertNull(viewModel.state.value.hero.goalProgressFraction)
+    }
+
+    @Test
+    fun hero_goalProgressCapsAtFull() = runTest {
+        val repo = FakeProfileRepository(
+            profile = UserProfile(Sex.Male, 0L, 180.0, ActivityLevel.Moderate, GoalType.Lose, 0.5, 80.0),
+        )
+        repo.weightSeries = listOf(
+            WeightEntry("w2", daysAgo(1), 78.0, "manual"),  // past the goal
+            WeightEntry("w1", daysAgo(20), 85.0, "manual"),
+        )
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.0, viewModel.state.value.hero.goalProgressFraction!!, 0.001)
+    }
+
+    @Test
+    fun hero_zeroEntriesEverShowsFirstLogState() = runTest {
+        val repo = FakeProfileRepository()
+        repo.weightSeries = emptyList()
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val hero = viewModel.state.value.hero
+        assertNull(hero.latestWeightKg)
+        assertEquals(false, hero.hasAnyEntry)
+    }
+
+    @Test
+    fun hero_bmiNullWithoutHeight() = runTest {
+        val repo = FakeProfileRepository() // DEFAULT_USER_PROFILE: heightCm null
+        repo.weightSeries = listOf(WeightEntry("w1", daysAgo(2), 82.0, "manual"))
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.state.value.hero.bmi)
+    }
+
+    @Test
+    fun tiles_threeStatesFromAllTimeCountWithWindowedSparkline() = runTest {
+        val repo = FakeProfileRepository(
+            measurements = mapOf(
+                "waist" to listOf( // 2 entries → sparkline
+                    BodyMeasurement("m2", "waist", 88.0, "cm", daysAgo(1)),
+                    BodyMeasurement("m1", "waist", 89.0, "cm", daysAgo(20)),
+                ),
+                "chest" to listOf( // 1 entry → no sparkline, delta null
+                    BodyMeasurement("c1", "chest", 104.0, "cm", daysAgo(5)),
+                ),
+                "body_fat" to listOf( // 2 all-time but only 1 in the 90-day window → sparkline suppressed
+                    BodyMeasurement("b2", "body_fat", 18.5, "%", daysAgo(10)),
+                    BodyMeasurement("b1", "body_fat", 19.5, "%", daysAgo(120)),
+                ),
+            ),
+        )
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val tiles = viewModel.state.value.tiles.associateBy { it.type }
+        assertEquals(listOf(89.0, 88.0), tiles["waist"]!!.sparkline)
+        assertEquals(-1.0, tiles["waist"]!!.deltaFromPrevious!!, 0.001)
+        assertEquals(2, tiles["waist"]!!.entryCount)
+        assertNull(tiles["chest"]!!.deltaFromPrevious)
+        assertTrue(tiles["chest"]!!.sparkline.size < 2)
+        assertEquals(-1.0, tiles["body_fat"]!!.deltaFromPrevious!!, 0.001) // delta is all-time
+        assertTrue(tiles["body_fat"]!!.sparkline.size < 2)                  // window has 1 point
+        assertEquals(0, tiles["arms"]!!.entryCount)                         // never logged
     }
 
     @Test
@@ -238,13 +399,14 @@ class ProfileViewModelTest {
         var updatedId: String? = null
         var updatedValue: Double? = null
         var deletedId: String? = null
+        var weightSeries: List<WeightEntry> = listOfNotNull(latestWeight) // newest-first like the real DAO
         override fun observeProfile(): Flow<UserProfile> = flowOf(profile)
         override suspend fun saveProfile(profile: UserProfile) = Unit
         override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = flowOf(targets)
         override suspend fun logWeight(weightKg: Double, source: String) { loggedWeight = weightKg }
         override fun observeLatestWeight(): Flow<WeightEntry?> = flowOf(latestWeight)
         override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> =
-            flowOf(listOfNotNull(latestWeight))
+            flowOf(weightSeries)
         override suspend fun logMeasurement(type: String, value: Double, unit: String) = Unit
         override suspend fun deleteEntry(id: String) { deletedId = id }
         override suspend fun updateEntryValue(id: String, value: Double) { updatedId = id; updatedValue = value }
