@@ -1,11 +1,13 @@
 package com.musfit.ui.today
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -56,32 +58,38 @@ fun TodayScreen(
     }
     val onCoachAction: (CoachAction) -> Unit = { action -> navigateTo(coachActionDestination(action)) }
 
-    MusFitScreenScaffold(
-        title = "Today",
-        subtitle = state.dateLabel,
-        actions = {
-            IconButton(onClick = viewModel::openDashboardEditor) {
-                Icon(Icons.Outlined.Edit, contentDescription = "Edit dashboard", tint = MusFitTheme.colors.onSurfaceVariant)
-            }
-        },
+    PullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = viewModel::refreshTodayData,
+        modifier = Modifier.fillMaxSize(),
     ) {
-        MetricCarouselCard(
-            carousel = state.carousel,
-            onMetricClick = { metric -> navigateTo(metricDestination(metric)) },
-        )
-
-        SectionHeader(title = "Coach")
-        if (state.feed.isEmpty()) {
-            EmptyState(
-                icon = Icons.Outlined.ChatBubbleOutline,
-                title = "Let's get started",
-                body = "Log your first meal and I'll take it from there.",
-                accent = tabAccentFor(AppDestination.Today),
-                actionLabel = "Log a meal",
-                onAction = onOpenFood,
+        MusFitScreenScaffold(
+            title = "Today",
+            subtitle = state.dateLabel,
+            actions = {
+                IconButton(onClick = viewModel::openDashboardEditor) {
+                    Icon(Icons.Outlined.Edit, contentDescription = "Edit dashboard", tint = MusFitTheme.colors.onSurfaceVariant)
+                }
+            },
+        ) {
+            MetricCarouselCard(
+                carousel = state.carousel,
+                onMetricClick = { metric -> navigateTo(metricDestination(metric)) },
             )
-        } else {
-            CoachFeed(groups = state.feed, onAction = onCoachAction, onDismiss = viewModel::dismissMessage)
+
+            SectionHeader(title = "Coach")
+            if (state.feed.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Outlined.ChatBubbleOutline,
+                    title = "Let's get started",
+                    body = "Log your first meal and I'll take it from there.",
+                    accent = tabAccentFor(AppDestination.Today),
+                    actionLabel = "Log a meal",
+                    onAction = onOpenFood,
+                )
+            } else {
+                CoachFeed(groups = state.feed, onAction = onCoachAction, onDismiss = viewModel::dismissMessage)
+            }
         }
     }
 

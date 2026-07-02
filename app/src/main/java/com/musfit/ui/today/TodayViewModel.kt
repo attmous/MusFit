@@ -70,6 +70,7 @@ data class CarouselUiState(val pages: List<CarouselPageUiState> = emptyList())
 data class TodayUiState(
     val dateLabel: String = "",
     val carousel: CarouselUiState = CarouselUiState(),
+    val isRefreshing: Boolean = false,
     val isDashboardEditorVisible: Boolean = false,
     val editPins: List<TodayMetric> = emptyList(),
     val stepGoalInput: String = "",
@@ -240,6 +241,13 @@ class TodayViewModel internal constructor(
         syncCoachFeed()
     }
 
+    fun refreshTodayData() {
+        val today = dateProvider()
+        activeDate.value = today
+        refreshHealthConnectData(today, showLoading = true)
+        syncCoachFeed()
+    }
+
     fun onScreenPaused() {
         isResumed = false
         viewModelScope.launch { coachRepository.markAllRead() }
@@ -263,9 +271,11 @@ class TodayViewModel internal constructor(
         }
     }
 
-    private fun refreshHealthConnectData(date: LocalDate) {
+    private fun refreshHealthConnectData(date: LocalDate, showLoading: Boolean = false) {
         viewModelScope.launch {
+            if (showLoading) mutableState.update { it.copy(isRefreshing = true) }
             runCatching { healthRepository.refreshRecentData(date) }
+            if (showLoading) mutableState.update { it.copy(isRefreshing = false) }
         }
     }
 

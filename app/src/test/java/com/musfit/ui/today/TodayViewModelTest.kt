@@ -48,11 +48,13 @@ import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
 import com.musfit.ui.AppDestination
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -118,6 +120,31 @@ class TodayViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf(date), healthRepository.refreshDates)
+    }
+
+    @Test
+    fun refreshTodayData_setsRefreshingWhileRecentHealthConnectDataLoads() = runTest {
+        val date = LocalDate.of(2026, 7, 3)
+        val healthRepository = FakeHealthRepository(date).apply {
+            refreshGate = CompletableDeferred()
+        }
+        val viewModel = todayViewModel(
+            coachRepository = FakeCoachRepository(),
+            date = date,
+            healthRepository = healthRepository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.refreshTodayData()
+        runCurrent()
+
+        assertTrue(viewModel.state.value.isRefreshing)
+        assertEquals(listOf(date), healthRepository.refreshDates)
+
+        healthRepository.refreshGate?.complete(Unit)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.isRefreshing)
     }
 
     @Test
@@ -614,6 +641,7 @@ class TodayViewModelTest {
         val observedDates = mutableListOf<LocalDate>()
         val refreshDates = mutableListOf<LocalDate>()
         val weightSeries = MutableStateFlow<List<BodyMetricEntity>>(emptyList())
+        var refreshGate: CompletableDeferred<Unit>? = null
 
         override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = weightSeries
 
@@ -658,6 +686,7 @@ class TodayViewModelTest {
 
         override suspend fun refreshRecentData(endDate: LocalDate, days: Int): HealthConnectRefreshResult {
             refreshDates += endDate
+            refreshGate?.await()
             return HealthConnectRefreshResult(importedDayCount = days, bodyMetricCount = 0)
         }
 
