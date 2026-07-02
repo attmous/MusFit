@@ -77,33 +77,6 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun state_aggregatesFoodTrainingAndHealthDataForToday() = runTest {
-        val date = LocalDate.now()
-        val foodRepository = FakeFoodRepository()
-        val trainingRepository = FakeTrainingRepository()
-        val healthRepository = FakeHealthRepository(date)
-
-        val viewModel = TodayViewModel(
-            foodRepository = foodRepository,
-            trainingRepository = trainingRepository,
-            healthRepository = healthRepository,
-            goalsRepository = FakeGoalsRepository(),
-            coachRepository = FakeCoachRepository(),
-            profileRepository = FakeProfileRepository(),
-            dateProvider = { date },
-        )
-        dispatcher.scheduler.advanceUntilIdle()
-
-        val state = viewModel.state.value
-
-        assertEquals("2 sets", state.training.title)
-        assertEquals("1250 kg volume", state.training.subtitle)
-        assertEquals(true, state.training.hasWorkout)
-
-        assertEquals(82.4, state.weightKg ?: 0.0, 0.01)
-    }
-
-    @Test
     fun state_usesInjectedDateProviderBeforeStartingRepositoryFlows() = runTest {
         val targetDate = LocalDate.now().plusDays(3)
         val foodRepository = FakeFoodRepository()
@@ -122,31 +95,7 @@ class TodayViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(foodRepository.observedDates.isNotEmpty() && foodRepository.observedDates.all { it == targetDate })
-        assertTrue(trainingRepository.observedDates.isNotEmpty() && trainingRepository.observedDates.all { it == targetDate })
         assertTrue(healthRepository.observedDates.isNotEmpty() && healthRepository.observedDates.all { it == targetDate })
-    }
-
-    @Test
-    fun state_buildsWeeklyChartsWithSevenBarsAndTracksSelection() = runTest {
-        val date = LocalDate.now()
-        val viewModel = TodayViewModel(
-            foodRepository = FakeFoodRepository(),
-            trainingRepository = FakeTrainingRepository(),
-            healthRepository = FakeHealthRepository(date),
-            goalsRepository = FakeGoalsRepository(),
-            coachRepository = FakeCoachRepository(),
-            profileRepository = FakeProfileRepository(),
-            dateProvider = { date },
-        )
-        dispatcher.scheduler.advanceUntilIdle()
-
-        val charts = viewModel.state.value.weeklyCharts
-        assertEquals(7, charts!!.calorieBars.size)
-        assertEquals(listOf("M", "T", "W", "T", "F", "S", "S"), charts.calorieBars.map { it.label })
-
-        assertEquals(null, viewModel.state.value.selectedCalorieDayIndex)
-        viewModel.onCalorieDaySelected(3)
-        assertEquals(3, viewModel.state.value.selectedCalorieDayIndex)
     }
 
     @Test
@@ -341,6 +290,36 @@ class TodayViewModelTest {
     }
 
     @Test
+    fun movePin_boundsAreNoOps() = runTest {
+        val viewModel = todayViewModel(coachRepository = FakeCoachRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openDashboardEditor() // [Calories, Steps, Protein]
+
+        viewModel.movePin(TodayMetric.Calories, up = true) // hero up — no-op
+        viewModel.movePin(TodayMetric.Protein, up = false) // last down — no-op
+
+        assertEquals(TodayMetric.DEFAULT_PINS, viewModel.state.value.editPins)
+    }
+
+    @Test
+    fun saveDashboard_blankTargetWeightKeepsStoredValue() = runTest {
+        val goalsRepository = FakeGoalsRepositoryRecording()
+        val viewModel = todayViewModel(
+            coachRepository = FakeCoachRepository(),
+            goalsRepository = goalsRepository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openDashboardEditor()
+
+        viewModel.onTargetWeightInputChanged("")
+        viewModel.saveDashboard()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // Stored value survives a blank input (deliberate change from the old `?: 0.0`).
+        assertEquals(FakeGoalsRepositoryRecording.STORED_TARGET_WEIGHT, goalsRepository.saved!!.targetWeightKg, 0.001)
+    }
+
+    @Test
     fun metricDestination_mapsEveryMetricToItsHomeTab() {
         assertEquals(AppDestination.Food, metricDestination(TodayMetric.Calories))
         assertEquals(AppDestination.Food, metricDestination(TodayMetric.Water))
@@ -365,11 +344,12 @@ class TodayViewModelTest {
         dateProvider: (() -> LocalDate)? = null,
         foodRepository: FakeFoodRepository = FakeFoodRepository(),
         profileRepository: ProfileRepository = FakeProfileRepository(),
+        goalsRepository: GoalsRepository = FakeGoalsRepository(),
     ) = TodayViewModel(
         foodRepository = foodRepository,
         trainingRepository = FakeTrainingRepository(),
         healthRepository = FakeHealthRepository(date),
-        goalsRepository = FakeGoalsRepository(),
+        goalsRepository = goalsRepository,
         coachRepository = coachRepository,
         profileRepository = profileRepository,
         dateProvider = dateProvider ?: { date },
@@ -490,6 +470,19 @@ class TodayViewModelTest {
         override fun observeUserGoals(): Flow<UserGoals> = MutableStateFlow(UserGoals())
 
         override suspend fun updateUserGoals(goals: UserGoals) = Unit
+    }
+
+    private class FakeGoalsRepositoryRecording : GoalsRepository {
+        var saved: UserGoals? = null
+
+        override fun observeUserGoals(): Flow<UserGoals> =
+            MutableStateFlow(UserGoals(targetWeightKg = STORED_TARGET_WEIGHT))
+
+        override suspend fun updateUserGoals(goals: UserGoals) { saved = goals }
+
+        companion object {
+            const val STORED_TARGET_WEIGHT = 82.0
+        }
     }
 
     private class FakeProfileRepository : ProfileRepository {

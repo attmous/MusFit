@@ -15,7 +15,6 @@ import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
-import com.musfit.data.repository.TrainingSummary
 import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.coach.CoachEngine
@@ -27,7 +26,6 @@ import com.musfit.domain.today.MetricResolver
 import com.musfit.domain.today.MetricSnapshot
 import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
-import com.musfit.domain.today.WeeklyGoals
 import com.musfit.domain.today.WeeklyGoalsCalculator
 import com.musfit.domain.today.buildCarouselPages
 import com.musfit.domain.today.countSessionsInWeek
@@ -51,28 +49,6 @@ import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import javax.inject.Inject
 
-data class DayBar(val label: String, val calories: Double?)
-
-data class WeeklyChartsUiState(
-    val calorieBars: List<DayBar>,
-    val calorieTarget: Double?,
-    val onTargetDays: Int,
-    val trackedDays: Int,
-    val defaultSelectedIndex: Int?,
-    val weightTrend: List<Double>,
-    val weightDeltaKg: Double?,
-    val latestWeightKg: Double?,
-    val sessionsDone: Int,
-    val sessionTarget: Int,
-    val stepGoalDays: Int,
-)
-
-data class TrainingGlimpseUiState(
-    val title: String = "No workout yet",
-    val subtitle: String = "Tap to start",
-    val hasWorkout: Boolean = false,
-)
-
 data class CoachFeedDayGroup(
     val label: String,
     val messages: List<CoachMessage>,
@@ -93,11 +69,6 @@ data class CarouselUiState(val pages: List<CarouselPageUiState> = emptyList())
 
 data class TodayUiState(
     val dateLabel: String = "",
-    val training: TrainingGlimpseUiState = TrainingGlimpseUiState(),
-    val weightKg: Double? = null,
-    val weekly: WeeklyGoals? = null,
-    val weeklyCharts: WeeklyChartsUiState? = null,
-    val selectedCalorieDayIndex: Int? = null,
     val carousel: CarouselUiState = CarouselUiState(),
     val isDashboardEditorVisible: Boolean = false,
     val editPins: List<TodayMetric> = emptyList(),
@@ -134,11 +105,12 @@ class TodayViewModel internal constructor(
     private val activeDate = MutableStateFlow(dateProvider())
 
     init {
-        observeDaily()
-        observeWeekly()
-        observeCarousel()
-        observeCoach()
+        viewModelScope.launch {
+            activeDate.collect { date -> mutableState.update { it.copy(dateLabel = date.format(DATE_FORMATTER)) } }
+        }
         observeFeed()
+        observeCoach()
+        observeCarousel()
     }
 
     @Inject
@@ -159,106 +131,47 @@ class TodayViewModel internal constructor(
         dateProvider = { LocalDate.now() },
     )
 
-    private fun observeDaily() {
-        val date = dateProvider()
-        viewModelScope.launch {
-            combine(
-                foodRepository.observeDailyNutrition(date),
-                foodRepository.observeFoodGoal(),
-                trainingRepository.observeDailyTrainingSummary(date),
-                healthRepository.observeDailySummary(date),
-                goalsRepository.observeUserGoals(),
-            ) { nutrition, goal, training, health, userGoals ->
-                currentUserGoals = userGoals
-                buildDaily(date, nutrition, goal, training, health, userGoals)
-            }.collect { daily ->
-                mutableState.update {
-                    it.copy(
-                        dateLabel = daily.dateLabel,
-                        training = daily.training,
-                        weightKg = daily.weightKg,
-                    )
-                }
-            }
-        }
-    }
-
-    private fun observeWeekly() {
-        val date = dateProvider()
-        val weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val weekEnd = weekStart.plusDays(6)
-        val weekStartMillis = weekStart.toEpochDay() * DAY_MILLIS
-        val weightFromMillis = (weekStart.toEpochDay() - 30L) * DAY_MILLIS
-        viewModelScope.launch {
-            val foodAndTraining = combine(
-                foodRepository.observeFoodPlan(weekStart),
-                trainingRepository.observeWorkoutHistory(),
-                healthRepository.observeDailySummaries(weekStart, weekEnd),
-            ) { plan, history, summaries -> Triple(plan, history, summaries) }
-            val weightAndGoals = combine(
-                healthRepository.observeWeightSeries(weightFromMillis),
-                goalsRepository.observeUserGoals(),
-                foodRepository.observeFoodGoal(),
-            ) { weights, userGoals, foodGoal -> Triple(weights, userGoals, foodGoal) }
-            combine(foodAndTraining, weightAndGoals) { ft, wg ->
-                val (plan, history, summaries) = ft
-                val (weights, userGoals, foodGoal) = wg
-                WeeklyGoalsCalculator.compute(
-                    weekStartMillis = weekStartMillis,
-                    sessionStartMillis = history.map { it.startedAtEpochMillis },
-                    sessionTarget = userGoals.weeklySessionTarget,
-                    loggedCaloriesPerDay = plan.map { if (it.loggedEntryCount > 0) it.loggedTotals.caloriesKcal else null },
-                    calorieGoalKcal = foodGoal.dailyCaloriesKcal,
-                    stepsPerDay = summaries.map { it.steps ?: 0L },
-                    stepGoal = userGoals.stepGoal,
-                    weights = weights.map { it.measuredAtEpochMillis to it.value },
-                    targetWeightKg = userGoals.targetWeightKg,
-                )
-            }.collect { weekly ->
-                val todayIndex = date.dayOfWeek.value - 1
-                mutableState.update { it.copy(weekly = weekly, weeklyCharts = buildWeeklyCharts(weekly, todayIndex)) }
-            }
-        }
-    }
-
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeCarousel() {
-        val date = dateProvider()
+        viewModelScope.launch {
+            activeDate.flatMapLatest { carouselFlow(it) }
+                .collect { carousel -> mutableState.update { it.copy(carousel = carousel) } }
+        }
+    }
+
+    private fun carouselFlow(date: LocalDate): Flow<CarouselUiState> {
         val weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val weekStartMillis = weekStart.toEpochDay() * DAY_MILLIS
         val weightFromMillis = (date.toEpochDay() - 30L) * DAY_MILLIS
         val measurementsFromMillis = (date.toEpochDay() - 90L) * DAY_MILLIS
-        viewModelScope.launch {
-            val food = combine(
-                foodRepository.observeDailyNutrition(date),
-                foodRepository.observeFoodGoal(),
-                foodRepository.observeWaterSummary(date),
-                foodRepository.observeLoggedDayEpochDays(date.toEpochDay() - 365L),
-            ) { nutrition, goal, water, loggedDays -> FoodSnapshot(nutrition, goal, water, loggedDays) }
-            val health = combine(
-                healthRepository.observeDailySummary(date),
-                goalsRepository.observeUserGoals(),
-                healthRepository.observeWeightSeries(weightFromMillis),
-            ) { summary, userGoals, weights -> Triple(summary, userGoals, weights) }
-            val bodyTrainingProfile = combine(
-                profileRepository.observeRecentMeasurements(measurementsFromMillis),
-                trainingRepository.observeWorkoutHistory(),
-                profileRepository.observeProfile(),
-            ) { measurements, history, profile -> Triple(measurements, history, profile) }
-            combine(
-                food,
-                health,
-                bodyTrainingProfile,
-                coachRepository.observeDashboardPins(),
-            ) { f, h, btp, pins ->
-                val (summary, userGoals, weights) = h
-                val (measurements, history, profile) = btp
-                currentPins = pins
-                currentUserGoals = userGoals
-                currentProfileGoalWeightKg = profile.goalWeightKg
-                buildCarousel(f, summary, userGoals, weights, measurements, history, pins, date, weekStartMillis)
-            }.collect { carousel ->
-                mutableState.update { it.copy(carousel = carousel) }
-            }
+        val food = combine(
+            foodRepository.observeDailyNutrition(date),
+            foodRepository.observeFoodGoal(),
+            foodRepository.observeWaterSummary(date),
+            foodRepository.observeLoggedDayEpochDays(date.toEpochDay() - 365L),
+        ) { nutrition, goal, water, loggedDays -> FoodSnapshot(nutrition, goal, water, loggedDays) }
+        val health = combine(
+            healthRepository.observeDailySummary(date),
+            goalsRepository.observeUserGoals(),
+            healthRepository.observeWeightSeries(weightFromMillis),
+        ) { summary, userGoals, weights -> Triple(summary, userGoals, weights) }
+        val bodyTrainingProfile = combine(
+            profileRepository.observeRecentMeasurements(measurementsFromMillis),
+            trainingRepository.observeWorkoutHistory(),
+            profileRepository.observeProfile(),
+        ) { measurements, history, profile -> Triple(measurements, history, profile) }
+        return combine(
+            food,
+            health,
+            bodyTrainingProfile,
+            coachRepository.observeDashboardPins(),
+        ) { f, h, btp, pins ->
+            val (summary, userGoals, weights) = h
+            val (measurements, history, profile) = btp
+            currentPins = pins
+            currentUserGoals = userGoals
+            currentProfileGoalWeightKg = profile.goalWeightKg
+            buildCarousel(f, summary, userGoals, weights, measurements, history, pins, date, weekStartMillis)
         }
     }
 
@@ -449,10 +362,6 @@ class TodayViewModel internal constructor(
         }
     }
 
-    fun onCalorieDaySelected(index: Int) {
-        mutableState.update { it.copy(selectedCalorieDayIndex = index) }
-    }
-
     fun onStepGoalInputChanged(value: String) {
         mutableState.update { it.copy(stepGoalInput = value.filter(Char::isDigit)) }
     }
@@ -485,17 +394,8 @@ class TodayViewModel internal constructor(
 }
 
 private const val DAY_MILLIS = 86_400_000L
-private const val DEFAULT_STEP_GOAL_FLOOR = 1L
 
-private val DATE_FORMATTER = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.US)
-
-private data class TodayDaily(
-    val dateLabel: String,
-    val training: TrainingGlimpseUiState,
-    val weightKg: Double?,
-)
-
-internal val DAY_LABELS = listOf("M", "T", "W", "T", "F", "S", "S")
+private val DATE_FORMATTER = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault())
 
 private val FEED_DAY_FORMATTER = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault())
 
@@ -570,68 +470,6 @@ private fun buildCarousel(
         },
     )
 }
-
-/** Pure mapping from the weekly rollup to chart UI state. [todayIndex] is Monday=0..Sunday=6. */
-internal fun buildWeeklyCharts(weekly: WeeklyGoals, todayIndex: Int): WeeklyChartsUiState {
-    val bars = DAY_LABELS.mapIndexed { i, label -> DayBar(label = label, calories = weekly.caloriesPerDay.getOrNull(i)) }
-    val defaultSelected = when {
-        bars.getOrNull(todayIndex)?.calories != null -> todayIndex
-        else -> bars.indexOfLast { it.calories != null }.takeIf { it >= 0 }
-    }
-    return WeeklyChartsUiState(
-        calorieBars = bars,
-        calorieTarget = weekly.calorieGoalKcal.takeIf { it > 0.0 },
-        onTargetDays = weekly.calorieOnTargetDays,
-        trackedDays = weekly.trackedDays,
-        defaultSelectedIndex = defaultSelected,
-        weightTrend = weekly.weightPoints.map { it.valueKg },
-        weightDeltaKg = weekly.weightDeltaKg,
-        latestWeightKg = weekly.weightPoints.lastOrNull()?.valueKg ?: weekly.weightAvgKg,
-        sessionsDone = weekly.sessionsDone,
-        sessionTarget = weekly.sessionTarget,
-        stepGoalDays = weekly.stepGoalDays,
-    )
-}
-
-private fun buildDaily(
-    date: LocalDate,
-    nutrition: NutritionTotals,
-    goal: FoodGoal,
-    training: TrainingSummary,
-    health: DailyHealthSummaryEntity?,
-    userGoals: UserGoals,
-): TodayDaily =
-    TodayDaily(
-        dateLabel = date.format(DATE_FORMATTER),
-        training = training.toGlimpse(),
-        weightKg = health?.latestWeightKg,
-    )
-
-private fun ratio(value: Double, goal: Double): Float =
-    if (goal <= 0.0) 0f else (value / goal).coerceIn(0.0, 1.0).toFloat()
-
-private fun TrainingSummary.toGlimpse(): TrainingGlimpseUiState =
-    if (completedSetCount == 0) {
-        TrainingGlimpseUiState()
-    } else {
-        TrainingGlimpseUiState(
-            title = "$completedSetCount ${if (completedSetCount == 1) "set" else "sets"}",
-            subtitle = "${totalVolumeKg.formatMetric()} kg volume",
-            hasWorkout = true,
-        )
-    }
-
-private fun formatCount(value: Long): String =
-    if (value >= 1000) {
-        val thousands = value / 1000.0
-        if (thousands % 1.0 == 0.0) {
-            "${thousands.toInt()}k"
-        } else {
-            String.format(Locale.US, "%.1fk", thousands)
-        }
-    } else {
-        value.toString()
-    }
 
 private fun Double.formatMetric(): String =
     if (this % 1.0 == 0.0) {
