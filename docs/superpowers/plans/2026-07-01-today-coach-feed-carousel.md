@@ -51,6 +51,7 @@ If Gradle fails with `AccessDeniedException` / `Cannot snapshot` under `app/buil
 4. **Streak window = 365 days** — the logged-days query is bounded for cheapness; streaks longer than a year display capped (accepted).
 5. **Weight metric shows figure + 7-day delta, no goal ring** — per the spec's hero-rendering rule ("if it has no goal (e.g. weight)"); the metric-pool table's `user_goals.targetWeightKg` reference feeds the coach's weight rules, not the carousel card.
 6. **Emulator light/dark visual verification is consolidated at Task 11**; per-slice gates are the full three-target Gradle run (Tasks 4, 7, 10, 11).
+7. **Weight figure/delta derive from a 30-day window and body fat from a 90-day window** (Task 9) — a latest weight older than 30 days renders the NoData state rather than an unbounded "latest". Accepted for v1 (the deep-link to Profile is the fix-it path).
 
 ---
 
@@ -3460,6 +3461,19 @@ private val DATE_FORMATTER = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.
 ```
 
 Remove now-unused imports (`TrainingSummary`, chart-related, etc. — let the compiler guide).
+
+**REVIEW FIX (Task 9 quality review) — re-anchor the carousel and dateLabel on `activeDate`:**
+after the slim-down the carousel is the only metric surface, and it must not go stale
+across midnight the way the deleted daily/weekly flows did. In the same step:
+- Extract `observeCarousel()`'s body into `private fun carouselFlow(date: LocalDate): Flow<CarouselUiState>`
+  (everything from the `weekStart` computation through the final `combine`, parameterized by `date`)
+  and re-anchor: `viewModelScope.launch { activeDate.flatMapLatest { carouselFlow(it) }.collect { ... } }` —
+  mirroring `coachInputFlow`.
+- Derive `dateLabel` from `activeDate` instead of a one-shot init assignment:
+  `viewModelScope.launch { activeDate.collect { date -> mutableState.update { it.copy(dateLabel = date.format(DATE_FORMATTER)) } } }`.
+- Add two ViewModel tests: `movePin` bounds no-ops (hero up / last down leave order unchanged), and
+  blank `targetWeightInput` on `saveDashboard` keeps the stored `targetWeightKg` (pins the deliberate
+  semantic change from the old `?: 0.0`).
 
 - [ ] **Step 2: Remove the corresponding UI from `TodayScreen.kt`**
 
