@@ -1,13 +1,27 @@
 package com.musfit.ui.profile
 
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.repository.Account
+import com.musfit.data.repository.AccountRepository
+import com.musfit.data.repository.AppSettings
+import com.musfit.data.repository.BodyMeasurement
+import com.musfit.data.repository.DEFAULT_APP_SETTINGS
+import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.data.repository.HealthRepository
+import com.musfit.data.repository.ProfileRepository
+import com.musfit.data.repository.UserProfile
+import com.musfit.data.repository.WeightEntry
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.domain.profile.ActivityLevel
+import com.musfit.domain.profile.GoalType
+import com.musfit.domain.profile.RecommendedTargets
+import com.musfit.domain.profile.Sex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -24,6 +38,12 @@ import java.time.LocalDate
 class ProfileSettingsViewModelTest {
     private val dispatcher = StandardTestDispatcher()
 
+    private fun settingsViewModel(
+        healthRepository: HealthRepository = FakeHealthRepository(),
+        accountRepository: AccountRepository = FakeAccountRepository(),
+        profileRepository: ProfileRepository = FakeProfileRepository(),
+    ) = ProfileSettingsViewModel(healthRepository, accountRepository, profileRepository)
+
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
@@ -36,7 +56,7 @@ class ProfileSettingsViewModelTest {
 
     @Test
     fun refreshStatus_showsAvailableWhenGatewayAvailable() = runTest {
-        val viewModel = ProfileSettingsViewModel(FakeHealthRepository())
+        val viewModel = settingsViewModel()
 
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
@@ -49,8 +69,8 @@ class ProfileSettingsViewModelTest {
 
     @Test
     fun refreshStatus_showsInstallMessageWhenGatewayUnavailable() = runTest {
-        val viewModel = ProfileSettingsViewModel(
-            FakeHealthRepository(
+        val viewModel = settingsViewModel(
+            healthRepository = FakeHealthRepository(
                 status = HealthConnectStatus(
                     availability = HealthConnectAvailability.NotInstalled,
                     grantedPermissions = emptySet(),
@@ -74,8 +94,8 @@ class ProfileSettingsViewModelTest {
 
     @Test
     fun refreshStatus_hidesPermissionLauncherWhenGatewayNotSupported() = runTest {
-        val viewModel = ProfileSettingsViewModel(
-            FakeHealthRepository(
+        val viewModel = settingsViewModel(
+            healthRepository = FakeHealthRepository(
                 status = HealthConnectStatus(
                     availability = HealthConnectAvailability.NotSupported,
                     grantedPermissions = emptySet(),
@@ -95,8 +115,8 @@ class ProfileSettingsViewModelTest {
 
     @Test
     fun refreshStatus_showsEnableSyncMessageWhenNoPermissionsGranted() = runTest {
-        val viewModel = ProfileSettingsViewModel(
-            FakeHealthRepository(
+        val viewModel = settingsViewModel(
+            healthRepository = FakeHealthRepository(
                 status = HealthConnectStatus(
                     availability = HealthConnectAvailability.Available,
                     grantedPermissions = emptySet(),
@@ -118,7 +138,7 @@ class ProfileSettingsViewModelTest {
     @Test
     fun importToday_persistsAndReportsImportedSummary() = runTest {
         val repository = FakeHealthRepository()
-        val viewModel = ProfileSettingsViewModel(repository)
+        val viewModel = settingsViewModel(healthRepository = repository)
 
         viewModel.importToday()
         dispatcher.scheduler.advanceUntilIdle()
@@ -130,7 +150,7 @@ class ProfileSettingsViewModelTest {
     @Test
     fun exportLatestWorkout_reportsExportedWorkoutRecord() = runTest {
         val repository = FakeHealthRepository(exportedRecordId = "record-id")
-        val viewModel = ProfileSettingsViewModel(repository)
+        val viewModel = settingsViewModel(healthRepository = repository)
 
         viewModel.exportLatestWorkout()
         dispatcher.scheduler.advanceUntilIdle()
@@ -142,7 +162,7 @@ class ProfileSettingsViewModelTest {
     @Test
     fun exportLatestWorkout_reportsNoWorkoutWhenRepositoryReturnsNull() = runTest {
         val repository = FakeHealthRepository(exportedRecordId = null)
-        val viewModel = ProfileSettingsViewModel(repository)
+        val viewModel = settingsViewModel(healthRepository = repository)
 
         viewModel.exportLatestWorkout()
         dispatcher.scheduler.advanceUntilIdle()
@@ -153,7 +173,7 @@ class ProfileSettingsViewModelTest {
     @Test
     fun refreshStatus_resetsStaleSuccessStateAfterFailure() = runTest {
         val repository = FakeHealthRepository()
-        val viewModel = ProfileSettingsViewModel(repository)
+        val viewModel = settingsViewModel(healthRepository = repository)
 
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
@@ -176,6 +196,93 @@ class ProfileSettingsViewModelTest {
             "Unable to refresh Health Connect status right now. Try again from the Profile tab.",
             viewModel.state.value.message,
         )
+    }
+
+    @Test
+    fun accountState_exposesActiveLocalAccount() = runTest {
+        val accountRepository = FakeAccountRepository(
+            initial = Account(
+                id = "account-1",
+                displayName = "Ava",
+                email = "ava@example.com",
+                remoteUserId = null,
+            ),
+        )
+
+        val viewModel = settingsViewModel(accountRepository = accountRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Ava", viewModel.state.value.account.displayName)
+        assertEquals("ava@example.com", viewModel.state.value.account.email)
+        assertEquals(true, viewModel.state.value.account.isLocalOnly)
+    }
+
+    @Test
+    fun saveAccount_updatesRepositoryAndClosesEditor() = runTest {
+        val accountRepository = FakeAccountRepository()
+        val viewModel = settingsViewModel(accountRepository = accountRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAccountEditor()
+        viewModel.onAccountNameChanged("Ava")
+        viewModel.onAccountEmailChanged("ava@example.com")
+        viewModel.saveAccount()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Ava", accountRepository.updatedName)
+        assertEquals("ava@example.com", accountRepository.updatedEmail)
+        assertEquals(false, viewModel.state.value.accountEditorOpen)
+        assertEquals(null, viewModel.state.value.accountErrorMessage)
+    }
+
+    @Test
+    fun saveAccount_blankNameKeepsEditorOpenWithValidation() = runTest {
+        val accountRepository = FakeAccountRepository()
+        val viewModel = settingsViewModel(accountRepository = accountRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAccountEditor()
+        viewModel.onAccountNameChanged("   ")
+        viewModel.saveAccount()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(true, viewModel.state.value.accountEditorOpen)
+        assertEquals("Account name is required.", viewModel.state.value.accountErrorMessage)
+        assertEquals(null, accountRepository.updatedName)
+    }
+
+    @Test
+    fun openAccountEditor_prefillsFromActiveAccountAndEditingClearsError() = runTest {
+        val accountRepository = FakeAccountRepository(
+            initial = Account(id = "account-1", displayName = "Ava", email = "ava@example.com", remoteUserId = null),
+        )
+        val viewModel = settingsViewModel(accountRepository = accountRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAccountEditor()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("Ava", viewModel.state.value.accountNameInput)
+        assertEquals("ava@example.com", viewModel.state.value.accountEmailInput)
+
+        viewModel.onAccountNameChanged("")
+        viewModel.saveAccount() // blank → error
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onAccountNameChanged("A") // editing clears the error
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(null, viewModel.state.value.accountErrorMessage)
+    }
+
+    @Test
+    fun profileDetails_exposesProfileAndLatestWeightForEditor() = runTest {
+        val profileRepo = FakeProfileRepository(
+            profile = UserProfile(Sex.Male, 0L, 180.0, ActivityLevel.Moderate, GoalType.Maintain, 0.0, 80.0),
+            latestWeight = WeightEntry("w1", 1_000L, 80.0, "manual"),
+        )
+        val viewModel = settingsViewModel(profileRepository = profileRepo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(180.0, viewModel.state.value.profile.heightCm!!, 0.001)
+        assertEquals(80.0, viewModel.state.value.latestWeightKg!!, 0.001)
     }
 
     private class FakeHealthRepository(
@@ -214,5 +321,53 @@ class ProfileSettingsViewModelTest {
             exportCalls += 1
             return exportedRecordId
         }
+    }
+
+    private class FakeAccountRepository(
+        initial: Account = Account("local-default", "You", null, null),
+    ) : AccountRepository {
+        private val active = MutableStateFlow(initial)
+        var updatedName: String? = null
+        var updatedEmail: String? = null
+        var ensured = false
+
+        override fun observeActiveAccount(): Flow<Account> = active
+
+        override fun observeAccounts(): Flow<List<Account>> = MutableStateFlow(listOf(active.value))
+
+        override suspend fun ensureActiveAccount(): Account {
+            ensured = true
+            return active.value
+        }
+
+        override suspend fun createAccount(displayName: String, email: String?): String = "created"
+
+        override suspend fun updateActiveAccount(displayName: String, email: String?) {
+            updatedName = displayName
+            updatedEmail = email
+            active.value = active.value.copy(displayName = displayName, email = email)
+        }
+
+        override suspend fun switchAccount(accountId: String) = Unit
+    }
+
+    private class FakeProfileRepository(
+        private val profile: UserProfile = DEFAULT_USER_PROFILE,
+        private val latestWeight: WeightEntry? = null,
+    ) : ProfileRepository {
+        override fun observeProfile(): Flow<UserProfile> = flowOf(profile)
+        override suspend fun saveProfile(profile: UserProfile) = Unit
+        override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = flowOf(null)
+        override suspend fun logWeight(weightKg: Double, source: String) = Unit
+        override fun observeLatestWeight(): Flow<WeightEntry?> = flowOf(latestWeight)
+        override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> =
+            flowOf(listOfNotNull(latestWeight))
+        override suspend fun logMeasurement(type: String, value: Double, unit: String) = Unit
+        override suspend fun deleteEntry(id: String) = Unit
+        override suspend fun updateEntryValue(id: String, value: Double) = Unit
+        override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> =
+            flowOf(emptyMap())
+        override fun observeSettings(): Flow<AppSettings> = flowOf(DEFAULT_APP_SETTINGS)
+        override suspend fun saveSettings(settings: AppSettings) = Unit
     }
 }

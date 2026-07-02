@@ -16,11 +16,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.health.connect.client.PermissionController
@@ -33,6 +37,7 @@ fun ProfileSettingsScreen(
     viewModel: ProfileSettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    var showProfileDialog by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
     ) { viewModel.refreshStatus() }
@@ -58,6 +63,12 @@ fun ProfileSettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Text("Account", style = MaterialTheme.typography.titleMedium)
+            AccountSection(account = state.account, onEdit = viewModel::openAccountEditor)
+            TextButton(onClick = { showProfileDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("Profile details")
+            }
+
             Text("Health Connect & sync", style = MaterialTheme.typography.titleMedium)
             Text("Health Connect: ${state.availabilityLabel}", style = MaterialTheme.typography.bodyMedium)
             Text(state.message, style = MaterialTheme.typography.bodyMedium)
@@ -81,5 +92,29 @@ fun ProfileSettingsScreen(
             Text("About", style = MaterialTheme.typography.titleMedium)
             Text("MusFit", style = MaterialTheme.typography.bodyMedium)
         }
+    }
+
+    if (showProfileDialog) {
+        ProfileEditDialog(
+            initial = state.profile,
+            initialWeightKg = state.latestWeightKg,
+            onDismiss = { showProfileDialog = false },
+            onSave = { profile, weightKg ->
+                viewModel.saveProfile(profile)
+                weightKg?.let(viewModel::logWeight)
+                showProfileDialog = false
+            },
+        )
+    }
+    if (state.accountEditorOpen) {
+        AccountEditDialog(
+            name = state.accountNameInput,
+            email = state.accountEmailInput,
+            error = state.accountErrorMessage,
+            onNameChange = viewModel::onAccountNameChanged,
+            onEmailChange = viewModel::onAccountEmailChanged,
+            onDismiss = viewModel::closeAccountEditor,
+            onSave = viewModel::saveAccount,
+        )
     }
 }
