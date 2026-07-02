@@ -31,14 +31,12 @@ import com.musfit.data.repository.Account
 data class AccountUiState(
     val displayName: String = "You",
     val email: String? = null,
-    val isLocalOnly: Boolean = true,
 )
 
 internal fun Account.toUiState() =
     AccountUiState(
         displayName = displayName,
         email = email,
-        isLocalOnly = remoteUserId == null,
     )
 
 private fun String.accountInitial(): String =

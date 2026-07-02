@@ -220,13 +220,14 @@ fun ProfileScreen(
 
 @Composable
 private fun HealthConnectNudge(onOpen: () -> Unit) {
+    val shape = MaterialTheme.shapes.extraLarge
     Card(
         modifier = Modifier
             .fillMaxWidth()
             // Clip before clickable so the ripple stays inside the rounded shape.
-            .clip(MaterialTheme.shapes.extraLarge)
+            .clip(shape)
             .clickable(onClickLabel = "Open Health Connect settings", onClick = onOpen),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = shape,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -245,16 +246,17 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
 
 @Composable
 private fun PlanCardRow(card: PlanCard, onClick: () -> Unit) {
+    val shape = MaterialTheme.shapes.extraLarge
     Card(
         modifier = Modifier
             .fillMaxWidth()
             // Clip before clickable so the ripple stays inside the rounded shape.
-            .clip(MaterialTheme.shapes.extraLarge)
+            .clip(shape)
             .clickable(
                 onClickLabel = if (card.id == "diet") "Manage diet in Food" else "Manage program in Training",
                 onClick = onClick,
             ),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = shape,
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(card.title, style = MaterialTheme.typography.titleMedium)

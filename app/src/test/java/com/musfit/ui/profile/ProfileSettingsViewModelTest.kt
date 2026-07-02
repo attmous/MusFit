@@ -215,7 +215,6 @@ class ProfileSettingsViewModelTest {
         assertTrue(accountRepository.ensured) // init must guarantee an active account row exists
         assertEquals("Ava", viewModel.state.value.account.displayName)
         assertEquals("ava@example.com", viewModel.state.value.account.email)
-        assertEquals(true, viewModel.state.value.account.isLocalOnly)
     }
 
     @Test
