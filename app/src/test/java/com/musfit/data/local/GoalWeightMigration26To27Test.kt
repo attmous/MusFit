@@ -78,6 +78,28 @@ class GoalWeightMigration26To27Test {
         queryProfile("local-default") { goalWeight, _, _, _ -> assertEquals(70.0, goalWeight!!, 0.001) }
     }
 
+    @Test
+    fun migration26To27_zeroSentinelProfileValueIsOverwrittenEvenWhenProfileNewer() {
+        createDatabaseFromExportedSchema(version = 26)
+        insertGoals("local-default", targetWeightKg = 75.0, updatedAt = 100L)
+        insertProfile("local-default", goalWeightKg = 0.0, updatedAt = 200L) // 0 = unset sentinel
+
+        runMigration()
+
+        queryProfile("local-default") { goalWeight, _, _, _ -> assertEquals(75.0, goalWeight!!, 0.001) }
+    }
+
+    @Test
+    fun migration26To27_timestampTieKeepsProfileValue() {
+        createDatabaseFromExportedSchema(version = 26)
+        insertGoals("local-default", targetWeightKg = 70.0, updatedAt = 200L)
+        insertProfile("local-default", goalWeightKg = 80.0, updatedAt = 200L) // tie → no recency evidence
+
+        runMigration()
+
+        queryProfile("local-default") { goalWeight, _, _, _ -> assertEquals(80.0, goalWeight!!, 0.001) }
+    }
+
     private fun runMigration() {
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)

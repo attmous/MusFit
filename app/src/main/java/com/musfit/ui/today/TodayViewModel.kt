@@ -74,7 +74,6 @@ data class TodayUiState(
     val editPins: List<TodayMetric> = emptyList(),
     val stepGoalInput: String = "",
     val sessionTargetInput: String = "",
-    val targetWeightInput: String = "",
     val feed: List<CoachFeedDayGroup> = emptyList(),
 )
 
@@ -94,7 +93,6 @@ class TodayViewModel internal constructor(
 
     private var currentUserGoals = UserGoals()
     private var currentPins: List<TodayMetric> = TodayMetric.DEFAULT_PINS
-    private var currentProfileGoalWeightKg: Double? = null
 
     /** The freshest coach input, pinned to the [activeDate] its flows were anchored to. */
     private var latestCoachInput: Pair<LocalDate, CoachInput>? = null
@@ -154,22 +152,20 @@ class TodayViewModel internal constructor(
             goalsRepository.observeUserGoals(),
             healthRepository.observeWeightSeries(weightFromMillis),
         ) { summary, userGoals, weights -> Triple(summary, userGoals, weights) }
-        val bodyTrainingProfile = combine(
+        val bodyAndTraining = combine(
             profileRepository.observeRecentMeasurements(measurementsFromMillis),
             trainingRepository.observeWorkoutHistory(),
-            profileRepository.observeProfile(),
-        ) { measurements, history, profile -> Triple(measurements, history, profile) }
+        ) { measurements, history -> measurements to history }
         return combine(
             food,
             health,
-            bodyTrainingProfile,
+            bodyAndTraining,
             coachRepository.observeDashboardPins(),
-        ) { f, h, btp, pins ->
+        ) { f, h, bt, pins ->
             val (summary, userGoals, weights) = h
-            val (measurements, history, profile) = btp
+            val (measurements, history) = bt
             currentPins = pins
             currentUserGoals = userGoals
-            currentProfileGoalWeightKg = profile.goalWeightKg
             buildCarousel(f, summary, userGoals, weights, measurements, history, pins, date, weekStartMillis)
         }
     }
@@ -194,27 +190,30 @@ class TodayViewModel internal constructor(
             foodRepository.observeFoodGoal(),
             healthRepository.observeDailySummary(date),
         ) { nutrition, goal, health -> Triple(nutrition, goal, health) }
-        val trainingAndGoals = combine(
+        val trainingGoalsProfile = combine(
             trainingRepository.observeWorkoutHistory(),
             trainingRepository.observeRoutineSummaries(),
             goalsRepository.observeUserGoals(),
-        ) { history, routines, userGoals -> Triple(history, routines, userGoals) }
+            profileRepository.observeProfile(),
+        ) { history, routines, userGoals, profile ->
+            TrainingGoalsProfile(history, routines, userGoals, profile.goalWeightKg)
+        }
         val waterAndStreak = combine(
             foodRepository.observeWaterSummary(date),
             foodRepository.observeLoggedDayEpochDays(date.toEpochDay() - 365L),
         ) { water, loggedDays -> water to loggedDays }
         return combine(
             nutritionGoalHealth,
-            trainingAndGoals,
+            trainingGoalsProfile,
             healthRepository.observeWeightSeries(weightFromMillis),
             waterAndStreak,
-        ) { ngh, tg, weights, ws ->
+        ) { ngh, tgp, weights, ws ->
             val (nutrition, goal, health) = ngh
-            val (history, routines, userGoals) = tg
+            val (history, routines, userGoals, profileGoalWeightKg) = tgp
             val (water, loggedDays) = ws
             buildCoachInput(
-                date, nutrition, goal, health, history, routines, userGoals, weights,
-                water, loggedDays, weekStartMillis,
+                date, nutrition, goal, health, history, routines, userGoals, profileGoalWeightKg,
+                weights, water, loggedDays, weekStartMillis,
             )
         }
     }
@@ -270,6 +269,7 @@ class TodayViewModel internal constructor(
         history: List<WorkoutHistorySummary>,
         routines: List<RoutineSummary>,
         userGoals: UserGoals,
+        profileGoalWeightKg: Double?,
         weights: List<BodyMetricEntity>,
         water: FoodWaterSummary,
         loggedDays: List<Long>,
@@ -294,7 +294,7 @@ class TodayViewModel internal constructor(
             nextRoutineName = nextRoutine?.name,
             nextRoutineId = nextRoutine?.id,
             weightDeltaKg = weightDelta,
-            targetWeightKg = userGoals.targetWeightKg.takeIf { it > 0.0 },
+            targetWeightKg = profileGoalWeightKg?.takeIf { it > 0.0 },
             stepsToday = health?.steps ?: 0L,
             stepGoal = userGoals.stepGoal,
             carbsGrams = nutrition.carbsGrams,
@@ -319,15 +319,12 @@ class TodayViewModel internal constructor(
 
     fun openDashboardEditor() {
         val goals = currentUserGoals
-        val targetWeight = goals.targetWeightKg.takeIf { it > 0.0 }
-            ?: currentProfileGoalWeightKg?.takeIf { it > 0.0 }
         mutableState.update {
             it.copy(
                 isDashboardEditorVisible = true,
                 editPins = currentPins,
                 stepGoalInput = goals.stepGoal.toString(),
                 sessionTargetInput = goals.weeklySessionTarget.toString(),
-                targetWeightInput = targetWeight?.formatMetric() ?: "",
             )
         }
     }
@@ -365,20 +362,15 @@ class TodayViewModel internal constructor(
         mutableState.update { it.copy(sessionTargetInput = value.filter(Char::isDigit)) }
     }
 
-    fun onTargetWeightInputChanged(value: String) {
-        mutableState.update { it.copy(targetWeightInput = value.filter { ch -> ch.isDigit() || ch == '.' }) }
-    }
-
     fun saveDashboard() {
         val current = state.value
         val goals = UserGoals(
             stepGoal = current.stepGoalInput.toLongOrNull()?.coerceAtLeast(0L) ?: currentUserGoals.stepGoal,
             weeklySessionTarget = current.sessionTargetInput.toIntOrNull()?.coerceAtLeast(0)
                 ?: currentUserGoals.weeklySessionTarget,
-            // Blank/unparseable input keeps the stored value (the profile-prefill makes this
-            // field non-empty far more often; silently zeroing the store would wipe the goal).
-            targetWeightKg = current.targetWeightInput.toDoubleOrNull()?.coerceAtLeast(0.0)
-                ?: currentUserGoals.targetWeightKg,
+            // Preserved verbatim: the column stays but Profile owns the value — Today
+            // neither edits nor reads it for behavior anymore.
+            targetWeightKg = currentUserGoals.targetWeightKg,
         )
         viewModelScope.launch {
             coachRepository.saveDashboardPins(current.editPins)
@@ -415,6 +407,13 @@ private data class FoodSnapshot(
     val goal: FoodGoal,
     val water: FoodWaterSummary,
     val loggedDays: List<Long>,
+)
+
+private data class TrainingGoalsProfile(
+    val history: List<WorkoutHistorySummary>,
+    val routines: List<RoutineSummary>,
+    val userGoals: UserGoals,
+    val profileGoalWeightKg: Double?,
 )
 
 private fun buildCarousel(
@@ -465,10 +464,3 @@ private fun buildCarousel(
         },
     )
 }
-
-private fun Double.formatMetric(): String =
-    if (this % 1.0 == 0.0) {
-        toInt().toString()
-    } else {
-        String.format(Locale.US, "%.1f", this)
-    }

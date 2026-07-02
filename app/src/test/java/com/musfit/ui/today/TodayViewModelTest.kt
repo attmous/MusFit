@@ -1,5 +1,6 @@
 package com.musfit.ui.today
 
+import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
@@ -59,8 +60,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TodayViewModelTest {
@@ -232,7 +235,32 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun dashboardEditor_prefillsPinsAndGoalsWithProfileFallbackForTargetWeight() = runTest {
+    fun coachInput_targetWeightComesFromProfileStore() = runTest {
+        val date = LocalDate.now()
+        val coachRepository = FakeCoachRepository()
+        val healthRepository = FakeHealthRepository(date)
+        // Two flat weights spanning both of the coach's Monday-anchored 7-day windows
+        // (one in [weekStart, weekStart+7d), one in [weekStart−7d, weekStart)) →
+        // weightDelta ≈ 0 → the "steady" message interpolates the target:
+        // "…keep nudging toward 75 kg." Anchoring to weekStart (not "now") keeps the
+        // test deterministic on every weekday.
+        val weekStartEpochDay = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay()
+        healthRepository.weightSeries.value = listOf(
+            BodyMetricEntity("w1", "weight", 82.0, "kg", (weekStartEpochDay - 3L) * 86_400_000L, "manual", null),
+            BodyMetricEntity("w2", "weight", 82.0, "kg", weekStartEpochDay * 86_400_000L, "manual", null),
+        )
+        val viewModel = todayViewModel(coachRepository = coachRepository, date = date, healthRepository = healthRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val weightMessage = coachRepository.lastCandidates.first { it.ruleKey == "weight_trend" }
+        assertTrue(weightMessage.body.contains("75"))
+    }
+
+    @Test
+    fun dashboardEditor_prefillsPinsAndGoals() = runTest {
         val coachRepository = FakeCoachRepository()
         val viewModel = todayViewModel(coachRepository = coachRepository)
         dispatcher.scheduler.advanceUntilIdle()
@@ -242,8 +270,7 @@ class TodayViewModelTest {
         val state = viewModel.state.value
         assertEquals(true, state.isDashboardEditorVisible)
         assertEquals(TodayMetric.DEFAULT_PINS, state.editPins)
-        // FakeGoalsRepository has targetWeightKg = 0.0 → falls back to profile goalWeightKg 75.0
-        assertEquals("75", state.targetWeightInput)
+        assertEquals("10000", state.stepGoalInput)
     }
 
     @Test
@@ -291,7 +318,7 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun saveDashboard_blankTargetWeightKeepsStoredValue() = runTest {
+    fun saveDashboard_neverTouchesStoredTargetWeight() = runTest {
         val goalsRepository = FakeGoalsRepositoryRecording()
         val viewModel = todayViewModel(
             coachRepository = FakeCoachRepository(),
@@ -300,11 +327,10 @@ class TodayViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.openDashboardEditor()
 
-        viewModel.onTargetWeightInputChanged("")
         viewModel.saveDashboard()
         dispatcher.scheduler.advanceUntilIdle()
 
-        // Stored value survives a blank input (deliberate change from the old `?: 0.0`).
+        // The column stays but Profile owns the value — Today passes it through verbatim.
         assertEquals(FakeGoalsRepositoryRecording.STORED_TARGET_WEIGHT, goalsRepository.saved!!.targetWeightKg, 0.001)
     }
 
@@ -334,10 +360,11 @@ class TodayViewModelTest {
         foodRepository: FakeFoodRepository = FakeFoodRepository(),
         profileRepository: ProfileRepository = FakeProfileRepository(),
         goalsRepository: GoalsRepository = FakeGoalsRepository(),
+        healthRepository: FakeHealthRepository? = null,
     ) = TodayViewModel(
         foodRepository = foodRepository,
         trainingRepository = FakeTrainingRepository(),
-        healthRepository = FakeHealthRepository(date),
+        healthRepository = healthRepository ?: FakeHealthRepository(date),
         goalsRepository = goalsRepository,
         coachRepository = coachRepository,
         profileRepository = profileRepository,
@@ -551,6 +578,9 @@ class TodayViewModelTest {
         private val date: LocalDate,
     ) : HealthRepository {
         val observedDates = mutableListOf<LocalDate>()
+        val weightSeries = MutableStateFlow<List<BodyMetricEntity>>(emptyList())
+
+        override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = weightSeries
 
         override suspend fun status(): HealthConnectStatus =
             HealthConnectStatus(HealthConnectAvailability.Available, emptySet())

@@ -92,7 +92,6 @@ fun TodayScreen(
             onMovePin = viewModel::movePin,
             onStepGoalChanged = viewModel::onStepGoalInputChanged,
             onSessionTargetChanged = viewModel::onSessionTargetInputChanged,
-            onTargetWeightChanged = viewModel::onTargetWeightInputChanged,
             onSave = viewModel::saveDashboard,
             onDismiss = viewModel::closeDashboardEditor,
         )

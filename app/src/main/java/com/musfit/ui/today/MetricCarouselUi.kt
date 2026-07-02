@@ -238,7 +238,7 @@ internal fun metricDestination(metric: TodayMetric): AppDestination = when (metr
     -> AppDestination.Profile
 }
 
-/** Edit sheet: pin/order metrics + the Goals section (step/session/target-weight). */
+/** Edit sheet: pin/order metrics + the Goals section (step/session). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardEditSheet(
@@ -247,7 +247,6 @@ fun DashboardEditSheet(
     onMovePin: (TodayMetric, Boolean) -> Unit,
     onStepGoalChanged: (String) -> Unit,
     onSessionTargetChanged: (String) -> Unit,
-    onTargetWeightChanged: (String) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -346,14 +345,6 @@ fun DashboardEditSheet(
                 label = { Text("Workouts per week") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.targetWeightInput,
-                onValueChange = onTargetWeightChanged,
-                label = { Text("Target weight (kg)") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
             )
             Button(

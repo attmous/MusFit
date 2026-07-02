@@ -590,8 +590,8 @@ object DatabaseModule {
     internal val MIGRATION_26_27 =
         object : Migration(26, 27) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Data-only: user_profile.goalWeightKg becomes the canonical target weight.
-                // The retired runtime reads preferred user_goals.targetWeightKg when > 0, so
+                // Data-only: user_profile.goalWeightKg becomes the canonical target weight. The runtime
+                // read paths retired in the next task preferred user_goals.targetWeightKg when > 0, so
                 // that value is carried over — recency-aware, and creating the profile row
                 // when the user only ever set the target in Today's sheet.
                 db.execSQL(
