@@ -101,7 +101,7 @@ fun TodayScreen(
             title = "Today",
             subtitle = state.dateLabel,
             actions = {
-                IconButton(onClick = viewModel::openGoalsEditor) {
+                IconButton(onClick = viewModel::openDashboardEditor) {
                     Icon(Icons.Outlined.Tune, contentDescription = "Edit goals", tint = MusFitTheme.colors.onSurfaceVariant)
                 }
             },
@@ -138,14 +138,14 @@ fun TodayScreen(
         ChatPreviewSheet(onDismiss = viewModel::closeChatPreview)
     }
 
-    if (state.isGoalsEditorVisible) {
+    if (state.isDashboardEditorVisible) {
         TodayGoalsEditorSheet(
             state = state,
             onStepGoalChanged = viewModel::onStepGoalInputChanged,
             onSessionTargetChanged = viewModel::onSessionTargetInputChanged,
             onTargetWeightChanged = viewModel::onTargetWeightInputChanged,
-            onSave = viewModel::saveUserGoals,
-            onDismiss = viewModel::closeGoalsEditor,
+            onSave = viewModel::saveDashboard,
+            onDismiss = viewModel::closeDashboardEditor,
         )
     }
 }

@@ -1,8 +1,11 @@
 package com.musfit.ui.today
 
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.repository.AppSettings
+import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.CoachMessage
 import com.musfit.data.repository.CoachRepository
+import com.musfit.data.repository.DEFAULT_APP_SETTINGS
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
@@ -10,7 +13,10 @@ import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.GoalsRepository
+import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserGoals
+import com.musfit.data.repository.UserProfile
+import com.musfit.data.repository.WeightEntry
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.LoggedWorkoutSet
@@ -34,6 +40,10 @@ import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.domain.profile.ActivityLevel
+import com.musfit.domain.profile.GoalType
+import com.musfit.domain.profile.RecommendedTargets
+import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
 import com.musfit.ui.AppDestination
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +89,7 @@ class TodayViewModelTest {
             healthRepository = healthRepository,
             goalsRepository = FakeGoalsRepository(),
             coachRepository = FakeCoachRepository(),
+            profileRepository = FakeProfileRepository(),
             dateProvider = { date },
         )
         dispatcher.scheduler.advanceUntilIdle()
@@ -120,6 +131,7 @@ class TodayViewModelTest {
             healthRepository = healthRepository,
             goalsRepository = FakeGoalsRepository(),
             coachRepository = FakeCoachRepository(),
+            profileRepository = FakeProfileRepository(),
             dateProvider = { targetDate },
         )
         dispatcher.scheduler.advanceUntilIdle()
@@ -138,6 +150,7 @@ class TodayViewModelTest {
             healthRepository = FakeHealthRepository(date),
             goalsRepository = FakeGoalsRepository(),
             coachRepository = FakeCoachRepository(),
+            profileRepository = FakeProfileRepository(),
             dateProvider = { date },
         )
         dispatcher.scheduler.advanceUntilIdle()
@@ -278,6 +291,71 @@ class TodayViewModelTest {
     }
 
     @Test
+    fun carousel_derivesPagesFromPinsAndLiveData() = runTest {
+        val coachRepository = FakeCoachRepository()
+        coachRepository.pins.value = listOf(TodayMetric.Calories, TodayMetric.Steps, TodayMetric.Protein)
+        val viewModel = todayViewModel(coachRepository = coachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val carousel = viewModel.state.value.carousel
+        assertEquals(1, carousel.pages.size)
+        val hero = carousel.pages[0].hero!!
+        assertEquals(TodayMetric.Calories, hero.metric)
+        // FakeFoodRepository: 600 eaten of 2000 goal → 1400 left, 30% progress
+        val heroValue = hero.value as MetricValue.WithGoal
+        assertEquals("1,400", heroValue.figure)
+        assertEquals(0.3f, heroValue.progress, 0.001f)
+        assertEquals(listOf(TodayMetric.Steps, TodayMetric.Protein), carousel.pages[0].chips.map { it.metric })
+    }
+
+    @Test
+    fun dashboardEditor_prefillsPinsAndGoalsWithProfileFallbackForTargetWeight() = runTest {
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openDashboardEditor()
+
+        val state = viewModel.state.value
+        assertEquals(true, state.isDashboardEditorVisible)
+        assertEquals(TodayMetric.DEFAULT_PINS, state.editPins)
+        // FakeGoalsRepository has targetWeightKg = 0.0 → falls back to profile goalWeightKg 75.0
+        assertEquals("75", state.targetWeightInput)
+    }
+
+    @Test
+    fun dashboardEditor_togglePinNeverRemovesTheLastOne() = runTest {
+        val viewModel = todayViewModel(coachRepository = FakeCoachRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openDashboardEditor()
+
+        viewModel.togglePin(TodayMetric.Steps)
+        viewModel.togglePin(TodayMetric.Protein)
+        viewModel.togglePin(TodayMetric.Calories) // last pin — must be ignored
+
+        assertEquals(listOf(TodayMetric.Calories), viewModel.state.value.editPins)
+    }
+
+    @Test
+    fun dashboardEditor_moveAndSavePersistPinsAndGoals() = runTest {
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openDashboardEditor()
+
+        viewModel.togglePin(TodayMetric.Weight) // append
+        viewModel.movePin(TodayMetric.Weight, up = true) // → before Protein
+        viewModel.saveDashboard()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf(TodayMetric.Calories, TodayMetric.Steps, TodayMetric.Weight, TodayMetric.Protein),
+            coachRepository.savedPins,
+        )
+        assertEquals(false, viewModel.state.value.isDashboardEditorVisible)
+    }
+
+    @Test
     fun coachActionDestination_mapsAllActionsIncludingDeletedRoutineFallback() {
         assertEquals(AppDestination.Food, coachActionDestination(CoachAction.OpenFood))
         assertEquals(AppDestination.Training, coachActionDestination(CoachAction.OpenTraining))
@@ -291,12 +369,14 @@ class TodayViewModelTest {
         date: LocalDate = LocalDate.now(),
         dateProvider: (() -> LocalDate)? = null,
         foodRepository: FakeFoodRepository = FakeFoodRepository(),
+        profileRepository: ProfileRepository = FakeProfileRepository(),
     ) = TodayViewModel(
         foodRepository = foodRepository,
         trainingRepository = FakeTrainingRepository(),
         healthRepository = FakeHealthRepository(date),
         goalsRepository = FakeGoalsRepository(),
         coachRepository = coachRepository,
+        profileRepository = profileRepository,
         dateProvider = dateProvider ?: { date },
         // Deterministic afternoon clock: the engine's time-gated rules (water_low is
         // NOT-morning, plan_morning is morning-only) must not flake with wall time.
@@ -415,6 +495,30 @@ class TodayViewModelTest {
         override fun observeUserGoals(): Flow<UserGoals> = MutableStateFlow(UserGoals())
 
         override suspend fun updateUserGoals(goals: UserGoals) = Unit
+    }
+
+    private class FakeProfileRepository : ProfileRepository {
+        val measurements = MutableStateFlow<Map<String, List<BodyMeasurement>>>(emptyMap())
+        val profile = MutableStateFlow(
+            UserProfile(
+                sex = null, birthDateEpochDay = null, heightCm = null,
+                activityLevel = ActivityLevel.Moderate, goalType = GoalType.Maintain,
+                goalPaceKgPerWeek = 0.0, goalWeightKg = 75.0,
+            ),
+        )
+
+        override fun observeProfile(): Flow<UserProfile> = profile
+        override suspend fun saveProfile(profile: UserProfile) = Unit
+        override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = MutableStateFlow(null)
+        override suspend fun logWeight(weightKg: Double, source: String) = Unit
+        override fun observeLatestWeight(): Flow<WeightEntry?> = MutableStateFlow(null)
+        override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> = MutableStateFlow(emptyList())
+        override suspend fun logMeasurement(type: String, value: Double, unit: String) = Unit
+        override suspend fun deleteEntry(id: String) = Unit
+        override suspend fun updateEntryValue(id: String, value: Double) = Unit
+        override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> = measurements
+        override fun observeSettings(): Flow<AppSettings> = MutableStateFlow(DEFAULT_APP_SETTINGS)
+        override suspend fun saveSettings(settings: AppSettings) = Unit
     }
 
     private class FakeTrainingRepository : TrainingRepository {
