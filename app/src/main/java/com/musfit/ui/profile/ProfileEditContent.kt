@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +34,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.MEASUREMENT_TYPES
 import com.musfit.data.repository.UserProfile
+import com.musfit.ui.AppDestination
+import com.musfit.ui.components.charts.TrendLineChart
+import com.musfit.ui.theme.tabAccentFor
 import com.musfit.domain.profile.ActivityLevel
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.Sex
@@ -156,10 +160,11 @@ fun LogWeightDialog(
 
 @Composable
 fun LogMeasurementDialog(
+    initialType: String = MEASUREMENT_TYPES.first(),
     onDismiss: () -> Unit,
     onConfirm: (type: String, value: Double, unit: String) -> Unit,
 ) {
-    var type by remember { mutableStateOf(MEASUREMENT_TYPES.first()) }
+    var type by remember { mutableStateOf(initialType) }
     var text by remember { mutableStateOf("") }
     val parsed = text.toPositiveDoubleOrNull()
     val unit = if (type == "body_fat") "%" else "cm"
@@ -232,6 +237,7 @@ fun EntriesSheet(
     onDismiss: () -> Unit,
     onEdit: (id: String, value: Double) -> Unit,
     onDelete: (id: String) -> Unit,
+    chartSeries: List<Double> = emptyList(),
 ) {
     var editing by remember { mutableStateOf<EntrySheetItem?>(null) }
     var deleting by remember { mutableStateOf<EntrySheetItem?>(null) }
@@ -239,6 +245,13 @@ fun EntriesSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
+            if (chartSeries.size >= 2) {
+                TrendLineChart(
+                    values = chartSeries,
+                    accent = tabAccentFor(AppDestination.Profile).color,
+                    modifier = Modifier.fillMaxWidth().height(96.dp).padding(vertical = 8.dp),
+                )
+            }
             if (items.isEmpty()) {
                 Text(
                     "No entries yet.",
