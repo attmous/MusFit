@@ -45,6 +45,8 @@ Food uses its own values and a bespoke gradient hero, and Profile leans on raw `
   card surfaces data the ViewModel already exposes).
 - Reworking the bottom nav / FAB — `FloatingPillNav` in
   [`AppNavGraph.kt`](../../../app/src/main/java/com/musfit/ui/AppNavGraph.kt) is already unified and stays as-is.
+  *Partially superseded 2026-07-02: the pill nav stays, but the adjacent "+" FAB slot is removed — see
+  [`2026-07-02-fab-consolidation-design.md`](2026-07-02-fab-consolidation-design.md).*
 - New color values or a new type scale — the existing `MusFitColors` / `TabAccent` / `MusFitTypography` are the
   source of truth.
 - Redesigning the internal content of any single tab beyond adopting the shared language (e.g. the Food diary's
