@@ -5,6 +5,13 @@ MusFit is an Android strength-training and nutrition tracker built to become the
 interface for a personal AI coach that *you* run: a locally hosted model, your own API key, or a
 personal agent you already operate. No account. No subscription. Nobody else's cloud.
 
+| Today — coach feed | Food — diary | Training — routines | Active workout | Profile — body hub |
+| :---: | :---: | :---: | :---: | :---: |
+| ![Today tab with metric summary and coach feed](docs/media/today.png) | ![Food diary with calorie ring and macro progress](docs/media/food.png) | ![Training tab with weekly summary and routines](docs/media/training.png) | ![Active workout with PR badge, warm-up ramp, and plate math](docs/media/workout.png) | ![Profile body hub with weight trend and measurements](docs/media/profile.png) |
+
+*The shipped app today, on seeded demo data — and the coral chat bubble in every corner is
+where the coach will live.*
+
 ## The idea
 
 The best coach sees the whole picture — what you ate, how you trained, how you slept — and
