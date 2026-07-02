@@ -50,6 +50,11 @@ A future AI coach writes into the same store behind the same interface.
    clearance above the `FloatingPillNav`; persistent (does not hide on
    scroll); the feed list gets enough bottom content padding to scroll clear
    of it. The "soon" cue is a small text badge on the FAB.
+   *Superseded 2026-07-02: the chat button moved into the `FloatingPillNav`
+   bar slot (all tabs, replacing the old "+"), and the floating copy left
+   Today — see
+   [`2026-07-02-fab-consolidation-design.md`](2026-07-02-fab-consolidation-design.md).
+   The FAB's look, badge, and `ChatPreviewSheet` behavior are unchanged.*
 
 Removed from Today entirely: `WeeklyCaloriesCard`, `WeightTrendCard`,
 `WeekStatsRow`, the training glimpse tile, the macro bar, and the old

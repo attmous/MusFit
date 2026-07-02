@@ -4,6 +4,8 @@
 
 **Goal:** Remove the redundant global "+" FAB from the bottom nav so each tab has at most one floating button (Today = coach chat, Food = quick-add, others = none).
 
+> **Amended 2026-07-02 (Tasks 3–4):** after user review of the built result, the chat button moves *into* the bar slot the "+" occupied, on every tab; Today's floating chat FAB and its ViewModel state are removed. Tasks 1–2 are complete and stand as shipped (`e2f3f02`).
+
 **Architecture:** Pure UI deletion in a single file, `app/src/main/java/com/musfit/ui/AppNavGraph.kt`: the `FabSquare` composable, its call inside `FloatingPillNav`, the `onFab` parameter, and two now-unused icon imports go away; the nav pill (weight 1f) automatically expands into the freed row width. `ChatPreviewFab` (Today) and Food's in-screen FAB are untouched.
 
 **Tech Stack:** Kotlin, Jetpack Compose M3. No new dependencies, no Room/ViewModel changes.
@@ -234,3 +236,214 @@ adb -s 38241FDJG00BLY shell rm -f /sdcard/sc.png
 ```
 
 Summarize the three screenshots for the user. No commit in this task.
+
+---
+
+### Task 3: Move the coach chat button into the nav-bar slot (all tabs)
+
+**Files:**
+- Modify: `app/src/main/java/com/musfit/ui/AppNavGraph.kt`
+- Modify: `app/src/main/java/com/musfit/ui/today/TodayScreen.kt`
+- Modify: `app/src/main/java/com/musfit/ui/today/TodayViewModel.kt`
+- Modify: `app/src/test/java/com/musfit/ui/today/TodayViewModelTest.kt`
+
+**TDD note:** this task removes behavior (the ViewModel chat-preview toggle) and moves declarative UI. The deleted test is the spec of the removed behavior and goes in the same commit; the gate is the full remaining suite + lint + assemble, then on-device checks (Task 4). Do not add new tests — sheet visibility becomes plain Compose UI state, which this repo does not unit-test.
+
+- [ ] **Step 1: Delete the `chatPreview_togglesVisibility` test**
+
+In `app/src/test/java/com/musfit/ui/today/TodayViewModelTest.kt`, delete this whole method (currently lines ~216–225):
+
+```kotlin
+    @Test
+    fun chatPreview_togglesVisibility() = runTest {
+        val viewModel = todayViewModel(coachRepository = FakeCoachRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openChatPreview()
+        assertTrue(viewModel.state.value.isChatPreviewVisible)
+        viewModel.closeChatPreview()
+        assertEquals(false, viewModel.state.value.isChatPreviewVisible)
+    }
+```
+
+If `assertTrue` (or any other import) has no remaining usage in the test file afterwards, remove that import too — check with a search before deleting.
+
+- [ ] **Step 2: Remove the chat-preview state from `TodayViewModel`**
+
+In `app/src/main/java/com/musfit/ui/today/TodayViewModel.kt`:
+
+Delete this line from the `TodayUiState` data class (keep `feed` and its trailing comma):
+
+```kotlin
+    val isChatPreviewVisible: Boolean = false,
+```
+
+Delete these two functions (and the blank line between them):
+
+```kotlin
+    fun openChatPreview() = mutableState.update { it.copy(isChatPreviewVisible = true) }
+
+    fun closeChatPreview() = mutableState.update { it.copy(isChatPreviewVisible = false) }
+```
+
+- [ ] **Step 3: Remove the floating chat FAB from `TodayScreen`**
+
+In `app/src/main/java/com/musfit/ui/today/TodayScreen.kt`:
+
+Delete the constant near the top of the file:
+
+```kotlin
+private val ChatFabClearance = 76.dp
+```
+
+Unwrap the `Box` overlay: the body currently reads
+
+```kotlin
+    Box(modifier = Modifier.fillMaxSize()) {
+        MusFitScreenScaffold(
+            title = "Today",
+            ...
+        ) {
+            ...
+            Spacer(Modifier.height(ChatFabClearance))
+        }
+
+        ChatPreviewFab(
+            onClick = viewModel::openChatPreview,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(MusFitTheme.spacing.lg),
+        )
+    }
+
+    if (state.isChatPreviewVisible) {
+        ChatPreviewSheet(onDismiss = viewModel::closeChatPreview)
+    }
+```
+
+After the edit, `MusFitScreenScaffold(...) { ... }` stands at top level (re-indent its contents one level out), with:
+- the `Spacer(Modifier.height(ChatFabClearance))` line deleted,
+- the `ChatPreviewFab(...)` block deleted,
+- the `if (state.isChatPreviewVisible) { ChatPreviewSheet(...) }` block deleted,
+- the wrapping `Box(modifier = Modifier.fillMaxSize()) { ... }` removed.
+
+Then remove any imports the file no longer uses (candidates: `Box`, `fillMaxSize`, `Spacer`, `height`, `Alignment` — verify each with a search; `ChatPreviewFab`/`ChatPreviewSheet` are same-package, no imports involved). Keep everything else (`MusFitTheme` is still used elsewhere in the file).
+
+- [ ] **Step 4: Add the chat button + sheet to `AppNavGraph`**
+
+In `app/src/main/java/com/musfit/ui/AppNavGraph.kt`:
+
+(a) Add two imports in the `com.musfit.ui.today` group (before `TodayScreen`):
+
+```kotlin
+import com.musfit.ui.today.ChatPreviewFab
+import com.musfit.ui.today.ChatPreviewSheet
+```
+
+(b) In `AppNavGraph()`, after the `scannedLabelText` declaration, add:
+
+```kotlin
+    var chatPreviewVisible by rememberSaveable { mutableStateOf(false) }
+```
+
+(c) At the `Scaffold` call site, wire the new parameter:
+
+```kotlin
+        bottomBar = {
+            FloatingPillNav(
+                destinations = destinations,
+                currentRoute = currentRoute,
+                onSelect = { go(it.route) },
+                onChat = { chatPreviewVisible = true },
+            )
+        },
+```
+
+(d) Render the sheet at function level, between the `Scaffold` block's closing brace and the closing brace of `AppNavGraph()`:
+
+```kotlin
+    if (chatPreviewVisible) {
+        ChatPreviewSheet(onDismiss = { chatPreviewVisible = false })
+    }
+```
+
+(e) Update `FloatingPillNav`'s doc comment and signature:
+
+```kotlin
+/**
+ * M3E-style floating bottom nav: a rounded pill of destinations + the coach-chat button.
+ * A single pill indicator sits behind the items and springs to the selected tab on navigation —
+ * the one motion in the bar. Add-food floating actions belong to Food's own content.
+ */
+@Composable
+private fun FloatingPillNav(
+    destinations: List<AppDestination>,
+    currentRoute: String,
+    onSelect: (AppDestination) -> Unit,
+    onChat: () -> Unit,
+) {
+```
+
+(f) Restore the Row's alignment/arrangement (two children again):
+
+```kotlin
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+```
+
+(g) After the pill `Surface` block closes (the `}` at one indent inside the `Row`), add the chat button so the tail of `FloatingPillNav` reads:
+
+```kotlin
+        }
+        ChatPreviewFab(onClick = onChat)
+    }
+}
+```
+
+- [ ] **Step 5: Run the full verification build**
+
+```powershell
+. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+```
+
+Expected: `BUILD SUCCESSFUL`. OneDrive recovery if needed: `.\gradlew.bat --stop`, wait 3 s, `Remove-Item -Recurse -Force app\build`, rerun.
+
+- [ ] **Step 6: Commit**
+
+```powershell
+git add app/src/main/java/com/musfit/ui/AppNavGraph.kt app/src/main/java/com/musfit/ui/today/TodayScreen.kt app/src/main/java/com/musfit/ui/today/TodayViewModel.kt app/src/test/java/com/musfit/ui/today/TodayViewModelTest.kt
+git commit -m "feat(nav): coach chat button takes the bar slot on every tab
+
+The chat preview moves from a Today-only floating FAB into the
+FloatingPillNav slot the old + occupied, so the coach is reachable
+from anywhere and Today loses its stacked corner button. Sheet
+visibility becomes plain UI state in AppNavGraph; TodayViewModel
+drops isChatPreviewVisible/openChatPreview/closeChatPreview. Per
+amended spec docs/superpowers/specs/2026-07-02-fab-consolidation-design.md.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 4: On-device verification of the amended layout (Pixel 8 Pro)
+
+**Files:** none (verification only)
+
+- [ ] **Step 1: Install and launch** — same commands as Task 2 Step 1.
+
+- [ ] **Step 2: Today** — screenshot to `today_after2.png`. Verify: the coral chat square (with "Soon" badge) sits in the bottom bar row to the RIGHT of the nav pill; NO floating button in the content area above it.
+
+- [ ] **Step 3: Training** — tap the Training pill item (derive x from the screenshot; the pill is narrower again with the button back), screenshot to `training_after2.png`. Verify: the same chat square is present beside the pill; no other floating button.
+
+- [ ] **Step 4: Food** — tap the Food pill item, screenshot to `food_after2.png`. Verify: chat square beside the pill AND Food's own quick-add FAB floating above in content — exactly two coral elements, not three.
+
+- [ ] **Step 5: Chat sheet opens** — on any tab, tap the chat square (derive coords from the current screenshot), wait 2 s, screenshot to `chat_sheet_open.png`. Verify the "coach chat is coming" sheet is shown. Dismiss it by tapping the dimmed scrim near the top (`input tap 672 300`), screenshot again to confirm it closed.
+
+- [ ] **Step 6: Clean up** — `adb -s 38241FDJG00BLY shell rm -f /sdcard/sc.png`; report per-screenshot findings. No commit.
