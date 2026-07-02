@@ -8,7 +8,6 @@ import com.musfit.core.di.DatabaseModule
 import java.io.File
 import org.json.JSONObject
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -16,7 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class AccountProviderMigration27To28Test {
+class AiCoachMigration28To29Test {
     private lateinit var context: Context
 
     @Before
@@ -31,13 +30,12 @@ class AccountProviderMigration27To28Test {
     }
 
     @Test
-    fun migration27To28_addsProviderColumnsToExistingAccounts() {
-        createDatabaseFromExportedSchema(version = 27)
-        insertLocalDefaultAccount()
+    fun migration28To29_createsAiCoachSettingsTable() {
+        createDatabaseFromExportedSchema(version = 28)
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_27_28, DatabaseModule.MIGRATION_28_29)
+                .addMigrations(DatabaseModule.MIGRATION_28_29)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -45,29 +43,30 @@ class AccountProviderMigration27To28Test {
             roomDatabase.close()
         }
 
-        val database =
+        val migrated =
             SQLiteDatabase.openDatabase(
                 context.getDatabasePath(TEST_DATABASE_NAME).path,
                 null,
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            database.rawQuery(
-                """
-                SELECT authProvider, avatarUrl
-                FROM accounts
-                WHERE id = 'local-default'
-                """.trimIndent(),
-                null,
-            ).use { cursor ->
-                assertTrue(cursor.moveToFirst())
-                assertEquals("local", cursor.getString(0))
-                assertTrue(cursor.isNull(1))
-            }
+            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "accountId"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "providerKind"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "baseUrl"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "modelName"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "localAgentKind"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "apiKeyStored"))
         } finally {
-            database.close()
+            migrated.close()
         }
     }
+
+    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean =
+        database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
+                .any { it == columnName }
+        }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
         val schemaFile = resolveSchemaFile(version)
@@ -86,10 +85,7 @@ class AccountProviderMigration27To28Test {
                 for (indexPosition in 0 until indices.length()) {
                     val entityIndex = indices.getJSONObject(indexPosition)
                     database.execSQL(
-                        resolveSchemaSql(
-                            entityIndex.getString("createSql"),
-                            entity.getString("tableName"),
-                        ),
+                        resolveSchemaSql(entityIndex.getString("createSql"), entity.getString("tableName")),
                     )
                 }
             }
@@ -105,28 +101,6 @@ class AccountProviderMigration27To28Test {
 
     private fun resolveSchemaSql(sql: String, tableName: String): String = sql.replace("\${TABLE_NAME}", tableName)
 
-    private fun insertLocalDefaultAccount() {
-        val database =
-            SQLiteDatabase.openDatabase(
-                context.getDatabasePath(TEST_DATABASE_NAME).path,
-                null,
-                SQLiteDatabase.OPEN_READWRITE,
-            )
-        try {
-            database.execSQL(
-                """
-                INSERT INTO accounts (
-                    id, displayName, email, remoteUserId, createdAtEpochMillis, updatedAtEpochMillis
-                ) VALUES (
-                    'local-default', 'You', NULL, NULL, 0, 0
-                )
-                """.trimIndent(),
-            )
-        } finally {
-            database.close()
-        }
-    }
-
     private fun resolveSchemaFile(version: Int): File {
         val relativePath = "schemas/com.musfit.data.local.MusFitDatabase/$version.json"
         val candidates = listOf(File(relativePath), File("app/$relativePath"), File("../app/$relativePath"))
@@ -135,6 +109,6 @@ class AccountProviderMigration27To28Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "account-provider-27-28"
+        const val TEST_DATABASE_NAME = "ai-coach-28-29"
     }
 }

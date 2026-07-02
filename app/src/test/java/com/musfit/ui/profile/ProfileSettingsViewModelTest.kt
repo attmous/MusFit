@@ -4,6 +4,12 @@ import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.Account
 import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountRepository
+import com.musfit.data.repository.AiCoachApiKeyUpdate
+import com.musfit.data.repository.AiCoachConnection
+import com.musfit.data.repository.AiCoachProviderKind
+import com.musfit.data.repository.AiCoachRepository
+import com.musfit.data.repository.AiCoachSettings
+import com.musfit.data.repository.AiCoachSettingsInput
 import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.DEFAULT_APP_SETTINGS
@@ -12,6 +18,7 @@ import com.musfit.data.repository.ExternalAuthRepository
 import com.musfit.data.repository.ExternalAccountProfile
 import com.musfit.data.repository.GitHubDeviceAuthorization
 import com.musfit.data.repository.HealthRepository
+import com.musfit.data.repository.LocalAgentKind
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserProfile
 import com.musfit.data.repository.WeightEntry
@@ -47,11 +54,13 @@ class ProfileSettingsViewModelTest {
         accountRepository: AccountRepository = FakeAccountRepository(),
         profileRepository: ProfileRepository = FakeProfileRepository(),
         externalAuthRepository: ExternalAuthRepository = FakeExternalAuthRepository(),
+        aiCoachRepository: AiCoachRepository = FakeAiCoachRepository(),
     ) = ProfileSettingsViewModel(
         healthRepository,
         accountRepository,
         profileRepository,
         externalAuthRepository,
+        aiCoachRepository,
     )
 
     @Before
@@ -392,6 +401,130 @@ class ProfileSettingsViewModelTest {
         assertEquals(80.0, viewModel.state.value.latestWeightKg!!, 0.001)
     }
 
+    @Test
+    fun aiCoachState_exposesSavedProvider() = runTest {
+        val aiCoachRepository = FakeAiCoachRepository(
+            initial = AiCoachSettings(
+                providerKind = AiCoachProviderKind.OpenAiCompatible,
+                baseUrl = "https://api.example.com/",
+                modelName = "gpt-4.1-mini",
+                localAgentKind = LocalAgentKind.Custom,
+                hasApiKey = true,
+            ),
+        )
+
+        val viewModel = settingsViewModel(aiCoachRepository = aiCoachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AiCoachProviderKind.OpenAiCompatible, viewModel.state.value.aiCoach.providerKind)
+        assertEquals("API-compatible endpoint", viewModel.state.value.aiCoach.providerLabel)
+        assertEquals("https://api.example.com/", viewModel.state.value.aiCoach.endpointLabel)
+        assertEquals("gpt-4.1-mini", viewModel.state.value.aiCoach.modelLabel)
+        assertEquals("Key saved", viewModel.state.value.aiCoach.apiKeyLabel)
+    }
+
+    @Test
+    fun openAiCoachEditor_prefillsSavedSettingsAndSaveDelegatesInput() = runTest {
+        val aiCoachRepository = FakeAiCoachRepository(
+            initial = AiCoachSettings(
+                providerKind = AiCoachProviderKind.LocalAgent,
+                baseUrl = "http://10.0.2.2:8989/",
+                modelName = "",
+                localAgentKind = LocalAgentKind.OpenClaw,
+                hasApiKey = false,
+            ),
+        )
+        val viewModel = settingsViewModel(aiCoachRepository = aiCoachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAiCoachEditor()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, viewModel.state.value.aiCoachEditorOpen)
+        assertEquals(AiCoachProviderKind.LocalAgent, viewModel.state.value.aiCoachProviderInput)
+        assertEquals("http://10.0.2.2:8989/", viewModel.state.value.aiCoachBaseUrlInput)
+        assertEquals(LocalAgentKind.OpenClaw, viewModel.state.value.aiCoachLocalAgentInput)
+
+        viewModel.onAiCoachProviderChanged(AiCoachProviderKind.OpenAiCompatible)
+        viewModel.onAiCoachBaseUrlChanged("https://api.example.com")
+        viewModel.onAiCoachModelNameChanged("gpt-4.1-mini")
+        viewModel.onAiCoachApiKeyChanged("sk-test")
+        viewModel.saveAiCoachSettings()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(false, viewModel.state.value.aiCoachEditorOpen)
+        assertEquals("AI coach setup saved.", viewModel.state.value.message)
+        assertEquals(
+            AiCoachSettingsInput(
+                providerKind = AiCoachProviderKind.OpenAiCompatible,
+                baseUrl = "https://api.example.com",
+                modelName = "gpt-4.1-mini",
+                localAgentKind = LocalAgentKind.OpenClaw,
+                apiKey = AiCoachApiKeyUpdate.Replace("sk-test"),
+            ),
+            aiCoachRepository.savedInput,
+        )
+    }
+
+    @Test
+    fun saveAiCoachSettings_withoutNewKeyKeepsExistingKey() = runTest {
+        val aiCoachRepository = FakeAiCoachRepository(
+            initial = AiCoachSettings(
+                providerKind = AiCoachProviderKind.OpenAiCompatible,
+                baseUrl = "https://api.example.com/",
+                modelName = "gpt-4.1-mini",
+                localAgentKind = LocalAgentKind.Custom,
+                hasApiKey = true,
+            ),
+        )
+        val viewModel = settingsViewModel(aiCoachRepository = aiCoachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAiCoachEditor()
+        viewModel.saveAiCoachSettings()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AiCoachApiKeyUpdate.KeepExisting, aiCoachRepository.savedInput?.apiKey)
+    }
+
+    @Test
+    fun saveAiCoachSettings_failureKeepsEditorOpenWithError() = runTest {
+        val aiCoachRepository = FakeAiCoachRepository()
+        aiCoachRepository.saveError = IllegalArgumentException("Enter a valid http(s) base URL.")
+        val viewModel = settingsViewModel(aiCoachRepository = aiCoachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAiCoachEditor()
+        viewModel.onAiCoachProviderChanged(AiCoachProviderKind.OpenAiCompatible)
+        viewModel.onAiCoachBaseUrlChanged("bad")
+        viewModel.onAiCoachModelNameChanged("gpt-4.1-mini")
+        viewModel.saveAiCoachSettings()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(true, viewModel.state.value.aiCoachEditorOpen)
+        assertEquals("Enter a valid http(s) base URL.", viewModel.state.value.aiCoachErrorMessage)
+    }
+
+    @Test
+    fun clearAiCoachApiKey_delegatesAndUpdatesMessage() = runTest {
+        val aiCoachRepository = FakeAiCoachRepository(
+            initial = AiCoachSettings(
+                providerKind = AiCoachProviderKind.OpenAiCompatible,
+                baseUrl = "https://api.example.com/",
+                modelName = "gpt-4.1-mini",
+                localAgentKind = LocalAgentKind.Custom,
+                hasApiKey = true,
+            ),
+        )
+        val viewModel = settingsViewModel(aiCoachRepository = aiCoachRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.clearAiCoachApiKey()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, aiCoachRepository.clearCalls)
+        assertEquals("AI coach API key cleared.", viewModel.state.value.message)
+    }
+
     private class FakeHealthRepository(
         private var status: HealthConnectStatus = HealthConnectStatus(
             availability = HealthConnectAvailability.Available,
@@ -522,5 +655,35 @@ class ProfileSettingsViewModelTest {
             )
             return profile
         }
+    }
+
+    private class FakeAiCoachRepository(
+        initial: AiCoachSettings = AiCoachSettings(),
+    ) : AiCoachRepository {
+        private val settings = MutableStateFlow(initial)
+        var savedInput: AiCoachSettingsInput? = null
+        var saveError: Throwable? = null
+        var clearCalls = 0
+
+        override fun observeSettings(): Flow<AiCoachSettings> = settings
+
+        override suspend fun saveSettings(input: AiCoachSettingsInput) {
+            saveError?.let { throw it }
+            savedInput = input
+            settings.value = settings.value.copy(
+                providerKind = input.providerKind,
+                baseUrl = input.baseUrl,
+                modelName = input.modelName,
+                localAgentKind = input.localAgentKind,
+                hasApiKey = input.apiKey is AiCoachApiKeyUpdate.Replace || settings.value.hasApiKey,
+            )
+        }
+
+        override suspend fun clearApiKey() {
+            clearCalls += 1
+            settings.value = settings.value.copy(hasApiKey = false)
+        }
+
+        override suspend fun activeConnection(): AiCoachConnection? = null
     }
 }
