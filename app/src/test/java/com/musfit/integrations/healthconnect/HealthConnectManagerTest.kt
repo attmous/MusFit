@@ -114,6 +114,24 @@ class HealthConnectManagerTest {
     }
 
     @Test
+    fun readDailySummary_reportsZeroSteps_whenPermissionGrantedButNoStepRecordsExist() = runTest {
+        val client = FakeHealthConnectClientAdapter(steps = null)
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission()),
+            ),
+            factory = factory,
+        )
+
+        val summary = manager.readDailySummary(LocalDate.of(2026, 7, 3))
+
+        assertEquals(0L, summary.steps)
+        assertEquals(1, client.stepsCalls)
+    }
+
+    @Test
     fun requestablePermissions_includeCoreFitnessReadsAndUseRestingHeartRate_notGenericHeartRate() = runTest {
         val manager = managerWith(
             status = HealthConnectStatus(HealthConnectAvailability.NotInstalled, emptySet()),

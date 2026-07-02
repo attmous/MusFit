@@ -104,7 +104,7 @@ class HealthConnectManager @Inject constructor(
         val range = date.asHealthConnectTimeRange()
 
         val steps = if (canReadSteps) {
-            runCatching { client.aggregateSteps(range) }.getOrNull()
+            runCatching { client.aggregateSteps(range) ?: 0L }.getOrNull()
         } else {
             null
         }
