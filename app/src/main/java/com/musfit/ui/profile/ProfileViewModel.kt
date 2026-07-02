@@ -2,7 +2,6 @@ package com.musfit.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.Account
 import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.BodyMeasurement
@@ -41,12 +40,6 @@ import java.time.Period
 import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 import kotlin.math.roundToInt
-
-data class VitalsSummary(
-    val steps: Long?,
-    val activeCaloriesKcal: Double?,
-    val restingHeartRateBpm: Long?,
-)
 
 data class WeightHeroState(
     val latestWeightKg: Double? = null,
@@ -99,7 +92,6 @@ data class ProfileUiState(
     val recommendedTargets: RecommendedTargets? = null,
     val weightEntries: List<WeightEntry> = emptyList(),
     val measurementEntries: Map<String, List<BodyMeasurement>> = emptyMap(),
-    val vitals: VitalsSummary? = null,
     val planCards: List<PlanCard> = emptyList(),
     val isHealthConnectNudgeVisible: Boolean = false,
     val message: String? = null,
@@ -123,7 +115,6 @@ class ProfileViewModel internal constructor(
     private val dateProvider: () -> LocalDate,
     private val clock: () -> Long,
 ) : ViewModel() {
-    private val today = dateProvider()
     private val messageFlow = MutableStateFlow<String?>(null)
     private val accountEditorFlow = MutableStateFlow(AccountEditorState())
     private val nudgeFlow = MutableStateFlow(false)
@@ -192,21 +183,18 @@ class ProfileViewModel internal constructor(
         buildPlanCards(goal, routines, history, userGoals, dateProvider())
     }
 
-    // Pre-combined pairs keep the outer combine at kotlinx's 5-flow typed cap.
+    // Pre-combined pairs keep the outer combine within kotlinx's 5-flow typed cap.
     private val uiExtras = combine(messageFlow, accountEditorFlow) { message, editor -> message to editor }
     private val hubExtras = combine(planCardsFlow, nudgeFlow) { cards, nudge -> cards to nudge }
 
     val state: StateFlow<ProfileUiState> = combine(
         dataState,
         accountRepository.observeActiveAccount(),
-        // Init-pinned deliberately: the vitals card is removed in Task 7; no activeDate refresh needed.
-        healthRepository.observeDailySummary(today),
         uiExtras,
         hubExtras,
-    ) { base, account, summary, (message, editor), (cards, nudge) ->
+    ) { base, account, (message, editor), (cards, nudge) ->
         base.copy(
             account = account.toUiState(),
-            vitals = summary?.toVitals(),
             message = message,
             accountEditorOpen = editor.open,
             accountNameInput = editor.nameInput,
@@ -415,9 +403,6 @@ private fun buildPlanCards(
     }
     return listOf(diet, training)
 }
-
-private fun DailyHealthSummaryEntity.toVitals() =
-    VitalsSummary(steps = steps, activeCaloriesKcal = activeCaloriesKcal, restingHeartRateBpm = restingHeartRateBpm)
 
 private fun Account.toUiState() =
     AccountUiState(

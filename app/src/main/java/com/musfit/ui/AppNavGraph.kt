@@ -113,7 +113,11 @@ fun AppNavGraph() {
             }
             composable(AppDestination.Training.route) { TrainingScreen() }
             composable(AppDestination.Profile.route) {
-                ProfileScreen(onSettingsClick = { navController.navigate(PROFILE_SETTINGS_ROUTE) })
+                ProfileScreen(
+                    onSettingsClick = { navController.navigate(PROFILE_SETTINGS_ROUTE) },
+                    onOpenFood = { go(AppDestination.Food.route) },
+                    onOpenTraining = { go(AppDestination.Training.route) },
+                )
             }
             composable(PROFILE_SETTINGS_ROUTE) {
                 ProfileSettingsScreen(onBack = { navController.popBackStack() })

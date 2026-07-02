@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -35,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,10 +49,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.components.MusFitSummaryCard
+import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.charts.TrendLineChart
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -63,11 +67,25 @@ import kotlin.math.roundToInt
 @Composable
 fun ProfileScreen(
     onSettingsClick: () -> Unit,
+    onOpenFood: () -> Unit = {},
+    onOpenTraining: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     val accent = tabAccentFor(AppDestination.Profile)
     val snackbarHostState = remember { SnackbarHostState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Re-check the Health Connect nudge whenever the screen resumes: permissions are
+    // granted outside the app, so init-only state would never hide it.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onScreenResumed()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     var showEditor by remember { mutableStateOf(false) }
     var showLogWeight by remember { mutableStateOf(false) }
     var showLogMeasurement by remember { mutableStateOf(false) }
@@ -106,21 +124,38 @@ fun ProfileScreen(
                     }
                 },
             )
-            AccountCard(state = state, onEdit = viewModel::openAccountEditor)
-            IdentityCard(state = state, onEdit = { showEditor = true })
-            GoalCard(state = state, onApply = viewModel::applyTargetsToFood, onComplete = { showEditor = true })
+            if (state.isHealthConnectNudgeVisible) {
+                HealthConnectNudge(onOpen = onSettingsClick)
+            }
             WeightCard(state = state, accent = accent, onLog = { showLogWeight = true }, onOpenEntries = { showWeightSheet = true })
-            MeasurementsCard(
+            SectionHeader(
+                title = "Measurements",
+                trailingActionLabel = "+ Log",
+                trailingActionColor = accent.color,
+                onTrailingAction = { showLogMeasurement = true },
+            )
+            MeasurementsGrid(
                 state = state,
                 accent = accent,
-                onLog = { showLogMeasurement = true },
                 onOpenType = { type ->
                     state.tiles.firstOrNull { it.type == type }?.let { tile ->
                         if (tile.entryCount == 0) logMeasurementInitialType = type else measurementSheetType = type
                     }
                 },
             )
-            VitalsCard(state = state, onManage = onSettingsClick)
+            SectionHeader(
+                title = "Goal",
+                trailingActionLabel = "Edit",
+                trailingActionColor = accent.color,
+                onTrailingAction = { showEditor = true },
+            )
+            GoalCard(state = state, onApply = viewModel::applyTargetsToFood, onComplete = { showEditor = true })
+            SectionHeader(title = "Plans")
+            state.planCards.forEach { card ->
+                PlanCardRow(card = card, onClick = { if (card.id == "diet") onOpenFood() else onOpenTraining() })
+            }
+            // Last on the hub for now; moves into Settings in Task 8.
+            AccountCard(state = state, onEdit = viewModel::openAccountEditor)
         }
     }
 
@@ -286,34 +321,42 @@ private fun AccountEditDialog(
 }
 
 @Composable
-private fun IdentityCard(state: ProfileUiState, onEdit: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit), shape = MaterialTheme.shapes.extraLarge) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.secondaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Outlined.Person,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Your profile", style = MaterialTheme.typography.titleMedium)
-                    Text(identitySubtitle(state), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Text("Edit", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                MiniMetric("Weight", state.hero.latestWeightKg?.let { "${it.format1()} kg" }, Modifier.weight(1f))
-                MiniMetric("BMI", state.hero.bmi?.let { it.format1() }, Modifier.weight(1f))
-                MiniMetric("Body fat", state.tiles.firstOrNull { it.type == "body_fat" }?.value?.let { "${it.format1()} %" }, Modifier.weight(1f))
-            }
+private fun HealthConnectNudge(onOpen: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = "Open Health Connect settings", onClick = onOpen),
+        shape = MaterialTheme.shapes.extraLarge,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Connect Health Connect to mirror steps and heart rate",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Text("Set up", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun PlanCardRow(card: PlanCard, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                onClickLabel = if (card.id == "diet") "Manage diet in Food" else "Manage program in Training",
+                onClick = onClick,
+            ),
+        shape = MaterialTheme.shapes.extraLarge,
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(card.title, style = MaterialTheme.typography.titleMedium)
+            Text(card.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -322,7 +365,6 @@ private fun IdentityCard(state: ProfileUiState, onEdit: () -> Unit) {
 private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Goal", style = MaterialTheme.typography.titleMedium)
             val profile = state.profile
             if (profile != null) {
                 val goalText = buildString {
@@ -426,13 +468,9 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Un
 }
 
 @Composable
-private fun MeasurementsCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Unit, onOpenType: (String) -> Unit) {
+private fun MeasurementsGrid(state: ProfileUiState, accent: TabAccent, onOpenType: (String) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Measurements", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = onLog) { Text("Log") }
-            }
             state.tiles.chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     row.forEach { tile ->
@@ -493,49 +531,6 @@ private fun MeasurementCell(tile: MeasurementTile, accent: TabAccent, onClick: (
 }
 
 @Composable
-private fun VitalsCard(state: ProfileUiState, onManage: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("From Health Connect", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = onManage) { Text("Manage") }
-            }
-            val vitals = state.vitals
-            if (vitals != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    MiniMetric("Resting HR", vitals.restingHeartRateBpm?.let { "$it bpm" }, Modifier.weight(1f))
-                    MiniMetric("Steps", vitals.steps?.toString(), Modifier.weight(1f))
-                    MiniMetric("Active", vitals.activeCaloriesKcal?.let { "${it.format1()} kcal" }, Modifier.weight(1f))
-                }
-            } else {
-                Text(
-                    "Connect Health Connect to mirror your steps, resting heart rate, and active calories.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MiniMetric(label: String, value: String?, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-    ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
-            value ?: "—",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-@Composable
 private fun ProgressBar(fraction: Float) {
     Box(
         modifier = Modifier
@@ -558,14 +553,6 @@ private val MEASUREMENT_SHEET_LABELS = mapOf(
     "waist" to "Waist", "chest" to "Chest", "arms" to "Arms",
     "thighs" to "Thighs", "hips" to "Hips", "body_fat" to "Body fat",
 )
-
-private fun identitySubtitle(state: ProfileUiState): String {
-    val parts = mutableListOf<String>()
-    state.ageYears?.let { parts.add("$it yrs") }
-    state.profile?.heightCm?.let { parts.add("${it.format1()} cm") }
-    state.profile?.activityLevel?.let { parts.add(it.label()) }
-    return if (parts.isEmpty()) "Tap to set up your profile" else parts.joinToString(" · ")
-}
 
 private fun String.accountInitial(): String =
     trim().firstOrNull()?.uppercaseChar()?.toString() ?: "Y"

@@ -299,22 +299,6 @@ class ProfileViewModelTest {
     }
 
     @Test
-    fun vitals_mapFromHealthConnectDailySummary() = runTest {
-        val health = FakeHealthRepo(
-            summary = DailyHealthSummaryEntity(
-                dateEpochDay = LocalDate.now().toEpochDay(),
-                steps = 7420L, activeCaloriesKcal = 410.0, latestWeightKg = 84.2,
-                restingHeartRateBpm = 58L, updatedAtEpochMillis = 1L,
-            ),
-        )
-        val viewModel = ProfileViewModel(FakeAccountRepository(), FakeProfileRepository(), health, FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
-        dispatcher.scheduler.advanceUntilIdle()
-
-        assertEquals(7420L, viewModel.state.value.vitals!!.steps)
-        assertEquals(58L, viewModel.state.value.vitals!!.restingHeartRateBpm)
-    }
-
-    @Test
     fun logWeight_callsRepository() = runTest {
         val repo = FakeProfileRepository()
         val viewModel = ProfileViewModel(FakeAccountRepository(), repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
@@ -515,6 +499,13 @@ class ProfileViewModelTest {
         assertEquals(false, viewModel2.state.value.isHealthConnectNudgeVisible)
     }
 
+    @Test
+    fun hcNudge_visibleWhenHealthConnectNotInstalled() = runTest {
+        val viewModel = profileViewModel(healthRepository = FakeHealthRepoNotInstalled())
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, viewModel.state.value.isHealthConnectNudgeVisible)
+    }
+
     private class FakeProfileRepository(
         private val profile: UserProfile = DEFAULT_USER_PROFILE,
         private val latestWeight: WeightEntry? = null,
@@ -549,6 +540,17 @@ class ProfileViewModelTest {
             HealthConnectStatus(HealthConnectAvailability.Available, setOf("steps"))
         override suspend fun requestablePermissions(): Set<String> = setOf("steps")
         override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(summary)
+        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
+            ImportedDailyHealthSummary(null, null, null, null)
+        override suspend fun exportLatestWorkout(): String? = null
+    }
+
+    /** Pins the `availability != Available` half of the nudge predicate. */
+    private class FakeHealthRepoNotInstalled : HealthRepository {
+        override suspend fun status(): HealthConnectStatus =
+            HealthConnectStatus(HealthConnectAvailability.NotInstalled, emptySet())
+        override suspend fun requestablePermissions(): Set<String> = emptySet()
+        override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
         override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
             ImportedDailyHealthSummary(null, null, null, null)
         override suspend fun exportLatestWorkout(): String? = null
