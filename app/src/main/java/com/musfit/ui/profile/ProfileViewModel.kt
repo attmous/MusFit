@@ -93,6 +93,11 @@ class ProfileViewModel internal constructor(
     private val messageFlow = MutableStateFlow<String?>(null)
     private val nudgeFlow = MutableStateFlow(false)
 
+    /** The day every hub window is anchored to; re-resolved on each resume so a
+     *  process cached across midnight re-derives its windows from the new day.
+     *  Declared before the flow properties that combine over it (init order). */
+    private val activeDate = MutableStateFlow(dateProvider())
+
     init {
         refreshHealthConnectNudge()
     }
@@ -118,10 +123,10 @@ class ProfileViewModel internal constructor(
         profileRepository.observeRecommendedTargets(),
         profileRepository.observeWeightSeries(0L),
         profileRepository.observeRecentMeasurements(0L),
-    ) { profile, targets, weightSeries, measurements ->
-        // One date per emission: the window anchors must never disagree across a
-        // midnight rollover.
-        val today = dateProvider()
+        activeDate,
+    ) { profile, targets, weightSeries, measurements, today ->
+        // One shared date flow, one date per emission: the window anchors must never
+        // disagree across a midnight rollover, and a resume re-anchor re-runs the math.
         val todayEpochDay = today.toEpochDay()
         val sparkFromMillis = (todayEpochDay - 90L) * DAY_MILLIS
         val complete = profile.sex != null && profile.heightCm != null &&
@@ -145,8 +150,9 @@ class ProfileViewModel internal constructor(
         trainingRepository.observeRoutineSummaries(),
         trainingRepository.observeWorkoutHistory(),
         goalsRepository.observeUserGoals(),
-    ) { goal, routines, history, userGoals ->
-        buildPlanCards(goal, routines, history, userGoals, dateProvider())
+        activeDate,
+    ) { goal, routines, history, userGoals, today ->
+        buildPlanCards(goal, routines, history, userGoals, today)
     }
 
     val state: StateFlow<ProfileUiState> = combine(
@@ -163,8 +169,13 @@ class ProfileViewModel internal constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileUiState())
 
     /** Re-checked on screen resume — permissions are granted OUTSIDE the app, and the
-     *  ViewModel survives Profile→Settings→Profile, so init-only would never hide it. */
-    fun onScreenResumed() = refreshHealthConnectNudge()
+     *  ViewModel survives Profile→Settings→Profile, so init-only would never hide it.
+     *  Also re-anchors the date windows: MutableStateFlow dedupes equal values, so
+     *  same-day resumes are free. */
+    fun onScreenResumed() {
+        activeDate.value = dateProvider()
+        refreshHealthConnectNudge()
+    }
 
     private fun refreshHealthConnectNudge() {
         viewModelScope.launch {

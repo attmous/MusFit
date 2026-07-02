@@ -72,7 +72,8 @@ fun ProfileEditDialog(
     }
     var heightText by remember { mutableStateOf(initial.heightCm?.let { it.format1() } ?: "") }
     var goalWeightText by remember { mutableStateOf(initial.goalWeightKg?.let { it.format1() } ?: "") }
-    var currentWeightText by remember { mutableStateOf(initialWeightKg?.let { it.format1() } ?: "") }
+    val initialWeightText = remember { initialWeightKg?.let { it.format1() } ?: "" }
+    var currentWeightText by remember { mutableStateOf(initialWeightText) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -132,7 +133,13 @@ fun ProfileEditDialog(
                     goalPaceKgPerWeek = if (goalType == GoalType.Maintain) 0.0 else pace,
                     goalWeightKg = goalWeightText.toPositiveDoubleOrNull(),
                 )
-                onSave(profile, currentWeightText.toPositiveDoubleOrNull())
+                // Only pass a weight the user actually changed — round-tripping the
+                // prefill would log a duplicate entry (and bias the weekly-average
+                // delta) on every profile save. Compare parsed values, not text:
+                // "80" vs "80.0" is not a change.
+                val editedWeightKg = currentWeightText.toPositiveDoubleOrNull()
+                    ?.takeIf { it != initialWeightText.toPositiveDoubleOrNull() }
+                onSave(profile, editedWeightKg)
             }) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
@@ -244,7 +251,13 @@ fun EntriesSheet(
     var deleting by remember { mutableStateOf<EntrySheetItem?>(null) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+        ) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             if (chartSeries.size >= 2) {
                 TrendLineChart(

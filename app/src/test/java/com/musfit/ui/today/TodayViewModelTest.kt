@@ -249,7 +249,14 @@ class TodayViewModelTest {
             BodyMetricEntity("w1", "weight", 82.0, "kg", (weekStartEpochDay - 3L) * 86_400_000L, "manual", null),
             BodyMetricEntity("w2", "weight", 82.0, "kg", weekStartEpochDay * 86_400_000L, "manual", null),
         )
-        val viewModel = todayViewModel(coachRepository = coachRepository, date = date, healthRepository = healthRepository)
+        val viewModel = todayViewModel(
+            coachRepository = coachRepository,
+            date = date,
+            healthRepository = healthRepository,
+            // Seed a DIFFERENT nonzero legacy user_goals target: a surviving fallback
+            // read of user_goals.targetWeightKg would surface 68, not the profile's 75.
+            goalsRepository = FakeGoalsRepository(UserGoals(targetWeightKg = 68.0)),
+        )
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.onScreenResumed()
@@ -257,6 +264,7 @@ class TodayViewModelTest {
 
         val weightMessage = coachRepository.lastCandidates.first { it.ruleKey == "weight_trend" }
         assertTrue(weightMessage.body, weightMessage.body.contains("75 kg"))
+        assertEquals(weightMessage.body, false, weightMessage.body.contains("68"))
     }
 
     @Test

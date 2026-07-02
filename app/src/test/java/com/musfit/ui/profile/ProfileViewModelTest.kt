@@ -54,7 +54,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModelTest {
@@ -73,13 +75,14 @@ class ProfileViewModelTest {
         foodRepository: FoodRepository = FakeFoodGoalRepo(),
         trainingRepository: TrainingRepository = FakeTrainingRepo(),
         goalsRepository: GoalsRepository = FakeGoalsRepo(),
+        dateProvider: () -> LocalDate = { fixedDate },
     ) = ProfileViewModel(
         profileRepository = profileRepository,
         healthRepository = healthRepository,
         foodRepository = foodRepository,
         trainingRepository = trainingRepository,
         goalsRepository = goalsRepository,
-        dateProvider = { fixedDate },
+        dateProvider = dateProvider,
     )
 
     @Before
@@ -118,21 +121,30 @@ class ProfileViewModelTest {
         val repo = FakeProfileRepository(
             profile = UserProfile(Sex.Male, 0L, 180.0, ActivityLevel.Moderate, GoalType.Lose, 0.5, 75.0),
         )
+        // Two entries per delta window so the averaging semantics are discriminated
+        // from the retired changeOverWindow (latest − newest entry at/before the 7d
+        // anchor). Computed by hand:
+        //   weightTrend:       avg(82, 84) − avg(85, 89) = 83 − 87 = −4.0
+        //   changeOverWindow:  82 − 85                            = −3.0
         repo.weightSeries = listOf(
-            WeightEntry("w3", daysAgo(1), 82.0, "manual"),   // this week
-            WeightEntry("w2", daysAgo(10), 83.0, "manual"),  // prior week
-            WeightEntry("w1", daysAgo(45), 85.0, "manual"),  // outside the 30-day chart window
+            WeightEntry("w6", daysAgo(1), 82.0, "manual"),   // this week
+            WeightEntry("w5", daysAgo(3), 84.0, "manual"),   // this week
+            WeightEntry("w4", daysAgo(8), 85.0, "manual"),   // prior week
+            WeightEntry("w3", daysAgo(10), 89.0, "manual"),  // prior week
+            WeightEntry("w2", daysAgo(29), 86.0, "manual"),  // just inside the 30-day chart window
+            WeightEntry("w1", daysAgo(31), 90.0, "manual"),  // just outside the 30-day chart window
         )
         val viewModel = profileViewModel(profileRepository = repo)
         dispatcher.scheduler.advanceUntilIdle()
 
         val hero = viewModel.state.value.hero
         assertEquals(82.0, hero.latestWeightKg!!, 0.001)
-        assertEquals(-1.0, hero.deltaKg!!, 0.001)              // avg(82) − avg(83)
+        assertEquals(-4.0, hero.deltaKg!!, 0.001)              // weekly averages, not endpoints
         assertEquals(75.0, hero.goalWeightKg!!, 0.001)
-        // progress baseline is the ALL-TIME first entry (85): (85−82)/(85−75) = 0.3
-        assertEquals(0.3, hero.goalProgressFraction!!, 0.001)
-        assertEquals(listOf(83.0, 82.0), hero.chartSeries)     // 30-day window, oldest→newest
+        // progress baseline is the ALL-TIME first entry (90): (90−82)/(90−75) = 8/15
+        assertEquals(8.0 / 15.0, hero.goalProgressFraction!!, 0.001)
+        // 30-day window pins the 29/31-day boundary, oldest→newest
+        assertEquals(listOf(86.0, 89.0, 85.0, 84.0, 82.0), hero.chartSeries)
         assertEquals(true, hero.hasAnyEntry)
     }
 
@@ -241,6 +253,10 @@ class ProfileViewModelTest {
                     BodyMeasurement("h2", "hips", 96.0, "cm", daysAgo(100)),
                     BodyMeasurement("h1", "hips", 98.0, "cm", daysAgo(150)),
                 ),
+                "thighs" to listOf( // 90-day boundary: day 89 is inside, day 91 is out
+                    BodyMeasurement("t2", "thighs", 60.0, "cm", daysAgo(89)),
+                    BodyMeasurement("t1", "thighs", 62.0, "cm", daysAgo(91)),
+                ),
             ),
         )
         val viewModel = profileViewModel(profileRepository = repo)
@@ -261,6 +277,54 @@ class ProfileViewModelTest {
         assertEquals(-2.0, tiles["hips"]!!.deltaFromPrevious!!, 0.001)
         assertTrue(tiles["hips"]!!.sparkline.isEmpty())
         assertEquals(2, tiles["hips"]!!.entryCount)
+        // 90-day boundary pin: exactly the day-89 entry is windowed in.
+        assertEquals(listOf(60.0), tiles["thighs"]!!.sparkline)
+        assertEquals(2, tiles["thighs"]!!.entryCount)
+    }
+
+    @Test
+    fun onScreenResumed_reanchorsDateWindows() = runTest {
+        var currentDate = fixedDate
+        val repo = FakeProfileRepository()
+        repo.weightSeries = listOf(
+            WeightEntry("w2", daysAgo(1), 82.0, "manual"),   // inside every window in play
+            WeightEntry("w1", daysAgo(25), 84.0, "manual"),  // in the 30d chart at fixedDate, out at +8d
+        )
+        val training = FakeTrainingRepo()
+        training.routines.value = listOf(
+            RoutineSummary(id = "r1", name = "Machine A", notes = null, exerciseCount = 5, targetSetCount = 15, isStarter = false),
+        )
+        // Monday-anchored so the session sits inside fixedDate's week regardless of
+        // weekday, and +8 days always rolls past it into the next week.
+        val weekStartMillis =
+            fixedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay() * DAY
+        training.history.value = listOf(
+            WorkoutHistorySummary("s1", "Machine A", weekStartMillis + 3_600_000L, null, 12, 1000.0),
+        )
+        val viewModel = profileViewModel(
+            profileRepository = repo,
+            trainingRepository = training,
+            dateProvider = { currentDate },
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(84.0, 82.0), viewModel.state.value.hero.chartSeries)
+        assertTrue(
+            viewModel.state.value.planCards.first { it.id == "training" }
+                .subtitle.contains("1 of 4 sessions this week"),
+        )
+
+        currentDate = fixedDate.plusDays(8) // midnight passes while the process is cached
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // Both arms re-anchor: the 30d chart window slides past w1 and the
+        // Monday-anchored week rolls over, dropping the session count to zero.
+        assertEquals(listOf(82.0), viewModel.state.value.hero.chartSeries)
+        assertTrue(
+            viewModel.state.value.planCards.first { it.id == "training" }
+                .subtitle.contains("0 of 4 sessions this week"),
+        )
     }
 
     @Test
@@ -426,6 +490,10 @@ class ProfileViewModelTest {
 
             val diet = viewModel.state.value.planCards.first { it.id == "diet" }
             assertTrue("$mode title", diet.title.endsWith(" diet"))
+            // endsWith alone passes for an empty label — pin one concrete full title.
+            if (mode == FoodGoalMode.HighProtein) {
+                assertEquals("High protein diet", diet.title)
+            }
             if (mode in proteinLed) {
                 assertTrue("$mode figure", diet.subtitle.contains("160 g protein target"))
             } else {

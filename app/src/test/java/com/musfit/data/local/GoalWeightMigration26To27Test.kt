@@ -90,6 +90,31 @@ class GoalWeightMigration26To27Test {
     }
 
     @Test
+    fun migration26To27_zeroGoalsTargetDoesNotCreateProfileRow() {
+        createDatabaseFromExportedSchema(version = 26)
+        insertGoals("local-default", targetWeightKg = 0.0, updatedAt = 100L)
+
+        runMigration()
+
+        // The INSERT guards on g.targetWeightKg > 0: a 0 (unset sentinel) goals row
+        // must not materialize a profile row at all.
+        assertNoProfileRow("local-default")
+    }
+
+    @Test
+    fun migration26To27_zeroGoalsTargetNeverOverwritesProfileEvenWhenNewer() {
+        createDatabaseFromExportedSchema(version = 26)
+        insertGoals("local-default", targetWeightKg = 0.0, updatedAt = 300L) // newer, but 0 = unset
+        insertProfile("local-default", goalWeightKg = 80.0, updatedAt = 200L)
+
+        runMigration()
+
+        // The UPDATE guards on g.targetWeightKg > 0 before any recency comparison:
+        // the 0 sentinel never wins, even with the newer timestamp.
+        queryProfile("local-default") { goalWeight, _, _, _ -> assertEquals(80.0, goalWeight!!, 0.001) }
+    }
+
+    @Test
     fun migration26To27_timestampTieKeepsProfileValue() {
         createDatabaseFromExportedSchema(version = 26)
         insertGoals("local-default", targetWeightKg = 70.0, updatedAt = 200L)
@@ -136,6 +161,26 @@ class GoalWeightMigration26To27Test {
             )
         try {
             database.execSQL(sql)
+        } finally {
+            database.close()
+        }
+    }
+
+    private fun assertNoProfileRow(id: String) {
+        val database =
+            SQLiteDatabase.openDatabase(
+                context.getDatabasePath(TEST_DATABASE_NAME).path,
+                null,
+                SQLiteDatabase.OPEN_READONLY,
+            )
+        try {
+            database.rawQuery(
+                "SELECT COUNT(*) FROM user_profile WHERE id = ?",
+                arrayOf(id),
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+            }
         } finally {
             database.close()
         }
