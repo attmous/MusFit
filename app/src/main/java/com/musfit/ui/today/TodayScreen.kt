@@ -60,6 +60,9 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** Scroll clearance under the chat FAB: FAB 52 + lg padding 16 + 8 slack. */
+private val ChatFabClearance = 76.dp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(
@@ -120,7 +123,7 @@ fun TodayScreen(
             } else {
                 CoachFeed(groups = state.feed, onAction = onCoachAction, onDismiss = viewModel::dismissMessage)
             }
-            Spacer(Modifier.height(72.dp)) // scroll clearance under the chat FAB
+            Spacer(Modifier.height(ChatFabClearance))
         }
 
         ChatPreviewFab(

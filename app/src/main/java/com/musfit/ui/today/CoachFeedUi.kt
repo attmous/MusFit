@@ -28,7 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
@@ -37,6 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.CoachMessage
@@ -48,9 +50,10 @@ import com.musfit.ui.theme.tabAccentFor
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 
-private val TIME_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+private val TIME_FORMATTER = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.getDefault())
 
 /** The feed body: day-grouped coach messages, newest first. */
 @Composable
@@ -84,20 +87,12 @@ private fun DismissableMessageCard(
     onAction: (CoachAction) -> Unit,
     onDismiss: (Long) -> Unit,
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDismiss(message.id)
-                true
-            } else {
-                false
-            }
-        },
-    )
+    val dismissState = rememberSwipeToDismissBoxState()
     SwipeToDismissBox(
         state = dismissState,
         enableDismissFromStartToEnd = false,
         backgroundContent = {},
+        onDismiss = { onDismiss(message.id) },
     ) {
         CoachMessageCard(
             message = message,
@@ -121,13 +116,19 @@ private fun CoachMessageCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(MusFitTheme.shapes.medium)
-            .combinedClickable(onClick = {}, onLongClick = onLongPress),
+            .semantics { if (!message.isRead) stateDescription = "Unread" }
+            .combinedClickable(
+                onClick = { message.action?.let(onAction) },
+                onClickLabel = message.action?.let(::coachActionLabel),
+                onLongClick = onLongPress,
+                onLongClickLabel = "Dismiss message",
+            ),
     ) {
         Column(modifier = Modifier.padding(MusFitTheme.spacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     message.category.icon(),
-                    contentDescription = message.category.name,
+                    contentDescription = null, // decorative: the visible category label follows
                     tint = accent.color,
                     modifier = Modifier.size(16.dp),
                 )
@@ -251,7 +252,12 @@ fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
         Surface(
             color = MusFitTheme.colors.onSurface,
             shape = MusFitTheme.shapes.small,
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 6.dp, y = (-6).dp)
+                // The FAB's contentDescription already says "coming soon" — don't
+                // surface a duplicate "Soon" node to TalkBack.
+                .clearAndSetSemantics {},
         ) {
             Text(
                 text = "Soon",
