@@ -118,6 +118,7 @@ class ProfileViewModel internal constructor(
         dateProvider = { LocalDate.now() },
     )
 
+    // At the 5-arity combine cap — pre-combine pairs (see TodayViewModel.carouselFlow) before adding inputs.
     private val dataState: Flow<ProfileUiState> = combine(
         profileRepository.observeProfile(),
         profileRepository.observeRecommendedTargets(),
@@ -145,6 +146,7 @@ class ProfileViewModel internal constructor(
         )
     }
 
+    // At the 5-arity combine cap — pre-combine pairs (see TodayViewModel.carouselFlow) before adding inputs.
     private val planCardsFlow: Flow<List<PlanCard>> = combine(
         foodRepository.observeFoodGoal(),
         trainingRepository.observeRoutineSummaries(),

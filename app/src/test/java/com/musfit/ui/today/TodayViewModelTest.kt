@@ -57,6 +57,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -264,7 +265,7 @@ class TodayViewModelTest {
 
         val weightMessage = coachRepository.lastCandidates.first { it.ruleKey == "weight_trend" }
         assertTrue(weightMessage.body, weightMessage.body.contains("75 kg"))
-        assertEquals(weightMessage.body, false, weightMessage.body.contains("68"))
+        assertFalse(weightMessage.body, weightMessage.body.contains("68"))
     }
 
     @Test
