@@ -49,6 +49,8 @@ import com.musfit.ui.profile.ProfileSettingsScreen
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
+import com.musfit.ui.today.ChatPreviewFab
+import com.musfit.ui.today.ChatPreviewSheet
 import com.musfit.ui.today.TodayScreen
 import com.musfit.ui.training.TrainingScreen
 
@@ -60,6 +62,7 @@ fun AppNavGraph() {
     val currentRoute = backStackEntry?.destination?.route ?: AppDestination.Today.route
     var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
     var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
+    var chatPreviewVisible by rememberSaveable { mutableStateOf(false) }
 
     fun go(route: String) {
         // Standard bottom-nav model: back from any tab returns to Today (the start
@@ -79,6 +82,7 @@ fun AppNavGraph() {
                 destinations = destinations,
                 currentRoute = currentRoute,
                 onSelect = { go(it.route) },
+                onChat = { chatPreviewVisible = true },
             )
         },
     ) { padding ->
@@ -133,21 +137,26 @@ fun AppNavGraph() {
             }
         }
     }
+
+    if (chatPreviewVisible) {
+        ChatPreviewSheet(onDismiss = { chatPreviewVisible = false })
+    }
 }
 
 /** Spacing between nav items, used both for layout and the sliding-indicator math. */
 private val NavItemSpacing = 2.dp
 
 /**
- * M3E-style floating bottom nav: a rounded pill of destinations. A single pill indicator sits
- * behind the items and springs to the selected tab on navigation — the one motion in the bar.
- * Floating actions belong to tab content (Today's chat FAB, Food's quick-add), not this bar.
+ * M3E-style floating bottom nav: a rounded pill of destinations + the coach-chat button.
+ * A single pill indicator sits behind the items and springs to the selected tab on navigation —
+ * the one motion in the bar. Add-food floating actions belong to Food's own content.
  */
 @Composable
 private fun FloatingPillNav(
     destinations: List<AppDestination>,
     currentRoute: String,
     onSelect: (AppDestination) -> Unit,
+    onChat: () -> Unit,
 ) {
     val selectedIndex = destinations.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
     val selectedAccent = tabAccentFor(destinations[selectedIndex])
@@ -161,6 +170,8 @@ private fun FloatingPillNav(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Surface(
             color = MusFitTheme.colors.surface,
@@ -213,6 +224,7 @@ private fun FloatingPillNav(
                 }
             }
         }
+        ChatPreviewFab(onClick = onChat)
     }
 }
 

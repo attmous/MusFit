@@ -214,17 +214,6 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun chatPreview_togglesVisibility() = runTest {
-        val viewModel = todayViewModel(coachRepository = FakeCoachRepository())
-        dispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.openChatPreview()
-        assertTrue(viewModel.state.value.isChatPreviewVisible)
-        viewModel.closeChatPreview()
-        assertEquals(false, viewModel.state.value.isChatPreviewVisible)
-    }
-
-    @Test
     fun carousel_derivesPagesFromPinsAndLiveData() = runTest {
         val coachRepository = FakeCoachRepository()
         coachRepository.pins.value = listOf(TodayMetric.Calories, TodayMetric.Steps, TodayMetric.Protein)
