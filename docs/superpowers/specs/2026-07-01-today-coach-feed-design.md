@@ -54,7 +54,9 @@ A future AI coach writes into the same store behind the same interface.
    bar slot (all tabs, replacing the old "+"), and the floating copy left
    Today — see
    [`2026-07-02-fab-consolidation-design.md`](2026-07-02-fab-consolidation-design.md).
-   The FAB's look, badge, and `ChatPreviewSheet` behavior are unchanged.*
+   The "Soon" text badge was also removed; the coming-soon cue lives in the
+   button's `contentDescription` and the `ChatPreviewSheet` content, which
+   are unchanged.*
 
 Removed from Today entirely: `WeeklyCaloriesCard`, `WeightTrendCard`,
 `WeekStatsRow`, the training glimpse tile, the macro bar, and the old

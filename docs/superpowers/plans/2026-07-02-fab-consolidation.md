@@ -447,3 +447,179 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - [ ] **Step 5: Chat sheet opens** — on any tab, tap the chat square (derive coords from the current screenshot), wait 2 s, screenshot to `chat_sheet_open.png`. Verify the "coach chat is coming" sheet is shown. Dismiss it by tapping the dimmed scrim near the top (`input tap 672 300`), screenshot again to confirm it closed.
 
 - [ ] **Step 6: Clean up** — `adb -s 38241FDJG00BLY shell rm -f /sdcard/sc.png`; report per-screenshot findings. No commit.
+
+---
+
+### Task 5: Match the chat button to the pill height and drop the "Soon" badge
+
+**Files:**
+- Modify: `app/src/main/java/com/musfit/ui/today/CoachFeedUi.kt`
+- Modify: `app/src/main/java/com/musfit/ui/AppNavGraph.kt`
+
+**TDD note:** declarative UI sizing/appearance only — no logic, no new tests; gate is the full suite + lint + assemble, then Task 6 on-device.
+
+- [ ] **Step 1: Simplify `ChatPreviewFab` — remove the badge and internal sizing**
+
+In `app/src/main/java/com/musfit/ui/today/CoachFeedUi.kt`, replace the whole composable:
+
+```kotlin
+/** Preview chat FAB with a visible "Soon" badge — opens the "coming soon" sheet. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val accent = tabAccentFor(AppDestination.Today)
+    Box(modifier = modifier) {
+        Surface(
+            onClick = onClick,
+            color = accent.color,
+            shape = MusFitTheme.shapes.medium,
+            shadowElevation = 4.dp,
+            modifier = Modifier.size(52.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Outlined.ChatBubbleOutline,
+                    contentDescription = "Coach chat (coming soon)",
+                    tint = accent.onColor,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+        Surface(
+            color = MusFitTheme.colors.onSurface,
+            shape = MusFitTheme.shapes.small,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 6.dp, y = (-6).dp)
+                // The FAB's contentDescription already says "coming soon" — don't
+                // surface a duplicate "Soon" node to TalkBack.
+                .clearAndSetSemantics {},
+        ) {
+            Text(
+                text = "Soon",
+                style = MusFitTheme.typography.labelSmall,
+                color = MusFitTheme.colors.surface,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+            )
+        }
+    }
+}
+```
+
+with:
+
+```kotlin
+/** Coach chat button in the bottom bar — opens the "coming soon" preview sheet. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val accent = tabAccentFor(AppDestination.Today)
+    Surface(
+        onClick = onClick,
+        color = accent.color,
+        shape = MusFitTheme.shapes.medium,
+        shadowElevation = 4.dp,
+        modifier = modifier,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Outlined.ChatBubbleOutline,
+                contentDescription = "Coach chat (coming soon)",
+                tint = accent.onColor,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+}
+```
+
+Then check `CoachFeedUi.kt` for imports that lost their last usage (candidates: `offset`, `clearAndSetSemantics` — search the file before removing each; `Box`, `size`, `Text`, `padding`, `Alignment` are almost certainly still used by the feed cards, verify rather than assume).
+
+- [ ] **Step 2: Size the button from the bar Row in `AppNavGraph`**
+
+In `app/src/main/java/com/musfit/ui/AppNavGraph.kt`, add these imports to the `androidx.compose.foundation.layout` group (alphabetical):
+
+```kotlin
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+```
+
+Change `FloatingPillNav`'s Row opener from:
+
+```kotlin
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+```
+
+to:
+
+```kotlin
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+```
+
+and the trailing call from:
+
+```kotlin
+        ChatPreviewFab(onClick = onChat)
+```
+
+to:
+
+```kotlin
+        ChatPreviewFab(
+            onClick = onChat,
+            modifier = Modifier
+                .fillMaxHeight()
+                .aspectRatio(1f),
+        )
+```
+
+(`height` is already imported. The pill `Surface` keeps `weight(1f)`; with `IntrinsicSize.Min` on the Row, the pill's content height drives the Row, and the chat button stretches to exactly that height as a square.)
+
+- [ ] **Step 3: Run the full verification build**
+
+```powershell
+. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+```
+
+Expected: `BUILD SUCCESSFUL`. OneDrive recovery if needed: `.\gradlew.bat --stop`, wait 3 s, `Remove-Item -Recurse -Force app\build`, rerun.
+
+- [ ] **Step 4: Commit**
+
+```powershell
+git add app/src/main/java/com/musfit/ui/today/CoachFeedUi.kt app/src/main/java/com/musfit/ui/AppNavGraph.kt
+git commit -m "feat(nav): chat button fills the bar height, drops the Soon badge
+
+The bar chat square now top/bottom-aligns with the nav pill via
+IntrinsicSize.Min on the bar Row + fillMaxHeight/aspectRatio at the
+call site; ChatPreviewFab loses its badge overlay and internal 52dp
+size. The coming-soon cue stays in the contentDescription and sheet.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 6: On-device verification of the final bar layout (Pixel 8 Pro)
+
+**Files:** none (verification only)
+
+- [ ] **Step 1: Install and launch** — same commands as Task 2 Step 1.
+- [ ] **Step 2: Today** — screenshot to `today_after3.png`. Verify: the chat square's top and bottom edges align with the nav pill's top and bottom edges (same height, sitting on the same baseline); NO "Soon" badge anywhere; no floating button in content.
+- [ ] **Step 3: Food** — tap the Food pill item, screenshot to `food_after3.png`. Verify: aligned chat square + Food's own quick-add FAB in content.
+- [ ] **Step 4: Sheet still works** — tap the chat square, wait 2 s, screenshot to `chat_sheet_open3.png` (sheet visible), dismiss via scrim tap near the top (`input tap 672 300`), confirm closed with one more screencap (no need to save it if closed).
+- [ ] **Step 5: Clean up** — `adb -s 38241FDJG00BLY shell rm -f /sdcard/sc.png`; report per-screenshot findings with the alignment call made explicitly (aligned / not aligned, by roughly how many px if off). No commit.

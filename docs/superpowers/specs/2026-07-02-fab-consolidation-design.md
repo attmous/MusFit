@@ -74,6 +74,18 @@ Phase 2 (the amendment):
 - `ChatPreviewFab` / `ChatPreviewSheet` composables themselves are unchanged and stay in
   `CoachFeedUi.kt`.
 
+Phase 3 (second user-review amendment, 2026-07-02): the bar chat button matches the pill and
+loses the badge.
+
+- `ChatPreviewFab` (in `CoachFeedUi.kt`) drops the "Soon" badge and its wrapping overlay `Box`,
+  becoming just the coral `Surface` + chat icon; sizing moves to the call site (the internal
+  `size(52.dp)` goes). The not-yet-real cue survives in the `contentDescription`
+  ("Coach chat (coming soon)") and in the sheet itself, so the button still doesn't fake a
+  feature.
+- `FloatingPillNav`'s Row gets `height(IntrinsicSize.Min)`; the chat button is called with
+  `Modifier.fillMaxHeight().aspectRatio(1f)` so its top/bottom align exactly with the nav pill
+  at any font scale, as a square.
+
 No repository or Room changes. All Food code untouched.
 
 ## Verification
