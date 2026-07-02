@@ -228,6 +228,10 @@ class ProfileViewModelTest {
                     BodyMeasurement("b2", "body_fat", 18.5, "%", daysAgo(10)),
                     BodyMeasurement("b1", "body_fat", 19.5, "%", daysAgo(120)),
                 ),
+                "hips" to listOf( // stale-newest: both outside the 90-day window
+                    BodyMeasurement("h2", "hips", 96.0, "cm", daysAgo(100)),
+                    BodyMeasurement("h1", "hips", 98.0, "cm", daysAgo(150)),
+                ),
             ),
         )
         val viewModel = profileViewModel(profileRepository = repo)
@@ -238,10 +242,16 @@ class ProfileViewModelTest {
         assertEquals(-1.0, tiles["waist"]!!.deltaFromPrevious!!, 0.001)
         assertEquals(2, tiles["waist"]!!.entryCount)
         assertNull(tiles["chest"]!!.deltaFromPrevious)
-        assertTrue(tiles["chest"]!!.sparkline.size < 2)
+        assertEquals(listOf(104.0), tiles["chest"]!!.sparkline)             // lone in-window point kept (dot)
         assertEquals(-1.0, tiles["body_fat"]!!.deltaFromPrevious!!, 0.001) // delta is all-time
-        assertTrue(tiles["body_fat"]!!.sparkline.size < 2)                  // window has 1 point
+        assertEquals(listOf(18.5), tiles["body_fat"]!!.sparkline)           // window has 1 point
         assertEquals(0, tiles["arms"]!!.entryCount)                         // never logged
+        // Stale-newest tile: value + all-time delta survive; chart empty (the tile analog
+        // of the stale-logger hero).
+        assertEquals(96.0, tiles["hips"]!!.value!!, 0.001)
+        assertEquals(-2.0, tiles["hips"]!!.deltaFromPrevious!!, 0.001)
+        assertTrue(tiles["hips"]!!.sparkline.isEmpty())
+        assertEquals(2, tiles["hips"]!!.entryCount)
     }
 
     @Test

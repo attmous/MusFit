@@ -103,6 +103,8 @@ private val MEASUREMENT_LABELS = mapOf(
     "thighs" to "Thighs", "hips" to "Hips", "body_fat" to "Body fat",
 )
 
+private fun defaultUnitFor(type: String) = if (type == "body_fat") "%" else "cm"
+
 @HiltViewModel
 class ProfileViewModel internal constructor(
     private val accountRepository: AccountRepository,
@@ -145,8 +147,10 @@ class ProfileViewModel internal constructor(
         profileRepository.observeRecentMeasurements(0L),
     ) { profile, targets, weightSeries, measurements ->
         // Windows are epoch-day anchored (UTC day boundaries), matching the Today carousel's
-        // weight-delta convention so both tabs report the same number.
-        val todayEpochDay = dateProvider().toEpochDay()
+        // weight-delta convention so both tabs report the same number. One date per emission:
+        // the window anchors and the age must never disagree across a midnight rollover.
+        val today = dateProvider()
+        val todayEpochDay = today.toEpochDay()
         val deltaAnchorMillis = (todayEpochDay - 7L) * DAY_MILLIS
         val chartFromMillis = (todayEpochDay - 30L) * DAY_MILLIS
         val sparkFromMillis = (todayEpochDay - 90L) * DAY_MILLIS
@@ -183,7 +187,8 @@ class ProfileViewModel internal constructor(
                 type = type,
                 label = MEASUREMENT_LABELS[type] ?: type,
                 value = history.firstOrNull()?.value,
-                unit = history.firstOrNull()?.unit ?: if (type == "body_fat") "%" else "cm",
+                unit = history.firstOrNull()?.unit ?: defaultUnitFor(type),
+                // Deltas subtract raw values across rows; safe while the log dialog fixes one unit per type.
                 deltaFromPrevious = history.getOrNull(1)?.let { prev -> history.first().value - prev.value },
                 sparkline = history.filter { it.measuredAtEpochMillis >= sparkFromMillis }
                     .map { it.value }.reversed(),
@@ -195,7 +200,7 @@ class ProfileViewModel internal constructor(
         ProfileUiState(
             isLoaded = true,
             profile = profile,
-            ageYears = profile.birthDateEpochDay?.let { ageYears(it) },
+            ageYears = profile.birthDateEpochDay?.let { ageYears(it, today) },
             hero = hero,
             tiles = tiles,
             isProfileComplete = complete,
@@ -209,6 +214,7 @@ class ProfileViewModel internal constructor(
     val state: StateFlow<ProfileUiState> = combine(
         dataState,
         accountRepository.observeActiveAccount(),
+        // Init-pinned deliberately: the vitals card is removed in Task 7; no activeDate refresh needed.
         healthRepository.observeDailySummary(today),
         messageFlow,
         accountEditorFlow,
@@ -331,12 +337,12 @@ class ProfileViewModel internal constructor(
             type = type,
             label = MEASUREMENT_LABELS[type] ?: type,
             value = latest?.value,
-            unit = latest?.unit ?: if (type == "body_fat") "%" else "cm",
+            unit = latest?.unit ?: defaultUnitFor(type),
             deltaFromPrevious = if (latest != null && previous != null) latest.value - previous.value else null,
         )
     }
 
-    private fun ageYears(birthDateEpochDay: Long): Int =
+    private fun ageYears(birthDateEpochDay: Long, today: LocalDate): Int =
         Period.between(LocalDate.ofEpochDay(birthDateEpochDay), today).years.coerceAtLeast(0)
 }
 
