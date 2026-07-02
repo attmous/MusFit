@@ -44,6 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -110,10 +112,12 @@ fun ProfileScreen(
             WeightCard(state = state, accent = accent, onLog = { showLogWeight = true }, onOpenEntries = { showWeightSheet = true })
             MeasurementsCard(
                 state = state,
+                accent = accent,
                 onLog = { showLogMeasurement = true },
                 onOpenType = { type ->
-                    val tile = state.tiles.first { it.type == type }
-                    if (tile.entryCount == 0) logMeasurementInitialType = type else measurementSheetType = type
+                    state.tiles.firstOrNull { it.type == type }?.let { tile ->
+                        if (tile.entryCount == 0) logMeasurementInitialType = type else measurementSheetType = type
+                    }
                 },
             )
             VitalsCard(state = state, onManage = onSettingsClick)
@@ -171,7 +175,7 @@ fun ProfileScreen(
             onEdit = viewModel::editEntry,
             onDelete = viewModel::deleteEntry,
             // Full all-time series — the sheet's chart is deliberately unwindowed.
-            chartSeries = state.weightEntries.map { it.weightKg }.reversed(),
+            chartSeries = remember(state.weightEntries) { state.weightEntries.map { it.weightKg }.asReversed() },
         )
     }
     measurementSheetType?.let { type ->
@@ -182,7 +186,7 @@ fun ProfileScreen(
             onDismiss = { measurementSheetType = null },
             onEdit = viewModel::editEntry,
             onDelete = viewModel::deleteEntry,
-            chartSeries = rows.map { it.value }.reversed(),
+            chartSeries = remember(rows) { rows.map { it.value }.asReversed() },
         )
     }
     if (state.accountEditorOpen) {
@@ -372,7 +376,7 @@ private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () 
 @Composable
 private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Unit, onOpenEntries: () -> Unit) {
     val hero = state.hero
-    MusFitSummaryCard(accent = accent, onClick = onOpenEntries) {
+    MusFitSummaryCard(accent = accent, onClick = onOpenEntries, onClickLabel = "Open weight history") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Weight", style = MaterialTheme.typography.titleMedium, color = accent.onContainer, modifier = Modifier.weight(1f))
@@ -389,9 +393,10 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Un
                     }
                 }
             }
-            if (hero.latestWeightKg != null) {
+            if (hero.hasAnyEntry) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${hero.latestWeightKg.format1()} kg", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = accent.onContainer)
+                    // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
+                    Text("${hero.latestWeightKg!!.format1()} kg", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = accent.onContainer)
                     Text(
                         hero.deltaKg?.let { d -> "${if (d < 0) "−" else "+"}${abs(d).format1()} kg · 7d" } ?: "latest",
                         style = MaterialTheme.typography.labelSmall,
@@ -421,7 +426,7 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Un
 }
 
 @Composable
-private fun MeasurementsCard(state: ProfileUiState, onLog: () -> Unit, onOpenType: (String) -> Unit) {
+private fun MeasurementsCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Unit, onOpenType: (String) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -433,6 +438,7 @@ private fun MeasurementsCard(state: ProfileUiState, onLog: () -> Unit, onOpenTyp
                     row.forEach { tile ->
                         MeasurementCell(
                             tile = tile,
+                            accent = accent,
                             onClick = { onOpenType(tile.type) },
                             modifier = Modifier.weight(1f),
                         )
@@ -445,11 +451,14 @@ private fun MeasurementsCard(state: ProfileUiState, onLog: () -> Unit, onOpenTyp
 }
 
 @Composable
-private fun MeasurementCell(tile: MeasurementTile, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun MeasurementCell(tile: MeasurementTile, accent: TabAccent, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
+            .clickable(
+                onClickLabel = if (tile.entryCount == 0) "Log ${tile.label}" else "Open ${tile.label} history",
+                onClick = onClick,
+            )
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
@@ -466,13 +475,16 @@ private fun MeasurementCell(tile: MeasurementTile, onClick: () -> Unit, modifier
                         "${if (delta < 0) "▼" else "▲"}${abs(delta).format1()}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.semantics {
+                            contentDescription = "${if (delta < 0) "down" else "up"} ${abs(delta).format1()}"
+                        },
                     )
                 }
             }
             if (tile.sparkline.size >= 2) {
                 TrendLineChart(
                     values = tile.sparkline,
-                    accent = tabAccentFor(AppDestination.Profile).color,
+                    accent = accent.color,
                     modifier = Modifier.fillMaxWidth().height(24.dp).padding(top = 4.dp),
                 )
             }

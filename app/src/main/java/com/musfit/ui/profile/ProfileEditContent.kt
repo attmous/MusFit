@@ -164,7 +164,8 @@ fun LogMeasurementDialog(
     onDismiss: () -> Unit,
     onConfirm: (type: String, value: Double, unit: String) -> Unit,
 ) {
-    var type by remember { mutableStateOf(initialType) }
+    // Keyed so a still-composed dialog re-seeds when the caller retargets it to another type.
+    var type by remember(initialType) { mutableStateOf(initialType) }
     var text by remember { mutableStateOf("") }
     val parsed = text.toPositiveDoubleOrNull()
     val unit = if (type == "body_fat") "%" else "cm"
