@@ -16,6 +16,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -84,21 +85,11 @@ fun TodayScreen(
             },
         ) {
             if (refreshIndicator.isVisible) {
-                val progress = refreshIndicator.progress
-                if (progress != null) {
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = todayAccent.color,
-                        trackColor = todayAccent.container,
-                    )
-                } else {
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = todayAccent.color,
-                        trackColor = todayAccent.container,
-                    )
-                }
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = todayAccent.color,
+                    trackColor = Color.Transparent,
+                )
             }
 
             MetricCarouselCard(
@@ -146,9 +137,5 @@ internal fun todayRefreshIndicatorUiState(
 ): TodayRefreshIndicatorUiState =
     when {
         isRefreshing -> TodayRefreshIndicatorUiState(isVisible = true, progress = null)
-        pullDistanceFraction > 0f -> TodayRefreshIndicatorUiState(
-            isVisible = true,
-            progress = null,
-        )
         else -> TodayRefreshIndicatorUiState(isVisible = false, progress = null)
     }
