@@ -1,7 +1,9 @@
 package com.musfit.ui.today
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Edit
@@ -9,12 +11,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -63,17 +66,15 @@ fun TodayScreen(
     val onCoachAction: (CoachAction) -> Unit = { action -> navigateTo(coachActionDestination(action)) }
     val todayAccent = tabAccentFor(AppDestination.Today)
     val pullRefreshState = rememberPullToRefreshState()
-    val refreshIndicator = todayRefreshIndicatorUiState(
-        isRefreshing = state.isRefreshing,
-        pullDistanceFraction = pullRefreshState.distanceFraction,
-    )
 
-    PullToRefreshBox(
-        isRefreshing = state.isRefreshing,
-        onRefresh = viewModel::refreshTodayData,
-        modifier = Modifier.fillMaxSize(),
-        state = pullRefreshState,
-        indicator = {},
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pullToRefresh(
+                isRefreshing = state.isRefreshing,
+                state = pullRefreshState,
+                onRefresh = viewModel::refreshTodayData,
+            ),
     ) {
         MusFitScreenScaffold(
             title = "Today",
@@ -84,14 +85,6 @@ fun TodayScreen(
                 }
             },
         ) {
-            if (refreshIndicator.isVisible) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = todayAccent.color,
-                    trackColor = Color.Transparent,
-                )
-            }
-
             MetricCarouselCard(
                 carousel = state.carousel,
                 onMetricClick = { metric -> navigateTo(metricDestination(metric)) },
@@ -110,6 +103,32 @@ fun TodayScreen(
             } else {
                 CoachFeed(groups = state.feed, onAction = onCoachAction, onDismiss = viewModel::dismissMessage)
             }
+        }
+
+        if (state.isRefreshing) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .statusBarsPadding(),
+                color = todayAccent.color,
+                trackColor = Color.Transparent,
+            )
+        } else {
+            LinearProgressIndicator(
+                progress = {
+                    todayRefreshIndicatorUiState(
+                        isRefreshing = false,
+                        pullDistanceFraction = pullRefreshState.distanceFraction,
+                    ).progress ?: 0f
+                },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .statusBarsPadding(),
+                color = todayAccent.color,
+                trackColor = Color.Transparent,
+            )
         }
     }
 
@@ -137,5 +156,9 @@ internal fun todayRefreshIndicatorUiState(
 ): TodayRefreshIndicatorUiState =
     when {
         isRefreshing -> TodayRefreshIndicatorUiState(isVisible = true, progress = null)
+        pullDistanceFraction > 0f -> TodayRefreshIndicatorUiState(
+            isVisible = true,
+            progress = pullDistanceFraction.coerceIn(0f, 1f),
+        )
         else -> TodayRefreshIndicatorUiState(isVisible = false, progress = null)
     }
