@@ -1,6 +1,5 @@
 package com.musfit.data.local
 
-import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
@@ -9,7 +8,6 @@ import com.musfit.core.di.DatabaseModule
 import java.io.File
 import org.json.JSONObject
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -17,7 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class ExerciseMediaMigration24To25Test {
+class HealthConnectSummaryMigration29To30Test {
     private lateinit var context: Context
 
     @Before
@@ -32,20 +30,12 @@ class ExerciseMediaMigration24To25Test {
     }
 
     @Test
-    fun migration24To25_addsExerciseMediaColumnsAndPreservesRows() {
-        createDatabaseFromExportedSchema(version = 24)
-        insertExerciseRow()
+    fun migration29To30_addsExpandedDailyHealthSummaryColumns() {
+        createDatabaseFromExportedSchema(version = 29)
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(
-                    DatabaseModule.MIGRATION_24_25,
-                    DatabaseModule.MIGRATION_25_26,
-                    DatabaseModule.MIGRATION_26_27,
-                    DatabaseModule.MIGRATION_27_28,
-                    DatabaseModule.MIGRATION_28_29,
-                    DatabaseModule.MIGRATION_29_30,
-                )
+                .addMigrations(DatabaseModule.MIGRATION_29_30)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -53,50 +43,21 @@ class ExerciseMediaMigration24To25Test {
             roomDatabase.close()
         }
 
-        val migratedDatabase =
+        val migrated =
             SQLiteDatabase.openDatabase(
                 context.getDatabasePath(TEST_DATABASE_NAME).path,
                 null,
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            assertTrue(tableHasColumn(migratedDatabase, "exercises", "imageUrl"))
-            assertTrue(tableHasColumn(migratedDatabase, "exercises", "gifUrl"))
-            migratedDatabase.rawQuery(
-                "SELECT name, imageUrl, gifUrl FROM exercises WHERE id = 'ex-existing'",
-                null,
-            ).use { cursor ->
-                assertTrue(cursor.moveToFirst())
-                assertEquals("Existing Exercise", cursor.getString(0))
-                assertTrue(cursor.isNull(1))
-                assertTrue(cursor.isNull(2))
-            }
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "totalCaloriesKcal"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "distanceMeters"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "sleepMinutes"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "exerciseMinutes"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "exerciseSessionCount"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "latestBodyFatPercent"))
         } finally {
-            migratedDatabase.close()
-        }
-    }
-
-    private fun insertExerciseRow() {
-        val database =
-            SQLiteDatabase.openDatabase(
-                context.getDatabasePath(TEST_DATABASE_NAME).path,
-                null,
-                SQLiteDatabase.OPEN_READWRITE,
-            )
-        try {
-            val values = ContentValues().apply {
-                put("id", "ex-existing")
-                put("name", "Existing Exercise")
-                put("category", "strength")
-                put("equipment", "barbell")
-                put("targetMuscles", "chest")
-                put("isCustom", 0)
-                put("primaryMuscles", "chest")
-                put("secondaryMuscles", "")
-            }
-            database.insertOrThrow("exercises", null, values)
-        } finally {
-            database.close()
+            migrated.close()
         }
     }
 
@@ -148,6 +109,6 @@ class ExerciseMediaMigration24To25Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "exercise-media-24-25"
+        const val TEST_DATABASE_NAME = "health-connect-summary-29-30"
     }
 }

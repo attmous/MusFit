@@ -2,10 +2,20 @@ package com.musfit.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountRepository
+import com.musfit.data.repository.AiCoachApiKeyUpdate
+import com.musfit.data.repository.AiCoachProviderKind
+import com.musfit.data.repository.AiCoachRepository
+import com.musfit.data.repository.AiCoachSettings
+import com.musfit.data.repository.AiCoachSettingsInput
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
+import com.musfit.data.repository.ExternalAuthRepository
+import com.musfit.data.repository.ExternalAccountProfile
+import com.musfit.data.repository.GitHubDeviceAuthorization
 import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.HealthRepository
+import com.musfit.data.repository.LocalAgentKind
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserProfile
 import com.musfit.domain.health.HealthConnectAvailability
@@ -36,8 +46,32 @@ data class ProfileSettingsUiState(
     val accountNameInput: String = "",
     val accountEmailInput: String = "",
     val accountErrorMessage: String? = null,
+    val githubDeviceCode: GitHubDeviceAuthorization? = null,
+    val githubSignInInProgress: Boolean = false,
+    val isGitHubSignInConfigured: Boolean = false,
     val profile: UserProfile = DEFAULT_USER_PROFILE,
     val latestWeightKg: Double? = null,
+    val aiCoach: AiCoachSettingsUiState = AiCoachSettingsUiState(),
+    val aiCoachEditorOpen: Boolean = false,
+    val aiCoachProviderInput: AiCoachProviderKind = AiCoachProviderKind.Disabled,
+    val aiCoachBaseUrlInput: String = "",
+    val aiCoachModelNameInput: String = "",
+    val aiCoachLocalAgentInput: LocalAgentKind = LocalAgentKind.Custom,
+    val aiCoachApiKeyInput: String = "",
+    val aiCoachErrorMessage: String? = null,
+)
+
+data class AiCoachSettingsUiState(
+    val providerKind: AiCoachProviderKind = AiCoachProviderKind.Disabled,
+    val baseUrl: String = "",
+    val modelName: String = "",
+    val localAgentKind: LocalAgentKind = LocalAgentKind.Custom,
+    val hasApiKey: Boolean = false,
+    val providerLabel: String = "Off",
+    val endpointLabel: String = "Not set",
+    val modelLabel: String = "Not set",
+    val localAgentLabel: String = "Custom local agent",
+    val apiKeyLabel: String = "No API key",
 )
 
 /**
@@ -54,6 +88,9 @@ private data class HealthConnectState(
     val canRequestPermissions: Boolean = false,
     val isHealthConnectSyncing: Boolean = false,
     val message: String = DEFAULT_STATUS_MESSAGE,
+    val githubDeviceCode: GitHubDeviceAuthorization? = null,
+    val githubSignInInProgress: Boolean = false,
+    val isGitHubSignInConfigured: Boolean = false,
 )
 
 private data class AccountEditorState(
@@ -63,16 +100,31 @@ private data class AccountEditorState(
     val errorMessage: String? = null,
 )
 
+private data class AiCoachEditorState(
+    val open: Boolean = false,
+    val providerKind: AiCoachProviderKind = AiCoachProviderKind.Disabled,
+    val baseUrlInput: String = "",
+    val modelNameInput: String = "",
+    val localAgentKind: LocalAgentKind = LocalAgentKind.Custom,
+    val apiKeyInput: String = "",
+    val errorMessage: String? = null,
+)
+
 @HiltViewModel
 class ProfileSettingsViewModel @Inject constructor(
     private val healthRepository: HealthRepository,
     private val accountRepository: AccountRepository,
     private val profileRepository: ProfileRepository,
+    private val externalAuthRepository: ExternalAuthRepository,
+    private val aiCoachRepository: AiCoachRepository,
 ) : ViewModel() {
     // Health Connect fields live in this mutable base; account/profile fields are
     // layered on top of it in the combined [state] below.
-    private val mutableState = MutableStateFlow(HealthConnectState())
+    private val mutableState = MutableStateFlow(
+        HealthConnectState(isGitHubSignInConfigured = externalAuthRepository.isGitHubConfigured),
+    )
     private val accountEditorFlow = MutableStateFlow(AccountEditorState())
+    private val aiCoachEditorFlow = MutableStateFlow(AiCoachEditorState())
 
     init {
         viewModelScope.launch {
@@ -85,13 +137,25 @@ class ProfileSettingsViewModel @Inject constructor(
         }
     }
 
+    private val profileState = combine(
+        profileRepository.observeProfile(),
+        profileRepository.observeLatestWeight(),
+    ) { profile, latestWeight -> profile to latestWeight }
+
+    private val aiCoachState = combine(
+        aiCoachRepository.observeSettings(),
+        aiCoachEditorFlow,
+    ) { settings, editor -> settings.toUiState() to editor }
+
     val state: StateFlow<ProfileSettingsUiState> = combine(
         mutableState,
         accountRepository.observeActiveAccount(),
         accountEditorFlow,
-        profileRepository.observeProfile(),
-        profileRepository.observeLatestWeight(),
-    ) { base, account, editor, profile, latestWeight ->
+        profileState,
+        aiCoachState,
+    ) { base, account, editor, profilePair, aiCoachPair ->
+        val (profile, latestWeight) = profilePair
+        val (aiCoach, aiCoachEditor) = aiCoachPair
         ProfileSettingsUiState(
             availabilityLabel = base.availabilityLabel,
             grantedPermissionCount = base.grantedPermissionCount,
@@ -105,8 +169,19 @@ class ProfileSettingsViewModel @Inject constructor(
             accountNameInput = editor.nameInput,
             accountEmailInput = editor.emailInput,
             accountErrorMessage = editor.errorMessage,
+            githubDeviceCode = base.githubDeviceCode,
+            githubSignInInProgress = base.githubSignInInProgress,
+            isGitHubSignInConfigured = base.isGitHubSignInConfigured,
             profile = profile,
             latestWeightKg = latestWeight?.weightKg,
+            aiCoach = aiCoach,
+            aiCoachEditorOpen = aiCoachEditor.open,
+            aiCoachProviderInput = aiCoachEditor.providerKind,
+            aiCoachBaseUrlInput = aiCoachEditor.baseUrlInput,
+            aiCoachModelNameInput = aiCoachEditor.modelNameInput,
+            aiCoachLocalAgentInput = aiCoachEditor.localAgentKind,
+            aiCoachApiKeyInput = aiCoachEditor.apiKeyInput,
+            aiCoachErrorMessage = aiCoachEditor.errorMessage,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileSettingsUiState())
 
@@ -267,6 +342,187 @@ class ProfileSettingsViewModel @Inject constructor(
             }
         }
     }
+
+    fun signInWithProvider(profile: ExternalAccountProfile) {
+        viewModelScope.launch {
+            linkProviderProfile(profile)
+        }
+    }
+
+    fun reportExternalSignInFailure(providerName: String, error: Throwable) {
+        mutableState.update {
+            it.copy(message = error.message ?: "Could not sign in with $providerName.")
+        }
+    }
+
+    fun signInWithGitHub() {
+        if (!externalAuthRepository.isGitHubConfigured) {
+            mutableState.update { it.copy(message = "GitHub sign-in is not configured.") }
+            return
+        }
+        viewModelScope.launch {
+            mutableState.update {
+                it.copy(
+                    githubSignInInProgress = true,
+                    githubDeviceCode = null,
+                    message = "Starting GitHub sign-in.",
+                )
+            }
+            runCatching {
+                externalAuthRepository.signInWithGitHub { authorization ->
+                    mutableState.update {
+                        it.copy(
+                            githubDeviceCode = authorization,
+                            message = "Enter ${authorization.userCode} at GitHub to finish sign-in.",
+                        )
+                    }
+                }
+            }.onSuccess { profile ->
+                linkProviderProfile(profile)
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(
+                        githubSignInInProgress = false,
+                        message = error.message ?: "Could not sign in with GitHub.",
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissGitHubDeviceCode() {
+        mutableState.update { it.copy(githubDeviceCode = null) }
+    }
+
+    private suspend fun linkProviderProfile(profile: ExternalAccountProfile) {
+        runCatching {
+            accountRepository.signInWithProvider(profile)
+        }.onSuccess {
+            mutableState.update {
+                it.copy(
+                    githubSignInInProgress = false,
+                    message = "Signed in with ${profile.provider.messageLabel()}.",
+                )
+            }
+            accountEditorFlow.value = AccountEditorState()
+        }.onFailure { error ->
+            mutableState.update {
+                it.copy(
+                    githubSignInInProgress = false,
+                    message = error.message ?: "Could not sign in.",
+                )
+            }
+        }
+    }
+
+    fun openAiCoachEditor() {
+        val settings = state.value.aiCoach
+        aiCoachEditorFlow.value = AiCoachEditorState(
+            open = true,
+            providerKind = settings.providerKind,
+            baseUrlInput = settings.baseUrl,
+            modelNameInput = settings.modelName,
+            localAgentKind = settings.localAgentKind,
+        )
+    }
+
+    fun closeAiCoachEditor() {
+        aiCoachEditorFlow.value = AiCoachEditorState()
+    }
+
+    fun onAiCoachProviderChanged(value: AiCoachProviderKind) {
+        aiCoachEditorFlow.update { it.copy(providerKind = value, errorMessage = null) }
+    }
+
+    fun onAiCoachBaseUrlChanged(value: String) {
+        aiCoachEditorFlow.update { it.copy(baseUrlInput = value, errorMessage = null) }
+    }
+
+    fun onAiCoachModelNameChanged(value: String) {
+        aiCoachEditorFlow.update { it.copy(modelNameInput = value, errorMessage = null) }
+    }
+
+    fun onAiCoachLocalAgentKindChanged(value: LocalAgentKind) {
+        aiCoachEditorFlow.update { it.copy(localAgentKind = value, errorMessage = null) }
+    }
+
+    fun onAiCoachApiKeyChanged(value: String) {
+        aiCoachEditorFlow.update { it.copy(apiKeyInput = value, errorMessage = null) }
+    }
+
+    fun saveAiCoachSettings() {
+        val editor = aiCoachEditorFlow.value
+        viewModelScope.launch {
+            runCatching {
+                aiCoachRepository.saveSettings(
+                    AiCoachSettingsInput(
+                        providerKind = editor.providerKind,
+                        baseUrl = editor.baseUrlInput,
+                        modelName = editor.modelNameInput,
+                        localAgentKind = editor.localAgentKind,
+                        apiKey = if (editor.apiKeyInput.isBlank()) {
+                            AiCoachApiKeyUpdate.KeepExisting
+                        } else {
+                            AiCoachApiKeyUpdate.Replace(editor.apiKeyInput)
+                        },
+                    ),
+                )
+            }.onSuccess {
+                aiCoachEditorFlow.value = AiCoachEditorState()
+                mutableState.update { it.copy(message = "AI coach setup saved.") }
+            }.onFailure { error ->
+                aiCoachEditorFlow.update {
+                    it.copy(errorMessage = error.message ?: "Could not save AI coach setup.")
+                }
+            }
+        }
+    }
+
+    fun clearAiCoachApiKey() {
+        viewModelScope.launch {
+            runCatching { aiCoachRepository.clearApiKey() }
+                .onSuccess {
+                    mutableState.update { it.copy(message = "AI coach API key cleared.") }
+                }
+                .onFailure { error ->
+                    mutableState.update {
+                        it.copy(message = error.message ?: "Could not clear AI coach API key.")
+                    }
+                }
+        }
+    }
+}
+
+private fun AccountAuthProvider.messageLabel(): String = when (this) {
+    AccountAuthProvider.Local -> "local account"
+    AccountAuthProvider.Google -> "Google"
+    AccountAuthProvider.GitHub -> "GitHub"
+}
+
+private fun AiCoachSettings.toUiState(): AiCoachSettingsUiState =
+    AiCoachSettingsUiState(
+        providerKind = providerKind,
+        baseUrl = baseUrl,
+        modelName = modelName,
+        localAgentKind = localAgentKind,
+        hasApiKey = hasApiKey,
+        providerLabel = providerKind.displayLabel(localAgentKind),
+        endpointLabel = baseUrl.ifBlank { "Not set" },
+        modelLabel = modelName.ifBlank { "Not set" },
+        localAgentLabel = localAgentKind.displayLabel(),
+        apiKeyLabel = if (hasApiKey) "Key saved" else "No API key",
+    )
+
+private fun AiCoachProviderKind.displayLabel(localAgentKind: LocalAgentKind): String = when (this) {
+    AiCoachProviderKind.Disabled -> "Off"
+    AiCoachProviderKind.OpenAiCompatible -> "API-compatible endpoint"
+    AiCoachProviderKind.LocalAgent -> localAgentKind.displayLabel()
+}
+
+private fun LocalAgentKind.displayLabel(): String = when (this) {
+    LocalAgentKind.OpenClaw -> "OpenClaw local agent"
+    LocalAgentKind.HermesAgent -> "Hermes agent"
+    LocalAgentKind.Custom -> "Custom local agent"
 }
 
 private fun com.musfit.domain.health.ImportedDailyHealthSummary.importMessage(): String {

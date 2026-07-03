@@ -31,12 +31,16 @@ import com.musfit.data.repository.Account
 data class AccountUiState(
     val displayName: String = "You",
     val email: String? = null,
+    val providerLabel: String = "Local account",
+    val avatarUrl: String? = null,
 )
 
 internal fun Account.toUiState() =
     AccountUiState(
         displayName = displayName,
         email = email,
+        providerLabel = authProvider.displayName,
+        avatarUrl = avatarUrl,
     )
 
 private fun String.accountInitial(): String =
@@ -69,10 +73,17 @@ fun AccountSection(account: AccountUiState, onEdit: () -> Unit) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(account.displayName, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    account.email ?: "Local account",
+                    account.email ?: account.providerLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (account.email != null) {
+                    Text(
+                        account.providerLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             IconButton(onClick = onEdit) {
                 Icon(Icons.Outlined.Edit, contentDescription = "Edit account")

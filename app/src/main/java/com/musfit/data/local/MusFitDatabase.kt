@@ -3,6 +3,7 @@ package com.musfit.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.musfit.data.local.dao.AccountDao
+import com.musfit.data.local.dao.AiCoachDao
 import com.musfit.data.local.dao.CoachDao
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
@@ -11,6 +12,7 @@ import com.musfit.data.local.dao.TrainingDao
 import com.musfit.data.local.dao.UserGoalsDao
 import com.musfit.data.local.entity.AccountEntity
 import com.musfit.data.local.entity.AccountSessionEntity
+import com.musfit.data.local.entity.AiCoachSettingsEntity
 import com.musfit.data.local.entity.AppSettingsEntity
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.BodyMetricEntity
@@ -72,10 +74,11 @@ import com.musfit.data.local.entity.WorkoutSetEntity
         UserProfileEntity::class,
         AppSettingsEntity::class,
         UserGoalsEntity::class,
+        AiCoachSettingsEntity::class,
         CoachMessageEntity::class,
         DashboardPinEntity::class,
     ],
-    version = 28,
+    version = 30,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {
@@ -90,6 +93,8 @@ abstract class MusFitDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
 
     abstract fun userGoalsDao(): UserGoalsDao
+
+    abstract fun aiCoachDao(): AiCoachDao
 
     abstract fun coachDao(): CoachDao
 }

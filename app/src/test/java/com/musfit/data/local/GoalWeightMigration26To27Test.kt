@@ -128,7 +128,12 @@ class GoalWeightMigration26To27Test {
     private fun runMigration() {
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_26_27, DatabaseModule.MIGRATION_27_28)
+                .addMigrations(
+                    DatabaseModule.MIGRATION_26_27,
+                    DatabaseModule.MIGRATION_27_28,
+                    DatabaseModule.MIGRATION_28_29,
+                    DatabaseModule.MIGRATION_29_30,
+                )
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()

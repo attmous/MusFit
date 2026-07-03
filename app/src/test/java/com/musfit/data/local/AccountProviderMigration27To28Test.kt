@@ -1,6 +1,5 @@
 package com.musfit.data.local
 
-import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
@@ -17,7 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class ExerciseMediaMigration24To25Test {
+class AccountProviderMigration27To28Test {
     private lateinit var context: Context
 
     @Before
@@ -32,16 +31,13 @@ class ExerciseMediaMigration24To25Test {
     }
 
     @Test
-    fun migration24To25_addsExerciseMediaColumnsAndPreservesRows() {
-        createDatabaseFromExportedSchema(version = 24)
-        insertExerciseRow()
+    fun migration27To28_addsProviderColumnsToExistingAccounts() {
+        createDatabaseFromExportedSchema(version = 27)
+        insertLocalDefaultAccount()
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
                 .addMigrations(
-                    DatabaseModule.MIGRATION_24_25,
-                    DatabaseModule.MIGRATION_25_26,
-                    DatabaseModule.MIGRATION_26_27,
                     DatabaseModule.MIGRATION_27_28,
                     DatabaseModule.MIGRATION_28_29,
                     DatabaseModule.MIGRATION_29_30,
@@ -53,59 +49,29 @@ class ExerciseMediaMigration24To25Test {
             roomDatabase.close()
         }
 
-        val migratedDatabase =
+        val database =
             SQLiteDatabase.openDatabase(
                 context.getDatabasePath(TEST_DATABASE_NAME).path,
                 null,
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            assertTrue(tableHasColumn(migratedDatabase, "exercises", "imageUrl"))
-            assertTrue(tableHasColumn(migratedDatabase, "exercises", "gifUrl"))
-            migratedDatabase.rawQuery(
-                "SELECT name, imageUrl, gifUrl FROM exercises WHERE id = 'ex-existing'",
+            database.rawQuery(
+                """
+                SELECT authProvider, avatarUrl
+                FROM accounts
+                WHERE id = 'local-default'
+                """.trimIndent(),
                 null,
             ).use { cursor ->
                 assertTrue(cursor.moveToFirst())
-                assertEquals("Existing Exercise", cursor.getString(0))
+                assertEquals("local", cursor.getString(0))
                 assertTrue(cursor.isNull(1))
-                assertTrue(cursor.isNull(2))
             }
-        } finally {
-            migratedDatabase.close()
-        }
-    }
-
-    private fun insertExerciseRow() {
-        val database =
-            SQLiteDatabase.openDatabase(
-                context.getDatabasePath(TEST_DATABASE_NAME).path,
-                null,
-                SQLiteDatabase.OPEN_READWRITE,
-            )
-        try {
-            val values = ContentValues().apply {
-                put("id", "ex-existing")
-                put("name", "Existing Exercise")
-                put("category", "strength")
-                put("equipment", "barbell")
-                put("targetMuscles", "chest")
-                put("isCustom", 0)
-                put("primaryMuscles", "chest")
-                put("secondaryMuscles", "")
-            }
-            database.insertOrThrow("exercises", null, values)
         } finally {
             database.close()
         }
     }
-
-    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean =
-        database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
-            val nameIndex = cursor.getColumnIndex("name")
-            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
-                .any { it == columnName }
-        }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
         val schemaFile = resolveSchemaFile(version)
@@ -124,7 +90,10 @@ class ExerciseMediaMigration24To25Test {
                 for (indexPosition in 0 until indices.length()) {
                     val entityIndex = indices.getJSONObject(indexPosition)
                     database.execSQL(
-                        resolveSchemaSql(entityIndex.getString("createSql"), entity.getString("tableName")),
+                        resolveSchemaSql(
+                            entityIndex.getString("createSql"),
+                            entity.getString("tableName"),
+                        ),
                     )
                 }
             }
@@ -140,6 +109,28 @@ class ExerciseMediaMigration24To25Test {
 
     private fun resolveSchemaSql(sql: String, tableName: String): String = sql.replace("\${TABLE_NAME}", tableName)
 
+    private fun insertLocalDefaultAccount() {
+        val database =
+            SQLiteDatabase.openDatabase(
+                context.getDatabasePath(TEST_DATABASE_NAME).path,
+                null,
+                SQLiteDatabase.OPEN_READWRITE,
+            )
+        try {
+            database.execSQL(
+                """
+                INSERT INTO accounts (
+                    id, displayName, email, remoteUserId, createdAtEpochMillis, updatedAtEpochMillis
+                ) VALUES (
+                    'local-default', 'You', NULL, NULL, 0, 0
+                )
+                """.trimIndent(),
+            )
+        } finally {
+            database.close()
+        }
+    }
+
     private fun resolveSchemaFile(version: Int): File {
         val relativePath = "schemas/com.musfit.data.local.MusFitDatabase/$version.json"
         val candidates = listOf(File(relativePath), File("app/$relativePath"), File("../app/$relativePath"))
@@ -148,6 +139,6 @@ class ExerciseMediaMigration24To25Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "exercise-media-24-25"
+        const val TEST_DATABASE_NAME = "account-provider-27-28"
     }
 }

@@ -1,6 +1,6 @@
 # MusFit App Architecture
 
-This documentation describes the current MusFit Android app architecture as implemented in source on 2026-06-28. It is intended for product planning, engineering handoff, and future feature work.
+This documentation describes the current MusFit Android app architecture as implemented in source on 2026-07-03. It is intended for product planning, engineering handoff, and future feature work.
 
 Related documents:
 
@@ -20,7 +20,7 @@ Top-level navigation is a bottom bar with four destinations:
 | Training | `training` | Routines, exercise library, active workouts, rest timer, supersets, PR/plate hints, workout history/recaps, progress, and quick set logging. |
 | Health | `health` | Health Connect status, permission entrypoint, recent health import, and workout export. |
 
-The MVP is local-first. It has no account system, cloud sync, analytics, subscription layer, social features, or wearable cloud API integration.
+The MVP is local-first. It has a local account ownership boundary with optional Google/GitHub identity sign-in, but no cloud sync, analytics, subscription layer, social features, or wearable cloud API integration.
 
 ## Platform
 
@@ -34,6 +34,7 @@ The MVP is local-first. It has no account system, cloud sync, analytics, subscri
 | Async | Kotlin coroutines and Flow |
 | DI | Hilt |
 | Food remote data | Retrofit and Moshi client for Open Food Facts |
+| Account identity | AndroidX Credential Manager for Google and GitHub device flow via Retrofit; OAuth client IDs are supplied through Gradle properties or environment variables. |
 | Image loading | Coil Compose |
 | Barcode and label scan | CameraX plus ML Kit barcode/text recognition |
 | Health data | Android Health Connect boundary |
@@ -51,10 +52,11 @@ The MVP is local-first. It has no account system, cloud sync, analytics, subscri
 | `app/src/main/java/com/musfit/data/repository/` | Feature repository interfaces, local implementations, and public repository data models. |
 | `app/src/main/java/com/musfit/data/local/` | Room database, DAOs, entities, and query projection rows. |
 | `app/src/main/java/com/musfit/data/remote/food/` | Open Food Facts provider interface and Retrofit implementation models. |
+| `app/src/main/java/com/musfit/data/remote/auth/` | GitHub OAuth device flow Retrofit API models. |
 | `app/src/main/java/com/musfit/domain/` | Pure Kotlin domain models and calculators. No Android, Compose, Retrofit, Room, or Health Connect dependencies. |
 | `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect gateway, record mapping, and permission rationale activity. |
 | `app/src/test/java/com/musfit/` | Unit tests for ViewModels, repositories, DAOs, domain calculators, and integration boundaries. |
-| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Exported Room schema JSON files for versions 1 through 24. |
+| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Exported Room schema JSON files for versions 1 through 28. |
 
 ## Layering
 
@@ -71,6 +73,7 @@ flowchart TD
     DAOs["Room DAOs"]
     DB["Room database"]
     Remote["Open Food Facts provider"]
+    AuthRemote["External identity APIs"]
     Health["Health Connect gateway"]
     Domain["Pure domain calculators"]
 
@@ -82,6 +85,7 @@ flowchart TD
     Repos --> LocalRepos
     LocalRepos --> DAOs
     LocalRepos --> Remote
+    LocalRepos --> AuthRemote
     LocalRepos --> Health
     LocalRepos --> Domain
     DAOs --> DB
@@ -117,8 +121,8 @@ Hilt modules live under `core/di`.
 | Module | Responsibility |
 | --- | --- |
 | `DatabaseModule` | Builds `MusFitDatabase`, registers all migrations, and provides DAOs. |
-| `RepositoryModule` | Binds repository interfaces to local implementations: Food, Training, Health, Goals. |
-| `NetworkModule` | Provides Moshi, OkHttp, Open Food Facts Retrofit API, and binds `FoodProductProvider`. |
+| `RepositoryModule` | Binds repository interfaces to local implementations: Account, ExternalAuth, Food, Training, Health, Goals. |
+| `NetworkModule` | Provides Moshi, OkHttp, auth config, Open Food Facts Retrofit API, GitHub auth Retrofit API, and binds `FoodProductProvider`. |
 | `HealthModule` | Binds `HealthConnectGateway` to `HealthConnectManager`. |
 
 Repositories are injected into ViewModels. DAOs, remote providers, and gateways are injected into repository implementations.
@@ -142,6 +146,7 @@ The database is `MusFitDatabase`, version 28, with `exportSchema = true`.
 
 Major table groups:
 
+- Account: local account identity, active account session, provider metadata, and optional Google/GitHub remote identity key.
 - Food: foods, servings, meals, meal items, barcode products, goals, quick presets, meal definitions, templates, recipes, shopping list, water entries, food Health Connect sync state.
 - Training: exercises, routines, routine exercises, workout sessions, workout sets with set type, RPE, notes, completion state, optional superset grouping, and local tool settings.
 - Health: body metrics, daily health summaries, Health Connect sync state.
@@ -154,6 +159,14 @@ Room migrations are registered from version 1 to 28 in `DatabaseModule`. The app
 Training stores only local strength-training data. Exercise rows hold list metadata plus detail fields (`primaryMuscles`, `secondaryMuscles`, `instructions`, and `localNotes`). Routines store starter/custom status, optional `programName`, and CSV-backed tags, with ordered routine exercises in `routine_exercises`. Active and completed workouts use the same session/set tables, with session `status` separating active, completed, and discarded workouts. Completed workout recap data is derived from the session and completed set rows, including local session notes. Supersets are represented by a nullable `supersetGroupId` on workout sets and are derived into grouped UI models by the repository. Global Training tool settings live in `training_settings` for default rest duration, bar weight, and available plate inventory.
 
 ## Remote And Device Integrations
+
+### Account Identity
+
+The account system is local-first. `AccountRepository` owns local account rows and the active-account pointer. Google and GitHub sign-in only link an external identity to the local account row; access tokens are not persisted and cloud sync is not implemented.
+
+- Google sign-in uses AndroidX Credential Manager with `GetSignInWithGoogleOption`. Set `MUSFIT_GOOGLE_WEB_CLIENT_ID` as a Gradle property or environment variable to enable the button.
+- GitHub sign-in uses the OAuth device flow and `read:user user:email` scope. Set `MUSFIT_GITHUB_OAUTH_CLIENT_ID` as a Gradle property or environment variable to enable the button.
+- Provider identities are stored in `accounts.remoteUserId` as provider-scoped keys such as `google:<id>` or `github:<id>`, with `authProvider` used for display/state.
 
 ### Open Food Facts
 

@@ -45,6 +45,8 @@ class LocalAccountRepositoryTest {
         assertEquals(LOCAL_DEFAULT_ACCOUNT_ID, account.id)
         assertEquals("You", account.displayName)
         assertNull(account.email)
+        assertEquals(AccountAuthProvider.Local, account.authProvider)
+        assertNull(account.avatarUrl)
         assertEquals(account, repository.observeActiveAccount().first())
         assertEquals(listOf(account), repository.observeAccounts().first())
     }
@@ -57,6 +59,8 @@ class LocalAccountRepositoryTest {
                 displayName = "Older",
                 email = null,
                 remoteUserId = null,
+                authProvider = AccountAuthProvider.Local.storageValue,
+                avatarUrl = null,
                 createdAtEpochMillis = 1L,
                 updatedAtEpochMillis = 2L,
             ),
@@ -67,6 +71,8 @@ class LocalAccountRepositoryTest {
                 displayName = "Newer",
                 email = null,
                 remoteUserId = null,
+                authProvider = AccountAuthProvider.Local.storageValue,
+                avatarUrl = null,
                 createdAtEpochMillis = 3L,
                 updatedAtEpochMillis = 4L,
             ),
@@ -112,5 +118,62 @@ class LocalAccountRepositoryTest {
         assertEquals(secondId, active.id)
         assertEquals("Partner", active.displayName)
         assertEquals("partner@example.com", active.email)
+    }
+
+    @Test
+    fun signInWithProvider_claimsActiveLocalAccountAndStoresProviderIdentity() = runTest {
+        repository.ensureActiveAccount()
+
+        val account = repository.signInWithProvider(
+            ExternalAccountProfile(
+                provider = AccountAuthProvider.Google,
+                providerUserId = "google-sub-1",
+                displayName = "  Ava  ",
+                email = "  ava@gmail.com  ",
+                avatarUrl = "https://example.com/avatar.png",
+            ),
+        )
+
+        assertEquals(LOCAL_DEFAULT_ACCOUNT_ID, account.id)
+        assertEquals("Ava", account.displayName)
+        assertEquals("ava@gmail.com", account.email)
+        assertEquals(AccountAuthProvider.Google, account.authProvider)
+        assertEquals("google:google-sub-1", account.remoteUserId)
+        assertEquals("https://example.com/avatar.png", account.avatarUrl)
+        assertEquals(account, repository.observeActiveAccount().first())
+    }
+
+    @Test
+    fun signInWithProvider_switchesToExistingLinkedAccount() = runTest {
+        repository.ensureActiveAccount()
+        database.accountDao().upsertAccount(
+            AccountEntity(
+                id = "github-account",
+                displayName = "Old GitHub",
+                email = null,
+                remoteUserId = "github:42",
+                authProvider = AccountAuthProvider.GitHub.storageValue,
+                avatarUrl = null,
+                createdAtEpochMillis = 1L,
+                updatedAtEpochMillis = 2L,
+            ),
+        )
+
+        val account = repository.signInWithProvider(
+            ExternalAccountProfile(
+                provider = AccountAuthProvider.GitHub,
+                providerUserId = "42",
+                displayName = "octocat",
+                email = "octo@github.com",
+                avatarUrl = "https://avatars.githubusercontent.com/u/42",
+            ),
+        )
+
+        assertEquals("github-account", account.id)
+        assertEquals("octocat", account.displayName)
+        assertEquals("octo@github.com", account.email)
+        assertEquals(AccountAuthProvider.GitHub, account.authProvider)
+        assertEquals("github:42", account.remoteUserId)
+        assertEquals("github-account", repository.observeActiveAccount().first().id)
     }
 }
