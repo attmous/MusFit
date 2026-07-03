@@ -5,6 +5,7 @@ local.properties
 build/
 app/build/
 captures/
+verification/
 .DS_Store
 .superpowers/
 .worktrees/

@@ -30,7 +30,7 @@ The MVP is local-first. It has a local account ownership boundary with optional 
 | UI | Jetpack Compose with Material 3 |
 | Navigation | Navigation Compose, single activity |
 | State | Hilt ViewModels exposing immutable `StateFlow` UI state |
-| Storage | Room local database, schema version 28 |
+| Storage | Room local database, schema version 30 |
 | Async | Kotlin coroutines and Flow |
 | DI | Hilt |
 | Food remote data | Retrofit and Moshi client for Open Food Facts |
@@ -56,7 +56,7 @@ The MVP is local-first. It has a local account ownership boundary with optional 
 | `app/src/main/java/com/musfit/domain/` | Pure Kotlin domain models and calculators. No Android, Compose, Retrofit, Room, or Health Connect dependencies. |
 | `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect gateway, record mapping, and permission rationale activity. |
 | `app/src/test/java/com/musfit/` | Unit tests for ViewModels, repositories, DAOs, domain calculators, and integration boundaries. |
-| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Exported Room schema JSON files for versions 1 through 28. |
+| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Exported Room schema JSON files for versions 1 through 30. |
 
 ## Layering
 
@@ -142,7 +142,7 @@ Food and Today use date-scoped Flow collection. Food owns a `selectedDateFlow` a
 
 ## Persistence
 
-The database is `MusFitDatabase`, version 28, with `exportSchema = true`.
+The database is `MusFitDatabase`, version 30, with `exportSchema = true`.
 
 Major table groups:
 
@@ -152,7 +152,7 @@ Major table groups:
 - Health: body metrics, daily health summaries, Health Connect sync state.
 - Today goals: user goals.
 
-Room migrations are registered from version 1 to 28 in `DatabaseModule`. The app does not use destructive migration fallback, so schema changes must include a migration and a committed schema JSON.
+Room migrations are registered from version 1 to 30 in `DatabaseModule`. The app does not use destructive migration fallback, so schema changes must include a migration and a committed schema JSON.
 
 ### Training Persistence Notes
 
@@ -234,7 +234,7 @@ UI direction:
 Windows verification command:
 
 ```powershell
-. .\.superpowers\sdd\android-env.ps1
+. .\scripts\android\android-env.ps1
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
 ```
 

@@ -203,7 +203,7 @@ Compose screen → ViewModel (StateFlow) → Repository interface → Room DAO /
 | --- | --- |
 | Language / UI | Kotlin, Jetpack Compose, Material 3 (Expressive), single activity |
 | State | Hilt ViewModels exposing immutable `StateFlow`, date-scoped `flatMapLatest` streams |
-| Storage | Room (schema v27, exported schemas, migration-only — no destructive fallback) |
+| Storage | Room (schema v30, exported schemas, migration-only — no destructive fallback) |
 | Domain | Pure Kotlin calculators (`NutritionCalculator`, `WorkoutCalculator`) with no Android deps |
 | Integrations | Retrofit + Moshi (Open Food Facts), CameraX + ML Kit (barcode/label scan), Health Connect behind a fakeable gateway |
 | Testing | TDD culture: JUnit ViewModel tests with hand-written fakes, Robolectric repository/DAO tests against in-memory Room with real migrations, pure domain tests |
@@ -222,17 +222,23 @@ and every shipped slice has a written plan.
 Requirements: **JDK 17**, an Android SDK with **API 37**, Windows PowerShell (the repo's
 tooling is PowerShell-first; a POSIX setup works with the equivalent Gradle invocations).
 
-Set up the local Android toolchain for the shell (local, untracked bootstrap — if it's missing,
-point `JAVA_HOME`/`ANDROID_HOME` at JDK 17 and your SDK yourself):
+Set up the local Android toolchain for the shell:
 
 ```powershell
-. .\.superpowers\sdd\android-env.ps1
+. .\scripts\android\android-env.ps1
 ```
 
 Run the full verification build:
 
 ```powershell
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+```
+
+The repo-owned helper runs the same gate and can also retry once after the known
+OneDrive/generated-output cleanup:
+
+```powershell
+.\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
 ```
 
 Install the debug APK on a connected device or emulator:
@@ -242,8 +248,9 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 adb shell monkey -p com.musfit -c android.intent.category.LAUNCHER 1
 ```
 
-CI (GitHub Actions, [`android.yml`](.github/workflows/android.yml)) runs the same tests, lint,
-and assembly on every push and uploads the debug APK as the `musfit-debug-apk` artifact.
+CI (GitHub Actions, [`android.yml`](.github/workflows/android.yml)) runs the same debug
+verification gate on every PR and push, uploads the debug APK as the `musfit-debug-apk`
+artifact, and runs a full `build` job only for default-branch pushes.
 
 ## Status
 
