@@ -3,6 +3,7 @@
 package com.musfit.ui.food
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -142,14 +144,33 @@ fun AddFoodScreen(
                         shape = MusFitTheme.shapes.large,
                         modifier = Modifier.weight(1f),
                     )
+                    val barcodeScannerSpotlightProgress by rememberFoodBarcodeScannerSpotlightProgress()
+                    val barcodeScannerSpotlight = foodBarcodeScannerSpotlightTransform(barcodeScannerSpotlightProgress)
                     IconButton(
                         onClick = onScanClick,
                         modifier = Modifier
                             .size(52.dp)
+                            .graphicsLayer {
+                                scaleX = barcodeScannerSpotlight.containerScale
+                                scaleY = barcodeScannerSpotlight.containerScale
+                            }
                             .clip(MusFitTheme.shapes.medium)
-                            .background(MusFitTheme.colors.positiveContainer),
+                            .background(MusFitTheme.colors.positiveContainer.copy(alpha = barcodeScannerSpotlight.containerAlpha))
+                            .border(
+                                width = 1.dp,
+                                color = MusFitTheme.colors.brand.copy(alpha = barcodeScannerSpotlight.borderAlpha),
+                                shape = MusFitTheme.shapes.medium,
+                            ),
                     ) {
-                        Icon(Icons.Outlined.QrCodeScanner, contentDescription = "Scan barcode", tint = MusFitTheme.colors.brand)
+                        Icon(
+                            Icons.Outlined.QrCodeScanner,
+                            contentDescription = "Scan barcode",
+                            tint = MusFitTheme.colors.brand,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = barcodeScannerSpotlight.iconScale
+                                scaleY = barcodeScannerSpotlight.iconScale
+                            },
+                        )
                     }
                 }
             }
