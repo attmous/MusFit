@@ -72,6 +72,57 @@ data class AiCoachSettingsUiState(
     val apiKeyLabel: String = "No API key",
 )
 
+internal data class ProviderSignInActionsUiState(
+    val google: ProviderSignInActionUiState,
+    val github: ProviderSignInActionUiState,
+)
+
+internal data class ProviderSignInActionUiState(
+    val providerLabel: String,
+    val buttonLabel: String,
+    val statusLabel: String,
+    val supportingText: String,
+    val enabled: Boolean,
+)
+
+internal fun providerSignInActions(
+    googleConfigured: Boolean,
+    githubConfigured: Boolean,
+    githubBusy: Boolean,
+): ProviderSignInActionsUiState =
+    ProviderSignInActionsUiState(
+        google = ProviderSignInActionUiState(
+            providerLabel = "Google",
+            buttonLabel = "Connect Google",
+            statusLabel = when {
+                !googleConfigured -> "Setup needed"
+                githubBusy -> "Waiting"
+                else -> "Ready"
+            },
+            supportingText = when {
+                !googleConfigured -> "Missing Google OAuth client ID in this build."
+                githubBusy -> "Wait for GitHub to finish first."
+                else -> "Links Google to this local account. MusFit still keeps your data on this device."
+            },
+            enabled = googleConfigured && !githubBusy,
+        ),
+        github = ProviderSignInActionUiState(
+            providerLabel = "GitHub",
+            buttonLabel = if (githubBusy) "Waiting for GitHub" else "Connect GitHub",
+            statusLabel = when {
+                githubBusy -> "In progress"
+                !githubConfigured -> "Setup needed"
+                else -> "Ready"
+            },
+            supportingText = when {
+                githubBusy -> "Enter the code in GitHub to finish linking your local account."
+                !githubConfigured -> "Missing GitHub OAuth client ID in this build."
+                else -> "Uses GitHub device flow to link your local account."
+            },
+            enabled = githubConfigured && !githubBusy,
+        ),
+    )
+
 /**
  * Only the fields the mutable base flow actually owns (Health Connect status plus the
  * shared message line). The account/editor/profile fields of [ProfileSettingsUiState]

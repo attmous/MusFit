@@ -17,3 +17,9 @@ enum class AppDestination(val route: String, val label: String, val icon: ImageV
     Training(route = "training", label = "Training", icon = Icons.Outlined.FitnessCenter),
     Profile(route = "profile", label = "Profile", icon = Icons.Outlined.Person),
 }
+
+internal fun bottomDestinationForRoute(route: String?): AppDestination =
+    when (route) {
+        PROFILE_SETTINGS_ROUTE -> AppDestination.Profile
+        else -> AppDestination.entries.firstOrNull { it.route == route } ?: AppDestination.Today
+    }

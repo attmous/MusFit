@@ -352,6 +352,39 @@ class ProfileSettingsViewModelTest {
     }
 
     @Test
+    fun providerSignInActions_explainMissingProviderConfiguration() {
+        val actions = providerSignInActions(
+            googleConfigured = false,
+            githubConfigured = false,
+            githubBusy = false,
+        )
+
+        assertEquals(false, actions.google.enabled)
+        assertEquals("Connect Google", actions.google.buttonLabel)
+        assertEquals("Setup needed", actions.google.statusLabel)
+        assertEquals("Missing Google OAuth client ID in this build.", actions.google.supportingText)
+        assertEquals(false, actions.github.enabled)
+        assertEquals("Setup needed", actions.github.statusLabel)
+        assertEquals("Missing GitHub OAuth client ID in this build.", actions.github.supportingText)
+    }
+
+    @Test
+    fun providerSignInActions_showGitHubBusyStateForBothProviders() {
+        val actions = providerSignInActions(
+            googleConfigured = true,
+            githubConfigured = true,
+            githubBusy = true,
+        )
+
+        assertEquals(false, actions.google.enabled)
+        assertEquals("Wait for GitHub to finish first.", actions.google.supportingText)
+        assertEquals(false, actions.github.enabled)
+        assertEquals("Waiting for GitHub", actions.github.buttonLabel)
+        assertEquals("In progress", actions.github.statusLabel)
+        assertEquals("Enter the code in GitHub to finish linking your local account.", actions.github.supportingText)
+    }
+
+    @Test
     fun saveAccount_blankNameKeepsEditorOpenWithValidation() = runTest {
         val accountRepository = FakeAccountRepository()
         val viewModel = settingsViewModel(accountRepository = accountRepository)

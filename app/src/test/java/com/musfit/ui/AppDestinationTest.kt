@@ -22,4 +22,9 @@ class AppDestinationTest {
         assertEquals("barcode-scanner", BARCODE_SCANNER_ROUTE)
         assertEquals(false, AppDestination.entries.any { it.route == BARCODE_SCANNER_ROUTE })
     }
+
+    @Test
+    fun profileSettingsRoute_keeps_profile_tab_selected() {
+        assertEquals(AppDestination.Profile, bottomDestinationForRoute(PROFILE_SETTINGS_ROUTE))
+    }
 }
