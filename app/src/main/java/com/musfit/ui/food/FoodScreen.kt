@@ -290,25 +290,6 @@ fun FoodScreen(
                     )
 
                     SectionTitle("Meal diary")
-                    if (state.isFoodDiaryEmpty) {
-                        EmptyDiaryStartCard(
-                            actions = state.emptyDiaryActions,
-                            onActionClick = { actionType ->
-                                when (actionType) {
-                                    EmptyDiaryActionType.Breakfast -> viewModel.openAddFood("breakfast")
-                                    EmptyDiaryActionType.Barcode -> {
-                                        viewModel.openAddFood("snacks")
-                                        viewModel.selectAddTab(AddTab.Create)
-                                        onScanClick()
-                                    }
-                                    EmptyDiaryActionType.Ai -> {
-                                        viewModel.openAddFood("snacks")
-                                        viewModel.selectAddMode(FoodAddMode.Ai)
-                                    }
-                                }
-                            },
-                        )
-                    }
                     state.mealSections.forEach { meal ->
                         MealSectionCard(
                             meal = meal,
@@ -720,7 +701,7 @@ internal fun FoodUiState.toPlanningModePresentation(): FoodPlanningModePresentat
             buttonContentDescription = "Start planning meals",
             statusTitle = "Planned this week",
             statusDescription = "",
-            statusActionLabel = if (plannedItemCount == 0) "Plan meals" else "Plan more",
+            statusActionLabel = "",
             showStatusCard = plannedItemCount > 0,
         )
     }
@@ -820,8 +801,8 @@ private fun PlanningModeStatusCard(
         border = BorderStroke(1.dp, accent.copy(alpha = if (presentation.isActive) 0.28f else 0.16f)),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -835,8 +816,10 @@ private fun PlanningModeStatusCard(
                     color = MusFitTheme.colors.brandInk,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = onActionClick) {
-                    Text(presentation.statusActionLabel, maxLines = 1)
+                if (presentation.statusActionLabel.isNotBlank()) {
+                    TextButton(onClick = onActionClick) {
+                        Text(presentation.statusActionLabel, maxLines = 1)
+                    }
                 }
             }
             WeeklyPlanStrip(planDays = planDays, selectedDate = selectedDate)
@@ -1067,50 +1050,6 @@ private fun MacroProgressColumn(
             progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
             color = color,
         )
-    }
-}
-
-@Composable
-private fun EmptyDiaryStartCard(
-    actions: List<EmptyDiaryActionUiState>,
-    onActionClick: (EmptyDiaryActionType) -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.extraLarge,
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = "Build today's food",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.brandInk,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                actions.forEach { action ->
-                    MusFitOutlinedButton(
-                        onClick = { onActionClick(action.type) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .semantics { contentDescription = action.accessibilityLabel },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                    ) {
-                        Text(
-                            text = action.label,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 

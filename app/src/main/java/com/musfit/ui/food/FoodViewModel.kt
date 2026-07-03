@@ -699,7 +699,7 @@ data class FoodUiState(
     val foodPrograms: List<FoodProgramUiState> = emptyFoodPrograms(),
     val habitTrackers: List<FoodHabitTrackerUiState> = emptyHabitTrackers(),
     val isFoodDiaryEmpty: Boolean = true,
-    val emptyDiaryActions: List<EmptyDiaryActionUiState> = defaultEmptyDiaryActions(),
+    val emptyDiaryActions: List<EmptyDiaryActionUiState> = emptyList(),
     val mealSections: List<FoodMealSectionUiState> = emptyMealSections(),
     val weeklyPlan: List<FoodPlanDayUiState> = emptyList(),
     val isPlanningMode: Boolean = false,
@@ -5185,7 +5185,7 @@ private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
             waterGoalMilliliters = waterGoalMilliliters,
         ),
         isFoodDiaryEmpty = diary.isEmptyLoggedDiary(),
-        emptyDiaryActions = if (diary.isEmptyLoggedDiary()) defaultEmptyDiaryActions() else emptyList(),
+        emptyDiaryActions = emptyList(),
         mealSections = diary.toMealSections(
             mealDefinitions = mealDefinitions,
             useNetCarbs = useNetCarbs,
@@ -6985,20 +6985,6 @@ private fun emptyFoodRating(): FoodRatingUiState =
         reason = "Log food to rate today.",
         suggestion = "Start with a meal or favorite.",
         tone = FoodInsightTone.Neutral,
-    )
-
-private fun defaultEmptyDiaryActions(): List<EmptyDiaryActionUiState> =
-    listOf(
-        EmptyDiaryActionUiState(
-            type = EmptyDiaryActionType.Breakfast,
-            label = "Add breakfast",
-            accessibilityLabel = "Add breakfast to food diary",
-        ),
-        EmptyDiaryActionUiState(
-            type = EmptyDiaryActionType.Barcode,
-            label = "Scan barcode",
-            accessibilityLabel = "Scan barcode to add food",
-        ),
     )
 
 private fun String.normalizedMealType(): String {

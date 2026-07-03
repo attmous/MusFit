@@ -131,7 +131,7 @@ class FoodViewModelTest {
     }
 
     @Test
-    fun emptyFoodDiaryShowsPolishedStartActions() = runTest {
+    fun emptyFoodDiaryDoesNotShowStartActionsOnFoodHome() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(),
             repository = FakeFoodRepository(diary = emptyFoodDiary()),
@@ -139,10 +139,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isFoodDiaryEmpty)
-        assertEquals(
-            listOf("Add breakfast", "Scan barcode"),
-            viewModel.state.value.emptyDiaryActions.map { it.label },
-        )
+        assertTrue(viewModel.state.value.emptyDiaryActions.isEmpty())
     }
 
     @Test

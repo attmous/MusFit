@@ -13,7 +13,7 @@ class FoodPlanningModePresentationTest {
 
         assertEquals("Plan", presentation.buttonLabel)
         assertEquals("Start planning meals", presentation.buttonContentDescription)
-        assertEquals("Plan meals", presentation.statusActionLabel)
+        assertEquals("", presentation.statusActionLabel)
         assertFalse(presentation.showStatusCard)
     }
 
@@ -68,7 +68,7 @@ class FoodPlanningModePresentationTest {
 
         assertEquals("Planned this week", presentation.statusTitle)
         assertEquals("", presentation.statusDescription)
-        assertEquals("Plan more", presentation.statusActionLabel)
+        assertEquals("", presentation.statusActionLabel)
         assertTrue(presentation.showStatusCard)
     }
 
