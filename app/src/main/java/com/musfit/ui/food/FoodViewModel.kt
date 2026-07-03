@@ -1540,11 +1540,13 @@ class FoodViewModel @Inject constructor(
 
     fun openRecipeBrowser() {
         mutableState.update {
+            val keepCurrentTarget =
+                it.sheetMode == FoodSheetMode.RecipeBrowser || it.sheetMode == FoodSheetMode.RecipeEditor
             it.copy(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.RecipeBrowser,
-                recipeBrowserDate = it.selectedDate,
-                recipeBrowserMealType = it.mealType.normalizedMealType(),
+                recipeBrowserDate = if (keepCurrentTarget) it.recipeBrowserDate else it.selectedDate,
+                recipeBrowserMealType = if (keepCurrentTarget) it.recipeBrowserMealType else it.mealType.normalizedMealType(),
                 recipeEditor = null,
                 message = null,
             )
@@ -1799,17 +1801,6 @@ class FoodViewModel @Inject constructor(
                     message = null,
                 )
             }
-        }
-    }
-
-    fun openRecipeBrowser() {
-        mutableState.update {
-            it.copy(
-                isAddPanelVisible = true,
-                sheetMode = FoodSheetMode.RecipeBrowser,
-                recipeEditor = null,
-                message = null,
-            )
         }
     }
 

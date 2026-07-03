@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -1811,6 +1812,11 @@ internal fun RecipeBrowserScreen(
     onCloseClick: () -> Unit,
     onForwardClick: () -> Unit,
     onHomeClick: () -> Unit,
+    onPreviousDayClick: () -> Unit,
+    onNextDayClick: () -> Unit,
+    onTodayClick: () -> Unit,
+    onMealChanged: (String) -> Unit,
+    onServingsChanged: (String) -> Unit,
     onNameChanged: (String) -> Unit,
     onCategoryChanged: (String) -> Unit,
     onServingNameChanged: (String) -> Unit,
@@ -1825,6 +1831,8 @@ internal fun RecipeBrowserScreen(
     onFavoriteClick: (String, Boolean) -> Unit,
     onDiscoveryFilterChanged: (RecipeDiscoveryFilter) -> Unit,
     onDiscoveryItemClick: (String) -> Unit,
+    onPlanRecipeClick: (String) -> Unit,
+    onReviewIdeaClick: (String) -> Unit,
     onSaveClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
@@ -1876,10 +1884,16 @@ internal fun RecipeBrowserScreen(
         } else {
             RecipeBrowserHome(
                 state = state,
+                modifier = Modifier.weight(1f),
+                onPreviousDayClick = onPreviousDayClick,
+                onNextDayClick = onNextDayClick,
+                onTodayClick = onTodayClick,
+                onMealChanged = onMealChanged,
+                onServingsChanged = onServingsChanged,
                 onFilterChanged = onDiscoveryFilterChanged,
-                onDiscoveryItemClick = onDiscoveryItemClick,
+                onReviewIdeaClick = onReviewIdeaClick,
+                onPlanRecipeClick = onPlanRecipeClick,
                 onEditRecipeClick = onEditRecipeClick,
-                onDuplicateRecipeClick = onDuplicateRecipeClick,
                 onFavoriteClick = onFavoriteClick,
                 onCreateClick = onForwardClick,
             )
@@ -1924,39 +1938,82 @@ private fun RecipeBrowserToolbar(
 @Composable
 private fun RecipeBrowserHome(
     state: FoodUiState,
+    modifier: Modifier = Modifier,
+    onPreviousDayClick: () -> Unit,
+    onNextDayClick: () -> Unit,
+    onTodayClick: () -> Unit,
+    onMealChanged: (String) -> Unit,
+    onServingsChanged: (String) -> Unit,
     onFilterChanged: (RecipeDiscoveryFilter) -> Unit,
-    onDiscoveryItemClick: (String) -> Unit,
+    onReviewIdeaClick: (String) -> Unit,
+    onPlanRecipeClick: (String) -> Unit,
     onEditRecipeClick: (String) -> Unit,
-    onDuplicateRecipeClick: (String) -> Unit,
     onFavoriteClick: (String, Boolean) -> Unit,
     onCreateClick: () -> Unit,
 ) {
+    val sections = sectionRecipeBrowserItems(state.recipeDiscovery.visibleItems)
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = modifier.fillMaxSize(),
     ) {
-        RecipeDiscoveryCatalog(
-            state = state,
-            onFilterChanged = onFilterChanged,
-            onItemClick = onDiscoveryItemClick,
-        )
-        if (state.recipes.isNotEmpty()) {
-            SavedRecipesSection(
-                recipes = state.recipes,
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            RecipeBrowserTargetCard(
+                state = state,
+                onPreviousDayClick = onPreviousDayClick,
+                onNextDayClick = onNextDayClick,
+                onTodayClick = onTodayClick,
+                onMealChanged = onMealChanged,
+                onServingsChanged = onServingsChanged,
+            )
+            RecipeBrowserFilters(
+                selectedFilter = state.recipeDiscovery.filter,
+                onDiscoveryFilterChanged = onFilterChanged,
+            )
+            state.message?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clipToBounds()
+                .verticalScroll(rememberScrollState())
+                .padding(top = 16.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            RecipeBrowserSection(
+                title = "Saved recipes",
+                helper = "Saved recipes can be planned directly.",
+                emptyText = "No saved recipes match this filter.",
+                items = sections.savedRecipes,
+                state = state,
+                onPlanRecipeClick = onPlanRecipeClick,
                 onEditRecipeClick = onEditRecipeClick,
-                onDuplicateRecipeClick = onDuplicateRecipeClick,
                 onFavoriteClick = onFavoriteClick,
             )
-        }
-        Button(
-            onClick = onCreateClick,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-        ) {
-            Text("Create recipe")
+            RecipeBrowserIdeasSection(
+                title = "Recipe ideas",
+                helper = "Review and save an idea before planning it.",
+                emptyText = "No recipe ideas match this filter.",
+                items = sections.recipeIdeas,
+                onReviewIdeaClick = onReviewIdeaClick,
+            )
+            Button(
+                onClick = onCreateClick,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+            ) {
+                Text("Create recipe")
+            }
         }
     }
 }
@@ -2179,173 +2236,235 @@ private val RecipeDiscoveryFilter.label: String
             RecipeDiscoveryFilter.Program -> "Program"
         }
 
+internal data class RecipeBrowserSections(
+    val savedRecipes: List<RecipeDiscoveryItemUiState>,
+    val recipeIdeas: List<RecipeDiscoveryItemUiState>,
+)
+
+internal fun sectionRecipeBrowserItems(items: List<RecipeDiscoveryItemUiState>): RecipeBrowserSections =
+    RecipeBrowserSections(
+        savedRecipes = items.filter { it.isSavedRecipe && it.sourceRecipeId != null },
+        recipeIdeas = items.filterNot { it.isSavedRecipe && it.sourceRecipeId != null },
+    )
+
 @Composable
-internal fun RecipeBrowserPanel(
+private fun RecipeBrowserTargetCard(
     state: FoodUiState,
     onPreviousDayClick: () -> Unit,
     onNextDayClick: () -> Unit,
     onTodayClick: () -> Unit,
     onMealChanged: (String) -> Unit,
     onServingsChanged: (String) -> Unit,
+) {
+    Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Plan target", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onPreviousDayClick) {
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day")
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = state.recipeBrowserDate.toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    TextButton(onClick = onTodayClick) {
+                        Text("Today")
+                    }
+                }
+                IconButton(onClick = onNextDayClick) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Next day")
+                }
+            }
+            MealTypeChips(
+                selectedMealType = state.recipeBrowserMealType,
+                mealDefinitions = state.mealDefinitions,
+                onMealChanged = onMealChanged,
+            )
+            OutlinedTextField(
+                value = state.recipeServingsToLog,
+                onValueChange = onServingsChanged,
+                label = { Text("Servings") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecipeBrowserFilters(
+    selectedFilter: RecipeDiscoveryFilter,
     onDiscoveryFilterChanged: (RecipeDiscoveryFilter) -> Unit,
+) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        RecipeDiscoveryFilter.entries.forEach { filter ->
+            FilterChip(
+                selected = selectedFilter == filter,
+                onClick = { onDiscoveryFilterChanged(filter) },
+                label = { Text(filter.label) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecipeBrowserSection(
+    title: String,
+    helper: String,
+    emptyText: String,
+    items: List<RecipeDiscoveryItemUiState>,
+    state: FoodUiState,
     onPlanRecipeClick: (String) -> Unit,
-    onUseDiscoveryItemClick: (String) -> Unit,
     onEditRecipeClick: (String) -> Unit,
-    onCreateRecipeClick: () -> Unit,
     onFavoriteClick: (String, Boolean) -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 640.dp)
-            .verticalScroll(rememberScrollState())
-            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        RecipeBrowserSectionHeader(title = title, helper = helper)
+        if (items.isEmpty()) {
+            RecipeBrowserEmptyText(emptyText)
+        } else {
+            items.forEach { item ->
+                val sourceRecipeId = item.sourceRecipeId ?: return@forEach
+                RecipeBrowserItemCard(item = item) {
+                    Column(
+                        modifier = Modifier.width(150.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.End,
+                    ) {
+                        MusFitOutlinedButton(
+                            onClick = { onFavoriteClick(sourceRecipeId, !item.isFavorite) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(if (item.isFavorite) "Starred" else "Star", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        MusFitOutlinedButton(
+                            onClick = { onEditRecipeClick(sourceRecipeId) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Edit")
+                        }
+                        Button(
+                            onClick = { onPlanRecipeClick(sourceRecipeId) },
+                            enabled = !state.isSaving,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+                        ) {
+                            Text(if (state.isSaving) "Saving" else "Plan")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecipeBrowserIdeasSection(
+    title: String,
+    helper: String,
+    emptyText: String,
+    items: List<RecipeDiscoveryItemUiState>,
+    onReviewIdeaClick: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        RecipeBrowserSectionHeader(title = title, helper = helper)
+        if (items.isEmpty()) {
+            RecipeBrowserEmptyText(emptyText)
+        } else {
+            items.forEach { item ->
+                RecipeBrowserItemCard(item = item) {
+                    Button(
+                        onClick = { onReviewIdeaClick(item.id) },
+                        modifier = Modifier.width(150.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+                    ) {
+                        Text("Review recipe", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecipeBrowserSectionHeader(
+    title: String,
+    helper: String,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MusFitTheme.colors.onSurface,
+        )
+        Text(
+            text = helper,
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun RecipeBrowserEmptyText(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MusFitTheme.colors.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun RecipeBrowserItemCard(
+    item: RecipeDiscoveryItemUiState,
+    action: @Composable () -> Unit,
+) {
+    Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Recipe browser", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    text = if (state.recipes.size == 1) "1 saved recipe" else "${state.recipes.size} saved recipes",
+                    text = item.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${item.caloriesKcal.formatNutritionDisplay()} kcal - P ${item.proteinGrams.formatNutritionDisplay()} - C ${item.carbsGrams.formatNutritionDisplay()} - F ${item.fatGrams.formatNutritionDisplay()}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-            MusFitOutlinedButton(onClick = onCreateRecipeClick) {
-                Text("New")
-            }
-        }
-
-        Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Plan target", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = onPreviousDayClick) {
-                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day")
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = state.recipeBrowserDate.toString(),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        TextButton(onClick = onTodayClick) {
-                            Text("Today")
-                        }
-                    }
-                    IconButton(onClick = onNextDayClick) {
-                        Icon(Icons.Filled.ChevronRight, contentDescription = "Next day")
-                    }
-                }
-                MealTypeChips(
-                    selectedMealType = state.recipeBrowserMealType,
-                    mealDefinitions = state.mealDefinitions,
-                    onMealChanged = onMealChanged,
-                )
-                OutlinedTextField(
-                    value = state.recipeServingsToLog,
-                    onValueChange = onServingsChanged,
-                    label = { Text("Servings") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-
-        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RecipeDiscoveryFilter.entries.forEach { filter ->
-                FilterChip(
-                    selected = state.recipeDiscovery.filter == filter,
-                    onClick = { onDiscoveryFilterChanged(filter) },
-                    label = { Text(filter.label) },
-                )
-            }
-        }
-
-        state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-
-        if (state.recipeDiscovery.visibleItems.isEmpty()) {
-            Text(
-                text = "No recipes match this filter yet.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
-        } else {
-            state.recipeDiscovery.visibleItems.forEach { item ->
-                Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                text = item.subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MusFitTheme.colors.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = "${item.caloriesKcal.formatNutritionDisplay()} kcal - P ${item.proteinGrams.formatNutritionDisplay()} - C ${item.carbsGrams.formatNutritionDisplay()} - F ${item.fatGrams.formatNutritionDisplay()}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MusFitTheme.colors.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (item.tagLabels.isNotEmpty()) {
-                                Text(
-                                    text = item.tagLabels.joinToString(" - "),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MusFitTheme.colors.brand,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
-                            if (item.isSavedRecipe && item.sourceRecipeId != null) {
-                                MusFitOutlinedButton(onClick = { onFavoriteClick(item.sourceRecipeId, !item.isFavorite) }) {
-                                    Text(if (item.isFavorite) "Starred" else "Star")
-                                }
-                                MusFitOutlinedButton(onClick = { onEditRecipeClick(item.sourceRecipeId) }) {
-                                    Text("Edit")
-                                }
-                                Button(
-                                    onClick = { onPlanRecipeClick(item.sourceRecipeId) },
-                                    enabled = !state.isSaving,
-                                    modifier = Modifier.width(96.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-                                ) {
-                                    Text(if (state.isSaving) "Saving" else "Plan")
-                                }
-                            } else {
-                                Button(
-                                    onClick = { onUseDiscoveryItemClick(item.id) },
-                                    modifier = Modifier.width(96.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-                                ) {
-                                    Text("Use")
-                                }
-                            }
-                        }
-                    }
+                if (item.tagLabels.isNotEmpty()) {
+                    Text(
+                        text = item.tagLabels.joinToString(" - "),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MusFitTheme.colors.brand,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
+            action()
         }
     }
 }

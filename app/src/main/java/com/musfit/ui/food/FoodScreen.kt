@@ -176,6 +176,11 @@ fun FoodScreen(
                 onCloseClick = viewModel::closeAddFood,
                 onForwardClick = { viewModel.openRecipeEditor(null) },
                 onHomeClick = viewModel::openRecipeBrowser,
+                onPreviousDayClick = viewModel::goToPreviousRecipeBrowserDay,
+                onNextDayClick = viewModel::goToNextRecipeBrowserDay,
+                onTodayClick = viewModel::goToTodayRecipeBrowserDay,
+                onMealChanged = viewModel::onRecipeBrowserMealChanged,
+                onServingsChanged = viewModel::onRecipeServingsToLogChanged,
                 onNameChanged = viewModel::onRecipeNameChanged,
                 onCategoryChanged = viewModel::onRecipeCategoryChanged,
                 onServingNameChanged = viewModel::onRecipeServingNameChanged,
@@ -190,6 +195,8 @@ fun FoodScreen(
                 onFavoriteClick = viewModel::toggleFavoriteRecipe,
                 onDiscoveryFilterChanged = viewModel::selectRecipeDiscoveryFilter,
                 onDiscoveryItemClick = viewModel::useRecipeDiscoveryItem,
+                onPlanRecipeClick = viewModel::planRecipe,
+                onReviewIdeaClick = viewModel::useRecipeDiscoveryItem,
                 onSaveClick = viewModel::saveRecipe,
                 onDeleteClick = { state.recipeEditor?.editingRecipeId?.let(viewModel::deleteRecipe) },
             )
@@ -547,6 +554,7 @@ fun FoodScreen(
                         onSaveClick = viewModel::saveFoodGoal,
                     )
 
+                FoodSheetMode.RecipeBrowser -> Unit
                 FoodSheetMode.RecipeBrowser -> Unit
 
                 FoodSheetMode.RecipeEditor ->

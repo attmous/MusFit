@@ -139,7 +139,8 @@ limited to hardening and explicitly deferred local-first scope:
 
 Food avoids separate nav routes for most surfaces and instead drives them from
 state. The top-level `FoodScreen` chooses between a full-screen meal detail, the
-full-screen add surface, the diary, or a `ModalBottomSheet` keyed by sheet mode.
+full-screen add surface, the full-screen recipe browser, the diary, or a
+`ModalBottomSheet` keyed by sheet mode.
 
 `FoodSheetMode`:
 
@@ -152,7 +153,7 @@ full-screen add surface, the diary, or a `ModalBottomSheet` keyed by sheet mode.
 | `SavedFoodEditor` | Full saved-food editor. |
 | `NutritionLabelScan` | OCR review-before-save fields. |
 | `GoalEditor` | Calorie/macro/detail goal editor. |
-| `RecipeBrowser` | Recipe discovery, saved-recipe browsing, and plan-to-date/meal actions. |
+| `RecipeBrowser` | Full-screen recipe discovery, saved-recipe browsing, and plan-to-date/meal actions. |
 | `RecipeEditor` | Recipe create/edit/log. |
 | `MealTemplates` | Template list, edit, duplicate, favorite, log. |
 | `MealSettings` | Custom meal definitions and times. |
