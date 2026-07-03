@@ -1,6 +1,7 @@
 package com.musfit.core.di
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -25,8 +26,9 @@ import javax.inject.Singleton
 object DatabaseModule {
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): MusFitDatabase =
-        Room.databaseBuilder(context, MusFitDatabase::class.java, "musfit.db")
+    fun provideDatabase(@ApplicationContext context: Context): MusFitDatabase {
+        repairLegacyVersion28Database(context, DATABASE_NAME)
+        return Room.databaseBuilder(context, MusFitDatabase::class.java, DATABASE_NAME)
             .addMigrations(
                 MIGRATION_1_2,
                 MIGRATION_2_3,
@@ -58,6 +60,7 @@ object DatabaseModule {
                 MIGRATION_28_29,
             )
             .build()
+    }
 
     @Provides
     fun provideAccountDao(database: MusFitDatabase): AccountDao = database.accountDao()
@@ -82,6 +85,120 @@ object DatabaseModule {
 
     @Provides
     fun provideCoachDao(database: MusFitDatabase): CoachDao = database.coachDao()
+
+    internal fun repairLegacyVersion28Database(context: Context, databaseName: String = DATABASE_NAME) {
+        val databaseFile = context.getDatabasePath(databaseName)
+        if (!databaseFile.exists()) return
+
+        val database = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+        try {
+            if (database.version != 28 || database.readRoomIdentityHash() != LEGACY_HEALTH_SYNC_V28_IDENTITY_HASH) {
+                return
+            }
+
+            database.beginTransaction()
+            try {
+                database.addColumnIfMissing(
+                    tableName = "accounts",
+                    columnName = "authProvider",
+                    sql = "ALTER TABLE accounts ADD COLUMN authProvider TEXT NOT NULL DEFAULT 'local'",
+                )
+                database.addColumnIfMissing(
+                    tableName = "accounts",
+                    columnName = "avatarUrl",
+                    sql = "ALTER TABLE accounts ADD COLUMN avatarUrl TEXT",
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_authProvider ON accounts(authProvider)")
+                database.normalizeDailyHealthSummaries()
+                database.execSQL(
+                    "INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES(42, ?)",
+                    arrayOf<Any>(CURRENT_V28_IDENTITY_HASH),
+                )
+                database.setTransactionSuccessful()
+            } finally {
+                database.endTransaction()
+            }
+        } finally {
+            database.close()
+        }
+    }
+
+    private fun SQLiteDatabase.readRoomIdentityHash(): String? =
+        if (!tableExists("room_master_table")) {
+            null
+        } else {
+            rawQuery("SELECT identity_hash FROM room_master_table WHERE id = 42 LIMIT 1", null).use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }
+
+    private fun SQLiteDatabase.tableExists(tableName: String): Boolean =
+        rawQuery(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+            arrayOf(tableName),
+        ).use { cursor ->
+            cursor.moveToFirst()
+        }
+
+    private fun SQLiteDatabase.addColumnIfMissing(tableName: String, columnName: String, sql: String) {
+        if (tableColumns(tableName).contains(columnName)) return
+        execSQL(sql)
+    }
+
+    private fun SQLiteDatabase.normalizeDailyHealthSummaries() {
+        val columns = tableColumns("daily_health_summaries")
+        if (columns == CURRENT_DAILY_HEALTH_SUMMARY_COLUMNS) return
+
+        execSQL("DROP TABLE IF EXISTS daily_health_summaries_room_repair")
+        execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS daily_health_summaries_room_repair (
+                dateEpochDay INTEGER NOT NULL PRIMARY KEY,
+                steps INTEGER,
+                activeCaloriesKcal REAL,
+                latestWeightKg REAL,
+                restingHeartRateBpm INTEGER,
+                updatedAtEpochMillis INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        execSQL(
+            """
+            INSERT OR REPLACE INTO daily_health_summaries_room_repair (
+                dateEpochDay, steps, activeCaloriesKcal, latestWeightKg,
+                restingHeartRateBpm, updatedAtEpochMillis
+            )
+            SELECT dateEpochDay, steps, activeCaloriesKcal, latestWeightKg,
+                   restingHeartRateBpm, updatedAtEpochMillis
+            FROM daily_health_summaries
+            """.trimIndent(),
+        )
+        execSQL("DROP TABLE daily_health_summaries")
+        execSQL("ALTER TABLE daily_health_summaries_room_repair RENAME TO daily_health_summaries")
+    }
+
+    private fun SQLiteDatabase.tableColumns(tableName: String): List<String> =
+        rawQuery("PRAGMA table_info(`$tableName`)", null).use { cursor ->
+            buildList {
+                val nameIndex = cursor.getColumnIndexOrThrow("name")
+                while (cursor.moveToNext()) {
+                    add(cursor.getString(nameIndex))
+                }
+            }
+        }
+
+    private const val DATABASE_NAME = "musfit.db"
+    internal const val CURRENT_V28_IDENTITY_HASH = "09b1d1975301639eaff70e11601ed13b"
+    private const val LEGACY_HEALTH_SYNC_V28_IDENTITY_HASH = "71b5b71f394a9a0bedf45d1a67317f04"
+
+    private val CURRENT_DAILY_HEALTH_SUMMARY_COLUMNS = listOf(
+        "dateEpochDay",
+        "steps",
+        "activeCaloriesKcal",
+        "latestWeightKg",
+        "restingHeartRateBpm",
+        "updatedAtEpochMillis",
+    )
 
     private val MIGRATION_1_2 =
         object : Migration(1, 2) {
