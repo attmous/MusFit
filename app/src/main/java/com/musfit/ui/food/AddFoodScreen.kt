@@ -3,7 +3,7 @@
 package com.musfit.ui.food
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -144,14 +144,33 @@ fun AddFoodScreen(
                         shape = MusFitTheme.shapes.large,
                         modifier = Modifier.weight(1f),
                     )
+                    val barcodeScannerSpotlightProgress by rememberFoodBarcodeScannerSpotlightProgress()
+                    val barcodeScannerSpotlight = foodBarcodeScannerSpotlightTransform(barcodeScannerSpotlightProgress)
                     IconButton(
                         onClick = onScanClick,
                         modifier = Modifier
                             .size(52.dp)
+                            .graphicsLayer {
+                                scaleX = barcodeScannerSpotlight.containerScale
+                                scaleY = barcodeScannerSpotlight.containerScale
+                            }
                             .clip(MusFitTheme.shapes.medium)
-                            .background(MusFitTheme.colors.positiveContainer),
+                            .background(MusFitTheme.colors.positiveContainer.copy(alpha = barcodeScannerSpotlight.containerAlpha))
+                            .border(
+                                width = 1.dp,
+                                color = MusFitTheme.colors.brand.copy(alpha = barcodeScannerSpotlight.borderAlpha),
+                                shape = MusFitTheme.shapes.medium,
+                            ),
                     ) {
-                        Icon(Icons.Outlined.QrCodeScanner, contentDescription = "Scan barcode", tint = MusFitTheme.colors.brand)
+                        Icon(
+                            Icons.Outlined.QrCodeScanner,
+                            contentDescription = "Scan barcode",
+                            tint = MusFitTheme.colors.brand,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = barcodeScannerSpotlight.iconScale
+                                scaleY = barcodeScannerSpotlight.iconScale
+                            },
+                        )
                     }
                 }
             }
@@ -170,23 +189,21 @@ fun AddFoodScreen(
             AddTabRow(selected = state.addTab, onTabSelected = onTabSelected)
 
             val query = state.foodDatabaseQuery
-            val foodItemSpotlightProgress by rememberFoodAddItemSpotlightProgress()
-            val foodItemSpotlight = foodAddItemSpotlightTransform(foodItemSpotlightProgress)
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 when (state.addTab) {
                     AddTab.Recents ->
                         if (query.isBlank()) {
                             if (state.sameAsYesterday.isNotEmpty()) {
                                 SectionLabel("SAME AS YESTERDAY?")
-                                state.sameAsYesterday.forEach { AddFoodRow(it, onFoodClick, foodItemSpotlight) }
+                                state.sameAsYesterday.forEach { AddFoodRow(it, onFoodClick) }
                             }
                             state.recentFoods.firstOrNull()?.let { last ->
                                 SectionLabel("LAST TRACKED")
-                                AddFoodRow(last, onFoodClick, foodItemSpotlight)
+                                AddFoodRow(last, onFoodClick)
                             }
                             if (state.recentFoods.size > 1) {
                                 SectionLabel("ALL RECENTS")
-                                state.recentFoods.drop(1).forEach { AddFoodRow(it, onFoodClick, foodItemSpotlight) }
+                                state.recentFoods.drop(1).forEach { AddFoodRow(it, onFoodClick) }
                             }
                             if (state.recentFoods.isEmpty() && state.sameAsYesterday.isEmpty()) {
                                 EmptyHint("Search or scan a barcode to log your first food.")
@@ -195,7 +212,7 @@ fun AddFoodScreen(
                             if (state.visibleSavedFoods.isEmpty()) {
                                 EmptyHint("No saved food matches \"$query\". Scan a barcode or create it.")
                             }
-                            state.visibleSavedFoods.forEach { AddFoodRow(it, onFoodClick, foodItemSpotlight) }
+                            state.visibleSavedFoods.forEach { AddFoodRow(it, onFoodClick) }
                         }
 
                     AddTab.Favorites -> {
@@ -203,7 +220,7 @@ fun AddFoodScreen(
                         if (favorites.isEmpty()) {
                             EmptyHint("Foods you favorite show up here for one-tap logging.")
                         }
-                        favorites.forEach { AddFoodRow(it, onFoodClick, foodItemSpotlight) }
+                        favorites.forEach { AddFoodRow(it, onFoodClick) }
                     }
 
                     AddTab.Create -> {
@@ -324,23 +341,14 @@ private fun EmptyHint(text: String) {
 }
 
 @Composable
-private fun AddFoodRow(
-    food: SavedFoodUiState,
-    onFoodClick: (String) -> Unit,
-    spotlight: FoodAddItemSpotlightTransform,
-) {
+private fun AddFoodRow(food: SavedFoodUiState, onFoodClick: (String) -> Unit) {
     Surface(
         onClick = { onFoodClick(food.id) },
         color = MusFitTheme.colors.surface,
         shape = MusFitTheme.shapes.medium,
-        border = BorderStroke(1.dp, MusFitTheme.colors.brand.copy(alpha = spotlight.borderAlpha)),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp)
-            .graphicsLayer {
-                scaleX = spotlight.rowScale
-                scaleY = spotlight.rowScale
-            },
+            .padding(bottom = 8.dp),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -366,12 +374,8 @@ private fun AddFoodRow(
             Box(
                 modifier = Modifier
                     .size(34.dp)
-                    .graphicsLayer {
-                        scaleX = spotlight.addIconScale
-                        scaleY = spotlight.addIconScale
-                    }
                     .clip(CircleShape)
-                    .background(MusFitTheme.colors.positiveContainer.copy(alpha = spotlight.addContainerAlpha)),
+                    .background(MusFitTheme.colors.positiveContainer),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Add ${food.name}", tint = MusFitTheme.colors.brand)

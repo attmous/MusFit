@@ -11,39 +11,39 @@ import androidx.compose.runtime.State
 import kotlin.math.PI
 import kotlin.math.sin
 
-private const val FoodAddItemSpotlightDurationMillis = 1800
+private const val FoodBarcodeScannerSpotlightDurationMillis = 1600
 
-internal data class FoodAddItemSpotlightTransform(
-    val rowScale: Float,
+internal data class FoodBarcodeScannerSpotlightTransform(
+    val containerScale: Float,
+    val iconScale: Float,
+    val containerAlpha: Float,
     val borderAlpha: Float,
-    val addIconScale: Float,
-    val addContainerAlpha: Float,
 )
 
 @Composable
-internal fun rememberFoodAddItemSpotlightProgress(): State<Float> {
-    val transition = rememberInfiniteTransition(label = "foodAddItemSpotlight")
+internal fun rememberFoodBarcodeScannerSpotlightProgress(): State<Float> {
+    val transition = rememberInfiniteTransition(label = "foodBarcodeScannerSpotlight")
     return transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = FoodAddItemSpotlightDurationMillis,
+                durationMillis = FoodBarcodeScannerSpotlightDurationMillis,
                 easing = LinearEasing,
             ),
             repeatMode = RepeatMode.Restart,
         ),
-        label = "foodAddItemSpotlightProgress",
+        label = "foodBarcodeScannerSpotlightProgress",
     )
 }
 
-internal fun foodAddItemSpotlightTransform(progress: Float): FoodAddItemSpotlightTransform {
+internal fun foodBarcodeScannerSpotlightTransform(progress: Float): FoodBarcodeScannerSpotlightTransform {
     val clampedProgress = progress.coerceIn(0f, 1f)
     val pulse = sin(clampedProgress * PI).toFloat().coerceAtLeast(0f)
-    return FoodAddItemSpotlightTransform(
-        rowScale = 1f + 0.014f * pulse,
-        borderAlpha = 0.12f + 0.22f * pulse,
-        addIconScale = 1f + 0.08f * pulse,
-        addContainerAlpha = 0.82f + 0.18f * pulse,
+    return FoodBarcodeScannerSpotlightTransform(
+        containerScale = 1f + 0.06f * pulse,
+        iconScale = 1f + 0.12f * pulse,
+        containerAlpha = 0.84f + 0.16f * pulse,
+        borderAlpha = 0.14f + 0.28f * pulse,
     )
 }
