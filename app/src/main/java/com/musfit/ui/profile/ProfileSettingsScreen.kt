@@ -3,6 +3,7 @@ package com.musfit.ui.profile
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,10 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -64,6 +66,9 @@ import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import kotlinx.coroutines.launch
+
+private const val SettingsCardBorderAlpha = 0.14f
+private const val SettingsDividerAlpha = 0.12f
 
 @Composable
 fun ProfileSettingsScreen(
@@ -245,37 +250,28 @@ private fun ProviderSignInActions(
     onGoogleSignIn: () -> Unit,
     onGitHubSignIn: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("External identity", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Optional account linking. It does not enable cloud sync.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            ProviderActionRow(
-                action = actions.google,
-                icon = Icons.Outlined.Link,
-                accent = accent,
-                onClick = onGoogleSignIn,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
-            ProviderActionRow(
-                action = actions.github,
-                icon = Icons.Outlined.Code,
-                accent = accent,
-                onClick = onGitHubSignIn,
+    SettingsCard {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("External identity", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Optional account linking. It does not enable cloud sync.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        ProviderActionRow(
+            action = actions.google,
+            icon = Icons.Outlined.Link,
+            accent = accent,
+            onClick = onGoogleSignIn,
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = SettingsDividerAlpha))
+        ProviderActionRow(
+            action = actions.github,
+            icon = Icons.Outlined.Code,
+            accent = accent,
+            onClick = onGitHubSignIn,
+        )
     }
 }
 
@@ -288,7 +284,7 @@ private fun ProviderActionRow(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -322,7 +318,11 @@ private fun ProviderActionRow(
         OutlinedButton(
             onClick = onClick,
             enabled = action.enabled,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .align(Alignment.End)
+                .heightIn(min = 44.dp)
+                .widthIn(min = 180.dp),
+            shape = MaterialTheme.shapes.medium,
         ) {
             Text(action.buttonLabel)
         }
@@ -331,18 +331,13 @@ private fun ProviderActionRow(
 
 @Composable
 private fun ProfileDetailsCard(accent: TabAccent, onOpen: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = accent.container),
-    ) {
+    SettingsCard {
         Row(
-            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             IconWell(icon = Icons.Outlined.Person, tint = accent.color, container = accent.container)
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("Profile details", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "Age, height, goal, pace, and latest body weight.",
@@ -350,7 +345,7 @@ private fun ProfileDetailsCard(accent: TabAccent, onOpen: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TextButton(onClick = onOpen) {
+            TextButton(onClick = onOpen, shape = MaterialTheme.shapes.small) {
                 Text("Edit", color = accent.color, fontWeight = FontWeight.SemiBold)
             }
         }
@@ -366,72 +361,93 @@ private fun HealthConnectSettingsCard(
     onImport: () -> Unit,
     onExport: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+    SettingsCard {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                IconWell(icon = Icons.Outlined.FavoriteBorder, tint = accent.color, container = accent.container)
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Health Connect sync", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        permissionSummary(state),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                StatusPill(
-                    label = healthAvailabilityPillLabel(state.availabilityLabel),
-                    container = if (state.availabilityLabel == "Available") accent.container else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (state.availabilityLabel == "Available") accent.onContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+            IconWell(icon = Icons.Outlined.FavoriteBorder, tint = accent.color, container = accent.container)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Health Connect sync", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    permissionSummary(state),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(
-                state.message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            StatusPill(
+                label = healthAvailabilityPillLabel(state.availabilityLabel),
+                container = if (state.availabilityLabel == "Available") accent.container else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (state.availabilityLabel == "Available") accent.onContainer else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(
-                onClick = onRequestPermissions,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.canRequestPermissions,
-                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+        }
+        Text(
+            state.message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            onClick = onRequestPermissions,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 46.dp),
+            enabled = state.canRequestPermissions,
+            shape = MaterialTheme.shapes.medium,
+            colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+        ) {
+            Text(healthConnectPrimaryActionLabel(state))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = onRefresh,
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 44.dp),
+                shape = MaterialTheme.shapes.medium,
             ) {
-                Text(healthConnectPrimaryActionLabel(state))
+                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("Refresh", modifier = Modifier.padding(start = 6.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("Refresh", modifier = Modifier.padding(start = 6.dp))
-                }
-                OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("Import", modifier = Modifier.padding(start = 6.dp))
-                }
+            OutlinedButton(
+                onClick = onImport,
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 44.dp),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Icon(Icons.Outlined.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("Import", modifier = Modifier.padding(start = 6.dp))
             }
-            OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
-                Text("Export latest workout")
-            }
+        }
+        OutlinedButton(
+            onClick = onExport,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 44.dp),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Text("Export latest workout")
         }
     }
 }
 
 @Composable
 private fun SettingsInfoCard(content: @Composable ColumnScope.() -> Unit) {
+    SettingsCard(content = content)
+}
+
+@Composable
+private fun SettingsCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = SettingsCardBorderAlpha)),
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             content()
         }
     }
@@ -474,9 +490,9 @@ private fun IconWell(
     icon: ImageVector,
     tint: Color,
     container: Color,
-    size: Int = 42,
+    size: Int = 38,
 ) {
-    Surface(color = container, shape = RoundedCornerShape(14.dp)) {
+    Surface(color = container, shape = MaterialTheme.shapes.small) {
         Box(modifier = Modifier.size(size.dp), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size((size / 2).dp))
         }
@@ -485,7 +501,7 @@ private fun IconWell(
 
 @Composable
 private fun StatusPill(label: String, container: Color, contentColor: Color) {
-    Surface(color = container, shape = RoundedCornerShape(999.dp)) {
+    Surface(color = container, shape = MaterialTheme.shapes.small) {
         Text(
             label,
             style = MaterialTheme.typography.labelSmall,

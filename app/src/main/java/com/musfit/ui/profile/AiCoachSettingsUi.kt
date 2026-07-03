@@ -1,5 +1,6 @@
 package com.musfit.ui.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,10 +49,11 @@ fun AiCoachSettingsSection(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -92,14 +94,23 @@ fun AiCoachSettingsSection(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
                     onClick = onEdit,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 46.dp),
+                    shape = MaterialTheme.shapes.medium,
                     colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
                 ) {
                     Icon(Icons.Outlined.Edit, contentDescription = null)
                     Text("Configure", modifier = Modifier.padding(start = 8.dp))
                 }
                 if (state.hasApiKey) {
-                    OutlinedButton(onClick = onClearApiKey, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(
+                        onClick = onClearApiKey,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
                         Text("Clear key")
                     }
                 }
