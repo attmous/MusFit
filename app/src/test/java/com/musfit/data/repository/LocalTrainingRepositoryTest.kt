@@ -198,6 +198,39 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun seedStarterTrainingData_preservesEditedStarterRoutine() = runTest {
+        repository.seedStarterTrainingData()
+        val fullBody = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
+        val latPulldown = repository.observeExercises(query = "lat pulldown").first().single()
+
+        repository.updateRoutine(
+            routineId = fullBody.id,
+            input = RoutineInput(
+                name = "Full Body A edited",
+                notes = "My edited template",
+                exercises = listOf(
+                    RoutineExerciseInput(
+                        exerciseId = latPulldown.id,
+                        targetSets = 4,
+                        targetReps = "10",
+                    ),
+                ),
+            ),
+        )
+
+        repository.seedStarterTrainingData()
+
+        val detail = repository.getRoutineDetail(fullBody.id)
+        assertEquals("Full Body A edited", detail?.name)
+        assertEquals("My edited template", detail?.notes)
+        assertEquals(true, detail?.isStarter)
+        assertEquals("Full Body", detail?.programName)
+        assertEquals(listOf(latPulldown.id), detail?.exercises?.map { it.exercise.id })
+        assertEquals(listOf(4), detail?.exercises?.map { it.targetSets })
+        assertEquals(listOf("10"), detail?.exercises?.map { it.targetReps })
+    }
+
+    @Test
     fun createCustomExercise_trimsAndPersistsCustomExercise() = runTest {
         val exerciseId = repository.createCustomExercise(
             ExerciseInput(

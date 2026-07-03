@@ -2,6 +2,7 @@ package com.musfit.ui.training
 
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineExerciseInput
+import com.musfit.data.repository.RoutineSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -49,10 +50,10 @@ class TrainingHomeContentTest {
     }
 
     @Test
-    fun routineCardActions_keepsStarterRoutineReadOnlyButStartable() {
+    fun routineCardActions_allowsStarterRoutinesToBeEditedButNotDeleted() {
         val actions = routineCardActions(isStarter = true)
 
-        assertEquals(listOf("Start", "Duplicate"), actions)
+        assertEquals(listOf("Start", "Edit", "Duplicate"), actions)
     }
 
     @Test
@@ -63,19 +64,37 @@ class TrainingHomeContentTest {
     }
 
     @Test
-    fun routineExercisePickerSuggestions_collapsedShowsNoSuggestions() {
-        val suggestions = routineExercisePickerSuggestions(
-            exercises = listOf(exercise(id = "bench", name = "Barbell Bench Press")),
-            selectedExerciseIds = emptySet(),
-            query = "",
-            expanded = false,
+    fun groupRoutineSummariesByProgram_groupsSavedRoutinesWithFallback() {
+        val groups = groupRoutineSummariesByProgram(
+            listOf(
+                routine(id = "upper-a", name = "Upper A", programName = "Upper Lower"),
+                routine(id = "full-body-a", name = "Full Body A", programName = "Full Body"),
+                routine(id = "custom", name = "Garage Day", programName = null),
+                routine(id = "upper-b", name = "Upper B", programName = "Upper Lower"),
+            ),
         )
 
-        assertEquals(emptyList<ExerciseSummary>(), suggestions)
+        assertEquals(listOf("Upper Lower", "Full Body", "My routines"), groups.map { it.title })
+        assertEquals(listOf("Upper A", "Upper B"), groups.first().routines.map { it.name })
+        assertEquals(listOf("Garage Day"), groups.last().routines.map { it.name })
     }
 
     @Test
-    fun routineExercisePickerSuggestions_expandedBlankCapsAndExcludesSelected() {
+    fun routineExercisePickerOptions_derivesEquipmentAndMuscleChips() {
+        val options = routineExercisePickerOptions(
+            listOf(
+                exercise(id = "bench", name = "Barbell Bench Press", equipment = "barbell", targetMuscles = "chest,triceps"),
+                exercise(id = "row", name = "Seated Cable Row", equipment = "cable", targetMuscles = "back, biceps"),
+                exercise(id = "raise", name = "Lateral Raise", equipment = "dumbbell", targetMuscles = "shoulders"),
+            ),
+        )
+
+        assertEquals(listOf("barbell", "cable", "dumbbell"), options.equipment)
+        assertEquals(listOf("back", "biceps", "chest", "shoulders", "triceps"), options.muscles)
+    }
+
+    @Test
+    fun routineExercisePickerSuggestions_blankShowsSavedExercisesAndExcludesSelected() {
         val suggestions = routineExercisePickerSuggestions(
             exercises = listOf(
                 exercise(id = "bench", name = "Barbell Bench Press"),
@@ -85,14 +104,13 @@ class TrainingHomeContentTest {
             ),
             selectedExerciseIds = setOf("bench"),
             query = "",
-            expanded = true,
         )
 
         assertEquals(listOf("Seated Cable Row", "Back Squat", "Deadlift"), suggestions.map { it.name })
     }
 
     @Test
-    fun routineExercisePickerSuggestions_filtersByNameEquipmentAndMuscle() {
+    fun routineExercisePickerSuggestions_filtersBySearchEquipmentAndMuscle() {
         val suggestions = routineExercisePickerSuggestions(
             exercises = listOf(
                 exercise(id = "bench", name = "Barbell Bench Press", equipment = "barbell", targetMuscles = "chest"),
@@ -100,12 +118,28 @@ class TrainingHomeContentTest {
                 exercise(id = "raise", name = "Lateral Raise", equipment = "dumbbell", targetMuscles = "shoulders"),
             ),
             selectedExerciseIds = emptySet(),
-            query = "cable",
-            expanded = true,
+            query = "row",
+            equipmentFilter = "cable",
+            muscleFilter = "back",
         )
 
         assertEquals(listOf("Seated Cable Row"), suggestions.map { it.name })
     }
+
+    private fun routine(
+        id: String,
+        name: String,
+        programName: String?,
+    ): RoutineSummary =
+        RoutineSummary(
+            id = id,
+            name = name,
+            notes = null,
+            exerciseCount = 4,
+            targetSetCount = 12,
+            isStarter = programName != null,
+            programName = programName,
+        )
 
     private fun exercise(
         id: String,
