@@ -155,6 +155,12 @@ class TrainingActiveWorkoutContentTest {
     }
 
     @Test
+    fun restTimerSettingsSummaryText_focusesOnCompletedSetTrigger() {
+        assertEquals("90 sec after each completed set", restTimerSettingsSummaryText("90"))
+        assertEquals("Set rest after each completed set", restTimerSettingsSummaryText(""))
+    }
+
+    @Test
     fun plateLineText_usesConfiguredBarAndPlates() {
         assertEquals(
             "Plates · 20 + 2.5 / side",
