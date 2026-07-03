@@ -148,12 +148,20 @@ internal fun AddFoodPanel(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "Add to ${state.selectedMealTitle}",
+                text = if (state.isPlanningMode) {
+                    "Plan for ${state.selectedMealTitle}"
+                } else {
+                    "Add to ${state.selectedMealTitle}"
+                },
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "${state.remainingCaloriesKcal.roundToInt()} kcal remaining today",
+                text = if (state.isPlanningMode) {
+                    "New food will be saved as planned"
+                } else {
+                    "${state.remainingCaloriesKcal.roundToInt()} kcal remaining today"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -191,6 +199,8 @@ internal fun AddFoodPanel(
         FavoriteAddSection(
             items = state.favoriteAddItems,
             isSaving = state.isSaving,
+            actionVerb = state.foodEntryActionVerb,
+            actionProgressLabel = state.foodEntryActionProgressLabel,
             onFoodClick = onSavedFoodClick,
             onTemplateClick = onTemplateClick,
             onRecipeClick = onRecipeClick,
@@ -208,6 +218,7 @@ internal fun AddFoodPanel(
                     )
                     TemplateQuickList(
                         templates = state.mealTemplates,
+                        actionVerb = state.foodEntryActionVerb,
                         onTemplateClick = onTemplateClick,
                         onFavoriteClick = onTemplateFavoriteClick,
                     )
@@ -289,6 +300,8 @@ internal fun AddFoodPanel(
 private fun FavoriteAddSection(
     items: List<FavoriteAddItemUiState>,
     isSaving: Boolean,
+    actionVerb: String,
+    actionProgressLabel: String,
     onFoodClick: (String) -> Unit,
     onTemplateClick: (String) -> Unit,
     onRecipeClick: (String) -> Unit,
@@ -338,7 +351,7 @@ private fun FavoriteAddSection(
                         enabled = !isSaving,
                         colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
                     ) {
-                        Text(if (isSaving) "Adding" else "Add")
+                        Text(if (isSaving) actionProgressLabel else actionVerb)
                     }
                 }
             }
@@ -393,6 +406,8 @@ private fun SavedFoodPicker(
                 SavedFoodPickerRow(
                     food = food,
                     isSaving = state.isSaving,
+                    actionVerb = state.foodEntryActionVerb,
+                    actionProgressLabel = state.foodEntryActionProgressLabel,
                     selectedServingGrams = state.selectedSavedFoodServingGramsByFoodId[food.id],
                     onServingSelected = { grams -> onServingSelected(food.id, grams) },
                     onClick = { onSavedFoodClick(food.id) },
@@ -406,6 +421,8 @@ private fun SavedFoodPicker(
 private fun SavedFoodPickerRow(
     food: SavedFoodUiState,
     isSaving: Boolean,
+    actionVerb: String,
+    actionProgressLabel: String,
     selectedServingGrams: Double?,
     onServingSelected: (Double) -> Unit,
     onClick: () -> Unit,
@@ -444,7 +461,7 @@ private fun SavedFoodPickerRow(
                     enabled = !isSaving,
                     colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
                 ) {
-                    Text(if (isSaving) "Adding" else "Add")
+                    Text(if (isSaving) actionProgressLabel else actionVerb)
                 }
             }
 
@@ -470,6 +487,7 @@ private fun SavedFoodPickerRow(
 @Composable
 private fun TemplateQuickList(
     templates: List<MealTemplateUiState>,
+    actionVerb: String,
     onTemplateClick: (String) -> Unit,
     onFavoriteClick: (String, Boolean) -> Unit,
 ) {
@@ -510,7 +528,7 @@ private fun TemplateQuickList(
                             Text(if (template.isFavorite) "Starred" else "Star")
                         }
                         MusFitOutlinedButton(onClick = { onTemplateClick(template.id) }) {
-                            Text("Log")
+                            Text(actionVerb)
                         }
                     }
                 }
@@ -572,7 +590,7 @@ private fun RecipeQuickList(
                             Text(if (recipe.isFavorite) "Starred" else "Star")
                         }
                         MusFitOutlinedButton(onClick = { onRecipeClick(recipe.id) }) {
-                            Text("Log")
+                            Text(state.foodEntryActionVerb)
                         }
                     }
                 }
@@ -677,7 +695,13 @@ private fun AiLoggingForm(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text(if (state.isSaving) "Logging" else "Log reviewed food")
+                Text(
+                    if (state.isSaving) {
+                        state.foodEntryActionProgressLabel
+                    } else {
+                        state.foodEntryActionLabel("reviewed food")
+                    },
+                )
             }
         }
     }
@@ -717,7 +741,7 @@ private fun ManualFoodForm(
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
         ) {
-            Text(if (state.isSaving) "Logging" else "Log food")
+            Text(if (state.isSaving) state.foodEntryActionProgressLabel else state.foodEntryActionLabel("food"))
         }
     }
 }
@@ -810,11 +834,11 @@ private fun BarcodeFoodForm(
                 ) {
                     Text(
                         if (state.isSaving) {
-                            "Logging"
+                            state.foodEntryActionProgressLabel
                         } else if (state.lookupResult == null) {
-                            "Save and log"
+                            state.saveAndFoodEntryActionLabel
                         } else {
-                            "Log food"
+                            state.foodEntryActionLabel("food")
                         },
                     )
                 }
@@ -826,7 +850,7 @@ private fun BarcodeFoodForm(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text(if (state.isSaving) "Logging" else "Log barcode food")
+                Text(if (state.isSaving) state.foodEntryActionProgressLabel else state.foodEntryActionLabel("barcode food"))
             }
         }
     }
@@ -995,7 +1019,7 @@ internal fun CreateFoodForm(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text(if (state.isSaving) "Logging" else "Log food")
+                Text(if (state.isSaving) state.foodEntryActionProgressLabel else state.foodEntryActionLabel("food"))
             }
         }
 
@@ -1241,7 +1265,7 @@ private fun QuickCalorieForm(
                                 Text(if (preset.isFavorite) "Starred" else "Star")
                             }
                             MusFitOutlinedButton(onClick = { onFavoriteQuickLogClick(preset.id) }) {
-                                Text("Log")
+                                Text(state.foodEntryActionVerb)
                             }
                         }
                     }
@@ -1293,7 +1317,7 @@ private fun QuickCalorieForm(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text(if (state.isSaving) "Logging" else "Log")
+                Text(if (state.isSaving) state.foodEntryActionProgressLabel else state.foodEntryActionVerb)
             }
         }
     }

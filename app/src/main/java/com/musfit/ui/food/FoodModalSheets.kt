@@ -855,7 +855,7 @@ internal fun FoodDetailPanel(
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Log")
+                Text(state.foodEntryActionVerb)
             }
             MusFitOutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(1f)) {
                 Text(if (food.isFavorite) "Unstar" else "Star")
@@ -2054,7 +2054,7 @@ private fun RecipeDiscoveryCatalog(
                             }
                         }
                         Button(onClick = { onItemClick(item.id) }, modifier = Modifier.width(96.dp)) {
-                            Text(if (item.isSavedRecipe) "Log" else "Use")
+                            Text(if (item.isSavedRecipe) state.foodEntryActionVerb else "Use")
                         }
                     }
                 }
@@ -2186,7 +2186,7 @@ internal fun MealTemplatesPanel(
                         }
                         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             MusFitOutlinedButton(onClick = { onTemplateClick(template.id) }) {
-                                Text("Log")
+                                Text(state.foodEntryActionVerb)
                             }
                             MusFitOutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
                                 Text(if (template.isFavorite) "Starred" else "Star")

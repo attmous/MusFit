@@ -3,6 +3,7 @@ package com.musfit.ui.food
 import com.musfit.data.repository.FoodGoalMode
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -59,6 +60,7 @@ import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.LunchDining
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
@@ -111,6 +113,7 @@ fun FoodScreen(
     val state by viewModel.state.collectAsState()
     val accent = tabAccentFor(AppDestination.Food)
     val selectedMealDetail = state.selectedMealDetailForDisplay()
+    val planningPresentation = state.toPlanningModePresentation()
     var moreExpanded by rememberSaveable { mutableStateOf(false) }
     val foodHealthConnectPermissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
@@ -200,6 +203,10 @@ fun FoodScreen(
                     MusFitScreenHeader(
                         title = "Food",
                         actions = {
+                            FoodPlanningModeButton(
+                                presentation = planningPresentation,
+                                onClick = viewModel::togglePlanningMode,
+                            )
                             FoodDiaryOverflowAction(
                                 state = state,
                                 onGoalClick = viewModel::openGoalEditor,
@@ -222,6 +229,14 @@ fun FoodScreen(
                     )
 
                     MacroProgressRow(state.macroProgress)
+
+                    if (planningPresentation.showStatusCard) {
+                        PlanningModeStatusCard(
+                            presentation = planningPresentation,
+                            onActionClick = viewModel::togglePlanningMode,
+                        )
+                        WeeklyPlanStrip(state.weeklyPlan)
+                    }
 
                     MessageBanner(
                         message = state.message,
@@ -273,7 +288,6 @@ fun FoodScreen(
                             FoodProgressStatsCard(state.progressStats)
                             FoodHabitTrackerSection(state.habitTrackers)
                             DailyInsightsSection(state.dailyInsights)
-                            WeeklyPlanStrip(state.weeklyPlan)
                             AdvancedNutritionProgressRow(state.advancedNutritionProgress)
                             MicronutrientRow(state.micronutrients)
                             WaterTrackerCard(
@@ -643,6 +657,89 @@ private fun MoreSection(
     }
 }
 
+internal data class FoodPlanningModePresentation(
+    val isActive: Boolean,
+    val buttonLabel: String,
+    val buttonContentDescription: String,
+    val statusTitle: String,
+    val statusDescription: String,
+    val statusActionLabel: String,
+    val showStatusCard: Boolean,
+)
+
+internal fun FoodUiState.toPlanningModePresentation(): FoodPlanningModePresentation {
+    val plannedItemCount = weeklyPlan.sumOf { it.plannedEntryCount }
+    val plannedCaloriesKcal = weeklyPlan.sumOf { it.plannedCaloriesKcal }.roundToInt()
+    val plannedSummary =
+        when (plannedItemCount) {
+            0 -> "No planned items this week yet."
+            1 -> "1 planned item, $plannedCaloriesKcal kcal this week."
+            else -> "$plannedItemCount planned items, $plannedCaloriesKcal kcal this week."
+        }
+
+    return if (isPlanningMode) {
+        FoodPlanningModePresentation(
+            isActive = true,
+            buttonLabel = "Planning",
+            buttonContentDescription = "Finish planning meals",
+            statusTitle = "Planning mode",
+            statusDescription = "New food is saved as planned. $plannedSummary",
+            statusActionLabel = "Done",
+            showStatusCard = true,
+        )
+    } else {
+        FoodPlanningModePresentation(
+            isActive = false,
+            buttonLabel = "Plan",
+            buttonContentDescription = "Start planning meals",
+            statusTitle = "Planned this week",
+            statusDescription = "$plannedSummary Tap Plan to adjust the week.",
+            statusActionLabel = if (plannedItemCount == 0) "Plan meals" else "Plan more",
+            showStatusCard = plannedItemCount > 0,
+        )
+    }
+}
+
+internal val FoodUiState.foodEntryActionVerb: String
+    get() = if (isPlanningMode) "Plan" else "Log"
+
+internal val FoodUiState.foodEntryActionProgressLabel: String
+    get() = if (isPlanningMode) "Planning" else "Logging"
+
+internal fun FoodUiState.foodEntryActionLabel(target: String): String =
+    "$foodEntryActionVerb $target"
+
+internal val FoodUiState.saveAndFoodEntryActionLabel: String
+    get() = if (isPlanningMode) "Save and plan" else "Save and log"
+
+@Composable
+private fun FoodPlanningModeButton(
+    presentation: FoodPlanningModePresentation,
+    onClick: () -> Unit,
+) {
+    FilterChip(
+        selected = presentation.isActive,
+        onClick = onClick,
+        label = {
+            Text(
+                text = presentation.buttonLabel,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Outlined.Today,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+        },
+        modifier = Modifier.semantics {
+            contentDescription = presentation.buttonContentDescription
+        },
+    )
+}
+
 @Composable
 private fun FoodDiaryOverflowAction(
     state: FoodUiState,
@@ -667,7 +764,7 @@ private fun FoodDiaryOverflowAction(
         DropdownMenuItem(text = { Text("Shopping list") }, onClick = { menuOpen = false; onShoppingClick() })
         DropdownMenuItem(text = { Text("Fasting") }, onClick = { menuOpen = false; onFastingClick() })
         DropdownMenuItem(
-            text = { Text(if (state.isPlanningMode) "Planning: on" else "Planning: off") },
+            text = { Text(if (state.isPlanningMode) "Finish planning" else "Start planning") },
             onClick = { menuOpen = false; onPlanningModeClick() },
         )
         DropdownMenuItem(
@@ -675,6 +772,63 @@ private fun FoodDiaryOverflowAction(
             enabled = !state.isSaving,
             onClick = { menuOpen = false; onCopyDayToTomorrowClick() },
         )
+    }
+}
+
+@Composable
+private fun PlanningModeStatusCard(
+    presentation: FoodPlanningModePresentation,
+    onActionClick: () -> Unit,
+) {
+    val accent = MusFitTheme.colors.brand
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = if (presentation.isActive) {
+            accent.copy(alpha = 0.12f).compositeOver(MusFitTheme.colors.surface)
+        } else {
+            MusFitTheme.colors.surface
+        },
+        shape = MusFitTheme.shapes.extraLarge,
+        border = BorderStroke(1.dp, accent.copy(alpha = if (presentation.isActive) 0.28f else 0.16f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Today,
+                    contentDescription = null,
+                    tint = accent,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = presentation.statusTitle,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MusFitTheme.colors.brandInk,
+                )
+                Text(
+                    text = presentation.statusDescription,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onActionClick) {
+                Text(presentation.statusActionLabel, maxLines = 1)
+            }
+        }
     }
 }
 
