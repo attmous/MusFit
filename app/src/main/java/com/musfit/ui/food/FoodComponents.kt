@@ -213,3 +213,19 @@ internal fun Double.formatMicronutrientDisplay(): String =
     } else {
         roundToInt().toString()
     }
+
+internal fun FoodMealSectionUiState.compactDiarySummaryLabel(): String {
+    val loggedCalories = caloriesKcal.roundToInt()
+    val plannedCalories = plannedCaloriesKcal.roundToInt()
+    return when {
+        loggedCalories > 0 && plannedCalories > 0 -> "$loggedCalories kcal + $plannedCalories planned"
+        loggedCalories > 0 -> "$loggedCalories kcal"
+        plannedCalories > 0 -> "$plannedCalories kcal planned"
+        else -> "No items yet"
+    }
+}
+
+internal fun List<FoodMealEntryUiState>.compactDiaryEntriesLabel(): String =
+    joinToString(separator = ", ") { entry ->
+        "${entry.name} (${entry.caloriesKcal.roundToInt()} kcal)"
+    }

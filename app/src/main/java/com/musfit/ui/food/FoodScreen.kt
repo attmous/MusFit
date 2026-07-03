@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,7 +47,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
@@ -61,7 +59,6 @@ import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.mutableStateOf
@@ -262,7 +259,6 @@ fun FoodScreen(
                                 }
                             },
                             onAddClick = { viewModel.openAddFood(meal.id) },
-                            onEntryClick = viewModel::openDiaryEntryEditor,
                         )
                     }
 
@@ -307,51 +303,6 @@ fun FoodScreen(
             }
         }
 
-        if (selectedMealDetail == null && !state.isAddPanelVisible) {
-            var fabMenuExpanded by rememberSaveable { mutableStateOf(false) }
-
-            if (fabMenuExpanded) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.45f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { fabMenuExpanded = false },
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = 24.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                if (fabMenuExpanded) {
-                    state.mealSections.forEach { meal ->
-                        MealPickerItem(
-                            meal = meal,
-                            onClick = {
-                                fabMenuExpanded = false
-                                viewModel.openAddFood(meal.id)
-                            },
-                        )
-                    }
-                }
-                FloatingActionButton(
-                    onClick = { fabMenuExpanded = !fabMenuExpanded },
-                    containerColor = MusFitTheme.colors.accent,
-                    contentColor = MusFitTheme.colors.onAccent,
-                ) {
-                    Icon(
-                        imageVector = if (fabMenuExpanded) Icons.Filled.Close else Icons.Filled.Add,
-                        contentDescription = if (fabMenuExpanded) "Close meal picker" else "Add food",
-                    )
-                }
-            }
-        }
     }
 
     if (state.isAddPanelVisible && (state.sheetMode != FoodSheetMode.AddFood || state.addMode != FoodAddMode.Saved)) {
@@ -1944,53 +1895,10 @@ private fun MealMacroMetric(
 }
 
 @Composable
-private fun MealPickerItem(
-    meal: FoodMealSectionUiState,
-    onClick: () -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Surface(
-            color = MusFitTheme.colors.surface,
-            shape = MusFitTheme.shapes.extraLarge,
-            shadowElevation = 3.dp,
-        ) {
-            Text(
-                text = meal.title,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MusFitTheme.colors.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            )
-        }
-        Surface(
-            onClick = onClick,
-            shape = CircleShape,
-            color = MusFitTheme.colors.surface,
-            shadowElevation = 3.dp,
-            modifier = Modifier.size(48.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = mealTypeIcon(meal.id, meal.title),
-                    contentDescription = "Add to ${meal.title}",
-                    tint = MusFitTheme.colors.brand,
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun MealSectionCard(
     meal: FoodMealSectionUiState,
     onMealClick: () -> Unit,
     onAddClick: () -> Unit,
-    onEntryClick: (String) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2037,16 +1945,12 @@ private fun MealSectionCard(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = meal.summaryLabel(),
+                                text = meal.compactDiarySummaryLabel(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MusFitTheme.colors.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            meal.rating?.let { rating ->
-                                Spacer(modifier = Modifier.height(6.dp))
-                                RatingPill(rating)
-                            }
                         }
                     }
                 }
@@ -2069,27 +1973,24 @@ private fun MealSectionCard(
             }
 
             if (meal.entries.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 HorizontalDivider(color = MusFitTheme.colors.outline)
-                meal.entries.forEach { entry ->
-                    DiaryEntryRow(
-                        entry = entry,
-                        onClick = { onEntryClick(entry.id) },
-                    )
-                }
+                Text(
+                    text = meal.entries.compactDiaryEntriesLabel(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Normal,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onMealClick)
+                        .padding(top = 8.dp),
+                )
             }
         }
     }
 }
-
-private fun FoodMealSectionUiState.summaryLabel(): String =
-    when {
-        caloriesKcal > 0.0 && plannedCaloriesKcal > 0.0 ->
-            "${caloriesKcal.roundToInt()} logged | ${plannedCaloriesKcal.roundToInt()} planned"
-        caloriesKcal > 0.0 -> "${caloriesKcal.roundToInt()} kcal logged"
-        plannedCaloriesKcal > 0.0 -> "${plannedCaloriesKcal.roundToInt()} kcal planned"
-        else -> recommendation
-    }
 
 @Composable
 private fun DiaryEntryRow(
