@@ -1,5 +1,6 @@
 package com.musfit.ui.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,16 +13,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -38,33 +44,75 @@ fun AiCoachSettingsSection(
     onEdit: () -> Unit,
     onClearApiKey: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
+    val accent = tabAccentFor(AppDestination.Profile)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)),
+    ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("AI coach setup", style = MaterialTheme.typography.titleMedium)
+                    Text("Coach connection", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        state.providerLabel,
-                        style = MaterialTheme.typography.bodyMedium,
+                        state.aiCoachSummary(),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "Edit AI coach setup")
+                AiCoachStatusPill(
+                    label = state.providerLabel,
+                    container = if (state.providerKind == AiCoachProviderKind.Disabled) {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    } else {
+                        accent.container
+                    },
+                    contentColor = if (state.providerKind == AiCoachProviderKind.Disabled) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        accent.onContainer
+                    },
+                )
+            }
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SettingsRow(label = "Endpoint", value = state.endpointLabel)
+                    SettingsRow(label = "Model", value = state.modelLabel)
+                    SettingsRow(label = "API key", value = state.apiKeyLabel)
                 }
             }
-            SettingsRow(label = "Endpoint", value = state.endpointLabel)
-            SettingsRow(label = "Model", value = state.modelLabel)
-            SettingsRow(label = "API key", value = state.apiKeyLabel)
-            if (state.hasApiKey) {
-                TextButton(onClick = onClearApiKey, modifier = Modifier.fillMaxWidth()) {
-                    Text("Clear saved API key")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onEdit,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 46.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+                ) {
+                    Icon(Icons.Outlined.Edit, contentDescription = null)
+                    Text("Configure", modifier = Modifier.padding(start = 8.dp))
+                }
+                if (state.hasApiKey) {
+                    OutlinedButton(
+                        onClick = onClearApiKey,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("Clear key")
+                    }
                 }
             }
         }
@@ -191,6 +239,25 @@ private fun SettingsRow(label: String, value: String) {
         )
         Text(value, modifier = Modifier.weight(0.65f), style = MaterialTheme.typography.bodySmall)
     }
+}
+
+@Composable
+private fun AiCoachStatusPill(label: String, container: Color, contentColor: Color) {
+    Surface(color = container, shape = MaterialTheme.shapes.small) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun AiCoachSettingsUiState.aiCoachSummary(): String = when (providerKind) {
+    AiCoachProviderKind.Disabled -> "Coach features stay off until you choose a local agent or API endpoint."
+    AiCoachProviderKind.OpenAiCompatible -> "Uses your configured API-compatible endpoint. The key stays on this device."
+    AiCoachProviderKind.LocalAgent -> "Connects to a local agent running on this device or your network."
 }
 
 private fun AiCoachProviderKind.shortLabel(): String = when (this) {

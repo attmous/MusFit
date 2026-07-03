@@ -63,6 +63,7 @@ fun AppNavGraph() {
     val destinations = AppDestination.entries
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: AppDestination.Today.route
+    val currentBottomRoute = bottomDestinationForRoute(currentRoute).route
     var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
     var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
     var chatPreviewVisible by rememberSaveable { mutableStateOf(false) }
@@ -83,7 +84,7 @@ fun AppNavGraph() {
         bottomBar = {
             FloatingPillNav(
                 destinations = destinations,
-                currentRoute = currentRoute,
+                currentRoute = currentBottomRoute,
                 onSelect = { go(it.route) },
                 onChat = { chatPreviewVisible = true },
             )

@@ -3,30 +3,45 @@ package com.musfit.ui.profile
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,27 +50,44 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.BuildConfig
+import com.musfit.ui.AppDestination
+import com.musfit.ui.components.SectionHeader
+import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.tabAccentFor
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+private const val SettingsCardBorderAlpha = 0.14f
+private const val SettingsDividerAlpha = 0.12f
+
 @Composable
 fun ProfileSettingsScreen(
     onBack: () -> Unit,
     viewModel: ProfileSettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val accent = tabAccentFor(AppDestination.Profile)
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var showProfileDialog by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
     ) { viewModel.refreshStatus() }
+    val signInActions = providerSignInActions(
+        googleConfigured = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank(),
+        githubConfigured = state.isGitHubSignInConfigured,
+        githubBusy = state.githubSignInInProgress,
+    )
 
     LaunchedEffect(Unit) {
         viewModel.refreshStatus()
@@ -63,30 +95,25 @@ fun ProfileSettingsScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+        containerColor = MusFitTheme.colors.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
             modifier = Modifier
+                .fillMaxSize()
+                .background(MusFitTheme.colors.background)
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Account", style = MaterialTheme.typography.titleMedium)
+            SettingsHeader(onBack = onBack)
+
+            SectionHeader(title = "Account")
             AccountSection(account = state.account, onEdit = viewModel::openAccountEditor)
             ProviderSignInActions(
-                googleConfigured = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank(),
-                githubConfigured = state.isGitHubSignInConfigured,
-                githubBusy = state.githubSignInInProgress,
+                actions = signInActions,
+                accent = accent,
                 onGoogleSignIn = {
                     coroutineScope.launch {
                         runCatching {
@@ -100,47 +127,38 @@ fun ProfileSettingsScreen(
                 },
                 onGitHubSignIn = viewModel::signInWithGitHub,
             )
-            TextButton(onClick = { showProfileDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Profile details")
-            }
+            ProfileDetailsCard(accent = accent, onOpen = { showProfileDialog = true })
 
-            Text("AI coach", style = MaterialTheme.typography.titleMedium)
+            SectionHeader(title = "AI coach")
             AiCoachSettingsSection(
                 state = state.aiCoach,
                 onEdit = viewModel::openAiCoachEditor,
                 onClearApiKey = viewModel::clearAiCoachApiKey,
             )
 
-            Text("Health Connect & sync", style = MaterialTheme.typography.titleMedium)
-            Text("Health Connect: ${state.availabilityLabel}", style = MaterialTheme.typography.bodyMedium)
-            Text(state.message, style = MaterialTheme.typography.bodyMedium)
-            Button(
-                onClick = {
+            SectionHeader(title = "Health Connect")
+            HealthConnectSettingsCard(
+                state = state,
+                accent = accent,
+                onRequestPermissions = {
                     if (state.canRequestPermissions) permissionLauncher.launch(state.requestablePermissions)
                 },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.canRequestPermissions,
-            ) { Text("Enable Health Connect sync") }
-            Button(onClick = viewModel::refreshStatus, modifier = Modifier.fillMaxWidth()) { Text("Refresh status") }
-            Button(
-                onClick = viewModel::syncRecentHealthData,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !state.isHealthConnectSyncing,
-            ) {
-                Icon(Icons.Outlined.Sync, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (state.isHealthConnectSyncing) "Syncing Health Connect..." else "Sync Health Connect data")
-            }
-            Button(onClick = viewModel::exportLatestWorkout, modifier = Modifier.fillMaxWidth()) {
-                Text("Export latest workout")
+                onRefresh = viewModel::refreshStatus,
+                onSync = viewModel::syncRecentHealthData,
+                onExport = viewModel::exportLatestWorkout,
+            )
+
+            SectionHeader(title = "Preferences")
+            SettingsInfoCard {
+                SettingsValueRow(title = "Units", value = "Metric", detail = "Food, body weight, and measurements use kg and cm.")
+                SettingsValueRow(title = "Theme", value = "System", detail = "Follows Android light and dark mode.")
+                SettingsValueRow(title = "Data", value = "Local first", detail = "MusFit stores app data on this device.")
             }
 
-            Text("Preferences", style = MaterialTheme.typography.titleMedium)
-            Text("Units: Metric (kg, cm) · Later", style = MaterialTheme.typography.bodyMedium)
-            Text("Theme: System · Later", style = MaterialTheme.typography.bodyMedium)
-
-            Text("About", style = MaterialTheme.typography.titleMedium)
-            Text("MusFit", style = MaterialTheme.typography.bodyMedium)
+            SectionHeader(title = "About")
+            SettingsInfoCard {
+                SettingsValueRow(title = "App", value = "MusFit", detail = "Fitness, nutrition, and Health Connect tracking.")
+            }
         }
     }
 
@@ -203,42 +221,343 @@ fun ProfileSettingsScreen(
 }
 
 @Composable
-private fun ProviderSignInActions(
-    googleConfigured: Boolean,
-    githubConfigured: Boolean,
-    githubBusy: Boolean,
-    onGoogleSignIn: () -> Unit,
-    onGitHubSignIn: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(
-            onClick = onGoogleSignIn,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = googleConfigured && !githubBusy,
-        ) {
-            Icon(Icons.Outlined.Link, contentDescription = null)
-            Text("Continue with Google", modifier = Modifier.padding(start = 8.dp))
+private fun SettingsHeader(onBack: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
         }
-        OutlinedButton(
-            onClick = onGitHubSignIn,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = githubConfigured && !githubBusy,
-        ) {
-            Icon(Icons.Outlined.Code, contentDescription = null)
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                if (githubBusy) "Waiting for GitHub" else "Continue with GitHub",
-                modifier = Modifier.padding(start = 8.dp),
+                "Settings",
+                style = MusFitTheme.typography.headlineMedium,
+                color = MusFitTheme.colors.onSurface,
+                fontWeight = FontWeight.Bold,
             )
-        }
-        if (!googleConfigured || !githubConfigured) {
             Text(
-                "Provider sign-in needs OAuth client IDs.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                "Profile, identity, coach, and device sync.",
+                style = MusFitTheme.typography.bodyMedium,
+                color = MusFitTheme.colors.onSurfaceVariant,
             )
         }
     }
 }
+
+@Composable
+private fun ProviderSignInActions(
+    actions: ProviderSignInActionsUiState,
+    accent: TabAccent,
+    onGoogleSignIn: () -> Unit,
+    onGitHubSignIn: () -> Unit,
+) {
+    SettingsCard {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("External identity", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Optional account linking. It does not enable cloud sync.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ProviderActionRow(
+            action = actions.google,
+            icon = Icons.Outlined.Link,
+            accent = accent,
+            onClick = onGoogleSignIn,
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = SettingsDividerAlpha))
+        ProviderActionRow(
+            action = actions.github,
+            icon = Icons.Outlined.Code,
+            accent = accent,
+            onClick = onGitHubSignIn,
+        )
+    }
+}
+
+@Composable
+private fun ProviderActionRow(
+    action: ProviderSignInActionUiState,
+    icon: ImageVector,
+    accent: TabAccent,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            IconWell(
+                icon = icon,
+                tint = if (action.enabled) accent.color else MaterialTheme.colorScheme.onSurfaceVariant,
+                container = if (action.enabled) accent.container else MaterialTheme.colorScheme.surfaceVariant,
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(action.providerLabel, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    StatusPill(
+                        label = action.statusLabel,
+                        container = statusContainer(action.statusLabel, accent),
+                        contentColor = statusContentColor(action.statusLabel, accent),
+                    )
+                }
+                Text(
+                    action.supportingText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        OutlinedButton(
+            onClick = onClick,
+            enabled = action.enabled,
+            modifier = Modifier
+                .align(Alignment.End)
+                .heightIn(min = 44.dp)
+                .widthIn(min = 180.dp),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Text(action.buttonLabel)
+        }
+    }
+}
+
+@Composable
+private fun ProfileDetailsCard(accent: TabAccent, onOpen: () -> Unit) {
+    SettingsCard {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            IconWell(icon = Icons.Outlined.Person, tint = accent.color, container = accent.container)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Profile details", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Age, height, goal, pace, and latest body weight.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onOpen, shape = MaterialTheme.shapes.small) {
+                Text("Edit", color = accent.color, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HealthConnectSettingsCard(
+    state: ProfileSettingsUiState,
+    accent: TabAccent,
+    onRequestPermissions: () -> Unit,
+    onRefresh: () -> Unit,
+    onSync: () -> Unit,
+    onExport: () -> Unit,
+) {
+    SettingsCard {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            IconWell(icon = Icons.Outlined.FavoriteBorder, tint = accent.color, container = accent.container)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Health Connect sync", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    permissionSummary(state),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            StatusPill(
+                label = healthAvailabilityPillLabel(state.availabilityLabel),
+                container = if (state.availabilityLabel == "Available") accent.container else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (state.availabilityLabel == "Available") accent.onContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            state.message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            onClick = onRequestPermissions,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 46.dp),
+            enabled = state.canRequestPermissions,
+            shape = MaterialTheme.shapes.medium,
+            colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+        ) {
+            Text(healthConnectPrimaryActionLabel(state))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = onRefresh,
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 44.dp),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("Refresh", modifier = Modifier.padding(start = 6.dp))
+            }
+            OutlinedButton(
+                onClick = onSync,
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 44.dp),
+                enabled = !state.isHealthConnectSyncing,
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Icon(Icons.Outlined.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(
+                    if (state.isHealthConnectSyncing) "Syncing" else "Sync",
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+        }
+        OutlinedButton(
+            onClick = onExport,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 44.dp),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Text("Export latest workout")
+        }
+    }
+}
+
+@Composable
+private fun SettingsInfoCard(content: @Composable ColumnScope.() -> Unit) {
+    SettingsCard(content = content)
+}
+
+@Composable
+private fun SettingsCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = SettingsCardBorderAlpha)),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsValueRow(title: String, value: String, detail: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        IconWell(
+            icon = Icons.Outlined.Info,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            container = MaterialTheme.colorScheme.surfaceVariant,
+            size = 34,
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    value,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun IconWell(
+    icon: ImageVector,
+    tint: Color,
+    container: Color,
+    size: Int = 38,
+) {
+    Surface(color = container, shape = MaterialTheme.shapes.small) {
+        Box(modifier = Modifier.size(size.dp), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size((size / 2).dp))
+        }
+    }
+}
+
+@Composable
+private fun StatusPill(label: String, container: Color, contentColor: Color) {
+    Surface(color = container, shape = MaterialTheme.shapes.small) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun statusContainer(statusLabel: String, accent: TabAccent): Color =
+    when (statusLabel) {
+        "Ready" -> accent.container
+        "In progress" -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+
+@Composable
+private fun statusContentColor(statusLabel: String, accent: TabAccent): Color =
+    when (statusLabel) {
+        "Ready" -> accent.onContainer
+        "In progress" -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+private fun permissionSummary(state: ProfileSettingsUiState): String =
+    if (state.requestablePermissionCount == 0) {
+        "Refresh to check available health permissions."
+    } else {
+        "${state.grantedPermissionCount}/${state.requestablePermissionCount} permissions granted"
+    }
+
+private fun healthConnectPrimaryActionLabel(state: ProfileSettingsUiState): String =
+    when {
+        state.canRequestPermissions && state.grantedPermissionCount > 0 -> "Review permissions"
+        state.canRequestPermissions -> "Enable Health Connect"
+        state.availabilityLabel == "Available" &&
+            state.requestablePermissionCount > 0 &&
+            state.grantedPermissionCount >= state.requestablePermissionCount -> "Permissions granted"
+        state.availabilityLabel == "Unknown" -> "Refresh status first"
+        else -> "Health Connect unavailable"
+    }
+
+private fun healthAvailabilityPillLabel(availabilityLabel: String): String =
+    when (availabilityLabel) {
+        "Install or update required" -> "Needs app"
+        else -> availabilityLabel
+    }
 
 @Composable
 private fun GitHubDeviceCodeDialog(
