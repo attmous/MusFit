@@ -43,6 +43,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.ExerciseDetail
@@ -128,6 +130,39 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         return
     }
 
+    if (state.routineExercisePickerOpen) {
+        Dialog(
+            onDismissRequest = viewModel::closeRoutineExercisePicker,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
+            ),
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MusFitTheme.colors.background,
+            ) {
+                RoutineExercisePickerPage(
+                    exercises = state.exercises,
+                    currentRoutineExerciseIds = state.routineEditor.exercises.map { it.exerciseId }.toSet(),
+                    selectedExerciseIds = state.routineExercisePickerSelectedIds,
+                    searchQuery = state.routineExercisePickerSearchQuery,
+                    muscleFilter = state.routineExercisePickerMuscleFilter,
+                    equipmentFilter = state.routineExercisePickerEquipmentFilter,
+                    accent = accent,
+                    onSearchChange = viewModel::onRoutineExercisePickerSearchChanged,
+                    onMuscleFilterChange = viewModel::onRoutineExercisePickerMuscleFilterChanged,
+                    onEquipmentFilterChange = viewModel::onRoutineExercisePickerEquipmentFilterChanged,
+                    onClearFilters = viewModel::clearRoutineExercisePickerFilters,
+                    onToggleExercise = viewModel::toggleRoutineExercisePickerSelection,
+                    onCancel = viewModel::closeRoutineExercisePicker,
+                    onConfirm = viewModel::confirmRoutineExercisePicker,
+                )
+            }
+        }
+        return
+    }
+
     MusFitScreenScaffold(
         title = "Training",
         actions = {
@@ -165,15 +200,23 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     state.routineEditor.isOpen -> TrainingRoutineEditor(
                         editor = state.routineEditor,
                         exercises = state.exercises,
+                        folders = state.routineFolders,
                         accent = accent,
                         onNameChange = viewModel::onRoutineNameChanged,
                         onNotesChange = viewModel::onRoutineNotesChanged,
-                        onAddExercise = viewModel::addRoutineExercise,
+                        onFolderNameChange = viewModel::onRoutineEditorFolderNameChanged,
+                        onOpenExercisePicker = viewModel::openRoutineExercisePicker,
                         onRemoveExercise = viewModel::removeRoutineExercise,
                         onMoveExerciseUp = viewModel::moveRoutineExerciseUp,
                         onMoveExerciseDown = viewModel::moveRoutineExerciseDown,
                         onTargetSetsChange = viewModel::onRoutineExerciseTargetSetsChanged,
                         onTargetRepsChange = viewModel::onRoutineExerciseTargetRepsChanged,
+                        onRestSecondsChange = viewModel::onRoutineExerciseRestSecondsChanged,
+                        onAddSet = viewModel::addRoutineExerciseSet,
+                        onRemoveSet = viewModel::removeRoutineExerciseSet,
+                        onSetTypeChange = viewModel::onRoutineExerciseSetTypeChanged,
+                        onSetRepsChange = viewModel::onRoutineExerciseSetRepsChanged,
+                        onSetWeightChange = viewModel::onRoutineExerciseSetWeightChanged,
                         onSave = viewModel::saveRoutineEditor,
                         onCancel = viewModel::closeRoutineEditor,
                         onDuplicate = viewModel::duplicateRoutine,
@@ -206,10 +249,14 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     )
                     else -> TrainingRoutineContent(
                         routines = state.visibleRoutines,
-                        programOptions = state.routineProgramOptions,
-                        selectedProgram = state.selectedRoutineProgram,
+                        folders = state.routineFolders,
+                        folderEditor = state.routineFolderEditor,
                         accent = accent,
-                        onProgramSelected = viewModel::onRoutineProgramFilterChanged,
+                        onOpenFolderEditor = viewModel::openRoutineFolderEditor,
+                        onFolderNameChange = viewModel::onRoutineFolderNameChanged,
+                        onSaveFolder = viewModel::saveRoutineFolderEditor,
+                        onCancelFolder = viewModel::closeRoutineFolderEditor,
+                        onDeleteFolder = viewModel::deleteRoutineFolder,
                         onStartRoutine = viewModel::startRoutine,
                         onEditRoutine = viewModel::openRoutineEditor,
                         onOpenRoutineDetail = viewModel::openRoutineDetail,

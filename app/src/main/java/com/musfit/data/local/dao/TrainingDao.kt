@@ -8,6 +8,8 @@ import androidx.room.Update
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
+import com.musfit.data.local.entity.RoutineExerciseSetEntity
+import com.musfit.data.local.entity.RoutineFolderEntity
 import com.musfit.data.local.entity.TrainingSettingsEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
@@ -22,6 +24,8 @@ data class RoutineSummaryRow(
     val isStarter: Boolean,
     val programName: String?,
     val tags: String,
+    val folderId: String?,
+    val folderName: String?,
     val primaryMuscles: String,
 )
 
@@ -45,8 +49,18 @@ data class RoutineExerciseDetailRow(
     val sortOrder: Int,
     val targetSets: Int,
     val targetReps: String?,
+    val restSeconds: Int?,
     val imageUrl: String?,
     val gifUrl: String?,
+)
+
+data class RoutineExerciseSetDetailRow(
+    val id: String,
+    val routineExerciseId: String,
+    val sortOrder: Int,
+    val setType: String,
+    val targetReps: String?,
+    val targetWeightKg: Double?,
 )
 
 data class WorkoutSetDetailRow(
@@ -66,6 +80,7 @@ data class WorkoutSetDetailRow(
     val notes: String?,
     val completed: Boolean,
     val supersetGroupId: String? = null,
+    val restSeconds: Int? = null,
     val imageUrl: String? = null,
     val gifUrl: String? = null,
 )
@@ -129,6 +144,18 @@ interface TrainingDao {
     @Query("SELECT * FROM routines ORDER BY createdAtEpochMillis DESC")
     fun observeRoutines(): Flow<List<RoutineEntity>>
 
+    @Query("SELECT * FROM routine_folders ORDER BY sortOrder ASC, name ASC")
+    fun observeRoutineFolders(): Flow<List<RoutineFolderEntity>>
+
+    @Query("SELECT * FROM routine_folders WHERE id = :folderId LIMIT 1")
+    suspend fun getRoutineFolder(folderId: String): RoutineFolderEntity?
+
+    @Query("SELECT * FROM routine_folders WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun getRoutineFolderByName(name: String): RoutineFolderEntity?
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM routine_folders")
+    suspend fun getMaxRoutineFolderSortOrder(): Int
+
     @Query(
         """
         SELECT routines.id AS id,
@@ -139,12 +166,15 @@ interface TrainingDao {
             routines.isStarter AS isStarter,
             routines.programName AS programName,
             routines.tags AS tags,
+            routines.folderId AS folderId,
+            routine_folders.name AS folderName,
             COALESCE(GROUP_CONCAT(exercises.primaryMuscles), '') AS primaryMuscles
         FROM routines
+        LEFT JOIN routine_folders ON routine_folders.id = routines.folderId
         LEFT JOIN routine_exercises ON routine_exercises.routineId = routines.id
         LEFT JOIN exercises ON exercises.id = routine_exercises.exerciseId
         GROUP BY routines.id
-        ORDER BY routines.isStarter DESC, routines.updatedAtEpochMillis DESC, routines.name ASC
+        ORDER BY routine_folders.sortOrder ASC, routine_folders.name ASC, routines.updatedAtEpochMillis DESC, routines.name ASC
         """,
     )
     fun observeRoutineSummaries(): Flow<List<RoutineSummaryRow>>
@@ -197,6 +227,7 @@ interface TrainingDao {
             routine_exercises.sortOrder AS sortOrder,
             routine_exercises.targetSets AS targetSets,
             routine_exercises.targetReps AS targetReps,
+            routine_exercises.restSeconds AS restSeconds,
             exercises.imageUrl AS imageUrl,
             exercises.gifUrl AS gifUrl
         FROM routine_exercises
@@ -206,6 +237,22 @@ interface TrainingDao {
         """,
     )
     suspend fun getRoutineExerciseDetailRows(routineId: String): List<RoutineExerciseDetailRow>
+
+    @Query(
+        """
+        SELECT routine_exercise_sets.id AS id,
+            routine_exercise_sets.routineExerciseId AS routineExerciseId,
+            routine_exercise_sets.sortOrder AS sortOrder,
+            routine_exercise_sets.setType AS setType,
+            routine_exercise_sets.targetReps AS targetReps,
+            routine_exercise_sets.targetWeightKg AS targetWeightKg
+        FROM routine_exercise_sets
+        INNER JOIN routine_exercises ON routine_exercises.id = routine_exercise_sets.routineExerciseId
+        WHERE routine_exercises.routineId = :routineId
+        ORDER BY routine_exercises.sortOrder ASC, routine_exercise_sets.sortOrder ASC
+        """,
+    )
+    suspend fun getRoutineExerciseSetDetailRows(routineId: String): List<RoutineExerciseSetDetailRow>
 
     @Query("SELECT * FROM workout_sessions ORDER BY startedAtEpochMillis DESC LIMIT 1")
     suspend fun getLatestWorkoutSession(): WorkoutSessionEntity?
@@ -339,6 +386,7 @@ interface TrainingDao {
             workout_sets.notes AS notes,
             workout_sets.completed AS completed,
             workout_sets.supersetGroupId AS supersetGroupId,
+            workout_sets.restSeconds AS restSeconds,
             exercises.imageUrl AS imageUrl,
             exercises.gifUrl AS gifUrl
         FROM workout_sets
@@ -444,6 +492,15 @@ interface TrainingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRoutine(routine: RoutineEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRoutineFolder(folder: RoutineFolderEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRoutineFolder(folder: RoutineFolderEntity): Long
+
+    @Update
+    suspend fun updateRoutineFolder(folder: RoutineFolderEntity): Int
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertRoutine(routine: RoutineEntity): Long
 
@@ -458,6 +515,9 @@ interface TrainingDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRoutineExercises(routineExercises: List<RoutineExerciseEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRoutineExerciseSets(routineExerciseSets: List<RoutineExerciseSetEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertWorkoutSession(session: WorkoutSessionEntity)
@@ -491,6 +551,12 @@ interface TrainingDao {
 
     @Query("DELETE FROM routine_exercises WHERE routineId = :routineId")
     suspend fun deleteRoutineExercises(routineId: String)
+
+    @Query("UPDATE routines SET folderId = NULL WHERE folderId = :folderId")
+    suspend fun clearRoutineFolder(folderId: String)
+
+    @Query("DELETE FROM routine_folders WHERE id = :folderId")
+    suspend fun deleteRoutineFolderById(folderId: String)
 
     @Query("DELETE FROM routines WHERE id = :routineId")
     suspend fun deleteRoutineById(routineId: String)

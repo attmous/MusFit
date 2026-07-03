@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.ActiveWorkoutSummaryRow
 import com.musfit.data.local.dao.ExerciseProgressSetRow
+import com.musfit.data.local.dao.RoutineExerciseDetailRow
 import com.musfit.data.local.dao.RoutineSummaryRow
 import com.musfit.data.local.dao.TrainingDao
 import com.musfit.data.local.dao.WorkoutHistorySummaryRow
@@ -11,6 +12,8 @@ import com.musfit.data.local.dao.WorkoutSetDetailRow
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
+import com.musfit.data.local.entity.RoutineExerciseSetEntity
+import com.musfit.data.local.entity.RoutineFolderEntity
 import com.musfit.data.local.entity.TrainingSettingsEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
@@ -113,7 +116,21 @@ data class RoutineSummary(
     val isStarter: Boolean,
     val programName: String? = null,
     val tags: List<String> = emptyList(),
+    val folderId: String? = null,
+    val folderName: String? = null,
     val muscleGroups: List<String> = emptyList(),
+)
+
+data class RoutineFolder(
+    val id: String,
+    val name: String,
+    val sortOrder: Int,
+)
+
+data class RoutineSetInput(
+    val setType: String = "working",
+    val targetReps: String? = null,
+    val targetWeightKg: Double? = null,
 )
 
 data class RoutineExerciseDetail(
@@ -122,6 +139,8 @@ data class RoutineExerciseDetail(
     val sortOrder: Int,
     val targetSets: Int,
     val targetReps: String?,
+    val restSeconds: Int? = null,
+    val setPlans: List<RoutineSetInput> = emptyList(),
 )
 
 data class RoutineDetail(
@@ -132,6 +151,8 @@ data class RoutineDetail(
     val exercises: List<RoutineExerciseDetail>,
     val programName: String? = null,
     val tags: List<String> = emptyList(),
+    val folderId: String? = null,
+    val folderName: String? = null,
 )
 
 data class RoutineInput(
@@ -140,12 +161,16 @@ data class RoutineInput(
     val exercises: List<RoutineExerciseInput>,
     val programName: String? = null,
     val tags: List<String> = emptyList(),
+    val folderId: String? = null,
+    val folderName: String? = null,
 )
 
 data class RoutineExerciseInput(
     val exerciseId: String,
     val targetSets: Int,
     val targetReps: String?,
+    val restSeconds: Int? = null,
+    val setPlans: List<RoutineSetInput> = emptyList(),
 )
 
 data class ActiveWorkoutSummary(
@@ -181,6 +206,7 @@ data class LoggedWorkoutSetDetail(
     val id: String,
     val exerciseId: String,
     val setType: String,
+    val targetReps: String? = null,
     val reps: Int?,
     val weightKg: Double?,
     val rpe: Double?,
@@ -188,6 +214,7 @@ data class LoggedWorkoutSetDetail(
     val completed: Boolean,
     val previousLabel: String?,
     val supersetGroupId: String? = null,
+    val restSeconds: Int? = null,
 )
 
 data class WorkoutExerciseBlock(
@@ -270,6 +297,8 @@ interface TrainingRepository {
 
     fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = flowOf(emptyList())
 
+    fun observeRoutineFolders(): Flow<List<RoutineFolder>> = flowOf(emptyList())
+
     fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = flowOf(null)
 
     fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?> = flowOf(null)
@@ -295,6 +324,12 @@ interface TrainingRepository {
     suspend fun deleteRoutine(routineId: String)
 
     suspend fun getRoutineDetail(routineId: String): RoutineDetail?
+
+    suspend fun createRoutineFolder(name: String): String = ""
+
+    suspend fun updateRoutineFolder(folderId: String, name: String) = Unit
+
+    suspend fun deleteRoutineFolder(folderId: String) = Unit
 
     suspend fun startBlankWorkout(): String
 
@@ -458,6 +493,9 @@ class LocalTrainingRepository @Inject constructor(
     override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> =
         trainingDao.observeRoutineSummaries().map { rows -> rows.map { it.toSummary() } }
 
+    override fun observeRoutineFolders(): Flow<List<RoutineFolder>> =
+        trainingDao.observeRoutineFolders().map { rows -> rows.map { it.toFolder() } }
+
     override fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> =
         trainingDao.observeActiveWorkoutSummary().map { row -> row?.toSummary() }
 
@@ -547,6 +585,7 @@ class LocalTrainingRepository @Inject constructor(
         val nextInput = input.copy(
             programName = input.programName ?: existing.programName,
             tags = input.tags.ifEmpty { existing.tags.parseTags() },
+            folderId = input.folderId ?: existing.folderId,
         )
         saveRoutine(
             routineId = routineId,
@@ -569,10 +608,14 @@ class LocalTrainingRepository @Inject constructor(
                         exerciseId = it.exercise.id,
                         targetSets = it.targetSets,
                         targetReps = it.targetReps,
+                        restSeconds = it.restSeconds,
+                        setPlans = it.setPlans,
                     )
                 },
                 programName = detail.programName,
                 tags = detail.tags,
+                folderId = detail.folderId,
+                folderName = detail.folderName,
             ),
         )
     }
@@ -583,7 +626,20 @@ class LocalTrainingRepository @Inject constructor(
 
     override suspend fun getRoutineDetail(routineId: String): RoutineDetail? {
         val routine = trainingDao.getRoutine(routineId) ?: return null
+        val folder = routine.folderId?.let { trainingDao.getRoutineFolder(it) }
+        val setPlansByExercise = trainingDao.getRoutineExerciseSetDetailRows(routineId)
+            .groupBy { it.routineExerciseId }
         val exercises = trainingDao.getRoutineExerciseDetailRows(routineId).map { row ->
+            val setPlans = setPlansByExercise[row.id]
+                .orEmpty()
+                .map { setRow ->
+                    RoutineSetInput(
+                        setType = setRow.setType,
+                        targetReps = setRow.targetReps,
+                        targetWeightKg = setRow.targetWeightKg,
+                    )
+                }
+                .ifEmpty { row.defaultSetPlans() }
             RoutineExerciseDetail(
                 id = row.id,
                 exercise = ExerciseSummary(
@@ -599,6 +655,8 @@ class LocalTrainingRepository @Inject constructor(
                 sortOrder = row.sortOrder,
                 targetSets = row.targetSets,
                 targetReps = row.targetReps,
+                restSeconds = row.restSeconds,
+                setPlans = setPlans,
             )
         }
         return RoutineDetail(
@@ -608,8 +666,45 @@ class LocalTrainingRepository @Inject constructor(
             isStarter = routine.isStarter,
             programName = routine.programName,
             tags = routine.tags.parseTags(),
+            folderId = routine.folderId,
+            folderName = folder?.name,
             exercises = exercises,
         )
+    }
+
+    override suspend fun createRoutineFolder(name: String): String {
+        val normalizedName = name.trim()
+        require(normalizedName.isNotBlank()) { "Folder name is required" }
+        trainingDao.getRoutineFolderByName(normalizedName)?.let { return it.id }
+        val now = clock()
+        val folder = RoutineFolderEntity(
+            id = UUID.randomUUID().toString(),
+            name = normalizedName,
+            sortOrder = trainingDao.getMaxRoutineFolderSortOrder() + 1,
+            createdAtEpochMillis = now,
+            updatedAtEpochMillis = now,
+        )
+        trainingDao.upsertRoutineFolder(folder)
+        return folder.id
+    }
+
+    override suspend fun updateRoutineFolder(folderId: String, name: String) {
+        val folder = trainingDao.getRoutineFolder(folderId) ?: return
+        val normalizedName = name.trim()
+        if (normalizedName.isBlank()) return
+        trainingDao.updateRoutineFolder(
+            folder.copy(
+                name = normalizedName,
+                updatedAtEpochMillis = clock(),
+            ),
+        )
+    }
+
+    override suspend fun deleteRoutineFolder(folderId: String) {
+        database.withTransaction {
+            trainingDao.clearRoutineFolder(folderId)
+            trainingDao.deleteRoutineFolderById(folderId)
+        }
     }
 
     override suspend fun startBlankWorkout(): String =
@@ -633,22 +728,39 @@ class LocalTrainingRepository @Inject constructor(
             }
             val sessionId = createWorkoutSession(routineId = routine.id, title = routine.name)
             val routineExercises = trainingDao.getRoutineExercises(routine.id)
+            val setPlansByExercise = trainingDao.getRoutineExerciseSetDetailRows(routine.id)
+                .groupBy { it.routineExerciseId }
             val sets = routineExercises.flatMap { routineExercise ->
-                (0 until routineExercise.targetSets.coerceAtLeast(1)).map { setIndex ->
-                    val targetReps = routineExercise.targetReps?.trim()?.takeIf(String::isNotEmpty)
+                val setPlans = setPlansByExercise[routineExercise.id]
+                    .orEmpty()
+                    .ifEmpty {
+                        (0 until routineExercise.targetSets.coerceAtLeast(1)).map { setIndex ->
+                            com.musfit.data.local.dao.RoutineExerciseSetDetailRow(
+                                id = "${routineExercise.id}-set-$setIndex",
+                                routineExerciseId = routineExercise.id,
+                                sortOrder = setIndex,
+                                setType = SET_TYPE_WORKING,
+                                targetReps = routineExercise.targetReps,
+                                targetWeightKg = null,
+                            )
+                        }
+                    }
+                setPlans.mapIndexed { setIndex, setPlan ->
+                    val targetReps = setPlan.targetReps?.trim()?.takeIf(String::isNotEmpty)
                     WorkoutSetEntity(
                         id = UUID.randomUUID().toString(),
                         sessionId = sessionId,
                         exerciseId = routineExercise.exerciseId,
                         sortOrder = routineExercise.sortOrder * 100 + setIndex,
-                        setType = SET_TYPE_WORKING,
+                        setType = setPlan.setType.normalizedSetType(),
                         reps = targetReps?.toIntOrNull(),
-                        weightKg = null,
+                        weightKg = setPlan.targetWeightKg,
                         durationSeconds = null,
                         distanceMeters = null,
                         rpe = null,
                         notes = encodeWorkoutSetNotes(targetReps = targetReps, userNote = null),
                         completed = false,
+                        restSeconds = routineExercise.restSeconds,
                     )
                 }
             }
@@ -682,7 +794,8 @@ class LocalTrainingRepository @Inject constructor(
         if (session.status != WORKOUT_STATUS_ACTIVE) return ""
         val nextSortOrder = (trainingDao.getMaxWorkoutSetSortOrder(sessionId) ?: -1) + 1
         // A new set inherits the exercise's current superset membership (null for a standalone exercise).
-        val inheritedGroupId = trainingDao.getLastWorkoutSetForExercise(sessionId, exerciseId)?.supersetGroupId
+        val lastExerciseSet = trainingDao.getLastWorkoutSetForExercise(sessionId, exerciseId)
+        val inheritedGroupId = lastExerciseSet?.supersetGroupId
         val set = WorkoutSetEntity(
             id = UUID.randomUUID().toString(),
             sessionId = sessionId,
@@ -697,6 +810,7 @@ class LocalTrainingRepository @Inject constructor(
             notes = input.notes?.trim()?.takeIf { it.isNotBlank() },
             completed = input.completed,
             supersetGroupId = inheritedGroupId,
+            restSeconds = lastExerciseSet?.restSeconds,
         )
         trainingDao.upsertWorkoutSet(set)
         return set.id
@@ -938,6 +1052,25 @@ class LocalTrainingRepository @Inject constructor(
         }
         database.withTransaction {
             val now = clock()
+            val resolvedFolderIds = TrainingStarterData.routines
+                .map { it.programName }
+                .distinct()
+                .associateWith { programName ->
+                    val existingFolder = trainingDao.getRoutineFolderByName(programName)
+                    if (existingFolder != null) {
+                        existingFolder.id
+                    } else {
+                        val folder = RoutineFolderEntity(
+                            id = programName.toRoutineFolderId(),
+                            name = programName,
+                            sortOrder = trainingDao.getMaxRoutineFolderSortOrder() + 1,
+                            createdAtEpochMillis = now,
+                            updatedAtEpochMillis = now,
+                        )
+                        trainingDao.upsertRoutineFolder(folder)
+                        folder.id
+                    }
+                }
             val resolvedExerciseIds =
                 TrainingStarterData.exercises.associate { definition ->
                     val existingExercise = trainingDao.getExerciseByName(definition.name)
@@ -997,6 +1130,7 @@ class LocalTrainingRepository @Inject constructor(
                             isStarter = true,
                             programName = definition.programName,
                             tags = definition.tags.toTagCsv(),
+                            folderId = resolvedFolderIds[definition.programName],
                         )
                     } else {
                         shouldSeedRoutineExercises = trainingDao.getRoutineExercises(definition.id).isEmpty()
@@ -1004,11 +1138,27 @@ class LocalTrainingRepository @Inject constructor(
                             isStarter = true,
                             programName = existingRoutine.programName?.takeIf(String::isNotBlank) ?: definition.programName,
                             tags = existingRoutine.tags.ifBlank { definition.tags.toTagCsv() },
+                            folderId = existingRoutine.folderId ?: resolvedFolderIds[definition.programName],
                         )
                     }
                 upsertWorkoutRoutine(routine)
                 if (shouldSeedRoutineExercises) {
                     trainingDao.upsertRoutineExercises(routineExerciseRows)
+                    trainingDao.upsertRoutineExerciseSets(
+                        routineExerciseRows.flatMap { routineExercise ->
+                            val targetReps = routineExercise.targetReps
+                            (0 until routineExercise.targetSets.coerceAtLeast(1)).map { setIndex ->
+                                RoutineExerciseSetEntity(
+                                    id = "${routineExercise.id}-set-$setIndex",
+                                    routineExerciseId = routineExercise.id,
+                                    sortOrder = setIndex,
+                                    setType = SET_TYPE_WORKING,
+                                    targetReps = targetReps,
+                                    targetWeightKg = null,
+                                )
+                            }
+                        },
+                    )
                 }
             }
             if (datasetEntities.isNotEmpty()) {
@@ -1097,6 +1247,7 @@ class LocalTrainingRepository @Inject constructor(
         require(input.name.isNotBlank()) { "Routine name is required" }
         database.withTransaction {
             val now = clock()
+            val folderId = resolveRoutineFolderId(input, now)
             upsertWorkoutRoutine(
                 RoutineEntity(
                     id = routineId,
@@ -1107,22 +1258,58 @@ class LocalTrainingRepository @Inject constructor(
                     isStarter = isStarter,
                     programName = input.programName?.trim()?.takeIf { it.isNotBlank() },
                     tags = input.tags.toTagCsv(),
+                    folderId = folderId,
                 ),
             )
             trainingDao.deleteRoutineExercises(routineId)
-            trainingDao.upsertRoutineExercises(
-                input.exercises.mapIndexed { index, exercise ->
-                    RoutineExerciseEntity(
-                        id = "$routineId-${exercise.exerciseId}-$index",
-                        routineId = routineId,
-                        exerciseId = exercise.exerciseId,
-                        sortOrder = index,
-                        targetSets = exercise.targetSets.coerceAtLeast(1),
-                        targetReps = exercise.targetReps?.trim()?.takeIf { it.isNotBlank() },
+            val routineExercises = input.exercises.mapIndexed { index, exercise ->
+                val setPlans = exercise.normalizedSetPlans()
+                RoutineExerciseEntity(
+                    id = "$routineId-${exercise.exerciseId}-$index",
+                    routineId = routineId,
+                    exerciseId = exercise.exerciseId,
+                    sortOrder = index,
+                    targetSets = setPlans.size.coerceAtLeast(1),
+                    targetReps = exercise.targetReps?.trim()?.takeIf { it.isNotBlank() }
+                        ?: setPlans.firstNotNullOfOrNull { it.targetReps?.trim()?.takeIf(String::isNotBlank) },
+                    restSeconds = exercise.restSeconds?.coerceIn(MIN_REST_SECONDS, MAX_REST_SECONDS),
+                )
+            }
+            trainingDao.upsertRoutineExercises(routineExercises)
+            val setRows = routineExercises.zip(input.exercises).flatMap { (routineExercise, exercise) ->
+                exercise.normalizedSetPlans().mapIndexed { setIndex, setPlan ->
+                    RoutineExerciseSetEntity(
+                        id = "${routineExercise.id}-set-$setIndex",
+                        routineExerciseId = routineExercise.id,
+                        sortOrder = setIndex,
+                        setType = setPlan.setType.normalizedSetType(),
+                        targetReps = setPlan.targetReps?.trim()?.takeIf { it.isNotBlank() },
+                        targetWeightKg = setPlan.targetWeightKg?.takeIf { it.isFinite() && it > 0.0 },
                     )
-                },
-            )
+                }
+            }
+            trainingDao.upsertRoutineExerciseSets(setRows)
         }
+    }
+
+    private suspend fun resolveRoutineFolderId(input: RoutineInput, now: Long): String? {
+        val folderName = input.folderName?.trim()?.takeIf { it.isNotBlank() }
+        if (folderName != null) {
+            trainingDao.getRoutineFolderByName(folderName)?.let { return it.id }
+        }
+        input.folderId?.trim()?.takeIf { it.isNotBlank() }?.let { folderId ->
+            trainingDao.getRoutineFolder(folderId)?.let { return it.id }
+        }
+        if (folderName == null) return null
+        val folder = RoutineFolderEntity(
+            id = UUID.randomUUID().toString(),
+            name = folderName,
+            sortOrder = trainingDao.getMaxRoutineFolderSortOrder() + 1,
+            createdAtEpochMillis = now,
+            updatedAtEpochMillis = now,
+        )
+        trainingDao.upsertRoutineFolder(folder)
+        return folder.id
     }
 
     private suspend fun createWorkoutSession(routineId: String?, title: String): String {
@@ -1214,8 +1401,55 @@ private fun RoutineSummaryRow.toSummary(): RoutineSummary =
         isStarter = isStarter,
         programName = programName,
         tags = tags.parseTags(),
+        folderId = folderId,
+        folderName = folderName,
         muscleGroups = RoutineDisplayCalculator.topMuscles(primaryMuscles),
     )
+
+private fun RoutineFolderEntity.toFolder(): RoutineFolder =
+    RoutineFolder(
+        id = id,
+        name = name,
+        sortOrder = sortOrder,
+    )
+
+private fun RoutineExerciseDetailRow.defaultSetPlans(): List<RoutineSetInput> =
+    (0 until targetSets.coerceAtLeast(1)).map {
+        RoutineSetInput(
+            setType = "working",
+            targetReps = targetReps,
+            targetWeightKg = null,
+        )
+    }
+
+private fun RoutineExerciseInput.normalizedSetPlans(): List<RoutineSetInput> {
+    val plans = setPlans.ifEmpty {
+        (0 until targetSets.coerceAtLeast(1)).map {
+            RoutineSetInput(
+                setType = "working",
+                targetReps = targetReps,
+                targetWeightKg = null,
+            )
+        }
+    }
+    return plans
+        .map { plan ->
+            RoutineSetInput(
+                setType = plan.setType.normalizedSetType(),
+                targetReps = plan.targetReps?.trim()?.takeIf { it.isNotBlank() },
+                targetWeightKg = plan.targetWeightKg?.takeIf { it.isFinite() && it > 0.0 },
+            )
+        }
+        .ifEmpty { listOf(RoutineSetInput(setType = "working", targetReps = targetReps)) }
+}
+
+private fun String.normalizedSetType(): String =
+    when (lowercase().trim()) {
+        "warmup", "warm-up", "warm_up" -> "warmup"
+        "drop", "drop-set", "drop_set" -> "drop"
+        "failure", "fail" -> "failure"
+        else -> "working"
+    }
 
 private fun String.parseTags(): List<String> =
     split(",")
@@ -1228,6 +1462,13 @@ private fun List<String>.toTagCsv(): String =
         .filter { it.isNotBlank() }
         .distinct()
         .joinToString(",")
+
+private fun String.toRoutineFolderId(): String =
+    "folder-" + trim()
+        .lowercase()
+        .replace("&", "and")
+        .replace(Regex("[^a-z0-9]+"), "-")
+        .trim('-')
 
 private fun TrainingSettingsEntity.toSettings(): TrainingSettings =
     TrainingSettings(
@@ -1474,6 +1715,7 @@ private fun buildWorkoutExerciseBlock(
                 id = row.setId,
                 exerciseId = row.exerciseId,
                 setType = row.setType,
+                targetReps = parsedNotes.getValue(row.setId).targetReps,
                 reps = row.reps,
                 weightKg = row.weightKg,
                 rpe = row.rpe,
@@ -1481,6 +1723,7 @@ private fun buildWorkoutExerciseBlock(
                 completed = row.completed,
                 previousLabel = previousLabels[row.exerciseId],
                 supersetGroupId = groupId,
+                restSeconds = row.restSeconds,
             )
         },
     )

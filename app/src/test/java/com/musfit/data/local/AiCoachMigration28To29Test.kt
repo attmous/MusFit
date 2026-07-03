@@ -35,7 +35,7 @@ class AiCoachMigration28To29Test {
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_28_29, DatabaseModule.MIGRATION_29_30)
+                .addMigrations(DatabaseModule.MIGRATION_28_29, DatabaseModule.MIGRATION_29_30, DatabaseModule.MIGRATION_30_31)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()

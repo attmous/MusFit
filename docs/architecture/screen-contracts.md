@@ -406,7 +406,7 @@ Training handles strength routine management, exercise library filtering and cus
 
 | Section | Purpose |
 | --- | --- |
-| `Routines` | Grouped routine list, local program filters, starter/custom routine editor, duplicate/delete/start routine actions, and a primary new-routine CTA. |
+| `Routines` | Folder-grouped routine list, user-configurable routine folders, starter/custom routine editor, duplicate/delete/start routine actions, and primary new-routine/new-folder CTAs. |
 | `Exercises` | Exercise library, search/filter, equipment/muscle chips, exercise detail, local notes, and custom exercise creation. |
 | `History` | Completed workout overview, month grid, consistency metrics, list, workout recap, and workout detail with set rows. |
 | `Progress` | All-training analytics, muscle volume, weekly volume, exercise PR cards, history rows, best sets, PR timeline, and trend chart points. |
@@ -425,9 +425,10 @@ val state: StateFlow<TrainingUiState>
 | --- | --- |
 | `selectedSection` | Current Training tab. |
 | `routines` | Routine summaries. |
-| `visibleRoutines` | Routine summaries filtered by selected program. |
-| `routineProgramOptions` | Distinct local program names from routine summaries. |
-| `selectedRoutineProgram` | Current routine program filter, or null for all routines. |
+| `visibleRoutines` | Routine summaries shown in the folder-grouped routine list. |
+| `routineFolders` | User-configurable routine folders used to group routine cards. |
+| `routineProgramOptions` | Legacy field retained empty; program/type chips are no longer used for routine organization. |
+| `selectedRoutineProgram` | Legacy field retained null; routine folders do not hide routines by type. |
 | `dashboard` | Derived dashboard state: next suggested visible routine, quick-start routines, and most recent completed workout. |
 | `exercises` | All exercise summaries. |
 | `visibleExercises` | Search/filter result list. |
@@ -445,7 +446,9 @@ val state: StateFlow<TrainingUiState>
 | `exerciseDetailNotesInput` | Editable local notes draft for the selected exercise detail. |
 | `exerciseName`, `reps`, `weightKg`, `sets` | Quick set logger state. |
 | `totalVolumeKg`, `bestEstimatedOneRepMaxKg` | Quick logger summaries. |
-| `routineEditor` | Routine create/edit state. |
+| `routineEditor` | Routine create/edit state, including folder assignment, per-exercise rest seconds, and saved set plans. |
+| `routineFolderEditor` | Inline folder create/rename/delete state. |
+| `routineExercisePickerOpen`, picker selected ids, query, muscle filter, equipment filter | Full-screen routine exercise picker state. |
 | `activeWorkoutRouteOpen` | Controls full active workout route-like UI. |
 | `activeWorkoutNotesInput` | Editable notes draft for the current active workout session. |
 | `restTimer` | Timer visibility, source set id, duration, remaining time, and running state. |
@@ -479,11 +482,16 @@ Routine management:
 - `onRoutineProgramFilterChanged(value)`
 - `openRoutineEditor(routineId)`
 - `closeRoutineEditor()`
-- `onRoutineNameChanged(value)`, `onRoutineNotesChanged(value)`
-- `addRoutineExercise(exerciseId)`, `removeRoutineExercise(index)`
+- `onRoutineNameChanged(value)`, `onRoutineNotesChanged(value)`, `onRoutineEditorFolderNameChanged(value)`
+- `openRoutineExercisePicker()`, picker filter/selection handlers, `confirmRoutineExercisePicker()`, `closeRoutineExercisePicker()`
+- `addRoutineExercise(exerciseId)`, `addRoutineExercises(exerciseIds)`, `removeRoutineExercise(index)`
 - `onRoutineExerciseTargetSetsChanged(index, value)`, `onRoutineExerciseTargetRepsChanged(index, value)`
+- `onRoutineExerciseRestSecondsChanged(index, value)`
+- `addRoutineExerciseSet(index)`, `removeRoutineExerciseSet(index, setIndex)`
+- `onRoutineExerciseSetTypeChanged(exerciseIndex, setIndex, setType)`, `onRoutineExerciseSetRepsChanged(...)`, `onRoutineExerciseSetWeightChanged(...)`
 - `moveRoutineExerciseUp(index)`, `moveRoutineExerciseDown(index)`
 - `saveRoutineEditor()`, `duplicateRoutine(routineId)`, `deleteRoutine(routineId)`
+- `openRoutineFolderEditor(folderId)`, `closeRoutineFolderEditor()`, `onRoutineFolderNameChanged(value)`, `saveRoutineFolderEditor()`, `deleteRoutineFolder(folderId)`
 
 Exercise library:
 
@@ -529,8 +537,9 @@ Rest timer:
 
 | Composable | Inputs | Outputs |
 | --- | --- | --- |
-| `TrainingRoutineContent` | visible routines, program options, selected program | Program filter, start, edit, duplicate, delete routine callbacks. |
-| `TrainingRoutineEditor` | `RoutineEditorState`, exercises | Edit routine metadata and exercise targets. |
+| `TrainingRoutineContent` | visible routines, folders, folder editor state | Folder create/edit/delete, start, edit, duplicate, delete routine callbacks. |
+| `TrainingRoutineEditor` | `RoutineEditorState`, exercises, folders | Edit routine metadata, folder assignment, exercise rest seconds, and set plans. |
+| `RoutineExercisePickerPage` | exercises, current routine ids, selected ids, query/filter state | Full-screen search/filter/multi-select picker for adding exercises to a routine after confirmation. |
 | `TrainingActiveWorkoutContent` | `ActiveWorkoutDetail`, exercises, `RestTimerState`, active workout notes draft, Training tool setting drafts | Set edits, set type changes, set reorder, workout notes, add exercise/set, timer controls, Training tool save, warm-up suggestions, PR/plate display, superset create/dissolve, finish/discard. |
 | `TrainingHistoryContent` | `history`, `historyOverview`, selected detail | Render month overview, consistency metrics, open/close workout detail, completed-workout recap, and completed supersets with grouped sections and A/B labels. |
 | `TrainingProgressContent` | exercises, selected id, progress, progress analytics | Select exercise and render all-training analytics plus selected-exercise trend/PR/history display. |
@@ -544,22 +553,24 @@ Exercise library detail behavior:
 
 Routine organization behavior:
 
-- Starter routines carry local `programName` and tags for Full Body, Push Pull Legs, Upper Lower, Strength, Hypertrophy, and Beginner programs.
-- The Routines section shows horizontal program chips derived from available routines.
-- Selecting a program filters the routine cards without changing persistence or active workouts.
-- Duplicating a starter/program routine creates an editable non-starter local copy and preserves the program name/tags.
+- Starter routines still carry legacy local `programName` and tags for metadata/backward compatibility, but visible organization is folder-based.
+- The Routines section groups routine cards by `RoutineFolder`; routines without a folder appear under `My routines`.
+- Users can create, rename, and delete folders locally. Deleting a folder unassigns its routines rather than deleting those routines.
+- Duplicating a starter/foldered routine creates an editable non-starter local copy and preserves folder assignment plus legacy metadata.
+- The routine editor uses a full-screen exercise picker for search/filter/multi-select. Exercises are only added after the user confirms with OK.
+- Saved routine exercises support per-exercise rest seconds plus row-level set type, target reps, and optional target weight. Starting a routine materializes those saved set rows into the active workout.
 
 Training dashboard behavior:
 
 - The home dashboard shows the next visible routine, grouped saved routines, quick-start routine buttons, and most recent completed workout.
-- The next-routine suggestion is a deterministic local heuristic from the currently visible routine list; program filtering changes the suggestion.
+- The next-routine suggestion is a deterministic local heuristic from the currently visible routine list.
 - The dashboard keeps the existing active workout resume banner and weekly header behavior intact.
 
 Active workout UI behavior:
 
 - Full-screen route-like surface opens when an active workout is resumed or started.
 - Top bar shows elapsed time, completed sets, total volume, `Finish`, and a discard overflow action.
-- Completing a valid active set starts the deterministic rest timer at the saved default duration; the user can pause, resume, skip, or adjust by 15 seconds.
+- Completing a valid active set starts the deterministic rest timer using that set's planned rest seconds when present, otherwise the saved default duration; the user can pause, resume, skip, or adjust by 15 seconds.
 - The Training tools card persists default rest seconds, bar weight, and available plate inventory through local Training settings.
 - Workout-level notes are editable from the active workout route and are stored on the active session.
 - Set rows support warmup/working/drop/failure display labels, reps, weight, RPE, notes, delete, duplicate-last-set, up/down reorder, and completion.
@@ -603,8 +614,8 @@ It calls write APIs for routine CRUD, active workout lifecycle, set edits, custo
 ### Current Training Limitations
 
 - Exercise detail exists as an inline card, but there is no media, animation, or externally sourced technique library.
-- Routine organization is program/tag based; there is no separate multi-week program calendar or progression schedule yet.
-- Rest timer duration, bar weight, and available plates are global Training settings; there are no per-exercise rest defaults or warm-up preference profiles yet.
+- Routine organization is folder-based; there is no separate multi-week program calendar or progression schedule yet.
+- Routine-level per-exercise rest is implemented; there are no advanced warm-up preference profiles yet.
 - Supersets are intentionally pair-oriented through "make with next"; there is no arbitrary multi-exercise superset editor yet.
 - History overview is current-month/current-week focused; there is no drillable multi-month calendar or per-day workout filter yet.
 - Progress analytics are local and deterministic; there is no advanced chart filtering, period picker, or stored analytics cache yet.

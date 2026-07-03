@@ -133,6 +133,7 @@ class GoalWeightMigration26To27Test {
                     DatabaseModule.MIGRATION_27_28,
                     DatabaseModule.MIGRATION_28_29,
                     DatabaseModule.MIGRATION_29_30,
+                    DatabaseModule.MIGRATION_30_31,
                 )
                 .build()
         try {

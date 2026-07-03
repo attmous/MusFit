@@ -12,8 +12,10 @@ import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.data.repository.RoutineExerciseInput
+import com.musfit.data.repository.RoutineFolder
 import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.RoutineDetail
+import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingProgressAnalytics
@@ -53,8 +55,16 @@ data class RoutineEditorState(
     val routineId: String? = null,
     val name: String = "",
     val notes: String = "",
+    val folderId: String? = null,
+    val folderName: String = "",
     val exercises: List<RoutineExerciseInput> = emptyList(),
     val isStarter: Boolean = false,
+    val isOpen: Boolean = false,
+)
+
+data class RoutineFolderEditorState(
+    val folderId: String? = null,
+    val name: String = "",
     val isOpen: Boolean = false,
 )
 
@@ -102,6 +112,7 @@ data class TrainingUiState(
     val selectedSection: TrainingSection = TrainingSection.Routines,
     val routines: List<RoutineSummary> = emptyList(),
     val visibleRoutines: List<RoutineSummary> = emptyList(),
+    val routineFolders: List<RoutineFolder> = emptyList(),
     val routineProgramOptions: List<String> = emptyList(),
     val selectedRoutineProgram: String? = null,
     val exercises: List<ExerciseSummary> = emptyList(),
@@ -129,6 +140,12 @@ data class TrainingUiState(
     val totalVolumeKg: Double = 0.0,
     val bestEstimatedOneRepMaxKg: Double = 0.0,
     val routineEditor: RoutineEditorState = RoutineEditorState(),
+    val routineFolderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
+    val routineExercisePickerOpen: Boolean = false,
+    val routineExercisePickerSelectedIds: Set<String> = emptySet(),
+    val routineExercisePickerSearchQuery: String = "",
+    val routineExercisePickerMuscleFilter: String? = null,
+    val routineExercisePickerEquipmentFilter: String? = null,
     val selectedRoutineDetail: RoutineDetail? = null,
     val replaceExerciseTargetId: String? = null,
     val activeWorkoutRouteOpen: Boolean = false,
@@ -141,6 +158,13 @@ data class TrainingUiState(
     val finishConfirmationOpen: Boolean = false,
     val discardConfirmationOpen: Boolean = false,
     val message: String? = null,
+)
+
+private data class TrainingInitialStreams(
+    val routines: List<RoutineSummary>,
+    val folders: List<RoutineFolder>,
+    val exercises: List<ExerciseSummary>,
+    val activeWorkout: ActiveWorkoutSummary?,
 )
 
 @HiltViewModel
@@ -158,16 +182,18 @@ class TrainingViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 repository.observeRoutineSummaries(),
+                repository.observeRoutineFolders(),
                 repository.observeExercises(),
                 repository.observeActiveWorkoutSummary(),
-            ) { routines, exercises, activeWorkout ->
-                Triple(routines, exercises, activeWorkout)
-            }.collect { (routines, exercises, activeWorkout) ->
+            ) { routines, folders, exercises, activeWorkout ->
+                TrainingInitialStreams(routines, folders, exercises, activeWorkout)
+            }.collect { streams ->
                 mutableState.update {
                     it.copy(
-                        routines = routines,
-                        exercises = exercises,
-                        activeWorkoutSummary = activeWorkout,
+                        routines = streams.routines,
+                        routineFolders = streams.folders,
+                        exercises = streams.exercises,
+                        activeWorkoutSummary = streams.activeWorkout,
                     ).withVisibleRoutines()
                         .withDashboard()
                         .withFilteredExercises()
@@ -284,6 +310,51 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    fun openRoutineFolderEditor(folderId: String?) {
+        val folder = folderId?.let { id -> state.value.routineFolders.firstOrNull { it.id == id } }
+        mutableState.update {
+            it.copy(
+                routineFolderEditor = RoutineFolderEditorState(
+                    folderId = folder?.id,
+                    name = folder?.name.orEmpty(),
+                    isOpen = true,
+                ),
+                message = null,
+            )
+        }
+    }
+
+    fun closeRoutineFolderEditor() {
+        mutableState.update { it.copy(routineFolderEditor = RoutineFolderEditorState()) }
+    }
+
+    fun onRoutineFolderNameChanged(value: String) {
+        mutableState.update { it.copy(routineFolderEditor = it.routineFolderEditor.copy(name = value)) }
+    }
+
+    fun saveRoutineFolderEditor() {
+        val editor = state.value.routineFolderEditor
+        val name = editor.name.trim()
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            if (editor.folderId == null) {
+                repository.createRoutineFolder(name)
+            } else {
+                repository.updateRoutineFolder(editor.folderId, name)
+            }
+            closeRoutineFolderEditor()
+        }
+    }
+
+    fun deleteRoutineFolder(folderId: String) {
+        viewModelScope.launch {
+            repository.deleteRoutineFolder(folderId)
+            if (state.value.routineFolderEditor.folderId == folderId) {
+                closeRoutineFolderEditor()
+            }
+        }
+    }
+
     fun openRoutineEditor(routineId: String?) {
         viewModelScope.launch {
             val detail = routineId?.let { repository.getRoutineDetail(it) }
@@ -293,11 +364,15 @@ class TrainingViewModel @Inject constructor(
                         routineId = routineId,
                         name = detail?.name.orEmpty(),
                         notes = detail?.notes.orEmpty(),
+                        folderId = detail?.folderId,
+                        folderName = detail?.folderName.orEmpty(),
                         exercises = detail?.exercises?.map { exercise ->
                             RoutineExerciseInput(
                                 exerciseId = exercise.exercise.id,
                                 targetSets = exercise.targetSets,
                                 targetReps = exercise.targetReps,
+                                restSeconds = exercise.restSeconds,
+                                setPlans = exercise.setPlans.ifEmpty { defaultSetPlans(exercise.targetSets, exercise.targetReps) },
                             )
                         }.orEmpty(),
                         isStarter = detail?.isStarter == true,
@@ -339,21 +414,109 @@ class TrainingViewModel @Inject constructor(
         mutableState.update { it.copy(routineEditor = it.routineEditor.copy(notes = value)) }
     }
 
-    fun addRoutineExercise(exerciseId: String) {
-        val exerciseExists = state.value.exercises.any { it.id == exerciseId }
-        if (!exerciseExists) return
-
+    fun onRoutineEditorFolderNameChanged(value: String) {
         mutableState.update {
             it.copy(
                 routineEditor = it.routineEditor.copy(
-                    exercises = it.routineEditor.exercises + RoutineExerciseInput(
-                        exerciseId = exerciseId,
-                        targetSets = 3,
-                        targetReps = "8",
-                    ),
+                    folderName = value,
+                    folderId = null,
                 ),
             )
         }
+    }
+
+    fun addRoutineExercise(exerciseId: String) {
+        addRoutineExercises(listOf(exerciseId))
+    }
+
+    fun addRoutineExercises(exerciseIds: List<String>) {
+        if (exerciseIds.isEmpty()) return
+        val existingExerciseIds = state.value.exercises.map { it.id }.toSet()
+        val currentExerciseIds = state.value.routineEditor.exercises.map { it.exerciseId }.toSet()
+        val newInputs = exerciseIds
+            .filter { it in existingExerciseIds && it !in currentExerciseIds }
+            .distinct()
+            .map { exerciseId ->
+                RoutineExerciseInput(
+                    exerciseId = exerciseId,
+                    targetSets = 3,
+                    targetReps = "8",
+                    restSeconds = state.value.trainingSettings.defaultRestSeconds,
+                    setPlans = defaultSetPlans(targetSets = 3, targetReps = "8"),
+                )
+            }
+        if (newInputs.isEmpty()) return
+        mutableState.update {
+            it.copy(
+                routineEditor = it.routineEditor.copy(
+                    exercises = it.routineEditor.exercises + newInputs,
+                ),
+            )
+        }
+    }
+
+    fun openRoutineExercisePicker() {
+        mutableState.update {
+            it.copy(
+                routineExercisePickerOpen = true,
+                routineExercisePickerSelectedIds = emptySet(),
+                routineExercisePickerSearchQuery = "",
+                routineExercisePickerMuscleFilter = null,
+                routineExercisePickerEquipmentFilter = null,
+            )
+        }
+    }
+
+    fun closeRoutineExercisePicker() {
+        mutableState.update {
+            it.copy(
+                routineExercisePickerOpen = false,
+                routineExercisePickerSelectedIds = emptySet(),
+            )
+        }
+    }
+
+    fun onRoutineExercisePickerSearchChanged(value: String) {
+        mutableState.update { it.copy(routineExercisePickerSearchQuery = value) }
+    }
+
+    fun onRoutineExercisePickerMuscleFilterChanged(value: String?) {
+        mutableState.update { it.copy(routineExercisePickerMuscleFilter = value) }
+    }
+
+    fun onRoutineExercisePickerEquipmentFilterChanged(value: String?) {
+        mutableState.update { it.copy(routineExercisePickerEquipmentFilter = value) }
+    }
+
+    fun clearRoutineExercisePickerFilters() {
+        mutableState.update {
+            it.copy(
+                routineExercisePickerSearchQuery = "",
+                routineExercisePickerMuscleFilter = null,
+                routineExercisePickerEquipmentFilter = null,
+            )
+        }
+    }
+
+    fun toggleRoutineExercisePickerSelection(exerciseId: String) {
+        val exerciseExists = state.value.exercises.any { it.id == exerciseId }
+        if (!exerciseExists) return
+        val alreadyInRoutine = state.value.routineEditor.exercises.any { it.exerciseId == exerciseId }
+        if (alreadyInRoutine) return
+        mutableState.update { current ->
+            val nextSelected = if (exerciseId in current.routineExercisePickerSelectedIds) {
+                current.routineExercisePickerSelectedIds - exerciseId
+            } else {
+                current.routineExercisePickerSelectedIds + exerciseId
+            }
+            current.copy(routineExercisePickerSelectedIds = nextSelected)
+        }
+    }
+
+    fun confirmRoutineExercisePicker() {
+        val selectedIds = state.value.routineExercisePickerSelectedIds.toList()
+        addRoutineExercises(selectedIds)
+        closeRoutineExercisePicker()
     }
 
     fun removeRoutineExercise(index: Int) {
@@ -382,7 +545,14 @@ class TrainingViewModel @Inject constructor(
                     routineEditor = current.routineEditor.copy(
                         exercises = current.routineEditor.exercises.mapIndexed { itemIndex, exercise ->
                             if (itemIndex == index) {
-                                exercise.copy(targetSets = parsedSets)
+                                val currentPlans = exercise.setPlans.ifEmpty {
+                                    defaultSetPlans(exercise.targetSets, exercise.targetReps)
+                                }
+                                val resizedPlans = currentPlans.resizeSetPlans(parsedSets, exercise.targetReps)
+                                exercise.copy(
+                                    targetSets = parsedSets,
+                                    setPlans = resizedPlans,
+                                )
                             } else {
                                 exercise
                             }
@@ -403,7 +573,14 @@ class TrainingViewModel @Inject constructor(
                     routineEditor = current.routineEditor.copy(
                         exercises = current.routineEditor.exercises.mapIndexed { itemIndex, exercise ->
                             if (itemIndex == index) {
-                                exercise.copy(targetReps = sanitized)
+                                exercise.copy(
+                                    targetReps = sanitized,
+                                    setPlans = exercise.setPlans.ifEmpty {
+                                        defaultSetPlans(exercise.targetSets, exercise.targetReps)
+                                    }.map { setPlan ->
+                                        setPlan.copy(targetReps = sanitized)
+                                    },
+                                )
                             } else {
                                 exercise
                             }
@@ -412,6 +589,60 @@ class TrainingViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    fun onRoutineExerciseRestSecondsChanged(index: Int, value: String) {
+        val restSeconds = value.filter(Char::isDigit).toIntOrNull()
+        mutableState.updateRoutineExercise(index) { exercise ->
+            exercise.copy(restSeconds = restSeconds)
+        }
+    }
+
+    fun addRoutineExerciseSet(index: Int) {
+        mutableState.updateRoutineExercise(index) { exercise ->
+            val plans = exercise.setPlans.ifEmpty { defaultSetPlans(exercise.targetSets, exercise.targetReps) }
+            val nextPlan = plans.lastOrNull()?.copy(setType = "working") ?: RoutineSetInput(
+                setType = "working",
+                targetReps = exercise.targetReps,
+            )
+            exercise.copy(
+                targetSets = plans.size + 1,
+                setPlans = plans + nextPlan,
+            )
+        }
+    }
+
+    fun removeRoutineExerciseSet(index: Int, setIndex: Int) {
+        mutableState.updateRoutineExercise(index) { exercise ->
+            val plans = exercise.setPlans.ifEmpty { defaultSetPlans(exercise.targetSets, exercise.targetReps) }
+            if (plans.size <= 1 || setIndex !in plans.indices) {
+                exercise
+            } else {
+                val nextPlans = plans.filterIndexed { itemIndex, _ -> itemIndex != setIndex }
+                exercise.copy(
+                    targetSets = nextPlans.size,
+                    targetReps = nextPlans.firstOrNull()?.targetReps,
+                    setPlans = nextPlans,
+                )
+            }
+        }
+    }
+
+    fun onRoutineExerciseSetTypeChanged(exerciseIndex: Int, setIndex: Int, setType: String) {
+        mutableState.updateRoutineSet(exerciseIndex, setIndex) { it.copy(setType = setType.normalizedRoutineSetType()) }
+    }
+
+    fun onRoutineExerciseSetRepsChanged(exerciseIndex: Int, setIndex: Int, value: String) {
+        val sanitized = value.trim().takeIf { it.isNotEmpty() }
+        mutableState.updateRoutineSet(exerciseIndex, setIndex) { it.copy(targetReps = sanitized) }
+        val exercise = state.value.routineEditor.exercises.getOrNull(exerciseIndex) ?: return
+        val firstReps = exercise.setPlans.firstOrNull()?.targetReps
+        mutableState.updateRoutineExercise(exerciseIndex) { it.copy(targetReps = firstReps) }
+    }
+
+    fun onRoutineExerciseSetWeightChanged(exerciseIndex: Int, setIndex: Int, value: String) {
+        val weightKg = value.sanitizeDecimalInput().toDoubleOrNull()?.takeIf { it > 0.0 }
+        mutableState.updateRoutineSet(exerciseIndex, setIndex) { it.copy(targetWeightKg = weightKg) }
     }
 
     fun moveRoutineExerciseUp(index: Int) {
@@ -424,7 +655,14 @@ class TrainingViewModel @Inject constructor(
 
     fun saveRoutineEditor() {
         val editor = state.value.routineEditor
-        val input = RoutineInput(editor.name, editor.notes, editor.exercises)
+        val folderName = editor.folderName.trim().takeIf { it.isNotBlank() }
+        val input = RoutineInput(
+            name = editor.name,
+            notes = editor.notes,
+            exercises = editor.exercises,
+            folderId = editor.folderId,
+            folderName = folderName,
+        )
         viewModelScope.launch {
             if (editor.routineId == null) {
                 repository.createRoutine(input)
@@ -1080,17 +1318,10 @@ class TrainingViewModel @Inject constructor(
     }
 
     private fun TrainingUiState.withVisibleRoutines(): TrainingUiState {
-        val options = routines.mapNotNull { it.programName?.takeIf(String::isNotBlank) }.distinct().sorted()
-        val selected = selectedRoutineProgram?.takeIf { it in options }
-        val filtered = if (selected == null) {
-            routines
-        } else {
-            routines.filter { it.programName == selected }
-        }
         return copy(
-            routineProgramOptions = options,
-            selectedRoutineProgram = selected,
-            visibleRoutines = filtered,
+            routineProgramOptions = emptyList(),
+            selectedRoutineProgram = null,
+            visibleRoutines = routines,
         )
     }
 
@@ -1107,6 +1338,46 @@ class TrainingViewModel @Inject constructor(
                 val moved = nextExercises.removeAt(fromIndex)
                 nextExercises.add(toIndex, moved)
                 current.copy(routineEditor = current.routineEditor.copy(exercises = nextExercises))
+            }
+        }
+    }
+
+    private fun MutableStateFlow<TrainingUiState>.updateRoutineExercise(
+        index: Int,
+        transform: (RoutineExerciseInput) -> RoutineExerciseInput,
+    ) {
+        update { current ->
+            if (index !in current.routineEditor.exercises.indices) {
+                current
+            } else {
+                current.copy(
+                    routineEditor = current.routineEditor.copy(
+                        exercises = current.routineEditor.exercises.mapIndexed { itemIndex, exercise ->
+                            if (itemIndex == index) transform(exercise) else exercise
+                        },
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun MutableStateFlow<TrainingUiState>.updateRoutineSet(
+        exerciseIndex: Int,
+        setIndex: Int,
+        transform: (RoutineSetInput) -> RoutineSetInput,
+    ) {
+        updateRoutineExercise(exerciseIndex) { exercise ->
+            val plans = exercise.setPlans.ifEmpty { defaultSetPlans(exercise.targetSets, exercise.targetReps) }
+            if (setIndex !in plans.indices) {
+                exercise
+            } else {
+                val nextPlans = plans.mapIndexed { itemIndex, setPlan ->
+                    if (itemIndex == setIndex) transform(setPlan) else setPlan
+                }
+                exercise.copy(
+                    targetSets = nextPlans.size,
+                    setPlans = nextPlans,
+                )
             }
         }
     }
@@ -1162,7 +1433,12 @@ class TrainingViewModel @Inject constructor(
 
     private fun startRestTimer(setId: String) {
         mutableState.update { current ->
-            val durationSeconds = current.trainingSettings.defaultRestSeconds.coerceAtLeast(1)
+            val setRestSeconds = current.activeWorkout
+                ?.exerciseBlocks
+                ?.flatMap { it.sets }
+                ?.firstOrNull { it.id == setId }
+                ?.restSeconds
+            val durationSeconds = (setRestSeconds ?: current.trainingSettings.defaultRestSeconds).coerceAtLeast(1)
             current.copy(
                 restTimer = RestTimerState(
                     isVisible = true,
@@ -1178,6 +1454,30 @@ class TrainingViewModel @Inject constructor(
     private fun isStarterRoutine(routineId: String?): Boolean =
         routineId != null && state.value.routines.any { it.id == routineId && it.isStarter }
 }
+
+private fun defaultSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> =
+    (0 until targetSets.coerceAtLeast(1)).map {
+        RoutineSetInput(setType = "working", targetReps = targetReps)
+    }
+
+private fun List<RoutineSetInput>.resizeSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> {
+    val desiredSize = targetSets.coerceAtLeast(1)
+    return when {
+        size == desiredSize -> this
+        size > desiredSize -> take(desiredSize)
+        else -> this + List(desiredSize - size) {
+            lastOrNull()?.copy(setType = "working") ?: RoutineSetInput(setType = "working", targetReps = targetReps)
+        }
+    }
+}
+
+private fun String.normalizedRoutineSetType(): String =
+    when (lowercase().trim()) {
+        "warmup", "warm-up", "warm_up" -> "warmup"
+        "drop", "drop-set", "drop_set" -> "drop"
+        "failure", "fail" -> "failure"
+        else -> "working"
+    }
 
 internal fun buildTrainingHistoryOverview(
     history: List<WorkoutHistorySummary>,

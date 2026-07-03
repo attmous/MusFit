@@ -3,6 +3,7 @@ package com.musfit.ui.training
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineSummary
+import com.musfit.data.repository.RoutineSetInput
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -36,10 +37,39 @@ class TrainingHomeContentTest {
 
     @Test
     fun routineEditorCanSave_requiresNameExercisesAndValidTargets() {
-        val validRow = RoutineExerciseInput(exerciseId = "e1", targetSets = 3, targetReps = "8-12")
+        val validRow = RoutineExerciseInput(
+            exerciseId = "e1",
+            targetSets = 3,
+            targetReps = "8-12",
+            restSeconds = 180,
+            setPlans = listOf(
+                RoutineSetInput(setType = "warmup", targetReps = "12", targetWeightKg = 40.0),
+                RoutineSetInput(setType = "working", targetReps = "8", targetWeightKg = 80.0),
+            ),
+        )
         assertFalse(routineEditorCanSave("", listOf(validRow)))
         assertFalse(routineEditorCanSave("Push", emptyList()))
         assertFalse(routineEditorCanSave("Push", listOf(RoutineExerciseInput("e1", 0, "8"))))
+        assertFalse(
+            routineEditorCanSave(
+                "Push",
+                listOf(
+                    validRow.copy(
+                        restSeconds = 0,
+                    ),
+                ),
+            ),
+        )
+        assertFalse(
+            routineEditorCanSave(
+                "Push",
+                listOf(
+                    validRow.copy(
+                        setPlans = listOf(RoutineSetInput(setType = "unknown", targetReps = "8")),
+                    ),
+                ),
+            ),
+        )
         assertTrue(routineEditorCanSave("Push", listOf(validRow)))
     }
 
@@ -64,18 +94,18 @@ class TrainingHomeContentTest {
     }
 
     @Test
-    fun groupRoutineSummariesByProgram_groupsSavedRoutinesWithFallback() {
-        val groups = groupRoutineSummariesByProgram(
+    fun groupRoutineSummariesByFolder_groupsSavedRoutinesWithFallback() {
+        val groups = groupRoutineSummariesByFolder(
             listOf(
-                routine(id = "upper-a", name = "Upper A", programName = "Upper Lower"),
-                routine(id = "full-body-a", name = "Full Body A", programName = "Full Body"),
-                routine(id = "custom", name = "Garage Day", programName = null),
-                routine(id = "upper-b", name = "Upper B", programName = "Upper Lower"),
+                routine(id = "push-a", name = "Push A", folderName = "PPL System"),
+                routine(id = "full-body-a", name = "Full Body A", folderName = "Starter Pack"),
+                routine(id = "custom", name = "Garage Day", folderName = null),
+                routine(id = "push-b", name = "Push B", folderName = "PPL System"),
             ),
         )
 
-        assertEquals(listOf("Upper Lower", "Full Body", "My routines"), groups.map { it.title })
-        assertEquals(listOf("Upper A", "Upper B"), groups.first().routines.map { it.name })
+        assertEquals(listOf("PPL System", "Starter Pack", "My routines"), groups.map { it.title })
+        assertEquals(listOf("Push A", "Push B"), groups.first().routines.map { it.name })
         assertEquals(listOf("Garage Day"), groups.last().routines.map { it.name })
     }
 
@@ -129,7 +159,7 @@ class TrainingHomeContentTest {
     private fun routine(
         id: String,
         name: String,
-        programName: String?,
+        folderName: String?,
     ): RoutineSummary =
         RoutineSummary(
             id = id,
@@ -137,8 +167,8 @@ class TrainingHomeContentTest {
             notes = null,
             exerciseCount = 4,
             targetSetCount = 12,
-            isStarter = programName != null,
-            programName = programName,
+            isStarter = folderName != null,
+            folderName = folderName,
         )
 
     private fun exercise(

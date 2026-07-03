@@ -9,15 +9,22 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
@@ -49,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineExerciseInput
+import com.musfit.data.repository.RoutineFolder
+import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.ui.theme.MusFitTheme
@@ -57,49 +66,65 @@ import com.musfit.ui.theme.TabAccent
 @Composable
 fun TrainingRoutineContent(
     routines: List<RoutineSummary>,
-    programOptions: List<String> = emptyList(),
-    selectedProgram: String? = null,
+    folders: List<RoutineFolder> = emptyList(),
+    folderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
     accent: TabAccent,
-    onProgramSelected: (String?) -> Unit = {},
+    onOpenFolderEditor: (String?) -> Unit = {},
+    onFolderNameChange: (String) -> Unit = {},
+    onSaveFolder: () -> Unit = {},
+    onCancelFolder: () -> Unit = {},
+    onDeleteFolder: (String) -> Unit = {},
     onStartRoutine: (String) -> Unit,
     onEditRoutine: (String?) -> Unit,
     onOpenRoutineDetail: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(
-            onClick = { onEditRoutine(null) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-        ) {
-            Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("New routine")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = { onEditRoutine(null) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+            ) {
+                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("New routine")
+            }
+            Button(
+                onClick = { onOpenFolderEditor(null) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
+            ) {
+                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("New folder")
+            }
         }
-        if (programOptions.isNotEmpty()) {
+        if (folderEditor.isOpen) {
+            RoutineFolderEditorCard(
+                editor = folderEditor,
+                accent = accent,
+                onNameChange = onFolderNameChange,
+                onSave = onSaveFolder,
+                onCancel = onCancelFolder,
+                onDelete = folderEditor.folderId?.let { id -> { onDeleteFolder(id) } },
+            )
+        }
+        if (folders.isNotEmpty()) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                RoutineProgramChip(
-                    label = "All",
-                    selected = selectedProgram == null,
-                    accent = accent,
-                    onClick = { onProgramSelected(null) },
-                )
-                programOptions.forEach { program ->
-                    RoutineProgramChip(
-                        label = program,
-                        selected = selectedProgram == program,
+                folders.forEach { folder ->
+                    RoutineFolderChip(
+                        folder = folder,
                         accent = accent,
-                        onClick = { onProgramSelected(program) },
+                        onClick = { onOpenFolderEditor(folder.id) },
                     )
                 }
             }
         }
         if (routines.isNotEmpty()) {
-            groupRoutineSummariesByProgram(routines).forEach { group ->
+            groupRoutineSummariesByFolder(routines).forEach { group ->
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = group.title,
@@ -266,13 +291,13 @@ fun RoutineDetailContent(
             }
         }
         Text(meta, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
-        val program = detail.programName?.takeIf { it.isNotBlank() }
-        if (program != null || muscles.isNotEmpty()) {
+        val folder = detail.folderName?.takeIf { it.isNotBlank() }
+        if (folder != null || muscles.isNotEmpty()) {
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                program?.let { RoutineProgramTag(label = it, accent = accent) }
+                folder?.let { RoutineProgramTag(label = it, accent = accent) }
                 muscles.forEach { muscle -> RoutineMuscleChip(muscle) }
             }
         }
@@ -338,9 +363,16 @@ private fun RoutineDetailExerciseRow(
     accent: TabAccent,
     onOpen: (target: String) -> Unit,
 ) {
-    val target = exercise.targetReps?.takeIf { it.isNotBlank() }
-        ?.let { "${exercise.targetSets} × $it" }
-        ?: "${exercise.targetSets} sets"
+    val target = if (!exercise.targetReps.isNullOrBlank()) {
+        "${exercise.targetSets} x ${exercise.targetReps}"
+    } else {
+        "${exercise.targetSets} sets"
+    }
+    val setTypeSummary = exercise.setPlans
+        .takeIf { it.isNotEmpty() }
+        ?.mapIndexed { index, setPlan -> routineSetTypeToken(setPlan.setType, index) }
+        ?.joinToString(" ")
+    val restSummary = exercise.restSeconds?.let { "Rest ${it}s" }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -382,7 +414,9 @@ private fun RoutineDetailExerciseRow(
             val subtitle = listOfNotNull(
                 exercise.exercise.equipment,
                 exercise.exercise.targetMuscles.takeIf(String::isNotBlank),
-            ).joinToString(" · ")
+                restSummary,
+                setTypeSummary,
+            ).joinToString(" - ")
             if (subtitle.isNotBlank()) {
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
             }
@@ -406,6 +440,83 @@ private fun RoutineProgramTag(label: String, accent: TabAccent) {
             fontWeight = FontWeight.SemiBold,
             color = accent.onContainer,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+        )
+    }
+}
+
+@Composable
+private fun RoutineFolderEditorCard(
+    editor: RoutineFolderEditorState,
+    accent: TabAccent,
+    onNameChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+    onDelete: (() -> Unit)?,
+) {
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = accent.color,
+        focusedLabelColor = accent.color,
+        cursorColor = accent.color,
+    )
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.large,
+        border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = if (editor.folderId == null) "New folder" else "Edit folder",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.onSurface,
+            )
+            OutlinedTextField(
+                value = editor.name,
+                onValueChange = onNameChange,
+                label = { Text("Folder name") },
+                singleLine = true,
+                colors = fieldColors,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = onSave,
+                    enabled = editor.name.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+                ) {
+                    Text("Save")
+                }
+                TextButton(onClick = onCancel) {
+                    Text("Cancel", color = accent.color)
+                }
+                if (onDelete != null) {
+                    TextButton(onClick = onDelete) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoutineFolderChip(
+    folder: RoutineFolder,
+    accent: TabAccent,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = accent.container,
+        shape = RoundedCornerShape(999.dp),
+    ) {
+        Text(
+            text = folder.name,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = accent.onContainer,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
         )
     }
 }
@@ -456,10 +567,10 @@ internal data class RoutineGroup(
     val routines: List<RoutineSummary>,
 )
 
-internal fun groupRoutineSummariesByProgram(routines: List<RoutineSummary>): List<RoutineGroup> {
+internal fun groupRoutineSummariesByFolder(routines: List<RoutineSummary>): List<RoutineGroup> {
     val groups = linkedMapOf<String, MutableList<RoutineSummary>>()
     routines.forEach { routine ->
-        val title = routine.programName
+        val title = routine.folderName
             ?.trim()
             ?.takeIf(String::isNotBlank)
             ?: "My routines"
@@ -516,8 +627,17 @@ internal fun routineEditorCanSave(name: String, exercises: List<RoutineExerciseI
     if (name.isBlank()) return false
     if (exercises.isEmpty()) return false
     return exercises.all { exercise ->
+        val restValid = exercise.restSeconds == null || exercise.restSeconds in 15..900
+        val setPlans = exercise.setPlans.ifEmpty { defaultRoutineEditorSetPlans(exercise.targetSets, exercise.targetReps) }
         validateTargetSets(exercise.targetSets.toString()) is TargetFieldResult.Valid &&
-            validateTargetReps(exercise.targetReps.orEmpty()) is TargetFieldResult.Valid
+            validateTargetReps(exercise.targetReps.orEmpty()) is TargetFieldResult.Valid &&
+            restValid &&
+            setPlans.isNotEmpty() &&
+            setPlans.all { setPlan ->
+                setPlan.setType.lowercase() in setOf("warmup", "working", "failure", "drop") &&
+                    validateTargetReps(setPlan.targetReps.orEmpty()) is TargetFieldResult.Valid &&
+                    (setPlan.targetWeightKg == null || setPlan.targetWeightKg > 0.0)
+            }
     }
 }
 
@@ -525,25 +645,29 @@ internal fun routineEditorCanSave(name: String, exercises: List<RoutineExerciseI
 fun TrainingRoutineEditor(
     editor: RoutineEditorState,
     exercises: List<ExerciseSummary>,
+    folders: List<RoutineFolder>,
     accent: TabAccent,
     onNameChange: (String) -> Unit,
     onNotesChange: (String) -> Unit,
-    onAddExercise: (String) -> Unit,
+    onFolderNameChange: (String) -> Unit,
+    onOpenExercisePicker: () -> Unit,
     onRemoveExercise: (Int) -> Unit,
     onMoveExerciseUp: (Int) -> Unit,
     onMoveExerciseDown: (Int) -> Unit,
     onTargetSetsChange: (Int, String) -> Unit,
     onTargetRepsChange: (Int, String) -> Unit,
+    onRestSecondsChange: (Int, String) -> Unit,
+    onAddSet: (Int) -> Unit,
+    onRemoveSet: (Int, Int) -> Unit,
+    onSetTypeChange: (Int, Int, String) -> Unit,
+    onSetRepsChange: (Int, Int, String) -> Unit,
+    onSetWeightChange: (Int, Int, String) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
     onDuplicate: ((String) -> Unit)? = null,
     onDelete: ((String) -> Unit)? = null,
 ) {
     val exerciseMap = remember(exercises) { exercises.associateBy { it.id } }
-    val selectedExerciseIds = remember(editor.exercises) { editor.exercises.map { it.exerciseId }.toSet() }
-    var pickerQuery by remember { mutableStateOf("") }
-    var pickerEquipmentFilter by remember { mutableStateOf<String?>(null) }
-    var pickerMuscleFilter by remember { mutableStateOf<String?>(null) }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = accent.color,
         focusedLabelColor = accent.color,
@@ -587,31 +711,38 @@ fun TrainingRoutineEditor(
             colors = fieldColors,
             modifier = Modifier.fillMaxWidth(),
         )
-        RoutineExercisePicker(
-            exercises = exercises,
-            selectedExerciseIds = selectedExerciseIds,
-            accent = accent,
-            selectedCount = editor.exercises.size,
-            fieldColors = fieldColors,
-            query = pickerQuery,
-            equipmentFilter = pickerEquipmentFilter,
-            muscleFilter = pickerMuscleFilter,
-            onQueryChange = { pickerQuery = it },
-            onEquipmentFilterChange = { selected ->
-                pickerEquipmentFilter = if (pickerEquipmentFilter == selected) null else selected
-            },
-            onMuscleFilterChange = { selected ->
-                pickerMuscleFilter = if (pickerMuscleFilter == selected) null else selected
-            },
-            onClearFilters = {
-                pickerQuery = ""
-                pickerEquipmentFilter = null
-                pickerMuscleFilter = null
-            },
-            onAddExercise = { exerciseId ->
-                onAddExercise(exerciseId)
-            },
+        OutlinedTextField(
+            value = editor.folderName,
+            onValueChange = onFolderNameChange,
+            label = { Text("Folder") },
+            singleLine = true,
+            colors = fieldColors,
+            modifier = Modifier.fillMaxWidth(),
         )
+        if (folders.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                folders.forEach { folder ->
+                    RoutinePickerChip(
+                        label = folder.name,
+                        selected = editor.folderName.equals(folder.name, ignoreCase = true),
+                        accent = accent,
+                        onClick = { onFolderNameChange(folder.name) },
+                    )
+                }
+            }
+        }
+        Button(
+            onClick = onOpenExercisePicker,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
+        ) {
+            Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(if (editor.exercises.isEmpty()) "Add exercises" else "Add more exercises")
+        }
         if (editor.exercises.isEmpty()) {
             Text(
                 text = "Add at least one exercise to start this routine",
@@ -636,6 +767,8 @@ fun TrainingRoutineEditor(
                 }.orEmpty(),
                 targetSets = exercise.targetSets.toString(),
                 targetReps = exercise.targetReps.orEmpty(),
+                restSeconds = exercise.restSeconds?.toString().orEmpty(),
+                setPlans = exercise.setPlans.ifEmpty { defaultRoutineEditorSetPlans(exercise.targetSets, exercise.targetReps) },
                 canMoveUp = index > 0,
                 canMoveDown = index < editor.exercises.lastIndex,
                 onMoveUp = { onMoveExerciseUp(index) },
@@ -643,6 +776,12 @@ fun TrainingRoutineEditor(
                 onRemove = { onRemoveExercise(index) },
                 onTargetSetsChange = { onTargetSetsChange(index, it) },
                 onTargetRepsChange = { onTargetRepsChange(index, it) },
+                onRestSecondsChange = { onRestSecondsChange(index, it) },
+                onAddSet = { onAddSet(index) },
+                onRemoveSet = { setIndex -> onRemoveSet(index, setIndex) },
+                onSetTypeChange = { setIndex, setType -> onSetTypeChange(index, setIndex, setType) },
+                onSetRepsChange = { setIndex, value -> onSetRepsChange(index, setIndex, value) },
+                onSetWeightChange = { setIndex, value -> onSetWeightChange(index, setIndex, value) },
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -660,6 +799,163 @@ fun TrainingRoutineEditor(
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) {
                     Text("Delete")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RoutineExercisePickerPage(
+    exercises: List<ExerciseSummary>,
+    currentRoutineExerciseIds: Set<String>,
+    selectedExerciseIds: Set<String>,
+    searchQuery: String,
+    muscleFilter: String?,
+    equipmentFilter: String?,
+    accent: TabAccent,
+    onSearchChange: (String) -> Unit,
+    onMuscleFilterChange: (String?) -> Unit,
+    onEquipmentFilterChange: (String?) -> Unit,
+    onClearFilters: () -> Unit,
+    onToggleExercise: (String) -> Unit,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val options = routineExercisePickerOptions(exercises)
+    val availableExercises = exercises.filterNot { it.id in currentRoutineExerciseIds }
+    val visibleExercises = routineExercisePickerSuggestions(
+        exercises = availableExercises,
+        selectedExerciseIds = emptySet(),
+        query = searchQuery,
+        equipmentFilter = equipmentFilter,
+        muscleFilter = muscleFilter,
+        limit = 80,
+    )
+    val filtersActive = searchQuery.isNotBlank() || muscleFilter != null || equipmentFilter != null
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = accent.color,
+        focusedLabelColor = accent.color,
+        cursorColor = accent.color,
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MusFitTheme.colors.background)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            IconButton(onClick = onCancel) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = "Cancel exercise selection",
+                    tint = MusFitTheme.colors.onSurface,
+                )
+            }
+            Text(
+                "Add exercises",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            Button(
+                onClick = onConfirm,
+                enabled = selectedExerciseIds.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+            ) {
+                Text("OK")
+            }
+        }
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchChange,
+            label = { Text("Search exercises") },
+            leadingIcon = {
+                Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
+            },
+            singleLine = true,
+            colors = fieldColors,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        RoutinePickerChipRow(
+            title = "Equipment",
+            options = options.equipment.take(10),
+            selected = equipmentFilter,
+            accent = accent,
+            onSelected = { value -> onEquipmentFilterChange(if (equipmentFilter == value) null else value) },
+        )
+        RoutinePickerChipRow(
+            title = "Muscle",
+            options = options.muscles.take(12),
+            selected = muscleFilter,
+            accent = accent,
+            onSelected = { value -> onMuscleFilterChange(if (muscleFilter == value) null else value) },
+        )
+        if (filtersActive) {
+            TextButton(onClick = onClearFilters, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
+                Text("Clear filters")
+            }
+        }
+        Text(
+            "${selectedExerciseIds.size} selected",
+            style = MaterialTheme.typography.labelLarge,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
+        if (visibleExercises.isEmpty()) {
+            Text(
+                "No matching exercises",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+        } else {
+            visibleExercises.forEach { exercise ->
+                val selected = exercise.id in selectedExerciseIds
+                Surface(
+                    onClick = { onToggleExercise(exercise.id) },
+                    color = if (selected) accent.container else MusFitTheme.colors.surface,
+                    shape = MusFitTheme.shapes.medium,
+                    border = BorderStroke(0.5.dp, if (selected) accent.color else MusFitTheme.colors.outline),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        ExerciseThumb(imageUrl = exercise.imageUrl, contentDescription = exercise.name, accent = accent, size = 44.dp)
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                exercise.name,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (selected) accent.onContainer else MusFitTheme.colors.onSurface,
+                            )
+                            Text(
+                                listOfNotNull(
+                                    exercise.equipment,
+                                    exercise.targetMuscles.takeIf(String::isNotBlank),
+                                ).joinToString(" - "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
+                            )
+                        }
+                        if (selected) {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = "Selected",
+                                tint = accent.color,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -868,6 +1164,8 @@ private fun RoutineEditorExerciseCard(
     exerciseMeta: String,
     targetSets: String,
     targetReps: String,
+    restSeconds: String,
+    setPlans: List<RoutineSetInput>,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
@@ -875,6 +1173,12 @@ private fun RoutineEditorExerciseCard(
     onRemove: () -> Unit,
     onTargetSetsChange: (String) -> Unit,
     onTargetRepsChange: (String) -> Unit,
+    onRestSecondsChange: (String) -> Unit,
+    onAddSet: () -> Unit,
+    onRemoveSet: (Int) -> Unit,
+    onSetTypeChange: (Int, String) -> Unit,
+    onSetRepsChange: (Int, String) -> Unit,
+    onSetWeightChange: (Int, String) -> Unit,
 ) {
     Surface(
         color = MusFitTheme.colors.surface,
@@ -960,7 +1264,104 @@ private fun RoutineEditorExerciseCard(
                     supportingText = repsError?.let { message -> { Text(message) } },
                     modifier = Modifier.weight(1f),
                 )
+                OutlinedTextField(
+                    value = restSeconds,
+                    onValueChange = onRestSecondsChange,
+                    label = { Text("Rest sec") },
+                    singleLine = true,
+                    colors = fieldColors,
+                    modifier = Modifier.weight(1f),
+                )
             }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Set plan",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onAddSet, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
+                        Icon(imageVector = Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Set")
+                    }
+                }
+                setPlans.forEachIndexed { setIndex, setPlan ->
+                    RoutineEditorSetRow(
+                        setIndex = setIndex,
+                        setPlan = setPlan,
+                        accent = accent,
+                        fieldColors = fieldColors,
+                        canRemove = setPlans.size > 1,
+                        onSetTypeChange = { onSetTypeChange(setIndex, it) },
+                        onSetRepsChange = { onSetRepsChange(setIndex, it) },
+                        onSetWeightChange = { onSetWeightChange(setIndex, it) },
+                        onRemove = { onRemoveSet(setIndex) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoutineEditorSetRow(
+    setIndex: Int,
+    setPlan: RoutineSetInput,
+    accent: TabAccent,
+    fieldColors: androidx.compose.material3.TextFieldColors,
+    canRemove: Boolean,
+    onSetTypeChange: (String) -> Unit,
+    onSetRepsChange: (String) -> Unit,
+    onSetWeightChange: (String) -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Surface(
+            onClick = { onSetTypeChange(nextRoutineSetType(setPlan.setType)) },
+            color = routineSetTypeColor(setPlan.setType, accent),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.size(42.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    routineSetTypeToken(setPlan.setType, setIndex),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = routineSetTypeContentColor(setPlan.setType, accent),
+                )
+            }
+        }
+        OutlinedTextField(
+            value = setPlan.targetWeightKg?.formatRoutineWeight().orEmpty(),
+            onValueChange = onSetWeightChange,
+            label = { Text("Kg") },
+            singleLine = true,
+            colors = fieldColors,
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = setPlan.targetReps.orEmpty(),
+            onValueChange = onSetRepsChange,
+            label = { Text("Reps") },
+            singleLine = true,
+            colors = fieldColors,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onRemove, enabled = canRemove) {
+            Icon(
+                imageVector = Icons.Outlined.Delete,
+                contentDescription = "Remove set",
+                tint = if (canRemove) MaterialTheme.colorScheme.error else MusFitTheme.colors.onSurfaceVariant,
+            )
         }
     }
 }
@@ -1007,6 +1408,51 @@ internal fun routineExercisePickerSuggestions(
     }
     return filtered.take(limit)
 }
+
+internal fun defaultRoutineEditorSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> =
+    (0 until targetSets.coerceAtLeast(1)).map {
+        RoutineSetInput(setType = "working", targetReps = targetReps)
+    }
+
+private fun nextRoutineSetType(current: String): String =
+    when (current.lowercase()) {
+        "warmup" -> "working"
+        "working" -> "failure"
+        "failure" -> "drop"
+        "drop" -> "warmup"
+        else -> "working"
+    }
+
+private fun routineSetTypeToken(setType: String, setIndex: Int): String =
+    when (setType.lowercase()) {
+        "warmup" -> "W"
+        "failure" -> "F"
+        "drop" -> "D"
+        else -> (setIndex + 1).toString()
+    }
+
+private fun routineSetTypeColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color =
+    when (setType.lowercase()) {
+        "warmup" -> androidx.compose.ui.graphics.Color(0xFFFFF3CD)
+        "failure" -> androidx.compose.ui.graphics.Color(0xFFFFE1DD)
+        "drop" -> androidx.compose.ui.graphics.Color(0xFFE0F2FE)
+        else -> accent.container
+    }
+
+private fun routineSetTypeContentColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color =
+    when (setType.lowercase()) {
+        "warmup" -> androidx.compose.ui.graphics.Color(0xFF9A6700)
+        "failure" -> androidx.compose.ui.graphics.Color(0xFFB42318)
+        "drop" -> androidx.compose.ui.graphics.Color(0xFF0277BD)
+        else -> accent.onContainer
+    }
+
+private fun Double.formatRoutineWeight(): String =
+    if (this % 1.0 == 0.0) {
+        toInt().toString()
+    } else {
+        toString().trimEnd('0').trimEnd('.')
+    }
 
 private fun ExerciseSummary.pickerMuscles(): List<String> =
     listOf(targetMuscles, primaryMuscles, secondaryMuscles)
