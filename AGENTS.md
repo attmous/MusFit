@@ -20,7 +20,7 @@ Work menu by menu. The current active priority is the Food miniapp. The user wan
 - Kotlin Flow / coroutines
 - Open Food Facts barcode/product lookup
 - Health Connect boundary exists for Android health data, but Food nutrition sync is not implemented yet
-- Local-first MVP: no accounts, cloud sync, analytics, subscriptions, or social features
+- Local-first MVP: local account identity exists; no cloud sync, analytics, subscriptions, or social features
 
 Main package/application id: `com.musfit`.
 

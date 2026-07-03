@@ -53,6 +53,7 @@ object DatabaseModule {
                 MIGRATION_24_25,
                 MIGRATION_25_26,
                 MIGRATION_26_27,
+                MIGRATION_27_28,
             )
             .build()
 
@@ -620,6 +621,15 @@ object DatabaseModule {
                     )
                     """.trimIndent(),
                 )
+            }
+        }
+
+    internal val MIGRATION_27_28 =
+        object : Migration(27, 28) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE accounts ADD COLUMN authProvider TEXT NOT NULL DEFAULT 'local'")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN avatarUrl TEXT")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_authProvider ON accounts(authProvider)")
             }
         }
 }

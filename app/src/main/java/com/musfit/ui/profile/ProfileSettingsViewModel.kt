@@ -2,8 +2,12 @@ package com.musfit.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
+import com.musfit.data.repository.ExternalAuthRepository
+import com.musfit.data.repository.ExternalAccountProfile
+import com.musfit.data.repository.GitHubDeviceAuthorization
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserProfile
@@ -34,6 +38,9 @@ data class ProfileSettingsUiState(
     val accountNameInput: String = "",
     val accountEmailInput: String = "",
     val accountErrorMessage: String? = null,
+    val githubDeviceCode: GitHubDeviceAuthorization? = null,
+    val githubSignInInProgress: Boolean = false,
+    val isGitHubSignInConfigured: Boolean = false,
     val profile: UserProfile = DEFAULT_USER_PROFILE,
     val latestWeightKg: Double? = null,
 )
@@ -51,6 +58,9 @@ private data class HealthConnectState(
     val requestablePermissions: Set<String> = emptySet(),
     val canRequestPermissions: Boolean = false,
     val message: String = DEFAULT_STATUS_MESSAGE,
+    val githubDeviceCode: GitHubDeviceAuthorization? = null,
+    val githubSignInInProgress: Boolean = false,
+    val isGitHubSignInConfigured: Boolean = false,
 )
 
 private data class AccountEditorState(
@@ -65,10 +75,13 @@ class ProfileSettingsViewModel @Inject constructor(
     private val healthRepository: HealthRepository,
     private val accountRepository: AccountRepository,
     private val profileRepository: ProfileRepository,
+    private val externalAuthRepository: ExternalAuthRepository,
 ) : ViewModel() {
     // Health Connect fields live in this mutable base; account/profile fields are
     // layered on top of it in the combined [state] below.
-    private val mutableState = MutableStateFlow(HealthConnectState())
+    private val mutableState = MutableStateFlow(
+        HealthConnectState(isGitHubSignInConfigured = externalAuthRepository.isGitHubConfigured),
+    )
     private val accountEditorFlow = MutableStateFlow(AccountEditorState())
 
     init {
@@ -101,6 +114,9 @@ class ProfileSettingsViewModel @Inject constructor(
             accountNameInput = editor.nameInput,
             accountEmailInput = editor.emailInput,
             accountErrorMessage = editor.errorMessage,
+            githubDeviceCode = base.githubDeviceCode,
+            githubSignInInProgress = base.githubSignInInProgress,
+            isGitHubSignInConfigured = base.isGitHubSignInConfigured,
             profile = profile,
             latestWeightKg = latestWeight?.weightKg,
         )
@@ -240,6 +256,84 @@ class ProfileSettingsViewModel @Inject constructor(
             }
         }
     }
+
+    fun signInWithProvider(profile: ExternalAccountProfile) {
+        viewModelScope.launch {
+            linkProviderProfile(profile)
+        }
+    }
+
+    fun reportExternalSignInFailure(providerName: String, error: Throwable) {
+        mutableState.update {
+            it.copy(message = error.message ?: "Could not sign in with $providerName.")
+        }
+    }
+
+    fun signInWithGitHub() {
+        if (!externalAuthRepository.isGitHubConfigured) {
+            mutableState.update { it.copy(message = "GitHub sign-in is not configured.") }
+            return
+        }
+        viewModelScope.launch {
+            mutableState.update {
+                it.copy(
+                    githubSignInInProgress = true,
+                    githubDeviceCode = null,
+                    message = "Starting GitHub sign-in.",
+                )
+            }
+            runCatching {
+                externalAuthRepository.signInWithGitHub { authorization ->
+                    mutableState.update {
+                        it.copy(
+                            githubDeviceCode = authorization,
+                            message = "Enter ${authorization.userCode} at GitHub to finish sign-in.",
+                        )
+                    }
+                }
+            }.onSuccess { profile ->
+                linkProviderProfile(profile)
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(
+                        githubSignInInProgress = false,
+                        message = error.message ?: "Could not sign in with GitHub.",
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissGitHubDeviceCode() {
+        mutableState.update { it.copy(githubDeviceCode = null) }
+    }
+
+    private suspend fun linkProviderProfile(profile: ExternalAccountProfile) {
+        runCatching {
+            accountRepository.signInWithProvider(profile)
+        }.onSuccess {
+            mutableState.update {
+                it.copy(
+                    githubSignInInProgress = false,
+                    message = "Signed in with ${profile.provider.messageLabel()}.",
+                )
+            }
+            accountEditorFlow.value = AccountEditorState()
+        }.onFailure { error ->
+            mutableState.update {
+                it.copy(
+                    githubSignInInProgress = false,
+                    message = error.message ?: "Could not sign in.",
+                )
+            }
+        }
+    }
+}
+
+private fun AccountAuthProvider.messageLabel(): String = when (this) {
+    AccountAuthProvider.Local -> "local account"
+    AccountAuthProvider.Google -> "Google"
+    AccountAuthProvider.GitHub -> "GitHub"
 }
 
 private fun com.musfit.domain.health.ImportedDailyHealthSummary.importMessage(): String {

@@ -41,6 +41,8 @@ class AccountDaoTest {
             displayName = "Ava",
             email = "ava@example.com",
             remoteUserId = null,
+            authProvider = "local",
+            avatarUrl = null,
             createdAtEpochMillis = 1_000L,
             updatedAtEpochMillis = 2_000L,
         )

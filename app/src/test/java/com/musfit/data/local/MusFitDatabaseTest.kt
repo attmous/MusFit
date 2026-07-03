@@ -84,6 +84,8 @@ class MusFitDatabaseTest {
             displayName = "Smoke",
             email = null,
             remoteUserId = null,
+            authProvider = "local",
+            avatarUrl = null,
             createdAtEpochMillis = 1L,
             updatedAtEpochMillis = 2L,
         )

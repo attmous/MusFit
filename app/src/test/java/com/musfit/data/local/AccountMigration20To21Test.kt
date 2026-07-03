@@ -46,6 +46,7 @@ class AccountMigration20To21Test {
                     DatabaseModule.MIGRATION_24_25,
                     DatabaseModule.MIGRATION_25_26,
                     DatabaseModule.MIGRATION_26_27,
+                    DatabaseModule.MIGRATION_27_28,
                 )
                 .build()
         try {
