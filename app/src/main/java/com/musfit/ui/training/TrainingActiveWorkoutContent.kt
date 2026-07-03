@@ -90,8 +90,6 @@ fun TrainingActiveWorkoutContent(
     restTimer: RestTimerState,
     workoutNotes: String,
     restTimerDefaultSecondsInput: String,
-    plateBarWeightInput: String,
-    availablePlatesInput: String,
     barWeightKg: Double,
     availablePlatesKg: List<Double>,
     accent: TabAccent,
@@ -105,9 +103,7 @@ fun TrainingActiveWorkoutContent(
     onWorkoutNotesChange: (String) -> Unit,
     onSaveWorkoutNotes: () -> Unit,
     onRestTimerDefaultSecondsChange: (String) -> Unit,
-    onPlateBarWeightChange: (String) -> Unit,
-    onAvailablePlatesChange: (String) -> Unit,
-    onSaveTrainingTools: () -> Unit,
+    onSaveRestTimer: () -> Unit,
     onMoveSetUp: (String) -> Unit,
     onMoveSetDown: (String) -> Unit,
     onTickRestTimer: () -> Unit,
@@ -143,15 +139,11 @@ fun TrainingActiveWorkoutContent(
             onNotesChange = onWorkoutNotesChange,
             onSave = onSaveWorkoutNotes,
         )
-        TrainingToolsCard(
+        RestTimerSettingsCard(
             restTimerDefaultSecondsInput = restTimerDefaultSecondsInput,
-            plateBarWeightInput = plateBarWeightInput,
-            availablePlatesInput = availablePlatesInput,
             accent = accent,
             onRestTimerDefaultSecondsChange = onRestTimerDefaultSecondsChange,
-            onPlateBarWeightChange = onPlateBarWeightChange,
-            onAvailablePlatesChange = onAvailablePlatesChange,
-            onSave = onSaveTrainingTools,
+            onSave = onSaveRestTimer,
         )
         RestTimerBar(
             restTimer = restTimer,
@@ -384,14 +376,10 @@ private fun ActiveWorkoutNotesCard(
 }
 
 @Composable
-private fun TrainingToolsCard(
+private fun RestTimerSettingsCard(
     restTimerDefaultSecondsInput: String,
-    plateBarWeightInput: String,
-    availablePlatesInput: String,
     accent: TabAccent,
     onRestTimerDefaultSecondsChange: (String) -> Unit,
-    onPlateBarWeightChange: (String) -> Unit,
-    onAvailablePlatesChange: (String) -> Unit,
     onSave: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -411,73 +399,61 @@ private fun TrainingToolsCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Rest & equipment",
+                        "Rest timer",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MusFitTheme.colors.onSurface,
                     )
                     Text(
-                        "${restTimerDefaultSecondsInput.ifBlank { "—" }}s rest · ${plateBarWeightInput.ifBlank { "—" }} kg bar",
+                        restTimerSettingsSummaryText(restTimerDefaultSecondsInput),
                         style = MaterialTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                     )
                 }
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = if (expanded) "Collapse tools" else "Expand tools",
+                    contentDescription = if (expanded) "Collapse rest timer settings" else "Expand rest timer settings",
                     tint = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.rotate(if (expanded) 180f else 0f),
                 )
             }
             if (expanded) {
-                Column(
-                    modifier = Modifier.padding(bottom = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedTextField(
-                            value = restTimerDefaultSecondsInput,
-                            onValueChange = onRestTimerDefaultSecondsChange,
-                            modifier = Modifier.weight(1f),
-                            label = { Text("Rest sec") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        )
-                        OutlinedTextField(
-                            value = plateBarWeightInput,
-                            onValueChange = onPlateBarWeightChange,
-                            modifier = Modifier.weight(1f),
-                            label = { Text("Bar kg") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
+                    OutlinedTextField(
+                        value = restTimerDefaultSecondsInput,
+                        onValueChange = onRestTimerDefaultSecondsChange,
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Seconds after set") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    Button(
+                        onClick = onSave,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accent.color,
+                            contentColor = accent.onColor,
+                        ),
                     ) {
-                        OutlinedTextField(
-                            value = availablePlatesInput,
-                            onValueChange = onAvailablePlatesChange,
-                            modifier = Modifier.weight(1f),
-                            label = { Text("Plates kg") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        )
-                        Button(
-                            onClick = onSave,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = accent.color,
-                                contentColor = accent.onColor,
-                            ),
-                        ) {
-                            Text("Save")
-                        }
+                        Text("Save")
                     }
                 }
             }
         }
+    }
+}
+
+internal fun restTimerSettingsSummaryText(restTimerDefaultSecondsInput: String): String {
+    val seconds = restTimerDefaultSecondsInput.trim().takeIf(String::isNotBlank)
+    return if (seconds == null) {
+        "Set rest after each completed set"
+    } else {
+        "$seconds sec after each completed set"
     }
 }
 

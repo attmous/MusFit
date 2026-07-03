@@ -770,12 +770,15 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun saveTrainingToolSettings() {
+        saveRestTimerSettings()
+    }
+
+    fun saveRestTimerSettings() {
         val current = state.value
         val input = TrainingSettingsInput(
             defaultRestSeconds = current.restTimerDefaultSecondsInput.toIntOrNull() ?: current.trainingSettings.defaultRestSeconds,
-            barWeightKg = current.plateBarWeightInput.toDoubleOrNull() ?: current.trainingSettings.barWeightKg,
-            availablePlatesKg = current.availablePlatesInput.parsePlateListInput()
-                .ifEmpty { current.trainingSettings.availablePlatesKg.ifEmpty { PlateCalculator.DEFAULT_PLATES } },
+            barWeightKg = current.trainingSettings.barWeightKg,
+            availablePlatesKg = current.trainingSettings.availablePlatesKg.ifEmpty { PlateCalculator.DEFAULT_PLATES },
         ).normalized()
         viewModelScope.launch {
             repository.updateTrainingSettings(input)
@@ -794,7 +797,7 @@ class TrainingViewModel @Inject constructor(
                     } else {
                         it.restTimer.copy(durationSeconds = input.defaultRestSeconds)
                     },
-                    message = "Training tools saved.",
+                    message = "Rest timer saved.",
                 )
             }
         }

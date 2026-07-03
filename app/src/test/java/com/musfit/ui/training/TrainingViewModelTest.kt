@@ -641,7 +641,7 @@ class TrainingViewModelTest {
     }
 
     @Test
-    fun trainingToolSettings_saveAndApplyRestDefaultToNextCompletedSet() = runTest {
+    fun restTimerSettings_saveAndApplyRestDefaultToNextCompletedSet() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
         dispatcher.scheduler.advanceUntilIdle()
@@ -653,20 +653,21 @@ class TrainingViewModelTest {
         viewModel.onRestTimerDefaultSecondsChanged("90")
         viewModel.onPlateBarWeightChanged("15")
         viewModel.onAvailablePlatesChanged("20, 10, 5, 2.5, 2.5")
-        viewModel.saveTrainingToolSettings()
+        viewModel.saveRestTimerSettings()
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(
             TrainingSettingsInput(
                 defaultRestSeconds = 90,
-                barWeightKg = 15.0,
-                availablePlatesKg = listOf(20.0, 10.0, 5.0, 2.5),
+                barWeightKg = 20.0,
+                availablePlatesKg = listOf(25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25),
             ),
             repository.updatedTrainingSettings,
         )
         assertEquals("90", viewModel.state.value.restTimerDefaultSecondsInput)
-        assertEquals("15", viewModel.state.value.plateBarWeightInput)
-        assertEquals("20, 10, 5, 2.5", viewModel.state.value.availablePlatesInput)
+        assertEquals("20", viewModel.state.value.plateBarWeightInput)
+        assertEquals("25, 20, 15, 10, 5, 2.5, 1.25", viewModel.state.value.availablePlatesInput)
+        assertEquals("Rest timer saved.", viewModel.state.value.message)
 
         viewModel.resumeActiveWorkout()
         viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
