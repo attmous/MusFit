@@ -2472,6 +2472,46 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun planningModeDoesNotPlanSavedFoodBeyondOneWeekAhead() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Example Dairy",
+                        defaultServingGrams = 100.0,
+                        nutritionPer100g = FoodNutrition(59.0, 10.0, 3.6, 0.4),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        repeat(8) { viewModel.goToNextDay() }
+        viewModel.togglePlanningMode()
+        viewModel.openAddFood("breakfast")
+        viewModel.logSavedFood("food-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(LocalDate.now().plusDays(8), viewModel.state.value.selectedDate)
+        assertEquals(null, repository.plannedFoodLog)
+        assertEquals("You can plan up to 1 week ahead.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun recipeBrowserNextDayStopsAtOneWeekPlanningLimit() = runTest {
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = FakeFoodRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeBrowser()
+        repeat(8) { viewModel.goToNextRecipeBrowserDay() }
+
+        assertEquals(LocalDate.now().plusDays(7), viewModel.state.value.recipeBrowserDate)
+        assertEquals("You can plan up to 1 week ahead.", viewModel.state.value.message)
+    }
+
+    @Test
     fun shoppingListGeneratesAddsManualItemAndTogglesCheckedState() = runTest {
         val startDate = LocalDate.of(2026, 6, 22)
         val endDate = LocalDate.of(2026, 6, 24)

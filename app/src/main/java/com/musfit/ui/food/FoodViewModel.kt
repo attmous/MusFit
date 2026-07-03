@@ -1008,6 +1008,11 @@ class FoodViewModel @Inject constructor(
 
     fun copySelectedDayToTomorrow() {
         val currentState = state.value
+        val targetDate = currentState.selectedDate.plusDays(1)
+        if (!targetDate.isWithinFoodPlanningHorizon()) {
+            mutableState.update { it.copy(message = FOOD_PLANNING_LIMIT_MESSAGE) }
+            return
+        }
         if (!markSaving()) {
             return
         }
@@ -1015,7 +1020,7 @@ class FoodViewModel @Inject constructor(
             try {
                 repository.copyDay(
                     fromDate = currentState.selectedDate,
-                    toDate = currentState.selectedDate.plusDays(1),
+                    toDate = targetDate,
                     status = FoodDiaryEntryStatus.Planned,
                 )
                 mutableState.update {
@@ -1545,10 +1550,11 @@ class FoodViewModel @Inject constructor(
         mutableState.update {
             val keepCurrentTarget =
                 it.sheetMode == FoodSheetMode.RecipeBrowser || it.sheetMode == FoodSheetMode.RecipeEditor
+            val targetDate = if (keepCurrentTarget) it.recipeBrowserDate else it.selectedDate
             it.copy(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.RecipeBrowser,
-                recipeBrowserDate = if (keepCurrentTarget) it.recipeBrowserDate else it.selectedDate,
+                recipeBrowserDate = targetDate.coerceInFoodPlanningHorizon(),
                 recipeBrowserMealType = if (keepCurrentTarget) it.recipeBrowserMealType else it.mealType.normalizedMealType(),
                 recipeEditor = null,
                 message = null,
@@ -1565,7 +1571,14 @@ class FoodViewModel @Inject constructor(
     }
 
     fun goToNextRecipeBrowserDay() {
-        mutableState.update { it.copy(recipeBrowserDate = it.recipeBrowserDate.plusDays(1), message = null) }
+        mutableState.update {
+            val nextDate = it.recipeBrowserDate.plusDays(1)
+            if (nextDate.isWithinFoodPlanningHorizon()) {
+                it.copy(recipeBrowserDate = nextDate, message = null)
+            } else {
+                it.copy(recipeBrowserDate = it.recipeBrowserDate.coerceInFoodPlanningHorizon(), message = FOOD_PLANNING_LIMIT_MESSAGE)
+            }
+        }
     }
 
     fun goToTodayRecipeBrowserDay() {
@@ -3320,6 +3333,10 @@ class FoodViewModel @Inject constructor(
         if (currentState.isSaving) {
             return
         }
+        if (currentState.isPlanningMode && !currentState.selectedDate.isWithinFoodPlanningHorizon()) {
+            mutableState.update { it.copy(message = FOOD_PLANNING_LIMIT_MESSAGE) }
+            return
+        }
         val quantityGrams = currentState.savedFoodQuantityGrams.parsePositiveNumberOrNull()
         if (quantityGrams == null) {
             mutableState.update { it.copy(message = "Enter a valid amount") }
@@ -4157,6 +4174,10 @@ class FoodViewModel @Inject constructor(
             mutableState.update { it.copy(message = "Enter recipe servings") }
             return
         }
+        if (!currentState.recipeBrowserDate.isWithinFoodPlanningHorizon()) {
+            mutableState.update { it.copy(message = FOOD_PLANNING_LIMIT_MESSAGE) }
+            return
+        }
         if (!markSaving()) {
             return
         }
@@ -4484,6 +4505,15 @@ private const val SUGAR_GOAL_GRAMS = 50.0
 private const val SATURATED_FAT_GOAL_GRAMS = 20.0
 private const val SODIUM_GOAL_MILLIGRAMS = 2300.0
 private const val WATER_GOAL_MILLILITERS = 2000.0
+private const val FOOD_PLANNING_LIMIT_DAYS = 7L
+private const val FOOD_PLANNING_LIMIT_MESSAGE = "You can plan up to 1 week ahead."
+
+private fun foodPlanningMaxDate(): LocalDate = LocalDate.now().plusDays(FOOD_PLANNING_LIMIT_DAYS)
+
+private fun LocalDate.isWithinFoodPlanningHorizon(): Boolean = !isAfter(foodPlanningMaxDate())
+
+private fun LocalDate.coerceInFoodPlanningHorizon(): LocalDate =
+    if (isWithinFoodPlanningHorizon()) this else foodPlanningMaxDate()
 
 private val foodProgramDefinitions =
     listOf(
