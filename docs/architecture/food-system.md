@@ -69,12 +69,12 @@ sugar, and sodium.
 amount-based nutrition preview.
 
 **Recipes v2 and discovery.** Ingredients, serving units, cooked yield, auto
-per-serving nutrition, edit/duplicate/delete/favorite, and fractional-serving
-logging. The recipe sheet also includes a local discovery catalog layered in the
-ViewModel/UI, with filters for high protein, low carb, vegetarian, quick,
-favorites, and selected-program relevance. Saved recipes are reused as catalog
-items via `RecipeUiState`; curated ideas prefill the existing recipe editor for
-review before saving.
+per-serving nutrition, edit/duplicate/delete/favorite, fractional-serving
+logging, and recipe planning. The diary exposes a direct recipe-browser action;
+the browser has date/meal/serving targets plus local discovery filters for high
+protein, low carb, vegetarian, quick, favorites, and selected-program relevance.
+Saved recipes are reused as catalog items via `RecipeUiState`; curated ideas
+prefill the existing recipe editor for review before saving.
 
 **Meal templates v2.** Editable items, duplicate/favorite, "save current meal as
 template", and log-to-any-meal.
@@ -139,7 +139,8 @@ limited to hardening and explicitly deferred local-first scope:
 
 Food avoids separate nav routes for most surfaces and instead drives them from
 state. The top-level `FoodScreen` chooses between a full-screen meal detail, the
-full-screen add surface, the diary, or a `ModalBottomSheet` keyed by sheet mode.
+full-screen add surface, the full-screen recipe browser, the diary, or a
+`ModalBottomSheet` keyed by sheet mode.
 
 `FoodSheetMode`:
 
@@ -152,6 +153,7 @@ full-screen add surface, the diary, or a `ModalBottomSheet` keyed by sheet mode.
 | `SavedFoodEditor` | Full saved-food editor. |
 | `NutritionLabelScan` | OCR review-before-save fields. |
 | `GoalEditor` | Calorie/macro/detail goal editor. |
+| `RecipeBrowser` | Full-screen recipe discovery, saved-recipe browsing, and plan-to-date/meal actions. |
 | `RecipeEditor` | Recipe create/edit/log. |
 | `MealTemplates` | Template list, edit, duplicate, favorite, log. |
 | `MealSettings` | Custom meal definitions and times. |

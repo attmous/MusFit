@@ -13,12 +13,12 @@ class FoodPlanningModePresentationTest {
 
         assertEquals("Plan", presentation.buttonLabel)
         assertEquals("Start planning meals", presentation.buttonContentDescription)
-        assertEquals("Plan meals", presentation.statusActionLabel)
+        assertEquals("", presentation.statusActionLabel)
         assertFalse(presentation.showStatusCard)
     }
 
     @Test
-    fun activePlanningModeExplainsWhereNewFoodWillGo() {
+    fun activePlanningModeKeepsPlannedWeekCardCompact() {
         val presentation =
             FoodUiState(
                 isPlanningMode = true,
@@ -45,8 +45,30 @@ class FoodPlanningModePresentationTest {
         assertEquals("Planning", presentation.buttonLabel)
         assertEquals("Finish planning meals", presentation.buttonContentDescription)
         assertEquals("Planning mode", presentation.statusTitle)
-        assertEquals("New food is saved as planned. 2 planned items, 920 kcal this week.", presentation.statusDescription)
+        assertEquals("", presentation.statusDescription)
         assertEquals("Done", presentation.statusActionLabel)
+        assertTrue(presentation.showStatusCard)
+    }
+
+    @Test
+    fun inactivePlanningModeKeepsPlannedWeekCardCompact() {
+        val presentation =
+            FoodUiState(
+                weeklyPlan = listOf(
+                    FoodPlanDayUiState(
+                        date = LocalDate.of(2026, 7, 3),
+                        dayLabel = "Fri",
+                        loggedCaloriesKcal = 430.0,
+                        plannedCaloriesKcal = 560.0,
+                        loggedEntryCount = 2,
+                        plannedEntryCount = 1,
+                    ),
+                ),
+            ).toPlanningModePresentation()
+
+        assertEquals("Planned this week", presentation.statusTitle)
+        assertEquals("", presentation.statusDescription)
+        assertEquals("", presentation.statusActionLabel)
         assertTrue(presentation.showStatusCard)
     }
 

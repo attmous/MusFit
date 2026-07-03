@@ -131,7 +131,7 @@ class FoodViewModelTest {
     }
 
     @Test
-    fun emptyFoodDiaryShowsPolishedStartActions() = runTest {
+    fun emptyFoodDiaryDoesNotShowStartActionsOnFoodHome() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(),
             repository = FakeFoodRepository(diary = emptyFoodDiary()),
@@ -139,10 +139,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isFoodDiaryEmpty)
-        assertEquals(
-            listOf("Add breakfast", "Scan barcode"),
-            viewModel.state.value.emptyDiaryActions.map { it.label },
-        )
+        assertTrue(viewModel.state.value.emptyDiaryActions.isEmpty())
     }
 
     @Test
@@ -2472,6 +2469,46 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun planningModeDoesNotPlanSavedFoodBeyondOneWeekAhead() = runTest {
+        val repository =
+            FakeFoodRepository(
+                savedFoods = listOf(
+                    SavedFoodItem(
+                        id = "food-1",
+                        name = "Greek yogurt",
+                        brand = "Example Dairy",
+                        defaultServingGrams = 100.0,
+                        nutritionPer100g = FoodNutrition(59.0, 10.0, 3.6, 0.4),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        repeat(8) { viewModel.goToNextDay() }
+        viewModel.togglePlanningMode()
+        viewModel.openAddFood("breakfast")
+        viewModel.logSavedFood("food-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(LocalDate.now().plusDays(8), viewModel.state.value.selectedDate)
+        assertEquals(null, repository.plannedFoodLog)
+        assertEquals("You can plan up to 1 week ahead.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun recipeBrowserNextDayStopsAtOneWeekPlanningLimit() = runTest {
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = FakeFoodRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeBrowser()
+        repeat(8) { viewModel.goToNextRecipeBrowserDay() }
+
+        assertEquals(LocalDate.now().plusDays(7), viewModel.state.value.recipeBrowserDate)
+        assertEquals("You can plan up to 1 week ahead.", viewModel.state.value.message)
+    }
+
+    @Test
     fun shoppingListGeneratesAddsManualItemAndTogglesCheckedState() = runTest {
         val startDate = LocalDate.of(2026, 6, 22)
         val endDate = LocalDate.of(2026, 6, 24)
@@ -3513,6 +3550,131 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun recipeBrowserPlansSavedRecipeForChosenDayAndMeal() = runTest {
+        val targetDate = LocalDate.now().plusDays(1)
+        val repository =
+            FakeFoodRepository(
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Dinner",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 150.0)),
+                        nutritionPerServing = FoodNutrition(250.0, 35.0, 20.0, 5.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeBrowser()
+        viewModel.goToNextRecipeBrowserDay()
+        viewModel.onRecipeBrowserMealChanged("dinner")
+        viewModel.onRecipeServingsToLogChanged("1.5")
+        viewModel.planRecipe("recipe-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodSheetMode.RecipeBrowser, viewModel.state.value.sheetMode)
+        assertEquals(targetDate, viewModel.state.value.recipeBrowserDate)
+        assertEquals("dinner", viewModel.state.value.recipeBrowserMealType)
+        assertEquals(
+            PlanRecipeCall(
+                recipeId = "recipe-1",
+                mealType = "dinner",
+                servings = 1.5,
+                date = targetDate,
+            ),
+            repository.planRecipeCall,
+        )
+        assertEquals("Planned recipe", viewModel.state.value.message)
+    }
+
+    @Test
+    fun recipeBrowserLogsSavedRecipeForChosenDayAndMeal() = runTest {
+        val targetDate = LocalDate.now().plusDays(1)
+        val repository =
+            FakeFoodRepository(
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Lunch",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 150.0)),
+                        nutritionPerServing = FoodNutrition(420.0, 38.0, 42.0, 11.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeBrowser()
+        viewModel.goToNextRecipeBrowserDay()
+        viewModel.onRecipeBrowserMealChanged("lunch")
+        viewModel.logRecipeFromBrowser("recipe-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodSheetMode.RecipeBrowser, viewModel.state.value.sheetMode)
+        assertEquals(targetDate, viewModel.state.value.recipeBrowserDate)
+        assertEquals("lunch", viewModel.state.value.recipeBrowserMealType)
+        assertEquals(
+            LogRecipeCall(
+                recipeId = "recipe-1",
+                mealType = "lunch",
+                servings = 1.0,
+                date = targetDate,
+            ),
+            repository.logRecipeCall,
+        )
+        assertEquals("Logged recipe", viewModel.state.value.message)
+    }
+
+    @Test
+    fun recipeDiscoverySearchFiltersByTitleMealAndTags() = runTest {
+        val viewModel =
+            FoodViewModel(
+                provider = FakeProductProvider(),
+                repository = FakeFoodRepository(
+                    recipes = listOf(
+                        Recipe(
+                            id = "recipe-1",
+                            name = "Salmon breakfast bowl",
+                            category = "Breakfast",
+                            servingName = "Bowl",
+                            servingGrams = 350.0,
+                            ingredients = listOf(RecipeIngredient("food-1", "Salmon", null, 150.0)),
+                            nutritionPerServing = FoodNutrition(420.0, 38.0, 42.0, 11.0),
+                            detailNutritionPerServing = NutritionDetails(),
+                        ),
+                        Recipe(
+                            id = "recipe-2",
+                            name = "Plain rice bowl",
+                            category = "Lunch",
+                            servingName = "Bowl",
+                            servingGrams = 300.0,
+                            ingredients = listOf(RecipeIngredient("food-1", "Rice", null, 150.0)),
+                            nutritionPerServing = FoodNutrition(300.0, 6.0, 64.0, 2.0),
+                            detailNutritionPerServing = NutritionDetails(),
+                        ),
+                    ),
+                ),
+            )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onRecipeDiscoveryQueryChanged("salmon breakfast")
+
+        assertEquals(
+            listOf("Salmon breakfast bowl"),
+            viewModel.state.value.recipeDiscovery.visibleItems.map { it.title },
+        )
+    }
+
+    @Test
     fun diaryEntryCanBeCopiedToAnotherMealAndDate() = runTest {
         val repository =
             FakeFoodRepository(
@@ -3973,6 +4135,13 @@ class FoodViewModelTest {
         val date: LocalDate,
     )
 
+    private data class PlanRecipeCall(
+        val recipeId: String,
+        val mealType: String,
+        val servings: Double,
+        val date: LocalDate,
+    )
+
     private data class DuplicateRecipeCall(
         val recipeId: String,
         val name: String,
@@ -4256,6 +4425,7 @@ class FoodViewModelTest {
         var favoriteTemplateToggle: Pair<String, Boolean>? = null
         var recipeUpsert: RecipeUpsertInput? = null
         var logRecipeCall: LogRecipeCall? = null
+        var planRecipeCall: PlanRecipeCall? = null
         var duplicateRecipeCall: DuplicateRecipeCall? = null
         var deletedRecipeId: String? = null
         var favoriteRecipeToggle: Pair<String, Boolean>? = null
@@ -4515,6 +4685,11 @@ class FoodViewModelTest {
 
         override suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String {
             logRecipeCall = LogRecipeCall(recipeId, mealType, servings, date)
+            return "meal-item-1"
+        }
+
+        override suspend fun planRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String {
+            planRecipeCall = PlanRecipeCall(recipeId, mealType, servings, date)
             return "meal-item-1"
         }
 

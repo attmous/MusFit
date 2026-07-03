@@ -176,6 +176,11 @@ fun FoodScreen(
                 onCloseClick = viewModel::closeAddFood,
                 onForwardClick = { viewModel.openRecipeEditor(null) },
                 onHomeClick = viewModel::openRecipeBrowser,
+                onPreviousDayClick = viewModel::goToPreviousRecipeBrowserDay,
+                onNextDayClick = viewModel::goToNextRecipeBrowserDay,
+                onTodayClick = viewModel::goToTodayRecipeBrowserDay,
+                onMealChanged = viewModel::onRecipeBrowserMealChanged,
+                onServingsChanged = viewModel::onRecipeServingsToLogChanged,
                 onNameChanged = viewModel::onRecipeNameChanged,
                 onCategoryChanged = viewModel::onRecipeCategoryChanged,
                 onServingNameChanged = viewModel::onRecipeServingNameChanged,
@@ -188,8 +193,12 @@ fun FoodScreen(
                 onEditRecipeClick = { recipeId -> viewModel.openRecipeEditor(recipeId) },
                 onDuplicateRecipeClick = viewModel::duplicateRecipe,
                 onFavoriteClick = viewModel::toggleFavoriteRecipe,
+                onSearchQueryChanged = viewModel::onRecipeDiscoveryQueryChanged,
                 onDiscoveryFilterChanged = viewModel::selectRecipeDiscoveryFilter,
                 onDiscoveryItemClick = viewModel::useRecipeDiscoveryItem,
+                onLogRecipeClick = viewModel::logRecipeFromBrowser,
+                onPlanRecipeClick = viewModel::planRecipe,
+                onReviewIdeaClick = viewModel::useRecipeDiscoveryItem,
                 onSaveClick = viewModel::saveRecipe,
                 onDeleteClick = { state.recipeEditor?.editingRecipeId?.let(viewModel::deleteRecipe) },
             )
@@ -258,14 +267,20 @@ fun FoodScreen(
                         onTodayClick = viewModel::goToToday,
                     )
 
+                    FoodPrimaryActionRow(
+                        recipeCount = state.recipes.size,
+                        onRecipeClick = viewModel::openRecipeBrowser,
+                    )
+
                     MacroProgressRow(state.macroProgress)
 
                     if (planningPresentation.showStatusCard) {
                         PlanningModeStatusCard(
                             presentation = planningPresentation,
+                            planDays = state.weeklyPlan,
+                            selectedDate = state.selectedDate,
                             onActionClick = viewModel::togglePlanningMode,
                         )
-                        WeeklyPlanStrip(state.weeklyPlan)
                     }
 
                     MessageBanner(
@@ -275,25 +290,6 @@ fun FoodScreen(
                     )
 
                     SectionTitle("Meal diary")
-                    if (state.isFoodDiaryEmpty) {
-                        EmptyDiaryStartCard(
-                            actions = state.emptyDiaryActions,
-                            onActionClick = { actionType ->
-                                when (actionType) {
-                                    EmptyDiaryActionType.Breakfast -> viewModel.openAddFood("breakfast")
-                                    EmptyDiaryActionType.Barcode -> {
-                                        viewModel.openAddFood("snacks")
-                                        viewModel.selectAddTab(AddTab.Create)
-                                        onScanClick()
-                                    }
-                                    EmptyDiaryActionType.Ai -> {
-                                        viewModel.openAddFood("snacks")
-                                        viewModel.selectAddMode(FoodAddMode.Ai)
-                                    }
-                                }
-                            },
-                        )
-                    }
                     state.mealSections.forEach { meal ->
                         MealSectionCard(
                             meal = meal,
@@ -543,6 +539,7 @@ fun FoodScreen(
                     )
 
                 FoodSheetMode.RecipeBrowser -> Unit
+                FoodSheetMode.RecipeBrowser -> Unit
 
                 FoodSheetMode.RecipeEditor ->
                     RecipeEditorPanel(
@@ -611,6 +608,33 @@ fun FoodScreen(
 }
 
 @Composable
+private fun FoodPrimaryActionRow(
+    recipeCount: Int,
+    onRecipeClick: () -> Unit,
+) {
+    Button(
+        onClick = onRecipeClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MusFitTheme.shapes.small,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MusFitTheme.colors.brand,
+            contentColor = MusFitTheme.colors.onAccent,
+        ),
+    ) {
+        Icon(Icons.Outlined.Restaurant, contentDescription = null)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("Browse recipes", maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "$recipeCount saved",
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
 private fun MoreSection(
     expanded: Boolean,
     onToggle: () -> Unit,
@@ -659,13 +683,6 @@ internal data class FoodPlanningModePresentation(
 
 internal fun FoodUiState.toPlanningModePresentation(): FoodPlanningModePresentation {
     val plannedItemCount = weeklyPlan.sumOf { it.plannedEntryCount }
-    val plannedCaloriesKcal = weeklyPlan.sumOf { it.plannedCaloriesKcal }.roundToInt()
-    val plannedSummary =
-        when (plannedItemCount) {
-            0 -> "No planned items this week yet."
-            1 -> "1 planned item, $plannedCaloriesKcal kcal this week."
-            else -> "$plannedItemCount planned items, $plannedCaloriesKcal kcal this week."
-        }
 
     return if (isPlanningMode) {
         FoodPlanningModePresentation(
@@ -673,7 +690,7 @@ internal fun FoodUiState.toPlanningModePresentation(): FoodPlanningModePresentat
             buttonLabel = "Planning",
             buttonContentDescription = "Finish planning meals",
             statusTitle = "Planning mode",
-            statusDescription = "New food is saved as planned. $plannedSummary",
+            statusDescription = "",
             statusActionLabel = "Done",
             showStatusCard = true,
         )
@@ -683,8 +700,8 @@ internal fun FoodUiState.toPlanningModePresentation(): FoodPlanningModePresentat
             buttonLabel = "Plan",
             buttonContentDescription = "Start planning meals",
             statusTitle = "Planned this week",
-            statusDescription = "$plannedSummary Tap Plan to adjust the week.",
-            statusActionLabel = if (plannedItemCount == 0) "Plan meals" else "Plan more",
+            statusDescription = "",
+            statusActionLabel = "",
             showStatusCard = plannedItemCount > 0,
         )
     }
@@ -768,6 +785,8 @@ private fun FoodDiaryOverflowAction(
 @Composable
 private fun PlanningModeStatusCard(
     presentation: FoodPlanningModePresentation,
+    planDays: List<FoodPlanDayUiState>,
+    selectedDate: java.time.LocalDate,
     onActionClick: () -> Unit,
 ) {
     val accent = MusFitTheme.colors.brand
@@ -781,42 +800,35 @@ private fun PlanningModeStatusCard(
         shape = MusFitTheme.shapes.extraLarge,
         border = BorderStroke(1.dp, accent.copy(alpha = if (presentation.isActive) 0.28f else 0.16f)),
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(accent.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Today,
-                    contentDescription = null,
-                    tint = accent,
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = presentation.statusTitle,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MusFitTheme.colors.brandInk,
+                    modifier = Modifier.weight(1f),
                 )
+                if (presentation.statusActionLabel.isNotBlank()) {
+                    TextButton(onClick = onActionClick) {
+                        Text(presentation.statusActionLabel, maxLines = 1)
+                    }
+                }
+            }
+            WeeklyPlanStrip(planDays = planDays, selectedDate = selectedDate)
+            if (presentation.statusDescription.isNotBlank()) {
                 Text(
                     text = presentation.statusDescription,
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
-            }
-            TextButton(onClick = onActionClick) {
-                Text(presentation.statusActionLabel, maxLines = 1)
             }
         }
     }
@@ -890,40 +902,38 @@ private fun SummarySideMetric(
 }
 
 @Composable
-private fun WeeklyPlanStrip(planDays: List<FoodPlanDayUiState>) {
+private fun WeeklyPlanStrip(
+    planDays: List<FoodPlanDayUiState>,
+    selectedDate: java.time.LocalDate,
+) {
     if (planDays.isEmpty()) {
         return
     }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        planDays.forEach { day ->
-            Card(
-                modifier = Modifier.width(112.dp),
-                colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-                shape = MusFitTheme.shapes.extraLarge,
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        planDays.take(7).forEach { day ->
+            val hasPlan = day.plannedEntryCount > 0 || day.plannedCaloriesKcal > 0.0
+            val isSelected = day.date == selectedDate
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                Column(
-                    modifier = Modifier.padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                Text(
+                    text = day.dayLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Surface(
+                    color = if (hasPlan) MusFitTheme.colors.brand else MusFitTheme.colors.surfaceVariant,
+                    shape = CircleShape,
+                    border = if (isSelected) BorderStroke(2.dp, MusFitTheme.colors.brandInk) else null,
+                    modifier = Modifier.size(if (isSelected) 20.dp else 16.dp),
                 ) {
-                    Text(day.dayLabel, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    Text(
-                        "${day.loggedCaloriesKcal.roundToInt()} logged",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                    Text(
-                        "${day.plannedCaloriesKcal.roundToInt()} planned",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.brand,
-                        maxLines = 1,
-                    )
+                    Spacer(modifier = Modifier.fillMaxSize())
                 }
             }
         }
@@ -1040,50 +1050,6 @@ private fun MacroProgressColumn(
             progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
             color = color,
         )
-    }
-}
-
-@Composable
-private fun EmptyDiaryStartCard(
-    actions: List<EmptyDiaryActionUiState>,
-    onActionClick: (EmptyDiaryActionType) -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.extraLarge,
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = "Build today's food",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.brandInk,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                actions.forEach { action ->
-                    MusFitOutlinedButton(
-                        onClick = { onActionClick(action.type) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .semantics { contentDescription = action.accessibilityLabel },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                    ) {
-                        Text(
-                            text = action.label,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
