@@ -609,35 +609,38 @@ It calls write APIs for routine CRUD, active workout lifecycle, set edits, custo
 - Dashboard routine suggestions are deterministic and local; there is no adaptive progression or fatigue model yet.
 - Post-workout recap is local and private only; there is no social sharing, public feed, or exported recap image.
 
-## Health Screen
+## Profile Settings Health Connect
 
 Source:
 
-- `app/src/main/java/com/musfit/ui/health/HealthScreen.kt`
-- `app/src/main/java/com/musfit/ui/health/HealthViewModel.kt`
+- `app/src/main/java/com/musfit/ui/profile/ProfileSettingsScreen.kt`
+- `app/src/main/java/com/musfit/ui/profile/ProfileSettingsViewModel.kt`
 
-Route: `health`
+Route: `profile/settings`
 
 Composable entrypoint:
 
 ```kotlin
 @Composable
-fun HealthScreen(viewModel: HealthViewModel = hiltViewModel())
+fun ProfileSettingsScreen(
+    onBack: () -> Unit,
+    viewModel: ProfileSettingsViewModel = hiltViewModel(),
+)
 ```
 
 ### Purpose
 
-Health is the user-facing Health Connect utility screen. It reports availability and permissions, launches permission requests, imports today's health summary, and exports the latest workout.
+Health Connect controls live in Profile Settings. They report availability and permissions, launch permission requests, import recent health summaries, and export the latest workout.
 
 ### ViewModel State
 
-`HealthViewModel` exposes:
+`ProfileSettingsViewModel` exposes:
 
 ```kotlin
-val state: StateFlow<HealthUiState>
+val state: StateFlow<ProfileSettingsUiState>
 ```
 
-`HealthUiState` fields:
+`ProfileSettingsUiState` health fields:
 
 | Field | Purpose |
 | --- | --- |
@@ -647,16 +650,18 @@ val state: StateFlow<HealthUiState>
 | `requestablePermissions` | Permission strings for launcher. |
 | `canRequestPermissions` | Enables the permission button. |
 | `message` | User-facing status or result message. |
+| `isHealthConnectSyncing` | True while the recent Health Connect import is in flight. |
 
 ### ViewModel Actions
 
 - `refreshStatus()`
 - `importToday()`
+- `syncRecentHealthData()`
 - `exportLatestWorkout()`
 
 ### Data Sources
 
-Health ViewModel uses `HealthRepository`, which delegates to `HealthConnectGateway` and local Room storage through `HealthDao`.
+Profile Settings uses `HealthRepository`, which delegates to `HealthConnectGateway` and local Room storage through `HealthDao`.
 
 ## Cross-Screen Relationships
 

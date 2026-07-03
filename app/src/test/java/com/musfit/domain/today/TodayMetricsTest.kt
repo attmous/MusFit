@@ -25,6 +25,9 @@ class TodayMetricsTest {
         sessionsDone: Int = 2,
         sessionTarget: Int = 4,
         activeCaloriesKcal: Double? = 420.0,
+        sleepMinutes: Long? = 465L,
+        exerciseMinutes: Long? = 68L,
+        exerciseSessionCount: Int? = 2,
         restingHeartRateBpm: Long? = 58L, // matches DailyHealthSummaryEntity.restingHeartRateBpm: Long?
         loggingStreakDays: Int = 5,
     ) = MetricSnapshot(
@@ -47,6 +50,9 @@ class TodayMetricsTest {
         sessionsDone = sessionsDone,
         sessionTarget = sessionTarget,
         activeCaloriesKcal = activeCaloriesKcal,
+        sleepMinutes = sleepMinutes,
+        exerciseMinutes = exerciseMinutes,
+        exerciseSessionCount = exerciseSessionCount,
         restingHeartRateBpm = restingHeartRateBpm,
         loggingStreakDays = loggingStreakDays,
     )
@@ -111,11 +117,24 @@ class TodayMetricsTest {
     }
 
     @Test
+    fun sleepAndExercise_showHealthConnectAggregates() {
+        val sleep = MetricResolver.resolve(TodayMetric.Sleep, snapshot()) as MetricValue.Plain
+        assertEquals("7h 45m", sleep.figure)
+        assertEquals("sleep", sleep.caption)
+
+        val exercise = MetricResolver.resolve(TodayMetric.Exercise, snapshot()) as MetricValue.Plain
+        assertEquals("1h 08m", exercise.figure)
+        assertEquals("2 sessions", exercise.caption)
+    }
+
+    @Test
     fun remainingMetrics_noDataAndNoGoalBranches() {
         assertEquals(MetricValue.Plain("80 g", "today"), MetricResolver.resolve(TodayMetric.Protein, snapshot(proteinGoalGrams = 0.0)))
         assertEquals(MetricValue.Plain("1000 ml", "today"), MetricResolver.resolve(TodayMetric.Water, snapshot(waterGoalMl = 0.0)))
         assertEquals(MetricValue.NoData("No data"), MetricResolver.resolve(TodayMetric.BodyFat, snapshot(bodyFatPercent = null)))
         assertEquals(MetricValue.NoData("Not connected"), MetricResolver.resolve(TodayMetric.ActiveCalories, snapshot(activeCaloriesKcal = null)))
+        assertEquals(MetricValue.NoData("Not connected"), MetricResolver.resolve(TodayMetric.Sleep, snapshot(sleepMinutes = null)))
+        assertEquals(MetricValue.NoData("Not connected"), MetricResolver.resolve(TodayMetric.Exercise, snapshot(exerciseMinutes = null)))
         assertEquals(MetricValue.NoData("Not connected"), MetricResolver.resolve(TodayMetric.RestingHeartRate, snapshot(restingHeartRateBpm = null)))
         assertEquals(MetricValue.Plain("58 bpm", "resting"), MetricResolver.resolve(TodayMetric.RestingHeartRate, snapshot()))
     }

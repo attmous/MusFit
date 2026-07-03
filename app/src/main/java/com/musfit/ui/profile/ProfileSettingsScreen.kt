@@ -5,14 +5,17 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,7 +57,10 @@ fun ProfileSettingsScreen(
         contract = PermissionController.createRequestPermissionResultContract(),
     ) { viewModel.refreshStatus() }
 
-    LaunchedEffect(Unit) { viewModel.refreshStatus() }
+    LaunchedEffect(Unit) {
+        viewModel.refreshStatus()
+        viewModel.syncRecentHealthData()
+    }
 
     Scaffold(
         topBar = {
@@ -116,7 +122,15 @@ fun ProfileSettingsScreen(
                 enabled = state.canRequestPermissions,
             ) { Text("Enable Health Connect sync") }
             Button(onClick = viewModel::refreshStatus, modifier = Modifier.fillMaxWidth()) { Text("Refresh status") }
-            Button(onClick = viewModel::importToday, modifier = Modifier.fillMaxWidth()) { Text("Import today") }
+            Button(
+                onClick = viewModel::syncRecentHealthData,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.isHealthConnectSyncing,
+            ) {
+                Icon(Icons.Outlined.Sync, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (state.isHealthConnectSyncing) "Syncing Health Connect..." else "Sync Health Connect data")
+            }
             Button(onClick = viewModel::exportLatestWorkout, modifier = Modifier.fillMaxWidth()) {
                 Text("Export latest workout")
             }

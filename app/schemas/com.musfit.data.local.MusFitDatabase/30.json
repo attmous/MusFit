@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 28,
-    "identityHash": "09b1d1975301639eaff70e11601ed13b",
+    "version": 30,
+    "identityHash": "cc6cc0004e64c12aee929709fa56d84d",
     "entities": [
       {
         "tableName": "accounts",
@@ -1925,7 +1925,7 @@
       },
       {
         "tableName": "daily_health_summaries",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`dateEpochDay` INTEGER NOT NULL, `steps` INTEGER, `activeCaloriesKcal` REAL, `latestWeightKg` REAL, `restingHeartRateBpm` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`dateEpochDay`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`dateEpochDay` INTEGER NOT NULL, `steps` INTEGER, `activeCaloriesKcal` REAL, `totalCaloriesKcal` REAL, `distanceMeters` REAL, `sleepMinutes` INTEGER, `exerciseMinutes` INTEGER, `exerciseSessionCount` INTEGER, `latestWeightKg` REAL, `latestBodyFatPercent` REAL, `restingHeartRateBpm` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`dateEpochDay`))",
         "fields": [
           {
             "fieldPath": "dateEpochDay",
@@ -1944,8 +1944,38 @@
             "affinity": "REAL"
           },
           {
+            "fieldPath": "totalCaloriesKcal",
+            "columnName": "totalCaloriesKcal",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "distanceMeters",
+            "columnName": "distanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sleepMinutes",
+            "columnName": "sleepMinutes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "exerciseMinutes",
+            "columnName": "exerciseMinutes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "exerciseSessionCount",
+            "columnName": "exerciseSessionCount",
+            "affinity": "INTEGER"
+          },
+          {
             "fieldPath": "latestWeightKg",
             "columnName": "latestWeightKg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "latestBodyFatPercent",
+            "columnName": "latestBodyFatPercent",
             "affinity": "REAL"
           },
           {
@@ -2153,6 +2183,73 @@
         }
       },
       {
+        "tableName": "ai_coach_settings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`accountId` TEXT NOT NULL, `providerKind` TEXT NOT NULL, `baseUrl` TEXT NOT NULL, `modelName` TEXT NOT NULL, `localAgentKind` TEXT NOT NULL, `apiKeyStored` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`accountId`), FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerKind",
+            "columnName": "providerKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baseUrl",
+            "columnName": "baseUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelName",
+            "columnName": "modelName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localAgentKind",
+            "columnName": "localAgentKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "apiKeyStored",
+            "columnName": "apiKeyStored",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "accountId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "accounts",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "accountId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
         "tableName": "coach_messages",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `dayEpochDay` INTEGER NOT NULL, `ruleKey` TEXT NOT NULL, `category` TEXT NOT NULL, `title` TEXT NOT NULL, `body` TEXT NOT NULL, `actionType` TEXT, `actionData` TEXT, `firstSeenAtEpochMillis` INTEGER NOT NULL, `isRead` INTEGER NOT NULL, `isDismissed` INTEGER NOT NULL, `source` TEXT NOT NULL)",
         "fields": [
@@ -2283,7 +2380,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '09b1d1975301639eaff70e11601ed13b')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cc6cc0004e64c12aee929709fa56d84d')"
     ]
   }
 }

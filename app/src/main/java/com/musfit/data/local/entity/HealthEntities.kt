@@ -19,7 +19,13 @@ data class DailyHealthSummaryEntity(
     @PrimaryKey val dateEpochDay: Long,
     val steps: Long?,
     val activeCaloriesKcal: Double?,
+    val totalCaloriesKcal: Double?,
+    val distanceMeters: Double?,
+    val sleepMinutes: Long?,
+    val exerciseMinutes: Long?,
+    val exerciseSessionCount: Int?,
     val latestWeightKg: Double?,
+    val latestBodyFatPercent: Double?,
     val restingHeartRateBpm: Long?,
     val updatedAtEpochMillis: Long,
 )

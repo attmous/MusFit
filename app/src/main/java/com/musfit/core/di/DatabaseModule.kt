@@ -58,6 +58,7 @@ object DatabaseModule {
                 MIGRATION_26_27,
                 MIGRATION_27_28,
                 MIGRATION_28_29,
+                MIGRATION_29_30,
             )
             .build()
     }
@@ -772,6 +773,18 @@ object DatabaseModule {
                     )
                     """.trimIndent(),
                 )
+            }
+        }
+
+    internal val MIGRATION_29_30 =
+        object : Migration(29, 30) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN totalCaloriesKcal REAL")
+                db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN distanceMeters REAL")
+                db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN sleepMinutes INTEGER")
+                db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN exerciseMinutes INTEGER")
+                db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN exerciseSessionCount INTEGER")
+                db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN latestBodyFatPercent REAL")
             }
         }
 }

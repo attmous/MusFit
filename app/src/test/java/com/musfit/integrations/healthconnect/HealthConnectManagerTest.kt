@@ -3,18 +3,23 @@ package com.musfit.integrations.healthconnect
 import android.content.Context
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.BodyFatRecord
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HydrationRecord
 import androidx.health.connect.client.records.NutritionRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
+import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -42,8 +47,15 @@ class HealthConnectManagerTest {
             ImportedDailyHealthSummary(
                 steps = null,
                 activeCaloriesKcal = null,
+                totalCaloriesKcal = null,
+                distanceMeters = null,
+                sleepMinutes = null,
+                exerciseMinutes = null,
+                exerciseSessionCount = null,
                 latestWeightKg = null,
+                latestBodyFatPercent = null,
                 restingHeartRateBpm = null,
+                bodyMetrics = emptyList(),
             ),
             summary,
         )
@@ -56,6 +68,12 @@ class HealthConnectManagerTest {
             steps = 9_876L,
             activeCaloriesKcal = 321.5,
             latestWeightKg = 81.2,
+            totalCaloriesKcal = 2_350.0,
+            distanceMeters = 6_200.0,
+            sleepMinutes = 435L,
+            exerciseMinutes = 55L,
+            exerciseSessionCount = 2,
+            latestBodyFatPercent = 18.4,
             restingHeartRateBpm = 55L,
         )
         val factory = FakeClientFactory(client)
@@ -74,17 +92,47 @@ class HealthConnectManagerTest {
 
         assertEquals(9_876L, summary.steps)
         assertNull(summary.activeCaloriesKcal)
+        assertNull(summary.totalCaloriesKcal)
+        assertNull(summary.distanceMeters)
+        assertNull(summary.sleepMinutes)
+        assertNull(summary.exerciseMinutes)
+        assertNull(summary.exerciseSessionCount)
         assertNull(summary.latestWeightKg)
+        assertNull(summary.latestBodyFatPercent)
         assertEquals(55L, summary.restingHeartRateBpm)
         assertEquals(1, factory.createCount)
         assertEquals(1, client.stepsCalls)
         assertEquals(0, client.activeCaloriesCalls)
-        assertEquals(0, client.latestWeightCalls)
+        assertEquals(0, client.totalCaloriesCalls)
+        assertEquals(0, client.distanceCalls)
+        assertEquals(0, client.sleepCalls)
+        assertEquals(0, client.exerciseDurationCalls)
+        assertEquals(0, client.exerciseSessionCountCalls)
+        assertEquals(0, client.latestWeightMetricCalls)
+        assertEquals(0, client.latestBodyFatMetricCalls)
         assertEquals(1, client.restingHeartRateCalls)
     }
 
     @Test
-    fun requestablePermissions_usesRestingHeartRateReadPermission_notGenericHeartRate() = runTest {
+    fun readDailySummary_reportsZeroSteps_whenPermissionGrantedButNoStepRecordsExist() = runTest {
+        val client = FakeHealthConnectClientAdapter(steps = null)
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission()),
+            ),
+            factory = factory,
+        )
+
+        val summary = manager.readDailySummary(LocalDate.of(2026, 7, 3))
+
+        assertEquals(0L, summary.steps)
+        assertEquals(1, client.stepsCalls)
+    }
+
+    @Test
+    fun requestablePermissions_includeCoreFitnessReadsAndUseRestingHeartRate_notGenericHeartRate() = runTest {
         val manager = managerWith(
             status = HealthConnectStatus(HealthConnectAvailability.NotInstalled, emptySet()),
             factory = FakeClientFactory(),
@@ -92,8 +140,79 @@ class HealthConnectManagerTest {
 
         val permissions = manager.requestablePermissions()
 
+        assertEquals(true, readStepsPermission() in permissions)
+        assertEquals(true, readActiveCaloriesPermission() in permissions)
+        assertEquals(true, readTotalCaloriesPermission() in permissions)
+        assertEquals(true, readDistancePermission() in permissions)
+        assertEquals(true, readSleepPermission() in permissions)
+        assertEquals(true, readExercisePermission() in permissions)
+        assertEquals(true, readWeightPermission() in permissions)
+        assertEquals(true, readBodyFatPermission() in permissions)
         assertEquals(true, readRestingHeartRatePermission() in permissions)
+        assertEquals(true, writeExercisePermission() in permissions)
         assertEquals(false, readHeartRatePermission() in permissions)
+    }
+
+    @Test
+    fun readDailySummary_readsAllGrantedFitnessMetricsAndBodyMetrics() = runTest {
+        val client = FakeHealthConnectClientAdapter(
+            steps = 12_345L,
+            activeCaloriesKcal = 540.0,
+            totalCaloriesKcal = 2_410.0,
+            distanceMeters = 7_500.0,
+            sleepMinutes = 462L,
+            exerciseMinutes = 63L,
+            exerciseSessionCount = 2,
+            latestWeightKg = 80.4,
+            latestBodyFatPercent = 17.8,
+            restingHeartRateBpm = 52L,
+        )
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(
+                    readStepsPermission(),
+                    readActiveCaloriesPermission(),
+                    readTotalCaloriesPermission(),
+                    readDistancePermission(),
+                    readSleepPermission(),
+                    readExercisePermission(),
+                    readWeightPermission(),
+                    readBodyFatPermission(),
+                    readRestingHeartRatePermission(),
+                ),
+            ),
+            factory = factory,
+        )
+
+        val summary = manager.readDailySummary(LocalDate.of(2026, 6, 20))
+
+        assertEquals(12_345L, summary.steps)
+        assertEquals(540.0, summary.activeCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(2_410.0, summary.totalCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(7_500.0, summary.distanceMeters ?: 0.0, 0.01)
+        assertEquals(462L, summary.sleepMinutes)
+        assertEquals(63L, summary.exerciseMinutes)
+        assertEquals(2, summary.exerciseSessionCount)
+        assertEquals(80.4, summary.latestWeightKg ?: 0.0, 0.01)
+        assertEquals(17.8, summary.latestBodyFatPercent ?: 0.0, 0.01)
+        assertEquals(52L, summary.restingHeartRateBpm)
+        assertEquals(
+            listOf("weight", "body_fat"),
+            summary.bodyMetrics.map { it.type },
+        )
+        assertEquals(1, factory.createCount)
+        assertEquals(1, client.stepsCalls)
+        assertEquals(1, client.activeCaloriesCalls)
+        assertEquals(1, client.totalCaloriesCalls)
+        assertEquals(1, client.distanceCalls)
+        assertEquals(1, client.sleepCalls)
+        assertEquals(1, client.exerciseDurationCalls)
+        assertEquals(1, client.exerciseSessionCountCalls)
+        assertEquals(1, client.latestWeightMetricCalls)
+        assertEquals(1, client.latestBodyFatMetricCalls)
+        assertEquals(1, client.restingHeartRateCalls)
     }
 
     @Test
@@ -277,6 +396,22 @@ class HealthConnectManagerTest {
 
     private fun readStepsPermission() = HealthPermission.getReadPermission(StepsRecord::class)
 
+    private fun readActiveCaloriesPermission() =
+        HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
+
+    private fun readTotalCaloriesPermission() =
+        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
+
+    private fun readDistancePermission() = HealthPermission.getReadPermission(DistanceRecord::class)
+
+    private fun readSleepPermission() = HealthPermission.getReadPermission(SleepSessionRecord::class)
+
+    private fun readExercisePermission() = HealthPermission.getReadPermission(ExerciseSessionRecord::class)
+
+    private fun readWeightPermission() = HealthPermission.getReadPermission(WeightRecord::class)
+
+    private fun readBodyFatPermission() = HealthPermission.getReadPermission(BodyFatRecord::class)
+
     private fun readHeartRatePermission() = HealthPermission.getReadPermission(HeartRateRecord::class)
 
     private fun readRestingHeartRatePermission() =
@@ -306,7 +441,13 @@ class HealthConnectManagerTest {
     private class FakeHealthConnectClientAdapter(
         private val steps: Long? = null,
         private val activeCaloriesKcal: Double? = null,
+        private val totalCaloriesKcal: Double? = null,
+        private val distanceMeters: Double? = null,
+        private val sleepMinutes: Long? = null,
+        private val exerciseMinutes: Long? = null,
+        private val exerciseSessionCount: Int? = null,
         private val latestWeightKg: Double? = null,
+        private val latestBodyFatPercent: Double? = null,
         private val restingHeartRateBpm: Long? = null,
         private val insertedRecordId: String? = "exported-record-id",
     ) : HealthConnectClientAdapter {
@@ -314,7 +455,19 @@ class HealthConnectManagerTest {
             private set
         var activeCaloriesCalls: Int = 0
             private set
-        var latestWeightCalls: Int = 0
+        var totalCaloriesCalls: Int = 0
+            private set
+        var distanceCalls: Int = 0
+            private set
+        var sleepCalls: Int = 0
+            private set
+        var exerciseDurationCalls: Int = 0
+            private set
+        var exerciseSessionCountCalls: Int = 0
+            private set
+        var latestWeightMetricCalls: Int = 0
+            private set
+        var latestBodyFatMetricCalls: Int = 0
             private set
         var restingHeartRateCalls: Int = 0
             private set
@@ -339,9 +492,55 @@ class HealthConnectManagerTest {
             return activeCaloriesKcal
         }
 
-        override suspend fun readLatestWeight(range: HealthConnectTimeRange): Double? {
-            latestWeightCalls += 1
-            return latestWeightKg
+        override suspend fun aggregateTotalCalories(range: HealthConnectTimeRange): Double? {
+            totalCaloriesCalls += 1
+            return totalCaloriesKcal
+        }
+
+        override suspend fun aggregateDistanceMeters(range: HealthConnectTimeRange): Double? {
+            distanceCalls += 1
+            return distanceMeters
+        }
+
+        override suspend fun aggregateSleepMinutes(range: HealthConnectTimeRange): Long? {
+            sleepCalls += 1
+            return sleepMinutes
+        }
+
+        override suspend fun aggregateExerciseMinutes(range: HealthConnectTimeRange): Long? {
+            exerciseDurationCalls += 1
+            return exerciseMinutes
+        }
+
+        override suspend fun readExerciseSessionCount(range: HealthConnectTimeRange): Int? {
+            exerciseSessionCountCalls += 1
+            return exerciseSessionCount
+        }
+
+        override suspend fun readLatestWeightMetric(range: HealthConnectTimeRange): ImportedBodyMetric? {
+            latestWeightMetricCalls += 1
+            return latestWeightKg?.let {
+                ImportedBodyMetric(
+                    type = "weight",
+                    value = it,
+                    unit = "kg",
+                    measuredAtEpochMillis = 1_700_000_000_000L,
+                    externalId = "weight-record",
+                )
+            }
+        }
+
+        override suspend fun readLatestBodyFatMetric(range: HealthConnectTimeRange): ImportedBodyMetric? {
+            latestBodyFatMetricCalls += 1
+            return latestBodyFatPercent?.let {
+                ImportedBodyMetric(
+                    type = "body_fat",
+                    value = it,
+                    unit = "%",
+                    measuredAtEpochMillis = 1_700_000_100_000L,
+                    externalId = "body-fat-record",
+                )
+            }
         }
 
         override suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long? {

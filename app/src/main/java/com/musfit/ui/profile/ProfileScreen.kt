@@ -234,7 +234,7 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Connect Health Connect to mirror steps and heart rate",
+                "Connect Health Connect to mirror steps, sleep, workouts, weight, and heart rate",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
