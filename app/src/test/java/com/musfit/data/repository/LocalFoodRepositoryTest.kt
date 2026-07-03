@@ -1313,6 +1313,57 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun planRecipePortion_persistsPlannedRecipeNutritionWithoutLoggedTotals() = runTest {
+        val date = LocalDate.of(2026, 6, 22)
+        val chickenId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Chicken",
+                    brand = null,
+                    defaultServingGrams = 150.0,
+                    nutritionPer100g = nutrition(calories = 165.0, protein = 31.0, carbs = 0.0, fat = 3.6),
+                ),
+            )
+        val riceId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Rice",
+                    brand = null,
+                    defaultServingGrams = 100.0,
+                    nutritionPer100g = nutrition(calories = 180.0, protein = 6.0, carbs = 32.0, fat = 4.0),
+                ),
+            )
+        val recipeId =
+            repository.upsertRecipe(
+                RecipeUpsertInput(
+                    recipeId = null,
+                    name = "Chicken rice bowl",
+                    category = "Dinner",
+                    servingName = "Bowl",
+                    servingGrams = 350.0,
+                    ingredients = listOf(
+                        RecipeIngredientInput(chickenId, quantityGrams = 150.0),
+                        RecipeIngredientInput(riceId, quantityGrams = 200.0),
+                    ),
+                ),
+            )
+
+        repository.planRecipe(recipeId, mealType = "dinner", servings = 0.5, date = date)
+
+        val diary = repository.observeFoodDiary(date).first()
+        val dinner = diary.meals.single()
+
+        assertEquals(0.0, diary.totals.caloriesKcal, 0.01)
+        assertEquals(303.75, diary.plannedTotals.caloriesKcal, 0.01)
+        assertEquals(29.25, diary.plannedTotals.proteinGrams, 0.01)
+        assertEquals(FoodDiaryEntryStatus.Planned, dinner.entries.single().status)
+        assertEquals("Chicken rice bowl", dinner.entries.single().name)
+        assertEquals(175.0, dinner.entries.single().quantityGrams, 0.01)
+    }
+
+    @Test
     fun upsertRecipeWithCookedYieldAndServingUnits_calculatesPerServingNutritionAndLogsFraction() = runTest {
         val date = LocalDate.of(2026, 6, 21)
         val chickenId =

@@ -258,6 +258,11 @@ fun FoodScreen(
                         onTodayClick = viewModel::goToToday,
                     )
 
+                    FoodPrimaryActionRow(
+                        recipeCount = state.recipes.size,
+                        onRecipeClick = viewModel::openRecipeBrowser,
+                    )
+
                     MacroProgressRow(state.macroProgress)
 
                     if (planningPresentation.showStatusCard) {
@@ -607,6 +612,33 @@ fun FoodScreen(
                     )
             }
         }
+    }
+}
+
+@Composable
+private fun FoodPrimaryActionRow(
+    recipeCount: Int,
+    onRecipeClick: () -> Unit,
+) {
+    Button(
+        onClick = onRecipeClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MusFitTheme.shapes.small,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MusFitTheme.colors.brand,
+            contentColor = MusFitTheme.colors.onAccent,
+        ),
+    ) {
+        Icon(Icons.Outlined.Restaurant, contentDescription = null)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("Browse recipes", maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "$recipeCount saved",
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

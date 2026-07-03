@@ -3513,6 +3513,49 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun recipeBrowserPlansSavedRecipeForChosenDayAndMeal() = runTest {
+        val targetDate = LocalDate.now().plusDays(1)
+        val repository =
+            FakeFoodRepository(
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Dinner",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 150.0)),
+                        nutritionPerServing = FoodNutrition(250.0, 35.0, 20.0, 5.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeBrowser()
+        viewModel.goToNextRecipeBrowserDay()
+        viewModel.onRecipeBrowserMealChanged("dinner")
+        viewModel.onRecipeServingsToLogChanged("1.5")
+        viewModel.planRecipe("recipe-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodSheetMode.RecipeBrowser, viewModel.state.value.sheetMode)
+        assertEquals(targetDate, viewModel.state.value.recipeBrowserDate)
+        assertEquals("dinner", viewModel.state.value.recipeBrowserMealType)
+        assertEquals(
+            PlanRecipeCall(
+                recipeId = "recipe-1",
+                mealType = "dinner",
+                servings = 1.5,
+                date = targetDate,
+            ),
+            repository.planRecipeCall,
+        )
+        assertEquals("Planned recipe", viewModel.state.value.message)
+    }
+
+    @Test
     fun diaryEntryCanBeCopiedToAnotherMealAndDate() = runTest {
         val repository =
             FakeFoodRepository(
@@ -3973,6 +4016,13 @@ class FoodViewModelTest {
         val date: LocalDate,
     )
 
+    private data class PlanRecipeCall(
+        val recipeId: String,
+        val mealType: String,
+        val servings: Double,
+        val date: LocalDate,
+    )
+
     private data class DuplicateRecipeCall(
         val recipeId: String,
         val name: String,
@@ -4256,6 +4306,7 @@ class FoodViewModelTest {
         var favoriteTemplateToggle: Pair<String, Boolean>? = null
         var recipeUpsert: RecipeUpsertInput? = null
         var logRecipeCall: LogRecipeCall? = null
+        var planRecipeCall: PlanRecipeCall? = null
         var duplicateRecipeCall: DuplicateRecipeCall? = null
         var deletedRecipeId: String? = null
         var favoriteRecipeToggle: Pair<String, Boolean>? = null
@@ -4515,6 +4566,11 @@ class FoodViewModelTest {
 
         override suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String {
             logRecipeCall = LogRecipeCall(recipeId, mealType, servings, date)
+            return "meal-item-1"
+        }
+
+        override suspend fun planRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String {
+            planRecipeCall = PlanRecipeCall(recipeId, mealType, servings, date)
             return "meal-item-1"
         }
 

@@ -194,6 +194,7 @@ Food uses state-driven modes instead of separate nav routes for most Food surfac
 | `SavedFoodEditor` | Full saved-food editor. |
 | `NutritionLabelScan` | OCR shell and review-before-save fields. |
 | `GoalEditor` | Food calorie/macro/detail goal editor. |
+| `RecipeBrowser` | Recipe discovery and saved-recipe planning to a selected date and meal. |
 | `RecipeEditor` | Recipe create/edit/log support. |
 | `MealTemplates` | Meal template list, edit, duplicate, favorite, log. |
 | `MealSettings` | Custom meal definitions and meal times. |
@@ -324,6 +325,7 @@ Saved food and diary item logging:
 
 Recipes and templates:
 
+- `openRecipeBrowser()`, `onRecipeBrowserMealChanged(value)`, `goToPreviousRecipeBrowserDay()`, `goToNextRecipeBrowserDay()`, `goToTodayRecipeBrowserDay()`, `planRecipe(recipeId)`
 - `openRecipeEditor(recipeId)`, `saveRecipe()`, `deleteRecipe(recipeId)`, `duplicateRecipe(recipeId)`, `logRecipe(recipeId)`, `toggleFavoriteRecipe(recipeId, isFavorite)`
 - Recipe field and ingredient handlers.
 - `openMealTemplates()`, `openMealTemplateEditor(templateId)`, `saveMealTemplateEdits()`, `duplicateMealTemplate(templateId)`, `deleteMealTemplate(templateId)`, `logMealTemplate(templateId)`, `toggleFavoriteMealTemplate(templateId, isFavorite)`

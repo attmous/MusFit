@@ -728,6 +728,8 @@ data class FoodUiState(
     val mealTemplates: List<MealTemplateUiState> = emptyList(),
     val recipes: List<RecipeUiState> = emptyList(),
     val recipeDiscovery: RecipeDiscoveryUiState = RecipeDiscoveryUiState(),
+    val recipeBrowserDate: LocalDate = LocalDate.now(),
+    val recipeBrowserMealType: String = "breakfast",
     val quickCaloriePresets: List<QuickCaloriePresetUiState> = emptyList(),
     val onlineFoodResults: List<OnlineFoodResultUiState> = emptyList(),
     val isSearchingFoods: Boolean = false,
@@ -1534,6 +1536,35 @@ class FoodViewModel @Inject constructor(
                 message = null,
             )
         }
+    }
+
+    fun openRecipeBrowser() {
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.RecipeBrowser,
+                recipeBrowserDate = it.selectedDate,
+                recipeBrowserMealType = it.mealType.normalizedMealType(),
+                recipeEditor = null,
+                message = null,
+            )
+        }
+    }
+
+    fun onRecipeBrowserMealChanged(value: String) {
+        mutableState.update { it.copy(recipeBrowserMealType = value.normalizedMealType(), message = null) }
+    }
+
+    fun goToPreviousRecipeBrowserDay() {
+        mutableState.update { it.copy(recipeBrowserDate = it.recipeBrowserDate.minusDays(1), message = null) }
+    }
+
+    fun goToNextRecipeBrowserDay() {
+        mutableState.update { it.copy(recipeBrowserDate = it.recipeBrowserDate.plusDays(1), message = null) }
+    }
+
+    fun goToTodayRecipeBrowserDay() {
+        mutableState.update { it.copy(recipeBrowserDate = LocalDate.now(), message = null) }
     }
 
     fun onShoppingStartDateChanged(value: String) {
@@ -4066,6 +4097,46 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         message = error.message ?: "Failed to log recipe",
+                    )
+                }
+            }
+        }
+    }
+
+    fun planRecipe(recipeId: String) {
+        val currentState = state.value
+        val servings = currentState.recipeServingsToLog.parsePositiveNumberOrNull()
+        if (servings == null) {
+            mutableState.update { it.copy(message = "Enter recipe servings") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.planRecipe(
+                    recipeId = recipeId,
+                    mealType = currentState.recipeBrowserMealType,
+                    servings = servings,
+                    date = currentState.recipeBrowserDate,
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = true,
+                        sheetMode = FoodSheetMode.RecipeBrowser,
+                        message = "Planned recipe",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to plan recipe",
                     )
                 }
             }

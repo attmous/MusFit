@@ -512,6 +512,8 @@ interface FoodRepository {
 
     suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String = ""
 
+    suspend fun planRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String = ""
+
     suspend fun duplicateRecipe(recipeId: String, name: String): String = ""
 
     suspend fun deleteRecipe(recipeId: String) = Unit
@@ -1447,7 +1449,31 @@ class LocalFoodRepository @Inject constructor(
         }
     }
 
-    override suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String {
+    override suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String =
+        insertRecipeMealItem(
+            recipeId = recipeId,
+            mealType = mealType,
+            servings = servings,
+            date = date,
+            status = FoodDiaryEntryStatus.Logged,
+        )
+
+    override suspend fun planRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String =
+        insertRecipeMealItem(
+            recipeId = recipeId,
+            mealType = mealType,
+            servings = servings,
+            date = date,
+            status = FoodDiaryEntryStatus.Planned,
+        )
+
+    private suspend fun insertRecipeMealItem(
+        recipeId: String,
+        mealType: String,
+        servings: Double,
+        date: LocalDate,
+        status: FoodDiaryEntryStatus,
+    ): String {
         require(recipeId.isNotBlank()) { "Recipe id is required" }
         require(servings.isFinite() && servings > 0.0) { "Servings must be positive" }
         return database.withTransaction {
@@ -1492,6 +1518,7 @@ class LocalFoodRepository @Inject constructor(
                 quantityGrams = recipe.servingGrams * servings,
                 date = date,
                 now = now,
+                status = status,
             )
         }
     }
