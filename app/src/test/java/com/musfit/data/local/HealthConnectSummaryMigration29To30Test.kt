@@ -15,7 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class AiCoachMigration28To29Test {
+class HealthConnectSummaryMigration29To30Test {
     private lateinit var context: Context
 
     @Before
@@ -30,12 +30,12 @@ class AiCoachMigration28To29Test {
     }
 
     @Test
-    fun migration28To29_createsAiCoachSettingsTable() {
-        createDatabaseFromExportedSchema(version = 28)
+    fun migration29To30_addsExpandedDailyHealthSummaryColumns() {
+        createDatabaseFromExportedSchema(version = 29)
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_28_29, DatabaseModule.MIGRATION_29_30)
+                .addMigrations(DatabaseModule.MIGRATION_29_30)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -50,12 +50,12 @@ class AiCoachMigration28To29Test {
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "accountId"))
-            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "providerKind"))
-            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "baseUrl"))
-            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "modelName"))
-            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "localAgentKind"))
-            assertTrue(tableHasColumn(migrated, "ai_coach_settings", "apiKeyStored"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "totalCaloriesKcal"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "distanceMeters"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "sleepMinutes"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "exerciseMinutes"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "exerciseSessionCount"))
+            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "latestBodyFatPercent"))
         } finally {
             migrated.close()
         }
@@ -109,6 +109,6 @@ class AiCoachMigration28To29Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "ai-coach-28-29"
+        const val TEST_DATABASE_NAME = "health-connect-summary-29-30"
     }
 }

@@ -70,6 +70,7 @@ data class CarouselUiState(val pages: List<CarouselPageUiState> = emptyList())
 data class TodayUiState(
     val dateLabel: String = "",
     val carousel: CarouselUiState = CarouselUiState(),
+    val isRefreshing: Boolean = false,
     val isDashboardEditorVisible: Boolean = false,
     val editPins: List<TodayMetric> = emptyList(),
     val stepGoalInput: String = "",
@@ -234,7 +235,16 @@ class TodayViewModel internal constructor(
         isResumed = true
         // Re-anchor date-scoped coach flows — a cached process crossing midnight must
         // generate the new day's messages from the new day's data, never stale flows.
-        activeDate.value = dateProvider()
+        val today = dateProvider()
+        activeDate.value = today
+        refreshHealthConnectData(today)
+        syncCoachFeed()
+    }
+
+    fun refreshTodayData() {
+        val today = dateProvider()
+        activeDate.value = today
+        refreshHealthConnectData(today, showLoading = true)
         syncCoachFeed()
     }
 
@@ -258,6 +268,14 @@ class TodayViewModel internal constructor(
             val today = dateProvider()
             if (anchor != today) return@launch
             coachRepository.syncToday(today, CoachEngine.messages(input))
+        }
+    }
+
+    private fun refreshHealthConnectData(date: LocalDate, showLoading: Boolean = false) {
+        viewModelScope.launch {
+            if (showLoading) mutableState.update { it.copy(isRefreshing = true) }
+            runCatching { healthRepository.refreshRecentData(date) }
+            if (showLoading) mutableState.update { it.copy(isRefreshing = false) }
         }
     }
 
@@ -452,6 +470,9 @@ private fun buildCarousel(
         sessionsDone = countSessionsInWeek(history.map { it.startedAtEpochMillis }, weekStartMillis),
         sessionTarget = userGoals.weeklySessionTarget,
         activeCaloriesKcal = health?.activeCaloriesKcal,
+        sleepMinutes = health?.sleepMinutes,
+        exerciseMinutes = health?.exerciseMinutes,
+        exerciseSessionCount = health?.exerciseSessionCount,
         restingHeartRateBpm = health?.restingHeartRateBpm,
         loggingStreakDays = LoggingStreakCalculator.streakDays(food.loggedDays, date.toEpochDay()),
     )

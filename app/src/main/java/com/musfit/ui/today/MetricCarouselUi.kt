@@ -232,9 +232,9 @@ internal fun metricDestination(metric: TodayMetric): AppDestination = when (metr
     TodayMetric.Calories, TodayMetric.Protein, TodayMetric.Carbs, TodayMetric.Fat,
     TodayMetric.Water, TodayMetric.CalorieBalance, TodayMetric.LoggingStreak,
     -> AppDestination.Food
-    TodayMetric.Sessions -> AppDestination.Training
+    TodayMetric.Sessions, TodayMetric.Exercise -> AppDestination.Training
     TodayMetric.Steps, TodayMetric.Weight, TodayMetric.BodyFat,
-    TodayMetric.ActiveCalories, TodayMetric.RestingHeartRate,
+    TodayMetric.Sleep, TodayMetric.ActiveCalories, TodayMetric.RestingHeartRate,
     -> AppDestination.Profile
 }
 

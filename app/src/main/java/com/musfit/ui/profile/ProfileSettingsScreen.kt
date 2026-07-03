@@ -89,7 +89,10 @@ fun ProfileSettingsScreen(
         githubBusy = state.githubSignInInProgress,
     )
 
-    LaunchedEffect(Unit) { viewModel.refreshStatus() }
+    LaunchedEffect(Unit) {
+        viewModel.refreshStatus()
+        viewModel.syncRecentHealthData()
+    }
 
     Scaffold(
         containerColor = MusFitTheme.colors.background,
@@ -141,7 +144,7 @@ fun ProfileSettingsScreen(
                     if (state.canRequestPermissions) permissionLauncher.launch(state.requestablePermissions)
                 },
                 onRefresh = viewModel::refreshStatus,
-                onImport = viewModel::importToday,
+                onSync = viewModel::syncRecentHealthData,
                 onExport = viewModel::exportLatestWorkout,
             )
 
@@ -358,7 +361,7 @@ private fun HealthConnectSettingsCard(
     accent: TabAccent,
     onRequestPermissions: () -> Unit,
     onRefresh: () -> Unit,
-    onImport: () -> Unit,
+    onSync: () -> Unit,
     onExport: () -> Unit,
 ) {
     SettingsCard {
@@ -409,14 +412,18 @@ private fun HealthConnectSettingsCard(
                 Text("Refresh", modifier = Modifier.padding(start = 6.dp))
             }
             OutlinedButton(
-                onClick = onImport,
+                onClick = onSync,
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 44.dp),
+                enabled = !state.isHealthConnectSyncing,
                 shape = MaterialTheme.shapes.medium,
             ) {
                 Icon(Icons.Outlined.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("Import", modifier = Modifier.padding(start = 6.dp))
+                Text(
+                    if (state.isHealthConnectSyncing) "Syncing" else "Sync",
+                    modifier = Modifier.padding(start = 6.dp),
+                )
             }
         }
         OutlinedButton(

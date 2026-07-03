@@ -14,6 +14,7 @@ import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.GoalsRepository
+import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.UserProfile
@@ -47,17 +48,20 @@ import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
 import com.musfit.ui.AppDestination
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -100,6 +104,64 @@ class TodayViewModelTest {
 
         assertTrue(foodRepository.observedDates.isNotEmpty() && foodRepository.observedDates.all { it == targetDate })
         assertTrue(healthRepository.observedDates.isNotEmpty() && healthRepository.observedDates.all { it == targetDate })
+    }
+
+    @Test
+    fun onScreenResumed_refreshesRecentHealthConnectDataForActiveDate() = runTest {
+        val date = LocalDate.of(2026, 7, 2)
+        val healthRepository = FakeHealthRepository(date)
+        val viewModel = todayViewModel(
+            coachRepository = FakeCoachRepository(),
+            date = date,
+            healthRepository = healthRepository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(date), healthRepository.refreshDates)
+    }
+
+    @Test
+    fun refreshTodayData_setsRefreshingWhileRecentHealthConnectDataLoads() = runTest {
+        val date = LocalDate.of(2026, 7, 3)
+        val healthRepository = FakeHealthRepository(date).apply {
+            refreshGate = CompletableDeferred()
+        }
+        val viewModel = todayViewModel(
+            coachRepository = FakeCoachRepository(),
+            date = date,
+            healthRepository = healthRepository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.refreshTodayData()
+        runCurrent()
+
+        assertTrue(viewModel.state.value.isRefreshing)
+        assertEquals(listOf(date), healthRepository.refreshDates)
+
+        healthRepository.refreshGate?.complete(Unit)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.isRefreshing)
+    }
+
+    @Test
+    fun todayRefreshIndicatorState_tracksPullProgressWhilePulling() {
+        val indicator = todayRefreshIndicatorUiState(isRefreshing = false, pullDistanceFraction = 0.42f)
+
+        assertTrue(indicator.isVisible)
+        assertEquals(0.42f, indicator.progress ?: -1f, 0.001f)
+    }
+
+    @Test
+    fun todayRefreshIndicatorState_showsIndeterminateProgressWhileRefreshing() {
+        val indicator = todayRefreshIndicatorUiState(isRefreshing = true, pullDistanceFraction = 0.42f)
+
+        assertTrue(indicator.isVisible)
+        assertNull(indicator.progress)
     }
 
     @Test
@@ -351,7 +413,9 @@ class TodayViewModelTest {
         assertEquals(AppDestination.Food, metricDestination(TodayMetric.Calories))
         assertEquals(AppDestination.Food, metricDestination(TodayMetric.Water))
         assertEquals(AppDestination.Training, metricDestination(TodayMetric.Sessions))
+        assertEquals(AppDestination.Training, metricDestination(TodayMetric.Exercise))
         assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Steps))
+        assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Sleep))
         assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Weight))
         assertEquals(AppDestination.Profile, metricDestination(TodayMetric.RestingHeartRate))
     }
@@ -592,7 +656,9 @@ class TodayViewModelTest {
         private val date: LocalDate,
     ) : HealthRepository {
         val observedDates = mutableListOf<LocalDate>()
+        val refreshDates = mutableListOf<LocalDate>()
         val weightSeries = MutableStateFlow<List<BodyMetricEntity>>(emptyList())
+        var refreshGate: CompletableDeferred<Unit>? = null
 
         override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = weightSeries
 
@@ -608,7 +674,13 @@ class TodayViewModelTest {
                     dateEpochDay = this.date.toEpochDay(),
                     steps = 8200L,
                     activeCaloriesKcal = 420.0,
+                    totalCaloriesKcal = 2_300.0,
+                    distanceMeters = 5_000.0,
+                    sleepMinutes = 450L,
+                    exerciseMinutes = 40L,
+                    exerciseSessionCount = 1,
                     latestWeightKg = 82.4,
+                    latestBodyFatPercent = null,
                     restingHeartRateBpm = 58,
                     updatedAtEpochMillis = 1L,
                 ),
@@ -616,7 +688,24 @@ class TodayViewModelTest {
         }
 
         override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary(8200L, 420.0, 82.4, 58)
+            ImportedDailyHealthSummary(
+                steps = 8200L,
+                activeCaloriesKcal = 420.0,
+                totalCaloriesKcal = 2_300.0,
+                distanceMeters = 5_000.0,
+                sleepMinutes = 450L,
+                exerciseMinutes = 40L,
+                exerciseSessionCount = 1,
+                latestWeightKg = 82.4,
+                latestBodyFatPercent = null,
+                restingHeartRateBpm = 58,
+            )
+
+        override suspend fun refreshRecentData(endDate: LocalDate, days: Int): HealthConnectRefreshResult {
+            refreshDates += endDate
+            refreshGate?.await()
+            return HealthConnectRefreshResult(importedDayCount = days, bodyMetricCount = 0)
+        }
 
         override suspend fun exportLatestWorkout(): String? = null
     }

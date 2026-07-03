@@ -9,7 +9,6 @@ import java.io.File
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -41,7 +40,7 @@ class LegacyVersion28RepairTest {
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_28_29)
+                .addMigrations(DatabaseModule.MIGRATION_28_29, DatabaseModule.MIGRATION_29_30)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -58,7 +57,8 @@ class LegacyVersion28RepairTest {
         try {
             assertEquals(CURRENT_DATABASE_IDENTITY_HASH, database.readRoomIdentityHash())
             assertTrue(tableColumns(database, "accounts").containsAll(listOf("authProvider", "avatarUrl")))
-            assertEquals(CURRENT_DAILY_HEALTH_SUMMARY_COLUMNS, tableColumns(database, "daily_health_summaries"))
+            val summaryColumns = tableColumns(database, "daily_health_summaries")
+            assertTrue(summaryColumns.containsAll(CURRENT_DAILY_HEALTH_SUMMARY_COLUMNS))
             assertTrue(tableColumns(database, "ai_coach_settings").contains("accountId"))
 
             database.rawQuery(
@@ -84,7 +84,7 @@ class LegacyVersion28RepairTest {
                 assertEquals(82.5, cursor.getDouble(2), 0.001)
                 assertEquals(58, cursor.getInt(3))
             }
-            assertFalse(tableColumns(database, "daily_health_summaries").contains("totalCaloriesKcal"))
+            assertTrue(summaryColumns.contains("totalCaloriesKcal"))
         } finally {
             database.close()
         }
@@ -234,13 +234,19 @@ class LegacyVersion28RepairTest {
     private companion object {
         const val TEST_DATABASE_NAME = "legacy-v28-repair"
         const val LEGACY_HEALTH_SYNC_V28_IDENTITY_HASH = "71b5b71f394a9a0bedf45d1a67317f04"
-        const val CURRENT_DATABASE_IDENTITY_HASH = "31c781c211c06874e3ac3e2a9209ea79"
+        const val CURRENT_DATABASE_IDENTITY_HASH = "cc6cc0004e64c12aee929709fa56d84d"
 
         val CURRENT_DAILY_HEALTH_SUMMARY_COLUMNS = listOf(
             "dateEpochDay",
             "steps",
             "activeCaloriesKcal",
+            "totalCaloriesKcal",
+            "distanceMeters",
+            "sleepMinutes",
+            "exerciseMinutes",
+            "exerciseSessionCount",
             "latestWeightKg",
+            "latestBodyFatPercent",
             "restingHeartRateBpm",
             "updatedAtEpochMillis",
         )

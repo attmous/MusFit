@@ -7,12 +7,18 @@ import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.HealthConnectSyncStateEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.integrations.healthconnect.HealthConnectGateway
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import java.time.LocalDate
 import javax.inject.Inject
+
+data class HealthConnectRefreshResult(
+    val importedDayCount: Int,
+    val bodyMetricCount: Int,
+)
 
 interface HealthRepository {
     suspend fun status(): HealthConnectStatus
@@ -22,6 +28,9 @@ interface HealthRepository {
     fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?>
 
     suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary
+
+    suspend fun refreshRecentData(endDate: LocalDate, days: Int = 7): HealthConnectRefreshResult =
+        HealthConnectRefreshResult(importedDayCount = 0, bodyMetricCount = 0)
 
     suspend fun exportLatestWorkout(): String?
 
@@ -64,22 +73,44 @@ class LocalHealthRepository @Inject constructor(
     override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary {
         val summary = gateway.readDailySummary(date)
         val now = clock()
+        val bodyMetrics = summary.bodyMetrics
         healthDao.upsertDailySummary(
             DailyHealthSummaryEntity(
                 dateEpochDay = date.toEpochDay(),
                 steps = summary.steps,
                 activeCaloriesKcal = summary.activeCaloriesKcal,
+                totalCaloriesKcal = summary.totalCaloriesKcal,
+                distanceMeters = summary.distanceMeters,
+                sleepMinutes = summary.sleepMinutes,
+                exerciseMinutes = summary.exerciseMinutes,
+                exerciseSessionCount = summary.exerciseSessionCount,
                 latestWeightKg = summary.latestWeightKg,
+                latestBodyFatPercent = summary.latestBodyFatPercent,
                 restingHeartRateBpm = summary.restingHeartRateBpm,
                 updatedAtEpochMillis = now,
             ),
         )
+        bodyMetrics.forEach { metric ->
+            healthDao.upsertBodyMetric(metric.toBodyMetricEntity())
+        }
         upsertSyncState(
             lastImportAtEpochMillis = now,
             lastExportAtEpochMillis = null,
             lastFailureMessage = null,
         )
         return summary
+    }
+
+    override suspend fun refreshRecentData(endDate: LocalDate, days: Int): HealthConnectRefreshResult {
+        val safeDays = days.coerceAtLeast(1)
+        var bodyMetricCount = 0
+        for (offset in safeDays - 1 downTo 0) {
+            bodyMetricCount += importDailySummary(endDate.minusDays(offset.toLong())).bodyMetrics.size
+        }
+        return HealthConnectRefreshResult(
+            importedDayCount = safeDays,
+            bodyMetricCount = bodyMetricCount,
+        )
     }
 
     override suspend fun exportLatestWorkout(): String? {
@@ -130,4 +161,17 @@ class LocalHealthRepository @Inject constructor(
         const val SYNC_STATE_KEY = "health_connect"
         const val WEIGHT_METRIC_TYPE = "weight"
     }
+}
+
+private fun ImportedBodyMetric.toBodyMetricEntity(): BodyMetricEntity {
+    val externalToken = externalId?.takeIf { it.isNotBlank() } ?: measuredAtEpochMillis.toString()
+    return BodyMetricEntity(
+        id = "health-connect-$type-$externalToken",
+        type = type,
+        value = value,
+        unit = unit,
+        measuredAtEpochMillis = measuredAtEpochMillis,
+        source = "health_connect",
+        externalId = externalId,
+    )
 }

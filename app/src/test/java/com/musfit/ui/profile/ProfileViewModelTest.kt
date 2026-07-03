@@ -565,7 +565,7 @@ class ProfileViewModelTest {
         override suspend fun requestablePermissions(): Set<String> = setOf("steps")
         override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
         override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary(null, null, null, null)
+            ImportedDailyHealthSummary()
         override suspend fun exportLatestWorkout(): String? = null
     }
 
@@ -576,7 +576,7 @@ class ProfileViewModelTest {
         override suspend fun requestablePermissions(): Set<String> = emptySet()
         override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
         override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary(null, null, null, null)
+            ImportedDailyHealthSummary()
         override suspend fun exportLatestWorkout(): String? = null
     }
 
@@ -588,7 +588,7 @@ class ProfileViewModelTest {
         override suspend fun requestablePermissions(): Set<String> = setOf("steps")
         override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
         override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary(null, null, null, null)
+            ImportedDailyHealthSummary()
         override suspend fun exportLatestWorkout(): String? = null
     }
 

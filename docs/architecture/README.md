@@ -18,7 +18,7 @@ Top-level navigation is a bottom bar with four destinations:
 | Today | `today` | Daily dashboard, rings, coaching cues, weekly goals, and shortcuts into feature areas. |
 | Food | `food` | Food diary, add food flow, saved foods, barcode lookup, nutrition goals, water, templates, recipes, shopping list, and food Health Connect sync. |
 | Training | `training` | Routines, exercise library, active workouts, rest timer, supersets, PR/plate hints, workout history/recaps, progress, and quick set logging. |
-| Health | `health` | Health Connect status, permission entrypoint, daily health import, and workout export. |
+| Health | `health` | Health Connect status, permission entrypoint, recent health import, and workout export. |
 
 The MVP is local-first. It has a local account ownership boundary with optional Google/GitHub identity sign-in, but no cloud sync, analytics, subscription layer, social features, or wearable cloud API integration.
 
@@ -187,7 +187,7 @@ Health Connect is behind `HealthConnectGateway`.
 The app currently supports:
 
 - Status and permission availability checks.
-- Reading daily steps, weight, active calories, and resting heart rate.
+- Reading recent steps, calories, distance, sleep, exercise sessions, weight, body fat, and resting heart rate.
 - Exporting completed workouts.
 - Food and hydration export boundary through `HealthConnectFoodExportPayload`.
 
