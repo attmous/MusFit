@@ -95,9 +95,9 @@ fun AddFoodScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MusFitTheme.colors.onSurface)
                     }
-                    val mealCalories = state.mealSections
-                        .firstOrNull { it.id == state.mealType }
-                        ?.caloriesKcal ?: 0.0
+                    val meal = state.mealSections.firstOrNull { it.id == state.mealType }
+                    val mealCalories = meal?.caloriesKcal ?: 0.0
+                    val mealPlannedCalories = meal?.plannedCaloriesKcal ?: 0.0
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = state.selectedMealTitle,
@@ -106,7 +106,13 @@ fun AddFoodScreen(
                             color = MusFitTheme.colors.onSurface,
                         )
                         Text(
-                            text = if (mealCalories > 0.0) {
+                            text = if (state.isPlanningMode) {
+                                if (mealPlannedCalories > 0.0) {
+                                    "${mealPlannedCalories.roundToInt()} kcal planned"
+                                } else {
+                                    "Planning for this meal"
+                                }
+                            } else if (mealCalories > 0.0) {
                                 "${mealCalories.roundToInt()} kcal logged"
                             } else {
                                 "Nothing logged yet"
@@ -195,32 +201,33 @@ fun AddFoodScreen(
                         if (query.isBlank()) {
                             if (state.sameAsYesterday.isNotEmpty()) {
                                 SectionLabel("SAME AS YESTERDAY?")
-                                state.sameAsYesterday.forEach { AddFoodRow(it, onFoodClick) }
+                                state.sameAsYesterday.forEach { AddFoodRow(it, state.foodEntryActionVerb, onFoodClick) }
                             }
                             state.recentFoods.firstOrNull()?.let { last ->
                                 SectionLabel("LAST TRACKED")
-                                AddFoodRow(last, onFoodClick)
+                                AddFoodRow(last, state.foodEntryActionVerb, onFoodClick)
                             }
                             if (state.recentFoods.size > 1) {
                                 SectionLabel("ALL RECENTS")
-                                state.recentFoods.drop(1).forEach { AddFoodRow(it, onFoodClick) }
+                                state.recentFoods.drop(1).forEach { AddFoodRow(it, state.foodEntryActionVerb, onFoodClick) }
                             }
                             if (state.recentFoods.isEmpty() && state.sameAsYesterday.isEmpty()) {
-                                EmptyHint("Search or scan a barcode to log your first food.")
+                                EmptyHint("Search or scan a barcode to ${state.foodEntryActionVerb.lowercase()} your first food.")
                             }
                         } else {
                             if (state.visibleSavedFoods.isEmpty()) {
                                 EmptyHint("No saved food matches \"$query\". Scan a barcode or create it.")
                             }
-                            state.visibleSavedFoods.forEach { AddFoodRow(it, onFoodClick) }
+                            state.visibleSavedFoods.forEach { AddFoodRow(it, state.foodEntryActionVerb, onFoodClick) }
                         }
 
                     AddTab.Favorites -> {
                         val favorites = state.savedFoods.filter { it.isFavorite }
                         if (favorites.isEmpty()) {
-                            EmptyHint("Foods you favorite show up here for one-tap logging.")
+                            val actionNoun = if (state.isPlanningMode) "planning" else "logging"
+                            EmptyHint("Foods you favorite show up here for one-tap $actionNoun.")
                         }
-                        favorites.forEach { AddFoodRow(it, onFoodClick) }
+                        favorites.forEach { AddFoodRow(it, state.foodEntryActionVerb, onFoodClick) }
                     }
 
                     AddTab.Create -> {
@@ -341,7 +348,11 @@ private fun EmptyHint(text: String) {
 }
 
 @Composable
-private fun AddFoodRow(food: SavedFoodUiState, onFoodClick: (String) -> Unit) {
+private fun AddFoodRow(
+    food: SavedFoodUiState,
+    actionVerb: String,
+    onFoodClick: (String) -> Unit,
+) {
     Surface(
         onClick = { onFoodClick(food.id) },
         color = MusFitTheme.colors.surface,
@@ -378,7 +389,7 @@ private fun AddFoodRow(food: SavedFoodUiState, onFoodClick: (String) -> Unit) {
                     .background(MusFitTheme.colors.positiveContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add ${food.name}", tint = MusFitTheme.colors.brand)
+                Icon(Icons.Filled.Add, contentDescription = "$actionVerb ${food.name}", tint = MusFitTheme.colors.brand)
             }
         }
     }

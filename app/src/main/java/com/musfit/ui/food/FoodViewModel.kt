@@ -101,6 +101,7 @@ enum class FoodSheetMode {
     BarcodeComparison,
     FastingTimer,
     GoalEditor,
+    RecipeBrowser,
     RecipeEditor,
     MealTemplates,
     MealSettings,
@@ -1767,6 +1768,17 @@ class FoodViewModel @Inject constructor(
                     message = null,
                 )
             }
+        }
+    }
+
+    fun openRecipeBrowser() {
+        mutableState.update {
+            it.copy(
+                isAddPanelVisible = true,
+                sheetMode = FoodSheetMode.RecipeBrowser,
+                recipeEditor = null,
+                message = null,
+            )
         }
     }
 
