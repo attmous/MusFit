@@ -3556,6 +3556,88 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun recipeBrowserLogsSavedRecipeForChosenDayAndMeal() = runTest {
+        val targetDate = LocalDate.now().plusDays(1)
+        val repository =
+            FakeFoodRepository(
+                recipes = listOf(
+                    Recipe(
+                        id = "recipe-1",
+                        name = "Chicken bowl",
+                        category = "Lunch",
+                        servingName = "Bowl",
+                        servingGrams = 350.0,
+                        ingredients = listOf(RecipeIngredient("food-1", "Chicken", null, 150.0)),
+                        nutritionPerServing = FoodNutrition(420.0, 38.0, 42.0, 11.0),
+                        detailNutritionPerServing = NutritionDetails(),
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeBrowser()
+        viewModel.goToNextRecipeBrowserDay()
+        viewModel.onRecipeBrowserMealChanged("lunch")
+        viewModel.logRecipeFromBrowser("recipe-1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodSheetMode.RecipeBrowser, viewModel.state.value.sheetMode)
+        assertEquals(targetDate, viewModel.state.value.recipeBrowserDate)
+        assertEquals("lunch", viewModel.state.value.recipeBrowserMealType)
+        assertEquals(
+            LogRecipeCall(
+                recipeId = "recipe-1",
+                mealType = "lunch",
+                servings = 1.0,
+                date = targetDate,
+            ),
+            repository.logRecipeCall,
+        )
+        assertEquals("Logged recipe", viewModel.state.value.message)
+    }
+
+    @Test
+    fun recipeDiscoverySearchFiltersByTitleMealAndTags() = runTest {
+        val viewModel =
+            FoodViewModel(
+                provider = FakeProductProvider(),
+                repository = FakeFoodRepository(
+                    recipes = listOf(
+                        Recipe(
+                            id = "recipe-1",
+                            name = "Salmon breakfast bowl",
+                            category = "Breakfast",
+                            servingName = "Bowl",
+                            servingGrams = 350.0,
+                            ingredients = listOf(RecipeIngredient("food-1", "Salmon", null, 150.0)),
+                            nutritionPerServing = FoodNutrition(420.0, 38.0, 42.0, 11.0),
+                            detailNutritionPerServing = NutritionDetails(),
+                        ),
+                        Recipe(
+                            id = "recipe-2",
+                            name = "Plain rice bowl",
+                            category = "Lunch",
+                            servingName = "Bowl",
+                            servingGrams = 300.0,
+                            ingredients = listOf(RecipeIngredient("food-1", "Rice", null, 150.0)),
+                            nutritionPerServing = FoodNutrition(300.0, 6.0, 64.0, 2.0),
+                            detailNutritionPerServing = NutritionDetails(),
+                        ),
+                    ),
+                ),
+            )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onRecipeDiscoveryQueryChanged("salmon breakfast")
+
+        assertEquals(
+            listOf("Salmon breakfast bowl"),
+            viewModel.state.value.recipeDiscovery.visibleItems.map { it.title },
+        )
+    }
+
+    @Test
     fun diaryEntryCanBeCopiedToAnotherMealAndDate() = runTest {
         val repository =
             FakeFoodRepository(

@@ -208,6 +208,7 @@ data class FoodProgramUiState(
 
 data class RecipeDiscoveryUiState(
     val filter: RecipeDiscoveryFilter = RecipeDiscoveryFilter.All,
+    val query: String = "",
     val items: List<RecipeDiscoveryItemUiState> = emptyRecipeDiscoveryItems(),
     val visibleItems: List<RecipeDiscoveryItemUiState> = emptyRecipeDiscoveryItems(),
 )
@@ -228,6 +229,8 @@ data class RecipeDiscoveryItemUiState(
     val isSavedRecipe: Boolean,
     val programRelevant: Boolean,
     val sourceRecipeId: String? = null,
+    val mealTypeIds: List<String> = emptyList(),
+    val thumbnailKey: String = "bowl",
 )
 
 enum class FoodHabitStatus {
@@ -1809,7 +1812,20 @@ class FoodViewModel @Inject constructor(
             it.copy(
                 recipeDiscovery = it.recipeDiscovery.copy(
                     filter = filter,
-                    visibleItems = it.recipeDiscovery.items.filterForRecipeDiscovery(filter),
+                    visibleItems = it.recipeDiscovery.items.filterForRecipeDiscovery(filter, it.recipeDiscovery.query),
+                ),
+                message = null,
+            )
+        }
+    }
+
+    fun onRecipeDiscoveryQueryChanged(value: String) {
+        val query = value.take(80)
+        mutableState.update {
+            it.copy(
+                recipeDiscovery = it.recipeDiscovery.copy(
+                    query = query,
+                    visibleItems = it.recipeDiscovery.items.filterForRecipeDiscovery(it.recipeDiscovery.filter, query),
                 ),
                 message = null,
             )
@@ -4094,6 +4110,46 @@ class FoodViewModel @Inject constructor(
         }
     }
 
+    fun logRecipeFromBrowser(recipeId: String) {
+        val currentState = state.value
+        val servings = currentState.recipeServingsToLog.parsePositiveNumberOrNull()
+        if (servings == null) {
+            mutableState.update { it.copy(message = "Enter recipe servings") }
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.logRecipe(
+                    recipeId = recipeId,
+                    mealType = currentState.recipeBrowserMealType,
+                    servings = servings,
+                    date = currentState.recipeBrowserDate,
+                )
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = true,
+                        sheetMode = FoodSheetMode.RecipeBrowser,
+                        message = "Logged recipe",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to log recipe",
+                    )
+                }
+            }
+        }
+    }
+
     fun planRecipe(recipeId: String) {
         val currentState = state.value
         val servings = currentState.recipeServingsToLog.parsePositiveNumberOrNull()
@@ -4381,6 +4437,8 @@ private data class RecipeCatalogItem(
     val id: String,
     val title: String,
     val category: String,
+    val mealTypeIds: List<String>,
+    val thumbnailKey: String,
     val servingName: String,
     val servingGrams: Double,
     val caloriesKcal: Double,
@@ -4499,7 +4557,9 @@ private val recipeCatalogItems =
         RecipeCatalogItem(
             id = "catalog-high-protein-chicken-bowl",
             title = "High-protein chicken bowl",
-            category = "Dinner",
+            category = "Lunch",
+            mealTypeIds = listOf("lunch", "dinner"),
+            thumbnailKey = "chicken-bowl",
             servingName = "Bowl",
             servingGrams = 420.0,
             caloriesKcal = 520.0,
@@ -4513,6 +4573,8 @@ private val recipeCatalogItems =
             id = "catalog-keto-salmon-plate",
             title = "Low-carb salmon plate",
             category = "Dinner",
+            mealTypeIds = listOf("dinner"),
+            thumbnailKey = "salmon-plate",
             servingName = "Plate",
             servingGrams = 360.0,
             caloriesKcal = 610.0,
@@ -4526,6 +4588,8 @@ private val recipeCatalogItems =
             id = "catalog-mediterranean-chickpea-bowl",
             title = "Mediterranean chickpea bowl",
             category = "Vegetarian",
+            mealTypeIds = listOf("lunch", "dinner"),
+            thumbnailKey = "chickpea-bowl",
             servingName = "Bowl",
             servingGrams = 380.0,
             caloriesKcal = 470.0,
@@ -4539,6 +4603,8 @@ private val recipeCatalogItems =
             id = "catalog-clean-breakfast-bowl",
             title = "Clean breakfast bowl",
             category = "Breakfast",
+            mealTypeIds = listOf("breakfast"),
+            thumbnailKey = "breakfast-bowl",
             servingName = "Bowl",
             servingGrams = 330.0,
             caloriesKcal = 430.0,
@@ -4547,6 +4613,96 @@ private val recipeCatalogItems =
             fatGrams = 12.0,
             tags = listOf("High protein", "Vegetarian", "Quick"),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
+        ),
+        RecipeCatalogItem(
+            id = "catalog-overnight-oats",
+            title = "Silken tofu overnight oats",
+            category = "Breakfast",
+            mealTypeIds = listOf("breakfast"),
+            thumbnailKey = "overnight-oats",
+            servingName = "Jar",
+            servingGrams = 340.0,
+            caloriesKcal = 495.0,
+            proteinGrams = 31.0,
+            carbsGrams = 58.0,
+            fatGrams = 14.0,
+            tags = listOf("High protein", "Vegetarian", "Quick"),
+            relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.CleanEating),
+        ),
+        RecipeCatalogItem(
+            id = "catalog-sweet-potato-muffins",
+            title = "Sweet potato protein muffins",
+            category = "Breakfast",
+            mealTypeIds = listOf("breakfast", "snacks"),
+            thumbnailKey = "muffins",
+            servingName = "Plate",
+            servingGrams = 180.0,
+            caloriesKcal = 280.0,
+            proteinGrams = 18.0,
+            carbsGrams = 38.0,
+            fatGrams = 7.0,
+            tags = listOf("Vegetarian", "Quick"),
+            relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.WeightLoss, FoodGoalMode.CleanEating),
+        ),
+        RecipeCatalogItem(
+            id = "catalog-apple-kale-salad",
+            title = "Apple, walnut, and kale salad",
+            category = "Lunch",
+            mealTypeIds = listOf("lunch"),
+            thumbnailKey = "kale-salad",
+            servingName = "Bowl",
+            servingGrams = 320.0,
+            caloriesKcal = 343.0,
+            proteinGrams = 14.0,
+            carbsGrams = 34.0,
+            fatGrams = 19.0,
+            tags = listOf("Vegetarian", "Quick"),
+            relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
+        ),
+        RecipeCatalogItem(
+            id = "catalog-avocado-bean-dip",
+            title = "Avocado and bean dip",
+            category = "Lunch",
+            mealTypeIds = listOf("lunch", "snacks"),
+            thumbnailKey = "bean-dip",
+            servingName = "Bowl",
+            servingGrams = 250.0,
+            caloriesKcal = 225.0,
+            proteinGrams = 11.0,
+            carbsGrams = 27.0,
+            fatGrams = 9.0,
+            tags = listOf("Vegetarian", "Quick"),
+            relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
+        ),
+        RecipeCatalogItem(
+            id = "catalog-tomato-lentil-soup",
+            title = "Tomato lentil soup",
+            category = "Dinner",
+            mealTypeIds = listOf("dinner", "lunch"),
+            thumbnailKey = "soup",
+            servingName = "Bowl",
+            servingGrams = 420.0,
+            caloriesKcal = 390.0,
+            proteinGrams = 24.0,
+            carbsGrams = 52.0,
+            fatGrams = 10.0,
+            tags = listOf("Vegetarian"),
+            relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
+        ),
+        RecipeCatalogItem(
+            id = "catalog-protein-snack-box",
+            title = "Protein snack box",
+            category = "Snacks",
+            mealTypeIds = listOf("snacks"),
+            thumbnailKey = "snack-box",
+            servingName = "Box",
+            servingGrams = 220.0,
+            caloriesKcal = 310.0,
+            proteinGrams = 30.0,
+            carbsGrams = 22.0,
+            fatGrams = 12.0,
+            tags = listOf("High protein", "Quick"),
+            relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain),
         ),
     )
 
@@ -4718,6 +4874,8 @@ private fun RecipeUiState.toDiscoveryItem(goalMode: FoodGoalMode): RecipeDiscove
             searchableText = searchableText,
         ),
         sourceRecipeId = id,
+        mealTypeIds = recipeMealTypeIds(category.orEmpty(), searchableText),
+        thumbnailKey = recipeThumbnailKey(searchableText),
     )
 }
 
@@ -4738,6 +4896,8 @@ private fun RecipeCatalogItem.toDiscoveryItem(goalMode: FoodGoalMode): RecipeDis
         isFavorite = false,
         isSavedRecipe = false,
         programRelevant = goalMode in relevantModes,
+        mealTypeIds = mealTypeIds,
+        thumbnailKey = thumbnailKey,
     )
 }
 
@@ -4783,8 +4943,43 @@ private fun isRecipeRelevantForProgram(
         FoodGoalMode.Custom -> false
     }
 
-private fun List<RecipeDiscoveryItemUiState>.filterForRecipeDiscovery(filter: RecipeDiscoveryFilter): List<RecipeDiscoveryItemUiState> =
-    when (filter) {
+private fun recipeMealTypeIds(category: String, searchableText: String): List<String> {
+    val normalizedCategory = category.lowercase()
+    val matches = buildList {
+        if ("breakfast" in normalizedCategory || listOf("breakfast", "oat", "muffin", "yogurt").any { it in searchableText }) {
+            add("breakfast")
+        }
+        if ("lunch" in normalizedCategory || listOf("salad", "dip", "wrap", "lunch").any { it in searchableText }) {
+            add("lunch")
+        }
+        if ("dinner" in normalizedCategory || listOf("dinner", "salmon", "chicken", "soup", "curry").any { it in searchableText }) {
+            add("dinner")
+        }
+        if ("snack" in normalizedCategory || listOf("snack", "muffin", "box", "dip").any { it in searchableText }) {
+            add("snacks")
+        }
+    }.distinct()
+    return matches.ifEmpty { listOf("dinner") }
+}
+
+private fun recipeThumbnailKey(searchableText: String): String =
+    when {
+        listOf("salmon", "fish").any { it in searchableText } -> "salmon-plate"
+        listOf("chicken", "turkey").any { it in searchableText } -> "chicken-bowl"
+        listOf("oat", "yogurt", "breakfast").any { it in searchableText } -> "breakfast-bowl"
+        listOf("muffin", "bites").any { it in searchableText } -> "muffins"
+        listOf("salad", "kale").any { it in searchableText } -> "kale-salad"
+        listOf("bean", "dip").any { it in searchableText } -> "bean-dip"
+        listOf("soup", "lentil").any { it in searchableText } -> "soup"
+        else -> "bowl"
+    }
+
+private fun List<RecipeDiscoveryItemUiState>.filterForRecipeDiscovery(
+    filter: RecipeDiscoveryFilter,
+    query: String,
+): List<RecipeDiscoveryItemUiState> {
+    val filteredByChip =
+        when (filter) {
         RecipeDiscoveryFilter.All -> this
         RecipeDiscoveryFilter.HighProtein -> filter { "High protein" in it.tagLabels }
         RecipeDiscoveryFilter.LowCarb -> filter { "Low carb" in it.tagLabels }
@@ -4792,7 +4987,24 @@ private fun List<RecipeDiscoveryItemUiState>.filterForRecipeDiscovery(filter: Re
         RecipeDiscoveryFilter.Quick -> filter { "Quick" in it.tagLabels }
         RecipeDiscoveryFilter.Favorites -> filter { it.isFavorite }
         RecipeDiscoveryFilter.Program -> filter { it.programRelevant }
+        }
+    val terms = query.trim().lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (terms.isEmpty()) {
+        return filteredByChip
     }
+    return filteredByChip.filter { item ->
+        val searchableText =
+            listOf(
+                item.title,
+                item.subtitle,
+                item.category,
+                item.servingName,
+                item.tagLabels.joinToString(" "),
+                item.mealTypeIds.joinToString(" "),
+            ).joinToString(" ").lowercase()
+        terms.all { term -> term in searchableText }
+    }
+}
 
 private fun buildFastingTimerUiState(
     selectedProgramId: String,
@@ -4998,7 +5210,7 @@ private fun FoodUiState.withRecipes(recipes: List<RecipeUiState>): FoodUiState {
         recipes = recipes,
         recipeDiscovery = recipeDiscovery.copy(
             items = discoveryItems,
-            visibleItems = discoveryItems.filterForRecipeDiscovery(recipeDiscovery.filter),
+            visibleItems = discoveryItems.filterForRecipeDiscovery(recipeDiscovery.filter, recipeDiscovery.query),
         ),
     )
 }
