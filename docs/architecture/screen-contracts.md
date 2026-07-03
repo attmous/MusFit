@@ -406,7 +406,7 @@ Training handles strength routine management, exercise library filtering and cus
 
 | Section | Purpose |
 | --- | --- |
-| `Routines` | Routine list, local program filters, starter routines, routine editor, duplicate/delete/start routine, and start blank workout. |
+| `Routines` | Grouped routine list, local program filters, starter/custom routine editor, duplicate/delete/start routine actions, and a primary new-routine CTA. |
 | `Exercises` | Exercise library, search/filter, equipment/muscle chips, exercise detail, local notes, and custom exercise creation. |
 | `History` | Completed workout overview, month grid, consistency metrics, list, workout recap, and workout detail with set rows. |
 | `Progress` | All-training analytics, muscle volume, weekly volume, exercise PR cards, history rows, best sets, PR timeline, and trend chart points. |
@@ -497,7 +497,7 @@ Exercise library:
 
 Workout flows:
 
-- `startBlankWorkout()`, `startRoutine(routineId)`
+- `startRoutine(routineId)`
 - `addExerciseToActiveWorkout(exerciseId)`
 - `addWorkoutSet(exerciseId)`, `duplicateLastWorkoutSet(exerciseId)`
 - `updateWorkoutSetFields(setId, setType, reps, weightKg, rpe, notes)`
@@ -551,7 +551,7 @@ Routine organization behavior:
 
 Training dashboard behavior:
 
-- The home dashboard shows the next visible routine, quick-start routine buttons, blank-workout start, and most recent completed workout.
+- The home dashboard shows the next visible routine, grouped saved routines, quick-start routine buttons, and most recent completed workout.
 - The next-routine suggestion is a deterministic local heuristic from the currently visible routine list; program filtering changes the suggestion.
 - The dashboard keeps the existing active workout resume banner and weekly header behavior intact.
 

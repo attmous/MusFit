@@ -973,8 +973,21 @@ class LocalTrainingRepository @Inject constructor(
                 }
             TrainingStarterData.routines.forEach { definition ->
                 val existingRoutine = trainingDao.getRoutine(definition.id)
+                val routineExerciseRows =
+                    definition.exercises.mapIndexed { index, exercise ->
+                        RoutineExerciseEntity(
+                            id = "${definition.id}-${exercise.exerciseId}",
+                            routineId = definition.id,
+                            exerciseId = resolvedExerciseIds.getValue(exercise.exerciseId),
+                            sortOrder = index,
+                            targetSets = exercise.targetSets,
+                            targetReps = exercise.targetReps,
+                        )
+                    }
+                val shouldSeedRoutineExercises: Boolean
                 val routine =
                     if (existingRoutine == null) {
+                        shouldSeedRoutineExercises = true
                         RoutineEntity(
                             id = definition.id,
                             name = definition.name,
@@ -986,31 +999,18 @@ class LocalTrainingRepository @Inject constructor(
                             tags = definition.tags.toTagCsv(),
                         )
                     } else {
+                        shouldSeedRoutineExercises = trainingDao.getRoutineExercises(definition.id).isEmpty()
                         existingRoutine.copy(
-                            name = definition.name,
-                            notes = definition.notes,
-                            updatedAtEpochMillis = now,
                             isStarter = true,
-                            programName = definition.programName,
-                            tags = definition.tags.toTagCsv(),
+                            programName = existingRoutine.programName?.takeIf(String::isNotBlank) ?: definition.programName,
+                            tags = existingRoutine.tags.ifBlank { definition.tags.toTagCsv() },
                         )
                     }
                 upsertWorkoutRoutine(routine)
+                if (shouldSeedRoutineExercises) {
+                    trainingDao.upsertRoutineExercises(routineExerciseRows)
+                }
             }
-            trainingDao.upsertRoutineExercises(
-                TrainingStarterData.routines.flatMap { routine ->
-                    routine.exercises.mapIndexed { index, exercise ->
-                        RoutineExerciseEntity(
-                            id = "${routine.id}-${exercise.exerciseId}",
-                            routineId = routine.id,
-                            exerciseId = resolvedExerciseIds.getValue(exercise.exerciseId),
-                            sortOrder = index,
-                            targetSets = exercise.targetSets,
-                            targetReps = exercise.targetReps,
-                        )
-                    }
-                },
-            )
             if (datasetEntities.isNotEmpty()) {
                 trainingDao.upsertExercises(datasetEntities)
             }

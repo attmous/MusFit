@@ -54,6 +54,7 @@ data class RoutineEditorState(
     val name: String = "",
     val notes: String = "",
     val exercises: List<RoutineExerciseInput> = emptyList(),
+    val isStarter: Boolean = false,
     val isOpen: Boolean = false,
 )
 
@@ -284,10 +285,6 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun openRoutineEditor(routineId: String?) {
-        if (routineId != null && isStarterRoutine(routineId)) {
-            mutableState.update { it.copy(message = "Starter routines are read-only templates.") }
-            return
-        }
         viewModelScope.launch {
             val detail = routineId?.let { repository.getRoutineDetail(it) }
             mutableState.update {
@@ -303,9 +300,11 @@ class TrainingViewModel @Inject constructor(
                                 targetReps = exercise.targetReps,
                             )
                         }.orEmpty(),
+                        isStarter = detail?.isStarter == true,
                         isOpen = true,
                     ),
                     selectedRoutineDetail = null,
+                    message = null,
                 )
             }
         }
@@ -425,11 +424,6 @@ class TrainingViewModel @Inject constructor(
 
     fun saveRoutineEditor() {
         val editor = state.value.routineEditor
-        if (editor.routineId != null && isStarterRoutine(editor.routineId)) {
-            mutableState.update { it.copy(message = "Starter routines are read-only templates.") }
-            closeRoutineEditor()
-            return
-        }
         val input = RoutineInput(editor.name, editor.notes, editor.exercises)
         viewModelScope.launch {
             if (editor.routineId == null) {

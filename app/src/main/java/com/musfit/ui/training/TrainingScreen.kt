@@ -211,7 +211,6 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         accent = accent,
                         onProgramSelected = viewModel::onRoutineProgramFilterChanged,
                         onStartRoutine = viewModel::startRoutine,
-                        onStartBlank = viewModel::startBlankWorkout,
                         onEditRoutine = viewModel::openRoutineEditor,
                         onOpenRoutineDetail = viewModel::openRoutineDetail,
                     )

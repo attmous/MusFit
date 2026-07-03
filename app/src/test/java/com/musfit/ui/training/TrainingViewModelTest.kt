@@ -300,7 +300,7 @@ class TrainingViewModelTest {
     }
 
     @Test
-    fun openRoutineEditor_forStarterRoutineDoesNotOpenEditor() = runTest {
+    fun openRoutineEditor_forStarterRoutineLoadsAndCanSaveChanges() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
         dispatcher.scheduler.advanceUntilIdle()
@@ -308,8 +308,33 @@ class TrainingViewModelTest {
         viewModel.openRoutineEditor("routine-full-body-a")
         dispatcher.scheduler.advanceUntilIdle()
 
+        val editor = viewModel.state.value.routineEditor
+        assertTrue(editor.isOpen)
+        assertEquals("Full Body A", editor.name)
+        assertEquals(listOf("exercise-bench-press"), editor.exercises.map { it.exerciseId })
+
+        viewModel.onRoutineNameChanged("Full Body A edited")
+        viewModel.addRoutineExercise("exercise-row")
+        viewModel.removeRoutineExercise(index = 0)
+        viewModel.saveRoutineEditor()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("routine-full-body-a", repository.updatedRoutineId)
+        assertEquals(
+            RoutineInput(
+                name = "Full Body A edited",
+                notes = "Starter routine",
+                exercises = listOf(
+                    RoutineExerciseInput(
+                        exerciseId = "exercise-row",
+                        targetSets = 3,
+                        targetReps = "8",
+                    ),
+                ),
+            ),
+            repository.updatedRoutineInput,
+        )
         assertFalse(viewModel.state.value.routineEditor.isOpen)
-        assertTrue(repository.requestedRoutineDetailIds.isEmpty())
     }
 
     @Test
