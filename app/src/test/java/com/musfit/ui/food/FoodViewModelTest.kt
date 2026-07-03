@@ -3455,6 +3455,18 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun openRecipeBrowserStartsInDedicatedBrowserMode() = runTest {
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = FakeFoodRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRecipeBrowser()
+
+        assertTrue(viewModel.state.value.isAddPanelVisible)
+        assertEquals(FoodSheetMode.RecipeBrowser, viewModel.state.value.sheetMode)
+        assertNull(viewModel.state.value.recipeEditor)
+    }
+
+    @Test
     fun usingRecipeDiscoveryItemLogsSavedRecipeOrPrefillsCatalogRecipe() = runTest {
         val repository =
             FakeFoodRepository(

@@ -114,6 +114,9 @@ fun FoodScreen(
     val accent = tabAccentFor(AppDestination.Food)
     val selectedMealDetail = state.selectedMealDetailForDisplay()
     val planningPresentation = state.toPlanningModePresentation()
+    val isRecipeFullScreen =
+        state.isAddPanelVisible &&
+            (state.sheetMode == FoodSheetMode.RecipeBrowser || state.sheetMode == FoodSheetMode.RecipeEditor)
     var moreExpanded by rememberSaveable { mutableStateOf(false) }
     val foodHealthConnectPermissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
@@ -143,6 +146,13 @@ fun FoodScreen(
     BackHandler(
         enabled = state.isAddPanelVisible && state.sheetMode == FoodSheetMode.AddFood,
     ) { viewModel.closeAddFood() }
+    BackHandler(enabled = isRecipeFullScreen) {
+        if (state.sheetMode == FoodSheetMode.RecipeEditor) {
+            viewModel.openRecipeBrowser()
+        } else {
+            viewModel.closeAddFood()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -162,6 +172,29 @@ fun FoodScreen(
                 onSortModeChanged = viewModel::onMealDetailSortChanged,
                 onEntryClick = viewModel::openDiaryEntryEditor,
                 onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
+            )
+        } else if (isRecipeFullScreen) {
+            RecipeBrowserScreen(
+                state = state,
+                onCloseClick = viewModel::closeAddFood,
+                onForwardClick = { viewModel.openRecipeEditor(null) },
+                onHomeClick = viewModel::openRecipeBrowser,
+                onNameChanged = viewModel::onRecipeNameChanged,
+                onCategoryChanged = viewModel::onRecipeCategoryChanged,
+                onServingNameChanged = viewModel::onRecipeServingNameChanged,
+                onServingsCountChanged = viewModel::onRecipeServingsCountChanged,
+                onCookedYieldChanged = viewModel::onRecipeCookedYieldGramsChanged,
+                onIngredientFoodChanged = viewModel::onRecipeIngredientFoodChanged,
+                onIngredientServingChoiceSelected = viewModel::onRecipeIngredientServingChoiceSelected,
+                onIngredientQuantityChanged = viewModel::onRecipeIngredientQuantityChanged,
+                onAddIngredientClick = viewModel::addRecipeIngredient,
+                onEditRecipeClick = { recipeId -> viewModel.openRecipeEditor(recipeId) },
+                onDuplicateRecipeClick = viewModel::duplicateRecipe,
+                onFavoriteClick = viewModel::toggleFavoriteRecipe,
+                onDiscoveryFilterChanged = viewModel::selectRecipeDiscoveryFilter,
+                onDiscoveryItemClick = viewModel::useRecipeDiscoveryItem,
+                onSaveClick = viewModel::saveRecipe,
+                onDeleteClick = { state.recipeEditor?.editingRecipeId?.let(viewModel::deleteRecipe) },
             )
         } else if (state.isAddPanelVisible && state.sheetMode == FoodSheetMode.AddFood) {
             AddFoodScreen(
@@ -212,7 +245,7 @@ fun FoodScreen(
                                 onGoalClick = viewModel::openGoalEditor,
                                 onMealsClick = viewModel::openMealSettings,
                                 onTemplatesClick = viewModel::openMealTemplates,
-                                onRecipeClick = viewModel::openRecipeEditor,
+                                onRecipeClick = viewModel::openRecipeBrowser,
                                 onShoppingClick = viewModel::openShoppingList,
                                 onFastingClick = viewModel::openFastingTimer,
                                 onPlanningModeClick = viewModel::togglePlanningMode,
@@ -368,7 +401,11 @@ fun FoodScreen(
         }
     }
 
-    if (state.isAddPanelVisible && (state.sheetMode != FoodSheetMode.AddFood || state.addMode != FoodAddMode.Saved)) {
+    if (
+        state.isAddPanelVisible &&
+        !isRecipeFullScreen &&
+        (state.sheetMode != FoodSheetMode.AddFood || state.addMode != FoodAddMode.Saved)
+    ) {
         ModalBottomSheet(
             onDismissRequest = viewModel::closeAddFood,
             containerColor = MusFitTheme.colors.surface,
@@ -553,6 +590,8 @@ fun FoodScreen(
                         onProgramApply = viewModel::applyFoodProgram,
                         onSaveClick = viewModel::saveFoodGoal,
                     )
+
+                FoodSheetMode.RecipeBrowser -> Unit
 
                 FoodSheetMode.RecipeEditor ->
                     RecipeEditorPanel(
