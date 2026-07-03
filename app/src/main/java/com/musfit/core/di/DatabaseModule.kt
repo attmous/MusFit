@@ -6,6 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.AccountDao
+import com.musfit.data.local.dao.AiCoachDao
 import com.musfit.data.local.dao.CoachDao
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.HealthDao
@@ -54,6 +55,7 @@ object DatabaseModule {
                 MIGRATION_25_26,
                 MIGRATION_26_27,
                 MIGRATION_27_28,
+                MIGRATION_28_29,
             )
             .build()
 
@@ -74,6 +76,9 @@ object DatabaseModule {
 
     @Provides
     fun provideUserGoalsDao(database: MusFitDatabase): UserGoalsDao = database.userGoalsDao()
+
+    @Provides
+    fun provideAiCoachDao(database: MusFitDatabase): AiCoachDao = database.aiCoachDao()
 
     @Provides
     fun provideCoachDao(database: MusFitDatabase): CoachDao = database.coachDao()
@@ -630,6 +635,26 @@ object DatabaseModule {
                 db.execSQL("ALTER TABLE accounts ADD COLUMN authProvider TEXT NOT NULL DEFAULT 'local'")
                 db.execSQL("ALTER TABLE accounts ADD COLUMN avatarUrl TEXT")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_authProvider ON accounts(authProvider)")
+            }
+        }
+
+    internal val MIGRATION_28_29 =
+        object : Migration(28, 29) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS ai_coach_settings (
+                        accountId TEXT NOT NULL PRIMARY KEY,
+                        providerKind TEXT NOT NULL,
+                        baseUrl TEXT NOT NULL,
+                        modelName TEXT NOT NULL,
+                        localAgentKind TEXT NOT NULL,
+                        apiKeyStored INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL,
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
             }
         }
 }

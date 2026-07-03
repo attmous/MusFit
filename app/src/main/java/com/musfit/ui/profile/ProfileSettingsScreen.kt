@@ -98,6 +98,13 @@ fun ProfileSettingsScreen(
                 Text("Profile details")
             }
 
+            Text("AI coach", style = MaterialTheme.typography.titleMedium)
+            AiCoachSettingsSection(
+                state = state.aiCoach,
+                onEdit = viewModel::openAiCoachEditor,
+                onClearApiKey = viewModel::clearAiCoachApiKey,
+            )
+
             Text("Health Connect & sync", style = MaterialTheme.typography.titleMedium)
             Text("Health Connect: ${state.availabilityLabel}", style = MaterialTheme.typography.bodyMedium)
             Text(state.message, style = MaterialTheme.typography.bodyMedium)
@@ -144,6 +151,24 @@ fun ProfileSettingsScreen(
             onEmailChange = viewModel::onAccountEmailChanged,
             onDismiss = viewModel::closeAccountEditor,
             onSave = viewModel::saveAccount,
+        )
+    }
+    if (state.aiCoachEditorOpen) {
+        AiCoachSettingsDialog(
+            provider = state.aiCoachProviderInput,
+            baseUrl = state.aiCoachBaseUrlInput,
+            modelName = state.aiCoachModelNameInput,
+            localAgentKind = state.aiCoachLocalAgentInput,
+            apiKey = state.aiCoachApiKeyInput,
+            hasSavedApiKey = state.aiCoach.hasApiKey,
+            error = state.aiCoachErrorMessage,
+            onProviderChange = viewModel::onAiCoachProviderChanged,
+            onBaseUrlChange = viewModel::onAiCoachBaseUrlChanged,
+            onModelNameChange = viewModel::onAiCoachModelNameChanged,
+            onLocalAgentKindChange = viewModel::onAiCoachLocalAgentKindChanged,
+            onApiKeyChange = viewModel::onAiCoachApiKeyChanged,
+            onDismiss = viewModel::closeAiCoachEditor,
+            onSave = viewModel::saveAiCoachSettings,
         )
     }
     val githubDeviceCode = state.githubDeviceCode
