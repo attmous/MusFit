@@ -25,8 +25,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -83,8 +81,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.ContentScale
@@ -323,11 +319,8 @@ fun FoodScreen(
             }
             FloatingActionButton(
                 onClick = {
-                    val mealId = defaultAddMealId(
-                        state.mealSections,
-                        java.time.LocalTime.now().hour,
-                    ) ?: state.mealSections.firstOrNull()?.id
-                    if (mealId != null) viewModel.openAddFood(mealId)
+                    defaultAddMealId(state.mealSections, java.time.LocalTime.now().hour)
+                        ?.let(viewModel::openAddFood)
                 },
                 containerColor = MusFitTheme.colors.brand,
                 contentColor = MusFitTheme.colors.onAccent,
@@ -665,7 +658,7 @@ private fun FoodQuickActionsRow(
 
 @Composable
 private fun FoodQuickActionTile(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
