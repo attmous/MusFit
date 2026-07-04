@@ -571,6 +571,38 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun openWaterSheet_showsWaterSheet() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openWaterSheet()
+
+        with(viewModel.state.value) {
+            assertTrue(isAddPanelVisible)
+            assertEquals(FoodSheetMode.Water, sheetMode)
+        }
+    }
+
+    @Test
+    fun openHealthConnectSheet_showsHealthConnectSheet() = runTest {
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openHealthConnectSheet()
+
+        with(viewModel.state.value) {
+            assertTrue(isAddPanelVisible)
+            assertEquals(FoodSheetMode.HealthConnect, sheetMode)
+        }
+    }
+
+    @Test
     fun lookupBarcode_populatesEditableResultAndSaveUsesEdits() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(

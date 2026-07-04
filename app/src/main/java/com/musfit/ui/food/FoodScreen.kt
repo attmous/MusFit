@@ -539,7 +539,6 @@ fun FoodScreen(
                     )
 
                 FoodSheetMode.RecipeBrowser -> Unit
-                FoodSheetMode.RecipeBrowser -> Unit
 
                 FoodSheetMode.RecipeEditor ->
                     RecipeEditorPanel(
@@ -602,6 +601,35 @@ fun FoodScreen(
                         onAddManualClick = viewModel::addManualShoppingListItem,
                         onToggleItem = viewModel::toggleShoppingListItem,
                     )
+
+                FoodSheetMode.Water ->
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        WaterTrackerCard(
+                            state = state,
+                            onQuickWaterClick = viewModel::logQuickWater,
+                            onCustomAmountChanged = viewModel::onWaterCustomAmountChanged,
+                            onCustomAddClick = viewModel::logCustomWater,
+                            onGoalChanged = viewModel::onWaterGoalChanged,
+                            onGoalSaveClick = viewModel::saveWaterGoal,
+                        )
+                    }
+
+                FoodSheetMode.HealthConnect ->
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        FoodHealthConnectSyncCard(
+                            state = state,
+                            onEnabledChanged = viewModel::onFoodHealthConnectSyncEnabledChanged,
+                            onRequestPermissionsClick = {
+                                if (state.foodHealthConnectCanRequestPermissions) {
+                                    foodHealthConnectPermissionLauncher.launch(
+                                        state.foodHealthConnectRequestablePermissions,
+                                    )
+                                }
+                            },
+                            onRefreshClick = viewModel::refreshFoodHealthConnectSync,
+                            onSyncClick = viewModel::syncFoodToHealthConnect,
+                        )
+                    }
             }
         }
     }

@@ -106,6 +106,8 @@ enum class FoodSheetMode {
     MealTemplates,
     MealSettings,
     ShoppingList,
+    Water,
+    HealthConnect,
 }
 
 enum class MealDetailSortMode {
@@ -1343,6 +1345,18 @@ class FoodViewModel @Inject constructor(
                 savedFoodEditor = null,
                 selectedSavedFoodDetail = null,
             )
+        }
+    }
+
+    fun openWaterSheet() {
+        mutableState.update {
+            it.copy(isAddPanelVisible = true, sheetMode = FoodSheetMode.Water, message = null)
+        }
+    }
+
+    fun openHealthConnectSheet() {
+        mutableState.update {
+            it.copy(isAddPanelVisible = true, sheetMode = FoodSheetMode.HealthConnect, message = null)
         }
     }
 
