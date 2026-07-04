@@ -1700,7 +1700,7 @@ private fun MealDetailScreen(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             MusFitOutlinedButton(
@@ -1718,17 +1718,23 @@ private fun MealDetailScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-        }
-
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            MusFitOutlinedButton(onClick = onCopyYesterdayClick) {
-                Text("Copy yesterday")
+            var menuOpen by remember { mutableStateOf(false) }
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    Icons.Filled.MoreVert,
+                    contentDescription = "Meal actions",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                )
             }
-            MusFitOutlinedButton(onClick = onSaveTemplateClick) {
-                Text("Save template")
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Copy yesterday") },
+                    onClick = { menuOpen = false; onCopyYesterdayClick() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Save template") },
+                    onClick = { menuOpen = false; onSaveTemplateClick() },
+                )
             }
         }
 
@@ -1770,12 +1776,18 @@ private fun MealDetailScreen(
 
         MealDetailMacroCard(meal)
 
-        SectionTitle("Logged items")
-        if (meal.entries.isNotEmpty()) {
-            MealDetailSortChips(
-                selectedSortMode = sortMode,
-                onSortModeChanged = onSortModeChanged,
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SectionTitle("Logged items")
+            if (meal.entries.isNotEmpty()) {
+                MealDetailSortMenu(
+                    selectedSortMode = sortMode,
+                    onSortModeChanged = onSortModeChanged,
+                )
+            }
         }
         if (meal.entries.isEmpty()) {
             Surface(
@@ -1822,20 +1834,41 @@ private fun MealDetailScreen(
 }
 
 @Composable
-private fun MealDetailSortChips(
+private fun MealDetailSortMenu(
     selectedSortMode: MealDetailSortMode,
     onSortModeChanged: (MealDetailSortMode) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        MealDetailSortChoices.forEach { choice ->
-            FilterChip(
-                selected = selectedSortMode == choice,
-                onClick = { onSortModeChanged(choice) },
-                label = { Text(choice.label) },
-            )
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Surface(
+            onClick = { open = true },
+            color = Color.Transparent,
+            shape = MusFitTheme.shapes.extraLarge,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = selectedSortMode.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+                Icon(
+                    imageVector = Icons.Filled.ExpandMore,
+                    contentDescription = "Sort logged items",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            MealDetailSortChoices.forEach { choice ->
+                DropdownMenuItem(
+                    text = { Text(choice.label) },
+                    onClick = { open = false; onSortModeChanged(choice) },
+                )
+            }
         }
     }
 }
