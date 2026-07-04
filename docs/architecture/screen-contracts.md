@@ -31,6 +31,7 @@ Additional routes:
 | --- | --- | --- |
 | `BARCODE_SCANNER_ROUTE` | `barcode-scanner` | Full-screen barcode capture. |
 | `NUTRITION_LABEL_SCANNER_ROUTE` | `nutrition-label-scanner` | Full-screen OCR capture for nutrition labels. |
+| `PROFILE_SETTINGS_ROUTE` | `profile-settings` | Health Connect and profile settings. |
 
 ### `AppNavGraph`
 
@@ -46,13 +47,15 @@ fun AppNavGraph()
 Responsibilities:
 
 - Owns `NavController`.
+- Owns the app-level `AppNavigationStack` for bottom-tab history.
 - Renders the bottom navigation bar.
 - Starts at `AppDestination.Today.route`.
 - Passes tab-switch callbacks into `TodayScreen`.
+- Pushes Today/Food/Training/Profile visits onto the app stack and consumes system/gesture back on bottom routes to pop back through that sequence.
 - Holds one-shot scanner return values:
   - `scannedBarcode: String?`
   - `scannedLabelText: String?`
-- Routes scanner results back into `FoodScreen`.
+- Routes scanner results back into `FoodScreen`; scanner routes keep the Food tab selected while normal route back exits the scanner first.
 
 ## Today Screen
 
@@ -629,7 +632,7 @@ Source:
 - `app/src/main/java/com/musfit/ui/profile/ProfileSettingsScreen.kt`
 - `app/src/main/java/com/musfit/ui/profile/ProfileSettingsViewModel.kt`
 
-Route: `profile/settings`
+Route: `profile-settings`
 
 Composable entrypoint:
 

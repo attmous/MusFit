@@ -1,5 +1,6 @@
 package com.musfit.ui.training
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -65,6 +66,18 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
     val activeWorkout = state.activeWorkout
     val accent = tabAccentFor(AppDestination.Training)
+
+    BackHandler(
+        enabled = state.activeWorkoutRouteOpen &&
+            !state.finishConfirmationOpen &&
+            !state.discardConfirmationOpen &&
+            state.replaceExerciseTargetId == null,
+    ) {
+        viewModel.closeActiveWorkoutRoute()
+    }
+    BackHandler(enabled = state.routineExercisePickerOpen) {
+        viewModel.closeRoutineExercisePicker()
+    }
 
     if (state.activeWorkoutRouteOpen && activeWorkout != null) {
         Column(
