@@ -86,6 +86,26 @@ internal fun mealTypeIcon(id: String, title: String): ImageVector {
     }
 }
 
+/**
+ * The meal the diary FAB defaults to, chosen by time of day. Matches the current
+ * time bucket's keyword against each section's id+title (mirroring [mealTypeIcon]),
+ * falling back to the first section, or null when there are no meals.
+ */
+internal fun defaultAddMealId(
+    sections: List<FoodMealSectionUiState>,
+    hour: Int,
+): String? {
+    if (sections.isEmpty()) return null
+    val keyword = when (hour) {
+        in 4..10 -> "breakfast"
+        in 11..15 -> "lunch"
+        in 16..21 -> "dinner"
+        else -> "snack"
+    }
+    val match = sections.firstOrNull { keyword in "${it.id} ${it.title}".lowercase() }
+    return (match ?: sections.first()).id
+}
+
 @Composable
 internal fun MealInitial(title: String) {
     Box(

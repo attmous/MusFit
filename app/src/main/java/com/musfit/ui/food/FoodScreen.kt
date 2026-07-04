@@ -25,12 +25,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -59,6 +58,7 @@ import androidx.compose.material.icons.outlined.LunchDining
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Today
+import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -81,8 +81,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.ContentScale
@@ -110,11 +108,11 @@ fun FoodScreen(
     val state by viewModel.state.collectAsState()
     val accent = tabAccentFor(AppDestination.Food)
     val selectedMealDetail = state.selectedMealDetailForDisplay()
-    val planningPresentation = state.toPlanningModePresentation()
     val isRecipeFullScreen =
         state.isAddPanelVisible &&
             (state.sheetMode == FoodSheetMode.RecipeBrowser || state.sheetMode == FoodSheetMode.RecipeEditor)
-    var moreExpanded by rememberSaveable { mutableStateOf(false) }
+    var todaySummaryExpanded by rememberSaveable { mutableStateOf(false) }
+    var trendsExpanded by rememberSaveable { mutableStateOf(false) }
     val foodHealthConnectPermissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
     ) {
@@ -242,19 +240,15 @@ fun FoodScreen(
                     MusFitScreenHeader(
                         title = "Food",
                         actions = {
-                            FoodPlanningModeButton(
-                                presentation = planningPresentation,
-                                onClick = viewModel::togglePlanningMode,
-                            )
                             FoodDiaryOverflowAction(
                                 state = state,
                                 onGoalClick = viewModel::openGoalEditor,
                                 onMealsClick = viewModel::openMealSettings,
                                 onTemplatesClick = viewModel::openMealTemplates,
-                                onRecipeClick = viewModel::openRecipeBrowser,
                                 onShoppingClick = viewModel::openShoppingList,
                                 onFastingClick = viewModel::openFastingTimer,
-                                onPlanningModeClick = viewModel::togglePlanningMode,
+                                onHealthConnectClick = viewModel::openHealthConnectSheet,
+                                onFoodDatabaseClick = viewModel::openFoodDatabase,
                                 onCopyDayToTomorrowClick = viewModel::copySelectedDayToTomorrow,
                             )
                         },
@@ -267,21 +261,12 @@ fun FoodScreen(
                         onTodayClick = viewModel::goToToday,
                     )
 
-                    FoodPrimaryActionRow(
-                        recipeCount = state.recipes.size,
-                        onRecipeClick = viewModel::openRecipeBrowser,
+                    FoodQuickActionsRow(
+                        isPlanningActive = state.isPlanningMode,
+                        onRecipesClick = viewModel::openRecipeBrowser,
+                        onPlanClick = viewModel::togglePlanningMode,
+                        onWaterClick = viewModel::openWaterSheet,
                     )
-
-                    MacroProgressRow(state.macroProgress)
-
-                    if (planningPresentation.showStatusCard) {
-                        PlanningModeStatusCard(
-                            presentation = planningPresentation,
-                            planDays = state.weeklyPlan,
-                            selectedDate = state.selectedDate,
-                            onActionClick = viewModel::togglePlanningMode,
-                        )
-                    }
 
                     MessageBanner(
                         message = state.message,
@@ -306,43 +291,44 @@ fun FoodScreen(
                         )
                     }
 
-                    MoreSection(expanded = moreExpanded, onToggle = { moreExpanded = !moreExpanded }) {
+                    CollapsibleGroup(
+                        title = "Today's summary",
+                        expanded = todaySummaryExpanded,
+                        onToggle = { todaySummaryExpanded = !todaySummaryExpanded },
+                    ) {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             DayRatingCard(state.dayRating)
-                            WeeklyMusFitScoreCard(state.weeklyScore)
-                            FoodProgressStatsCard(state.progressStats)
-                            FoodHabitTrackerSection(state.habitTrackers)
                             DailyInsightsSection(state.dailyInsights)
+                            FoodHabitTrackerSection(state.habitTrackers)
                             AdvancedNutritionProgressRow(state.advancedNutritionProgress)
                             MicronutrientRow(state.micronutrients)
-                            WaterTrackerCard(
-                                state = state,
-                                onQuickWaterClick = viewModel::logQuickWater,
-                                onCustomAmountChanged = viewModel::onWaterCustomAmountChanged,
-                                onCustomAddClick = viewModel::logCustomWater,
-                                onGoalChanged = viewModel::onWaterGoalChanged,
-                                onGoalSaveClick = viewModel::saveWaterGoal,
-                            )
-                            FoodHealthConnectSyncCard(
-                                state = state,
-                                onEnabledChanged = viewModel::onFoodHealthConnectSyncEnabledChanged,
-                                onRequestPermissionsClick = {
-                                    if (state.foodHealthConnectCanRequestPermissions) {
-                                        foodHealthConnectPermissionLauncher.launch(
-                                            state.foodHealthConnectRequestablePermissions,
-                                        )
-                                    }
-                                },
-                                onRefreshClick = viewModel::refreshFoodHealthConnectSync,
-                                onSyncClick = viewModel::syncFoodToHealthConnect,
-                            )
-                            FoodDatabasePreview(
-                                savedFoods = state.savedFoods,
-                                onOpenClick = viewModel::openFoodDatabase,
-                            )
+                        }
+                    }
+
+                    CollapsibleGroup(
+                        title = "Trends",
+                        expanded = trendsExpanded,
+                        onToggle = { trendsExpanded = !trendsExpanded },
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            WeeklyMusFitScoreCard(state.weeklyScore)
+                            FoodProgressStatsCard(state.progressStats)
                         }
                     }
                 }
+            }
+            FloatingActionButton(
+                onClick = {
+                    defaultAddMealId(state.mealSections, java.time.LocalTime.now().hour)
+                        ?.let(viewModel::openAddFood)
+                },
+                containerColor = MusFitTheme.colors.brand,
+                contentColor = MusFitTheme.colors.onAccent,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 20.dp, bottom = 96.dp),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "Add food")
             }
         }
 
@@ -539,7 +525,6 @@ fun FoodScreen(
                     )
 
                 FoodSheetMode.RecipeBrowser -> Unit
-                FoodSheetMode.RecipeBrowser -> Unit
 
                 FoodSheetMode.RecipeEditor ->
                     RecipeEditorPanel(
@@ -602,40 +587,116 @@ fun FoodScreen(
                         onAddManualClick = viewModel::addManualShoppingListItem,
                         onToggleItem = viewModel::toggleShoppingListItem,
                     )
+
+                FoodSheetMode.Water ->
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        WaterTrackerCard(
+                            state = state,
+                            onQuickWaterClick = viewModel::logQuickWater,
+                            onCustomAmountChanged = viewModel::onWaterCustomAmountChanged,
+                            onCustomAddClick = viewModel::logCustomWater,
+                            onGoalChanged = viewModel::onWaterGoalChanged,
+                            onGoalSaveClick = viewModel::saveWaterGoal,
+                        )
+                    }
+
+                FoodSheetMode.HealthConnect ->
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        FoodHealthConnectSyncCard(
+                            state = state,
+                            onEnabledChanged = viewModel::onFoodHealthConnectSyncEnabledChanged,
+                            onRequestPermissionsClick = {
+                                if (state.foodHealthConnectCanRequestPermissions) {
+                                    foodHealthConnectPermissionLauncher.launch(
+                                        state.foodHealthConnectRequestablePermissions,
+                                    )
+                                }
+                            },
+                            onRefreshClick = viewModel::refreshFoodHealthConnectSync,
+                            onSyncClick = viewModel::syncFoodToHealthConnect,
+                        )
+                    }
             }
         }
     }
 }
 
 @Composable
-private fun FoodPrimaryActionRow(
-    recipeCount: Int,
-    onRecipeClick: () -> Unit,
+private fun FoodQuickActionsRow(
+    isPlanningActive: Boolean,
+    onRecipesClick: () -> Unit,
+    onPlanClick: () -> Unit,
+    onWaterClick: () -> Unit,
 ) {
-    Button(
-        onClick = onRecipeClick,
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = MusFitTheme.shapes.small,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MusFitTheme.colors.brand,
-            contentColor = MusFitTheme.colors.onAccent,
-        ),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(Icons.Outlined.Restaurant, contentDescription = null)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text("Browse recipes", maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(modifier = Modifier.weight(1f))
-        Text(
-            text = "$recipeCount saved",
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        FoodQuickActionTile(
+            icon = Icons.Outlined.Restaurant,
+            label = "Recipes",
+            selected = false,
+            onClick = onRecipesClick,
+            modifier = Modifier.weight(1f),
+        )
+        FoodQuickActionTile(
+            icon = Icons.Outlined.Today,
+            label = "Plan week",
+            selected = isPlanningActive,
+            onClick = onPlanClick,
+            modifier = Modifier.weight(1f),
+        )
+        FoodQuickActionTile(
+            icon = Icons.Outlined.WaterDrop,
+            label = "Water",
+            selected = false,
+            onClick = onWaterClick,
+            modifier = Modifier.weight(1f),
         )
     }
 }
 
 @Composable
-private fun MoreSection(
+private fun FoodQuickActionTile(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val container = if (selected) {
+        MusFitTheme.colors.brand.copy(alpha = 0.14f).compositeOver(MusFitTheme.colors.surface)
+    } else {
+        MusFitTheme.colors.surface
+    }
+    val contentTint = if (selected) MusFitTheme.colors.brand else MusFitTheme.colors.onSurfaceVariant
+    Surface(
+        onClick = onClick,
+        color = container,
+        shape = MusFitTheme.shapes.extraLarge,
+        border = if (selected) BorderStroke(1.dp, MusFitTheme.colors.brand.copy(alpha = 0.4f)) else null,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(icon, contentDescription = null, tint = contentTint, modifier = Modifier.size(22.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = contentTint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CollapsibleGroup(
+    title: String,
     expanded: Boolean,
     onToggle: () -> Unit,
     content: @Composable () -> Unit,
@@ -653,7 +714,7 @@ private fun MoreSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "More details",
+                    text = title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MusFitTheme.colors.onSurface,
@@ -720,43 +781,15 @@ internal val FoodUiState.saveAndFoodEntryActionLabel: String
     get() = if (isPlanningMode) "Save and plan" else "Save and log"
 
 @Composable
-private fun FoodPlanningModeButton(
-    presentation: FoodPlanningModePresentation,
-    onClick: () -> Unit,
-) {
-    FilterChip(
-        selected = presentation.isActive,
-        onClick = onClick,
-        label = {
-            Text(
-                text = presentation.buttonLabel,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Outlined.Today,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-        },
-        modifier = Modifier.semantics {
-            contentDescription = presentation.buttonContentDescription
-        },
-    )
-}
-
-@Composable
 private fun FoodDiaryOverflowAction(
     state: FoodUiState,
     onGoalClick: () -> Unit,
     onMealsClick: () -> Unit,
     onTemplatesClick: () -> Unit,
-    onRecipeClick: () -> Unit,
     onShoppingClick: () -> Unit,
     onFastingClick: () -> Unit,
-    onPlanningModeClick: () -> Unit,
+    onHealthConnectClick: () -> Unit,
+    onFoodDatabaseClick: () -> Unit,
     onCopyDayToTomorrowClick: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -767,70 +800,15 @@ private fun FoodDiaryOverflowAction(
         DropdownMenuItem(text = { Text("Goals") }, onClick = { menuOpen = false; onGoalClick() })
         DropdownMenuItem(text = { Text("Meals") }, onClick = { menuOpen = false; onMealsClick() })
         DropdownMenuItem(text = { Text("Templates") }, onClick = { menuOpen = false; onTemplatesClick() })
-        DropdownMenuItem(text = { Text("Recipes") }, onClick = { menuOpen = false; onRecipeClick() })
         DropdownMenuItem(text = { Text("Shopping list") }, onClick = { menuOpen = false; onShoppingClick() })
         DropdownMenuItem(text = { Text("Fasting") }, onClick = { menuOpen = false; onFastingClick() })
-        DropdownMenuItem(
-            text = { Text(if (state.isPlanningMode) "Finish planning" else "Start planning") },
-            onClick = { menuOpen = false; onPlanningModeClick() },
-        )
+        DropdownMenuItem(text = { Text("Health Connect") }, onClick = { menuOpen = false; onHealthConnectClick() })
+        DropdownMenuItem(text = { Text("Food database") }, onClick = { menuOpen = false; onFoodDatabaseClick() })
         DropdownMenuItem(
             text = { Text("Copy day to tomorrow") },
             enabled = !state.isSaving,
             onClick = { menuOpen = false; onCopyDayToTomorrowClick() },
         )
-    }
-}
-
-@Composable
-private fun PlanningModeStatusCard(
-    presentation: FoodPlanningModePresentation,
-    planDays: List<FoodPlanDayUiState>,
-    selectedDate: java.time.LocalDate,
-    onActionClick: () -> Unit,
-) {
-    val accent = MusFitTheme.colors.brand
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = if (presentation.isActive) {
-            accent.copy(alpha = 0.12f).compositeOver(MusFitTheme.colors.surface)
-        } else {
-            MusFitTheme.colors.surface
-        },
-        shape = MusFitTheme.shapes.extraLarge,
-        border = BorderStroke(1.dp, accent.copy(alpha = if (presentation.isActive) 0.28f else 0.16f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = presentation.statusTitle,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MusFitTheme.colors.brandInk,
-                    modifier = Modifier.weight(1f),
-                )
-                if (presentation.statusActionLabel.isNotBlank()) {
-                    TextButton(onClick = onActionClick) {
-                        Text(presentation.statusActionLabel, maxLines = 1)
-                    }
-                }
-            }
-            WeeklyPlanStrip(planDays = planDays, selectedDate = selectedDate)
-            if (presentation.statusDescription.isNotBlank()) {
-                Text(
-                    text = presentation.statusDescription,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
-        }
     }
 }
 
@@ -876,6 +854,53 @@ private fun FoodDiarySummaryCard(
                     contentColor = accent.onContainer,
                 )
                 SummarySideMetric(label = "Goal", value = state.calorieGoalKcal, color = accent.onContainer)
+            }
+            if (state.macroProgress.isNotEmpty()) {
+                HeroMacroStrip(macros = state.macroProgress, contentColor = accent.onContainer)
+            }
+            val planning = state.toPlanningModePresentation()
+            if (planning.showStatusCard) {
+                WeeklyPlanStrip(planDays = state.weeklyPlan, selectedDate = state.selectedDate)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroMacroStrip(
+    macros: List<FoodMacroProgressUiState>,
+    contentColor: Color,
+) {
+    val macroColors = MusFitTheme.colors.macroColors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        macros.forEachIndexed { index, macro ->
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = macro.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = contentColor,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "${macro.currentGrams.roundToInt()}/${macro.goalGrams.roundToInt()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = contentColor.copy(alpha = 0.7f),
+                        maxLines = 1,
+                    )
+                }
+                ProgressBar(
+                    progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
+                    color = macroColors[index % macroColors.size],
+                )
             }
         }
     }
@@ -2278,83 +2303,6 @@ private fun DiaryEntryRow(
         }
     }
 }
-
-@Composable
-private fun FoodDatabasePreview(
-    savedFoods: List<SavedFoodUiState>,
-    onOpenClick: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SectionTitle("Food database")
-            MusFitOutlinedButton(onClick = onOpenClick) {
-                Text("Open")
-            }
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-            shape = MusFitTheme.shapes.extraLarge,
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                if (savedFoods.isEmpty()) {
-                    Text(
-                        text = "No saved foods yet",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
-                } else {
-                    savedFoods.take(3).forEach { food ->
-                        SavedFoodSummaryRow(food)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SavedFoodSummaryRow(food: SavedFoodUiState) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = food.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = food.brand ?: "${food.defaultServingGrams.roundToInt()} g serving",
-                style = MaterialTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Text(
-            text = "${food.caloriesPerServingKcal.roundToInt()} kcal",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MusFitTheme.colors.brand,
-        )
-    }
-}
-
-
 
 internal val FoodGoalMode.label: String
     get() =

@@ -21,7 +21,7 @@ Snapshot date: 2026-07-03. Schema version 28.
 | --- | --- |
 | `ui/food/FoodScreen.kt` | Diary screen, summary/header, meal detail, and the `FoodSheetMode` dispatch (~2,000 lines). |
 | `ui/food/FoodComponents.kt` | Shared leaf composables + formatters (`ProgressBar`, `FoodThumb`, `SectionTitle`, …). |
-| `ui/food/FoodTrackersUi.kt` | Water + Health Connect "More details" cards. |
+| `ui/food/FoodTrackersUi.kt` | Water + Health Connect cards, shown as bottom-sheet content (Water via the quick-actions tile, Health Connect via the tools menu). |
 | `ui/food/FoodModalSheets.kt` | The `FoodSheetMode` panels (database, editors, goals, recipes, templates, shopping, barcode comparison, fasting timer). |
 | `ui/food/FoodAddPanelUi.kt` | The add-food panel and its entry-mode forms. |
 | `ui/food/AddFoodScreen.kt` | Full-screen add-food surface (the `AddFood` sheet mode). |
@@ -292,9 +292,9 @@ change. **Done — FoodScreen.kt went from ~4,900 to ~1,980 lines.**
 
 Remaining optional Tier 2 polish:
 
-- [ ] Split the diary "More details" summary cards (rating, insights, advanced
-  nutrition, micronutrients) into a `FoodSummaryUi.kt` if `FoodScreen.kt`
-  needs to shrink further.
+- [ ] Split the diary "Today's summary" / "Trends" collapsible-group cards
+  (rating, insights, advanced nutrition, micronutrients, weekly score, progress
+  stats) into a `FoodSummaryUi.kt` if `FoodScreen.kt` needs to shrink further.
 
 ### Deferred / do NOT
 
