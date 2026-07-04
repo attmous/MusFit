@@ -1894,33 +1894,30 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Meal intake",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    meal.rating?.let { rating -> RatingPill(rating) }
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Text(
-                        text = "${meal.caloriesKcal.roundToInt()} kcal",
-                        style = MaterialTheme.typography.titleLarge,
+                        text = "${meal.caloriesKcal.roundToInt()}",
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MusFitTheme.colors.brandInk,
                     )
+                    Text(
+                        text = "/ ${meal.calorieTargetKcal.roundToInt()} kcal",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
                 }
+                meal.rating?.let { rating -> RatingPill(rating) }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                ProgressBar(
-                    progress = meal.calorieProgress.toFloat(),
-                    color = MusFitTheme.colors.brand,
-                )
-                Text(
-                    text = "Target ${meal.calorieTargetKcal.roundToInt()} kcal",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
+            ProgressBar(
+                progress = meal.calorieProgress.toFloat(),
+                color = MusFitTheme.colors.brand,
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1949,17 +1946,45 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                 )
             }
 
-            meal.rating?.factors?.takeIf { it.isNotEmpty() }?.let { factors ->
+            val ratingFactors = meal.rating?.factors?.takeIf { it.isNotEmpty() }
+            val hasDetail = ratingFactors != null ||
+                meal.advancedNutritionProgress.isNotEmpty() ||
+                meal.micronutrients.isNotEmpty()
+            if (hasDetail) {
+                var detailExpanded by rememberSaveable(meal.id) { mutableStateOf(false) }
                 HorizontalDivider(color = MusFitTheme.colors.outline)
-                RatingFactorColumn(factors)
-            }
-            if (meal.advancedNutritionProgress.isNotEmpty()) {
-                HorizontalDivider(color = MusFitTheme.colors.outline)
-                AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
-            }
-            if (meal.micronutrients.isNotEmpty()) {
-                HorizontalDivider(color = MusFitTheme.colors.outline)
-                MicronutrientGrid(meal.micronutrients)
+                Surface(
+                    onClick = { detailExpanded = !detailExpanded },
+                    color = Color.Transparent,
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "More nutrition",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Icon(
+                            imageVector = if (detailExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (detailExpanded) "Collapse nutrition detail" else "Expand nutrition detail",
+                            tint = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (detailExpanded) {
+                    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                        ratingFactors?.let { RatingFactorColumn(it) }
+                        if (meal.advancedNutritionProgress.isNotEmpty()) {
+                            AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
+                        }
+                        if (meal.micronutrients.isNotEmpty()) {
+                            MicronutrientGrid(meal.micronutrients)
+                        }
+                    }
+                }
             }
         }
     }
