@@ -1,5 +1,6 @@
 package com.musfit.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
@@ -64,18 +65,35 @@ fun AppNavGraph() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: AppDestination.Today.route
     val currentBottomRoute = bottomDestinationForRoute(currentRoute).route
+    var appBackStackEntries by rememberSaveable { mutableStateOf(listOf(AppDestination.Today)) }
+    val appBackStack = remember(appBackStackEntries) { AppNavigationStack(appBackStackEntries) }
     var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
     var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
     var chatPreviewVisible by rememberSaveable { mutableStateOf(false) }
 
-    fun go(route: String) {
-        // Standard bottom-nav model: back from any tab returns to Today (the start
-        // destination), and from Today it exits. saveState/restoreState keep each
-        // tab's own scroll and UI state across switches.
-        navController.navigate(route) {
+    fun navigateToBottomDestination(destination: AppDestination) {
+        navController.navigate(destination.route) {
             popUpTo(AppDestination.Today.route) { saveState = true }
             launchSingleTop = true
             restoreState = true
+        }
+    }
+
+    fun go(destination: AppDestination) {
+        AppNavigationStack(appBackStackEntries).also { stack ->
+            stack.select(destination)
+            appBackStackEntries = stack.entries
+        }
+        navigateToBottomDestination(destination)
+    }
+
+    fun popAppBackStack() {
+        AppNavigationStack(appBackStackEntries).also { stack ->
+            val previousDestination = stack.pop()
+            if (previousDestination != null) {
+                appBackStackEntries = stack.entries
+                navigateToBottomDestination(previousDestination)
+            }
         }
     }
 
@@ -85,7 +103,7 @@ fun AppNavGraph() {
             FloatingPillNav(
                 destinations = destinations,
                 currentRoute = currentBottomRoute,
-                onSelect = { go(it.route) },
+                onSelect = { go(it) },
                 onChat = { chatPreviewVisible = true },
             )
         },
@@ -96,13 +114,15 @@ fun AppNavGraph() {
             modifier = Modifier.padding(padding),
         ) {
             composable(AppDestination.Today.route) {
+                BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })
                 TodayScreen(
-                    onOpenFood = { go(AppDestination.Food.route) },
-                    onOpenTraining = { go(AppDestination.Training.route) },
-                    onOpenHealth = { go(AppDestination.Profile.route) },
+                    onOpenFood = { go(AppDestination.Food) },
+                    onOpenTraining = { go(AppDestination.Training) },
+                    onOpenHealth = { go(AppDestination.Profile) },
                 )
             }
             composable(AppDestination.Food.route) {
+                BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })
                 FoodScreen(
                     scannedBarcode = scannedBarcode,
                     onScanClick = { navController.navigate(BARCODE_SCANNER_ROUTE) },
@@ -112,12 +132,16 @@ fun AppNavGraph() {
                     onScannedLabelConsumed = { scannedLabelText = null },
                 )
             }
-            composable(AppDestination.Training.route) { TrainingScreen() }
+            composable(AppDestination.Training.route) {
+                BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })
+                TrainingScreen()
+            }
             composable(AppDestination.Profile.route) {
+                BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })
                 ProfileScreen(
                     onSettingsClick = { navController.navigate(PROFILE_SETTINGS_ROUTE) },
-                    onOpenFood = { go(AppDestination.Food.route) },
-                    onOpenTraining = { go(AppDestination.Training.route) },
+                    onOpenFood = { go(AppDestination.Food) },
+                    onOpenTraining = { go(AppDestination.Training) },
                 )
             }
             composable(PROFILE_SETTINGS_ROUTE) {
@@ -149,6 +173,14 @@ fun AppNavGraph() {
     if (chatPreviewVisible) {
         ChatPreviewSheet(onDismiss = { chatPreviewVisible = false })
     }
+}
+
+@Composable
+private fun BottomDestinationBackHandler(
+    canPop: Boolean,
+    onBack: () -> Unit,
+) {
+    BackHandler(enabled = canPop, onBack = onBack)
 }
 
 /** Spacing between nav items, used both for layout and the sliding-indicator math. */

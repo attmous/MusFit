@@ -21,5 +21,6 @@ enum class AppDestination(val route: String, val label: String, val icon: ImageV
 internal fun bottomDestinationForRoute(route: String?): AppDestination =
     when (route) {
         PROFILE_SETTINGS_ROUTE -> AppDestination.Profile
+        BARCODE_SCANNER_ROUTE, NUTRITION_LABEL_SCANNER_ROUTE -> AppDestination.Food
         else -> AppDestination.entries.firstOrNull { it.route == route } ?: AppDestination.Today
     }

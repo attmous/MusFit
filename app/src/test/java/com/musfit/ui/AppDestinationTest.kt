@@ -27,4 +27,10 @@ class AppDestinationTest {
     fun profileSettingsRoute_keeps_profile_tab_selected() {
         assertEquals(AppDestination.Profile, bottomDestinationForRoute(PROFILE_SETTINGS_ROUTE))
     }
+
+    @Test
+    fun scannerRoutes_keep_food_tab_selected() {
+        assertEquals(AppDestination.Food, bottomDestinationForRoute(BARCODE_SCANNER_ROUTE))
+        assertEquals(AppDestination.Food, bottomDestinationForRoute(NUTRITION_LABEL_SCANNER_ROUTE))
+    }
 }
