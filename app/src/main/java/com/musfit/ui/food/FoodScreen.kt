@@ -275,17 +275,6 @@ fun FoodScreen(
                         onWaterClick = viewModel::openWaterSheet,
                     )
 
-                    MacroProgressRow(state.macroProgress)
-
-                    if (planningPresentation.showStatusCard) {
-                        PlanningModeStatusCard(
-                            presentation = planningPresentation,
-                            planDays = state.weeklyPlan,
-                            selectedDate = state.selectedDate,
-                            onActionClick = viewModel::togglePlanningMode,
-                        )
-                    }
-
                     MessageBanner(
                         message = state.message,
                         canUndoDelete = state.lastDeletedDiaryEntry != null,
@@ -860,58 +849,6 @@ private fun FoodDiaryOverflowAction(
 }
 
 @Composable
-private fun PlanningModeStatusCard(
-    presentation: FoodPlanningModePresentation,
-    planDays: List<FoodPlanDayUiState>,
-    selectedDate: java.time.LocalDate,
-    onActionClick: () -> Unit,
-) {
-    val accent = MusFitTheme.colors.brand
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = if (presentation.isActive) {
-            accent.copy(alpha = 0.12f).compositeOver(MusFitTheme.colors.surface)
-        } else {
-            MusFitTheme.colors.surface
-        },
-        shape = MusFitTheme.shapes.extraLarge,
-        border = BorderStroke(1.dp, accent.copy(alpha = if (presentation.isActive) 0.28f else 0.16f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = presentation.statusTitle,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MusFitTheme.colors.brandInk,
-                    modifier = Modifier.weight(1f),
-                )
-                if (presentation.statusActionLabel.isNotBlank()) {
-                    TextButton(onClick = onActionClick) {
-                        Text(presentation.statusActionLabel, maxLines = 1)
-                    }
-                }
-            }
-            WeeklyPlanStrip(planDays = planDays, selectedDate = selectedDate)
-            if (presentation.statusDescription.isNotBlank()) {
-                Text(
-                    text = presentation.statusDescription,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun FoodDiarySummaryCard(
     state: FoodUiState,
     accent: TabAccent,
@@ -953,6 +890,53 @@ private fun FoodDiarySummaryCard(
                     contentColor = accent.onContainer,
                 )
                 SummarySideMetric(label = "Goal", value = state.calorieGoalKcal, color = accent.onContainer)
+            }
+            if (state.macroProgress.isNotEmpty()) {
+                HeroMacroStrip(macros = state.macroProgress, contentColor = accent.onContainer)
+            }
+            val planning = state.toPlanningModePresentation()
+            if (planning.showStatusCard) {
+                WeeklyPlanStrip(planDays = state.weeklyPlan, selectedDate = state.selectedDate)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroMacroStrip(
+    macros: List<FoodMacroProgressUiState>,
+    contentColor: Color,
+) {
+    val macroColors = MusFitTheme.colors.macroColors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        macros.forEachIndexed { index, macro ->
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = macro.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = contentColor,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "${macro.currentGrams.roundToInt()}/${macro.goalGrams.roundToInt()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = contentColor.copy(alpha = 0.7f),
+                        maxLines = 1,
+                    )
+                }
+                ProgressBar(
+                    progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
+                    color = macroColors[index % macroColors.size],
+                )
             }
         }
     }
