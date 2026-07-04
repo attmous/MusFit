@@ -38,6 +38,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -576,11 +579,25 @@ private fun ExerciseDetailPage(
 
         val gifUrl = detail.gifUrl
         val imageUrl = detail.imageUrl
-        if (!gifUrl.isNullOrBlank()) {
-            ExerciseGif(gifUrl = gifUrl, contentDescription = detail.name)
+        var gifUnavailable by remember(gifUrl) { mutableStateOf(false) }
+        if (!gifUrl.isNullOrBlank() && !gifUnavailable) {
+            ExerciseGif(
+                gifUrl = gifUrl,
+                contentDescription = detail.name,
+                accent = accent,
+                onError = { gifUnavailable = true },
+            )
         } else if (!imageUrl.isNullOrBlank()) {
             ExerciseThumb(
                 imageUrl = imageUrl,
+                contentDescription = detail.name,
+                accent = accent,
+                size = 200.dp,
+                shape = MusFitTheme.shapes.large,
+            )
+        } else {
+            ExerciseThumb(
+                imageUrl = null,
                 contentDescription = detail.name,
                 accent = accent,
                 size = 200.dp,

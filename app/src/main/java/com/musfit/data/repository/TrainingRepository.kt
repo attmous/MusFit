@@ -649,8 +649,8 @@ class LocalTrainingRepository @Inject constructor(
                     equipment = row.equipment,
                     targetMuscles = row.targetMuscles,
                     isCustom = row.isCustom,
-                    imageUrl = row.imageUrl,
-                    gifUrl = row.gifUrl,
+                    imageUrl = row.imageUrl.toAvailableExerciseMediaUrl(),
+                    gifUrl = row.gifUrl.toAvailableExerciseMediaUrl(),
                 ),
                 sortOrder = row.sortOrder,
                 targetSets = row.targetSets,
@@ -1176,7 +1176,7 @@ class LocalTrainingRepository @Inject constructor(
     private suspend fun backfillStarterExerciseMedia() {
         STARTER_EXERCISE_DATASET_IDS.forEach { (exerciseName, datasetId) ->
             val starter = trainingDao.getExerciseByName(exerciseName) ?: return@forEach
-            if (starter.isCustom || starter.imageUrl != null) return@forEach
+            if (starter.isCustom || starter.imageUrl != null || starter.gifUrl != null) return@forEach
             val source = trainingDao.getExercise("$EXERCISE_DATASET_ID_PREFIX$datasetId") ?: return@forEach
             trainingDao.updateExercise(
                 starter.copy(
@@ -1371,8 +1371,8 @@ private fun ExerciseEntity.toSummary(): ExerciseSummary =
         isCustom = isCustom,
         primaryMuscles = primaryMuscles.ifBlank { targetMuscles },
         secondaryMuscles = secondaryMuscles,
-        imageUrl = imageUrl,
-        gifUrl = gifUrl,
+        imageUrl = imageUrl.toAvailableExerciseMediaUrl(),
+        gifUrl = gifUrl.toAvailableExerciseMediaUrl(),
     )
 
 private fun ExerciseEntity.toDetail(): ExerciseDetail =
@@ -1387,8 +1387,8 @@ private fun ExerciseEntity.toDetail(): ExerciseDetail =
         instructions = instructions,
         localNotes = localNotes,
         isCustom = isCustom,
-        imageUrl = imageUrl,
-        gifUrl = gifUrl,
+        imageUrl = imageUrl.toAvailableExerciseMediaUrl(),
+        gifUrl = gifUrl.toAvailableExerciseMediaUrl(),
     )
 
 private fun RoutineSummaryRow.toSummary(): RoutineSummary =
@@ -1412,6 +1412,9 @@ private fun RoutineFolderEntity.toFolder(): RoutineFolder =
         name = name,
         sortOrder = sortOrder,
     )
+
+private fun String?.toAvailableExerciseMediaUrl(): String? =
+    this?.let(::exerciseMediaUrl)
 
 private fun RoutineExerciseDetailRow.defaultSetPlans(): List<RoutineSetInput> =
     (0 until targetSets.coerceAtLeast(1)).map {
@@ -1703,8 +1706,8 @@ private fun buildWorkoutExerciseBlock(
             equipment = first.equipment,
             targetMuscles = first.targetMuscles,
             isCustom = first.isCustom,
-            imageUrl = first.imageUrl,
-            gifUrl = first.gifUrl,
+            imageUrl = first.imageUrl.toAvailableExerciseMediaUrl(),
+            gifUrl = first.gifUrl.toAvailableExerciseMediaUrl(),
         ),
         targetReps = exerciseRows.firstNotNullOfOrNull { row -> parsedNotes.getValue(row.setId).targetReps },
         priorBestEstimatedOneRepMaxKg = priorBest1RM[first.exerciseId] ?: 0.0,

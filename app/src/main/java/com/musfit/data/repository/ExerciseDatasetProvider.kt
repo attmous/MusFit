@@ -12,11 +12,13 @@ import javax.inject.Inject
 
 /**
  * Exercise catalog sourced from github.com/hasaneyldrm/exercises-dataset (educational / non-commercial;
- * media copyright belongs to the original holders). Only the factual text catalog ships in the APK;
- * thumbnails and GIFs are never bundled or redistributed — they are referenced by URL and fetched on
- * demand from the jsDelivr CDN below (then cached by Coil), so no copyrighted media lives in the app.
+ * media copyright belongs to the original holders). Only the factual text catalog ships in the APK.
+ * Upstream no longer redistributes media files through this repository, but the relative paths still
+ * contain the ExerciseDB media id used by public GIF mirrors.
  */
-const val EXERCISE_DATASET_CDN_BASE = "https://cdn.jsdelivr.net/gh/hasaneyldrm/exercises-dataset@main/"
+const val EXERCISE_DATASET_LEGACY_CDN_BASE = "https://cdn.jsdelivr.net/gh/hasaneyldrm/exercises-dataset@main/"
+private const val EXERCISE_GIF_MIRROR_BASE =
+    "https://gitlab.stud.idi.ntnu.no/gruppe-1/prog2052-prosjekt/-/raw/main/backend/assets/exercises/"
 const val EXERCISE_DATASET_ID_PREFIX = "ds-"
 private const val EXERCISE_DATASET_ASSET = "exercises_dataset.json"
 
@@ -57,9 +59,32 @@ class AssetExerciseDatasetProvider @Inject constructor(
     }
 }
 
-/** Builds an absolute CDN media URL from a repo-relative path, or null when the path is blank. */
-fun exerciseMediaUrl(relativePath: String): String? =
-    relativePath.takeIf { it.isNotBlank() }?.let { EXERCISE_DATASET_CDN_BASE + it }
+/**
+ * Returns a usable exercise media URL. Bundled dataset paths and old jsDelivr URLs are rewritten to
+ * a GIF mirror by extracting the stable media id from filenames such as
+ * `videos/0001-2gPfomN.gif`.
+ */
+fun exerciseMediaUrl(pathOrUrl: String): String? {
+    val value = pathOrUrl.trim().takeIf { it.isNotBlank() } ?: return null
+    if (value.startsWith(EXERCISE_GIF_MIRROR_BASE, ignoreCase = true)) return value
+    val datasetPath = value.removePrefixIgnoringCase(EXERCISE_DATASET_LEGACY_CDN_BASE)
+    datasetPath.exerciseDbMediaId()?.let { mediaId ->
+        return "$EXERCISE_GIF_MIRROR_BASE$mediaId.gif"
+    }
+    return value.takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
+}
+
+private fun String.removePrefixIgnoringCase(prefix: String): String =
+    if (startsWith(prefix, ignoreCase = true)) substring(prefix.length) else this
+
+private fun String.exerciseDbMediaId(): String? {
+    val filename = substringAfterLast('/').substringBeforeLast('.')
+    if ('-' !in filename) return null
+    val mediaId = filename.substringAfter('-').trim()
+    return mediaId.takeIf { candidate ->
+        candidate.isNotBlank() && candidate.all { it.isLetterOrDigit() || it == '_' || it == '-' }
+    }
+}
 
 /** Maps a dataset record to a library [ExerciseEntity] (namespaced id + absolute CDN media URLs). */
 fun ExerciseDatasetRecord.toExerciseEntity(): ExerciseEntity =
