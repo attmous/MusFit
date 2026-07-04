@@ -122,8 +122,12 @@ fun TrainingRoutineContent(
                 }
             }
         }
-        if (routines.isNotEmpty()) {
-            groupRoutineSummariesByFolder(routines).forEach { group ->
+        val routineGroups = groupRoutineSummariesByFolder(
+            routines = routines,
+            folders = folders,
+        )
+        if (routineGroups.isNotEmpty()) {
+            routineGroups.forEach { group ->
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = group.title,
@@ -139,19 +143,28 @@ fun TrainingRoutineContent(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column {
-                            group.routines.forEachIndexed { index, routine ->
-                                RoutineRow(
-                                    routine = routine,
-                                    accent = accent,
-                                    onOpenDetail = { onOpenRoutineDetail(routine.id) },
-                                    onStart = { onStartRoutine(routine.id) },
+                            if (group.routines.isEmpty()) {
+                                Text(
+                                    text = "No routines yet",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MusFitTheme.colors.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
                                 )
-                                if (index < group.routines.lastIndex) {
-                                    HorizontalDivider(
-                                        thickness = 0.5.dp,
-                                        color = MusFitTheme.colors.outline,
-                                        modifier = Modifier.padding(start = 61.dp),
+                            } else {
+                                group.routines.forEachIndexed { index, routine ->
+                                    RoutineRow(
+                                        routine = routine,
+                                        accent = accent,
+                                        onOpenDetail = { onOpenRoutineDetail(routine.id) },
+                                        onStart = { onStartRoutine(routine.id) },
                                     )
+                                    if (index < group.routines.lastIndex) {
+                                        HorizontalDivider(
+                                            thickness = 0.5.dp,
+                                            color = MusFitTheme.colors.outline,
+                                            modifier = Modifier.padding(start = 61.dp),
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -627,7 +640,32 @@ internal data class RoutineGroup(
     val routines: List<RoutineSummary>,
 )
 
-internal fun groupRoutineSummariesByFolder(routines: List<RoutineSummary>): List<RoutineGroup> {
+internal fun groupRoutineSummariesByFolder(
+    routines: List<RoutineSummary>,
+    folders: List<RoutineFolder> = emptyList(),
+): List<RoutineGroup> {
+    if (folders.isNotEmpty()) {
+        val folderGroups = folders.map { folder ->
+            RoutineGroup(
+                title = folder.name,
+                routines = routines.filter { routine -> routine.belongsToFolder(folder) },
+            )
+        }
+        val remainingGroups = linkedMapOf<String, MutableList<RoutineSummary>>()
+        routines
+            .filterNot { routine -> folders.any { folder -> routine.belongsToFolder(folder) } }
+            .forEach { routine ->
+                val title = routine.folderName
+                    ?.trim()
+                    ?.takeIf(String::isNotBlank)
+                    ?: "My routines"
+                remainingGroups.getOrPut(title) { mutableListOf() } += routine
+            }
+        return folderGroups + remainingGroups.map { (title, groupedRoutines) ->
+            RoutineGroup(title = title, routines = groupedRoutines)
+        }
+    }
+
     val groups = linkedMapOf<String, MutableList<RoutineSummary>>()
     routines.forEach { routine ->
         val title = routine.folderName
@@ -639,6 +677,13 @@ internal fun groupRoutineSummariesByFolder(routines: List<RoutineSummary>): List
     return groups.map { (title, groupedRoutines) ->
         RoutineGroup(title = title, routines = groupedRoutines)
     }
+}
+
+private fun RoutineSummary.belongsToFolder(folder: RoutineFolder): Boolean {
+    val normalizedFolderName = folder.name.trim()
+    val normalizedRoutineFolderName = folderName?.trim()
+    return folderId == folder.id ||
+        normalizedRoutineFolderName?.equals(normalizedFolderName, ignoreCase = true) == true
 }
 
 internal fun routineCardActions(isStarter: Boolean): List<String> =

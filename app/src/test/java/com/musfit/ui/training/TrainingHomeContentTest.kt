@@ -2,6 +2,7 @@ package com.musfit.ui.training
 
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineExerciseInput
+import com.musfit.data.repository.RoutineFolder
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.RoutineSetInput
 import org.junit.Assert.assertEquals
@@ -121,6 +122,25 @@ class TrainingHomeContentTest {
         assertEquals(listOf("PPL System", "Starter Pack", "My routines"), groups.map { it.title })
         assertEquals(listOf("Push A", "Push B"), groups.first().routines.map { it.name })
         assertEquals(listOf("Garage Day"), groups.last().routines.map { it.name })
+    }
+
+    @Test
+    fun groupRoutineSummariesByFolder_includesEmptyConfiguredFolders() {
+        val groups = groupRoutineSummariesByFolder(
+            routines = listOf(
+                routine(id = "push-a", name = "Push A", folderName = "PPL System"),
+                routine(id = "custom", name = "Garage Day", folderName = null),
+            ),
+            folders = listOf(
+                RoutineFolder(id = "folder-ppl", name = "PPL System", sortOrder = 0),
+                RoutineFolder(id = "folder-new", name = "Powerbuilding", sortOrder = 1),
+            ),
+        )
+
+        assertEquals(listOf("PPL System", "Powerbuilding", "My routines"), groups.map { it.title })
+        assertEquals(listOf("Push A"), groups[0].routines.map { it.name })
+        assertEquals(emptyList<String>(), groups[1].routines.map { it.name })
+        assertEquals(listOf("Garage Day"), groups[2].routines.map { it.name })
     }
 
     @Test
