@@ -434,6 +434,87 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun createUpdateDuplicateAndDeleteRoutine_persistsFolderRestAndSetPlans() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val folderId = repository.createRoutineFolder("PPL System x4 - Phase 1")
+
+        val routineId = repository.createRoutine(
+            RoutineInput(
+                name = "Push #1",
+                notes = "Heavy press day",
+                folderId = folderId,
+                exercises = listOf(
+                    RoutineExerciseInput(
+                        exerciseId = bench.id,
+                        targetSets = 3,
+                        targetReps = "8",
+                        restSeconds = 210,
+                        setPlans = listOf(
+                            RoutineSetInput(setType = "warmup", targetReps = "15", targetWeightKg = 20.0),
+                            RoutineSetInput(setType = "working", targetReps = "8", targetWeightKg = 70.0),
+                            RoutineSetInput(setType = "drop", targetReps = "12", targetWeightKg = 45.0),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        repository.updateRoutineFolder(folderId, "PPL System x4 - Phase 1A")
+        val duplicateId = repository.duplicateRoutine(routineId)
+        val duplicate = repository.getRoutineDetail(duplicateId)
+        repository.deleteRoutineFolder(folderId)
+
+        val original = repository.getRoutineDetail(routineId)
+        val folders = repository.observeRoutineFolders().first()
+
+        assertTrue(folders.none { it.id == folderId })
+        assertEquals(null, original?.folderId)
+        assertEquals(null, original?.folderName)
+        assertEquals("Push #1 Copy", duplicate?.name)
+        assertEquals("PPL System x4 - Phase 1A", duplicate?.folderName)
+        assertEquals(210, duplicate?.exercises?.single()?.restSeconds)
+        assertEquals(listOf("warmup", "working", "drop"), duplicate?.exercises?.single()?.setPlans?.map { it.setType })
+        assertEquals(listOf("15", "8", "12"), duplicate?.exercises?.single()?.setPlans?.map { it.targetReps })
+        assertEquals(listOf(20.0, 70.0, 45.0), duplicate?.exercises?.single()?.setPlans?.map { it.targetWeightKg })
+    }
+
+    @Test
+    fun startWorkoutFromRoutine_materializesSavedSetTypesWeightsAndExerciseRestSeconds() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val routineId = repository.createRoutine(
+            RoutineInput(
+                name = "Bench Ladder",
+                notes = null,
+                exercises = listOf(
+                    RoutineExerciseInput(
+                        exerciseId = bench.id,
+                        targetSets = 3,
+                        targetReps = "8",
+                        restSeconds = 180,
+                        setPlans = listOf(
+                            RoutineSetInput(setType = "warmup", targetReps = "12", targetWeightKg = 40.0),
+                            RoutineSetInput(setType = "working", targetReps = "8", targetWeightKg = 90.0),
+                            RoutineSetInput(setType = "failure", targetReps = "AMRAP", targetWeightKg = 90.0),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val sessionId = repository.startWorkoutFromRoutine(routineId)
+        val active = repository.observeActiveWorkoutDetail().first()
+        val persistedSets = database.trainingDao().getWorkoutSets(sessionId)
+
+        assertEquals(listOf("warmup", "working", "failure"), active?.exerciseBlocks?.single()?.sets?.map { it.setType })
+        assertEquals(listOf("12", "8", "AMRAP"), active?.exerciseBlocks?.single()?.sets?.map { it.targetReps })
+        assertEquals(listOf(40.0, 90.0, 90.0), active?.exerciseBlocks?.single()?.sets?.map { it.weightKg })
+        assertEquals(listOf(180, 180, 180), active?.exerciseBlocks?.single()?.sets?.map { it.restSeconds })
+        assertEquals(listOf(180, 180, 180), persistedSets.map { it.restSeconds })
+    }
+
+    @Test
     fun seedStarterTrainingData_exposesProgramCatalogAndDuplicateKeepsOrganization() = runTest {
         repository.seedStarterTrainingData()
 

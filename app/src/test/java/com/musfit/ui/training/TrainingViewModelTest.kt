@@ -12,7 +12,9 @@ import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineExerciseDetail
 import com.musfit.data.repository.RoutineExerciseInput
+import com.musfit.data.repository.RoutineFolder
 import com.musfit.data.repository.RoutineInput
+import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSettings
 import com.musfit.data.repository.TrainingSettingsInput
@@ -311,10 +313,11 @@ class TrainingViewModelTest {
         val editor = viewModel.state.value.routineEditor
         assertTrue(editor.isOpen)
         assertEquals("Full Body A", editor.name)
+        assertEquals("Starter Pack", editor.folderName)
         assertEquals(listOf("exercise-bench-press"), editor.exercises.map { it.exerciseId })
 
         viewModel.onRoutineNameChanged("Full Body A edited")
-        viewModel.addRoutineExercise("exercise-row")
+        viewModel.addRoutineExercises(listOf("exercise-row"))
         viewModel.removeRoutineExercise(index = 0)
         viewModel.saveRoutineEditor()
         dispatcher.scheduler.advanceUntilIdle()
@@ -324,11 +327,19 @@ class TrainingViewModelTest {
             RoutineInput(
                 name = "Full Body A edited",
                 notes = "Starter routine",
+                folderId = "folder-starter-pack",
+                folderName = "Starter Pack",
                 exercises = listOf(
                     RoutineExerciseInput(
                         exerciseId = "exercise-row",
                         targetSets = 3,
                         targetReps = "8",
+                        restSeconds = 120,
+                        setPlans = listOf(
+                            RoutineSetInput(setType = "working", targetReps = "8"),
+                            RoutineSetInput(setType = "working", targetReps = "8"),
+                            RoutineSetInput(setType = "working", targetReps = "8"),
+                        ),
                     ),
                 ),
             ),
@@ -391,28 +402,35 @@ class TrainingViewModelTest {
         assertEquals("routine-upper-a", editor.routineId)
         assertEquals("Upper A", editor.name)
         assertEquals("Custom routine", editor.notes)
+        assertEquals("PPL System", editor.folderName)
         assertEquals(1, editor.exercises.size)
         assertEquals("exercise-bench-press", editor.exercises.single().exerciseId)
     }
 
     @Test
-    fun routineProgramFilter_showsProgramOptionsAndVisibleRoutines() = runTest {
+    fun routineFolders_showConfigurableFoldersAndDoNotFilterVisibleRoutinesByProgram() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf("Full Body", "Upper Lower"), viewModel.state.value.routineProgramOptions)
+        assertEquals(listOf("Starter Pack", "PPL System"), viewModel.state.value.routineFolders.map { it.name })
         assertEquals(listOf("Full Body A", "Upper A"), viewModel.state.value.visibleRoutines.map { it.name })
 
-        viewModel.onRoutineProgramFilterChanged("Upper Lower")
+        viewModel.openRoutineFolderEditor(null)
+        viewModel.onRoutineFolderNameChanged("  Powerbuilding  ")
+        viewModel.saveRoutineFolderEditor()
+        dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Upper Lower", viewModel.state.value.selectedRoutineProgram)
-        assertEquals(listOf("Upper A"), viewModel.state.value.visibleRoutines.map { it.name })
+        assertEquals("Powerbuilding", repository.createdFolderName)
+        assertFalse(viewModel.state.value.routineFolderEditor.isOpen)
 
-        viewModel.onRoutineProgramFilterChanged(null)
+        viewModel.openRoutineFolderEditor("folder-ppl")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onRoutineFolderNameChanged("PPL System x4")
+        viewModel.saveRoutineFolderEditor()
+        dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(null, viewModel.state.value.selectedRoutineProgram)
-        assertEquals(listOf("Full Body A", "Upper A"), viewModel.state.value.visibleRoutines.map { it.name })
+        assertEquals("folder-ppl" to "PPL System x4", repository.updatedFolder)
     }
 
     @Test
@@ -425,13 +443,6 @@ class TrainingViewModelTest {
         assertEquals("Full Body A", initialDashboard.nextSuggestedRoutine?.name)
         assertEquals(listOf("Full Body A", "Upper A"), initialDashboard.quickStartRoutines.map { it.name })
         assertEquals("Push", initialDashboard.recentWorkout?.title)
-
-        viewModel.onRoutineProgramFilterChanged("Upper Lower")
-        dispatcher.scheduler.advanceUntilIdle()
-
-        val filteredDashboard = viewModel.state.value.dashboard
-        assertEquals("Upper A", filteredDashboard.nextSuggestedRoutine?.name)
-        assertEquals(listOf("Upper A"), filteredDashboard.quickStartRoutines.map { it.name })
     }
 
     @Test
@@ -494,11 +505,65 @@ class TrainingViewModelTest {
                         exerciseId = "exercise-bench-press",
                         targetSets = 4,
                         targetReps = "8",
+                        restSeconds = 120,
+                        setPlans = listOf(
+                            RoutineSetInput(setType = "working", targetReps = "8"),
+                            RoutineSetInput(setType = "working", targetReps = "8"),
+                            RoutineSetInput(setType = "working", targetReps = "8"),
+                            RoutineSetInput(setType = "working", targetReps = "8"),
+                        ),
                     ),
                 ),
             ),
             repository.createdRoutineInput,
         )
+    }
+
+    @Test
+    fun routineExercisePicker_addsSelectedExercisesOnlyAfterConfirm() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.openRoutineEditor(null)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineExercisePicker()
+        viewModel.toggleRoutineExercisePickerSelection("exercise-bench-press")
+
+        assertTrue(viewModel.state.value.routineExercisePickerOpen)
+        assertTrue(viewModel.state.value.routineExercisePickerSelectedIds.contains("exercise-bench-press"))
+        assertTrue(viewModel.state.value.routineEditor.exercises.isEmpty())
+
+        viewModel.confirmRoutineExercisePicker()
+
+        assertFalse(viewModel.state.value.routineExercisePickerOpen)
+        assertEquals(listOf("exercise-bench-press"), viewModel.state.value.routineEditor.exercises.map { it.exerciseId })
+    }
+
+    @Test
+    fun routineEditor_updatesExerciseRestAndSetPlanRowsBeforeSave() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+
+        viewModel.openRoutineEditor(null)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onRoutineNameChanged("Push")
+        viewModel.addRoutineExercise("exercise-bench-press")
+        viewModel.onRoutineExerciseRestSecondsChanged(index = 0, value = "210")
+        viewModel.onRoutineExerciseSetTypeChanged(exerciseIndex = 0, setIndex = 0, setType = "warmup")
+        viewModel.onRoutineExerciseSetRepsChanged(exerciseIndex = 0, setIndex = 0, value = "15")
+        viewModel.onRoutineExerciseSetWeightChanged(exerciseIndex = 0, setIndex = 0, value = "40")
+        viewModel.addRoutineExerciseSet(index = 0)
+        viewModel.onRoutineExerciseSetTypeChanged(exerciseIndex = 0, setIndex = 3, setType = "drop")
+        viewModel.onRoutineExerciseSetRepsChanged(exerciseIndex = 0, setIndex = 3, value = "12")
+        viewModel.saveRoutineEditor()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val exercise = repository.createdRoutineInput?.exercises?.single()
+        assertEquals(210, exercise?.restSeconds)
+        assertEquals(listOf("warmup", "working", "working", "drop"), exercise?.setPlans?.map { it.setType })
+        assertEquals(listOf("15", "8", "8", "12"), exercise?.setPlans?.map { it.targetReps })
+        assertEquals(40.0, exercise?.setPlans?.first()?.targetWeightKg ?: 0.0, 0.01)
     }
 
     @Test
@@ -663,6 +728,49 @@ class TrainingViewModelTest {
         assertEquals("set-1", viewModel.state.value.restTimer.sourceSetId)
         assertEquals(120, viewModel.state.value.restTimer.durationSeconds)
         assertEquals(120, viewModel.state.value.restTimer.remainingSeconds)
+    }
+
+    @Test
+    fun completeSet_usesRoutineSetRestSecondsBeforeGlobalDefault() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        repository.activeWorkoutDetail.value = ActiveWorkoutDetail(
+            sessionId = "session-1",
+            title = "Push",
+            startedAtEpochMillis = 1_000L,
+            completedSetCount = 0,
+            totalVolumeKg = 0.0,
+            exerciseBlocks = listOf(
+                WorkoutExerciseBlock(
+                    exercise = repository.exercisesFlow.value.first(),
+                    targetReps = "5",
+                    sets = listOf(
+                        LoggedWorkoutSetDetail(
+                            id = "set-1",
+                            exerciseId = "exercise-bench-press",
+                            setType = "working",
+                            reps = 5,
+                            weightKg = 100.0,
+                            rpe = 8.0,
+                            notes = null,
+                            completed = false,
+                            previousLabel = "95 kg x 5",
+                            restSeconds = 210,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(210, viewModel.state.value.restTimer.durationSeconds)
+        assertEquals(210, viewModel.state.value.restTimer.remainingSeconds)
     }
 
     @Test
@@ -1068,6 +1176,9 @@ class TrainingViewModelTest {
         var updatedExerciseNotes: String? = null
         var updatedRoutineId: String? = null
         var updatedRoutineInput: RoutineInput? = null
+        var createdFolderName: String? = null
+        var updatedFolder: Pair<String, String>? = null
+        var deletedFolderId: String? = null
         var startedRoutineId: String? = null
         var startBlankWorkoutCalls = 0
         var addedExerciseSessionId: String? = null
@@ -1099,6 +1210,8 @@ class TrainingViewModelTest {
                     isStarter = true,
                     programName = "Full Body",
                     tags = listOf("beginner", "strength"),
+                    folderId = "folder-starter-pack",
+                    folderName = "Starter Pack",
                 ),
                 RoutineSummary(
                     id = "routine-upper-a",
@@ -1109,7 +1222,16 @@ class TrainingViewModelTest {
                     isStarter = false,
                     programName = "Upper Lower",
                     tags = listOf("upper"),
+                    folderId = "folder-ppl",
+                    folderName = "PPL System",
                 ),
+            ),
+        )
+
+        private val routineFoldersFlow = MutableStateFlow(
+            listOf(
+                RoutineFolder(id = "folder-starter-pack", name = "Starter Pack", sortOrder = 0),
+                RoutineFolder(id = "folder-ppl", name = "PPL System", sortOrder = 1),
             ),
         )
 
@@ -1265,6 +1387,8 @@ class TrainingViewModelTest {
                     isStarter = true,
                     programName = "Full Body",
                     tags = listOf("beginner", "strength"),
+                    folderId = "folder-starter-pack",
+                    folderName = "Starter Pack",
                     exercises = listOf(
                         RoutineExerciseDetail(
                             id = "routine-exercise-1",
@@ -1272,6 +1396,12 @@ class TrainingViewModelTest {
                             sortOrder = 0,
                             targetSets = 3,
                             targetReps = "5",
+                            restSeconds = 180,
+                            setPlans = listOf(
+                                RoutineSetInput(setType = "working", targetReps = "5"),
+                                RoutineSetInput(setType = "working", targetReps = "5"),
+                                RoutineSetInput(setType = "working", targetReps = "5"),
+                            ),
                         ),
                     ),
                 ),
@@ -1283,6 +1413,8 @@ class TrainingViewModelTest {
                     isStarter = false,
                     programName = "Upper Lower",
                     tags = listOf("upper"),
+                    folderId = "folder-ppl",
+                    folderName = "PPL System",
                     exercises = listOf(
                         RoutineExerciseDetail(
                             id = "routine-upper-a-exercise-1",
@@ -1290,6 +1422,12 @@ class TrainingViewModelTest {
                             sortOrder = 0,
                             targetSets = 3,
                             targetReps = "6",
+                            restSeconds = 210,
+                            setPlans = listOf(
+                                RoutineSetInput(setType = "warmup", targetReps = "10"),
+                                RoutineSetInput(setType = "working", targetReps = "6"),
+                                RoutineSetInput(setType = "working", targetReps = "6"),
+                            ),
                         ),
                     ),
                 ),
@@ -1325,6 +1463,31 @@ class TrainingViewModelTest {
         ): Flow<List<ExerciseSummary>> = exercisesFlow
 
         override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = routinesFlow
+
+        override fun observeRoutineFolders(): Flow<List<RoutineFolder>> = routineFoldersFlow
+
+        override suspend fun createRoutineFolder(name: String): String {
+            createdFolderName = name
+            val folderId = "folder-created"
+            routineFoldersFlow.value = routineFoldersFlow.value + RoutineFolder(
+                id = folderId,
+                name = name,
+                sortOrder = routineFoldersFlow.value.size,
+            )
+            return folderId
+        }
+
+        override suspend fun updateRoutineFolder(folderId: String, name: String) {
+            updatedFolder = folderId to name
+            routineFoldersFlow.value = routineFoldersFlow.value.map { folder ->
+                if (folder.id == folderId) folder.copy(name = name) else folder
+            }
+        }
+
+        override suspend fun deleteRoutineFolder(folderId: String) {
+            deletedFolderId = folderId
+            routineFoldersFlow.value = routineFoldersFlow.value.filterNot { it.id == folderId }
+        }
 
         override fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?> = activeWorkoutFlow
 

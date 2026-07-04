@@ -30,7 +30,7 @@ Database:
 - Class: `MusFitDatabase`
 - File: `data/local/MusFitDatabase.kt`
 - Name: `musfit.db`
-- Version: 28
+- Version: 31
 - Exported schemas: `app/schemas/com.musfit.data.local.MusFitDatabase/`
 - DAOs: `AccountDao`, `FoodDao`, `TrainingDao`, `HealthDao`, `ProfileDao`, `UserGoalsDao`
 
@@ -86,22 +86,26 @@ Source: `app/src/main/java/com/musfit/data/local/entity/TrainingEntities.kt`
 | Entity | Table | Purpose | Key fields |
 | --- | --- | --- | --- |
 | `ExerciseEntity` | `exercises` | Exercise library and detail row. | name, category, equipment, target muscles, primary muscles, secondary muscles, instructions, local notes, custom flag. |
-| `RoutineEntity` | `routines` | Routine metadata and organization. | name, notes, created/updated time, starter flag, program name, tags. |
-| `RoutineExerciseEntity` | `routine_exercises` | Exercises inside routines. | routine id, exercise id, sort order, target sets, target reps. |
+| `RoutineFolderEntity` | `routine_folders` | User-configurable routine folders. | name, sort order, created/updated time. |
+| `RoutineEntity` | `routines` | Routine metadata and organization. | name, notes, created/updated time, starter flag, optional folder id, legacy program name, tags. |
+| `RoutineExerciseEntity` | `routine_exercises` | Exercises inside routines. | routine id, exercise id, sort order, target sets, target reps, per-exercise rest seconds. |
+| `RoutineExerciseSetEntity` | `routine_exercise_sets` | Saved set plan rows for routine exercises. | routine exercise id, sort order, set type, target reps, optional target weight. |
 | `WorkoutSessionEntity` | `workout_sessions` | Workout session header. | routine id, title, status, start/end, notes, Health Connect export ids. |
-| `WorkoutSetEntity` | `workout_sets` | Logged workout set. | session id, exercise id, sort order, set type, reps, weight, duration, distance, RPE, notes, completed, superset group id. |
+| `WorkoutSetEntity` | `workout_sets` | Logged workout set. | session id, exercise id, sort order, set type, reps, weight, duration, distance, RPE, notes, completed, superset group id, planned rest seconds. |
 | `TrainingSettingsEntity` | `training_settings` | Local Training tool preferences. | default rest seconds, bar weight, available plates CSV. |
 
 Training indexes:
 
 - `workout_sessions`: routine id, started time, status.
 - `workout_sets`: session id, exercise id.
+- `routines`: folder id.
 - `routine_exercises`: routine id, exercise id.
+- `routine_exercise_sets`: routine exercise id.
 
 Current Training schema limitations:
 
-- Routine organization uses an optional program name plus CSV-backed tags; there is not yet a separate multi-week program schedule table.
-- Rest timer defaults, bar weight, and available plates are persisted as global Training tool settings; there are no per-exercise rest defaults yet.
+- Routine organization now uses user-configurable folders. Legacy starter `programName` and CSV-backed tags remain for metadata/backward compatibility; there is not yet a separate multi-week program schedule table.
+- Rest timer defaults, bar weight, and available plates are persisted as global Training tool settings. Saved routines can override rest seconds per exercise, and active routine workouts inherit that planned rest.
 
 ### Health Tables
 
@@ -275,11 +279,13 @@ Source: `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
 | `ExerciseSummary` | Exercise library row exposed to UI, including primary/secondary muscles for local search/filtering. |
 | `ExerciseDetail` | Exercise detail/drill-down row with equipment, category, primary/secondary muscles, instructions, and local notes. |
 | `ExerciseInput` | New custom exercise input. |
-| `RoutineSummary` | Routine list row with program name and tags. |
-| `RoutineExerciseDetail` | One exercise inside a routine detail. |
-| `RoutineDetail` | Full routine detail for editing, including organization metadata. |
-| `RoutineInput` | Routine create/update input, including optional program name and tags. |
-| `RoutineExerciseInput` | Exercise target inside routine input. |
+| `RoutineFolder` | User-configurable routine folder row. |
+| `RoutineSummary` | Routine list row with folder, legacy program name, tags, and muscle groups. |
+| `RoutineSetInput` | Saved routine set plan row with set type, target reps, and optional target weight. |
+| `RoutineExerciseDetail` | One exercise inside a routine detail, including per-exercise rest and set plans. |
+| `RoutineDetail` | Full routine detail for editing, including folder metadata. |
+| `RoutineInput` | Routine create/update input, including optional folder assignment and legacy program metadata. |
+| `RoutineExerciseInput` | Exercise target inside routine input, including rest seconds and set plans. |
 | `ActiveWorkoutSummary` | Resume banner data. |
 | `WorkoutSetInputData` | Active workout set edit input. |
 | `LoggedWorkoutSetDetail` | Active/history set row. |
@@ -298,6 +304,7 @@ Key read APIs:
 fun observeExercises(query: String = "", muscle: String? = null, equipment: String? = null): Flow<List<ExerciseSummary>>
 suspend fun getExerciseDetail(exerciseId: String): ExerciseDetail?
 fun observeRoutineSummaries(): Flow<List<RoutineSummary>>
+fun observeRoutineFolders(): Flow<List<RoutineFolder>>
 fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummary?>
 fun observeActiveWorkoutDetail(): Flow<ActiveWorkoutDetail?>
 fun observeTrainingSettings(): Flow<TrainingSettings>
@@ -317,6 +324,9 @@ suspend fun createRoutine(input: RoutineInput): String
 suspend fun updateRoutine(routineId: String, input: RoutineInput)
 suspend fun duplicateRoutine(routineId: String): String
 suspend fun deleteRoutine(routineId: String)
+suspend fun createRoutineFolder(name: String): String
+suspend fun updateRoutineFolder(folderId: String, name: String)
+suspend fun deleteRoutineFolder(folderId: String)
 suspend fun startBlankWorkout(): String
 suspend fun startWorkoutFromRoutine(routineId: String): String
 suspend fun addExerciseToActiveWorkout(sessionId: String, exerciseId: String)

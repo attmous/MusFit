@@ -21,7 +21,7 @@ data class ExerciseEntity(
     val gifUrl: String? = null,
 )
 
-@Entity(tableName = "routines")
+@Entity(tableName = "routines", indices = [Index("folderId")])
 data class RoutineEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -31,6 +31,16 @@ data class RoutineEntity(
     val isStarter: Boolean = false,
     val programName: String? = null,
     val tags: String = "",
+    val folderId: String? = null,
+)
+
+@Entity(tableName = "routine_folders")
+data class RoutineFolderEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val sortOrder: Int,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long = createdAtEpochMillis,
 )
 
 @Entity(
@@ -58,6 +68,28 @@ data class RoutineExerciseEntity(
     val sortOrder: Int,
     val targetSets: Int,
     val targetReps: String?,
+    val restSeconds: Int? = null,
+)
+
+@Entity(
+    tableName = "routine_exercise_sets",
+    foreignKeys = [
+        ForeignKey(
+            entity = RoutineExerciseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["routineExerciseId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("routineExerciseId")],
+)
+data class RoutineExerciseSetEntity(
+    @PrimaryKey val id: String,
+    val routineExerciseId: String,
+    val sortOrder: Int,
+    val setType: String,
+    val targetReps: String?,
+    val targetWeightKg: Double? = null,
 )
 
 @Entity(
@@ -116,6 +148,7 @@ data class WorkoutSetEntity(
     val notes: String?,
     val completed: Boolean,
     val supersetGroupId: String? = null,
+    val restSeconds: Int? = null,
 )
 
 @Entity(tableName = "training_settings")

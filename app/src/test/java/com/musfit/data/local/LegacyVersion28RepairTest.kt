@@ -40,7 +40,7 @@ class LegacyVersion28RepairTest {
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_28_29, DatabaseModule.MIGRATION_29_30)
+                .addMigrations(DatabaseModule.MIGRATION_28_29, DatabaseModule.MIGRATION_29_30, DatabaseModule.MIGRATION_30_31)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -234,7 +234,7 @@ class LegacyVersion28RepairTest {
     private companion object {
         const val TEST_DATABASE_NAME = "legacy-v28-repair"
         const val LEGACY_HEALTH_SYNC_V28_IDENTITY_HASH = "71b5b71f394a9a0bedf45d1a67317f04"
-        const val CURRENT_DATABASE_IDENTITY_HASH = "cc6cc0004e64c12aee929709fa56d84d"
+        const val CURRENT_DATABASE_IDENTITY_HASH = "fd122c57f28885d102c9df702c0ae708"
 
         val CURRENT_DAILY_HEALTH_SUMMARY_COLUMNS = listOf(
             "dateEpochDay",

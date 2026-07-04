@@ -59,6 +59,7 @@ object DatabaseModule {
                 MIGRATION_27_28,
                 MIGRATION_28_29,
                 MIGRATION_29_30,
+                MIGRATION_30_31,
             )
             .build()
     }
@@ -785,6 +786,114 @@ object DatabaseModule {
                 db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN exerciseMinutes INTEGER")
                 db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN exerciseSessionCount INTEGER")
                 db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN latestBodyFatPercent REAL")
+            }
+        }
+
+    internal val MIGRATION_30_31 =
+        object : Migration(30, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS routine_folders (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        sortOrder INTEGER NOT NULL,
+                        createdAtEpochMillis INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("ALTER TABLE routines ADD COLUMN folderId TEXT")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_routines_folderId ON routines(folderId)")
+                db.execSQL("ALTER TABLE routine_exercises ADD COLUMN restSeconds INTEGER")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS routine_exercise_sets (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        routineExerciseId TEXT NOT NULL,
+                        sortOrder INTEGER NOT NULL,
+                        setType TEXT NOT NULL,
+                        targetReps TEXT,
+                        targetWeightKg REAL,
+                        FOREIGN KEY(routineExerciseId) REFERENCES routine_exercises(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_routine_exercise_sets_routineExerciseId " +
+                        "ON routine_exercise_sets(routineExerciseId)",
+                )
+                db.execSQL("ALTER TABLE workout_sets ADD COLUMN restSeconds INTEGER")
+
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO routine_folders (
+                        id, name, sortOrder, createdAtEpochMillis, updatedAtEpochMillis
+                    )
+                    SELECT
+                        'folder-' ||
+                            REPLACE(
+                                REPLACE(
+                                    REPLACE(LOWER(TRIM(programName)), ' ', '-'),
+                                    '/',
+                                    '-'
+                                ),
+                                '&',
+                                'and'
+                            ) AS id,
+                        TRIM(programName) AS name,
+                        0 AS sortOrder,
+                        COALESCE(MIN(createdAtEpochMillis), 0) AS createdAtEpochMillis,
+                        COALESCE(MAX(updatedAtEpochMillis), 0) AS updatedAtEpochMillis
+                    FROM routines
+                    WHERE programName IS NOT NULL AND TRIM(programName) != ''
+                    GROUP BY TRIM(programName)
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    UPDATE routines
+                    SET folderId =
+                        'folder-' ||
+                        REPLACE(
+                            REPLACE(
+                                REPLACE(LOWER(TRIM(programName)), ' ', '-'),
+                                '/',
+                                '-'
+                            ),
+                            '&',
+                            'and'
+                        )
+                    WHERE programName IS NOT NULL AND TRIM(programName) != ''
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    WITH RECURSIVE set_numbers(routineExerciseId, targetReps, n, maxSets) AS (
+                        SELECT
+                            id,
+                            targetReps,
+                            0,
+                            CASE WHEN targetSets < 1 THEN 1 ELSE targetSets END
+                        FROM routine_exercises
+                        UNION ALL
+                        SELECT routineExerciseId, targetReps, n + 1, maxSets
+                        FROM set_numbers
+                        WHERE n + 1 < maxSets
+                    )
+                    INSERT OR IGNORE INTO routine_exercise_sets (
+                        id, routineExerciseId, sortOrder, setType, targetReps, targetWeightKg
+                    )
+                    SELECT
+                        routineExerciseId || '-set-' || n,
+                        routineExerciseId,
+                        n,
+                        'working',
+                        targetReps,
+                        NULL
+                    FROM set_numbers
+                    """.trimIndent(),
+                )
             }
         }
 }
