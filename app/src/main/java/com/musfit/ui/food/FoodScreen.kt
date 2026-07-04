@@ -59,6 +59,7 @@ import androidx.compose.material.icons.outlined.LunchDining
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Today
+import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -267,9 +268,11 @@ fun FoodScreen(
                         onTodayClick = viewModel::goToToday,
                     )
 
-                    FoodPrimaryActionRow(
-                        recipeCount = state.recipes.size,
-                        onRecipeClick = viewModel::openRecipeBrowser,
+                    FoodQuickActionsRow(
+                        isPlanningActive = state.isPlanningMode,
+                        onRecipesClick = viewModel::openRecipeBrowser,
+                        onPlanClick = viewModel::togglePlanningMode,
+                        onWaterClick = viewModel::openWaterSheet,
                     )
 
                     MacroProgressRow(state.macroProgress)
@@ -636,29 +639,75 @@ fun FoodScreen(
 }
 
 @Composable
-private fun FoodPrimaryActionRow(
-    recipeCount: Int,
-    onRecipeClick: () -> Unit,
+private fun FoodQuickActionsRow(
+    isPlanningActive: Boolean,
+    onRecipesClick: () -> Unit,
+    onPlanClick: () -> Unit,
+    onWaterClick: () -> Unit,
 ) {
-    Button(
-        onClick = onRecipeClick,
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = MusFitTheme.shapes.small,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MusFitTheme.colors.brand,
-            contentColor = MusFitTheme.colors.onAccent,
-        ),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(Icons.Outlined.Restaurant, contentDescription = null)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text("Browse recipes", maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(modifier = Modifier.weight(1f))
-        Text(
-            text = "$recipeCount saved",
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        FoodQuickActionTile(
+            icon = Icons.Outlined.Restaurant,
+            label = "Recipes",
+            selected = false,
+            onClick = onRecipesClick,
+            modifier = Modifier.weight(1f),
         )
+        FoodQuickActionTile(
+            icon = Icons.Outlined.Today,
+            label = "Plan week",
+            selected = isPlanningActive,
+            onClick = onPlanClick,
+            modifier = Modifier.weight(1f),
+        )
+        FoodQuickActionTile(
+            icon = Icons.Outlined.WaterDrop,
+            label = "Water",
+            selected = false,
+            onClick = onWaterClick,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun FoodQuickActionTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val container = if (selected) {
+        MusFitTheme.colors.brand.copy(alpha = 0.14f).compositeOver(MusFitTheme.colors.surface)
+    } else {
+        MusFitTheme.colors.surface
+    }
+    val contentTint = if (selected) MusFitTheme.colors.brand else MusFitTheme.colors.onSurfaceVariant
+    Surface(
+        onClick = onClick,
+        color = container,
+        shape = MusFitTheme.shapes.extraLarge,
+        border = if (selected) BorderStroke(1.dp, MusFitTheme.colors.brand.copy(alpha = 0.4f)) else null,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(icon, contentDescription = null, tint = contentTint, modifier = Modifier.size(22.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = contentTint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
