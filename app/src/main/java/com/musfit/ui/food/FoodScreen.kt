@@ -1700,7 +1700,7 @@ private fun MealDetailScreen(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             MusFitOutlinedButton(
@@ -1718,17 +1718,23 @@ private fun MealDetailScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-        }
-
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            MusFitOutlinedButton(onClick = onCopyYesterdayClick) {
-                Text("Copy yesterday")
+            var menuOpen by remember { mutableStateOf(false) }
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    Icons.Filled.MoreVert,
+                    contentDescription = "Meal actions",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                )
             }
-            MusFitOutlinedButton(onClick = onSaveTemplateClick) {
-                Text("Save template")
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Copy yesterday") },
+                    onClick = { menuOpen = false; onCopyYesterdayClick() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Save template") },
+                    onClick = { menuOpen = false; onSaveTemplateClick() },
+                )
             }
         }
 
@@ -1770,12 +1776,18 @@ private fun MealDetailScreen(
 
         MealDetailMacroCard(meal)
 
-        SectionTitle("Logged items")
-        if (meal.entries.isNotEmpty()) {
-            MealDetailSortChips(
-                selectedSortMode = sortMode,
-                onSortModeChanged = onSortModeChanged,
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SectionTitle("Logged items")
+            if (meal.entries.isNotEmpty()) {
+                MealDetailSortMenu(
+                    selectedSortMode = sortMode,
+                    onSortModeChanged = onSortModeChanged,
+                )
+            }
         }
         if (meal.entries.isEmpty()) {
             Surface(
@@ -1812,7 +1824,6 @@ private fun MealDetailScreen(
                         }
                         DiaryEntryRow(
                             entry = entry,
-                            showContributions = true,
                             onClick = { onEntryClick(entry.id) },
                         )
                     }
@@ -1823,20 +1834,41 @@ private fun MealDetailScreen(
 }
 
 @Composable
-private fun MealDetailSortChips(
+private fun MealDetailSortMenu(
     selectedSortMode: MealDetailSortMode,
     onSortModeChanged: (MealDetailSortMode) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        MealDetailSortChoices.forEach { choice ->
-            FilterChip(
-                selected = selectedSortMode == choice,
-                onClick = { onSortModeChanged(choice) },
-                label = { Text(choice.label) },
-            )
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Surface(
+            onClick = { open = true },
+            color = Color.Transparent,
+            shape = MusFitTheme.shapes.extraLarge,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = selectedSortMode.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+                Icon(
+                    imageVector = Icons.Filled.ExpandMore,
+                    contentDescription = "Sort logged items",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            MealDetailSortChoices.forEach { choice ->
+                DropdownMenuItem(
+                    text = { Text(choice.label) },
+                    onClick = { open = false; onSortModeChanged(choice) },
+                )
+            }
         }
     }
 }
@@ -1895,33 +1927,30 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Meal intake",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    meal.rating?.let { rating -> RatingPill(rating) }
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Text(
-                        text = "${meal.caloriesKcal.roundToInt()} kcal",
-                        style = MaterialTheme.typography.titleLarge,
+                        text = "${meal.caloriesKcal.roundToInt()}",
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MusFitTheme.colors.brandInk,
                     )
+                    Text(
+                        text = "/ ${meal.calorieTargetKcal.roundToInt()} kcal",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
                 }
+                meal.rating?.let { rating -> RatingPill(rating) }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                ProgressBar(
-                    progress = meal.calorieProgress.toFloat(),
-                    color = MusFitTheme.colors.brand,
-                )
-                Text(
-                    text = "Target ${meal.calorieTargetKcal.roundToInt()} kcal",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
+            ProgressBar(
+                progress = meal.calorieProgress.toFloat(),
+                color = MusFitTheme.colors.brand,
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1950,17 +1979,45 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                 )
             }
 
-            meal.rating?.factors?.takeIf { it.isNotEmpty() }?.let { factors ->
+            val ratingFactors = meal.rating?.factors?.takeIf { it.isNotEmpty() }
+            val hasDetail = ratingFactors != null ||
+                meal.advancedNutritionProgress.isNotEmpty() ||
+                meal.micronutrients.isNotEmpty()
+            if (hasDetail) {
+                var detailExpanded by rememberSaveable(meal.id) { mutableStateOf(false) }
                 HorizontalDivider(color = MusFitTheme.colors.outline)
-                RatingFactorColumn(factors)
-            }
-            if (meal.advancedNutritionProgress.isNotEmpty()) {
-                HorizontalDivider(color = MusFitTheme.colors.outline)
-                AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
-            }
-            if (meal.micronutrients.isNotEmpty()) {
-                HorizontalDivider(color = MusFitTheme.colors.outline)
-                MicronutrientGrid(meal.micronutrients)
+                Surface(
+                    onClick = { detailExpanded = !detailExpanded },
+                    color = Color.Transparent,
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "More nutrition",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Icon(
+                            imageVector = if (detailExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (detailExpanded) "Collapse nutrition detail" else "Expand nutrition detail",
+                            tint = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (detailExpanded) {
+                    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                        ratingFactors?.let { RatingFactorColumn(it) }
+                        if (meal.advancedNutritionProgress.isNotEmpty()) {
+                            AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
+                        }
+                        if (meal.micronutrients.isNotEmpty()) {
+                            MicronutrientGrid(meal.micronutrients)
+                        }
+                    }
+                }
             }
         }
     }
@@ -2154,7 +2211,6 @@ private fun MealSectionCard(
 @Composable
 private fun DiaryEntryRow(
     entry: FoodMealEntryUiState,
-    showContributions: Boolean = false,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -2175,7 +2231,10 @@ private fun DiaryEntryRow(
                 modifier = Modifier.padding(end = 12.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Text(
                         text = entry.name,
                         style = MaterialTheme.typography.bodyLarge,
@@ -2192,13 +2251,6 @@ private fun DiaryEntryRow(
                                 .background(rating.tone.ratingColor()),
                         )
                     }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "${entry.quantityGrams.roundToInt()} g",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
                     if (entry.isPlanned) {
                         Text(
                             text = "Planned",
@@ -2209,15 +2261,13 @@ private fun DiaryEntryRow(
                     }
                 }
                 Text(
-                    text = "P ${entry.proteinGrams.formatNutritionDisplay()} g | C ${entry.carbsGrams.formatNutritionDisplay()} g | F ${entry.fatGrams.formatNutritionDisplay()} g",
+                    text = "${entry.quantityGrams.roundToInt()} g · P ${entry.proteinGrams.formatNutritionDisplay()}  C ${entry.carbsGrams.formatNutritionDisplay()}  F ${entry.fatGrams.formatNutritionDisplay()} g",
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
-                if (showContributions) {
-                    MealItemContributionBars(entry = entry)
-                }
             }
             Text(
                 text = "${entry.caloriesKcal.roundToInt()} kcal",
@@ -2226,74 +2276,6 @@ private fun DiaryEntryRow(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-    }
-}
-
-@Composable
-private fun MealItemContributionBars(entry: FoodMealEntryUiState) {
-    val macroColors = MusFitTheme.colors.macroColors
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp, end = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        MealItemContributionBar(
-            label = "Calories",
-            progress = entry.calorieContribution,
-            color = MusFitTheme.colors.brand,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            MealItemContributionBar(
-                label = "P",
-                progress = entry.proteinContribution,
-                color = macroColors[1],
-                modifier = Modifier.weight(1f),
-            )
-            MealItemContributionBar(
-                label = "C",
-                progress = entry.carbsContribution,
-                color = macroColors[0],
-                modifier = Modifier.weight(1f),
-            )
-            MealItemContributionBar(
-                label = "F",
-                progress = entry.fatContribution,
-                color = macroColors[2],
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun MealItemContributionBar(
-    label: String,
-    progress: Double,
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            modifier = Modifier.width(46.dp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        ProgressBar(
-            progress = progress.toFloat().coerceIn(0f, 1f),
-            color = color,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 
