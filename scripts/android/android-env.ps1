@@ -1,5 +1,69 @@
 $ErrorActionPreference = "Stop"
 
+function Test-Java17Home([string] $Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $false
+    }
+
+    $java = Join-Path $Path "bin\java.exe"
+    if (-not (Test-Path -LiteralPath $java -PathType Leaf)) {
+        return $false
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $versionOutput = & $java -version 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    return ($exitCode -eq 0 -and (($versionOutput -join "`n") -match 'version "17\.'))
+}
+
+$jdkCandidates = @(
+    $env:JAVA_HOME,
+    $env:MUSFIT_JAVA_HOME,
+    (Join-Path $env:LOCALAPPDATA "MusFitToolchain\jdk-17")
+) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+
+$programFilesCandidates = @()
+if ($env:ProgramFiles) {
+    $programFilesCandidates += Get-ChildItem -LiteralPath $env:ProgramFiles -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match "^(Eclipse Adoptium|Java)$" } |
+        ForEach-Object {
+            Get-ChildItem -LiteralPath $_.FullName -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match "jdk-17" } |
+                Select-Object -ExpandProperty FullName
+        }
+}
+
+$jdkCandidates += $programFilesCandidates
+$jdk = $jdkCandidates | Where-Object { Test-Java17Home $_ } | Select-Object -First 1
+
+if ($jdk) {
+    $jdk = (Resolve-Path -LiteralPath $jdk).Path
+    $env:JAVA_HOME = $jdk
+    $javaBin = Join-Path $jdk "bin"
+    $currentPath = $env:PATH -split [System.IO.Path]::PathSeparator
+    if ($currentPath -notcontains $javaBin) {
+        $env:PATH = "$javaBin$([System.IO.Path]::PathSeparator)$env:PATH"
+    }
+} else {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $versionOutput = & java -version 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($exitCode -ne 0 -or (($versionOutput -join "`n") -notmatch 'version "17\.')) {
+        throw "JDK 17 not found. Set JAVA_HOME or MUSFIT_JAVA_HOME to a JDK 17 installation."
+    }
+}
+
 $sdkCandidates = @(
     $env:ANDROID_HOME,
     $env:ANDROID_SDK_ROOT,
@@ -28,3 +92,4 @@ foreach ($path in $toolPaths) {
 }
 
 Write-Host "Android SDK: $sdk"
+Write-Host "Java home: $env:JAVA_HOME"

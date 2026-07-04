@@ -12,18 +12,22 @@ The product is organized as menu-by-menu "miniapps" reached from a bottom nav: *
 
 ## Build & verify (Windows PowerShell)
 
-First, source the local Android toolchain env (sets JDK 17 + Android SDK for the shell):
+First, source the committed local Android toolchain env (sets JDK 17 + Android SDK for the shell):
 
 ```powershell
-. .\.superpowers\sdd\android-env.ps1
+. .\scripts\android\android-env.ps1
 ```
-
-> This script is referenced by README/AGENTS but is **not committed** (a local, untracked bootstrap; `local.properties` is also absent). If it's missing, ensure JDK 17 and the Android SDK (API/compileSdk **37**, minSdk 28) are configured before running Gradle.
 
 Full verification — run this (and confirm it passes) before claiming completion or pushing:
 
 ```powershell
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+```
+
+Repo helper equivalent with optional generated-output retry:
+
+```powershell
+.\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
 ```
 
 Run a single test class (the fast inner loop for Food work):
@@ -39,16 +43,14 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 adb shell monkey -p com.musfit -c android.intent.category.LAUNCHER 1
 ```
 
-CI (`.github/workflows/android.yml`) runs `testDebugUnitTest`, `lintDebug`, `assembleDebug`, then `build`, and uploads the APK as the `musfit-debug-apk` artifact.
+CI (`.github/workflows/android.yml`) runs `testDebugUnitTest lintDebug assembleDebug` for PRs and pushes, uploads the APK as the `musfit-debug-apk` artifact, and runs the full `build` task only for default-branch pushes.
 
 ### OneDrive / Gradle caveat
 
 The repo lives under OneDrive. Gradle intermittently fails on **generated output** with `AccessDeniedException`, `Cannot snapshot`, or `not a regular file` under `app/build`. This is environmental, not a code defect. Recover by stopping the daemon and deleting `app/build`, then rerun the verification command:
 
 ```powershell
-.\gradlew.bat --stop
-Start-Sleep -Seconds 3
-Remove-Item -LiteralPath (Resolve-Path 'app\build').Path -Recurse -Force
+.\scripts\dev\clean-generated.ps1
 ```
 
 ## Architecture
@@ -65,7 +67,7 @@ Strict layering, one direction of dependency: **Compose screen → ViewModel →
 
 ### Room database — migrations are mandatory
 
-`MusFitDatabase` is at **version 28** with `exportSchema = true`; every version's schema JSON is committed under `app/schemas/` and ships as a test asset. Any entity/schema change **must**: (1) add a `MIGRATION_x_y` to `core/di/DatabaseModule.kt` and register it in `addMigrations(...)`, (2) bump `version`, and (3) commit the new `app/schemas/...json`. There is no `fallbackToDestructiveMigration` — a missing migration crashes existing installs. Match the column names/types Room expects exactly (compare against the generated schema JSON).
+`MusFitDatabase` is at **version 30** with `exportSchema = true`; every version's schema JSON is committed under `app/schemas/` and ships as a test asset. Any entity/schema change **must**: (1) add a `MIGRATION_x_y` to `core/di/DatabaseModule.kt` and register it in `addMigrations(...)`, (2) bump `version`, and (3) commit the new `app/schemas/...json`. There is no `fallbackToDestructiveMigration` — a missing migration crashes existing installs. Match the column names/types Room expects exactly (compare against the generated schema JSON).
 
 ### The Food miniapp is concentrated and large
 

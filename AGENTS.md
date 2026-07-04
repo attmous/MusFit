@@ -29,7 +29,7 @@ Main package/application id: `com.musfit`.
 Before Gradle/adb commands on Windows:
 
 ```powershell
-. .\.superpowers\sdd\android-env.ps1
+. .\scripts\android\android-env.ps1
 ```
 
 Focused Food tests:
@@ -43,6 +43,12 @@ Full verification before claiming completion or pushing:
 
 ```powershell
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+```
+
+Repo helper equivalent:
+
+```powershell
+.\scripts\dev\verify-musfit.ps1 -Preset Full
 ```
 
 Seeded emulator setup and verification:
@@ -76,7 +82,13 @@ Known connected phone serial used during development:
 
 The repo is under OneDrive. Gradle occasionally fails on generated files with `AccessDeniedException`, `Cannot snapshot`, or `not a regular file` under `app/build`. This has been environmental/generated-output state, not usually a code defect.
 
-Safe cleanup pattern:
+Safe cleanup helper:
+
+```powershell
+.\scripts\dev\clean-generated.ps1
+```
+
+Manual cleanup pattern:
 
 ```powershell
 .\gradlew.bat --stop
@@ -200,7 +212,7 @@ For each new task:
 5. Run focused tests for the touched area, then run:
 
    ```powershell
-   .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+   .\scripts\dev\verify-musfit.ps1 -Preset Full
    ```
 
 6. Install and seed the emulator:
@@ -258,10 +270,10 @@ Genuinely remaining Food work:
 ### Active internal effort: Food structure refactor
 
 A behavior-preserving **structure refactor** is underway. Done so far: the
-Food UI is split by feature (`FoodScreen.kt` ~2,000 lines + `FoodComponents.kt`,
-`FoodTrackersUi.kt`, `FoodModalSheets.kt`, `FoodAddPanelUi.kt`), and the
-amount-preview math moved into `NutritionCalculator`. Still pending: the
-`FoodUiState` editor sub-state objects (Tier 1b). The full plan, status, and the
-test-coupling cost of each remaining editor live in
+Food UI is split by feature (`FoodScreen.kt` ~2,400 lines + `FoodComponents.kt`,
+`FoodTrackersUi.kt`, `FoodModalSheets.kt`, `FoodAddPanelUi.kt`), the
+amount-preview math moved into `NutritionCalculator`, and the `FoodUiState`
+editor sub-state objects are **Tier 1b DONE**. The full plan, status, and the
+test-coupling cost of remaining cleanup live in
 [`docs/architecture/food-system.md`](docs/architecture/food-system.md#refactor-backlog).
 Read it before doing large Food work so new code lands in the new structure.
