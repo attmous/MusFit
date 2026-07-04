@@ -115,7 +115,8 @@ fun FoodScreen(
     val isRecipeFullScreen =
         state.isAddPanelVisible &&
             (state.sheetMode == FoodSheetMode.RecipeBrowser || state.sheetMode == FoodSheetMode.RecipeEditor)
-    var moreExpanded by rememberSaveable { mutableStateOf(false) }
+    var todaySummaryExpanded by rememberSaveable { mutableStateOf(false) }
+    var trendsExpanded by rememberSaveable { mutableStateOf(false) }
     val foodHealthConnectPermissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
     ) {
@@ -248,10 +249,10 @@ fun FoodScreen(
                                 onGoalClick = viewModel::openGoalEditor,
                                 onMealsClick = viewModel::openMealSettings,
                                 onTemplatesClick = viewModel::openMealTemplates,
-                                onRecipeClick = viewModel::openRecipeBrowser,
                                 onShoppingClick = viewModel::openShoppingList,
                                 onFastingClick = viewModel::openFastingTimer,
-                                onPlanningModeClick = viewModel::togglePlanningMode,
+                                onHealthConnectClick = viewModel::openHealthConnectSheet,
+                                onFoodDatabaseClick = viewModel::openFoodDatabase,
                                 onCopyDayToTomorrowClick = viewModel::copySelectedDayToTomorrow,
                             )
                         },
@@ -294,40 +295,28 @@ fun FoodScreen(
                         )
                     }
 
-                    MoreSection(expanded = moreExpanded, onToggle = { moreExpanded = !moreExpanded }) {
+                    CollapsibleGroup(
+                        title = "Today's summary",
+                        expanded = todaySummaryExpanded,
+                        onToggle = { todaySummaryExpanded = !todaySummaryExpanded },
+                    ) {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             DayRatingCard(state.dayRating)
-                            WeeklyMusFitScoreCard(state.weeklyScore)
-                            FoodProgressStatsCard(state.progressStats)
-                            FoodHabitTrackerSection(state.habitTrackers)
                             DailyInsightsSection(state.dailyInsights)
+                            FoodHabitTrackerSection(state.habitTrackers)
                             AdvancedNutritionProgressRow(state.advancedNutritionProgress)
                             MicronutrientRow(state.micronutrients)
-                            WaterTrackerCard(
-                                state = state,
-                                onQuickWaterClick = viewModel::logQuickWater,
-                                onCustomAmountChanged = viewModel::onWaterCustomAmountChanged,
-                                onCustomAddClick = viewModel::logCustomWater,
-                                onGoalChanged = viewModel::onWaterGoalChanged,
-                                onGoalSaveClick = viewModel::saveWaterGoal,
-                            )
-                            FoodHealthConnectSyncCard(
-                                state = state,
-                                onEnabledChanged = viewModel::onFoodHealthConnectSyncEnabledChanged,
-                                onRequestPermissionsClick = {
-                                    if (state.foodHealthConnectCanRequestPermissions) {
-                                        foodHealthConnectPermissionLauncher.launch(
-                                            state.foodHealthConnectRequestablePermissions,
-                                        )
-                                    }
-                                },
-                                onRefreshClick = viewModel::refreshFoodHealthConnectSync,
-                                onSyncClick = viewModel::syncFoodToHealthConnect,
-                            )
-                            FoodDatabasePreview(
-                                savedFoods = state.savedFoods,
-                                onOpenClick = viewModel::openFoodDatabase,
-                            )
+                        }
+                    }
+
+                    CollapsibleGroup(
+                        title = "Trends",
+                        expanded = trendsExpanded,
+                        onToggle = { trendsExpanded = !trendsExpanded },
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            WeeklyMusFitScoreCard(state.weeklyScore)
+                            FoodProgressStatsCard(state.progressStats)
                         }
                     }
                 }
@@ -713,7 +702,8 @@ private fun FoodQuickActionTile(
 }
 
 @Composable
-private fun MoreSection(
+private fun CollapsibleGroup(
+    title: String,
     expanded: Boolean,
     onToggle: () -> Unit,
     content: @Composable () -> Unit,
@@ -731,7 +721,7 @@ private fun MoreSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "More details",
+                    text = title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MusFitTheme.colors.onSurface,
@@ -803,10 +793,10 @@ private fun FoodDiaryOverflowAction(
     onGoalClick: () -> Unit,
     onMealsClick: () -> Unit,
     onTemplatesClick: () -> Unit,
-    onRecipeClick: () -> Unit,
     onShoppingClick: () -> Unit,
     onFastingClick: () -> Unit,
-    onPlanningModeClick: () -> Unit,
+    onHealthConnectClick: () -> Unit,
+    onFoodDatabaseClick: () -> Unit,
     onCopyDayToTomorrowClick: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -817,13 +807,10 @@ private fun FoodDiaryOverflowAction(
         DropdownMenuItem(text = { Text("Goals") }, onClick = { menuOpen = false; onGoalClick() })
         DropdownMenuItem(text = { Text("Meals") }, onClick = { menuOpen = false; onMealsClick() })
         DropdownMenuItem(text = { Text("Templates") }, onClick = { menuOpen = false; onTemplatesClick() })
-        DropdownMenuItem(text = { Text("Recipes") }, onClick = { menuOpen = false; onRecipeClick() })
         DropdownMenuItem(text = { Text("Shopping list") }, onClick = { menuOpen = false; onShoppingClick() })
         DropdownMenuItem(text = { Text("Fasting") }, onClick = { menuOpen = false; onFastingClick() })
-        DropdownMenuItem(
-            text = { Text(if (state.isPlanningMode) "Finish planning" else "Start planning") },
-            onClick = { menuOpen = false; onPlanningModeClick() },
-        )
+        DropdownMenuItem(text = { Text("Health Connect") }, onClick = { menuOpen = false; onHealthConnectClick() })
+        DropdownMenuItem(text = { Text("Food database") }, onClick = { menuOpen = false; onFoodDatabaseClick() })
         DropdownMenuItem(
             text = { Text("Copy day to tomorrow") },
             enabled = !state.isSaving,
@@ -2323,83 +2310,6 @@ private fun DiaryEntryRow(
         }
     }
 }
-
-@Composable
-private fun FoodDatabasePreview(
-    savedFoods: List<SavedFoodUiState>,
-    onOpenClick: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SectionTitle("Food database")
-            MusFitOutlinedButton(onClick = onOpenClick) {
-                Text("Open")
-            }
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-            shape = MusFitTheme.shapes.extraLarge,
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                if (savedFoods.isEmpty()) {
-                    Text(
-                        text = "No saved foods yet",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
-                } else {
-                    savedFoods.take(3).forEach { food ->
-                        SavedFoodSummaryRow(food)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SavedFoodSummaryRow(food: SavedFoodUiState) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = food.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = food.brand ?: "${food.defaultServingGrams.roundToInt()} g serving",
-                style = MaterialTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Text(
-            text = "${food.caloriesPerServingKcal.roundToInt()} kcal",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MusFitTheme.colors.brand,
-        )
-    }
-}
-
-
 
 internal val FoodGoalMode.label: String
     get() =
