@@ -262,10 +262,15 @@ fun FoodScreen(
                     )
 
                     FoodQuickActionsRow(
-                        isPlanningActive = state.isPlanningMode,
                         onRecipesClick = viewModel::openRecipeBrowser,
-                        onPlanClick = viewModel::togglePlanningMode,
                         onWaterClick = viewModel::openWaterSheet,
+                    )
+
+                    WeeklyPlanCard(
+                        planDays = state.weeklyPlan,
+                        selectedDate = state.selectedDate,
+                        isPlanning = state.isPlanningMode,
+                        onPlanToggle = viewModel::togglePlanningMode,
                     )
 
                     MessageBanner(
@@ -623,9 +628,7 @@ fun FoodScreen(
 
 @Composable
 private fun FoodQuickActionsRow(
-    isPlanningActive: Boolean,
     onRecipesClick: () -> Unit,
-    onPlanClick: () -> Unit,
     onWaterClick: () -> Unit,
 ) {
     Row(
@@ -635,21 +638,12 @@ private fun FoodQuickActionsRow(
         FoodQuickActionTile(
             icon = Icons.Outlined.Restaurant,
             label = "Recipes",
-            selected = false,
             onClick = onRecipesClick,
-            modifier = Modifier.weight(1f),
-        )
-        FoodQuickActionTile(
-            icon = Icons.Outlined.Today,
-            label = "Plan week",
-            selected = isPlanningActive,
-            onClick = onPlanClick,
             modifier = Modifier.weight(1f),
         )
         FoodQuickActionTile(
             icon = Icons.Outlined.WaterDrop,
             label = "Water",
-            selected = false,
             onClick = onWaterClick,
             modifier = Modifier.weight(1f),
         )
@@ -660,33 +654,27 @@ private fun FoodQuickActionsRow(
 private fun FoodQuickActionTile(
     icon: ImageVector,
     label: String,
-    selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val container = if (selected) {
-        MusFitTheme.colors.brand.copy(alpha = 0.14f).compositeOver(MusFitTheme.colors.surface)
-    } else {
-        MusFitTheme.colors.surface
-    }
-    val contentTint = if (selected) MusFitTheme.colors.brand else MusFitTheme.colors.onSurfaceVariant
     Surface(
         onClick = onClick,
-        color = container,
+        color = MusFitTheme.colors.surface,
         shape = MusFitTheme.shapes.extraLarge,
-        border = if (selected) BorderStroke(1.dp, MusFitTheme.colors.brand.copy(alpha = 0.4f)) else null,
         modifier = modifier,
     ) {
-        Column(
-            modifier = Modifier.padding(vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(icon, contentDescription = null, tint = contentTint, modifier = Modifier.size(22.dp))
+            Icon(icon, contentDescription = null, tint = MusFitTheme.colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = contentTint,
+                style = MaterialTheme.typography.labelLarge,
+                color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -729,42 +717,6 @@ private fun CollapsibleGroup(
         if (expanded) {
             content()
         }
-    }
-}
-
-internal data class FoodPlanningModePresentation(
-    val isActive: Boolean,
-    val buttonLabel: String,
-    val buttonContentDescription: String,
-    val statusTitle: String,
-    val statusDescription: String,
-    val statusActionLabel: String,
-    val showStatusCard: Boolean,
-)
-
-internal fun FoodUiState.toPlanningModePresentation(): FoodPlanningModePresentation {
-    val plannedItemCount = weeklyPlan.sumOf { it.plannedEntryCount }
-
-    return if (isPlanningMode) {
-        FoodPlanningModePresentation(
-            isActive = true,
-            buttonLabel = "Planning",
-            buttonContentDescription = "Finish planning meals",
-            statusTitle = "Planning mode",
-            statusDescription = "",
-            statusActionLabel = "Done",
-            showStatusCard = true,
-        )
-    } else {
-        FoodPlanningModePresentation(
-            isActive = false,
-            buttonLabel = "Plan",
-            buttonContentDescription = "Start planning meals",
-            statusTitle = "Planned this week",
-            statusDescription = "",
-            statusActionLabel = "",
-            showStatusCard = plannedItemCount > 0,
-        )
     }
 }
 
@@ -858,10 +810,6 @@ private fun FoodDiarySummaryCard(
             if (state.macroProgress.isNotEmpty()) {
                 HeroMacroStrip(macros = state.macroProgress, contentColor = accent.onContainer)
             }
-            val planning = state.toPlanningModePresentation()
-            if (planning.showStatusCard) {
-                WeeklyPlanStrip(planDays = state.weeklyPlan, selectedDate = state.selectedDate)
-            }
         }
     }
 }
@@ -923,6 +871,71 @@ private fun SummarySideMetric(
             style = MaterialTheme.typography.headlineSmall,
             color = color,
         )
+    }
+}
+
+@Composable
+private fun WeeklyPlanCard(
+    planDays: List<FoodPlanDayUiState>,
+    selectedDate: java.time.LocalDate,
+    isPlanning: Boolean,
+    onPlanToggle: () -> Unit,
+) {
+    val accent = MusFitTheme.colors.brand
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = if (isPlanning) {
+            accent.copy(alpha = 0.12f).compositeOver(MusFitTheme.colors.surface)
+        } else {
+            MusFitTheme.colors.surface
+        },
+        shape = MusFitTheme.shapes.extraLarge,
+        border = if (isPlanning) BorderStroke(1.dp, accent.copy(alpha = 0.4f)) else null,
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Today,
+                        contentDescription = null,
+                        tint = if (isPlanning) accent else MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        text = if (isPlanning) "Planning this week" else "This week",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isPlanning) MusFitTheme.colors.brandInk else MusFitTheme.colors.onSurface,
+                    )
+                }
+                Surface(
+                    onClick = onPlanToggle,
+                    shape = MusFitTheme.shapes.small,
+                    color = if (isPlanning) accent else Color.Transparent,
+                    contentColor = if (isPlanning) MusFitTheme.colors.onAccent else accent,
+                    border = if (isPlanning) null else BorderStroke(1.dp, accent.copy(alpha = 0.5f)),
+                ) {
+                    Text(
+                        text = if (isPlanning) "Done" else "Plan",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            WeeklyPlanStrip(planDays = planDays, selectedDate = selectedDate)
+        }
     }
 }
 
