@@ -68,36 +68,35 @@ fun TrainingRoutineContent(
     routines: List<RoutineSummary>,
     folders: List<RoutineFolder> = emptyList(),
     folderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
+    hasActiveWorkout: Boolean = false,
     accent: TabAccent,
     onOpenFolderEditor: (String?) -> Unit = {},
     onFolderNameChange: (String) -> Unit = {},
     onSaveFolder: () -> Unit = {},
     onCancelFolder: () -> Unit = {},
     onDeleteFolder: (String) -> Unit = {},
+    onStartBlankWorkout: () -> Unit = {},
     onStartRoutine: (String) -> Unit,
     onEditRoutine: (String?) -> Unit,
+    onBrowseExercises: () -> Unit = {},
     onOpenRoutineDetail: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(
-                onClick = { onEditRoutine(null) },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-            ) {
-                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("New routine")
-            }
-            Button(
-                onClick = { onOpenFolderEditor(null) },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
-            ) {
-                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("New folder")
-            }
+        RoutineHomeQuickActions(
+            hasActiveWorkout = hasActiveWorkout,
+            accent = accent,
+            onStartBlankWorkout = onStartBlankWorkout,
+            onNewRoutine = { onEditRoutine(null) },
+            onBrowseExercises = onBrowseExercises,
+        )
+        Button(
+            onClick = { onOpenFolderEditor(null) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
+        ) {
+            Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("New folder")
         }
         if (folderEditor.isOpen) {
             RoutineFolderEditorCard(
@@ -163,10 +162,71 @@ fun TrainingRoutineContent(
     }
 }
 
+@Composable
+private fun RoutineHomeQuickActions(
+    hasActiveWorkout: Boolean,
+    accent: TabAccent,
+    onStartBlankWorkout: () -> Unit,
+    onNewRoutine: () -> Unit,
+    onBrowseExercises: () -> Unit,
+) {
+    val actions = routineHomeQuickActions(hasActiveWorkout)
+    val secondaryActions = actions.filterNot { it == ROUTINE_HOME_ACTION_START_EMPTY }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (ROUTINE_HOME_ACTION_START_EMPTY in actions) {
+            Button(
+                onClick = onStartBlankWorkout,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+            ) {
+                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(ROUTINE_HOME_ACTION_START_EMPTY)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            secondaryActions.forEach { action ->
+                val onClick: () -> Unit = when (action) {
+                    ROUTINE_HOME_ACTION_NEW_ROUTINE -> onNewRoutine
+                    ROUTINE_HOME_ACTION_BROWSE_LIBRARY -> onBrowseExercises
+                    else -> ({})
+                }
+                val icon = when (action) {
+                    ROUTINE_HOME_ACTION_BROWSE_LIBRARY -> Icons.Outlined.Search
+                    else -> Icons.Outlined.Add
+                }
+                Surface(
+                    onClick = onClick,
+                    color = MusFitTheme.colors.surface,
+                    shape = MusFitTheme.shapes.large,
+                    border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(imageVector = icon, contentDescription = null, tint = accent.color, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = action,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MusFitTheme.colors.onSurface,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 /**
  * Dense, tappable routine row: tinted leading icon, name + meta + muscle chips, and a compact tonal
- * start button. Tapping the row body opens the routine detail; the primary CTA on the screen is
- * routine creation, so every per-routine start remains compact.
+ * start button. Tapping the row body opens the routine detail; top-level quick actions carry
+ * empty-workout and creation flows, so every per-routine start remains compact.
  */
 @Composable
 private fun RoutineRow(
@@ -588,6 +648,16 @@ internal fun routineCardActions(isStarter: Boolean): List<String> =
         listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_EDIT, ROUTINE_ACTION_DUPLICATE, ROUTINE_ACTION_DELETE)
     }
 
+internal fun routineHomeQuickActions(hasActiveWorkout: Boolean = false): List<String> =
+    buildList {
+        if (!hasActiveWorkout) add(ROUTINE_HOME_ACTION_START_EMPTY)
+        add(ROUTINE_HOME_ACTION_NEW_ROUTINE)
+        add(ROUTINE_HOME_ACTION_BROWSE_LIBRARY)
+    }
+
+private const val ROUTINE_HOME_ACTION_START_EMPTY = "Start empty workout"
+private const val ROUTINE_HOME_ACTION_NEW_ROUTINE = "New routine"
+private const val ROUTINE_HOME_ACTION_BROWSE_LIBRARY = "Browse library"
 private const val ROUTINE_ACTION_START = "Start"
 private const val ROUTINE_ACTION_EDIT = "Edit"
 private const val ROUTINE_ACTION_DUPLICATE = "Duplicate"

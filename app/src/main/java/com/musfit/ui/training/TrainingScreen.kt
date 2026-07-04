@@ -251,14 +251,17 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         routines = state.visibleRoutines,
                         folders = state.routineFolders,
                         folderEditor = state.routineFolderEditor,
+                        hasActiveWorkout = state.activeWorkoutSummary != null,
                         accent = accent,
                         onOpenFolderEditor = viewModel::openRoutineFolderEditor,
                         onFolderNameChange = viewModel::onRoutineFolderNameChanged,
                         onSaveFolder = viewModel::saveRoutineFolderEditor,
                         onCancelFolder = viewModel::closeRoutineFolderEditor,
                         onDeleteFolder = viewModel::deleteRoutineFolder,
+                        onStartBlankWorkout = viewModel::startBlankWorkout,
                         onStartRoutine = viewModel::startRoutine,
                         onEditRoutine = viewModel::openRoutineEditor,
+                        onBrowseExercises = { viewModel.selectSection(TrainingSection.Exercises) },
                         onOpenRoutineDetail = viewModel::openRoutineDetail,
                     )
                 }

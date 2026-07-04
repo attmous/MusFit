@@ -94,6 +94,20 @@ class TrainingHomeContentTest {
     }
 
     @Test
+    fun routineHomeQuickActions_exposesWorkoutCreationAndLibraryBrowse() {
+        val actions = routineHomeQuickActions()
+
+        assertEquals(listOf("Start empty workout", "New routine", "Browse library"), actions)
+    }
+
+    @Test
+    fun routineHomeQuickActions_hidesEmptyWorkoutWhenWorkoutIsActive() {
+        val actions = routineHomeQuickActions(hasActiveWorkout = true)
+
+        assertEquals(listOf("New routine", "Browse library"), actions)
+    }
+
+    @Test
     fun groupRoutineSummariesByFolder_groupsSavedRoutinesWithFallback() {
         val groups = groupRoutineSummariesByFolder(
             listOf(
