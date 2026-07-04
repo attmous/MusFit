@@ -184,14 +184,14 @@ class TrainingViewModelTest {
     }
 
     @Test
-    fun initialState_isRoutinesFirstAndSeedsStarterTrainingData() = runTest {
+    fun initialState_isTrainingHomeAndSeedsStarterTrainingData() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
         dispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.state.value
 
-        assertEquals(TrainingSection.Routines, state.selectedSection)
+        assertEquals("Home", state.selectedSection.name)
         assertEquals(1, repository.seedCalls)
         assertEquals(listOf("Full Body A", "Upper A"), state.routines.map { it.name })
         assertEquals(
@@ -358,7 +358,7 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
-        assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
+        assertEquals("Library", viewModel.state.value.selectedSection.name)
         assertTrue(repository.requestedRoutineDetailIds.contains("routine-upper-a"))
 
         // Editing from the detail closes the detail and opens the editor.
@@ -611,7 +611,7 @@ class TrainingViewModelTest {
     }
 
     @Test
-    fun closeActiveWorkoutRoute_returnsToRoutinesHome() = runTest {
+    fun closeActiveWorkoutRoute_returnsToTrainingHome() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
 
@@ -619,7 +619,7 @@ class TrainingViewModelTest {
         viewModel.closeActiveWorkoutRoute()
 
         assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
-        assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
+        assertEquals("Home", viewModel.state.value.selectedSection.name)
     }
 
     @Test
@@ -664,7 +664,7 @@ class TrainingViewModelTest {
     }
 
     @Test
-    fun discardActiveWorkout_discardsAndReturnsToRoutinesAndClearsRestTimer() = runTest {
+    fun discardActiveWorkout_discardsAndReturnsToHomeAndClearsRestTimer() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
         dispatcher.scheduler.advanceUntilIdle()
@@ -680,7 +680,7 @@ class TrainingViewModelTest {
         assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
         assertFalse(viewModel.state.value.discardConfirmationOpen)
         assertFalse(viewModel.state.value.restTimer.isVisible)
-        assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
+        assertEquals("Home", viewModel.state.value.selectedSection.name)
         assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
     }
 

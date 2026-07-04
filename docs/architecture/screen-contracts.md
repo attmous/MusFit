@@ -409,7 +409,8 @@ Training handles strength routine management, exercise library filtering and cus
 
 | Section | Purpose |
 | --- | --- |
-| `Routines` | Folder-grouped routine list, user-configurable routine folders, starter/custom routine editor, duplicate/delete/start routine actions, and primary new-routine/new-folder CTAs. |
+| `Home` | Training landing surface with quick actions for starting an empty workout, creating a routine, and opening the routine Library. It does not render the saved/starter routine list. |
+| `Library` | Folder-grouped saved and starter routine list, user-configurable routine folders, starter/custom routine editor, duplicate/delete/start routine actions, and primary new-folder CTA. |
 | `Exercises` | Exercise library, search/filter, equipment/muscle chips, exercise detail, local notes, and custom exercise creation. |
 | `History` | Completed workout overview, month grid, consistency metrics, list, workout recap, and workout detail with set rows. |
 | `Progress` | All-training analytics, muscle volume, weekly volume, exercise PR cards, history rows, best sets, PR timeline, and trend chart points. |
@@ -426,9 +427,9 @@ val state: StateFlow<TrainingUiState>
 
 | Field | Purpose |
 | --- | --- |
-| `selectedSection` | Current Training tab. |
+| `selectedSection` | Current Training tab; defaults to `Home`. |
 | `routines` | Routine summaries. |
-| `visibleRoutines` | Routine summaries shown in the folder-grouped routine list. |
+| `visibleRoutines` | Routine summaries shown in the folder-grouped Library list. |
 | `routineFolders` | User-configurable routine folders used to group routine cards. |
 | `routineProgramOptions` | Legacy field retained empty; program/type chips are no longer used for routine organization. |
 | `selectedRoutineProgram` | Legacy field retained null; routine folders do not hide routines by type. |
@@ -540,7 +541,8 @@ Rest timer:
 
 | Composable | Inputs | Outputs |
 | --- | --- | --- |
-| `TrainingRoutineContent` | visible routines, folders, folder editor state | Folder create/edit/delete, start, edit, duplicate, delete routine callbacks. |
+| `TrainingHomeContent` | active workout presence | Start empty workout, create routine, and open routine Library callbacks. |
+| `TrainingRoutineContent` | visible routines, folders, folder editor state | Library folder create/edit/delete, start, edit, duplicate, delete routine callbacks. |
 | `TrainingRoutineEditor` | `RoutineEditorState`, exercises, folders | Edit routine metadata, folder assignment, exercise rest seconds, and set plans. |
 | `RoutineExercisePickerPage` | exercises, current routine ids, selected ids, query/filter state | Full-screen search/filter/multi-select picker for adding exercises to a routine after confirmation. |
 | `TrainingActiveWorkoutContent` | `ActiveWorkoutDetail`, exercises, `RestTimerState`, active workout notes draft, Training tool setting drafts | Set edits, set type changes, set reorder, workout notes, add exercise/set, timer controls, Training tool save, warm-up suggestions, PR/plate display, superset create/dissolve, finish/discard. |
@@ -557,7 +559,7 @@ Exercise library detail behavior:
 Routine organization behavior:
 
 - Starter routines still carry legacy local `programName` and tags for metadata/backward compatibility, but visible organization is folder-based.
-- The Routines section groups routine cards by `RoutineFolder`; routines without a folder appear under `My routines`.
+- The Library section groups routine cards by `RoutineFolder`; routines without a folder appear under `My routines`.
 - Users can create, rename, and delete folders locally. Deleting a folder unassigns its routines rather than deleting those routines.
 - Duplicating a starter/foldered routine creates an editable non-starter local copy and preserves folder assignment plus legacy metadata.
 - The routine editor uses a full-screen exercise picker for search/filter/multi-select. Exercises are only added after the user confirms with OK.

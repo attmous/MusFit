@@ -206,7 +206,15 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         }
 
         when (state.selectedSection) {
-            TrainingSection.Routines -> {
+            TrainingSection.Home ->
+                TrainingHomeContent(
+                    hasActiveWorkout = state.activeWorkoutSummary != null,
+                    accent = accent,
+                    onStartBlankWorkout = viewModel::startBlankWorkout,
+                    onNewRoutine = { viewModel.openRoutineEditor(null) },
+                    onOpenLibrary = { viewModel.selectSection(TrainingSection.Library) },
+                )
+            TrainingSection.Library -> {
                 val routineDetail = state.selectedRoutineDetail
                 val exerciseDetail = state.selectedExerciseDetail
                 when {
@@ -264,17 +272,14 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         routines = state.visibleRoutines,
                         folders = state.routineFolders,
                         folderEditor = state.routineFolderEditor,
-                        hasActiveWorkout = state.activeWorkoutSummary != null,
                         accent = accent,
                         onOpenFolderEditor = viewModel::openRoutineFolderEditor,
                         onFolderNameChange = viewModel::onRoutineFolderNameChanged,
                         onSaveFolder = viewModel::saveRoutineFolderEditor,
                         onCancelFolder = viewModel::closeRoutineFolderEditor,
                         onDeleteFolder = viewModel::deleteRoutineFolder,
-                        onStartBlankWorkout = viewModel::startBlankWorkout,
                         onStartRoutine = viewModel::startRoutine,
                         onEditRoutine = viewModel::openRoutineEditor,
-                        onBrowseExercises = { viewModel.selectSection(TrainingSection.Exercises) },
                         onOpenRoutineDetail = viewModel::openRoutineDetail,
                     )
                 }
@@ -436,7 +441,7 @@ private fun ActiveWorkoutPlaceholder(state: TrainingUiState, onBack: () -> Unit)
         Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = state.activeWorkoutSummary?.title ?: "Workout in progress", style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
-                TextButton(onClick = onBack) { Text("Back to routines") }
+                TextButton(onClick = onBack) { Text("Back to home") }
             }
         }
     }
