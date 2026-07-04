@@ -45,7 +45,8 @@ import java.util.Locale
 import javax.inject.Inject
 
 enum class TrainingSection {
-    Routines,
+    Home,
+    Library,
     Exercises,
     History,
     Progress,
@@ -109,7 +110,7 @@ data class TrainingDashboardState(
 )
 
 data class TrainingUiState(
-    val selectedSection: TrainingSection = TrainingSection.Routines,
+    val selectedSection: TrainingSection = TrainingSection.Home,
     val routines: List<RoutineSummary> = emptyList(),
     val visibleRoutines: List<RoutineSummary> = emptyList(),
     val routineFolders: List<RoutineFolder> = emptyList(),
@@ -297,7 +298,7 @@ class TrainingViewModel @Inject constructor(
         mutableState.update {
             it.copy(
                 activeWorkoutRouteOpen = false,
-                selectedSection = TrainingSection.Routines,
+                selectedSection = TrainingSection.Home,
             )
         }
     }
@@ -360,6 +361,7 @@ class TrainingViewModel @Inject constructor(
             val detail = routineId?.let { repository.getRoutineDetail(it) }
             mutableState.update {
                 it.copy(
+                    selectedSection = TrainingSection.Library,
                     routineEditor = RoutineEditorState(
                         routineId = routineId,
                         name = detail?.name.orEmpty(),
@@ -394,7 +396,7 @@ class TrainingViewModel @Inject constructor(
             val detail = repository.getRoutineDetail(routineId)
             mutableState.update {
                 it.copy(
-                    selectedSection = TrainingSection.Routines,
+                    selectedSection = TrainingSection.Library,
                     selectedRoutineDetail = detail,
                     message = if (detail == null) "Routine not found." else null,
                 )
@@ -1269,7 +1271,7 @@ class TrainingViewModel @Inject constructor(
                     activeWorkoutRouteOpen = false,
                     finishConfirmationOpen = false,
                     discardConfirmationOpen = false,
-                    selectedSection = TrainingSection.Routines,
+                    selectedSection = TrainingSection.Home,
                     selectedWorkoutDetail = null,
                     restTimer = RestTimerState(),
                 )

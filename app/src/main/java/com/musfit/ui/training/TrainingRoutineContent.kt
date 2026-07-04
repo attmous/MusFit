@@ -64,31 +64,40 @@ import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 
 @Composable
-fun TrainingRoutineContent(
-    routines: List<RoutineSummary>,
-    folders: List<RoutineFolder> = emptyList(),
-    folderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
+fun TrainingHomeContent(
     hasActiveWorkout: Boolean = false,
     accent: TabAccent,
-    onOpenFolderEditor: (String?) -> Unit = {},
-    onFolderNameChange: (String) -> Unit = {},
-    onSaveFolder: () -> Unit = {},
-    onCancelFolder: () -> Unit = {},
-    onDeleteFolder: (String) -> Unit = {},
-    onStartBlankWorkout: () -> Unit = {},
-    onStartRoutine: (String) -> Unit,
-    onEditRoutine: (String?) -> Unit,
-    onBrowseExercises: () -> Unit = {},
-    onOpenRoutineDetail: (String) -> Unit,
+    onStartBlankWorkout: () -> Unit,
+    onNewRoutine: () -> Unit,
+    onOpenLibrary: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         RoutineHomeQuickActions(
             hasActiveWorkout = hasActiveWorkout,
             accent = accent,
             onStartBlankWorkout = onStartBlankWorkout,
-            onNewRoutine = { onEditRoutine(null) },
-            onBrowseExercises = onBrowseExercises,
+            onNewRoutine = onNewRoutine,
+            onOpenLibrary = onOpenLibrary,
         )
+    }
+}
+
+@Composable
+fun TrainingRoutineContent(
+    routines: List<RoutineSummary>,
+    folders: List<RoutineFolder> = emptyList(),
+    folderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
+    accent: TabAccent,
+    onOpenFolderEditor: (String?) -> Unit = {},
+    onFolderNameChange: (String) -> Unit = {},
+    onSaveFolder: () -> Unit = {},
+    onCancelFolder: () -> Unit = {},
+    onDeleteFolder: (String) -> Unit = {},
+    onStartRoutine: (String) -> Unit,
+    onEditRoutine: (String?) -> Unit,
+    onOpenRoutineDetail: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(
             onClick = { onOpenFolderEditor(null) },
             modifier = Modifier.fillMaxWidth(),
@@ -168,7 +177,7 @@ private fun RoutineHomeQuickActions(
     accent: TabAccent,
     onStartBlankWorkout: () -> Unit,
     onNewRoutine: () -> Unit,
-    onBrowseExercises: () -> Unit,
+    onOpenLibrary: () -> Unit,
 ) {
     val actions = routineHomeQuickActions(hasActiveWorkout)
     val secondaryActions = actions.filterNot { it == ROUTINE_HOME_ACTION_START_EMPTY }
@@ -189,11 +198,11 @@ private fun RoutineHomeQuickActions(
             secondaryActions.forEach { action ->
                 val onClick: () -> Unit = when (action) {
                     ROUTINE_HOME_ACTION_NEW_ROUTINE -> onNewRoutine
-                    ROUTINE_HOME_ACTION_BROWSE_LIBRARY -> onBrowseExercises
+                    ROUTINE_HOME_ACTION_LIBRARY -> onOpenLibrary
                     else -> ({})
                 }
                 val icon = when (action) {
-                    ROUTINE_HOME_ACTION_BROWSE_LIBRARY -> Icons.Outlined.Search
+                    ROUTINE_HOME_ACTION_LIBRARY -> Icons.Outlined.FitnessCenter
                     else -> Icons.Outlined.Add
                 }
                 Surface(
@@ -652,12 +661,12 @@ internal fun routineHomeQuickActions(hasActiveWorkout: Boolean = false): List<St
     buildList {
         if (!hasActiveWorkout) add(ROUTINE_HOME_ACTION_START_EMPTY)
         add(ROUTINE_HOME_ACTION_NEW_ROUTINE)
-        add(ROUTINE_HOME_ACTION_BROWSE_LIBRARY)
+        add(ROUTINE_HOME_ACTION_LIBRARY)
     }
 
 private const val ROUTINE_HOME_ACTION_START_EMPTY = "Start empty workout"
 private const val ROUTINE_HOME_ACTION_NEW_ROUTINE = "New routine"
-private const val ROUTINE_HOME_ACTION_BROWSE_LIBRARY = "Browse library"
+private const val ROUTINE_HOME_ACTION_LIBRARY = "Library"
 private const val ROUTINE_ACTION_START = "Start"
 private const val ROUTINE_ACTION_EDIT = "Edit"
 private const val ROUTINE_ACTION_DUPLICATE = "Duplicate"
