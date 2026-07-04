@@ -1812,7 +1812,6 @@ private fun MealDetailScreen(
                         }
                         DiaryEntryRow(
                             entry = entry,
-                            showContributions = true,
                             onClick = { onEntryClick(entry.id) },
                         )
                     }
@@ -2154,7 +2153,6 @@ private fun MealSectionCard(
 @Composable
 private fun DiaryEntryRow(
     entry: FoodMealEntryUiState,
-    showContributions: Boolean = false,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -2175,7 +2173,10 @@ private fun DiaryEntryRow(
                 modifier = Modifier.padding(end = 12.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Text(
                         text = entry.name,
                         style = MaterialTheme.typography.bodyLarge,
@@ -2192,13 +2193,6 @@ private fun DiaryEntryRow(
                                 .background(rating.tone.ratingColor()),
                         )
                     }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "${entry.quantityGrams.roundToInt()} g",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
                     if (entry.isPlanned) {
                         Text(
                             text = "Planned",
@@ -2209,15 +2203,13 @@ private fun DiaryEntryRow(
                     }
                 }
                 Text(
-                    text = "P ${entry.proteinGrams.formatNutritionDisplay()} g | C ${entry.carbsGrams.formatNutritionDisplay()} g | F ${entry.fatGrams.formatNutritionDisplay()} g",
+                    text = "${entry.quantityGrams.roundToInt()} g · P ${entry.proteinGrams.formatNutritionDisplay()}  C ${entry.carbsGrams.formatNutritionDisplay()}  F ${entry.fatGrams.formatNutritionDisplay()} g",
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
-                if (showContributions) {
-                    MealItemContributionBars(entry = entry)
-                }
             }
             Text(
                 text = "${entry.caloriesKcal.roundToInt()} kcal",
@@ -2226,74 +2218,6 @@ private fun DiaryEntryRow(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-    }
-}
-
-@Composable
-private fun MealItemContributionBars(entry: FoodMealEntryUiState) {
-    val macroColors = MusFitTheme.colors.macroColors
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp, end = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        MealItemContributionBar(
-            label = "Calories",
-            progress = entry.calorieContribution,
-            color = MusFitTheme.colors.brand,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            MealItemContributionBar(
-                label = "P",
-                progress = entry.proteinContribution,
-                color = macroColors[1],
-                modifier = Modifier.weight(1f),
-            )
-            MealItemContributionBar(
-                label = "C",
-                progress = entry.carbsContribution,
-                color = macroColors[0],
-                modifier = Modifier.weight(1f),
-            )
-            MealItemContributionBar(
-                label = "F",
-                progress = entry.fatContribution,
-                color = macroColors[2],
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun MealItemContributionBar(
-    label: String,
-    progress: Double,
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            modifier = Modifier.width(46.dp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        ProgressBar(
-            progress = progress.toFloat().coerceIn(0f, 1f),
-            color = color,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 
