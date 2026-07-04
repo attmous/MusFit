@@ -31,6 +31,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -111,7 +112,6 @@ fun FoodScreen(
     val state by viewModel.state.collectAsState()
     val accent = tabAccentFor(AppDestination.Food)
     val selectedMealDetail = state.selectedMealDetailForDisplay()
-    val planningPresentation = state.toPlanningModePresentation()
     val isRecipeFullScreen =
         state.isAddPanelVisible &&
             (state.sheetMode == FoodSheetMode.RecipeBrowser || state.sheetMode == FoodSheetMode.RecipeEditor)
@@ -243,10 +243,6 @@ fun FoodScreen(
                     MusFitScreenHeader(
                         title = "Food",
                         actions = {
-                            FoodPlanningModeButton(
-                                presentation = planningPresentation,
-                                onClick = viewModel::togglePlanningMode,
-                            )
                             FoodDiaryOverflowAction(
                                 state = state,
                                 onGoalClick = viewModel::openGoalEditor,
@@ -335,6 +331,22 @@ fun FoodScreen(
                         }
                     }
                 }
+            }
+            FloatingActionButton(
+                onClick = {
+                    val mealId = defaultAddMealId(
+                        state.mealSections,
+                        java.time.LocalTime.now().hour,
+                    ) ?: state.mealSections.firstOrNull()?.id
+                    if (mealId != null) viewModel.openAddFood(mealId)
+                },
+                containerColor = MusFitTheme.colors.brand,
+                contentColor = MusFitTheme.colors.onAccent,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 20.dp, bottom = 96.dp),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "Add food")
             }
         }
 
@@ -784,34 +796,6 @@ internal fun FoodUiState.foodEntryActionLabel(target: String): String =
 
 internal val FoodUiState.saveAndFoodEntryActionLabel: String
     get() = if (isPlanningMode) "Save and plan" else "Save and log"
-
-@Composable
-private fun FoodPlanningModeButton(
-    presentation: FoodPlanningModePresentation,
-    onClick: () -> Unit,
-) {
-    FilterChip(
-        selected = presentation.isActive,
-        onClick = onClick,
-        label = {
-            Text(
-                text = presentation.buttonLabel,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Outlined.Today,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-        },
-        modifier = Modifier.semantics {
-            contentDescription = presentation.buttonContentDescription
-        },
-    )
-}
 
 @Composable
 private fun FoodDiaryOverflowAction(
