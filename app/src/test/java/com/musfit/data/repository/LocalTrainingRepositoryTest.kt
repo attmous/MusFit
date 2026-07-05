@@ -23,6 +23,9 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+private const val TEST_EXERCISE_GIF_MIRROR_BASE =
+    "https://gitlab.stud.idi.ntnu.no/gruppe-1/prog2052-prosjekt/-/raw/main/backend/assets/exercises/"
+
 @RunWith(RobolectricTestRunner::class)
 class LocalTrainingRepositoryTest {
     private lateinit var database: MusFitDatabase
@@ -315,7 +318,29 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
-    fun seedStarterTrainingData_importsDatasetAndBackfillsStarterMedia() = runTest {
+    fun getExerciseDetail_rewritesLegacyDatasetMediaUrlsToGifMirrorUrls() = runTest {
+        database.trainingDao().upsertExercise(
+            ExerciseEntity(
+                id = "legacy-media",
+                name = "Legacy Media Curl",
+                category = "strength",
+                equipment = "dumbbell",
+                targetMuscles = "biceps",
+                isCustom = false,
+                imageUrl = EXERCISE_DATASET_LEGACY_CDN_BASE + "images/0294-x.jpg",
+                gifUrl = EXERCISE_DATASET_LEGACY_CDN_BASE + "videos/0294-x.gif",
+            ),
+        )
+
+        val detail = repository.getExerciseDetail("legacy-media")
+
+        assertNotNull(detail)
+        assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", detail?.imageUrl)
+        assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", detail?.gifUrl)
+    }
+
+    @Test
+    fun seedStarterTrainingData_importsDatasetWithGifMirrorMedia() = runTest {
         val dataset = ExerciseDatasetProvider {
             listOf(
                 ExerciseDatasetRecord(
@@ -353,16 +378,15 @@ class LocalTrainingRepositoryTest {
 
         val imported = database.trainingDao().getExercise("ds-0025")
         assertNotNull(imported)
-        assertEquals(
-            "https://cdn.jsdelivr.net/gh/hasaneyldrm/exercises-dataset@main/images/0025-x.jpg",
-            imported?.imageUrl,
-        )
+        assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", imported?.imageUrl)
+        assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", imported?.gifUrl)
 
-        // The built-in "Barbell Bench Press" starter is backfilled from its curated dataset id (0025).
+        // The built-in "Barbell Bench Press" starter keeps the useful text while attaching the
+        // matching ExerciseDB demo media from the imported catalog row.
         val starter = database.trainingDao().getExerciseByName("Barbell Bench Press")
         assertNotNull(starter)
-        assertEquals(imported?.imageUrl, starter?.imageUrl)
-        assertEquals(imported?.gifUrl, starter?.gifUrl)
+        assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", starter?.imageUrl)
+        assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", starter?.gifUrl)
     }
 
     @Test

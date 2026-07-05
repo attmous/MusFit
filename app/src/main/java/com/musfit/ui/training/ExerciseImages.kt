@@ -2,15 +2,23 @@ package com.musfit.ui.training
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -18,13 +26,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
-import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 
 /**
@@ -41,24 +49,40 @@ fun ExerciseThumb(
     shape: Shape = RoundedCornerShape(10.dp),
 ) {
     if (imageUrl.isNullOrBlank()) {
-        Box(
-            modifier = modifier.size(size).clip(shape).background(accent.container),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.FitnessCenter,
-                contentDescription = contentDescription,
-                tint = accent.onContainer,
-                modifier = Modifier.size(size / 2),
-            )
-        }
+        ExerciseMediaPlaceholder(
+            contentDescription = contentDescription,
+            accent = accent,
+            modifier = modifier.size(size),
+            shape = shape,
+            iconSize = size / 2,
+        )
         return
     }
-    AsyncImage(
-        model = imageUrl,
+    val context = LocalContext.current
+    SubcomposeAsyncImage(
+        model = ImageRequest.Builder(context).data(imageUrl).crossfade(true).build(),
         contentDescription = contentDescription,
         contentScale = ContentScale.Crop,
         modifier = modifier.size(size).clip(shape).background(Color.White),
+        loading = {
+            ExerciseMediaPlaceholder(
+                contentDescription = contentDescription,
+                accent = accent,
+                modifier = Modifier.size(size),
+                shape = shape,
+                iconSize = size / 2,
+                loading = true,
+            )
+        },
+        error = {
+            ExerciseMediaPlaceholder(
+                contentDescription = contentDescription,
+                accent = accent,
+                modifier = Modifier.size(size),
+                shape = shape,
+                iconSize = size / 2,
+            )
+        },
     )
 }
 
@@ -70,9 +94,11 @@ fun ExerciseThumb(
 fun ExerciseGif(
     gifUrl: String,
     contentDescription: String?,
+    accent: TabAccent,
     modifier: Modifier = Modifier,
     height: Dp = 200.dp,
     shape: Shape = RoundedCornerShape(16.dp),
+    onError: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val gifLoader = remember(context) {
@@ -80,7 +106,8 @@ fun ExerciseGif(
             .components { add(ImageDecoderDecoder.Factory()) }
             .build()
     }
-    AsyncImage(
+    var reportedError by remember(gifUrl) { mutableStateOf(false) }
+    SubcomposeAsyncImage(
         model = ImageRequest.Builder(context).data(gifUrl).crossfade(true).build(),
         imageLoader = gifLoader,
         contentDescription = contentDescription,
@@ -90,5 +117,77 @@ fun ExerciseGif(
             .height(height)
             .clip(shape)
             .background(Color.White),
+        loading = {
+            ExerciseMediaPlaceholder(
+                contentDescription = contentDescription,
+                accent = accent,
+                modifier = Modifier.fillMaxWidth().height(height),
+                shape = shape,
+                iconSize = 32.dp,
+                loading = true,
+                label = "Loading demo",
+            )
+        },
+        error = {
+            ExerciseMediaPlaceholder(
+                contentDescription = contentDescription,
+                accent = accent,
+                modifier = Modifier.fillMaxWidth().height(height),
+                shape = shape,
+                iconSize = 32.dp,
+                label = "Demo unavailable",
+            )
+        },
+        onError = {
+            if (!reportedError) {
+                reportedError = true
+                onError()
+            }
+        },
     )
+}
+
+@Composable
+private fun ExerciseMediaPlaceholder(
+    contentDescription: String?,
+    accent: TabAccent,
+    modifier: Modifier,
+    shape: Shape,
+    iconSize: Dp,
+    loading: Boolean = false,
+    label: String? = null,
+) {
+    Box(
+        modifier = modifier.clip(shape).background(accent.container),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(8.dp),
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    color = accent.color,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(iconSize),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.FitnessCenter,
+                    contentDescription = contentDescription,
+                    tint = accent.onContainer,
+                    modifier = Modifier.size(iconSize),
+                )
+            }
+            label?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = accent.onContainer,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        }
+    }
 }
