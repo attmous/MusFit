@@ -115,6 +115,7 @@ data class TrainingUiState(
     val homeRoutines: List<RoutineSummary> = emptyList(),
     val visibleRoutines: List<RoutineSummary> = emptyList(),
     val routineFolders: List<RoutineFolder> = emptyList(),
+    val homeFolders: List<RoutineFolder> = emptyList(),
     val routineProgramOptions: List<String> = emptyList(),
     val selectedRoutineProgram: String? = null,
     val exercises: List<ExerciseSummary> = emptyList(),
@@ -406,7 +407,6 @@ class TrainingViewModel @Inject constructor(
             val detail = routineId?.let { repository.getRoutineDetail(it) }
             mutableState.update {
                 it.copy(
-                    selectedSection = TrainingSection.Library,
                     routineEditor = RoutineEditorState(
                         routineId = routineId,
                         name = detail?.name.orEmpty(),
@@ -441,7 +441,6 @@ class TrainingViewModel @Inject constructor(
             val detail = repository.getRoutineDetail(routineId)
             mutableState.update {
                 it.copy(
-                    selectedSection = TrainingSection.Library,
                     selectedRoutineDetail = detail,
                     message = if (detail == null) "Routine not found." else null,
                 )
@@ -1371,11 +1370,16 @@ class TrainingViewModel @Inject constructor(
     }
 
     private fun TrainingUiState.withVisibleRoutines(): TrainingUiState {
+        // Folders that pre-made (starter) routines are seeded into belong to the Library, not Home;
+        // Home only surfaces folders the user creates for their own routines.
+        val starterFolderIds = routines.filter { it.isStarter }.mapNotNull { it.folderId }.toSet()
         return copy(
             routineProgramOptions = emptyList(),
             selectedRoutineProgram = null,
+            // Home owns user-created routines (organized into folders); the Library browses pre-made ones.
             homeRoutines = routines.filterNot { it.isStarter },
-            visibleRoutines = routines,
+            homeFolders = routineFolders.filterNot { it.id in starterFolderIds },
+            visibleRoutines = routines.filter { it.isStarter },
         )
     }
 

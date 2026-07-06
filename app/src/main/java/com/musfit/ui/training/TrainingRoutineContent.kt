@@ -88,11 +88,20 @@ import kotlin.math.roundToInt
 fun TrainingHomeContent(
     hasActiveWorkout: Boolean = false,
     routines: List<RoutineSummary> = emptyList(),
+    folders: List<RoutineFolder> = emptyList(),
+    folderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
     accent: TabAccent,
     onStartBlankWorkout: () -> Unit,
     onNewRoutine: () -> Unit,
     onOpenLibrary: () -> Unit,
+    onOpenFolderEditor: (String?) -> Unit = {},
+    onFolderNameChange: (String) -> Unit = {},
+    onSaveFolder: () -> Unit = {},
+    onCancelFolder: () -> Unit = {},
+    onDeleteFolder: (String) -> Unit = {},
+    onAssignRoutineToFolder: (String, String?) -> Unit = { _, _ -> },
     onStartRoutine: (String) -> Unit = {},
+    onEditRoutine: (String?) -> Unit = {},
     onOpenRoutineDetail: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -103,10 +112,20 @@ fun TrainingHomeContent(
             onNewRoutine = onNewRoutine,
             onOpenLibrary = onOpenLibrary,
         )
-        HomeSavedRoutineList(
+        // Your own routines live here, organized into folders you create and drag them into.
+        TrainingRoutineContent(
             routines = routines,
+            folders = folders,
+            folderEditor = folderEditor,
             accent = accent,
+            onOpenFolderEditor = onOpenFolderEditor,
+            onFolderNameChange = onFolderNameChange,
+            onSaveFolder = onSaveFolder,
+            onCancelFolder = onCancelFolder,
+            onDeleteFolder = onDeleteFolder,
+            onAssignRoutineToFolder = onAssignRoutineToFolder,
             onStartRoutine = onStartRoutine,
+            onEditRoutine = onEditRoutine,
             onOpenRoutineDetail = onOpenRoutineDetail,
         )
     }
@@ -174,6 +193,21 @@ fun TrainingRoutineContent(
                 routines = routines,
                 folders = folders,
             )
+            if (routineGroups.isEmpty()) {
+                Surface(
+                    color = MusFitTheme.colors.surface,
+                    shape = MusFitTheme.shapes.large,
+                    border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "Create a routine and it will appear here. Add folders to group them, then drag routines in.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                    )
+                }
+            }
             if (routineGroups.isNotEmpty()) {
                 routineGroups.forEach { group ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -314,21 +348,29 @@ private fun RoutineHomeQuickActions(
     }
 }
 
+/**
+ * Plain, non-organizable routine list used by the routine Library to browse pre-made (starter)
+ * routines. Folder management + drag-and-drop live on the Home tab for the user's own routines.
+ */
 @Composable
-private fun HomeSavedRoutineList(
+fun TrainingRoutineLibraryList(
     routines: List<RoutineSummary>,
     accent: TabAccent,
     onStartRoutine: (String) -> Unit,
     onOpenRoutineDetail: (String) -> Unit,
+    heading: String? = "Pre-made routines",
+    emptyMessage: String = "No pre-made routines available.",
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            text = "Your routines",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
+        if (heading != null) {
+            Text(
+                text = heading,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
         Surface(
             color = MusFitTheme.colors.surface,
             shape = MusFitTheme.shapes.large,
@@ -337,7 +379,7 @@ private fun HomeSavedRoutineList(
         ) {
             if (routines.isEmpty()) {
                 Text(
-                    text = "No user-saved routines yet.",
+                    text = emptyMessage,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
