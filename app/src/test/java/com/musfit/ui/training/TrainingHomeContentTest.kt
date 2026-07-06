@@ -174,6 +174,23 @@ class TrainingHomeContentTest {
     }
 
     @Test
+    fun routineExercisePickerSuggestions_blankShowsAllAvailableExercisesWithoutDefaultCap() {
+        val exercises = (1..120).map { index ->
+            exercise(id = "exercise-$index", name = "Exercise $index")
+        }
+
+        val suggestions = routineExercisePickerSuggestions(
+            exercises = exercises,
+            selectedExerciseIds = setOf("exercise-2", "exercise-99"),
+            query = "",
+        )
+
+        assertEquals(118, suggestions.size)
+        assertEquals("Exercise 1", suggestions.first().name)
+        assertEquals("Exercise 120", suggestions.last().name)
+    }
+
+    @Test
     fun routineExercisePickerSuggestions_filtersBySearchEquipmentAndMuscle() {
         val suggestions = routineExercisePickerSuggestions(
             exercises = listOf(
