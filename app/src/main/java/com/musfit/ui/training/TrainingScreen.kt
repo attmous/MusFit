@@ -220,22 +220,36 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
 
         when (state.selectedSection) {
             TrainingSection.Home ->
-                TrainingHomeContent(
-                    hasActiveWorkout = state.activeWorkoutSummary != null,
-                    routines = state.homeRoutines,
-                    accent = accent,
-                    onStartBlankWorkout = viewModel::startBlankWorkout,
-                    onNewRoutine = { viewModel.openRoutineEditor(null) },
-                    onOpenLibrary = viewModel::openRoutineLibraryPage,
-                    onStartRoutine = viewModel::startRoutine,
-                    onOpenRoutineDetail = viewModel::openRoutineDetail,
-                )
+                TrainingRoutineWorkspace(state = state, accent = accent, viewModel = viewModel) {
+                    TrainingHomeContent(
+                        hasActiveWorkout = state.activeWorkoutSummary != null,
+                        routines = state.homeRoutines,
+                        folders = state.homeFolders,
+                        folderEditor = state.routineFolderEditor,
+                        accent = accent,
+                        onStartBlankWorkout = viewModel::startBlankWorkout,
+                        onNewRoutine = { viewModel.openRoutineEditor(null) },
+                        onOpenLibrary = viewModel::openRoutineLibraryPage,
+                        onOpenFolderEditor = viewModel::openRoutineFolderEditor,
+                        onFolderNameChange = viewModel::onRoutineFolderNameChanged,
+                        onSaveFolder = viewModel::saveRoutineFolderEditor,
+                        onCancelFolder = viewModel::closeRoutineFolderEditor,
+                        onDeleteFolder = viewModel::deleteRoutineFolder,
+                        onAssignRoutineToFolder = viewModel::assignRoutineToFolder,
+                        onStartRoutine = viewModel::startRoutine,
+                        onEditRoutine = viewModel::openRoutineEditor,
+                        onOpenRoutineDetail = viewModel::openRoutineDetail,
+                    )
+                }
             TrainingSection.Library -> {
-                TrainingRoutineLibraryContent(
-                    state = state,
-                    accent = accent,
-                    viewModel = viewModel,
-                )
+                TrainingRoutineWorkspace(state = state, accent = accent, viewModel = viewModel) {
+                    TrainingRoutineLibraryList(
+                        routines = state.visibleRoutines,
+                        accent = accent,
+                        onStartRoutine = viewModel::startRoutine,
+                        onOpenRoutineDetail = viewModel::openRoutineDetail,
+                    )
+                }
             }
             TrainingSection.Exercises -> {
                 val exerciseDetail = state.selectedExerciseDetail
@@ -383,19 +397,30 @@ private fun RoutineLibraryPage(
             fontWeight = FontWeight.Bold,
             color = MusFitTheme.colors.onSurface,
         )
-        TrainingRoutineLibraryContent(
-            state = state,
-            accent = accent,
-            viewModel = viewModel,
-        )
+        TrainingRoutineWorkspace(state = state, accent = accent, viewModel = viewModel) {
+            TrainingRoutineLibraryList(
+                routines = state.visibleRoutines,
+                accent = accent,
+                onStartRoutine = viewModel::startRoutine,
+                onOpenRoutineDetail = viewModel::openRoutineDetail,
+                heading = null,
+            )
+        }
     }
 }
 
+/**
+ * Shared routine "workspace": when a routine editor, routine detail, or (routine) exercise detail is
+ * active it renders that overlay; otherwise it renders the section-specific [routineList]. Used by
+ * both the Home tab (user routines + folders) and the Library (pre-made routines) so those overlays
+ * appear in-context regardless of which tab opened them.
+ */
 @Composable
-private fun TrainingRoutineLibraryContent(
+private fun TrainingRoutineWorkspace(
     state: TrainingUiState,
     accent: TabAccent,
     viewModel: TrainingViewModel,
+    routineList: @Composable () -> Unit,
 ) {
     val routineDetail = state.selectedRoutineDetail
     val exerciseDetail = state.selectedExerciseDetail
@@ -403,7 +428,8 @@ private fun TrainingRoutineLibraryContent(
         state.routineEditor.isOpen -> TrainingRoutineEditor(
             editor = state.routineEditor,
             exercises = state.exercises,
-            folders = state.routineFolders,
+            // Offer the user's own folders as quick-picks, matching what the Home tab organizes into.
+            folders = state.homeFolders,
             accent = accent,
             onNameChange = viewModel::onRoutineNameChanged,
             onNotesChange = viewModel::onRoutineNotesChanged,
@@ -450,21 +476,7 @@ private fun TrainingRoutineLibraryContent(
             },
             onClose = viewModel::closeRoutineDetail,
         )
-        else -> TrainingRoutineContent(
-            routines = state.visibleRoutines,
-            folders = state.routineFolders,
-            folderEditor = state.routineFolderEditor,
-            accent = accent,
-            onOpenFolderEditor = viewModel::openRoutineFolderEditor,
-            onFolderNameChange = viewModel::onRoutineFolderNameChanged,
-            onSaveFolder = viewModel::saveRoutineFolderEditor,
-            onCancelFolder = viewModel::closeRoutineFolderEditor,
-            onDeleteFolder = viewModel::deleteRoutineFolder,
-            onAssignRoutineToFolder = viewModel::assignRoutineToFolder,
-            onStartRoutine = viewModel::startRoutine,
-            onEditRoutine = viewModel::openRoutineEditor,
-            onOpenRoutineDetail = viewModel::openRoutineDetail,
-        )
+        else -> routineList()
     }
 }
 

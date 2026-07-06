@@ -358,7 +358,9 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
-        assertEquals("Library", viewModel.state.value.selectedSection.name)
+        // Opening a routine keeps the user in their current section (Home) rather than
+        // yanking them to the pre-made routine Library.
+        assertEquals("Home", viewModel.state.value.selectedSection.name)
         assertTrue(repository.requestedRoutineDetailIds.contains("routine-upper-a"))
 
         // Editing from the detail closes the detail and opens the editor.
@@ -414,8 +416,14 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf("Starter Pack", "PPL System"), viewModel.state.value.routineFolders.map { it.name })
-        assertEquals(listOf("Full Body A", "Upper A"), viewModel.state.value.visibleRoutines.map { it.name })
+        // Library browses pre-made (starter) routines only; the Home tab owns user-created ones.
+        assertEquals(listOf("Full Body A"), viewModel.state.value.visibleRoutines.map { it.name })
+        assertTrue(viewModel.state.value.visibleRoutines.all { it.isStarter })
         assertEquals(listOf("Upper A"), viewModel.state.value.homeRoutines.map { it.name })
+        assertTrue(viewModel.state.value.homeRoutines.none { it.isStarter })
+        // "Starter Pack" only holds the pre-made routine, so it is hidden from Home; the user's own
+        // "PPL System" folder stays.
+        assertEquals(listOf("PPL System"), viewModel.state.value.homeFolders.map { it.name })
 
         viewModel.openRoutineFolderEditor(null)
         viewModel.onRoutineFolderNameChanged("  Powerbuilding  ")
@@ -444,14 +452,14 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("routine-upper-a" to "folder-starter-pack", repository.assignedRoutineFolder)
-        assertEquals("Starter Pack", viewModel.state.value.visibleRoutines.single { it.id == "routine-upper-a" }.folderName)
+        assertEquals("Starter Pack", viewModel.state.value.homeRoutines.single { it.id == "routine-upper-a" }.folderName)
         assertEquals("Upper A moved to Starter Pack.", viewModel.state.value.message)
 
         viewModel.assignRoutineToFolder("routine-upper-a", null)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("routine-upper-a" to null, repository.assignedRoutineFolder)
-        assertEquals(null, viewModel.state.value.visibleRoutines.single { it.id == "routine-upper-a" }.folderId)
+        assertEquals(null, viewModel.state.value.homeRoutines.single { it.id == "routine-upper-a" }.folderId)
         assertEquals("Upper A moved to My routines.", viewModel.state.value.message)
     }
 
