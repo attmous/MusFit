@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DragIndicator
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
@@ -179,20 +180,19 @@ fun TrainingRoutineContent(
                     onDelete = folderEditor.folderId?.let { id -> { onDeleteFolder(id) } },
                 )
             }
-            RoutineFolderDropStrip(
-                folders = folders,
-                accent = accent,
-                isDragging = draggedRoutine != null,
-                activeDropTarget = activeDropTarget,
-                onOpenFolderEditor = onOpenFolderEditor,
-                onDropTargetPositioned = { folderId, bounds ->
-                    dropTargetBounds = dropTargetBounds + (folderId to bounds)
-                },
-            )
             val routineGroups = groupRoutineSummariesByFolder(
                 routines = routines,
                 folders = folders,
             )
+            if (draggedRoutine != null && folders.isNotEmpty()) {
+                Text(
+                    text = "Drop the routine onto a folder to move it, or onto “My routines” to take it out.",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent.color,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
             if (routineGroups.isEmpty()) {
                 Surface(
                     color = MusFitTheme.colors.surface,
@@ -210,24 +210,67 @@ fun TrainingRoutineContent(
             }
             if (routineGroups.isNotEmpty()) {
                 routineGroups.forEach { group ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = group.title,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MusFitTheme.colors.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp),
-                        )
+                    // A section is a drop target when it's a user folder (drop in) or the
+                    // "My routines" bucket (drop out). Registering the whole section — not just a
+                    // chip — lets a dragged routine land wherever the user naturally aims it.
+                    val isDroppable = group.isUserFolder || group.title == MY_ROUTINES_GROUP_TITLE
+                    val isActiveDropTarget = draggedRoutine != null &&
+                        isDroppable &&
+                        activeDropTarget == RoutineFolderDropTarget(group.folderId)
+                    val sectionModifier = if (isDroppable) {
+                        Modifier.onGloballyPositioned { coordinates ->
+                            dropTargetBounds = dropTargetBounds + (group.folderId to coordinates.boundsInRoot())
+                        }
+                    } else {
+                        Modifier
+                    }
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = sectionModifier,
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = group.title,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isActiveDropTarget) accent.color else MusFitTheme.colors.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (group.isUserFolder && group.folderId != null) {
+                                IconButton(
+                                    onClick = { onOpenFolderEditor(group.folderId) },
+                                    modifier = Modifier.size(32.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Edit,
+                                        contentDescription = "Edit ${group.title}",
+                                        tint = MusFitTheme.colors.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+                        }
                         Surface(
-                            color = MusFitTheme.colors.surface,
+                            color = if (isActiveDropTarget) accent.container else MusFitTheme.colors.surface,
                             shape = MusFitTheme.shapes.large,
-                            border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+                            border = if (isActiveDropTarget) {
+                                BorderStroke(1.5.dp, accent.color)
+                            } else {
+                                BorderStroke(0.5.dp, MusFitTheme.colors.outline)
+                            },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Column {
                                 if (group.routines.isEmpty()) {
                                     Text(
-                                        text = "No routines yet",
+                                        text = if (isDroppable && draggedRoutine != null) {
+                                            "Drop here to add"
+                                        } else {
+                                            "No routines yet"
+                                        },
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MusFitTheme.colors.onSurfaceVariant,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
@@ -606,54 +649,6 @@ private fun RoutineDragHandle(
 }
 
 @Composable
-private fun RoutineFolderDropStrip(
-    folders: List<RoutineFolder>,
-    accent: TabAccent,
-    isDragging: Boolean,
-    activeDropTarget: RoutineFolderDropTarget?,
-    onOpenFolderEditor: (String?) -> Unit,
-    onDropTargetPositioned: (String?, Rect) -> Unit,
-) {
-    if (folders.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (isDragging) {
-            Text(
-                text = "Move to",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (isDragging) {
-                RoutineFolderChip(
-                    label = "My routines",
-                    accent = accent,
-                    isDropTarget = true,
-                    isHighlighted = activeDropTarget == RoutineFolderDropTarget(null),
-                    onClick = {},
-                    onPositioned = { bounds -> onDropTargetPositioned(null, bounds) },
-                )
-            }
-            folders.forEach { folder ->
-                RoutineFolderChip(
-                    label = folder.name,
-                    accent = accent,
-                    isDropTarget = isDragging,
-                    isHighlighted = activeDropTarget?.folderId == folder.id,
-                    onClick = { onOpenFolderEditor(folder.id) },
-                    onPositioned = { bounds -> onDropTargetPositioned(folder.id, bounds) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun RoutineDragLabel(
     drag: RoutineDragState,
     contentBounds: Rect,
@@ -958,36 +953,6 @@ private fun RoutineFolderEditorCard(
 }
 
 @Composable
-private fun RoutineFolderChip(
-    label: String,
-    accent: TabAccent,
-    isDropTarget: Boolean = false,
-    isHighlighted: Boolean = false,
-    onClick: () -> Unit,
-    onPositioned: (Rect) -> Unit = {},
-) {
-    Surface(
-        onClick = onClick,
-        color = if (isHighlighted) accent.color else accent.container,
-        shape = RoundedCornerShape(999.dp),
-        border = when {
-            isHighlighted -> BorderStroke(1.5.dp, accent.color)
-            isDropTarget -> BorderStroke(0.5.dp, accent.color.copy(alpha = 0.55f))
-            else -> null
-        },
-        modifier = Modifier.onGloballyPositioned { onPositioned(it.boundsInRoot()) },
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isHighlighted) accent.onColor else accent.onContainer,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-        )
-    }
-}
-
-@Composable
 private fun RoutineMuscleChip(label: String) {
     Surface(
         color = MusFitTheme.colors.surface,
@@ -1028,9 +993,15 @@ private fun RoutineProgramChip(
 
 internal fun nextQuickLogExpanded(current: Boolean): Boolean = !current
 
+internal const val MY_ROUTINES_GROUP_TITLE = "My routines"
+
 internal data class RoutineGroup(
     val title: String,
     val routines: List<RoutineSummary>,
+    /** Non-null only for real user folders; null for the "My routines" bucket and legacy name-only groups. */
+    val folderId: String? = null,
+    /** True only when this group is a user-created folder that can be renamed/deleted and dropped into. */
+    val isUserFolder: Boolean = false,
 )
 
 internal data class RoutineFolderDropTarget(val folderId: String?)
@@ -1067,6 +1038,8 @@ internal fun groupRoutineSummariesByFolder(
             RoutineGroup(
                 title = folder.name,
                 routines = routines.filter { routine -> routine.belongsToFolder(folder) },
+                folderId = folder.id,
+                isUserFolder = true,
             )
         }
         val remainingGroups = linkedMapOf<String, MutableList<RoutineSummary>>()
@@ -1076,7 +1049,7 @@ internal fun groupRoutineSummariesByFolder(
                 val title = routine.folderName
                     ?.trim()
                     ?.takeIf(String::isNotBlank)
-                    ?: "My routines"
+                    ?: MY_ROUTINES_GROUP_TITLE
                 remainingGroups.getOrPut(title) { mutableListOf() } += routine
             }
         return folderGroups + remainingGroups.map { (title, groupedRoutines) ->
@@ -1089,7 +1062,7 @@ internal fun groupRoutineSummariesByFolder(
         val title = routine.folderName
             ?.trim()
             ?.takeIf(String::isNotBlank)
-            ?: "My routines"
+            ?: MY_ROUTINES_GROUP_TITLE
         groups.getOrPut(title) { mutableListOf() } += routine
     }
     return groups.map { (title, groupedRoutines) ->
