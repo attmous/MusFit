@@ -7,16 +7,20 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +37,8 @@ import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineDetail
@@ -954,7 +961,6 @@ fun RoutineExercisePickerPage(
         query = searchQuery,
         equipmentFilter = equipmentFilter,
         muscleFilter = muscleFilter,
-        limit = 80,
     )
     val filtersActive = searchQuery.isNotBlank() || muscleFilter != null || equipmentFilter != null
     val fieldColors = OutlinedTextFieldDefaults.colors(
@@ -963,124 +969,224 @@ fun RoutineExercisePickerPage(
         cursorColor = accent.color,
     )
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(MusFitTheme.colors.background)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            IconButton(onClick = onCancel) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                    contentDescription = "Cancel exercise selection",
-                    tint = MusFitTheme.colors.onSurface,
-                )
-            }
-            Text(
-                "Add exercises",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MusFitTheme.colors.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            Button(
-                onClick = onConfirm,
-                enabled = selectedExerciseIds.isNotEmpty(),
-                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("OK")
+                IconButton(onClick = onCancel) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                        contentDescription = "Cancel exercise selection",
+                        tint = MusFitTheme.colors.onSurface,
+                    )
+                }
+                Text(
+                    "Add exercises",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MusFitTheme.colors.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                Button(
+                    onClick = onConfirm,
+                    enabled = selectedExerciseIds.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+                ) {
+                    Text("OK")
+                }
             }
         }
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchChange,
-            label = { Text("Search exercises") },
-            leadingIcon = {
-                Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
-            },
-            singleLine = true,
-            colors = fieldColors,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        RoutinePickerChipRow(
-            title = "Equipment",
-            options = options.equipment.take(10),
-            selected = equipmentFilter,
-            accent = accent,
-            onSelected = { value -> onEquipmentFilterChange(if (equipmentFilter == value) null else value) },
-        )
-        RoutinePickerChipRow(
-            title = "Muscle",
-            options = options.muscles.take(12),
-            selected = muscleFilter,
-            accent = accent,
-            onSelected = { value -> onMuscleFilterChange(if (muscleFilter == value) null else value) },
-        )
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                label = { Text("Search exercises") },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
+                },
+                singleLine = true,
+                colors = fieldColors,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        item {
+            RoutinePickerFilterButtons(
+                muscleOptions = options.muscles,
+                equipmentOptions = options.equipment,
+                muscleFilter = muscleFilter,
+                equipmentFilter = equipmentFilter,
+                accent = accent,
+                onMuscleFilterChange = onMuscleFilterChange,
+                onEquipmentFilterChange = onEquipmentFilterChange,
+            )
+        }
         if (filtersActive) {
-            TextButton(onClick = onClearFilters, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
-                Text("Clear filters")
+            item {
+                TextButton(onClick = onClearFilters, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
+                    Text("Clear filters")
+                }
             }
         }
-        Text(
-            "${selectedExerciseIds.size} selected",
-            style = MaterialTheme.typography.labelLarge,
-            color = MusFitTheme.colors.onSurfaceVariant,
-        )
-        if (visibleExercises.isEmpty()) {
+        item {
             Text(
-                "No matching exercises",
-                style = MaterialTheme.typography.bodyMedium,
+                "${visibleExercises.size} available - ${selectedExerciseIds.size} selected",
+                style = MaterialTheme.typography.labelLarge,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
+        }
+        if (visibleExercises.isEmpty()) {
+            item {
+                Text(
+                    "No matching exercises",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
         } else {
-            visibleExercises.forEach { exercise ->
+            items(
+                items = visibleExercises,
+                key = { exercise -> exercise.id },
+            ) { exercise ->
                 val selected = exercise.id in selectedExerciseIds
-                Surface(
-                    onClick = { onToggleExercise(exercise.id) },
-                    color = if (selected) accent.container else MusFitTheme.colors.surface,
-                    shape = MusFitTheme.shapes.medium,
-                    border = BorderStroke(0.5.dp, if (selected) accent.color else MusFitTheme.colors.outline),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        ExerciseThumb(imageUrl = exercise.imageUrl, contentDescription = exercise.name, accent = accent, size = 44.dp)
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                exercise.name,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (selected) accent.onContainer else MusFitTheme.colors.onSurface,
-                            )
-                            Text(
-                                listOfNotNull(
-                                    exercise.equipment,
-                                    exercise.targetMuscles.takeIf(String::isNotBlank),
-                                ).joinToString(" - "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
-                            )
-                        }
-                        if (selected) {
-                            Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = "Selected",
-                                tint = accent.color,
-                            )
-                        }
-                    }
-                }
+                RoutineExercisePickerRow(
+                    exercise = exercise,
+                    selected = selected,
+                    accent = accent,
+                    onToggle = { onToggleExercise(exercise.id) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoutinePickerFilterButtons(
+    muscleOptions: List<String>,
+    equipmentOptions: List<String>,
+    muscleFilter: String?,
+    equipmentFilter: String?,
+    accent: TabAccent,
+    onMuscleFilterChange: (String?) -> Unit,
+    onEquipmentFilterChange: (String?) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        RoutinePickerFilterButton(
+            label = muscleFilter ?: "Muscle",
+            allLabel = "All muscles",
+            options = muscleOptions,
+            accent = accent,
+            modifier = Modifier.weight(1f),
+            onSelected = onMuscleFilterChange,
+        )
+        RoutinePickerFilterButton(
+            label = equipmentFilter ?: "All equipment",
+            allLabel = "All equipment",
+            options = equipmentOptions,
+            accent = accent,
+            modifier = Modifier.weight(1f),
+            onSelected = onEquipmentFilterChange,
+        )
+    }
+}
+
+@Composable
+private fun RoutinePickerFilterButton(
+    label: String,
+    allLabel: String,
+    options: List<String>,
+    accent: TabAccent,
+    modifier: Modifier = Modifier,
+    onSelected: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Button(
+            onClick = { expanded = true },
+            colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(imageVector = Icons.Outlined.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 360.dp),
+        ) {
+            DropdownMenuItem(
+                text = { Text(allLabel) },
+                onClick = {
+                    onSelected(null)
+                    expanded = false
+                },
+            )
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoutineExercisePickerRow(
+    exercise: ExerciseSummary,
+    selected: Boolean,
+    accent: TabAccent,
+    onToggle: () -> Unit,
+) {
+    Surface(
+        onClick = onToggle,
+        color = if (selected) accent.container else MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.medium,
+        border = BorderStroke(0.5.dp, if (selected) accent.color else MusFitTheme.colors.outline),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            ExerciseThumb(
+                imageUrl = exercise.thumbnailUrl(),
+                contentDescription = exercise.name,
+                accent = accent,
+                size = 44.dp,
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    exercise.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (selected) accent.onContainer else MusFitTheme.colors.onSurface,
+                )
+                Text(
+                    exercise.pickerMeta(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = "Selected",
+                    tint = accent.color,
+                )
             }
         }
     }
@@ -1109,6 +1215,7 @@ private fun RoutineExercisePicker(
         query = query,
         equipmentFilter = equipmentFilter,
         muscleFilter = muscleFilter,
+        limit = 8,
     )
     val filtersActive = query.isNotBlank() || equipmentFilter != null || muscleFilter != null
 
@@ -1511,7 +1618,7 @@ internal fun routineExercisePickerSuggestions(
     query: String,
     equipmentFilter: String? = null,
     muscleFilter: String? = null,
-    limit: Int = 8,
+    limit: Int? = null,
 ): List<ExerciseSummary> {
     val trimmedQuery = query.trim()
     val available = exercises.filterNot { it.id in selectedExerciseIds }
@@ -1530,7 +1637,7 @@ internal fun routineExercisePickerSuggestions(
 
         matchesQuery && matchesEquipment && matchesMuscle
     }
-    return filtered.take(limit)
+    return limit?.let { filtered.take(it) } ?: filtered
 }
 
 internal fun defaultRoutineEditorSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> =
@@ -1583,3 +1690,23 @@ private fun ExerciseSummary.pickerMuscles(): List<String> =
         .flatMap { raw -> raw.split(',', '/', ';') }
         .map { it.trim() }
         .filter { it.isNotBlank() }
+
+private fun ExerciseSummary.thumbnailUrl(): String? = imageUrl ?: gifUrl
+
+private fun ExerciseSummary.pickerMeta(): String =
+    listOfNotNull(
+        equipment?.displayExerciseToken(),
+        category.displayExerciseToken().takeIf(String::isNotBlank),
+        primaryMuscles.takeIf(String::isNotBlank)?.displayExerciseToken()
+            ?: targetMuscles.takeIf(String::isNotBlank)?.displayExerciseToken(),
+        secondaryMuscles.takeIf(String::isNotBlank)?.displayExerciseToken(),
+        if (isCustom) "Custom" else "Library",
+    ).joinToString(" - ")
+
+private fun String.displayExerciseToken(): String =
+    trim()
+        .splitToSequence(' ', '-', '_')
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { token ->
+            token.replaceFirstChar { char -> char.titlecase() }
+        }

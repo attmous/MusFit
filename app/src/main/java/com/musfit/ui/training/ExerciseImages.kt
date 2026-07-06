@@ -1,5 +1,6 @@
 package com.musfit.ui.training
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,8 +60,10 @@ fun ExerciseThumb(
         return
     }
     val context = LocalContext.current
+    val imageLoader = rememberExerciseMediaImageLoader(context)
     SubcomposeAsyncImage(
         model = ImageRequest.Builder(context).data(imageUrl).crossfade(true).build(),
+        imageLoader = imageLoader,
         contentDescription = contentDescription,
         contentScale = ContentScale.Crop,
         modifier = modifier.size(size).clip(shape).background(Color.White),
@@ -101,11 +104,7 @@ fun ExerciseGif(
     onError: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val gifLoader = remember(context) {
-        ImageLoader.Builder(context)
-            .components { add(ImageDecoderDecoder.Factory()) }
-            .build()
-    }
+    val gifLoader = rememberExerciseMediaImageLoader(context)
     var reportedError by remember(gifUrl) { mutableStateOf(false) }
     SubcomposeAsyncImage(
         model = ImageRequest.Builder(context).data(gifUrl).crossfade(true).build(),
@@ -146,6 +145,14 @@ fun ExerciseGif(
         },
     )
 }
+
+@Composable
+private fun rememberExerciseMediaImageLoader(context: Context): ImageLoader =
+    remember(context) {
+        ImageLoader.Builder(context)
+            .components { add(ImageDecoderDecoder.Factory()) }
+            .build()
+    }
 
 @Composable
 private fun ExerciseMediaPlaceholder(
