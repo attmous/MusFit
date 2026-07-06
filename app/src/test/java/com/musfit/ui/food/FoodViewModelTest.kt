@@ -1616,6 +1616,87 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun hiddenMealDefinitionIsExcludedFromDiarySectionsButStillCounts() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(180.0, 20.0, 12.0, 6.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "pre_workout",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Protein shake",
+                                    brand = null,
+                                    quantityGrams = 300.0,
+                                    caloriesKcal = 180.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 12.0,
+                                    fatGrams = 6.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(180.0, 20.0, 12.0, 6.0),
+                        ),
+                    ),
+                ),
+                customMealDefinitions = listOf(
+                    FoodMealDefinition(
+                        id = "pre_workout",
+                        name = "Pre-workout",
+                        timeMinutes = 16 * 60 + 30,
+                        sortOrder = 1,
+                        isHidden = true,
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // A hidden meal never renders as a diary section, even with logged entries.
+        assertFalse(viewModel.state.value.mealSections.any { it.id == "pre_workout" })
+        // But it stays in the definition list so it can be un-hidden.
+        val hidden = viewModel.state.value.mealDefinitions.first { it.id == "pre_workout" }
+        assertTrue(hidden.isHidden)
+        // Its logged calories still count toward the day total.
+        assertEquals(180.0, viewModel.state.value.eatenCaloriesKcal, 0.01)
+    }
+
+    @Test
+    fun toggleMealHiddenDelegatesToRepositoryWithHiddenFlag() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+
+        viewModel.toggleMealHidden("breakfast")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val input = requireNotNull(repository.customMealDefinitionUpsert)
+        assertEquals("breakfast", input.mealId)
+        assertTrue(input.isHidden)
+    }
+
+    @Test
+    fun toggleMealHiddenRefusesToHideLastVisibleMeal() = runTest {
+        val repository =
+            FakeFoodRepository(
+                customMealDefinitions = listOf(
+                    FoodMealDefinition(id = "breakfast", name = "Breakfast", timeMinutes = null, sortOrder = 0, isHidden = true),
+                    FoodMealDefinition(id = "lunch", name = "Lunch", timeMinutes = null, sortOrder = 10, isHidden = true),
+                    FoodMealDefinition(id = "dinner", name = "Dinner", timeMinutes = null, sortOrder = 20, isHidden = true),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.toggleMealHidden("snacks")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(repository.customMealDefinitionUpsert)
+        assertEquals("Keep at least one meal visible", viewModel.state.value.message)
+    }
+
+    @Test
     fun openAddFoodFromMealDetail_usesSelectedMeal() = runTest {
         val viewModel = FoodViewModel(
             provider = FakeProductProvider(),

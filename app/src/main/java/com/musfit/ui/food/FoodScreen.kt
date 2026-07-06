@@ -571,6 +571,7 @@ fun FoodScreen(
                     MealSettingsPanel(
                         state = state,
                         onEditClick = viewModel::openMealDefinitionEditor,
+                        onToggleHidden = viewModel::toggleMealHidden,
                         onNameChanged = viewModel::onCustomMealNameChanged,
                         onTimeChanged = viewModel::onCustomMealTimeChanged,
                         onSortOrderChanged = viewModel::onCustomMealSortOrderChanged,

@@ -81,6 +81,7 @@ data class MealDefinitionEntity(
     val sortOrder: Int,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
+    @ColumnInfo(defaultValue = "0") val isHidden: Boolean = false,
 )
 
 @Entity(
