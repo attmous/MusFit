@@ -132,6 +132,102 @@ class HealthConnectManagerTest {
     }
 
     @Test
+    fun readDailySummary_filtersStepsToPreferredSource_insteadOfUnifiedTotal() = runTest {
+        val client = FakeHealthConnectClientAdapter(
+            steps = 9_800L,
+            stepsByOrigin = mapOf(
+                "com.google.android.apps.fitness" to 5_800L,
+                "android" to 3_100L,
+            ),
+        )
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission()),
+            ),
+            factory = factory,
+        )
+
+        val summary = manager.readDailySummary(
+            LocalDate.of(2026, 6, 20),
+            preferredStepsPackage = "com.google.android.apps.fitness",
+        )
+
+        assertEquals(5_800L, summary.steps)
+        assertEquals(0, client.stepsCalls)
+        assertEquals(1, client.stepsForOriginsCalls)
+    }
+
+    @Test
+    fun readDailySummary_usesUnifiedSteps_whenNoPreferredSource() = runTest {
+        val client = FakeHealthConnectClientAdapter(
+            steps = 9_800L,
+            stepsByOrigin = mapOf("com.google.android.apps.fitness" to 5_800L),
+        )
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission()),
+            ),
+            factory = factory,
+        )
+
+        val summary = manager.readDailySummary(LocalDate.of(2026, 6, 20), preferredStepsPackage = null)
+
+        assertEquals(9_800L, summary.steps)
+        assertEquals(1, client.stepsCalls)
+        assertEquals(0, client.stepsForOriginsCalls)
+    }
+
+    @Test
+    fun readStepSources_returnsPerOriginTotalsSortedDescending() = runTest {
+        val client = FakeHealthConnectClientAdapter(
+            stepsByOrigin = mapOf(
+                "android" to 900L,
+                "com.google.android.apps.fitness" to 5_800L,
+            ),
+        )
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission()),
+            ),
+            factory = factory,
+        )
+
+        val sources = manager.readStepSources(LocalDate.of(2026, 6, 20))
+
+        assertEquals(
+            listOf("com.google.android.apps.fitness", "android"),
+            sources.map { it.packageName },
+        )
+        assertEquals(5_800L, sources.first().steps)
+        assertEquals("Your phone", sources.last().label)
+        assertEquals(1, client.readStepCountsByOriginCalls)
+    }
+
+    @Test
+    fun readStepSources_returnsEmpty_whenStepsPermissionMissing() = runTest {
+        val client = FakeHealthConnectClientAdapter(stepsByOrigin = mapOf("android" to 900L))
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = emptySet(),
+            ),
+            factory = factory,
+        )
+
+        val sources = manager.readStepSources(LocalDate.of(2026, 6, 20))
+
+        assertEquals(0, sources.size)
+        assertEquals(0, client.readStepCountsByOriginCalls)
+    }
+
+    @Test
     fun requestablePermissions_includeCoreFitnessReadsAndUseRestingHeartRate_notGenericHeartRate() = runTest {
         val manager = managerWith(
             status = HealthConnectStatus(HealthConnectAvailability.NotInstalled, emptySet()),
@@ -328,7 +424,7 @@ class HealthConnectManagerTest {
     private fun managerWith(
         status: HealthConnectStatus,
         factory: FakeClientFactory,
-    ) = HealthConnectManager(
+    ): HealthConnectGateway = HealthConnectManager(
         context = context,
         statusReader = { status },
         clientFactory = { factory.create() },
@@ -440,6 +536,7 @@ class HealthConnectManagerTest {
 
     private class FakeHealthConnectClientAdapter(
         private val steps: Long? = null,
+        private val stepsByOrigin: Map<String, Long> = emptyMap(),
         private val activeCaloriesKcal: Double? = null,
         private val totalCaloriesKcal: Double? = null,
         private val distanceMeters: Double? = null,
@@ -452,6 +549,10 @@ class HealthConnectManagerTest {
         private val insertedRecordId: String? = "exported-record-id",
     ) : HealthConnectClientAdapter {
         var stepsCalls: Int = 0
+            private set
+        var stepsForOriginsCalls: Int = 0
+            private set
+        var readStepCountsByOriginCalls: Int = 0
             private set
         var activeCaloriesCalls: Int = 0
             private set
@@ -485,6 +586,20 @@ class HealthConnectManagerTest {
         override suspend fun aggregateSteps(range: HealthConnectTimeRange): Long? {
             stepsCalls += 1
             return steps
+        }
+
+        override suspend fun aggregateStepsForOrigins(
+            range: HealthConnectTimeRange,
+            packageNames: Set<String>,
+        ): Long? {
+            stepsForOriginsCalls += 1
+            val matching = stepsByOrigin.filterKeys { it in packageNames }
+            return if (matching.isEmpty()) null else matching.values.sum()
+        }
+
+        override suspend fun readStepCountsByOrigin(range: HealthConnectTimeRange): Map<String, Long> {
+            readStepCountsByOriginCalls += 1
+            return stepsByOrigin
         }
 
         override suspend fun aggregateActiveCalories(range: HealthConnectTimeRange): Double? {

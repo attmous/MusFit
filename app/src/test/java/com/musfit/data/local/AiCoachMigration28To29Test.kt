@@ -40,6 +40,7 @@ class AiCoachMigration28To29Test {
                     DatabaseModule.MIGRATION_29_30,
                     DatabaseModule.MIGRATION_30_31,
                     DatabaseModule.MIGRATION_31_32,
+                    DatabaseModule.MIGRATION_32_33,
                 )
                 .build()
         try {

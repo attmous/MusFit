@@ -19,11 +19,14 @@ import com.musfit.data.repository.LocalAgentKind
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserProfile
 import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.StepSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -32,6 +35,14 @@ import java.util.Locale
 import javax.inject.Inject
 
 private const val DEFAULT_STATUS_MESSAGE = "Refresh status to check whether Health Connect is ready."
+private const val ALL_STEP_SOURCES_LABEL = "All sources (unified)"
+
+private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSource>): String =
+    if (preferredStepsPackage == null) {
+        ALL_STEP_SOURCES_LABEL
+    } else {
+        sources.firstOrNull { it.packageName == preferredStepsPackage }?.label ?: preferredStepsPackage
+    }
 
 data class ProfileSettingsUiState(
     val availabilityLabel: String = "Unknown",
@@ -41,6 +52,10 @@ data class ProfileSettingsUiState(
     val canRequestPermissions: Boolean = false,
     val isHealthConnectSyncing: Boolean = false,
     val message: String = DEFAULT_STATUS_MESSAGE,
+    val preferredStepsPackage: String? = null,
+    val stepSourceLabel: String = ALL_STEP_SOURCES_LABEL,
+    val stepSources: List<StepSource> = emptyList(),
+    val stepSourcePickerOpen: Boolean = false,
     val account: AccountUiState = AccountUiState(),
     val accountEditorOpen: Boolean = false,
     val accountNameInput: String = "",
@@ -139,6 +154,9 @@ private data class HealthConnectState(
     val canRequestPermissions: Boolean = false,
     val isHealthConnectSyncing: Boolean = false,
     val message: String = DEFAULT_STATUS_MESSAGE,
+    val preferredStepsPackage: String? = null,
+    val stepSources: List<StepSource> = emptyList(),
+    val stepSourcePickerOpen: Boolean = false,
     val githubDeviceCode: GitHubDeviceAuthorization? = null,
     val githubSignInInProgress: Boolean = false,
     val isGitHubSignInConfigured: Boolean = false,
@@ -186,6 +204,11 @@ class ProfileSettingsViewModel @Inject constructor(
                     }
                 }
         }
+        healthRepository.observePreferredStepsPackage()
+            .onEach { preferredStepsPackage ->
+                mutableState.update { it.copy(preferredStepsPackage = preferredStepsPackage) }
+            }
+            .launchIn(viewModelScope)
     }
 
     private val profileState = combine(
@@ -215,6 +238,10 @@ class ProfileSettingsViewModel @Inject constructor(
             canRequestPermissions = base.canRequestPermissions,
             isHealthConnectSyncing = base.isHealthConnectSyncing,
             message = base.message,
+            preferredStepsPackage = base.preferredStepsPackage,
+            stepSourceLabel = stepSourceLabel(base.preferredStepsPackage, base.stepSources),
+            stepSources = base.stepSources,
+            stepSourcePickerOpen = base.stepSourcePickerOpen,
             account = account.toUiState(),
             accountEditorOpen = editor.open,
             accountNameInput = editor.nameInput,
@@ -257,6 +284,7 @@ class ProfileSettingsViewModel @Inject constructor(
                         message = status.toMessage(requestablePermissions.size),
                     )
                 }
+                loadStepSources()
             }.onFailure {
                 mutableState.update {
                     it.copy(
@@ -330,6 +358,49 @@ class ProfileSettingsViewModel @Inject constructor(
                     it.copy(message = error.message ?: "Unable to export workout to Health Connect.")
                 }
             }
+        }
+    }
+
+    fun openStepSourcePicker() {
+        loadStepSources()
+        mutableState.update { it.copy(stepSourcePickerOpen = true) }
+    }
+
+    fun dismissStepSourcePicker() {
+        mutableState.update { it.copy(stepSourcePickerOpen = false) }
+    }
+
+    fun selectStepSource(packageName: String?) {
+        viewModelScope.launch {
+            mutableState.update { it.copy(stepSourcePickerOpen = false, isHealthConnectSyncing = true) }
+            runCatching {
+                healthRepository.setPreferredStepsPackage(packageName)
+                healthRepository.refreshRecentData(LocalDate.now())
+            }.onSuccess {
+                mutableState.update {
+                    it.copy(
+                        isHealthConnectSyncing = false,
+                        preferredStepsPackage = packageName,
+                        message = "Updated steps source. MusFit now shows " +
+                            "${stepSourceLabel(packageName, it.stepSources)}.",
+                    )
+                }
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(
+                        isHealthConnectSyncing = false,
+                        message = error.message ?: "Unable to update steps source.",
+                    )
+                }
+            }
+        }
+    }
+
+    private fun loadStepSources() {
+        viewModelScope.launch {
+            val sources = runCatching { healthRepository.readStepSources(LocalDate.now()) }
+                .getOrDefault(emptyList())
+            mutableState.update { it.copy(stepSources = sources) }
         }
     }
 

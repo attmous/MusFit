@@ -4,13 +4,27 @@ import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.domain.health.StepSource
 import java.time.LocalDate
 
 interface HealthConnectGateway {
     suspend fun status(): HealthConnectStatus
     suspend fun requestablePermissions(): Set<String>
     suspend fun foodRequestablePermissions(): Set<String>
-    suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary
+
+    /**
+     * Reads the day's health summary. When [preferredStepsPackage] is non-null, the steps total is
+     * restricted to that single data origin (mirroring one app) instead of the cross-source unified
+     * total; when null, the officially-recommended unified aggregate is used.
+     */
+    suspend fun readDailySummary(
+        date: LocalDate,
+        preferredStepsPackage: String? = null,
+    ): ImportedDailyHealthSummary
+
+    /** Per-origin step totals for [date], so the user can choose which source MusFit mirrors. */
+    suspend fun readStepSources(date: LocalDate): List<StepSource> = emptyList()
+
     suspend fun exportWorkout(session: WorkoutSessionEntity, sets: List<WorkoutSetEntity>): String?
     suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult?
 }

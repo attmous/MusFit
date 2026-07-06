@@ -82,7 +82,7 @@ import com.musfit.data.local.entity.WorkoutSetEntity
         CoachMessageEntity::class,
         DashboardPinEntity::class,
     ],
-    version = 32,
+    version = 33,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {

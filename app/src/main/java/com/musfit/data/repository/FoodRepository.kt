@@ -1994,8 +1994,10 @@ private object NoopHealthConnectGateway : HealthConnectGateway {
 
     override suspend fun foodRequestablePermissions(): Set<String> = emptySet()
 
-    override suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-        ImportedDailyHealthSummary()
+    override suspend fun readDailySummary(
+        date: LocalDate,
+        preferredStepsPackage: String?,
+    ): ImportedDailyHealthSummary = ImportedDailyHealthSummary()
 
     override suspend fun exportWorkout(
         session: com.musfit.data.local.entity.WorkoutSessionEntity,

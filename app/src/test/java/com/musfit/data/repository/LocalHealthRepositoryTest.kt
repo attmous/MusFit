@@ -11,6 +11,7 @@ import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.domain.health.StepSource
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
@@ -85,6 +86,55 @@ class LocalHealthRepositoryTest {
         assertEquals("hc-body-fat-1", bodyFat.single().externalId)
         assertEquals(1_000L, syncState?.lastImportAtEpochMillis)
         assertEquals(true, syncState?.isAvailable)
+    }
+
+    @Test
+    fun importDailySummary_passesStoredPreferredStepsPackageToGateway() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        repository.setPreferredStepsPackage("com.google.android.apps.fitness")
+
+        repository.importDailySummary(date)
+
+        assertEquals("com.google.android.apps.fitness", gateway.preferredStepsPackages.last())
+        assertEquals(
+            "com.google.android.apps.fitness",
+            repository.observePreferredStepsPackage().first(),
+        )
+    }
+
+    @Test
+    fun importDailySummary_passesNullPreferredPackage_whenNoneChosen() = runTest {
+        repository.importDailySummary(LocalDate.of(2026, 6, 20))
+
+        assertNull(gateway.preferredStepsPackages.last())
+    }
+
+    @Test
+    fun setPreferredStepsPackage_updatesExistingRowAndCanClear() = runTest {
+        repository.importDailySummary(LocalDate.of(2026, 6, 20))
+
+        repository.setPreferredStepsPackage("com.samsung.health")
+        assertEquals("com.samsung.health", repository.observePreferredStepsPackage().first())
+
+        // Re-importing must not wipe the chosen source (upsertSyncState preserves it).
+        repository.importDailySummary(LocalDate.of(2026, 6, 21))
+        assertEquals("com.samsung.health", repository.observePreferredStepsPackage().first())
+
+        repository.setPreferredStepsPackage(null)
+        assertNull(repository.observePreferredStepsPackage().first())
+    }
+
+    @Test
+    fun readStepSources_delegatesToGateway() = runTest {
+        gateway.stepSources = listOf(
+            StepSource("com.google.android.apps.fitness", "Fit", 5_800L),
+            StepSource("android", "Your phone", 900L),
+        )
+
+        val sources = repository.readStepSources(LocalDate.of(2026, 6, 20))
+
+        assertEquals(listOf("com.google.android.apps.fitness", "android"), sources.map { it.packageName })
+        assertEquals(5_800L, sources.first().steps)
     }
 
     @Test
@@ -447,6 +497,8 @@ class LocalHealthRepositoryTest {
         var exportedSession: WorkoutSessionEntity? = null
         var exportedSets: List<WorkoutSetEntity> = emptyList()
         val importedDates = mutableListOf<LocalDate>()
+        val preferredStepsPackages = mutableListOf<String?>()
+        var stepSources: List<StepSource> = emptyList()
 
         override suspend fun status(): HealthConnectStatus =
             HealthConnectStatus(
@@ -458,8 +510,14 @@ class LocalHealthRepositoryTest {
 
         override suspend fun foodRequestablePermissions(): Set<String> = emptySet()
 
-        override suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary {
+        override suspend fun readStepSources(date: LocalDate): List<StepSource> = stepSources
+
+        override suspend fun readDailySummary(
+            date: LocalDate,
+            preferredStepsPackage: String?,
+        ): ImportedDailyHealthSummary {
             importedDates += date
+            preferredStepsPackages += preferredStepsPackage
             return ImportedDailyHealthSummary(
                 steps = 1234L,
                 activeCaloriesKcal = 250.0,

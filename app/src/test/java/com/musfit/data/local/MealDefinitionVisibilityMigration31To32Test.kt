@@ -37,7 +37,7 @@ class MealDefinitionVisibilityMigration31To32Test {
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_31_32)
+                .addMigrations(DatabaseModule.MIGRATION_31_32, DatabaseModule.MIGRATION_32_33)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
