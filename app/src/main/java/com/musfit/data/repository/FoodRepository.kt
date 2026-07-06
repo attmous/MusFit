@@ -958,9 +958,14 @@ class LocalFoodRepository @Inject constructor(
             )
         }
 
+    // "Burned" mirrors the total-energy figure the Health Connect / Google Health
+    // app shows (activity + resting metabolism), so it reads TotalCaloriesBurned
+    // rather than ActiveCaloriesBurned. Many phones only record total calories, so
+    // sourcing from active left this stuck at 0. Display-only: it does not change the
+    // remaining-calorie math (remaining = goal - eaten).
     override fun observeBurnedCalories(date: LocalDate): Flow<Double> =
         database.healthDao().observeDailySummary(date.toEpochDay())
-            .map { summary -> summary?.activeCaloriesKcal ?: 0.0 }
+            .map { summary -> summary?.totalCaloriesKcal ?: 0.0 }
 
     override suspend fun logWater(input: WaterLogInput): String {
         input.requireValid()
