@@ -5,6 +5,8 @@ import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineFolder
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.RoutineSetInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -160,6 +162,37 @@ class TrainingHomeContentTest {
         assertEquals(listOf("Push A"), groups[0].routines.map { it.name })
         assertEquals(emptyList<String>(), groups[1].routines.map { it.name })
         assertEquals(listOf("Garage Day"), groups[2].routines.map { it.name })
+    }
+
+    @Test
+    fun routineFolderDropTargetAt_resolvesFolderAndUnassignedTargets() {
+        val targetBounds = mapOf(
+            null to Rect(left = 0f, top = 0f, right = 96f, bottom = 40f),
+            "folder-ppl" to Rect(left = 104f, top = 0f, right = 240f, bottom = 40f),
+        )
+
+        assertEquals(RoutineFolderDropTarget(null), routineFolderDropTargetAt(Offset(24f, 20f), targetBounds))
+        assertEquals(RoutineFolderDropTarget("folder-ppl"), routineFolderDropTargetAt(Offset(160f, 20f), targetBounds))
+        assertEquals(null, routineFolderDropTargetAt(Offset(260f, 20f), targetBounds))
+    }
+
+    @Test
+    fun routineFolderMoveTargets_includesUnassignedThenConfiguredFolders() {
+        val targets = routineFolderMoveTargets(
+            listOf(
+                RoutineFolder(id = "folder-full-body", name = "Full Body", sortOrder = 0),
+                RoutineFolder(id = "folder-ppl", name = "Push Pull Legs", sortOrder = 1),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                RoutineFolderMoveTarget(folderId = null, label = "My routines"),
+                RoutineFolderMoveTarget(folderId = "folder-full-body", label = "Full Body"),
+                RoutineFolderMoveTarget(folderId = "folder-ppl", label = "Push Pull Legs"),
+            ),
+            targets,
+        )
     }
 
     @Test

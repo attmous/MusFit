@@ -386,6 +386,21 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    fun assignRoutineToFolder(routineId: String, folderId: String?) {
+        val routine = state.value.routines.firstOrNull { it.id == routineId } ?: return
+        val targetFolder = folderId?.let { targetId ->
+            state.value.routineFolders.firstOrNull { it.id == targetId } ?: return
+        }
+        val targetFolderId = targetFolder?.id
+        if (routine.folderId == targetFolderId) return
+        viewModelScope.launch {
+            repository.assignRoutineToFolder(routineId, targetFolderId)
+            mutableState.update {
+                it.copy(message = "${routine.name} moved to ${targetFolder?.name ?: "My routines"}.")
+            }
+        }
+    }
+
     fun openRoutineEditor(routineId: String?) {
         viewModelScope.launch {
             val detail = routineId?.let { repository.getRoutineDetail(it) }

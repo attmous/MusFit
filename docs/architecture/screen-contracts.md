@@ -499,6 +499,7 @@ Routine management:
 - `moveRoutineExerciseUp(index)`, `moveRoutineExerciseDown(index)`
 - `saveRoutineEditor()`, `duplicateRoutine(routineId)`, `deleteRoutine(routineId)`
 - `openRoutineFolderEditor(folderId)`, `closeRoutineFolderEditor()`, `onRoutineFolderNameChanged(value)`, `saveRoutineFolderEditor()`, `deleteRoutineFolder(folderId)`
+- `assignRoutineToFolder(routineId, folderId)` where `folderId = null` moves the routine back to `My routines`
 
 Exercise library:
 
@@ -545,7 +546,7 @@ Rest timer:
 | Composable | Inputs | Outputs |
 | --- | --- | --- |
 | `TrainingHomeContent` | active workout presence and non-starter home routines | Start empty workout, create routine, open full-page routine Library, start/open user routine callbacks. |
-| `TrainingRoutineContent` | visible routines, folders, folder editor state | Library folder create/edit/delete, routine descriptions and muscle chips, start, edit, duplicate, delete routine callbacks. |
+| `TrainingRoutineContent` | visible routines, folders, folder editor state | Library folder create/edit/delete, routine descriptions and muscle chips, drag/drop and menu-based routine assignment, start, edit, duplicate, delete routine callbacks. |
 | `TrainingRoutineEditor` | `RoutineEditorState`, exercises, folders | Edit routine metadata, folder assignment, exercise rest seconds, and set plans. |
 | `RoutineExercisePickerPage` | exercises, current routine ids, selected ids, query/filter state | Full-screen search/filter/multi-select picker for adding exercises to a routine after confirmation. |
 | `TrainingActiveWorkoutContent` | `ActiveWorkoutDetail`, exercises, `RestTimerState`, active workout notes draft, Training tool setting drafts | Set edits, set type changes, set reorder, workout notes, add exercise/set, timer controls, Training tool save, warm-up suggestions, PR/plate display, superset create/dissolve, finish/discard. |
@@ -565,6 +566,7 @@ Routine organization behavior:
 - The Library section and the full-page Browse routines route group routine cards by `RoutineFolder`; routines without a folder appear under `My routines`.
 - Routine rows show summary notes when present, fall back to a pre-saved label for starter routines, and surface target muscle chips from routine exercise metadata.
 - Users can create, rename, and delete folders locally. Deleting a folder unassigns its routines rather than deleting those routines.
+- Users can drag the routine handle in Library onto folder chips, or use the row move menu, to assign routines. Dropping or selecting `My routines` clears a folder assignment.
 - Duplicating a starter/foldered routine creates an editable non-starter local copy and preserves folder assignment plus legacy metadata.
 - The routine editor uses a full-screen exercise picker for search/filter/multi-select. Exercises are only added after the user confirms with OK.
 - Saved routine exercises support per-exercise rest seconds plus row-level set type, target reps, and optional target weight. Starting a routine materializes those saved set rows into the active workout.

@@ -327,6 +327,7 @@ suspend fun deleteRoutine(routineId: String)
 suspend fun createRoutineFolder(name: String): String
 suspend fun updateRoutineFolder(folderId: String, name: String)
 suspend fun deleteRoutineFolder(folderId: String)
+suspend fun assignRoutineToFolder(routineId: String, folderId: String?)
 suspend fun startBlankWorkout(): String
 suspend fun startWorkoutFromRoutine(routineId: String): String
 suspend fun addExerciseToActiveWorkout(sessionId: String, exerciseId: String)
