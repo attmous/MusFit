@@ -1499,23 +1499,74 @@ private fun AdvancedNutritionProgressColumn(nutrients: List<FoodNutrientProgress
         return
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        nutrients.chunked(2).forEach { rowNutrients ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                rowNutrients.forEach { nutrient ->
-                    AdvancedNutritionProgressCard(
-                        nutrient = nutrient,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (rowNutrients.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        nutrients.forEach { nutrient ->
+            AdvancedNutritionProgressListRow(nutrient)
+        }
+    }
+}
+
+@Composable
+private fun AdvancedNutritionProgressListRow(nutrient: FoodNutrientProgressUiState) {
+    val goal = nutrient.goalValue.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+    val progress = if (goal > 0.0) {
+        (nutrient.currentValue / goal).toFloat().coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val overLimit = nutrient.isLimit && nutrient.currentValue > nutrient.goalValue
+    val barColor =
+        when {
+            overLimit -> MusFitTheme.colors.warning
+            nutrient.isLimit -> MusFitTheme.colors.brand
+            nutrient.currentValue >= nutrient.goalValue -> MusFitTheme.colors.brand
+            else -> MusFitTheme.colors.onSurfaceVariant
+        }
+    val currentText =
+        if (nutrient.unit == "mg") {
+            nutrient.currentValue.roundToInt().toString()
+        } else {
+            nutrient.currentValue.formatNutritionDisplay()
+        }
+    val goalText =
+        if (nutrient.unit == "mg") {
+            nutrient.goalValue.roundToInt().toString()
+        } else {
+            nutrient.goalValue.formatNutritionDisplay()
+        }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = nutrient.label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.brandInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = currentText,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (overLimit) MusFitTheme.colors.warning else MusFitTheme.colors.brandInk,
+                    maxLines = 1,
+                )
+                Text(
+                    text = " / $goalText ${nutrient.unit}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 1,
+                )
             }
         }
+        ProgressBar(progress = progress, color = barColor)
     }
 }
 
@@ -1606,23 +1657,76 @@ private fun MicronutrientGrid(micronutrients: List<FoodMicronutrientUiState>) {
         return
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        micronutrients.chunked(2).forEach { rowNutrients ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                rowNutrients.forEach { micronutrient ->
-                    MicronutrientCard(
-                        micronutrient = micronutrient,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (rowNutrients.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MusFitTheme.colors.surfaceVariant,
+        shape = MusFitTheme.shapes.large,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            micronutrients.chunked(2).forEach { rowNutrients ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    rowNutrients.forEach { micronutrient ->
+                        MicronutrientStat(
+                            micronutrient = micronutrient,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (rowNutrients.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MicronutrientStat(
+    micronutrient: FoodMicronutrientUiState,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = micronutrient.label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MusFitTheme.colors.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "${micronutrient.value.formatMicronutrientDisplay()} ${micronutrient.unit}",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MusFitTheme.colors.brandInk,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun MoreNutritionSection(
+    title: String,
+    content: @Composable () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
+        content()
     }
 }
 
@@ -1973,14 +2077,26 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            text = "More nutrition",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "More nutrition",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MusFitTheme.colors.brandInk,
+                            )
+                            if (!detailExpanded) {
+                                Text(
+                                    text = "Fiber, sugar, sodium & micronutrients",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MusFitTheme.colors.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                         Icon(
                             imageVector = if (detailExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                             contentDescription = if (detailExpanded) "Collapse nutrition detail" else "Expand nutrition detail",
@@ -1989,13 +2105,21 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                     }
                 }
                 if (detailExpanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        ratingFactors?.let { RatingFactorColumn(it) }
+                    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        ratingFactors?.let {
+                            MoreNutritionSection(title = "Rating breakdown") {
+                                RatingFactorColumn(it)
+                            }
+                        }
                         if (meal.advancedNutritionProgress.isNotEmpty()) {
-                            AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
+                            MoreNutritionSection(title = "Nutrients") {
+                                AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
+                            }
                         }
                         if (meal.micronutrients.isNotEmpty()) {
-                            MicronutrientGrid(meal.micronutrients)
+                            MoreNutritionSection(title = "Micronutrients") {
+                                MicronutrientGrid(meal.micronutrients)
+                            }
                         }
                     }
                 }
