@@ -8,6 +8,24 @@ plugins {
 fun String.asBuildConfigString(): String =
     "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
+// Monotonic build number derived from the git history so every master build
+// gets a higher versionCode than the last — required for over-the-air (Obtainium)
+// updates to install over the previously distributed build. Falls back to 1 when
+// git is unavailable (e.g. a source-only checkout). CI must checkout with full
+// history (fetch-depth: 0) or this collapses to 1. See docs/ops/auto-update.md.
+fun gitCommitCount(): Int =
+    try {
+        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+            .directory(rootDir)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText().trim()
+        process.waitFor()
+        output.toIntOrNull() ?: 1
+    } catch (e: Exception) {
+        1
+    }
+
 val musfitGoogleWebClientId =
     providers.gradleProperty("MUSFIT_GOOGLE_WEB_CLIENT_ID")
         .orElse(providers.environmentVariable("MUSFIT_GOOGLE_WEB_CLIENT_ID"))
@@ -24,12 +42,27 @@ android {
     namespace = "com.musfit"
     compileSdk = 37
 
+    val buildNumber = gitCommitCount()
+
+    signingConfigs {
+        // Reuse the committed MusFit debug keystore (a copy of the standard Android
+        // debug key) for EVERY build — local and CI. A stable signature is what lets
+        // Obtainium install a CI-built update over a build flashed from this machine
+        // without an uninstall. Debug-only key with public credentials; safe to commit.
+        getByName("debug") {
+            storeFile = file("keystore/musfit.debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.musfit"
         minSdk = 28
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = buildNumber
+        versionName = "0.1.0.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", musfitGoogleWebClientId.asBuildConfigString())
