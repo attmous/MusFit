@@ -11,8 +11,11 @@ class TrainingScreenChromeTest {
     fun trainingTopChrome_doesNotRenderWeeklySummaryCoachPrompt() {
         val source = trainingScreenSource()
 
-        assertFalse(source.contains("TrainingWeekSummaryCard(overview = state.historyOverview"))
+        // The Routines tab shows a clean weekly *stats* card (workouts / volume / streak with a
+        // goal bar). What stays banned is the old "coach hint" prose — empty-state nudges that read
+        // like coaching rather than data.
         assertFalse(source.contains("No workouts yet"))
+        assertFalse(source.contains("whenever you're ready"))
     }
 
     private fun trainingScreenSource(): String {

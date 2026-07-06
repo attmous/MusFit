@@ -45,8 +45,7 @@ import java.util.Locale
 import javax.inject.Inject
 
 enum class TrainingSection {
-    Home,
-    Library,
+    Routines,
     Exercises,
     History,
     Progress,
@@ -110,7 +109,7 @@ data class TrainingDashboardState(
 )
 
 data class TrainingUiState(
-    val selectedSection: TrainingSection = TrainingSection.Home,
+    val selectedSection: TrainingSection = TrainingSection.Routines,
     val routines: List<RoutineSummary> = emptyList(),
     val homeRoutines: List<RoutineSummary> = emptyList(),
     val visibleRoutines: List<RoutineSummary> = emptyList(),
@@ -301,7 +300,7 @@ class TrainingViewModel @Inject constructor(
         mutableState.update {
             it.copy(
                 activeWorkoutRouteOpen = false,
-                selectedSection = TrainingSection.Home,
+                selectedSection = TrainingSection.Routines,
             )
         }
     }
@@ -323,7 +322,7 @@ class TrainingViewModel @Inject constructor(
         mutableState.update {
             it.copy(
                 routineLibraryPageOpen = false,
-                selectedSection = TrainingSection.Home,
+                selectedSection = TrainingSection.Routines,
                 selectedRoutineDetail = null,
                 selectedExerciseDetail = null,
                 exerciseDetailNotesInput = "",
@@ -1321,7 +1320,7 @@ class TrainingViewModel @Inject constructor(
                     activeWorkoutRouteOpen = false,
                     finishConfirmationOpen = false,
                     discardConfirmationOpen = false,
-                    selectedSection = TrainingSection.Home,
+                    selectedSection = TrainingSection.Routines,
                     selectedWorkoutDetail = null,
                     restTimer = RestTimerState(),
                 )

@@ -63,6 +63,9 @@ import java.util.Locale
 /** Max exercise rows rendered in the (non-lazy) library list before nudging the user to search. */
 private const val EXERCISE_LIST_DISPLAY_LIMIT = 40
 
+/** Default weekly training-session target the "This week" snapshot measures progress against. */
+private const val WEEKLY_SESSION_GOAL = 3
+
 @Composable
 fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -200,12 +203,18 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         },
     ) {
         state.activeWorkoutSummary?.let { summary ->
+            val setCount = summary.completedSetCount
             ResumeBanner(
                 title = summary.title,
-                subtitle = "${summary.completedSetCount} sets · ${summary.totalVolumeKg.formatKg()} kg",
+                subtitle = "In progress · $setCount ${if (setCount == 1) "set" else "sets"} · ${summary.totalVolumeKg.formatKg()} kg",
                 accent = accent,
                 onResume = viewModel::resumeActiveWorkout,
             )
+        }
+
+        // The weekly snapshot heads the Routines tab only; History has its own detailed overview.
+        if (state.selectedSection == TrainingSection.Routines) {
+            TrainingWeekSummaryCard(overview = state.historyOverview, accent = accent)
         }
 
         SectionTabs(
@@ -219,7 +228,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         }
 
         when (state.selectedSection) {
-            TrainingSection.Home ->
+            TrainingSection.Routines ->
                 TrainingRoutineWorkspace(state = state, accent = accent, viewModel = viewModel) {
                     TrainingHomeContent(
                         hasActiveWorkout = state.activeWorkoutSummary != null,
@@ -241,16 +250,6 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                         onOpenRoutineDetail = viewModel::openRoutineDetail,
                     )
                 }
-            TrainingSection.Library -> {
-                TrainingRoutineWorkspace(state = state, accent = accent, viewModel = viewModel) {
-                    TrainingRoutineLibraryList(
-                        routines = state.visibleRoutines,
-                        accent = accent,
-                        onStartRoutine = viewModel::startRoutine,
-                        onOpenRoutineDetail = viewModel::openRoutineDetail,
-                    )
-                }
-            }
             TrainingSection.Exercises -> {
                 val exerciseDetail = state.selectedExerciseDetail
                 if (exerciseDetail != null) {
@@ -329,6 +328,108 @@ private fun ResumeBanner(
                 Text("Resume")
             }
         }
+    }
+}
+
+/**
+ * Compact weekly snapshot heading the Routines tab: workouts, volume, and current streak, with a
+ * slim progress bar toward the [WEEKLY_SESSION_GOAL]. Reads straight off [TrainingHistoryOverview]
+ * (already computed for History), so it never needs its own data pass.
+ */
+@Composable
+private fun TrainingWeekSummaryCard(
+    overview: TrainingHistoryOverview,
+    accent: TabAccent,
+) {
+    val workouts = overview.currentWeekWorkoutCount
+    val progress = (workouts.toFloat() / WEEKLY_SESSION_GOAL).coerceIn(0f, 1f)
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.large,
+        border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "This week",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent.color,
+                )
+                Text(
+                    text = "Goal $WEEKLY_SESSION_GOAL sessions",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                WeekSummaryMetric(
+                    value = workouts.toString(),
+                    label = "workouts",
+                    modifier = Modifier.weight(1f),
+                )
+                WeekSummaryMetric(
+                    value = "${overview.currentWeekVolumeKg.formatKgGrouped()} kg",
+                    label = "volume",
+                    modifier = Modifier.weight(1f),
+                )
+                WeekSummaryMetric(
+                    value = overview.currentStreakDays.toString(),
+                    label = "day streak",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(MusFitTheme.colors.track),
+            ) {
+                if (progress > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress)
+                            .height(6.dp)
+                            .clip(CircleShape)
+                            .background(accent.color),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekSummaryMetric(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MusFitTheme.colors.onSurface,
+            maxLines = 1,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
     }
 }
 
@@ -826,3 +927,7 @@ private fun Double.formatKg(): String =
     } else {
         String.format(Locale.US, "%.1f", this)
     }
+
+/** Whole-kg with thousands separators for the weekly snapshot, e.g. 3755.0 -> "3,755". */
+private fun Double.formatKgGrouped(): String =
+    String.format(Locale.US, "%,d", Math.round(this))
