@@ -845,7 +845,7 @@ private fun FoodDiarySummaryCard(
                 CalorieRing(
                     eatenCalories = state.eatenCaloriesKcal,
                     remainingCalories = state.remainingCaloriesKcal,
-                    calorieGoal = state.calorieGoalKcal,
+                    calorieGoal = state.effectiveCalorieBudgetKcal,
                     contentColor = accent.onContainer,
                 )
                 Column(modifier = Modifier.weight(1f)) {

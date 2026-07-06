@@ -692,7 +692,6 @@ data class FoodUiState(
     val useNetCarbs: Boolean = false,
     val eatenCaloriesKcal: Double = 0.0,
     val burnedCaloriesKcal: Double = 0.0,
-    val remainingCaloriesKcal: Double = CALORIE_GOAL_KCAL,
     val macroProgress: List<FoodMacroProgressUiState> = emptyMacroProgress(),
     val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyAdvancedNutritionProgress(),
     val micronutrients: List<FoodMicronutrientUiState> = emptyMicronutrients(),
@@ -778,6 +777,19 @@ data class FoodUiState(
     /** Meal definitions offered as add/copy targets — hidden meals are excluded. */
     val visibleMealDefinitions: List<FoodMealDefinitionUiState>
         get() = mealDefinitions.filter { !it.isHidden }
+
+    // When "Include training calories" is on, burned calories are added to the
+    // daily allowance so "kcal left" reflects goal - eaten + burned. Kept as a
+    // derived value so it stays correct no matter which input (goal, eaten,
+    // burned, or the toggle) updates last.
+    val trainingCalorieAllowanceKcal: Double
+        get() = if (includeTrainingCalories) burnedCaloriesKcal else 0.0
+
+    val effectiveCalorieBudgetKcal: Double
+        get() = calorieGoalKcal + trainingCalorieAllowanceKcal
+
+    val remainingCaloriesKcal: Double
+        get() = effectiveCalorieBudgetKcal - eatenCaloriesKcal
 
     val favoriteAddItems: List<FavoriteAddItemUiState>
         get() =
@@ -5227,7 +5239,6 @@ private fun String.toLocalAiNutritionDraft(): LocalAiNutritionDraft {
 private fun FoodUiState.withDiary(diary: FoodDiary): FoodUiState =
     copy(
         eatenCaloriesKcal = diary.totals.caloriesKcal,
-        remainingCaloriesKcal = calorieGoalKcal - diary.totals.caloriesKcal,
         macroProgress = diary.totals.toMacroProgress(
             carbsGoalGrams = carbsGoalGrams,
             proteinGoalGrams = proteinGoalGrams,
@@ -5278,7 +5289,6 @@ private fun FoodUiState.withFoodGoal(goal: FoodGoal): FoodUiState {
         includeTrainingCalories = goal.includeTrainingCalories,
         useNetCarbs = goal.useNetCarbs,
         foodPrograms = buildFoodProgramUiStates(goal.mode),
-        remainingCaloriesKcal = goal.dailyCaloriesKcal - eatenCaloriesKcal,
         goalEditor = GoalEditorState(
             caloriesKcalInput = goal.dailyCaloriesKcal.formatInputNumber(),
             proteinGramsInput = goal.proteinGrams.formatInputNumber(),
