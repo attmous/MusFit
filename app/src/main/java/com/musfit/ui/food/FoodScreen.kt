@@ -713,7 +713,7 @@ private fun FoodWaterRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -737,28 +737,42 @@ private fun FoodWaterRow(
                 maxLines = 1,
             )
             Spacer(modifier = Modifier.weight(1f))
+            // Compact "− bars +" stepper: minus on the left, the glass gauge in the
+            // middle, plus on the right, kept tight so it reads as one control.
             Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                repeat(segmentCount) { index ->
-                    Box(
-                        modifier = Modifier
-                            .size(width = 6.dp, height = 18.dp)
-                            .clip(RoundedCornerShape(percent = 50))
-                            .background(if (index < filledSegments) waterColor else waterColor.copy(alpha = 0.22f)),
+                IconButton(
+                    onClick = onQuickRemoveClick,
+                    enabled = consumedMilliliters > 0.0,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.Remove,
+                        contentDescription = "Remove water",
+                        tint = if (consumedMilliliters > 0.0) waterColor else waterColor.copy(alpha = 0.3f),
                     )
                 }
-            }
-            IconButton(onClick = onQuickRemoveClick, enabled = consumedMilliliters > 0.0) {
-                Icon(
-                    Icons.Filled.Remove,
-                    contentDescription = "Remove water",
-                    tint = if (consumedMilliliters > 0.0) waterColor else waterColor.copy(alpha = 0.3f),
-                )
-            }
-            IconButton(onClick = onQuickAddClick) {
-                Icon(Icons.Filled.Add, contentDescription = "Add water", tint = waterColor)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    repeat(segmentCount) { index ->
+                        Box(
+                            modifier = Modifier
+                                .size(width = 6.dp, height = 18.dp)
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(if (index < filledSegments) waterColor else waterColor.copy(alpha = 0.22f)),
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = onQuickAddClick,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add water", tint = waterColor)
+                }
             }
         }
     }
