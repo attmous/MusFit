@@ -485,6 +485,13 @@ interface FoodRepository {
     fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
         flowOf(FoodWaterSummary(date, 0.0, DEFAULT_WATER_GOAL_MILLILITERS))
 
+    /**
+     * Active calories burned on [date], sourced from the imported daily Health
+     * Connect summary. Zero when nothing is synced. Informational only — it does
+     * not change the calorie budget/remaining math.
+     */
+    fun observeBurnedCalories(date: LocalDate): Flow<Double> = flowOf(0.0)
+
     fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> =
         flowOf(FoodWeeklySummary(startDate = startDate, days = emptyList(), goal = DEFAULT_REPOSITORY_FOOD_GOAL))
 
@@ -948,6 +955,10 @@ class LocalFoodRepository @Inject constructor(
                 goalMilliliters = goal.waterGoalMilliliters,
             )
         }
+
+    override fun observeBurnedCalories(date: LocalDate): Flow<Double> =
+        database.healthDao().observeDailySummary(date.toEpochDay())
+            .map { summary -> summary?.activeCaloriesKcal ?: 0.0 }
 
     override suspend fun logWater(input: WaterLogInput): String {
         input.requireValid()
