@@ -88,10 +88,17 @@ import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.MusFitScreenHeader
+import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.components.MusFitSummaryCard
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
+
+/**
+ * The three diary surfaces that share one space below the pinned header, swapped
+ * by the segmented switcher: the meal diary, today's summary, and trends.
+ */
+private enum class FoodDiaryTab { Diary, Summary, Trends }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,8 +117,7 @@ fun FoodScreen(
     val isRecipeFullScreen =
         state.isAddPanelVisible &&
             (state.sheetMode == FoodSheetMode.RecipeBrowser || state.sheetMode == FoodSheetMode.RecipeEditor)
-    var todaySummaryExpanded by rememberSaveable { mutableStateOf(false) }
-    var trendsExpanded by rememberSaveable { mutableStateOf(false) }
+    var selectedDiaryTab by rememberSaveable { mutableStateOf(FoodDiaryTab.Diary) }
     val foodHealthConnectPermissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
     ) {
@@ -278,43 +284,45 @@ fun FoodScreen(
                         onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
                     )
 
-                    SectionTitle("Meal diary")
-                    state.mealSections.forEach { meal ->
-                        MealSectionCard(
-                            meal = meal,
-                            // Tapping a meal opens its detail once it has logged items;
-                            // an empty meal jumps straight to add-food. The + is always quick-add.
-                            onMealClick = {
-                                if (meal.entries.isNotEmpty()) {
-                                    viewModel.openMealDetail(meal.id)
-                                } else {
-                                    viewModel.openAddFood(meal.id)
-                                }
-                            },
-                            onAddClick = { viewModel.openAddFood(meal.id) },
-                        )
-                    }
+                    // The meal diary, today's summary, and trends share this one
+                    // space; the segmented switcher swaps which is shown. The date
+                    // header, calorie card, and water row above stay pinned across tabs.
+                    MusFitSegmented(
+                        options = FoodDiaryTab.entries,
+                        selected = selectedDiaryTab,
+                        accent = accent,
+                        label = { it.name },
+                        onSelect = { selectedDiaryTab = it },
+                    )
 
-                    CollapsibleGroup(
-                        title = "Today's summary",
-                        expanded = todaySummaryExpanded,
-                        onToggle = { todaySummaryExpanded = !todaySummaryExpanded },
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    when (selectedDiaryTab) {
+                        FoodDiaryTab.Diary ->
+                            state.mealSections.forEach { meal ->
+                                MealSectionCard(
+                                    meal = meal,
+                                    // Tapping a meal opens its detail once it has logged
+                                    // items; an empty meal jumps straight to add-food.
+                                    // The + is always quick-add.
+                                    onMealClick = {
+                                        if (meal.entries.isNotEmpty()) {
+                                            viewModel.openMealDetail(meal.id)
+                                        } else {
+                                            viewModel.openAddFood(meal.id)
+                                        }
+                                    },
+                                    onAddClick = { viewModel.openAddFood(meal.id) },
+                                )
+                            }
+
+                        FoodDiaryTab.Summary -> {
                             DayRatingCard(state.dayRating)
                             DailyInsightsSection(state.dailyInsights)
                             FoodHabitTrackerSection(state.habitTrackers)
                             AdvancedNutritionProgressRow(state.advancedNutritionProgress)
                             MicronutrientRow(state.micronutrients)
                         }
-                    }
 
-                    CollapsibleGroup(
-                        title = "Trends",
-                        expanded = trendsExpanded,
-                        onToggle = { trendsExpanded = !trendsExpanded },
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        FoodDiaryTab.Trends -> {
                             WeeklyMusFitScoreCard(state.weeklyScore)
                             FoodProgressStatsCard(state.progressStats)
                         }
@@ -758,44 +766,6 @@ private fun FoodWaterRow(
 
 private fun formatWaterLiters(consumedMilliliters: Double, goalMilliliters: Double): String =
     "%.1f of %.1f L".format(consumedMilliliters / 1000.0, goalMilliliters / 1000.0)
-
-@Composable
-private fun CollapsibleGroup(
-    title: String,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Surface(
-            onClick = onToggle,
-            color = MusFitTheme.colors.surface,
-            shape = MusFitTheme.shapes.extraLarge,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MusFitTheme.colors.onSurface,
-                )
-                Icon(
-                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (expanded) "Collapse" else "Expand",
-                    tint = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
-        }
-        if (expanded) {
-            content()
-        }
-    }
-}
 
 internal val FoodUiState.foodEntryActionVerb: String
     get() = if (isPlanningMode) "Plan" else "Log"
