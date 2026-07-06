@@ -14,9 +14,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BakeryDining
 import androidx.compose.material.icons.outlined.Cookie
-import androidx.compose.material.icons.outlined.DinnerDining
 import androidx.compose.material.icons.outlined.LunchDining
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.RestaurantMenu
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -80,7 +80,7 @@ internal fun mealTypeIcon(id: String, title: String): ImageVector {
     return when {
         "breakfast" in key -> Icons.Outlined.BakeryDining
         "lunch" in key -> Icons.Outlined.LunchDining
-        "dinner" in key -> Icons.Outlined.DinnerDining
+        "dinner" in key -> Icons.Outlined.RestaurantMenu
         "snack" in key -> Icons.Outlined.Cookie
         else -> Icons.Outlined.Restaurant
     }
