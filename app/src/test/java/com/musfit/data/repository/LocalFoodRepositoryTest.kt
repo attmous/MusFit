@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
@@ -48,6 +49,42 @@ class LocalFoodRepositoryTest {
     fun tearDown() {
         database.close()
     }
+
+    @Test
+    fun observeBurnedCalories_returnsActiveCaloriesFromDailyHealthSummary() = runTest {
+        val date = LocalDate.of(2026, 7, 2)
+        database.healthDao().upsertDailySummary(dailyHealthSummary(date, activeCaloriesKcal = 312.0))
+
+        assertEquals(312.0, repository.observeBurnedCalories(date).first(), 0.0)
+    }
+
+    @Test
+    fun observeBurnedCalories_returnsZeroWhenNoSummaryOrActiveCalories() = runTest {
+        val date = LocalDate.of(2026, 7, 2)
+
+        // No summary imported for the date yet.
+        assertEquals(0.0, repository.observeBurnedCalories(date).first(), 0.0)
+
+        // Summary present but Health Connect never reported active calories.
+        database.healthDao().upsertDailySummary(dailyHealthSummary(date, activeCaloriesKcal = null))
+        assertEquals(0.0, repository.observeBurnedCalories(date).first(), 0.0)
+    }
+
+    private fun dailyHealthSummary(date: LocalDate, activeCaloriesKcal: Double?) =
+        DailyHealthSummaryEntity(
+            dateEpochDay = date.toEpochDay(),
+            steps = null,
+            activeCaloriesKcal = activeCaloriesKcal,
+            totalCaloriesKcal = null,
+            distanceMeters = null,
+            sleepMinutes = null,
+            exerciseMinutes = null,
+            exerciseSessionCount = null,
+            latestWeightKg = null,
+            latestBodyFatPercent = null,
+            restingHeartRateBpm = null,
+            updatedAtEpochMillis = 0L,
+        )
 
     @Test
     fun saveConfirmedProduct_persistsFoodServingAndBarcodeLink() = runTest {

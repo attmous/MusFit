@@ -690,6 +690,7 @@ data class FoodUiState(
     val includeTrainingCalories: Boolean = false,
     val useNetCarbs: Boolean = false,
     val eatenCaloriesKcal: Double = 0.0,
+    val burnedCaloriesKcal: Double = 0.0,
     val remainingCaloriesKcal: Double = CALORIE_GOAL_KCAL,
     val macroProgress: List<FoodMacroProgressUiState> = emptyMacroProgress(),
     val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyAdvancedNutritionProgress(),
@@ -898,6 +899,13 @@ class FoodViewModel @Inject constructor(
                 repository.observeWaterSummary(date)
             }.collect { summary ->
                 mutableState.update { currentState -> currentState.withWaterSummary(summary, currentDiary) }
+            }
+        }
+        viewModelScope.launch {
+            selectedDateFlow.flatMapLatest { date ->
+                repository.observeBurnedCalories(date)
+            }.collect { burnedCalories ->
+                mutableState.update { currentState -> currentState.copy(burnedCaloriesKcal = burnedCalories) }
             }
         }
         viewModelScope.launch {

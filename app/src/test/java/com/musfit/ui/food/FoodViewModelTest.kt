@@ -466,6 +466,32 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun burnedCaloriesFromRepositoryFlowIntoState() = runTest {
+        val repository = FakeFoodRepository(burnedCalories = 312.0)
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(312.0, viewModel.state.value.burnedCaloriesKcal, 0.0)
+    }
+
+    @Test
+    fun burnedCaloriesSurviveOtherStateCollectors() = runTest {
+        // burned (250.0) is seeded alongside water/diary/goal data whose own init-time
+        // collectors call withWaterSummary/withDiary/withFoodGoal. None must clobber the
+        // burned field. Asserting waterProgress proves the water collector actually ran.
+        val repository =
+            FakeFoodRepository(
+                waterSummary = FoodWaterSummary(LocalDate.now(), consumedMilliliters = 1500.0, goalMilliliters = 2000.0),
+                burnedCalories = 250.0,
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(250.0, viewModel.state.value.burnedCaloriesKcal, 0.0)
+        assertEquals(0.75, viewModel.state.value.waterProgress, 0.01)
+    }
+
+    @Test
     fun habitTrackersIgnoreSubstringFalsePositives() = runTest {
         val repository =
             FakeFoodRepository(
@@ -4415,6 +4441,7 @@ class FoodViewModelTest {
             mode = FoodGoalMode.Balanced,
             includeTrainingCalories = false,
         ),
+        private val burnedCalories: Double = 0.0,
     ) : FoodRepository {
         private val diaryFlow = MutableStateFlow(diary)
         private val savedFoodsFlow = MutableStateFlow(savedFoods)
@@ -4555,6 +4582,9 @@ class FoodViewModelTest {
 
         override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
             waterSummaryFlow
+
+        override fun observeBurnedCalories(date: LocalDate): Flow<Double> =
+            MutableStateFlow(burnedCalories)
 
         override suspend fun logWater(input: WaterLogInput): String {
             waterLogInput = input
