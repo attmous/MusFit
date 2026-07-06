@@ -81,6 +81,9 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     BackHandler(enabled = state.routineExercisePickerOpen) {
         viewModel.closeRoutineExercisePicker()
     }
+    BackHandler(enabled = state.routineLibraryPageOpen && !state.routineExercisePickerOpen) {
+        viewModel.closeRoutineLibraryPage()
+    }
 
     if (state.activeWorkoutRouteOpen && activeWorkout != null) {
         Column(
@@ -179,6 +182,16 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         return
     }
 
+    if (state.routineLibraryPageOpen) {
+        RoutineLibraryPage(
+            state = state,
+            accent = accent,
+            viewModel = viewModel,
+            onBack = viewModel::closeRoutineLibraryPage,
+        )
+        return
+    }
+
     MusFitScreenScaffold(
         title = "Training",
         actions = {
@@ -212,80 +225,20 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
             TrainingSection.Home ->
                 TrainingHomeContent(
                     hasActiveWorkout = state.activeWorkoutSummary != null,
+                    routines = state.homeRoutines,
                     accent = accent,
                     onStartBlankWorkout = viewModel::startBlankWorkout,
                     onNewRoutine = { viewModel.openRoutineEditor(null) },
-                    onOpenLibrary = { viewModel.selectSection(TrainingSection.Library) },
+                    onOpenLibrary = viewModel::openRoutineLibraryPage,
+                    onStartRoutine = viewModel::startRoutine,
+                    onOpenRoutineDetail = viewModel::openRoutineDetail,
                 )
             TrainingSection.Library -> {
-                val routineDetail = state.selectedRoutineDetail
-                val exerciseDetail = state.selectedExerciseDetail
-                when {
-                    state.routineEditor.isOpen -> TrainingRoutineEditor(
-                        editor = state.routineEditor,
-                        exercises = state.exercises,
-                        folders = state.routineFolders,
-                        accent = accent,
-                        onNameChange = viewModel::onRoutineNameChanged,
-                        onNotesChange = viewModel::onRoutineNotesChanged,
-                        onFolderNameChange = viewModel::onRoutineEditorFolderNameChanged,
-                        onOpenExercisePicker = viewModel::openRoutineExercisePicker,
-                        onRemoveExercise = viewModel::removeRoutineExercise,
-                        onMoveExerciseUp = viewModel::moveRoutineExerciseUp,
-                        onMoveExerciseDown = viewModel::moveRoutineExerciseDown,
-                        onTargetSetsChange = viewModel::onRoutineExerciseTargetSetsChanged,
-                        onTargetRepsChange = viewModel::onRoutineExerciseTargetRepsChanged,
-                        onRestSecondsChange = viewModel::onRoutineExerciseRestSecondsChanged,
-                        onAddSet = viewModel::addRoutineExerciseSet,
-                        onRemoveSet = viewModel::removeRoutineExerciseSet,
-                        onSetTypeChange = viewModel::onRoutineExerciseSetTypeChanged,
-                        onSetRepsChange = viewModel::onRoutineExerciseSetRepsChanged,
-                        onSetWeightChange = viewModel::onRoutineExerciseSetWeightChanged,
-                        onSave = viewModel::saveRoutineEditor,
-                        onCancel = viewModel::closeRoutineEditor,
-                        onDuplicate = viewModel::duplicateRoutine,
-                        onDelete = viewModel::deleteRoutine,
-                    )
-                    exerciseDetail != null -> ExerciseDetailPage(
-                        detail = exerciseDetail,
-                        target = state.exerciseDetailTarget,
-                        notesInput = state.exerciseDetailNotesInput,
-                        accent = accent,
-                        onNotesChange = viewModel::onExerciseDetailNotesChanged,
-                        onSaveNotes = viewModel::saveExerciseDetailNotes,
-                        onClose = viewModel::closeExerciseDetail,
-                    )
-                    routineDetail != null -> RoutineDetailContent(
-                        detail = routineDetail,
-                        accent = accent,
-                        onStart = { viewModel.startRoutine(routineDetail.id) },
-                        onEdit = { viewModel.openRoutineEditor(routineDetail.id) },
-                        onOpenExercise = viewModel::openRoutineExerciseDetail,
-                        onDuplicate = {
-                            viewModel.closeRoutineDetail()
-                            viewModel.duplicateRoutine(routineDetail.id)
-                        },
-                        onDelete = {
-                            viewModel.closeRoutineDetail()
-                            viewModel.deleteRoutine(routineDetail.id)
-                        },
-                        onClose = viewModel::closeRoutineDetail,
-                    )
-                    else -> TrainingRoutineContent(
-                        routines = state.visibleRoutines,
-                        folders = state.routineFolders,
-                        folderEditor = state.routineFolderEditor,
-                        accent = accent,
-                        onOpenFolderEditor = viewModel::openRoutineFolderEditor,
-                        onFolderNameChange = viewModel::onRoutineFolderNameChanged,
-                        onSaveFolder = viewModel::saveRoutineFolderEditor,
-                        onCancelFolder = viewModel::closeRoutineFolderEditor,
-                        onDeleteFolder = viewModel::deleteRoutineFolder,
-                        onStartRoutine = viewModel::startRoutine,
-                        onEditRoutine = viewModel::openRoutineEditor,
-                        onOpenRoutineDetail = viewModel::openRoutineDetail,
-                    )
-                }
+                TrainingRoutineLibraryContent(
+                    state = state,
+                    accent = accent,
+                    viewModel = viewModel,
+                )
             }
             TrainingSection.Exercises -> {
                 val exerciseDetail = state.selectedExerciseDetail
@@ -447,6 +400,124 @@ private fun ActiveWorkoutPlaceholder(state: TrainingUiState, onBack: () -> Unit)
                 TextButton(onClick = onBack) { Text("Back to home") }
             }
         }
+    }
+}
+
+@Composable
+private fun RoutineLibraryPage(
+    state: TrainingUiState,
+    accent: TabAccent,
+    viewModel: TrainingViewModel,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MusFitTheme.colors.background)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.clickable(onClick = onBack),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = accent.color,
+                modifier = Modifier.size(20.dp),
+            )
+            Text("Back", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = accent.color)
+        }
+        Text(
+            text = "Browse routines",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MusFitTheme.colors.onSurface,
+        )
+        TrainingRoutineLibraryContent(
+            state = state,
+            accent = accent,
+            viewModel = viewModel,
+        )
+    }
+}
+
+@Composable
+private fun TrainingRoutineLibraryContent(
+    state: TrainingUiState,
+    accent: TabAccent,
+    viewModel: TrainingViewModel,
+) {
+    val routineDetail = state.selectedRoutineDetail
+    val exerciseDetail = state.selectedExerciseDetail
+    when {
+        state.routineEditor.isOpen -> TrainingRoutineEditor(
+            editor = state.routineEditor,
+            exercises = state.exercises,
+            folders = state.routineFolders,
+            accent = accent,
+            onNameChange = viewModel::onRoutineNameChanged,
+            onNotesChange = viewModel::onRoutineNotesChanged,
+            onFolderNameChange = viewModel::onRoutineEditorFolderNameChanged,
+            onOpenExercisePicker = viewModel::openRoutineExercisePicker,
+            onRemoveExercise = viewModel::removeRoutineExercise,
+            onMoveExerciseUp = viewModel::moveRoutineExerciseUp,
+            onMoveExerciseDown = viewModel::moveRoutineExerciseDown,
+            onTargetSetsChange = viewModel::onRoutineExerciseTargetSetsChanged,
+            onTargetRepsChange = viewModel::onRoutineExerciseTargetRepsChanged,
+            onRestSecondsChange = viewModel::onRoutineExerciseRestSecondsChanged,
+            onAddSet = viewModel::addRoutineExerciseSet,
+            onRemoveSet = viewModel::removeRoutineExerciseSet,
+            onSetTypeChange = viewModel::onRoutineExerciseSetTypeChanged,
+            onSetRepsChange = viewModel::onRoutineExerciseSetRepsChanged,
+            onSetWeightChange = viewModel::onRoutineExerciseSetWeightChanged,
+            onSave = viewModel::saveRoutineEditor,
+            onCancel = viewModel::closeRoutineEditor,
+            onDuplicate = viewModel::duplicateRoutine,
+            onDelete = viewModel::deleteRoutine,
+        )
+        exerciseDetail != null -> ExerciseDetailPage(
+            detail = exerciseDetail,
+            target = state.exerciseDetailTarget,
+            notesInput = state.exerciseDetailNotesInput,
+            accent = accent,
+            onNotesChange = viewModel::onExerciseDetailNotesChanged,
+            onSaveNotes = viewModel::saveExerciseDetailNotes,
+            onClose = viewModel::closeExerciseDetail,
+        )
+        routineDetail != null -> RoutineDetailContent(
+            detail = routineDetail,
+            accent = accent,
+            onStart = { viewModel.startRoutine(routineDetail.id) },
+            onEdit = { viewModel.openRoutineEditor(routineDetail.id) },
+            onOpenExercise = viewModel::openRoutineExerciseDetail,
+            onDuplicate = {
+                viewModel.closeRoutineDetail()
+                viewModel.duplicateRoutine(routineDetail.id)
+            },
+            onDelete = {
+                viewModel.closeRoutineDetail()
+                viewModel.deleteRoutine(routineDetail.id)
+            },
+            onClose = viewModel::closeRoutineDetail,
+        )
+        else -> TrainingRoutineContent(
+            routines = state.visibleRoutines,
+            folders = state.routineFolders,
+            folderEditor = state.routineFolderEditor,
+            accent = accent,
+            onOpenFolderEditor = viewModel::openRoutineFolderEditor,
+            onFolderNameChange = viewModel::onRoutineFolderNameChanged,
+            onSaveFolder = viewModel::saveRoutineFolderEditor,
+            onCancelFolder = viewModel::closeRoutineFolderEditor,
+            onDeleteFolder = viewModel::deleteRoutineFolder,
+            onStartRoutine = viewModel::startRoutine,
+            onEditRoutine = viewModel::openRoutineEditor,
+            onOpenRoutineDetail = viewModel::openRoutineDetail,
+        )
     }
 }
 

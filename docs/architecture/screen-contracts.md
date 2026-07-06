@@ -409,8 +409,8 @@ Training handles strength routine management, exercise library filtering and cus
 
 | Section | Purpose |
 | --- | --- |
-| `Home` | Training landing surface with quick actions for starting an empty workout, creating a routine, and opening the routine Library. It does not render the saved/starter routine list. |
-| `Library` | Folder-grouped saved and starter routine list, user-configurable routine folders, starter/custom routine editor, duplicate/delete/start routine actions, and primary new-folder CTA. |
+| `Home` | Training landing surface with quick actions for starting an empty workout, creating a routine, and opening the full-page routine Library. It renders user-saved routines only; pre-saved starter routines stay in the Library. |
+| `Library` | Folder-grouped saved and starter routine list, user-configurable routine folders, routine descriptions and muscle chips, starter/custom routine editor, duplicate/delete/start routine actions, and primary new-folder CTA. |
 | `Exercises` | Exercise library, search/filter, equipment/muscle chips, exercise detail, local notes, and custom exercise creation. |
 | `History` | Completed workout overview, month grid, consistency metrics, list, workout recap, and workout detail with set rows. |
 | `Progress` | All-training analytics, muscle volume, weekly volume, exercise PR cards, history rows, best sets, PR timeline, and trend chart points. |
@@ -429,6 +429,7 @@ val state: StateFlow<TrainingUiState>
 | --- | --- |
 | `selectedSection` | Current Training tab; defaults to `Home`. |
 | `routines` | Routine summaries. |
+| `homeRoutines` | Non-starter routine summaries shown on the Training home tab. |
 | `visibleRoutines` | Routine summaries shown in the folder-grouped Library list. |
 | `routineFolders` | User-configurable routine folders used to group routine cards. |
 | `routineProgramOptions` | Legacy field retained empty; program/type chips are no longer used for routine organization. |
@@ -453,6 +454,7 @@ val state: StateFlow<TrainingUiState>
 | `routineEditor` | Routine create/edit state, including folder assignment, per-exercise rest seconds, and saved set plans. |
 | `routineFolderEditor` | Inline folder create/rename/delete state. |
 | `routineExercisePickerOpen`, picker selected ids, query, muscle filter, equipment filter | Full-screen routine exercise picker state. |
+| `routineLibraryPageOpen` | Route-like full-page routine Library opened from the Training home CTA. |
 | `activeWorkoutRouteOpen` | Controls full active workout route-like UI. |
 | `activeWorkoutNotesInput` | Editable notes draft for the current active workout session. |
 | `restTimer` | Timer visibility, source set id, duration, remaining time, and running state. |
@@ -478,6 +480,7 @@ Repository models that are important to the active logger:
 Section and route state:
 
 - `selectSection(section)`
+- `openRoutineLibraryPage()`, `closeRoutineLibraryPage()`
 - `resumeActiveWorkout()`
 - `closeActiveWorkoutRoute()`
 
@@ -541,8 +544,8 @@ Rest timer:
 
 | Composable | Inputs | Outputs |
 | --- | --- | --- |
-| `TrainingHomeContent` | active workout presence | Start empty workout, create routine, and open routine Library callbacks. |
-| `TrainingRoutineContent` | visible routines, folders, folder editor state | Library folder create/edit/delete, start, edit, duplicate, delete routine callbacks. |
+| `TrainingHomeContent` | active workout presence and non-starter home routines | Start empty workout, create routine, open full-page routine Library, start/open user routine callbacks. |
+| `TrainingRoutineContent` | visible routines, folders, folder editor state | Library folder create/edit/delete, routine descriptions and muscle chips, start, edit, duplicate, delete routine callbacks. |
 | `TrainingRoutineEditor` | `RoutineEditorState`, exercises, folders | Edit routine metadata, folder assignment, exercise rest seconds, and set plans. |
 | `RoutineExercisePickerPage` | exercises, current routine ids, selected ids, query/filter state | Full-screen search/filter/multi-select picker for adding exercises to a routine after confirmation. |
 | `TrainingActiveWorkoutContent` | `ActiveWorkoutDetail`, exercises, `RestTimerState`, active workout notes draft, Training tool setting drafts | Set edits, set type changes, set reorder, workout notes, add exercise/set, timer controls, Training tool save, warm-up suggestions, PR/plate display, superset create/dissolve, finish/discard. |
@@ -559,7 +562,8 @@ Exercise library detail behavior:
 Routine organization behavior:
 
 - Starter routines still carry legacy local `programName` and tags for metadata/backward compatibility, but visible organization is folder-based.
-- The Library section groups routine cards by `RoutineFolder`; routines without a folder appear under `My routines`.
+- The Library section and the full-page Browse routines route group routine cards by `RoutineFolder`; routines without a folder appear under `My routines`.
+- Routine rows show summary notes when present, fall back to a pre-saved label for starter routines, and surface target muscle chips from routine exercise metadata.
 - Users can create, rename, and delete folders locally. Deleting a folder unassigns its routines rather than deleting those routines.
 - Duplicating a starter/foldered routine creates an editable non-starter local copy and preserves folder assignment plus legacy metadata.
 - The routine editor uses a full-screen exercise picker for search/filter/multi-select. Exercises are only added after the user confirms with OK.
@@ -567,8 +571,8 @@ Routine organization behavior:
 
 Training dashboard behavior:
 
-- The home dashboard shows the next visible routine, grouped saved routines, quick-start routine buttons, and most recent completed workout.
-- The next-routine suggestion is a deterministic local heuristic from the currently visible routine list.
+- The home dashboard and home routine rows use only `homeRoutines`, so pre-saved starter routines do not appear on the Home tab.
+- The next-routine suggestion is a deterministic local heuristic from the user-saved home routine list.
 - The dashboard keeps the existing active workout resume banner and weekly header behavior intact.
 
 Active workout UI behavior:

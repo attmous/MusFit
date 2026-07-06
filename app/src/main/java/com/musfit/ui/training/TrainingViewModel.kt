@@ -112,6 +112,7 @@ data class TrainingDashboardState(
 data class TrainingUiState(
     val selectedSection: TrainingSection = TrainingSection.Home,
     val routines: List<RoutineSummary> = emptyList(),
+    val homeRoutines: List<RoutineSummary> = emptyList(),
     val visibleRoutines: List<RoutineSummary> = emptyList(),
     val routineFolders: List<RoutineFolder> = emptyList(),
     val routineProgramOptions: List<String> = emptyList(),
@@ -148,6 +149,7 @@ data class TrainingUiState(
     val routineExercisePickerMuscleFilter: String? = null,
     val routineExercisePickerEquipmentFilter: String? = null,
     val selectedRoutineDetail: RoutineDetail? = null,
+    val routineLibraryPageOpen: Boolean = false,
     val replaceExerciseTargetId: String? = null,
     val activeWorkoutRouteOpen: Boolean = false,
     val activeWorkoutNotesInput: String = "",
@@ -299,6 +301,34 @@ class TrainingViewModel @Inject constructor(
             it.copy(
                 activeWorkoutRouteOpen = false,
                 selectedSection = TrainingSection.Home,
+            )
+        }
+    }
+
+    fun openRoutineLibraryPage() {
+        mutableState.update {
+            it.copy(
+                routineLibraryPageOpen = true,
+                selectedRoutineDetail = null,
+                selectedExerciseDetail = null,
+                exerciseDetailNotesInput = "",
+                exerciseDetailTarget = null,
+                message = null,
+            )
+        }
+    }
+
+    fun closeRoutineLibraryPage() {
+        mutableState.update {
+            it.copy(
+                routineLibraryPageOpen = false,
+                selectedSection = TrainingSection.Home,
+                selectedRoutineDetail = null,
+                selectedExerciseDetail = null,
+                exerciseDetailNotesInput = "",
+                exerciseDetailTarget = null,
+                routineEditor = RoutineEditorState(),
+                routineFolderEditor = RoutineFolderEditorState(),
             )
         }
     }
@@ -704,7 +734,13 @@ class TrainingViewModel @Inject constructor(
     fun startRoutine(routineId: String) {
         viewModelScope.launch {
             repository.startWorkoutFromRoutine(routineId)
-            mutableState.update { it.copy(activeWorkoutRouteOpen = true, selectedRoutineDetail = null) }
+            mutableState.update {
+                it.copy(
+                    activeWorkoutRouteOpen = true,
+                    selectedRoutineDetail = null,
+                    routineLibraryPageOpen = false,
+                )
+            }
         }
     }
 
@@ -1323,12 +1359,13 @@ class TrainingViewModel @Inject constructor(
         return copy(
             routineProgramOptions = emptyList(),
             selectedRoutineProgram = null,
+            homeRoutines = routines.filterNot { it.isStarter },
             visibleRoutines = routines,
         )
     }
 
     private fun TrainingUiState.withDashboard(): TrainingUiState =
-        copy(dashboard = buildTrainingDashboard(visibleRoutines, workoutHistory))
+        copy(dashboard = buildTrainingDashboard(homeRoutines, workoutHistory))
 
     private fun moveRoutineExercise(fromIndex: Int, toIndex: Int) {
         mutableState.update { current ->
