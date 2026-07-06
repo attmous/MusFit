@@ -432,6 +432,9 @@ interface FoodDao {
     @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE dateEpochDay = :dateEpochDay")
     fun observeWaterTotalForDate(dateEpochDay: Long): Flow<Double>
 
+    @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE dateEpochDay = :dateEpochDay")
+    suspend fun getWaterTotalForDate(dateEpochDay: Long): Double
+
     @Query(
         "SELECT dateEpochDay, SUM(amountMilliliters) AS consumedMilliliters " +
             "FROM water_entries " +

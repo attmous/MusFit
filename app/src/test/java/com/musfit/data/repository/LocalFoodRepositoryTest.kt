@@ -1220,6 +1220,27 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun removeWater_subtractsFromDailyTotalAndClampsAtZero() = runTest {
+        val date = LocalDate.of(2026, 6, 22)
+
+        repository.logWater(WaterLogInput(date = date, amountMilliliters = 750.0))
+
+        val removed = repository.removeWater(WaterLogInput(date = date, amountMilliliters = 250.0))
+        assertEquals(250.0, removed, 0.01)
+        assertEquals(500.0, repository.observeWaterSummary(date).first().consumedMilliliters, 0.01)
+
+        // Over-removal is clamped so the day's total never drops below zero.
+        val removedRest = repository.removeWater(WaterLogInput(date = date, amountMilliliters = 900.0))
+        assertEquals(500.0, removedRest, 0.01)
+        assertEquals(0.0, repository.observeWaterSummary(date).first().consumedMilliliters, 0.01)
+
+        // Nothing left to remove reports a zero removal and leaves the day at zero.
+        val removedNone = repository.removeWater(WaterLogInput(date = date, amountMilliliters = 250.0))
+        assertEquals(0.0, removedNone, 0.01)
+        assertEquals(0.0, repository.observeWaterSummary(date).first().consumedMilliliters, 0.01)
+    }
+
+    @Test
     fun weeklyFoodSummary_combinesLoggedNutritionAndWaterForSevenDays() = runTest {
         val startDate = LocalDate.of(2026, 6, 22)
         repository.updateFoodGoal(
