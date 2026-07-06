@@ -48,6 +48,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -105,20 +106,21 @@ fun TrainingHomeContent(
     onEditRoutine: (String?) -> Unit = {},
     onOpenRoutineDetail: (String) -> Unit = {},
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        RoutineHomeQuickActions(
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        TrainingHomePrimaryActions(
             hasActiveWorkout = hasActiveWorkout,
             accent = accent,
             onStartBlankWorkout = onStartBlankWorkout,
             onNewRoutine = onNewRoutine,
-            onOpenLibrary = onOpenLibrary,
         )
         // Your own routines live here, organized into folders you create and drag them into.
+        // Folder + library actions are quiet footer links so the top stays a single clear CTA.
         TrainingRoutineContent(
             routines = routines,
             folders = folders,
             folderEditor = folderEditor,
             accent = accent,
+            onOpenLibrary = onOpenLibrary,
             onOpenFolderEditor = onOpenFolderEditor,
             onFolderNameChange = onFolderNameChange,
             onSaveFolder = onSaveFolder,
@@ -138,6 +140,7 @@ fun TrainingRoutineContent(
     folders: List<RoutineFolder> = emptyList(),
     folderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
     accent: TabAccent,
+    onOpenLibrary: () -> Unit = {},
     onOpenFolderEditor: (String?) -> Unit = {},
     onFolderNameChange: (String) -> Unit = {},
     onSaveFolder: () -> Unit = {},
@@ -161,25 +164,6 @@ fun TrainingRoutineContent(
             .onGloballyPositioned { contentBounds = it.boundsInRoot() },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                onClick = { onOpenFolderEditor(null) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
-            ) {
-                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("New folder")
-            }
-            if (folderEditor.isOpen) {
-                RoutineFolderEditorCard(
-                    editor = folderEditor,
-                    accent = accent,
-                    onNameChange = onFolderNameChange,
-                    onSave = onSaveFolder,
-                    onCancel = onCancelFolder,
-                    onDelete = folderEditor.folderId?.let { id -> { onDeleteFolder(id) } },
-                )
-            }
             val routineGroups = groupRoutineSummariesByFolder(
                 routines = routines,
                 folders = folders,
@@ -323,6 +307,21 @@ fun TrainingRoutineContent(
                     }
                 }
             }
+            RoutineOrganizeActions(
+                accent = accent,
+                onNewFolder = { onOpenFolderEditor(null) },
+                onOpenLibrary = onOpenLibrary,
+            )
+            if (folderEditor.isOpen) {
+                RoutineFolderEditorCard(
+                    editor = folderEditor,
+                    accent = accent,
+                    onNameChange = onFolderNameChange,
+                    onSave = onSaveFolder,
+                    onCancel = onCancelFolder,
+                    onDelete = folderEditor.folderId?.let { id -> { onDeleteFolder(id) } },
+                )
+            }
         }
         draggedRoutine?.let { drag ->
             RoutineDragLabel(drag = drag, contentBounds = contentBounds, accent = accent)
@@ -330,63 +329,77 @@ fun TrainingRoutineContent(
     }
 }
 
+/**
+ * The Routines tab's single primary action zone: one filled "Start empty workout" CTA plus a quiet
+ * "New routine" text link, matching the design's lean top. When a workout is already running the
+ * Resume banner above owns the primary action, so this collapses to just a full-width "New routine".
+ */
 @Composable
-private fun RoutineHomeQuickActions(
+private fun TrainingHomePrimaryActions(
     hasActiveWorkout: Boolean,
     accent: TabAccent,
     onStartBlankWorkout: () -> Unit,
     onNewRoutine: () -> Unit,
-    onOpenLibrary: () -> Unit,
 ) {
-    val actions = routineHomeQuickActions(hasActiveWorkout)
-    val secondaryActions = actions.filterNot { it == ROUTINE_HOME_ACTION_START_EMPTY }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (ROUTINE_HOME_ACTION_START_EMPTY in actions) {
+    if (hasActiveWorkout) {
+        OutlinedButton(
+            onClick = onNewRoutine,
+            modifier = Modifier.fillMaxWidth(),
+            shape = MusFitTheme.shapes.large,
+            border = BorderStroke(1.dp, accent.color),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = accent.color),
+        ) {
+            Icon(imageVector = Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("New routine", fontWeight = FontWeight.SemiBold)
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Button(
                 onClick = onStartBlankWorkout,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
+                shape = MusFitTheme.shapes.large,
                 colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
             ) {
-                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                Icon(imageVector = Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(ROUTINE_HOME_ACTION_START_EMPTY)
+                Text("Start empty workout", fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+            TextButton(onClick = onNewRoutine) {
+                Text("New routine", color = accent.color, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            secondaryActions.forEach { action ->
-                val onClick: () -> Unit = when (action) {
-                    ROUTINE_HOME_ACTION_NEW_ROUTINE -> onNewRoutine
-                    ROUTINE_HOME_ACTION_LIBRARY -> onOpenLibrary
-                    else -> ({})
-                }
-                val icon = when (action) {
-                    ROUTINE_HOME_ACTION_LIBRARY -> Icons.Outlined.FitnessCenter
-                    else -> Icons.Outlined.Add
-                }
-                Surface(
-                    onClick = onClick,
-                    color = MusFitTheme.colors.surface,
-                    shape = MusFitTheme.shapes.large,
-                    border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        Icon(imageVector = icon, contentDescription = null, tint = accent.color, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = action,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MusFitTheme.colors.onSurface,
-                        )
-                    }
-                }
-            }
+    }
+}
+
+/**
+ * Quiet footer actions under the routine list: create a folder to organize routines, or browse the
+ * pre-made routine library. Kept as low-emphasis text links so the top of the tab stays a single CTA.
+ */
+@Composable
+private fun RoutineOrganizeActions(
+    accent: TabAccent,
+    onNewFolder: () -> Unit,
+    onOpenLibrary: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onNewFolder) {
+            Icon(imageVector = Icons.Outlined.Add, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("New folder", color = accent.color, fontWeight = FontWeight.Medium)
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        TextButton(onClick = onOpenLibrary) {
+            Icon(imageVector = Icons.Outlined.FitnessCenter, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Browse library", color = accent.color, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -1084,20 +1097,10 @@ internal fun routineCardActions(isStarter: Boolean): List<String> =
         listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_EDIT, ROUTINE_ACTION_DUPLICATE, ROUTINE_ACTION_DELETE)
     }
 
-internal fun routineHomeQuickActions(hasActiveWorkout: Boolean = false): List<String> =
-    buildList {
-        if (!hasActiveWorkout) add(ROUTINE_HOME_ACTION_START_EMPTY)
-        add(ROUTINE_HOME_ACTION_NEW_ROUTINE)
-        add(ROUTINE_HOME_ACTION_LIBRARY)
-    }
-
 internal fun routineDescription(routine: RoutineSummary): String? =
     routine.notes?.trim()?.takeIf(String::isNotBlank)
         ?: if (routine.isStarter) "Pre-saved routine" else null
 
-private const val ROUTINE_HOME_ACTION_START_EMPTY = "Start empty workout"
-private const val ROUTINE_HOME_ACTION_NEW_ROUTINE = "New routine"
-private const val ROUTINE_HOME_ACTION_LIBRARY = "Browse library"
 private const val ROUTINE_ACTION_START = "Start"
 private const val ROUTINE_ACTION_EDIT = "Edit"
 private const val ROUTINE_ACTION_DUPLICATE = "Duplicate"

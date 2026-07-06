@@ -191,7 +191,7 @@ class TrainingViewModelTest {
 
         val state = viewModel.state.value
 
-        assertEquals("Home", state.selectedSection.name)
+        assertEquals("Routines", state.selectedSection.name)
         assertEquals(1, repository.seedCalls)
         assertEquals(listOf("Full Body A", "Upper A"), state.routines.map { it.name })
         assertEquals(
@@ -360,7 +360,7 @@ class TrainingViewModelTest {
         assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
         // Opening a routine keeps the user in their current section (Home) rather than
         // yanking them to the pre-made routine Library.
-        assertEquals("Home", viewModel.state.value.selectedSection.name)
+        assertEquals("Routines", viewModel.state.value.selectedSection.name)
         assertTrue(repository.requestedRoutineDetailIds.contains("routine-upper-a"))
 
         // Editing from the detail closes the detail and opens the editor.
@@ -497,7 +497,7 @@ class TrainingViewModelTest {
         viewModel.openRoutineLibraryPage()
 
         assertTrue(viewModel.state.value.routineLibraryPageOpen)
-        assertEquals(TrainingSection.Home, viewModel.state.value.selectedSection)
+        assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
 
         viewModel.closeRoutineLibraryPage()
 
@@ -679,7 +679,7 @@ class TrainingViewModelTest {
         viewModel.closeActiveWorkoutRoute()
 
         assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
-        assertEquals("Home", viewModel.state.value.selectedSection.name)
+        assertEquals("Routines", viewModel.state.value.selectedSection.name)
     }
 
     @Test
@@ -740,7 +740,7 @@ class TrainingViewModelTest {
         assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
         assertFalse(viewModel.state.value.discardConfirmationOpen)
         assertFalse(viewModel.state.value.restTimer.isVisible)
-        assertEquals("Home", viewModel.state.value.selectedSection.name)
+        assertEquals("Routines", viewModel.state.value.selectedSection.name)
         assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
     }
 

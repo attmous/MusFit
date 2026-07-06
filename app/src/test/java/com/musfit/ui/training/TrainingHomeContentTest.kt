@@ -97,20 +97,6 @@ class TrainingHomeContentTest {
     }
 
     @Test
-    fun routineHomeQuickActions_exposesWorkoutCreationAndRoutineLibrary() {
-        val actions = routineHomeQuickActions()
-
-        assertEquals(listOf("Start empty workout", "New routine", "Browse library"), actions)
-    }
-
-    @Test
-    fun routineHomeQuickActions_hidesEmptyWorkoutWhenWorkoutIsActive() {
-        val actions = routineHomeQuickActions(hasActiveWorkout = true)
-
-        assertEquals(listOf("New routine", "Browse library"), actions)
-    }
-
-    @Test
     fun routineDescription_prefersNotesAndFallsBackToStarterLabel() {
         assertEquals(
             "Heavy compound upper-body session.",
