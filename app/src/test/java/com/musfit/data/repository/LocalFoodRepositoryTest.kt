@@ -51,31 +51,42 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
-    fun observeBurnedCalories_returnsActiveCaloriesFromDailyHealthSummary() = runTest {
+    fun observeBurnedCalories_returnsTotalCaloriesFromDailyHealthSummary() = runTest {
         val date = LocalDate.of(2026, 7, 2)
-        database.healthDao().upsertDailySummary(dailyHealthSummary(date, activeCaloriesKcal = 312.0))
+        // "Burned" mirrors the total-energy figure Health Connect shows, so it reads
+        // total calories and ignores active calories even when both are present.
+        database.healthDao().upsertDailySummary(
+            dailyHealthSummary(date, totalCaloriesKcal = 312.0, activeCaloriesKcal = 999.0),
+        )
 
         assertEquals(312.0, repository.observeBurnedCalories(date).first(), 0.0)
     }
 
     @Test
-    fun observeBurnedCalories_returnsZeroWhenNoSummaryOrActiveCalories() = runTest {
+    fun observeBurnedCalories_returnsZeroWhenNoSummaryOrTotalCalories() = runTest {
         val date = LocalDate.of(2026, 7, 2)
 
         // No summary imported for the date yet.
         assertEquals(0.0, repository.observeBurnedCalories(date).first(), 0.0)
 
-        // Summary present but Health Connect never reported active calories.
-        database.healthDao().upsertDailySummary(dailyHealthSummary(date, activeCaloriesKcal = null))
+        // Summary present but Health Connect never reported total calories; active
+        // calories alone must not leak into the burned figure.
+        database.healthDao().upsertDailySummary(
+            dailyHealthSummary(date, totalCaloriesKcal = null, activeCaloriesKcal = 500.0),
+        )
         assertEquals(0.0, repository.observeBurnedCalories(date).first(), 0.0)
     }
 
-    private fun dailyHealthSummary(date: LocalDate, activeCaloriesKcal: Double?) =
+    private fun dailyHealthSummary(
+        date: LocalDate,
+        totalCaloriesKcal: Double?,
+        activeCaloriesKcal: Double? = null,
+    ) =
         DailyHealthSummaryEntity(
             dateEpochDay = date.toEpochDay(),
             steps = null,
             activeCaloriesKcal = activeCaloriesKcal,
-            totalCaloriesKcal = null,
+            totalCaloriesKcal = totalCaloriesKcal,
             distanceMeters = null,
             sleepMinutes = null,
             exerciseMinutes = null,

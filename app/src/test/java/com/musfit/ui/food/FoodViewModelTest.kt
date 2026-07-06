@@ -492,6 +492,49 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun includeTrainingCaloriesAddsBurnedToRemainingBudget() = runTest {
+        fun goal(includeTraining: Boolean) =
+            FoodGoal(
+                dailyCaloriesKcal = 2083.0,
+                proteinGrams = 104.0,
+                carbsGrams = 260.0,
+                fatGrams = 69.0,
+                fiberGrams = 30.0,
+                sugarGrams = 50.0,
+                saturatedFatGrams = 20.0,
+                sodiumMilligrams = 2300.0,
+                mode = FoodGoalMode.Balanced,
+                includeTrainingCalories = includeTraining,
+            )
+
+        val off = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(foodGoal = goal(includeTraining = false), burnedCalories = 300.0),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        val offState = off.state.value
+        // Toggle off: burned is informational only, budget stays goal - eaten.
+        assertEquals(0.0, offState.trainingCalorieAllowanceKcal, 0.0)
+        assertEquals(offState.calorieGoalKcal, offState.effectiveCalorieBudgetKcal, 0.001)
+        assertEquals(offState.calorieGoalKcal - offState.eatenCaloriesKcal, offState.remainingCaloriesKcal, 0.001)
+
+        val on = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = FakeFoodRepository(foodGoal = goal(includeTraining = true), burnedCalories = 300.0),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        val onState = on.state.value
+        // Toggle on: burned raises the allowance, so remaining = goal - eaten + burned.
+        assertEquals(300.0, onState.trainingCalorieAllowanceKcal, 0.0)
+        assertEquals(onState.calorieGoalKcal + 300.0, onState.effectiveCalorieBudgetKcal, 0.001)
+        assertEquals(
+            onState.calorieGoalKcal - onState.eatenCaloriesKcal + 300.0,
+            onState.remainingCaloriesKcal,
+            0.001,
+        )
+    }
+
+    @Test
     fun habitTrackersIgnoreSubstringFalsePositives() = runTest {
         val repository =
             FakeFoodRepository(
