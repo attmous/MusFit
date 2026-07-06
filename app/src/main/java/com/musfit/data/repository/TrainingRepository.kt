@@ -331,6 +331,8 @@ interface TrainingRepository {
 
     suspend fun deleteRoutineFolder(folderId: String) = Unit
 
+    suspend fun assignRoutineToFolder(routineId: String, folderId: String?) = Unit
+
     suspend fun startBlankWorkout(): String
 
     suspend fun startWorkoutFromRoutine(routineId: String): String
@@ -705,6 +707,20 @@ class LocalTrainingRepository @Inject constructor(
             trainingDao.clearRoutineFolder(folderId)
             trainingDao.deleteRoutineFolderById(folderId)
         }
+    }
+
+    override suspend fun assignRoutineToFolder(routineId: String, folderId: String?) {
+        val routine = trainingDao.getRoutine(routineId) ?: return
+        val resolvedFolderId = folderId
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { id -> trainingDao.getRoutineFolder(id)?.id ?: return }
+        if (routine.folderId == resolvedFolderId) return
+        trainingDao.updateRoutineFolderAssignment(
+            routineId = routineId,
+            folderId = resolvedFolderId,
+            updatedAtEpochMillis = clock(),
+        )
     }
 
     override suspend fun startBlankWorkout(): String =

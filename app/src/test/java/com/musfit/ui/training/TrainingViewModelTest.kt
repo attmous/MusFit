@@ -435,6 +435,40 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun assignRoutineToFolder_delegatesKnownFolderAndUnassignedTargets() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.assignRoutineToFolder("routine-upper-a", "folder-starter-pack")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("routine-upper-a" to "folder-starter-pack", repository.assignedRoutineFolder)
+        assertEquals("Starter Pack", viewModel.state.value.visibleRoutines.single { it.id == "routine-upper-a" }.folderName)
+        assertEquals("Upper A moved to Starter Pack.", viewModel.state.value.message)
+
+        viewModel.assignRoutineToFolder("routine-upper-a", null)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("routine-upper-a" to null, repository.assignedRoutineFolder)
+        assertEquals(null, viewModel.state.value.visibleRoutines.single { it.id == "routine-upper-a" }.folderId)
+        assertEquals("Upper A moved to My routines.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun assignRoutineToFolder_ignoresUnknownFolderAndNoopDrops() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.assignRoutineToFolder("routine-upper-a", "missing-folder")
+        viewModel.assignRoutineToFolder("routine-upper-a", "folder-ppl")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(null, repository.assignedRoutineFolder)
+    }
+
+    @Test
     fun dashboard_suggestsRoutineRecentWorkoutAndQuickStarts() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository)
@@ -1197,6 +1231,7 @@ class TrainingViewModelTest {
         var createdFolderName: String? = null
         var updatedFolder: Pair<String, String>? = null
         var deletedFolderId: String? = null
+        var assignedRoutineFolder: Pair<String, String?>? = null
         var startedRoutineId: String? = null
         var startBlankWorkoutCalls = 0
         var addedExerciseSessionId: String? = null
@@ -1579,6 +1614,24 @@ class TrainingViewModelTest {
         override suspend fun getRoutineDetail(routineId: String): RoutineDetail? {
             requestedRoutineDetailIds += routineId
             return routineDetails[routineId]
+        }
+
+        override suspend fun assignRoutineToFolder(routineId: String, folderId: String?) {
+            assignedRoutineFolder = routineId to folderId
+            val folder = folderId?.let { id -> routineFoldersFlow.value.firstOrNull { it.id == id } }
+            routinesFlow.value = routinesFlow.value.map { routine ->
+                if (routine.id == routineId) {
+                    routine.copy(folderId = folder?.id, folderName = folder?.name)
+                } else {
+                    routine
+                }
+            }
+            routineDetails[routineId]?.let { detail ->
+                routineDetails[routineId] = detail.copy(
+                    folderId = folder?.id,
+                    folderName = folder?.name,
+                )
+            }
         }
 
         override suspend fun startBlankWorkout(): String {

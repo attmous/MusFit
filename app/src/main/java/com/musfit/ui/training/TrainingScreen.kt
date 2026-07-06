@@ -460,6 +460,7 @@ private fun TrainingRoutineLibraryContent(
             onSaveFolder = viewModel::saveRoutineFolderEditor,
             onCancelFolder = viewModel::closeRoutineFolderEditor,
             onDeleteFolder = viewModel::deleteRoutineFolder,
+            onAssignRoutineToFolder = viewModel::assignRoutineToFolder,
             onStartRoutine = viewModel::startRoutine,
             onEditRoutine = viewModel::openRoutineEditor,
             onOpenRoutineDetail = viewModel::openRoutineDetail,

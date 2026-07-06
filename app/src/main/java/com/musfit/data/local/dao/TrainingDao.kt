@@ -555,6 +555,9 @@ interface TrainingDao {
     @Query("UPDATE routines SET folderId = NULL WHERE folderId = :folderId")
     suspend fun clearRoutineFolder(folderId: String)
 
+    @Query("UPDATE routines SET folderId = :folderId, updatedAtEpochMillis = :updatedAtEpochMillis WHERE id = :routineId")
+    suspend fun updateRoutineFolderAssignment(routineId: String, folderId: String?, updatedAtEpochMillis: Long)
+
     @Query("DELETE FROM routine_folders WHERE id = :folderId")
     suspend fun deleteRoutineFolderById(folderId: String)
 

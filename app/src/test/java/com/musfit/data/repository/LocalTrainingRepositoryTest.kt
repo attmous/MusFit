@@ -504,6 +504,52 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun assignRoutineToFolder_movesAndUnassignsRoutineWithoutEditingRoutineContents() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+        val folderId = repository.createRoutineFolder("Powerbuilding")
+        val routineId = repository.createRoutine(
+            RoutineInput(
+                name = "Bench Blocks",
+                notes = "Keep the close-grip work",
+                exercises = listOf(
+                    RoutineExerciseInput(
+                        exerciseId = bench.id,
+                        targetSets = 3,
+                        targetReps = "8",
+                        restSeconds = 210,
+                        setPlans = listOf(
+                            RoutineSetInput(setType = "warmup", targetReps = "12", targetWeightKg = 40.0),
+                            RoutineSetInput(setType = "working", targetReps = "8", targetWeightKg = 90.0),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        repository.assignRoutineToFolder(routineId, folderId)
+
+        val assigned = repository.getRoutineDetail(routineId)
+        val assignedSummary = repository.observeRoutineSummaries().first().single { it.id == routineId }
+        assertEquals(folderId, assigned?.folderId)
+        assertEquals("Powerbuilding", assigned?.folderName)
+        assertEquals(folderId, assignedSummary.folderId)
+        assertEquals("Powerbuilding", assignedSummary.folderName)
+        assertEquals("Bench Blocks", assigned?.name)
+        assertEquals(listOf("warmup", "working"), assigned?.exercises?.single()?.setPlans?.map { it.setType })
+
+        repository.assignRoutineToFolder(routineId, null)
+
+        val unassigned = repository.getRoutineDetail(routineId)
+        val unassignedSummary = repository.observeRoutineSummaries().first().single { it.id == routineId }
+        assertEquals(null, unassigned?.folderId)
+        assertEquals(null, unassigned?.folderName)
+        assertEquals(null, unassignedSummary.folderId)
+        assertEquals(null, unassignedSummary.folderName)
+        assertEquals(listOf("12", "8"), unassigned?.exercises?.single()?.setPlans?.map { it.targetReps })
+    }
+
+    @Test
     fun startWorkoutFromRoutine_materializesSavedSetTypesWeightsAndExerciseRestSeconds() = runTest {
         repository.seedStarterTrainingData()
         val bench = repository.observeExercises(query = "bench").first().single()
