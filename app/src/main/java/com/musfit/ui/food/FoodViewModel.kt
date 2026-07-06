@@ -346,6 +346,7 @@ data class FoodMealDefinitionUiState(
     val timeLabel: String,
     val sortOrder: Int,
     val isDefault: Boolean,
+    val isHidden: Boolean = false,
 )
 
 enum class FoodTrustLevel {
@@ -690,6 +691,7 @@ data class FoodUiState(
     val includeTrainingCalories: Boolean = false,
     val useNetCarbs: Boolean = false,
     val eatenCaloriesKcal: Double = 0.0,
+    val burnedCaloriesKcal: Double = 0.0,
     val remainingCaloriesKcal: Double = CALORIE_GOAL_KCAL,
     val macroProgress: List<FoodMacroProgressUiState> = emptyMacroProgress(),
     val advancedNutritionProgress: List<FoodNutrientProgressUiState> = emptyAdvancedNutritionProgress(),
@@ -773,6 +775,10 @@ data class FoodUiState(
     val customMealSortOrderInput: String = "",
     val lastDeletedDiaryEntry: DeletedDiaryEntrySnapshot? = null,
 ) {
+    /** Meal definitions offered as add/copy targets — hidden meals are excluded. */
+    val visibleMealDefinitions: List<FoodMealDefinitionUiState>
+        get() = mealDefinitions.filter { !it.isHidden }
+
     val favoriteAddItems: List<FavoriteAddItemUiState>
         get() =
             buildList {
@@ -898,6 +904,13 @@ class FoodViewModel @Inject constructor(
                 repository.observeWaterSummary(date)
             }.collect { summary ->
                 mutableState.update { currentState -> currentState.withWaterSummary(summary, currentDiary) }
+            }
+        }
+        viewModelScope.launch {
+            selectedDateFlow.flatMapLatest { date ->
+                repository.observeBurnedCalories(date)
+            }.collect { burnedCalories ->
+                mutableState.update { currentState -> currentState.copy(burnedCaloriesKcal = burnedCalories) }
             }
         }
         viewModelScope.launch {
@@ -1766,6 +1779,12 @@ class FoodViewModel @Inject constructor(
             return
         }
 
+        // Preserve the meal's current visibility so editing name/time/order does not un-hide it.
+        val preservedHidden =
+            currentState.editingMealDefinitionId
+                ?.let { id -> currentState.mealDefinitions.firstOrNull { it.id == id }?.isHidden }
+                ?: false
+
         viewModelScope.launch {
             try {
                 repository.upsertCustomMealDefinition(
@@ -1774,6 +1793,7 @@ class FoodViewModel @Inject constructor(
                         name = mealName,
                         timeMinutes = timeMinutes,
                         sortOrder = sortOrder,
+                        isHidden = preservedHidden,
                     ),
                 )
                 mutableState.update {
@@ -1800,6 +1820,37 @@ class FoodViewModel @Inject constructor(
                         message = error.message ?: "Failed to save meal",
                     )
                 }
+            }
+        }
+    }
+
+    fun toggleMealHidden(mealId: String) {
+        val currentState = state.value
+        val normalizedId = mealId.normalizedMealType()
+        val meal = currentState.mealDefinitions.firstOrNull { it.id == normalizedId } ?: return
+        val willHide = !meal.isHidden
+        if (willHide && currentState.mealDefinitions.count { !it.isHidden } <= 1) {
+            mutableState.update { it.copy(message = "Keep at least one meal visible") }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.upsertCustomMealDefinition(
+                    FoodMealDefinitionInput(
+                        mealId = meal.id,
+                        name = meal.title,
+                        timeMinutes = meal.timeMinutes,
+                        sortOrder = meal.sortOrder,
+                        isHidden = willHide,
+                    ),
+                )
+                mutableState.update {
+                    it.copy(message = if (willHide) "Hid ${meal.title}" else "Showing ${meal.title}")
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(message = error.message ?: "Failed to update meal") }
             }
         }
     }
@@ -6241,7 +6292,10 @@ private fun FoodDiary.toMealSections(
                 )
             }
 
-    return (mealDefinitions + unknownMealDefinitions).map { definition ->
+    // Hidden meals never render as diary sections (their entries still count toward the day
+    // totals, which are aggregated separately). Unknown-meal synthesis above intentionally
+    // checks the full definition list so a hidden-but-non-empty meal is not resurrected here.
+    return (mealDefinitions.filterNot { it.isHidden } + unknownMealDefinitions).map { definition ->
         val meal = mealsByType[definition.id]
         val totals = meal?.totals
         val detailTotals = meal?.detailTotals ?: NutritionDetails()
@@ -6894,6 +6948,7 @@ private fun MealDefinition.toUiState(): FoodMealDefinitionUiState =
         timeLabel = timeMinutes?.toMealTimeLabel() ?: "No time",
         sortOrder = sortOrder,
         isDefault = true,
+        isHidden = false,
     )
 
 private fun FoodMealDefinition.toUiState(): FoodMealDefinitionUiState {
@@ -6905,6 +6960,7 @@ private fun FoodMealDefinition.toUiState(): FoodMealDefinitionUiState {
         timeLabel = timeMinutes?.toMealTimeLabel() ?: "No time",
         sortOrder = sortOrder,
         isDefault = mealId in defaultMealDefinitionIds,
+        isHidden = isHidden,
     )
 }
 

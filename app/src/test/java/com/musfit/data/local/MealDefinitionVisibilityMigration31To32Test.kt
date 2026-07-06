@@ -8,6 +8,7 @@ import com.musfit.core.di.DatabaseModule
 import java.io.File
 import org.json.JSONObject
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -15,7 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class HealthConnectSummaryMigration29To30Test {
+class MealDefinitionVisibilityMigration31To32Test {
     private lateinit var context: Context
 
     @Before
@@ -30,17 +31,13 @@ class HealthConnectSummaryMigration29To30Test {
     }
 
     @Test
-    fun migration29To30_addsExpandedDailyHealthSummaryColumns() {
-        createDatabaseFromExportedSchema(version = 29)
+    fun migration31To32_addsIsHiddenColumnDefaultingToVisibleAndPreservesRows() {
+        createDatabaseFromExportedSchema(version = 31)
+        seedVersion31MealDefinition()
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(
-                    DatabaseModule.MIGRATION_29_30,
-                    DatabaseModule.MIGRATION_30_31,
-                    DatabaseModule.MIGRATION_31_32,
-                    DatabaseModule.MIGRATION_32_33,
-                )
+                .addMigrations(DatabaseModule.MIGRATION_31_32, DatabaseModule.MIGRATION_32_33)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -55,14 +52,30 @@ class HealthConnectSummaryMigration29To30Test {
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "totalCaloriesKcal"))
-            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "distanceMeters"))
-            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "sleepMinutes"))
-            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "exerciseMinutes"))
-            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "exerciseSessionCount"))
-            assertTrue(tableHasColumn(migrated, "daily_health_summaries", "latestBodyFatPercent"))
+            assertTrue(tableHasColumn(migrated, "meal_definitions", "isHidden"))
+            // Existing definitions are preserved and default to visible (isHidden = 0).
+            assertEquals("Pre-workout", stringValue(migrated, "SELECT name FROM meal_definitions WHERE id = 'pre-workout'"))
+            assertEquals("0", stringValue(migrated, "SELECT isHidden FROM meal_definitions WHERE id = 'pre-workout'"))
         } finally {
             migrated.close()
+        }
+    }
+
+    private fun seedVersion31MealDefinition() {
+        val databaseFile = context.getDatabasePath(TEST_DATABASE_NAME)
+        val database = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+        try {
+            database.execSQL(
+                """
+                INSERT INTO meal_definitions (
+                    id, name, timeMinutes, sortOrder, createdAtEpochMillis, updatedAtEpochMillis
+                ) VALUES (
+                    'pre-workout', 'Pre-workout', 990, 5, 1000, 2000
+                )
+                """.trimIndent(),
+            )
+        } finally {
+            database.close()
         }
     }
 
@@ -71,6 +84,11 @@ class HealthConnectSummaryMigration29To30Test {
             val nameIndex = cursor.getColumnIndex("name")
             generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
                 .any { it == columnName }
+        }
+
+    private fun stringValue(database: SQLiteDatabase, query: String): String? =
+        database.rawQuery(query, null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
         }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
@@ -114,6 +132,6 @@ class HealthConnectSummaryMigration29To30Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "health-connect-summary-29-30"
+        const val TEST_DATABASE_NAME = "mealdef-31-32"
     }
 }

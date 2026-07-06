@@ -61,6 +61,7 @@ object DatabaseModule {
                 MIGRATION_29_30,
                 MIGRATION_30_31,
                 MIGRATION_31_32,
+                MIGRATION_32_33,
             )
             .build()
     }
@@ -900,6 +901,13 @@ object DatabaseModule {
 
     internal val MIGRATION_31_32 =
         object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE meal_definitions ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+    internal val MIGRATION_32_33 =
+        object : Migration(32, 33) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE health_connect_sync_state ADD COLUMN preferredStepsPackage TEXT",

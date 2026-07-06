@@ -79,7 +79,12 @@ prefill the existing recipe editor for review before saving.
 **Meal templates v2.** Editable items, duplicate/favorite, "save current meal as
 template", and log-to-any-meal.
 
-**Custom meals.** Rename, optional time, reorder.
+**Custom meals.** Rename, optional time, reorder, and show/hide. Meals are the 4
+hardcoded defaults (breakfast, lunch, dinner, snacks) merged with `meal_definitions`
+rows that override a default by id or add new meals. Hiding is a soft flag
+(`meal_definitions.isHidden`, DB v32) — a hidden meal is excluded from the diary
+and from add-target pickers (`FoodUiState.visibleMealDefinitions`) but its logged
+food still counts toward day totals; at least one meal must stay visible.
 
 **Goals and programs.** Calorie + macro + advanced-nutrient targets, diet modes
 (`FoodGoalMode`), include-training-calories, and a net-carbs toggle. The goals
@@ -156,7 +161,7 @@ full-screen add surface, the full-screen recipe browser, the diary, or a
 | `RecipeBrowser` | Full-screen recipe discovery, saved-recipe browsing, and plan-to-date/meal actions. |
 | `RecipeEditor` | Recipe create/edit/log. |
 | `MealTemplates` | Template list, edit, duplicate, favorite, log. |
-| `MealSettings` | Custom meal definitions and times. |
+| `MealSettings` | Custom meal definitions: rename, time, order, and per-meal show/hide toggle. |
 | `ShoppingList` | Generated and manual shopping list. |
 
 `FoodAddMode`: `Saved`, `Manual`, `Barcode`, `Quick`, `Ai`.

@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 32,
-    "identityHash": "c6f11bc1b28fbc761b3f63ce715a5151",
+    "version": 33,
+    "identityHash": "dbd1d697076d0141e25eb8a35c21615f",
     "entities": [
       {
         "tableName": "accounts",
@@ -2144,7 +2144,7 @@
       },
       {
         "tableName": "health_connect_sync_state",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `isAvailable` INTEGER NOT NULL, `grantedPermissionsCsv` TEXT NOT NULL, `lastImportAtEpochMillis` INTEGER, `lastExportAtEpochMillis` INTEGER, `lastFailureMessage` TEXT, PRIMARY KEY(`key`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `isAvailable` INTEGER NOT NULL, `grantedPermissionsCsv` TEXT NOT NULL, `lastImportAtEpochMillis` INTEGER, `lastExportAtEpochMillis` INTEGER, `lastFailureMessage` TEXT, `preferredStepsPackage` TEXT, PRIMARY KEY(`key`))",
         "fields": [
           {
             "fieldPath": "key",
@@ -2177,6 +2177,11 @@
           {
             "fieldPath": "lastFailureMessage",
             "columnName": "lastFailureMessage",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "preferredStepsPackage",
+            "columnName": "preferredStepsPackage",
             "affinity": "TEXT"
           }
         ],
@@ -2525,7 +2530,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c6f11bc1b28fbc761b3f63ce715a5151')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'dbd1d697076d0141e25eb8a35c21615f')"
     ]
   }
 }

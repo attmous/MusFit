@@ -931,7 +931,7 @@ internal fun DiaryEntryEditorPanel(
 
         MealTypeChips(
             selectedMealType = editor.mealType,
-            mealDefinitions = state.mealDefinitions,
+            mealDefinitions = state.visibleMealDefinitions,
             onMealChanged = onMealChanged,
         )
 
@@ -1032,7 +1032,7 @@ internal fun DiaryEntryEditorPanel(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            state.mealDefinitions.forEach { choice ->
+            state.visibleMealDefinitions.forEach { choice ->
                 MusFitOutlinedButton(
                     onClick = { onCopyToMealClick(choice.id) },
                     enabled = !state.isSaving,
@@ -1083,6 +1083,7 @@ private fun MealTypeChips(
 internal fun MealSettingsPanel(
     state: FoodUiState,
     onEditClick: (String) -> Unit,
+    onToggleHidden: (String) -> Unit,
     onNameChanged: (String) -> Unit,
     onTimeChanged: (String) -> Unit,
     onSortOrderChanged: (String) -> Unit,
@@ -1097,6 +1098,11 @@ internal fun MealSettingsPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text("Meal settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            "Turn a meal off to hide it from the diary. Anything already logged there still counts toward your day.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
 
         state.mealDefinitions.forEach { meal ->
             Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
@@ -1104,16 +1110,17 @@ internal fun MealSettingsPanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(meal.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
-                            listOf(
+                            listOfNotNull(
                                 if (meal.isDefault) "Default" else "Custom",
                                 meal.timeLabel,
                                 "Order ${meal.sortOrder}",
+                                if (meal.isHidden) "Hidden" else null,
                             ).joinToString(" - "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MusFitTheme.colors.onSurfaceVariant,
@@ -1121,6 +1128,10 @@ internal fun MealSettingsPanel(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    Switch(
+                        checked = !meal.isHidden,
+                        onCheckedChange = { onToggleHidden(meal.id) },
+                    )
                     MusFitOutlinedButton(onClick = { onEditClick(meal.id) }) {
                         Text("Edit")
                     }
@@ -1958,7 +1969,7 @@ private fun RecipeBrowserHome(
     onFavoriteClick: (String, Boolean) -> Unit,
     onCreateClick: () -> Unit,
 ) {
-    val lanes = recipeBrowserMealLanes(state.recipeDiscovery.visibleItems, state.mealDefinitions)
+    val lanes = recipeBrowserMealLanes(state.recipeDiscovery.visibleItems, state.visibleMealDefinitions)
     Column(
         modifier = modifier.fillMaxSize(),
     ) {
@@ -2340,7 +2351,7 @@ private fun RecipeBrowserTargetCard(
                 Box(modifier = Modifier.weight(1f)) {
                     MealTypeChips(
                         selectedMealType = state.recipeBrowserMealType,
-                        mealDefinitions = state.mealDefinitions,
+                        mealDefinitions = state.visibleMealDefinitions,
                         onMealChanged = onMealChanged,
                     )
                 }
@@ -2845,7 +2856,7 @@ internal fun MealTemplatesPanel(
                     )
                     MealTypeChips(
                         selectedMealType = editor.mealType,
-                        mealDefinitions = state.mealDefinitions,
+                        mealDefinitions = state.visibleMealDefinitions,
                         onMealChanged = onMealTypeChanged,
                     )
                     Text("Items", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)

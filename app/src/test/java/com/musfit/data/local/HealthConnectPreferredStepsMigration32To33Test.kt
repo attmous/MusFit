@@ -15,7 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class HealthConnectPreferredStepsMigration31To32Test {
+class HealthConnectPreferredStepsMigration32To33Test {
     private lateinit var context: Context
 
     @Before
@@ -30,12 +30,12 @@ class HealthConnectPreferredStepsMigration31To32Test {
     }
 
     @Test
-    fun migration31To32_addsPreferredStepsPackageColumn() {
-        createDatabaseFromExportedSchema(version = 31)
+    fun migration32To33_addsPreferredStepsPackageColumn() {
+        createDatabaseFromExportedSchema(version = 32)
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_31_32)
+                .addMigrations(DatabaseModule.MIGRATION_32_33)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -104,6 +104,6 @@ class HealthConnectPreferredStepsMigration31To32Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "health-connect-preferred-steps-31-32"
+        const val TEST_DATABASE_NAME = "hc-preferred-steps-32-33"
     }
 }

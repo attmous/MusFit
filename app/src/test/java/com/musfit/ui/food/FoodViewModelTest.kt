@@ -466,6 +466,32 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun burnedCaloriesFromRepositoryFlowIntoState() = runTest {
+        val repository = FakeFoodRepository(burnedCalories = 312.0)
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(312.0, viewModel.state.value.burnedCaloriesKcal, 0.0)
+    }
+
+    @Test
+    fun burnedCaloriesSurviveOtherStateCollectors() = runTest {
+        // burned (250.0) is seeded alongside water/diary/goal data whose own init-time
+        // collectors call withWaterSummary/withDiary/withFoodGoal. None must clobber the
+        // burned field. Asserting waterProgress proves the water collector actually ran.
+        val repository =
+            FakeFoodRepository(
+                waterSummary = FoodWaterSummary(LocalDate.now(), consumedMilliliters = 1500.0, goalMilliliters = 2000.0),
+                burnedCalories = 250.0,
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(250.0, viewModel.state.value.burnedCaloriesKcal, 0.0)
+        assertEquals(0.75, viewModel.state.value.waterProgress, 0.01)
+    }
+
+    @Test
     fun habitTrackersIgnoreSubstringFalsePositives() = runTest {
         val repository =
             FakeFoodRepository(
@@ -1587,6 +1613,87 @@ class FoodViewModelTest {
         assertEquals(7 * 60 + 30, input.timeMinutes)
         assertEquals(12, input.sortOrder)
         assertEquals("Saved meal", viewModel.state.value.message)
+    }
+
+    @Test
+    fun hiddenMealDefinitionIsExcludedFromDiarySectionsButStillCounts() = runTest {
+        val repository =
+            FakeFoodRepository(
+                diary = FoodDiary(
+                    totals = NutritionTotals(180.0, 20.0, 12.0, 6.0),
+                    meals = listOf(
+                        FoodDiaryMeal(
+                            type = "pre_workout",
+                            entries = listOf(
+                                FoodDiaryEntry(
+                                    id = "entry-1",
+                                    foodId = "food-1",
+                                    name = "Protein shake",
+                                    brand = null,
+                                    quantityGrams = 300.0,
+                                    caloriesKcal = 180.0,
+                                    proteinGrams = 20.0,
+                                    carbsGrams = 12.0,
+                                    fatGrams = 6.0,
+                                ),
+                            ),
+                            totals = NutritionTotals(180.0, 20.0, 12.0, 6.0),
+                        ),
+                    ),
+                ),
+                customMealDefinitions = listOf(
+                    FoodMealDefinition(
+                        id = "pre_workout",
+                        name = "Pre-workout",
+                        timeMinutes = 16 * 60 + 30,
+                        sortOrder = 1,
+                        isHidden = true,
+                    ),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // A hidden meal never renders as a diary section, even with logged entries.
+        assertFalse(viewModel.state.value.mealSections.any { it.id == "pre_workout" })
+        // But it stays in the definition list so it can be un-hidden.
+        val hidden = viewModel.state.value.mealDefinitions.first { it.id == "pre_workout" }
+        assertTrue(hidden.isHidden)
+        // Its logged calories still count toward the day total.
+        assertEquals(180.0, viewModel.state.value.eatenCaloriesKcal, 0.01)
+    }
+
+    @Test
+    fun toggleMealHiddenDelegatesToRepositoryWithHiddenFlag() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+
+        viewModel.toggleMealHidden("breakfast")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val input = requireNotNull(repository.customMealDefinitionUpsert)
+        assertEquals("breakfast", input.mealId)
+        assertTrue(input.isHidden)
+    }
+
+    @Test
+    fun toggleMealHiddenRefusesToHideLastVisibleMeal() = runTest {
+        val repository =
+            FakeFoodRepository(
+                customMealDefinitions = listOf(
+                    FoodMealDefinition(id = "breakfast", name = "Breakfast", timeMinutes = null, sortOrder = 0, isHidden = true),
+                    FoodMealDefinition(id = "lunch", name = "Lunch", timeMinutes = null, sortOrder = 10, isHidden = true),
+                    FoodMealDefinition(id = "dinner", name = "Dinner", timeMinutes = null, sortOrder = 20, isHidden = true),
+                ),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.toggleMealHidden("snacks")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(repository.customMealDefinitionUpsert)
+        assertEquals("Keep at least one meal visible", viewModel.state.value.message)
     }
 
     @Test
@@ -4415,6 +4522,7 @@ class FoodViewModelTest {
             mode = FoodGoalMode.Balanced,
             includeTrainingCalories = false,
         ),
+        private val burnedCalories: Double = 0.0,
     ) : FoodRepository {
         private val diaryFlow = MutableStateFlow(diary)
         private val savedFoodsFlow = MutableStateFlow(savedFoods)
@@ -4555,6 +4663,9 @@ class FoodViewModelTest {
 
         override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
             waterSummaryFlow
+
+        override fun observeBurnedCalories(date: LocalDate): Flow<Double> =
+            MutableStateFlow(burnedCalories)
 
         override suspend fun logWater(input: WaterLogInput): String {
             waterLogInput = input

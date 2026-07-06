@@ -57,7 +57,6 @@ import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.LunchDining
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -67,7 +66,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -240,12 +238,19 @@ fun FoodScreen(
                     MusFitScreenHeader(
                         title = "Food",
                         actions = {
+                            FoodDateChip(
+                                date = state.selectedDate,
+                                onPreviousDayClick = viewModel::goToPreviousDay,
+                                onNextDayClick = viewModel::goToNextDay,
+                                onTodayClick = viewModel::goToToday,
+                            )
                             FoodDiaryOverflowAction(
                                 state = state,
                                 onGoalClick = viewModel::openGoalEditor,
                                 onMealsClick = viewModel::openMealSettings,
                                 onTemplatesClick = viewModel::openMealTemplates,
                                 onShoppingClick = viewModel::openShoppingList,
+                                onRecipesClick = viewModel::openRecipeBrowser,
                                 onFastingClick = viewModel::openFastingTimer,
                                 onHealthConnectClick = viewModel::openHealthConnectSheet,
                                 onFoodDatabaseClick = viewModel::openFoodDatabase,
@@ -256,21 +261,13 @@ fun FoodScreen(
                     FoodDiarySummaryCard(
                         state = state,
                         accent = accent,
-                        onPreviousDayClick = viewModel::goToPreviousDay,
-                        onNextDayClick = viewModel::goToNextDay,
-                        onTodayClick = viewModel::goToToday,
                     )
 
-                    FoodQuickActionsRow(
-                        onRecipesClick = viewModel::openRecipeBrowser,
+                    FoodWaterRow(
+                        consumedMilliliters = state.waterConsumedMilliliters,
+                        goalMilliliters = state.waterGoalMilliliters,
                         onWaterClick = viewModel::openWaterSheet,
-                    )
-
-                    WeeklyPlanCard(
-                        planDays = state.weeklyPlan,
-                        selectedDate = state.selectedDate,
-                        isPlanning = state.isPlanningMode,
-                        onPlanToggle = viewModel::togglePlanningMode,
+                        onQuickAddClick = { viewModel.logQuickWater(WATER_QUICK_ADD_MILLILITERS) },
                     )
 
                     MessageBanner(
@@ -574,6 +571,7 @@ fun FoodScreen(
                     MealSettingsPanel(
                         state = state,
                         onEditClick = viewModel::openMealDefinitionEditor,
+                        onToggleHidden = viewModel::toggleMealHidden,
                         onNameChanged = viewModel::onCustomMealNameChanged,
                         onTimeChanged = viewModel::onCustomMealTimeChanged,
                         onSortOrderChanged = viewModel::onCustomMealSortOrderChanged,
@@ -626,61 +624,127 @@ fun FoodScreen(
     }
 }
 
-@Composable
-private fun FoodQuickActionsRow(
-    onRecipesClick: () -> Unit,
-    onWaterClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        FoodQuickActionTile(
-            icon = Icons.Outlined.Restaurant,
-            label = "Recipes",
-            onClick = onRecipesClick,
-            modifier = Modifier.weight(1f),
-        )
-        FoodQuickActionTile(
-            icon = Icons.Outlined.WaterDrop,
-            label = "Water",
-            onClick = onWaterClick,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
+// One 250 ml glass — the amount the water row's quick-add "+" logs, matching the
+// water sheet's smallest quick preset.
+private const val WATER_QUICK_ADD_MILLILITERS = 250.0
 
+/**
+ * Compact date pill for the tab header: ‹ chevron, the selected date (tap to jump
+ * back to today), › chevron. Replaces the in-card date navigation.
+ */
 @Composable
-private fun FoodQuickActionTile(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+private fun FoodDateChip(
+    date: java.time.LocalDate,
+    onPreviousDayClick: () -> Unit,
+    onNextDayClick: () -> Unit,
+    onTodayClick: () -> Unit,
 ) {
     Surface(
-        onClick = onClick,
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.extraLarge,
-        modifier = modifier,
+        shape = CircleShape,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = 4.dp),
         ) {
-            Icon(icon, contentDescription = null, tint = MusFitTheme.colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            IconButton(onClick = onPreviousDayClick, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Filled.ChevronLeft,
+                    contentDescription = "Previous day",
+                    tint = MusFitTheme.colors.onSurface,
+                )
+            }
             Text(
-                text = label,
+                text = date.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
                 style = MaterialTheme.typography.labelLarge,
-                color = MusFitTheme.colors.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.onSurface,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onTodayClick)
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
             )
+            IconButton(onClick = onNextDayClick, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = "Next day",
+                    tint = MusFitTheme.colors.onSurface,
+                )
+            }
         }
     }
 }
+
+/**
+ * At-a-glance water row: drop icon + label + "x of y L", a cup-dot progress gauge,
+ * and a quick-add "+". Tapping the row opens the full water sheet.
+ */
+@Composable
+private fun FoodWaterRow(
+    consumedMilliliters: Double,
+    goalMilliliters: Double,
+    onWaterClick: () -> Unit,
+    onQuickAddClick: () -> Unit,
+) {
+    val waterColor = MusFitTheme.colors.water
+    // Each segment is one 250 ml glass (so the "+" fills exactly one), capped for width.
+    val segmentCount = (goalMilliliters / WATER_QUICK_ADD_MILLILITERS).roundToInt().coerceIn(1, 8)
+    val filledSegments = (consumedMilliliters / WATER_QUICK_ADD_MILLILITERS).roundToInt().coerceIn(0, segmentCount)
+    Surface(
+        onClick = onWaterClick,
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.extraLarge,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                Icons.Outlined.WaterDrop,
+                contentDescription = null,
+                tint = waterColor,
+                modifier = Modifier.size(22.dp),
+            )
+            Text(
+                text = "Water",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MusFitTheme.colors.onSurface,
+                maxLines = 1,
+            )
+            Text(
+                text = formatWaterLiters(consumedMilliliters, goalMilliliters),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MusFitTheme.colors.onSurfaceVariant,
+                maxLines = 1,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(segmentCount) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(width = 6.dp, height = 18.dp)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(if (index < filledSegments) waterColor else waterColor.copy(alpha = 0.22f)),
+                    )
+                }
+            }
+            IconButton(onClick = onQuickAddClick) {
+                Icon(Icons.Filled.Add, contentDescription = "Add water", tint = waterColor)
+            }
+        }
+    }
+}
+
+private fun formatWaterLiters(consumedMilliliters: Double, goalMilliliters: Double): String =
+    "%.1f of %.1f L".format(consumedMilliliters / 1000.0, goalMilliliters / 1000.0)
 
 @Composable
 private fun CollapsibleGroup(
@@ -739,6 +803,7 @@ private fun FoodDiaryOverflowAction(
     onMealsClick: () -> Unit,
     onTemplatesClick: () -> Unit,
     onShoppingClick: () -> Unit,
+    onRecipesClick: () -> Unit,
     onFastingClick: () -> Unit,
     onHealthConnectClick: () -> Unit,
     onFoodDatabaseClick: () -> Unit,
@@ -749,6 +814,7 @@ private fun FoodDiaryOverflowAction(
         Icon(Icons.Filled.MoreVert, contentDescription = "More actions", tint = MusFitTheme.colors.onSurfaceVariant)
     }
     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        DropdownMenuItem(text = { Text("Recipes") }, onClick = { menuOpen = false; onRecipesClick() })
         DropdownMenuItem(text = { Text("Goals") }, onClick = { menuOpen = false; onGoalClick() })
         DropdownMenuItem(text = { Text("Meals") }, onClick = { menuOpen = false; onMealsClick() })
         DropdownMenuItem(text = { Text("Templates") }, onClick = { menuOpen = false; onTemplatesClick() })
@@ -768,44 +834,27 @@ private fun FoodDiaryOverflowAction(
 private fun FoodDiarySummaryCard(
     state: FoodUiState,
     accent: TabAccent,
-    onPreviousDayClick: () -> Unit,
-    onNextDayClick: () -> Unit,
-    onTodayClick: () -> Unit,
 ) {
     MusFitSummaryCard(accent = accent) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onPreviousDayClick) {
-                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = accent.onContainer)
-                }
-                Text(
-                    text = state.selectedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = accent.onContainer,
-                    modifier = Modifier.clickable(onClick = onTodayClick),
-                )
-                IconButton(onClick = onNextDayClick) {
-                    Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = accent.onContainer)
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SummarySideMetric(label = "Eaten", value = state.eatenCaloriesKcal, color = accent.onContainer)
                 CalorieRing(
                     eatenCalories = state.eatenCaloriesKcal,
                     remainingCalories = state.remainingCaloriesKcal,
                     calorieGoal = state.calorieGoalKcal,
                     contentColor = accent.onContainer,
                 )
-                SummarySideMetric(label = "Goal", value = state.calorieGoalKcal, color = accent.onContainer)
+                Column(modifier = Modifier.weight(1f)) {
+                    SummaryMetricRow(label = "Eaten", value = state.eatenCaloriesKcal, color = accent.onContainer)
+                    SummaryMetricDivider(color = accent.onContainer)
+                    SummaryMetricRow(label = "Burned", value = state.burnedCaloriesKcal, color = accent.onContainer)
+                    SummaryMetricDivider(color = accent.onContainer)
+                    SummaryMetricRow(label = "Goal", value = state.calorieGoalKcal, color = accent.onContainer)
+                }
             }
             if (state.macroProgress.isNotEmpty()) {
                 HeroMacroStrip(macros = state.macroProgress, contentColor = accent.onContainer)
@@ -855,127 +904,37 @@ private fun HeroMacroStrip(
 }
 
 @Composable
-private fun SummarySideMetric(
+private fun SummaryMetricRow(
     label: String,
     value: Double,
     color: Color,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = color.copy(alpha = 0.7f),
+            color = color.copy(alpha = 0.8f),
+            maxLines = 1,
         )
         Text(
             text = value.roundToInt().toString(),
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
             color = color,
+            maxLines = 1,
         )
     }
 }
 
 @Composable
-private fun WeeklyPlanCard(
-    planDays: List<FoodPlanDayUiState>,
-    selectedDate: java.time.LocalDate,
-    isPlanning: Boolean,
-    onPlanToggle: () -> Unit,
-) {
-    val accent = MusFitTheme.colors.brand
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = if (isPlanning) {
-            accent.copy(alpha = 0.12f).compositeOver(MusFitTheme.colors.surface)
-        } else {
-            MusFitTheme.colors.surface
-        },
-        shape = MusFitTheme.shapes.extraLarge,
-        border = if (isPlanning) BorderStroke(1.dp, accent.copy(alpha = 0.4f)) else null,
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Today,
-                        contentDescription = null,
-                        tint = if (isPlanning) accent else MusFitTheme.colors.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Text(
-                        text = if (isPlanning) "Planning this week" else "This week",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isPlanning) MusFitTheme.colors.brandInk else MusFitTheme.colors.onSurface,
-                    )
-                }
-                Surface(
-                    onClick = onPlanToggle,
-                    shape = MusFitTheme.shapes.small,
-                    color = if (isPlanning) accent else Color.Transparent,
-                    contentColor = if (isPlanning) MusFitTheme.colors.onAccent else accent,
-                    border = if (isPlanning) null else BorderStroke(1.dp, accent.copy(alpha = 0.5f)),
-                ) {
-                    Text(
-                        text = if (isPlanning) "Done" else "Plan",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                    )
-                }
-            }
-            WeeklyPlanStrip(planDays = planDays, selectedDate = selectedDate)
-        }
-    }
-}
-
-@Composable
-private fun WeeklyPlanStrip(
-    planDays: List<FoodPlanDayUiState>,
-    selectedDate: java.time.LocalDate,
-) {
-    if (planDays.isEmpty()) {
-        return
-    }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        planDays.take(7).forEach { day ->
-            val hasPlan = day.plannedEntryCount > 0 || day.plannedCaloriesKcal > 0.0
-            val isSelected = day.date == selectedDate
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Text(
-                    text = day.dayLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                    maxLines = 1,
-                )
-                Surface(
-                    color = if (hasPlan) MusFitTheme.colors.brand else MusFitTheme.colors.surfaceVariant,
-                    shape = CircleShape,
-                    border = if (isSelected) BorderStroke(2.dp, MusFitTheme.colors.brandInk) else null,
-                    modifier = Modifier.size(if (isSelected) 20.dp else 16.dp),
-                ) {
-                    Spacer(modifier = Modifier.fillMaxSize())
-                }
-            }
-        }
-    }
+private fun SummaryMetricDivider(color: Color) {
+    HorizontalDivider(thickness = 1.dp, color = color.copy(alpha = 0.15f))
 }
 
 @Composable
@@ -990,11 +949,11 @@ private fun CalorieRing(
     val progressColor = MusFitTheme.colors.brand
 
     Box(
-        modifier = Modifier.size(176.dp),
+        modifier = Modifier.size(150.dp),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val strokeWidth = 16.dp.toPx()
+            val strokeWidth = 14.dp.toPx()
             val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
             val topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
             drawArc(
@@ -1020,13 +979,14 @@ private fun CalorieRing(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = remainingCalories.roundToInt().toString(),
-                style = MaterialTheme.typography.displayMedium,
+                style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = contentColor,
+                maxLines = 1,
             )
             Text(
                 text = "kcal left",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = contentColor.copy(alpha = 0.78f),
             )
         }
