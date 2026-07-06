@@ -328,7 +328,7 @@ fun FoodScreen(
                 contentColor = MusFitTheme.colors.onAccent,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = 96.dp),
+                    .padding(end = 20.dp, bottom = 24.dp),
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Add food")
             }
