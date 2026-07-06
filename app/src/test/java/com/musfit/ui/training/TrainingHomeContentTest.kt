@@ -98,14 +98,33 @@ class TrainingHomeContentTest {
     fun routineHomeQuickActions_exposesWorkoutCreationAndRoutineLibrary() {
         val actions = routineHomeQuickActions()
 
-        assertEquals(listOf("Start empty workout", "New routine", "Library"), actions)
+        assertEquals(listOf("Start empty workout", "New routine", "Browse library"), actions)
     }
 
     @Test
     fun routineHomeQuickActions_hidesEmptyWorkoutWhenWorkoutIsActive() {
         val actions = routineHomeQuickActions(hasActiveWorkout = true)
 
-        assertEquals(listOf("New routine", "Library"), actions)
+        assertEquals(listOf("New routine", "Browse library"), actions)
+    }
+
+    @Test
+    fun routineDescription_prefersNotesAndFallsBackToStarterLabel() {
+        assertEquals(
+            "Heavy compound upper-body session.",
+            routineDescription(
+                routine(
+                    id = "upper",
+                    name = "Upper A",
+                    folderName = null,
+                    notes = " Heavy compound upper-body session. ",
+                ),
+            ),
+        )
+        assertEquals(
+            "Pre-saved routine",
+            routineDescription(routine(id = "starter", name = "Full Body A", folderName = "Starter Pack")),
+        )
     }
 
     @Test
@@ -211,11 +230,12 @@ class TrainingHomeContentTest {
         id: String,
         name: String,
         folderName: String?,
+        notes: String? = null,
     ): RoutineSummary =
         RoutineSummary(
             id = id,
             name = name,
-            notes = null,
+            notes = notes,
             exerciseCount = 4,
             targetSetCount = 12,
             isStarter = folderName != null,

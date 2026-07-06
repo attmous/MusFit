@@ -73,10 +73,13 @@ import com.musfit.ui.theme.TabAccent
 @Composable
 fun TrainingHomeContent(
     hasActiveWorkout: Boolean = false,
+    routines: List<RoutineSummary> = emptyList(),
     accent: TabAccent,
     onStartBlankWorkout: () -> Unit,
     onNewRoutine: () -> Unit,
     onOpenLibrary: () -> Unit,
+    onStartRoutine: (String) -> Unit = {},
+    onOpenRoutineDetail: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         RoutineHomeQuickActions(
@@ -85,6 +88,12 @@ fun TrainingHomeContent(
             onStartBlankWorkout = onStartBlankWorkout,
             onNewRoutine = onNewRoutine,
             onOpenLibrary = onOpenLibrary,
+        )
+        HomeSavedRoutineList(
+            routines = routines,
+            accent = accent,
+            onStartRoutine = onStartRoutine,
+            onOpenRoutineDetail = onOpenRoutineDetail,
         )
     }
 }
@@ -252,6 +261,57 @@ private fun RoutineHomeQuickActions(
     }
 }
 
+@Composable
+private fun HomeSavedRoutineList(
+    routines: List<RoutineSummary>,
+    accent: TabAccent,
+    onStartRoutine: (String) -> Unit,
+    onOpenRoutineDetail: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = "Your routines",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MusFitTheme.colors.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        Surface(
+            color = MusFitTheme.colors.surface,
+            shape = MusFitTheme.shapes.large,
+            border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (routines.isEmpty()) {
+                Text(
+                    text = "No user-saved routines yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                )
+            } else {
+                Column {
+                    routines.forEachIndexed { index, routine ->
+                        RoutineRow(
+                            routine = routine,
+                            accent = accent,
+                            onOpenDetail = { onOpenRoutineDetail(routine.id) },
+                            onStart = { onStartRoutine(routine.id) },
+                        )
+                        if (index < routines.lastIndex) {
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MusFitTheme.colors.outline,
+                                modifier = Modifier.padding(start = 61.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /**
  * Dense, tappable routine row: tinted leading icon, name + meta + muscle chips, and a compact tonal
  * start button. Tapping the row body opens the routine detail; top-level quick actions carry
@@ -303,6 +363,13 @@ private fun RoutineRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
+            routineDescription(routine)?.let { description ->
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
             if (routine.muscleGroups.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     routine.muscleGroups.forEach { muscle -> RoutineMuscleChip(muscle) }
@@ -716,9 +783,13 @@ internal fun routineHomeQuickActions(hasActiveWorkout: Boolean = false): List<St
         add(ROUTINE_HOME_ACTION_LIBRARY)
     }
 
+internal fun routineDescription(routine: RoutineSummary): String? =
+    routine.notes?.trim()?.takeIf(String::isNotBlank)
+        ?: if (routine.isStarter) "Pre-saved routine" else null
+
 private const val ROUTINE_HOME_ACTION_START_EMPTY = "Start empty workout"
 private const val ROUTINE_HOME_ACTION_NEW_ROUTINE = "New routine"
-private const val ROUTINE_HOME_ACTION_LIBRARY = "Library"
+private const val ROUTINE_HOME_ACTION_LIBRARY = "Browse library"
 private const val ROUTINE_ACTION_START = "Start"
 private const val ROUTINE_ACTION_EDIT = "Edit"
 private const val ROUTINE_ACTION_DUPLICATE = "Duplicate"

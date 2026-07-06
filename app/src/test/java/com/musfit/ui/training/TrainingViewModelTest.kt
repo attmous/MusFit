@@ -415,6 +415,7 @@ class TrainingViewModelTest {
 
         assertEquals(listOf("Starter Pack", "PPL System"), viewModel.state.value.routineFolders.map { it.name })
         assertEquals(listOf("Full Body A", "Upper A"), viewModel.state.value.visibleRoutines.map { it.name })
+        assertEquals(listOf("Upper A"), viewModel.state.value.homeRoutines.map { it.name })
 
         viewModel.openRoutineFolderEditor(null)
         viewModel.onRoutineFolderNameChanged("  Powerbuilding  ")
@@ -440,9 +441,26 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         val initialDashboard = viewModel.state.value.dashboard
-        assertEquals("Full Body A", initialDashboard.nextSuggestedRoutine?.name)
-        assertEquals(listOf("Full Body A", "Upper A"), initialDashboard.quickStartRoutines.map { it.name })
+        assertEquals("Upper A", initialDashboard.nextSuggestedRoutine?.name)
+        assertEquals(listOf("Upper A"), initialDashboard.quickStartRoutines.map { it.name })
         assertEquals("Push", initialDashboard.recentWorkout?.title)
+    }
+
+    @Test
+    fun routineLibraryPage_opensFromHomeWithoutSwitchingToExerciseLibrary() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineLibraryPage()
+
+        assertTrue(viewModel.state.value.routineLibraryPageOpen)
+        assertEquals(TrainingSection.Home, viewModel.state.value.selectedSection)
+
+        viewModel.closeRoutineLibraryPage()
+
+        assertFalse(viewModel.state.value.routineLibraryPageOpen)
+        assertEquals(null, viewModel.state.value.selectedRoutineDetail)
     }
 
     @Test
