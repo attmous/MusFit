@@ -162,6 +162,14 @@ class TrainingHomeContentTest {
         assertEquals(listOf("Push A"), groups[0].routines.map { it.name })
         assertEquals(emptyList<String>(), groups[1].routines.map { it.name })
         assertEquals(listOf("Garage Day"), groups[2].routines.map { it.name })
+
+        // User folders carry their id + are flagged so the section can host drops and an edit control.
+        assertEquals(listOf("folder-ppl", "folder-new"), groups.take(2).map { it.folderId })
+        assertTrue(groups[0].isUserFolder)
+        assertTrue(groups[1].isUserFolder)
+        // The "My routines" bucket is droppable-by-title but is not an editable user folder.
+        assertEquals(null, groups[2].folderId)
+        assertFalse(groups[2].isUserFolder)
     }
 
     @Test
