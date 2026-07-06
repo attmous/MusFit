@@ -54,4 +54,10 @@ interface HealthDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertHealthConnectSyncState(state: HealthConnectSyncStateEntity)
+
+    @Query(
+        "UPDATE health_connect_sync_state SET preferredStepsPackage = :packageName " +
+            "WHERE key = 'health_connect'",
+    )
+    suspend fun updatePreferredStepsPackage(packageName: String?)
 }

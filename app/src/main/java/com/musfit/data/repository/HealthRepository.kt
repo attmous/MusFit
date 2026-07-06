@@ -9,9 +9,11 @@ import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.domain.health.StepSource
 import com.musfit.integrations.healthconnect.HealthConnectGateway
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -28,6 +30,15 @@ interface HealthRepository {
     fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?>
 
     suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary
+
+    /** Per-source step totals for [date], so the user can pick which source MusFit mirrors. */
+    suspend fun readStepSources(date: LocalDate): List<StepSource> = emptyList()
+
+    /** The data-origin package MusFit mirrors for steps, or null for the unified total. */
+    fun observePreferredStepsPackage(): Flow<String?> = flowOf(null)
+
+    /** Pins the steps source to [packageName] (null restores the unified cross-source total). */
+    suspend fun setPreferredStepsPackage(packageName: String?) {}
 
     suspend fun refreshRecentData(endDate: LocalDate, days: Int = 7): HealthConnectRefreshResult =
         HealthConnectRefreshResult(importedDayCount = 0, bodyMetricCount = 0)
@@ -70,8 +81,37 @@ class LocalHealthRepository @Inject constructor(
     override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> =
         healthDao.observeBodyMetrics(WEIGHT_METRIC_TYPE, fromEpochMillis)
 
+    override suspend fun readStepSources(date: LocalDate): List<StepSource> =
+        gateway.readStepSources(date)
+
+    override fun observePreferredStepsPackage(): Flow<String?> =
+        healthDao.observeHealthConnectSyncState().map { it?.preferredStepsPackage }
+
+    override suspend fun setPreferredStepsPackage(packageName: String?) {
+        val existing = healthDao.getHealthConnectSyncState()
+        if (existing == null) {
+            val currentStatus = runCatching { gateway.status() }.getOrNull()
+            healthDao.upsertHealthConnectSyncState(
+                HealthConnectSyncStateEntity(
+                    key = SYNC_STATE_KEY,
+                    isAvailable = currentStatus?.availability == HealthConnectAvailability.Available,
+                    grantedPermissionsCsv = currentStatus?.grantedPermissions.orEmpty()
+                        .sorted()
+                        .joinToString(","),
+                    lastImportAtEpochMillis = null,
+                    lastExportAtEpochMillis = null,
+                    lastFailureMessage = null,
+                    preferredStepsPackage = packageName,
+                ),
+            )
+        } else {
+            healthDao.updatePreferredStepsPackage(packageName)
+        }
+    }
+
     override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary {
-        val summary = gateway.readDailySummary(date)
+        val preferredStepsPackage = healthDao.getHealthConnectSyncState()?.preferredStepsPackage
+        val summary = gateway.readDailySummary(date, preferredStepsPackage)
         val now = clock()
         val bodyMetrics = summary.bodyMetrics
         healthDao.upsertDailySummary(
@@ -153,6 +193,7 @@ class LocalHealthRepository @Inject constructor(
                 lastImportAtEpochMillis = lastImportAtEpochMillis ?: existing?.lastImportAtEpochMillis,
                 lastExportAtEpochMillis = lastExportAtEpochMillis ?: existing?.lastExportAtEpochMillis,
                 lastFailureMessage = lastFailureMessage,
+                preferredStepsPackage = existing?.preferredStepsPackage,
             ),
         )
     }

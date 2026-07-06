@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -52,6 +54,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -60,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.BuildConfig
+import com.musfit.domain.health.StepSource
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.theme.MusFitTheme
@@ -146,6 +150,9 @@ fun ProfileSettingsScreen(
                 onRefresh = viewModel::refreshStatus,
                 onSync = viewModel::syncRecentHealthData,
                 onExport = viewModel::exportLatestWorkout,
+                onOpenStepSourcePicker = viewModel::openStepSourcePicker,
+                onSelectStepSource = viewModel::selectStepSource,
+                onDismissStepSourcePicker = viewModel::dismissStepSourcePicker,
             )
 
             SectionHeader(title = "Preferences")
@@ -363,6 +370,9 @@ private fun HealthConnectSettingsCard(
     onRefresh: () -> Unit,
     onSync: () -> Unit,
     onExport: () -> Unit,
+    onOpenStepSourcePicker: () -> Unit,
+    onSelectStepSource: (String?) -> Unit,
+    onDismissStepSourcePicker: () -> Unit,
 ) {
     SettingsCard {
         Row(
@@ -434,6 +444,118 @@ private fun HealthConnectSettingsCard(
             shape = MaterialTheme.shapes.medium,
         ) {
             Text("Export latest workout")
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = SettingsCardBorderAlpha))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Steps source", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    state.stepSourceLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "Pick one app to match its step count, or keep the Health Connect combined total.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            OutlinedButton(
+                onClick = onOpenStepSourcePicker,
+                enabled = state.availabilityLabel == "Available",
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.heightIn(min = 44.dp),
+            ) {
+                Text("Change")
+            }
+        }
+    }
+
+    if (state.stepSourcePickerOpen) {
+        StepSourcePickerDialog(
+            sources = state.stepSources,
+            selectedPackage = state.preferredStepsPackage,
+            onSelect = onSelectStepSource,
+            onDismiss = onDismissStepSourcePicker,
+        )
+    }
+}
+
+@Composable
+private fun StepSourcePickerDialog(
+    sources: List<StepSource>,
+    selectedPackage: String?,
+    onSelect: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        },
+        title = { Text("Steps source") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "MusFit reads Health Connect's combined step total, which can read higher than a " +
+                        "single app because it merges every source. Pick one source to mirror it exactly.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                StepSourceOption(
+                    label = "All sources (unified)",
+                    detail = "Health Connect combined total",
+                    selected = selectedPackage == null,
+                    onClick = { onSelect(null) },
+                )
+                sources.forEach { source ->
+                    StepSourceOption(
+                        label = source.label,
+                        detail = "${source.steps} steps today",
+                        selected = selectedPackage == source.packageName,
+                        onClick = { onSelect(source.packageName) },
+                    )
+                }
+                if (sources.isEmpty()) {
+                    Text(
+                        "No step sources found for today yet. Sync or walk a little, then reopen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun StepSourceOption(
+    label: String,
+    detail: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

@@ -14,6 +14,7 @@ import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
+import androidx.health.connect.client.records.metadata.DataOrigin
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
@@ -23,6 +24,7 @@ import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.domain.health.StepSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
 import java.time.LocalDate
@@ -69,7 +71,10 @@ class HealthConnectManager @Inject constructor(
 
     override suspend fun foodRequestablePermissions(): Set<String> = foodPermissions
 
-    override suspend fun readDailySummary(date: LocalDate): ImportedDailyHealthSummary {
+    override suspend fun readDailySummary(
+        date: LocalDate,
+        preferredStepsPackage: String?,
+    ): ImportedDailyHealthSummary {
         val currentStatus = status()
         if (currentStatus.availability != HealthConnectAvailability.Available) {
             return EMPTY_SUMMARY
@@ -104,7 +109,13 @@ class HealthConnectManager @Inject constructor(
         val range = date.asHealthConnectTimeRange()
 
         val steps = if (canReadSteps) {
-            runCatching { client.aggregateSteps(range) ?: 0L }.getOrNull()
+            runCatching {
+                if (preferredStepsPackage != null) {
+                    client.aggregateStepsForOrigins(range, setOf(preferredStepsPackage)) ?: 0L
+                } else {
+                    client.aggregateSteps(range) ?: 0L
+                }
+            }.getOrNull()
         } else {
             null
         }
@@ -178,6 +189,40 @@ class HealthConnectManager @Inject constructor(
         )
     }
 
+    override suspend fun readStepSources(date: LocalDate): List<StepSource> {
+        val currentStatus = status()
+        if (currentStatus.availability != HealthConnectAvailability.Available) {
+            return emptyList()
+        }
+        if (READ_STEPS_PERMISSION !in currentStatus.grantedPermissions) {
+            return emptyList()
+        }
+
+        val client = clientFactory()
+        val range = date.asHealthConnectTimeRange()
+        val byOrigin = runCatching { client.readStepCountsByOrigin(range) }.getOrNull().orEmpty()
+        return byOrigin
+            .map { (packageName, steps) ->
+                StepSource(
+                    packageName = packageName,
+                    label = labelForStepSource(packageName),
+                    steps = steps,
+                )
+            }
+            .sortedByDescending { it.steps }
+    }
+
+    private fun labelForStepSource(packageName: String): String = when {
+        packageName == ON_DEVICE_STEPS_PACKAGE ||
+            packageName.startsWith(ON_DEVICE_SPN_PREFIX) -> "Your phone"
+        else -> runCatching {
+            val packageManager = context.packageManager
+            packageManager
+                .getApplicationLabel(packageManager.getApplicationInfo(packageName, 0))
+                .toString()
+        }.getOrNull()?.takeIf { it.isNotBlank() && it != packageName } ?: packageName
+    }
+
     override suspend fun exportWorkout(
         session: WorkoutSessionEntity,
         sets: List<WorkoutSetEntity>,
@@ -245,6 +290,11 @@ class HealthConnectManager @Inject constructor(
 
     private companion object {
         const val HEALTH_CONNECT_PROVIDER_PACKAGE = "com.google.android.apps.healthdata"
+
+        // On-device steps: "android" historically, a per-device Synthetic Package Name from the
+        // June 2026 Health Connect update onwards (e.g. "com.android.healthconnect.phone.<hash>").
+        const val ON_DEVICE_STEPS_PACKAGE = "android"
+        const val ON_DEVICE_SPN_PREFIX = "com.android.healthconnect.phone."
         val READ_STEPS_PERMISSION = HealthPermission.getReadPermission(StepsRecord::class)
         val READ_WEIGHT_PERMISSION = HealthPermission.getReadPermission(WeightRecord::class)
         val READ_BODY_FAT_PERMISSION = HealthPermission.getReadPermission(BodyFatRecord::class)
@@ -317,6 +367,13 @@ internal data class HealthConnectTimeRange(
 internal interface HealthConnectClientAdapter {
     suspend fun aggregateSteps(range: HealthConnectTimeRange): Long?
 
+    suspend fun aggregateStepsForOrigins(
+        range: HealthConnectTimeRange,
+        packageNames: Set<String>,
+    ): Long?
+
+    suspend fun readStepCountsByOrigin(range: HealthConnectTimeRange): Map<String, Long>
+
     suspend fun aggregateActiveCalories(range: HealthConnectTimeRange): Double?
 
     suspend fun aggregateTotalCalories(range: HealthConnectTimeRange): Double?
@@ -351,6 +408,27 @@ private class DefaultHealthConnectClientAdapter(
             timeRangeFilter = range.asTimeRangeFilter(),
         ),
     )[StepsRecord.COUNT_TOTAL]
+
+    override suspend fun aggregateStepsForOrigins(
+        range: HealthConnectTimeRange,
+        packageNames: Set<String>,
+    ): Long? = client.aggregate(
+        AggregateRequest(
+            metrics = setOf(StepsRecord.COUNT_TOTAL),
+            timeRangeFilter = range.asTimeRangeFilter(),
+            dataOriginFilter = packageNames.map { DataOrigin(it) }.toSet(),
+        ),
+    )[StepsRecord.COUNT_TOTAL]
+
+    override suspend fun readStepCountsByOrigin(range: HealthConnectTimeRange): Map<String, Long> =
+        client.readRecords(
+            ReadRecordsRequest(
+                recordType = StepsRecord::class,
+                timeRangeFilter = range.asTimeRangeFilter(),
+            ),
+        ).records
+            .groupBy { it.metadata.dataOrigin.packageName }
+            .mapValues { (_, records) -> records.sumOf { it.count } }
 
     override suspend fun aggregateActiveCalories(range: HealthConnectTimeRange): Double? =
         client.aggregate(

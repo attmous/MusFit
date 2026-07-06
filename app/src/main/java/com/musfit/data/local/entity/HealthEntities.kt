@@ -38,4 +38,5 @@ data class HealthConnectSyncStateEntity(
     val lastImportAtEpochMillis: Long?,
     val lastExportAtEpochMillis: Long?,
     val lastFailureMessage: String?,
+    val preferredStepsPackage: String? = null,
 )

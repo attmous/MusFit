@@ -1799,7 +1799,7 @@ class LocalFoodRepositoryTest {
 
         override suspend fun foodRequestablePermissions(): Set<String> = foodPermissions
 
-        override suspend fun readDailySummary(date: LocalDate) =
+        override suspend fun readDailySummary(date: LocalDate, preferredStepsPackage: String?) =
             com.musfit.domain.health.ImportedDailyHealthSummary()
 
         override suspend fun exportWorkout(
