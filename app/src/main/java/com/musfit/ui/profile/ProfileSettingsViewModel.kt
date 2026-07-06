@@ -12,6 +12,7 @@ import com.musfit.data.repository.AiCoachSettingsInput
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.data.repository.ExternalAuthRepository
 import com.musfit.data.repository.ExternalAccountProfile
+import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.GitHubDeviceAuthorization
 import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.HealthRepository
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
@@ -74,6 +76,7 @@ data class ProfileSettingsUiState(
     val aiCoachLocalAgentInput: LocalAgentKind = LocalAgentKind.Custom,
     val aiCoachApiKeyInput: String = "",
     val aiCoachErrorMessage: String? = null,
+    val includeBurnedCalories: Boolean = false,
 )
 
 data class AiCoachSettingsUiState(
@@ -160,6 +163,7 @@ private data class HealthConnectState(
     val githubDeviceCode: GitHubDeviceAuthorization? = null,
     val githubSignInInProgress: Boolean = false,
     val isGitHubSignInConfigured: Boolean = false,
+    val includeBurnedCalories: Boolean = false,
 )
 
 private data class AccountEditorState(
@@ -186,6 +190,7 @@ class ProfileSettingsViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val externalAuthRepository: ExternalAuthRepository,
     private val aiCoachRepository: AiCoachRepository,
+    private val foodRepository: FoodRepository,
 ) : ViewModel() {
     // Health Connect fields live in this mutable base; account/profile fields are
     // layered on top of it in the combined [state] below.
@@ -207,6 +212,11 @@ class ProfileSettingsViewModel @Inject constructor(
         healthRepository.observePreferredStepsPackage()
             .onEach { preferredStepsPackage ->
                 mutableState.update { it.copy(preferredStepsPackage = preferredStepsPackage) }
+            }
+            .launchIn(viewModelScope)
+        foodRepository.observeFoodGoal()
+            .onEach { goal ->
+                mutableState.update { it.copy(includeBurnedCalories = goal.includeTrainingCalories) }
             }
             .launchIn(viewModelScope)
     }
@@ -260,6 +270,7 @@ class ProfileSettingsViewModel @Inject constructor(
             aiCoachLocalAgentInput = aiCoachEditor.localAgentKind,
             aiCoachApiKeyInput = aiCoachEditor.apiKeyInput,
             aiCoachErrorMessage = aiCoachEditor.errorMessage,
+            includeBurnedCalories = base.includeBurnedCalories,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileSettingsUiState())
 
@@ -401,6 +412,24 @@ class ProfileSettingsViewModel @Inject constructor(
             val sources = runCatching { healthRepository.readStepSources(LocalDate.now()) }
                 .getOrDefault(emptyList())
             mutableState.update { it.copy(stepSources = sources) }
+        }
+    }
+
+    /**
+     * Master switch for the burned-calorie budget adjustment. It writes the food goal's
+     * `includeTrainingCalories` flag — the same value the Food goal editor toggles — so both
+     * stay in sync. When off, Health Connect burned calories are never added to "kcal left".
+     */
+    fun setIncludeBurnedCalories(enabled: Boolean) {
+        viewModelScope.launch {
+            runCatching {
+                val current = foodRepository.observeFoodGoal().first()
+                foodRepository.updateFoodGoal(current.copy(includeTrainingCalories = enabled))
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(message = error.message ?: "Could not update the burned-calorie setting.")
+                }
+            }
         }
     }
 

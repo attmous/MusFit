@@ -1,6 +1,7 @@
 package com.musfit.ui.profile
 
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.repository.Account
 import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountRepository
@@ -13,9 +14,19 @@ import com.musfit.data.repository.AiCoachSettingsInput
 import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.DEFAULT_APP_SETTINGS
+import com.musfit.data.repository.DEFAULT_REPOSITORY_FOOD_GOAL
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.data.repository.ExternalAuthRepository
 import com.musfit.data.repository.ExternalAccountProfile
+import com.musfit.data.repository.DiaryEntryUpdateInput
+import com.musfit.data.repository.FoodDiary
+import com.musfit.data.repository.FoodGoal
+import com.musfit.data.repository.FoodLogInput
+import com.musfit.data.repository.FoodRepository
+import com.musfit.data.repository.QuickCalorieLogInput
+import com.musfit.data.repository.SavedFoodItem
+import com.musfit.data.repository.SavedFoodLogInput
+import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.GitHubDeviceAuthorization
 import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.HealthRepository
@@ -26,6 +37,8 @@ import com.musfit.data.repository.WeightEntry
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.domain.model.FoodNutrition
+import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.profile.ActivityLevel
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
@@ -57,12 +70,14 @@ class ProfileSettingsViewModelTest {
         profileRepository: ProfileRepository = FakeProfileRepository(),
         externalAuthRepository: ExternalAuthRepository = FakeExternalAuthRepository(),
         aiCoachRepository: AiCoachRepository = FakeAiCoachRepository(),
+        foodRepository: FoodRepository = FakeFoodRepository(),
     ) = ProfileSettingsViewModel(
         healthRepository,
         accountRepository,
         profileRepository,
         externalAuthRepository,
         aiCoachRepository,
+        foodRepository,
     )
 
     @Before
@@ -553,6 +568,47 @@ class ProfileSettingsViewModelTest {
     }
 
     @Test
+    fun includeBurnedCalories_reflectsPersistedGoalFlag() = runTest {
+        val foodRepository = FakeFoodRepository(
+            goal = DEFAULT_REPOSITORY_FOOD_GOAL.copy(includeTrainingCalories = true),
+        )
+        val viewModel = settingsViewModel(foodRepository = foodRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.includeBurnedCalories)
+    }
+
+    @Test
+    fun setIncludeBurnedCalories_persistsFlagToGoalAndUpdatesState() = runTest {
+        val foodRepository = FakeFoodRepository(
+            goal = DEFAULT_REPOSITORY_FOOD_GOAL.copy(includeTrainingCalories = true),
+        )
+        val viewModel = settingsViewModel(foodRepository = foodRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setIncludeBurnedCalories(false)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(false, foodRepository.updatedGoal?.includeTrainingCalories)
+        // The rest of the goal must be carried through untouched.
+        assertEquals(DEFAULT_REPOSITORY_FOOD_GOAL.dailyCaloriesKcal, foodRepository.updatedGoal?.dailyCaloriesKcal)
+        assertFalse(viewModel.state.value.includeBurnedCalories)
+    }
+
+    @Test
+    fun setIncludeBurnedCalories_failureSurfacesMessage() = runTest {
+        val foodRepository = FakeFoodRepository()
+        foodRepository.updateError = IllegalStateException("disk full")
+        val viewModel = settingsViewModel(foodRepository = foodRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setIncludeBurnedCalories(true)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("disk full", viewModel.state.value.message)
+    }
+
+    @Test
     fun clearAiCoachApiKey_delegatesAndUpdatesMessage() = runTest {
         val aiCoachRepository = FakeAiCoachRepository(
             initial = AiCoachSettings(
@@ -691,6 +747,56 @@ class ProfileSettingsViewModelTest {
             flowOf(emptyMap())
         override fun observeSettings(): Flow<AppSettings> = flowOf(DEFAULT_APP_SETTINGS)
         override suspend fun saveSettings(settings: AppSettings) = Unit
+    }
+
+    private class FakeFoodRepository(
+        goal: FoodGoal = DEFAULT_REPOSITORY_FOOD_GOAL,
+    ) : FoodRepository {
+        private val goalFlow = MutableStateFlow(goal)
+        var updatedGoal: FoodGoal? = null
+        var updateError: Throwable? = null
+
+        override fun observeFoodGoal(): Flow<FoodGoal> = goalFlow
+
+        override suspend fun updateFoodGoal(goal: FoodGoal) {
+            updateError?.let { throw it }
+            updatedGoal = goal
+            goalFlow.value = goal
+        }
+
+        override suspend fun saveConfirmedProduct(
+            result: ProductLookupResult.Found,
+            editedName: String,
+            editedBrand: String?,
+            editedNutrition: FoodNutrition,
+        ): String = ""
+
+        override suspend fun logFood(input: FoodLogInput): String = ""
+
+        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
+            MutableStateFlow(NutritionTotals(0.0, 0.0, 0.0, 0.0))
+
+        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
+            MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
+
+        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
+
+        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
+
+        override fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>> =
+            MutableStateFlow(emptyList())
+
+        override suspend fun logSavedFood(input: SavedFoodLogInput): String = ""
+
+        override suspend fun quickLog(input: QuickCalorieLogInput): String = ""
+
+        override suspend fun updateDiaryEntry(input: DiaryEntryUpdateInput) = Unit
+
+        override suspend fun deleteDiaryEntry(mealItemId: String) = Unit
+
+        override suspend fun upsertSavedFood(input: SavedFoodUpsertInput): String = ""
+
+        override suspend fun deleteSavedFood(foodId: String) = Unit
     }
 
     private class FakeExternalAuthRepository(
