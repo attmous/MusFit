@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.BakeryDining
 import androidx.compose.material.icons.outlined.Cookie
 import androidx.compose.material.icons.outlined.DinnerDining
@@ -268,6 +269,7 @@ fun FoodScreen(
                         goalMilliliters = state.waterGoalMilliliters,
                         onWaterClick = viewModel::openWaterSheet,
                         onQuickAddClick = { viewModel.logQuickWater(WATER_QUICK_ADD_MILLILITERS) },
+                        onQuickRemoveClick = { viewModel.removeQuickWater(WATER_QUICK_ADD_MILLILITERS) },
                     )
 
                     MessageBanner(
@@ -596,8 +598,10 @@ fun FoodScreen(
                         WaterTrackerCard(
                             state = state,
                             onQuickWaterClick = viewModel::logQuickWater,
+                            onRemoveWaterClick = viewModel::removeQuickWater,
                             onCustomAmountChanged = viewModel::onWaterCustomAmountChanged,
                             onCustomAddClick = viewModel::logCustomWater,
+                            onCustomRemoveClick = viewModel::removeCustomWater,
                             onGoalChanged = viewModel::onWaterGoalChanged,
                             onGoalSaveClick = viewModel::saveWaterGoal,
                         )
@@ -679,7 +683,8 @@ private fun FoodDateChip(
 
 /**
  * At-a-glance water row: drop icon + label + "x of y L", a cup-dot progress gauge,
- * and a quick-add "+". Tapping the row opens the full water sheet.
+ * and quick "−"/"+" glass adjusters. The "−" undoes an accidental add and is disabled
+ * once the day is empty. Tapping the row opens the full water sheet.
  */
 @Composable
 private fun FoodWaterRow(
@@ -687,6 +692,7 @@ private fun FoodWaterRow(
     goalMilliliters: Double,
     onWaterClick: () -> Unit,
     onQuickAddClick: () -> Unit,
+    onQuickRemoveClick: () -> Unit,
 ) {
     val waterColor = MusFitTheme.colors.water
     // Each segment is one 250 ml glass (so the "+" fills exactly one), capped for width.
@@ -735,6 +741,13 @@ private fun FoodWaterRow(
                             .background(if (index < filledSegments) waterColor else waterColor.copy(alpha = 0.22f)),
                     )
                 }
+            }
+            IconButton(onClick = onQuickRemoveClick, enabled = consumedMilliliters > 0.0) {
+                Icon(
+                    Icons.Filled.Remove,
+                    contentDescription = "Remove water",
+                    tint = if (consumedMilliliters > 0.0) waterColor else waterColor.copy(alpha = 0.3f),
+                )
             }
             IconButton(onClick = onQuickAddClick) {
                 Icon(Icons.Filled.Add, contentDescription = "Add water", tint = waterColor)

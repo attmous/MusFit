@@ -6,10 +6,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -19,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.musfit.ui.theme.MusFitTheme
@@ -31,8 +36,10 @@ import kotlin.math.roundToInt
 internal fun WaterTrackerCard(
     state: FoodUiState,
     onQuickWaterClick: (Double) -> Unit,
+    onRemoveWaterClick: (Double) -> Unit,
     onCustomAmountChanged: (String) -> Unit,
     onCustomAddClick: () -> Unit,
+    onCustomRemoveClick: () -> Unit,
     onGoalChanged: (String) -> Unit,
     onGoalSaveClick: () -> Unit,
 ) {
@@ -69,24 +76,29 @@ internal fun WaterTrackerCard(
 
             ProgressBar(progress = state.waterProgress.toFloat().coerceIn(0f, 1f), color = MusFitTheme.colors.water)
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                MusFitOutlinedButton(
-                    onClick = { onQuickWaterClick(250.0) },
-                    enabled = !state.isSaving,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("250 ml")
-                }
-                MusFitOutlinedButton(
-                    onClick = { onQuickWaterClick(500.0) },
-                    enabled = !state.isSaving,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("500 ml")
-                }
-            }
+            // Each preset is a "− amount +" stepper so a mistaken add can be undone. The
+            // "−" is disabled once the day is empty (there is nothing left to remove).
+            val canRemoveWater = state.waterConsumedMilliliters > 0.0
+            WaterQuickStepperRow(
+                amountMilliliters = 250.0,
+                addEnabled = !state.isSaving,
+                removeEnabled = !state.isSaving && canRemoveWater,
+                onRemove = onRemoveWaterClick,
+                onAdd = onQuickWaterClick,
+            )
+            WaterQuickStepperRow(
+                amountMilliliters = 500.0,
+                addEnabled = !state.isSaving,
+                removeEnabled = !state.isSaving && canRemoveWater,
+                onRemove = onRemoveWaterClick,
+                onAdd = onQuickWaterClick,
+            )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 OutlinedTextField(
                     value = state.waterCustomAmountInput,
                     onValueChange = onCustomAmountChanged,
@@ -95,6 +107,12 @@ internal fun WaterTrackerCard(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
+                MusFitOutlinedButton(
+                    onClick = onCustomRemoveClick,
+                    enabled = !state.isSaving && canRemoveWater,
+                ) {
+                    Text("Remove")
+                }
                 Button(
                     onClick = onCustomAddClick,
                     enabled = !state.isSaving,
@@ -117,6 +135,48 @@ internal fun WaterTrackerCard(
                     Text("Save")
                 }
             }
+        }
+    }
+}
+
+/**
+ * A single water preset rendered as a "− amount +" stepper: the "+" logs the preset,
+ * the "−" removes it. Keeps add and remove side by side so undoing an accidental add
+ * is obvious.
+ */
+@Composable
+private fun WaterQuickStepperRow(
+    amountMilliliters: Double,
+    addEnabled: Boolean,
+    removeEnabled: Boolean,
+    onRemove: (Double) -> Unit,
+    onAdd: (Double) -> Unit,
+) {
+    val label = "${amountMilliliters.roundToInt()} ml"
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        MusFitOutlinedButton(
+            onClick = { onRemove(amountMilliliters) },
+            enabled = removeEnabled,
+        ) {
+            Icon(Icons.Filled.Remove, contentDescription = "Remove $label")
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            color = MusFitTheme.colors.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        MusFitOutlinedButton(
+            onClick = { onAdd(amountMilliliters) },
+            enabled = addEnabled,
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Add $label")
         }
     }
 }

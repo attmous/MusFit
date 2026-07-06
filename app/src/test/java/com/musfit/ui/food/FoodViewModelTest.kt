@@ -2788,6 +2788,62 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun removeQuickWater_subtractsAmountAndReportsRemoved() = runTest {
+        val today = LocalDate.now()
+        val repository =
+            FakeFoodRepository(
+                waterSummary = FoodWaterSummary(today, consumedMilliliters = 750.0, goalMilliliters = 2000.0),
+            )
+        repository.waterRemoveResult = 250.0
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.removeQuickWater(250.0)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(WaterLogInput(today, 250.0), repository.waterRemoveInput)
+        assertEquals("Removed 250 ml water", viewModel.state.value.message)
+    }
+
+    @Test
+    fun removeCustomWater_subtractsCustomAmountAndClearsInput() = runTest {
+        val today = LocalDate.now()
+        val repository =
+            FakeFoodRepository(
+                waterSummary = FoodWaterSummary(today, consumedMilliliters = 750.0, goalMilliliters = 2000.0),
+            )
+        repository.waterRemoveResult = 333.0
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onWaterCustomAmountChanged("333")
+        viewModel.removeCustomWater()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(WaterLogInput(today, 333.0), repository.waterRemoveInput)
+        assertEquals("", viewModel.state.value.waterCustomAmountInput)
+        assertEquals("Removed 333 ml water", viewModel.state.value.message)
+    }
+
+    @Test
+    fun removeQuickWater_reportsNothingToRemoveWhenDayIsEmpty() = runTest {
+        val today = LocalDate.now()
+        val repository =
+            FakeFoodRepository(
+                waterSummary = FoodWaterSummary(today, consumedMilliliters = 0.0, goalMilliliters = 2000.0),
+            )
+        repository.waterRemoveResult = 0.0
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.removeQuickWater(250.0)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(WaterLogInput(today, 250.0), repository.waterRemoveInput)
+        assertEquals("No water to remove", viewModel.state.value.message)
+    }
+
+    @Test
     fun logMealTemplate_logsTemplateIntoSelectedMealAndDate() = runTest {
         val repository =
             FakeFoodRepository(
@@ -4619,6 +4675,8 @@ class FoodViewModelTest {
         var manualShoppingListItem: ManualShoppingListItemInput? = null
         var toggledShoppingItem: Pair<String, Boolean>? = null
         var waterLogInput: WaterLogInput? = null
+        var waterRemoveInput: WaterLogInput? = null
+        var waterRemoveResult: Double = 0.0
         var waterGoalMilliliters: Double? = null
         var foodHealthConnectEnabled: Boolean? = null
         var foodHealthConnectSyncDate: LocalDate? = null
@@ -4713,6 +4771,11 @@ class FoodViewModelTest {
         override suspend fun logWater(input: WaterLogInput): String {
             waterLogInput = input
             return "water-1"
+        }
+
+        override suspend fun removeWater(input: WaterLogInput): Double {
+            waterRemoveInput = input
+            return waterRemoveResult
         }
 
         override suspend fun updateWaterGoal(goalMilliliters: Double) {

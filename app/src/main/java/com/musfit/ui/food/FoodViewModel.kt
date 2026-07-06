@@ -1074,6 +1074,19 @@ class FoodViewModel @Inject constructor(
         logWaterAmount(amountMilliliters, clearCustomAmount = false)
     }
 
+    fun removeQuickWater(amountMilliliters: Double) {
+        removeWaterAmount(amountMilliliters, clearCustomAmount = false)
+    }
+
+    fun removeCustomWater() {
+        val amount = state.value.waterCustomAmountInput.parsePositiveNumberOrNull()
+        if (amount == null) {
+            mutableState.update { it.copy(message = "Enter a valid water amount") }
+            return
+        }
+        removeWaterAmount(amount, clearCustomAmount = true)
+    }
+
     fun onWaterCustomAmountChanged(value: String) {
         mutableState.update { it.copy(waterCustomAmountInput = value.sanitizeDecimalInput(), message = null) }
     }
@@ -1147,6 +1160,39 @@ class FoodViewModel @Inject constructor(
                 throw error
             } catch (error: Exception) {
                 mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to log water") }
+            }
+        }
+    }
+
+    private fun removeWaterAmount(amountMilliliters: Double, clearCustomAmount: Boolean) {
+        if (!amountMilliliters.isFinite() || amountMilliliters <= 0.0) {
+            mutableState.update { it.copy(message = "Enter a valid water amount") }
+            return
+        }
+        val date = state.value.selectedDate
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val removed = repository.removeWater(WaterLogInput(date = date, amountMilliliters = amountMilliliters))
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        waterCustomAmountInput = if (clearCustomAmount) "" else it.waterCustomAmountInput,
+                        message = if (removed > 0.0) {
+                            "Removed ${removed.formatInputNumber()} ml water"
+                        } else {
+                            "No water to remove"
+                        },
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to remove water") }
             }
         }
     }

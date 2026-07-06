@@ -502,6 +502,13 @@ interface FoodRepository {
 
     suspend fun logWater(input: WaterLogInput): String = ""
 
+    /**
+     * Subtract water from [input.date] by logging a compensating negative entry. The
+     * removal is clamped so the day's running total never drops below zero. Returns
+     * the amount actually removed (0.0 when the day already has no water logged).
+     */
+    suspend fun removeWater(input: WaterLogInput): Double = 0.0
+
     suspend fun updateWaterGoal(goalMilliliters: Double) = Unit
 
     fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> =
@@ -980,6 +987,27 @@ class LocalFoodRepository @Inject constructor(
                 ),
             )
             entryId
+        }
+    }
+
+    override suspend fun removeWater(input: WaterLogInput): Double {
+        input.requireValid()
+        return database.withTransaction {
+            val dateEpochDay = input.date.toEpochDay()
+            val currentTotal = foodDao.getWaterTotalForDate(dateEpochDay)
+            val removal = input.amountMilliliters.coerceAtMost(currentTotal.coerceAtLeast(0.0))
+            if (removal <= 0.0) {
+                return@withTransaction 0.0
+            }
+            foodDao.insertWaterEntry(
+                WaterEntryEntity(
+                    id = UUID.randomUUID().toString(),
+                    dateEpochDay = dateEpochDay,
+                    amountMilliliters = -removal,
+                    createdAtEpochMillis = System.currentTimeMillis(),
+                ),
+            )
+            removal
         }
     }
 
