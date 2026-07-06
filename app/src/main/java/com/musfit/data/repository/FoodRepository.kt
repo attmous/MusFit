@@ -328,6 +328,7 @@ data class FoodMealDefinitionInput(
     val name: String,
     val timeMinutes: Int?,
     val sortOrder: Int,
+    val isHidden: Boolean = false,
 )
 
 data class FoodMealDefinition(
@@ -335,6 +336,7 @@ data class FoodMealDefinition(
     val name: String,
     val timeMinutes: Int?,
     val sortOrder: Int,
+    val isHidden: Boolean = false,
 )
 
 data class RecipeIngredientInput(
@@ -1106,6 +1108,7 @@ class LocalFoodRepository @Inject constructor(
                     sortOrder = input.sortOrder,
                     createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
                     updatedAtEpochMillis = now,
+                    isHidden = input.isHidden,
                 ),
             )
             mealId
@@ -2133,6 +2136,7 @@ private fun MealDefinitionEntity.toFoodMealDefinition(): FoodMealDefinition =
         name = name,
         timeMinutes = timeMinutes,
         sortOrder = sortOrder,
+        isHidden = isHidden,
     )
 
 private fun MealNutritionRow.toMealItemInput(): MealItemInput =

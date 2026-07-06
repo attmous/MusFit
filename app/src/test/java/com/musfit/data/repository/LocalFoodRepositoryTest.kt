@@ -504,6 +504,44 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun upsertCustomMealDefinition_persistsHiddenFlag() = runTest {
+        val mealId =
+            repository.upsertCustomMealDefinition(
+                FoodMealDefinitionInput(
+                    mealId = null,
+                    name = "Late snack",
+                    timeMinutes = 22 * 60,
+                    sortOrder = 40,
+                    isHidden = true,
+                ),
+            )
+
+        val meal = repository.observeCustomMealDefinitions().first().single()
+
+        assertEquals(mealId, meal.id)
+        assertTrue(meal.isHidden)
+    }
+
+    @Test
+    fun upsertCustomMealDefinition_hidingDefaultMealMaterializesHiddenRow() = runTest {
+        repository.upsertCustomMealDefinition(
+            FoodMealDefinitionInput(
+                mealId = "breakfast",
+                name = "Breakfast",
+                timeMinutes = null,
+                sortOrder = 0,
+                isHidden = true,
+            ),
+        )
+
+        val meal = repository.observeCustomMealDefinitions().first().single()
+
+        assertEquals("breakfast", meal.id)
+        assertEquals("Breakfast", meal.name)
+        assertTrue(meal.isHidden)
+    }
+
+    @Test
     fun updateDiaryEntry_changesQuantityAndMealWithoutDuplicatingSavedFood() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         val mealItemId =

@@ -60,6 +60,7 @@ object DatabaseModule {
                 MIGRATION_28_29,
                 MIGRATION_29_30,
                 MIGRATION_30_31,
+                MIGRATION_31_32,
             )
             .build()
     }
@@ -894,6 +895,13 @@ object DatabaseModule {
                     FROM set_numbers
                     """.trimIndent(),
                 )
+            }
+        }
+
+    internal val MIGRATION_31_32 =
+        object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE meal_definitions ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
             }
         }
 }

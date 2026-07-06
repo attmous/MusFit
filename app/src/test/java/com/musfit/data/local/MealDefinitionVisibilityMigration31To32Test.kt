@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class TrainingRoutineFoldersMigration30To31Test {
+class MealDefinitionVisibilityMigration31To32Test {
     private lateinit var context: Context
 
     @Before
@@ -31,13 +31,13 @@ class TrainingRoutineFoldersMigration30To31Test {
     }
 
     @Test
-    fun migration30To31_addsRoutineFoldersRestAndSetPlans() {
-        createDatabaseFromExportedSchema(version = 30)
-        seedVersion30TrainingRows()
+    fun migration31To32_addsIsHiddenColumnDefaultingToVisibleAndPreservesRows() {
+        createDatabaseFromExportedSchema(version = 31)
+        seedVersion31MealDefinition()
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_30_31, DatabaseModule.MIGRATION_31_32)
+                .addMigrations(DatabaseModule.MIGRATION_31_32)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -52,67 +52,25 @@ class TrainingRoutineFoldersMigration30To31Test {
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            assertTrue(tableExists(migrated, "routine_folders"))
-            assertTrue(tableExists(migrated, "routine_exercise_sets"))
-            assertTrue(tableHasColumn(migrated, "routines", "folderId"))
-            assertTrue(tableHasColumn(migrated, "routine_exercises", "restSeconds"))
-            assertTrue(tableHasColumn(migrated, "workout_sets", "restSeconds"))
-
-            assertEquals("Push Pull Legs", stringValue(migrated, "SELECT name FROM routine_folders LIMIT 1"))
-            assertEquals(
-                "folder-push-pull-legs",
-                stringValue(migrated, "SELECT folderId FROM routines WHERE id = 'routine-push'"),
-            )
-            assertEquals(
-                listOf("working", "working", "working"),
-                stringValues(
-                    migrated,
-                    "SELECT setType FROM routine_exercise_sets WHERE routineExerciseId = 'routine-push-bench' ORDER BY sortOrder",
-                ),
-            )
-            assertEquals(
-                listOf("8", "8", "8"),
-                stringValues(
-                    migrated,
-                    "SELECT targetReps FROM routine_exercise_sets WHERE routineExerciseId = 'routine-push-bench' ORDER BY sortOrder",
-                ),
-            )
+            assertTrue(tableHasColumn(migrated, "meal_definitions", "isHidden"))
+            // Existing definitions are preserved and default to visible (isHidden = 0).
+            assertEquals("Pre-workout", stringValue(migrated, "SELECT name FROM meal_definitions WHERE id = 'pre-workout'"))
+            assertEquals("0", stringValue(migrated, "SELECT isHidden FROM meal_definitions WHERE id = 'pre-workout'"))
         } finally {
             migrated.close()
         }
     }
 
-    private fun seedVersion30TrainingRows() {
+    private fun seedVersion31MealDefinition() {
         val databaseFile = context.getDatabasePath(TEST_DATABASE_NAME)
         val database = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
         try {
             database.execSQL(
                 """
-                INSERT INTO exercises (
-                    id, name, category, equipment, targetMuscles, isCustom, primaryMuscles,
-                    secondaryMuscles, instructions, localNotes, imageUrl, gifUrl
+                INSERT INTO meal_definitions (
+                    id, name, timeMinutes, sortOrder, createdAtEpochMillis, updatedAtEpochMillis
                 ) VALUES (
-                    'exercise-bench', 'Bench Press', 'strength', 'barbell', 'chest', 0, 'chest',
-                    '', NULL, NULL, NULL, NULL
-                )
-                """.trimIndent(),
-            )
-            database.execSQL(
-                """
-                INSERT INTO routines (
-                    id, name, notes, createdAtEpochMillis, updatedAtEpochMillis, isStarter,
-                    programName, tags
-                ) VALUES (
-                    'routine-push', 'Push #1', NULL, 1000, 2000, 0, 'Push Pull Legs', 'push'
-                )
-                """.trimIndent(),
-            )
-            database.execSQL(
-                """
-                INSERT INTO routine_exercises (
-                    id, routineId, exerciseId, sortOrder, targetSets, targetReps
-                ) VALUES (
-                    'routine-push-bench', 'routine-push', 'exercise-bench', 0, 3, '8'
+                    'pre-workout', 'Pre-workout', 990, 5, 1000, 2000
                 )
                 """.trimIndent(),
             )
@@ -120,12 +78,6 @@ class TrainingRoutineFoldersMigration30To31Test {
             database.close()
         }
     }
-
-    private fun tableExists(database: SQLiteDatabase, tableName: String): Boolean =
-        database.rawQuery(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-            arrayOf(tableName),
-        ).use { cursor -> cursor.moveToFirst() }
 
     private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean =
         database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
@@ -137,15 +89,6 @@ class TrainingRoutineFoldersMigration30To31Test {
     private fun stringValue(database: SQLiteDatabase, query: String): String? =
         database.rawQuery(query, null).use { cursor ->
             if (cursor.moveToFirst()) cursor.getString(0) else null
-        }
-
-    private fun stringValues(database: SQLiteDatabase, query: String): List<String> =
-        database.rawQuery(query, null).use { cursor ->
-            buildList {
-                while (cursor.moveToNext()) {
-                    add(cursor.getString(0))
-                }
-            }
         }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
@@ -189,6 +132,6 @@ class TrainingRoutineFoldersMigration30To31Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "training-routine-folders-30-31"
+        const val TEST_DATABASE_NAME = "mealdef-31-32"
     }
 }
