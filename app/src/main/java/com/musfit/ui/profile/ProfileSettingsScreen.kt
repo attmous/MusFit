@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -156,6 +157,16 @@ fun ProfileSettingsScreen(
             )
 
             SectionHeader(title = "Preferences")
+            SettingsCard {
+                SettingsToggleRow(
+                    title = "Add burned calories to budget",
+                    detail = "Adds Health Connect burned calories to your daily allowance, so kcal left = goal " +
+                        "− eaten + burned. It currently counts total burned calories (not just active), so " +
+                        "turn it off if the numbers look too generous.",
+                    checked = state.includeBurnedCalories,
+                    onCheckedChange = viewModel::setIncludeBurnedCalories,
+                )
+            }
             SettingsInfoCard {
                 SettingsValueRow(title = "Units", value = "Metric", detail = "Food, body weight, and measurements use kg and cm.")
                 SettingsValueRow(title = "Theme", value = "System", detail = "Follows Android light and dark mode.")
@@ -611,6 +622,32 @@ private fun SettingsValueRow(title: String, value: String, detail: String) {
             }
             Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    detail: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        IconWell(
+            icon = Icons.Outlined.FavoriteBorder,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            container = MaterialTheme.colorScheme.surfaceVariant,
+            size = 34,
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
