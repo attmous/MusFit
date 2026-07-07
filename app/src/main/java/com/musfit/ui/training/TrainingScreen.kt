@@ -72,19 +72,16 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     val activeWorkout = state.activeWorkout
     val accent = tabAccentFor(AppDestination.Training)
 
+    // One back handler for the whole miniapp: pop exactly the top page of the Training page
+    // stack. Dialogs (finish/discard confirmation, replace-exercise picker) own back themselves,
+    // and once the stack is empty back falls through to tab-level navigation in AppNavGraph.
     BackHandler(
-        enabled = state.activeWorkoutRouteOpen &&
+        enabled = state.pageStack.isNotEmpty() &&
             !state.finishConfirmationOpen &&
             !state.discardConfirmationOpen &&
             state.replaceExerciseTargetId == null,
     ) {
-        viewModel.closeActiveWorkoutRoute()
-    }
-    BackHandler(enabled = state.routineExercisePickerOpen) {
-        viewModel.closeRoutineExercisePicker()
-    }
-    BackHandler(enabled = state.routineLibraryPageOpen && !state.routineExercisePickerOpen) {
-        viewModel.closeRoutineLibraryPage()
+        viewModel.navigateBack()
     }
 
     if (state.activeWorkoutRouteOpen && activeWorkout != null) {
@@ -189,7 +186,8 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
             state = state,
             accent = accent,
             viewModel = viewModel,
-            onBack = viewModel::closeRoutineLibraryPage,
+            // Pops one page like system back: an overlaying editor/detail first, then the library.
+            onBack = viewModel::navigateBack,
         )
         return
     }

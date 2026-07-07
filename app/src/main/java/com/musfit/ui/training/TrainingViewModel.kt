@@ -108,6 +108,24 @@ data class TrainingDashboardState(
     val recentWorkout: WorkoutHistorySummary? = null,
 )
 
+/**
+ * Full-screen pages the Training miniapp layers over its home scaffold. Their visit order lives in
+ * [TrainingUiState.pageStack]; system back pops exactly one page at a time via
+ * [TrainingViewModel.navigateBack], so leaving e.g. the routine editor lands on the routine detail
+ * or library it was opened from instead of dumping the whole flow. Page *content* stays in the
+ * dedicated state fields ([TrainingUiState.routineEditor], [TrainingUiState.selectedRoutineDetail],
+ * ...); the stack only decides which page is on top and what back does.
+ */
+enum class TrainingPage {
+    RoutineLibrary,
+    RoutineDetail,
+    RoutineEditor,
+    ExerciseDetail,
+    ExercisePicker,
+    WorkoutHistoryDetail,
+    ActiveWorkout,
+}
+
 data class TrainingUiState(
     val selectedSection: TrainingSection = TrainingSection.Routines,
     val routines: List<RoutineSummary> = emptyList(),
@@ -143,15 +161,13 @@ data class TrainingUiState(
     val bestEstimatedOneRepMaxKg: Double = 0.0,
     val routineEditor: RoutineEditorState = RoutineEditorState(),
     val routineFolderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
-    val routineExercisePickerOpen: Boolean = false,
     val routineExercisePickerSelectedIds: Set<String> = emptySet(),
     val routineExercisePickerSearchQuery: String = "",
     val routineExercisePickerMuscleFilter: String? = null,
     val routineExercisePickerEquipmentFilter: String? = null,
     val selectedRoutineDetail: RoutineDetail? = null,
-    val routineLibraryPageOpen: Boolean = false,
+    val pageStack: List<TrainingPage> = emptyList(),
     val replaceExerciseTargetId: String? = null,
-    val activeWorkoutRouteOpen: Boolean = false,
     val activeWorkoutNotesInput: String = "",
     val trainingSettings: TrainingSettings = TrainingSettings(),
     val restTimerDefaultSecondsInput: String = "120",
@@ -161,7 +177,22 @@ data class TrainingUiState(
     val finishConfirmationOpen: Boolean = false,
     val discardConfirmationOpen: Boolean = false,
     val message: String? = null,
-)
+) {
+    val routineLibraryPageOpen: Boolean
+        get() = TrainingPage.RoutineLibrary in pageStack
+
+    val routineExercisePickerOpen: Boolean
+        get() = pageStack.lastOrNull() == TrainingPage.ExercisePicker
+
+    val activeWorkoutRouteOpen: Boolean
+        get() = pageStack.lastOrNull() == TrainingPage.ActiveWorkout
+
+    fun pushPage(page: TrainingPage): TrainingUiState =
+        copy(pageStack = pageStack.filterNot { it == page } + page)
+
+    fun removePage(page: TrainingPage): TrainingUiState =
+        copy(pageStack = pageStack.filterNot { it == page })
+}
 
 private data class TrainingInitialStreams(
     val routines: List<RoutineSummary>,
@@ -260,13 +291,36 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun resumeActiveWorkout() {
-        mutableState.update { it.copy(activeWorkoutRouteOpen = true) }
+        mutableState.update { it.pushPage(TrainingPage.ActiveWorkout) }
+    }
+
+    /**
+     * Pops the top Training page, delegating to that page's close function so its content state is
+     * cleared alongside the stack entry. The screen's single BackHandler calls this; when the stack
+     * is empty this is a no-op and system back falls through to tab-level navigation.
+     */
+    fun navigateBack() {
+        when (state.value.pageStack.lastOrNull()) {
+            TrainingPage.ExercisePicker -> closeRoutineExercisePicker()
+            TrainingPage.RoutineEditor -> closeRoutineEditor()
+            TrainingPage.ExerciseDetail -> closeExerciseDetail()
+            TrainingPage.RoutineDetail -> closeRoutineDetail()
+            TrainingPage.RoutineLibrary -> closeRoutineLibraryPage()
+            TrainingPage.WorkoutHistoryDetail -> closeWorkoutDetail()
+            TrainingPage.ActiveWorkout -> closeActiveWorkoutRoute()
+            null -> Unit
+        }
     }
 
     fun openWorkoutDetail(sessionId: String) {
         viewModelScope.launch {
+            val detail = repository.getWorkoutHistoryDetail(sessionId)
             mutableState.update {
-                it.copy(selectedWorkoutDetail = repository.getWorkoutHistoryDetail(sessionId))
+                if (detail == null) {
+                    it.removePage(TrainingPage.WorkoutHistoryDetail).copy(selectedWorkoutDetail = null)
+                } else {
+                    it.pushPage(TrainingPage.WorkoutHistoryDetail).copy(selectedWorkoutDetail = detail)
+                }
             }
         }
     }
@@ -293,35 +347,37 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun closeWorkoutDetail() {
-        mutableState.update { it.copy(selectedWorkoutDetail = null) }
+        mutableState.update {
+            it.removePage(TrainingPage.WorkoutHistoryDetail).copy(selectedWorkoutDetail = null)
+        }
     }
 
     fun closeActiveWorkoutRoute() {
         mutableState.update {
-            it.copy(
-                activeWorkoutRouteOpen = false,
-                selectedSection = TrainingSection.Routines,
-            )
+            val next = it.removePage(TrainingPage.ActiveWorkout)
+            // Only reset the section when back lands on the home scaffold; pages still on the
+            // stack (library, routine detail) cover the sections entirely.
+            if (next.pageStack.isEmpty()) {
+                next.copy(selectedSection = TrainingSection.Routines)
+            } else {
+                next
+            }
         }
     }
 
     fun openRoutineLibraryPage() {
         mutableState.update {
-            it.copy(
-                routineLibraryPageOpen = true,
-                selectedRoutineDetail = null,
-                selectedExerciseDetail = null,
-                exerciseDetailNotesInput = "",
-                exerciseDetailTarget = null,
-                message = null,
-            )
+            it.pushPage(TrainingPage.RoutineLibrary).copy(message = null)
         }
     }
 
     fun closeRoutineLibraryPage() {
         mutableState.update {
+            // Leaving the library drops it and anything layered above it, so clear the content of
+            // every page that could have been stacked on top.
+            val libraryIndex = it.pageStack.indexOf(TrainingPage.RoutineLibrary)
             it.copy(
-                routineLibraryPageOpen = false,
+                pageStack = if (libraryIndex < 0) it.pageStack else it.pageStack.take(libraryIndex),
                 selectedSection = TrainingSection.Routines,
                 selectedRoutineDetail = null,
                 selectedExerciseDetail = null,
@@ -424,31 +480,39 @@ class TrainingViewModel @Inject constructor(
                         isStarter = detail?.isStarter == true,
                         isOpen = true,
                     ),
-                    selectedRoutineDetail = null,
+                    // A routine detail beneath the editor stays loaded so back returns to it.
                     message = null,
-                )
+                ).pushPage(TrainingPage.RoutineEditor)
             }
         }
     }
 
     fun closeRoutineEditor() {
-        mutableState.update { it.copy(routineEditor = RoutineEditorState()) }
+        mutableState.update {
+            it.removePage(TrainingPage.RoutineEditor).copy(routineEditor = RoutineEditorState())
+        }
     }
 
     fun openRoutineDetail(routineId: String) {
         viewModelScope.launch {
             val detail = repository.getRoutineDetail(routineId)
             mutableState.update {
-                it.copy(
-                    selectedRoutineDetail = detail,
-                    message = if (detail == null) "Routine not found." else null,
-                )
+                if (detail == null) {
+                    it.copy(message = "Routine not found.")
+                } else {
+                    it.pushPage(TrainingPage.RoutineDetail).copy(
+                        selectedRoutineDetail = detail,
+                        message = null,
+                    )
+                }
             }
         }
     }
 
     fun closeRoutineDetail() {
-        mutableState.update { it.copy(selectedRoutineDetail = null) }
+        mutableState.update {
+            it.removePage(TrainingPage.RoutineDetail).copy(selectedRoutineDetail = null)
+        }
     }
 
     fun onRoutineNameChanged(value: String) {
@@ -502,8 +566,7 @@ class TrainingViewModel @Inject constructor(
 
     fun openRoutineExercisePicker() {
         mutableState.update {
-            it.copy(
-                routineExercisePickerOpen = true,
+            it.pushPage(TrainingPage.ExercisePicker).copy(
                 routineExercisePickerSelectedIds = emptySet(),
                 routineExercisePickerSearchQuery = "",
                 routineExercisePickerMuscleFilter = null,
@@ -514,8 +577,7 @@ class TrainingViewModel @Inject constructor(
 
     fun closeRoutineExercisePicker() {
         mutableState.update {
-            it.copy(
-                routineExercisePickerOpen = false,
+            it.removePage(TrainingPage.ExercisePicker).copy(
                 routineExercisePickerSelectedIds = emptySet(),
             )
         }
@@ -714,7 +776,17 @@ class TrainingViewModel @Inject constructor(
             } else {
                 repository.updateRoutine(editor.routineId, input)
             }
-            closeRoutineEditor()
+            // Closing the editor can land back on the routine detail beneath it, so refresh that
+            // page's snapshot to show the just-saved changes.
+            val refreshedDetail = editor.routineId
+                ?.takeIf { state.value.selectedRoutineDetail?.id == it }
+                ?.let { repository.getRoutineDetail(it) }
+            mutableState.update {
+                it.removePage(TrainingPage.RoutineEditor).copy(
+                    routineEditor = RoutineEditorState(),
+                    selectedRoutineDetail = refreshedDetail ?: it.selectedRoutineDetail,
+                )
+            }
         }
     }
 
@@ -731,8 +803,17 @@ class TrainingViewModel @Inject constructor(
         }
         viewModelScope.launch {
             repository.deleteRoutine(routineId)
-            if (state.value.routineEditor.routineId == routineId) {
-                closeRoutineEditor()
+            mutableState.update { current ->
+                var next = current
+                if (next.routineEditor.routineId == routineId) {
+                    next = next.removePage(TrainingPage.RoutineEditor)
+                        .copy(routineEditor = RoutineEditorState())
+                }
+                if (next.selectedRoutineDetail?.id == routineId) {
+                    next = next.removePage(TrainingPage.RoutineDetail)
+                        .copy(selectedRoutineDetail = null)
+                }
+                next
             }
         }
     }
@@ -740,20 +821,16 @@ class TrainingViewModel @Inject constructor(
     fun startBlankWorkout() {
         viewModelScope.launch {
             repository.startBlankWorkout()
-            mutableState.update { it.copy(activeWorkoutRouteOpen = true) }
+            mutableState.update { it.pushPage(TrainingPage.ActiveWorkout) }
         }
     }
 
     fun startRoutine(routineId: String) {
         viewModelScope.launch {
             repository.startWorkoutFromRoutine(routineId)
-            mutableState.update {
-                it.copy(
-                    activeWorkoutRouteOpen = true,
-                    selectedRoutineDetail = null,
-                    routineLibraryPageOpen = false,
-                )
-            }
+            // The routine detail / library stay on the stack beneath the workout page, so backing
+            // out of a running workout returns to where it was started from.
+            mutableState.update { it.pushPage(TrainingPage.ActiveWorkout) }
         }
     }
 
@@ -804,20 +881,24 @@ class TrainingViewModel @Inject constructor(
         viewModelScope.launch {
             val detail = repository.getExerciseDetail(exerciseId)
             mutableState.update {
-                it.copy(
-                    selectedSection = if (switchToExercises) TrainingSection.Exercises else it.selectedSection,
-                    selectedExerciseDetail = detail,
-                    exerciseDetailNotesInput = detail?.localNotes.orEmpty(),
-                    exerciseDetailTarget = if (detail == null) null else target,
-                    message = if (detail == null) "Exercise not found." else null,
-                )
+                if (detail == null) {
+                    it.copy(message = "Exercise not found.")
+                } else {
+                    it.pushPage(TrainingPage.ExerciseDetail).copy(
+                        selectedSection = if (switchToExercises) TrainingSection.Exercises else it.selectedSection,
+                        selectedExerciseDetail = detail,
+                        exerciseDetailNotesInput = detail.localNotes.orEmpty(),
+                        exerciseDetailTarget = target,
+                        message = null,
+                    )
+                }
             }
         }
     }
 
     fun closeExerciseDetail() {
         mutableState.update {
-            it.copy(
+            it.removePage(TrainingPage.ExerciseDetail).copy(
                 selectedExerciseDetail = null,
                 exerciseDetailNotesInput = "",
                 exerciseDetailTarget = null,
@@ -1299,12 +1380,23 @@ class TrainingViewModel @Inject constructor(
             repository.finishWorkout(sessionId)
             val completedDetail = repository.getWorkoutHistoryDetail(sessionId)
             mutableState.update {
+                // The workout flow is done: replace whatever pages led here with just the
+                // completed-workout summary, so back lands on the History list.
                 it.copy(
-                    activeWorkoutRouteOpen = false,
+                    pageStack = if (completedDetail == null) {
+                        emptyList()
+                    } else {
+                        listOf(TrainingPage.WorkoutHistoryDetail)
+                    },
                     finishConfirmationOpen = false,
                     discardConfirmationOpen = false,
                     selectedSection = TrainingSection.History,
                     selectedWorkoutDetail = completedDetail,
+                    selectedRoutineDetail = null,
+                    selectedExerciseDetail = null,
+                    exerciseDetailNotesInput = "",
+                    exerciseDetailTarget = null,
+                    routineEditor = RoutineEditorState(),
                     restTimer = RestTimerState(),
                 )
             }
@@ -1317,11 +1409,16 @@ class TrainingViewModel @Inject constructor(
             repository.discardWorkout(sessionId)
             mutableState.update {
                 it.copy(
-                    activeWorkoutRouteOpen = false,
+                    pageStack = emptyList(),
                     finishConfirmationOpen = false,
                     discardConfirmationOpen = false,
                     selectedSection = TrainingSection.Routines,
                     selectedWorkoutDetail = null,
+                    selectedRoutineDetail = null,
+                    selectedExerciseDetail = null,
+                    exerciseDetailNotesInput = "",
+                    exerciseDetailTarget = null,
+                    routineEditor = RoutineEditorState(),
                     restTimer = RestTimerState(),
                 )
             }

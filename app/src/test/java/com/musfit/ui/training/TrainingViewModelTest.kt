@@ -363,13 +363,14 @@ class TrainingViewModelTest {
         assertEquals("Routines", viewModel.state.value.selectedSection.name)
         assertTrue(repository.requestedRoutineDetailIds.contains("routine-upper-a"))
 
-        // Editing from the detail closes the detail and opens the editor.
+        // Editing from the detail layers the editor above it; the detail stays loaded
+        // beneath so back returns to it.
         viewModel.openRoutineEditor("routine-upper-a")
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(null, viewModel.state.value.selectedRoutineDetail)
+        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
         assertTrue(viewModel.state.value.routineEditor.isOpen)
 
-        // Re-open the detail, then starting the workout closes it.
+        // Starting the workout from the detail keeps the detail beneath the workout page.
         viewModel.closeRoutineEditor()
         viewModel.openRoutineDetail("routine-upper-a")
         dispatcher.scheduler.advanceUntilIdle()
@@ -377,7 +378,7 @@ class TrainingViewModelTest {
 
         viewModel.startRoutine("routine-upper-a")
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(null, viewModel.state.value.selectedRoutineDetail)
+        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
         assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
     }
 
@@ -680,6 +681,151 @@ class TrainingViewModelTest {
 
         assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
         assertEquals("Routines", viewModel.state.value.selectedSection.name)
+    }
+
+    @Test
+    fun navigateBack_popsPagesInReverseOrderOfOpening() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineLibraryPage()
+        viewModel.openRoutineDetail("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openRoutineEditor("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf(TrainingPage.RoutineLibrary, TrainingPage.RoutineDetail, TrainingPage.RoutineEditor),
+            viewModel.state.value.pageStack,
+        )
+
+        viewModel.navigateBack()
+        assertFalse(viewModel.state.value.routineEditor.isOpen)
+        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
+        assertTrue(viewModel.state.value.routineLibraryPageOpen)
+
+        viewModel.navigateBack()
+        assertEquals(null, viewModel.state.value.selectedRoutineDetail)
+        assertTrue(viewModel.state.value.routineLibraryPageOpen)
+
+        viewModel.navigateBack()
+        assertFalse(viewModel.state.value.routineLibraryPageOpen)
+        assertTrue(viewModel.state.value.pageStack.isEmpty())
+
+        // With the stack empty, further backs are no-ops (system back then leaves the tab).
+        viewModel.navigateBack()
+        assertTrue(viewModel.state.value.pageStack.isEmpty())
+    }
+
+    @Test
+    fun navigateBack_closesRoutineEditorOpenedFromHome() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineEditor(null)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.state.value.routineEditor.isOpen)
+        assertEquals(listOf(TrainingPage.RoutineEditor), viewModel.state.value.pageStack)
+
+        viewModel.navigateBack()
+
+        assertFalse(viewModel.state.value.routineEditor.isOpen)
+        assertTrue(viewModel.state.value.pageStack.isEmpty())
+    }
+
+    @Test
+    fun navigateBack_closesExercisePickerBeforeEditor() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineEditor(null)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openRoutineExercisePicker()
+        assertTrue(viewModel.state.value.routineExercisePickerOpen)
+
+        viewModel.navigateBack()
+
+        assertFalse(viewModel.state.value.routineExercisePickerOpen)
+        assertTrue(viewModel.state.value.routineEditor.isOpen)
+    }
+
+    @Test
+    fun navigateBack_fromActiveWorkout_returnsToRoutineDetail() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineLibraryPage()
+        viewModel.openRoutineDetail("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.startRoutine("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
+
+        viewModel.navigateBack()
+
+        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
+        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
+        assertTrue(viewModel.state.value.routineLibraryPageOpen)
+    }
+
+    @Test
+    fun navigateBack_closesExerciseDetailOpenedFromRoutineDetail() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineDetail("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openRoutineExerciseDetail("exercise-bench-press", target = "3 x 5")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("exercise-bench-press", viewModel.state.value.selectedExerciseDetail?.id)
+
+        viewModel.navigateBack()
+
+        assertEquals(null, viewModel.state.value.selectedExerciseDetail)
+        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
+    }
+
+    @Test
+    fun saveRoutineEditor_openedOverDetail_returnsToRefreshedDetail() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openRoutineDetail("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.openRoutineEditor("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onRoutineNameChanged("Upper A v2")
+        viewModel.saveRoutineEditor()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.routineEditor.isOpen)
+        assertEquals(listOf(TrainingPage.RoutineDetail), viewModel.state.value.pageStack)
+        assertEquals("Upper A v2", viewModel.state.value.selectedRoutineDetail?.name)
+    }
+
+    @Test
+    fun finishActiveWorkout_backFromSummaryLandsOnHistory() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.resumeActiveWorkout()
+        viewModel.finishActiveWorkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(TrainingPage.WorkoutHistoryDetail), viewModel.state.value.pageStack)
+
+        viewModel.navigateBack()
+
+        assertTrue(viewModel.state.value.pageStack.isEmpty())
+        assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
+        assertEquals(TrainingSection.History, viewModel.state.value.selectedSection)
     }
 
     @Test
@@ -1615,6 +1761,9 @@ class TrainingViewModelTest {
         override suspend fun updateRoutine(routineId: String, input: RoutineInput) {
             updatedRoutineId = routineId
             updatedRoutineInput = input
+            routineDetails[routineId]?.let { detail ->
+                routineDetails[routineId] = detail.copy(name = input.name, notes = input.notes)
+            }
         }
 
         override suspend fun duplicateRoutine(routineId: String): String = "$routineId-copy"
