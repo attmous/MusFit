@@ -63,6 +63,8 @@ fun ProfileScreen(
     onSettingsClick: () -> Unit,
     onOpenFood: () -> Unit = {},
     onOpenTraining: () -> Unit = {},
+    onOpenTrainingProgress: () -> Unit = {},
+    onOpenNutritionTrends: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -148,6 +150,17 @@ fun ProfileScreen(
             state.planCards.forEach { card ->
                 PlanCardRow(card = card, onClick = { if (card.id == "diet") onOpenFood() else onOpenTraining() })
             }
+            SectionHeader(title = "Progress & trends")
+            ProfileNavRow(
+                title = "Training progress",
+                subtitle = "PRs, trends, and volume analytics per exercise.",
+                onClick = onOpenTrainingProgress,
+            )
+            ProfileNavRow(
+                title = "Nutrition trends",
+                subtitle = "Weekly MusFit score and 7/28-day progress.",
+                onClick = onOpenNutritionTrends,
+            )
         }
     }
 
@@ -240,6 +253,24 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             Text("Set up", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun ProfileNavRow(title: String, subtitle: String, onClick: () -> Unit) {
+    val shape = MaterialTheme.shapes.extraLarge
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            // Clip before clickable so the ripple stays inside the rounded shape.
+            .clip(shape)
+            .clickable(onClickLabel = title, onClick = onClick),
+        shape = shape,
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -589,7 +589,7 @@ class FoodViewModelTest {
             FakeFoodRepository(
                 weeklySummary = weeklySummaryForScore(startDate),
             )
-        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        val viewModel = NutritionTrendsViewModel(repository = repository)
         dispatcher.scheduler.advanceUntilIdle()
 
         val score = viewModel.state.value.weeklyScore
@@ -609,7 +609,7 @@ class FoodViewModelTest {
     fun weeklyMusFitScoreUsesTrailingSevenDayWindow() = runTest {
         val today = LocalDate.now()
         val repository = FakeFoodRepository()
-        FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        NutritionTrendsViewModel(repository = repository)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(today.minusDays(6), repository.weeklySummaryStartDates.last())
@@ -622,7 +622,7 @@ class FoodViewModelTest {
             FakeFoodRepository(
                 progressSummary = progressSummaryForStats(startDate),
             )
-        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        val viewModel = NutritionTrendsViewModel(repository = repository)
         dispatcher.scheduler.advanceUntilIdle()
 
         val stats = viewModel.state.value.progressStats

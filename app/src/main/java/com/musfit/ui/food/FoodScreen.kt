@@ -95,10 +95,11 @@ import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
 
 /**
- * The three diary surfaces that share one space below the pinned header, swapped
- * by the segmented switcher: the meal diary, today's summary, and trends.
+ * The two diary surfaces that share one space below the pinned header, swapped
+ * by the segmented switcher: the meal diary and today's summary. (Weekly trends
+ * now live on the Profile tab's Nutrition trends sub-screen.)
  */
-private enum class FoodDiaryTab { Diary, Summary, Trends }
+private enum class FoodDiaryTab { Diary, Summary }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -320,11 +321,6 @@ fun FoodScreen(
                             FoodHabitTrackerSection(state.habitTrackers)
                             AdvancedNutritionProgressRow(state.advancedNutritionProgress)
                             MicronutrientRow(state.micronutrients)
-                        }
-
-                        FoodDiaryTab.Trends -> {
-                            WeeklyMusFitScoreCard(state.weeklyScore)
-                            FoodProgressStatsCard(state.progressStats)
                         }
                     }
                 }
@@ -1049,159 +1045,6 @@ private fun MacroProgressColumn(
 }
 
 @Composable
-private fun WeeklyMusFitScoreCard(score: FoodWeeklyScoreUiState) {
-    val accent = score.tone.ratingColor()
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = accent.copy(alpha = 0.10f).compositeOver(MusFitTheme.colors.surface),
-        shape = MusFitTheme.shapes.extraLarge,
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = score.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MusFitTheme.colors.brandInk,
-                    )
-                    Text(
-                        text = score.summary,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .clip(CircleShape)
-                        .background(accent.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = score.score.toString(),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = accent,
-                        maxLines = 1,
-                    )
-                }
-            }
-            ProgressBar(progress = score.score / 100f, color = accent)
-            Text(
-                text = score.suggestion,
-                style = MaterialTheme.typography.bodySmall,
-                color = accent,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (score.factors.isNotEmpty()) {
-                HorizontalDivider(color = MusFitTheme.colors.outline)
-                RatingFactorColumn(score.factors)
-            }
-        }
-    }
-}
-
-@Composable
-private fun FoodProgressStatsCard(stats: FoodProgressStatsUiState) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.extraLarge,
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = "Progress stats",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.brandInk,
-            )
-            FoodProgressPeriodRow(stats.weekly)
-            HorizontalDivider(color = MusFitTheme.colors.outline)
-            FoodProgressPeriodRow(stats.monthly)
-        }
-    }
-}
-
-@Composable
-private fun FoodProgressPeriodRow(period: FoodProgressPeriodUiState) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(period.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(
-                period.trackedDaysLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = MusFitTheme.colors.brand,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        // Scannable caption/value grid instead of a run-on sentence of metrics.
-        period.metrics.chunked(2).forEach { pair ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                pair.forEach { metric ->
-                    FoodProgressMetricCell(metric = metric, modifier = Modifier.weight(1f))
-                }
-                if (pair.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
-        }
-        Text(
-            text = period.trendLabel,
-            style = MaterialTheme.typography.bodySmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun FoodProgressMetricCell(
-    metric: FoodProgressMetricUiState,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-        Text(
-            text = metric.caption,
-            style = MaterialTheme.typography.labelSmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = metric.value,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MusFitTheme.colors.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
 private fun DayRatingCard(rating: FoodRatingUiState) {
     val accent = rating.tone.ratingColor()
     Surface(
@@ -1251,7 +1094,7 @@ private fun DayRatingCard(rating: FoodRatingUiState) {
 }
 
 @Composable
-private fun RatingFactorColumn(factors: List<FoodRatingFactorUiState>) {
+internal fun RatingFactorColumn(factors: List<FoodRatingFactorUiState>) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         factors.forEach { factor ->
             RatingFactorRow(factor)
@@ -1471,7 +1314,7 @@ private fun RatingPill(rating: FoodRatingUiState) {
 }
 
 @Composable
-private fun FoodInsightTone.ratingColor(): Color =
+internal fun FoodInsightTone.ratingColor(): Color =
     when (this) {
         FoodInsightTone.Positive -> MusFitTheme.colors.brand
         FoodInsightTone.Warning -> MusFitTheme.colors.warning
