@@ -298,6 +298,37 @@ class TodayViewModelTest {
     }
 
     @Test
+    fun readiness_isDerivedFromCurrentAndRecentHealthSummaries() = runTest {
+        val date = LocalDate.of(2026, 7, 7)
+        val healthRepository = FakeHealthRepository(date).apply {
+            dailySummaries.value =
+                (7L downTo 1L).map { daysAgo ->
+                    dailySummary(
+                        date = date.minusDays(daysAgo),
+                        sleepMinutes = 420L,
+                        restingHeartRateBpm = 58L,
+                        hrvRmssdMillis = 55.0,
+                    )
+                } + dailySummary(
+                    date = date,
+                    sleepMinutes = 480L,
+                    restingHeartRateBpm = 53L,
+                    hrvRmssdMillis = 68.0,
+                )
+        }
+
+        val viewModel = todayViewModel(
+            coachRepository = FakeCoachRepository(),
+            date = date,
+            healthRepository = healthRepository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(86, viewModel.state.value.readiness?.score)
+        assertEquals("Ready 86", viewModel.state.value.readiness?.label)
+    }
+
+    @Test
     fun coachInput_targetWeightComesFromProfileStore() = runTest {
         val date = LocalDate.now()
         val coachRepository = FakeCoachRepository()
@@ -670,20 +701,8 @@ class TodayViewModelTest {
         override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> {
             observedDates += date
             return MutableStateFlow(
-                DailyHealthSummaryEntity(
-                    dateEpochDay = this.date.toEpochDay(),
-                    steps = 8200L,
-                    activeCaloriesKcal = 420.0,
-                    totalCaloriesKcal = 2_300.0,
-                    distanceMeters = 5_000.0,
-                    sleepMinutes = 450L,
-                    exerciseMinutes = 40L,
-                    exerciseSessionCount = 1,
-                    latestWeightKg = 82.4,
-                    latestBodyFatPercent = null,
-                    restingHeartRateBpm = 58,
-                    updatedAtEpochMillis = 1L,
-                ),
+                dailySummaries.value.firstOrNull { it.dateEpochDay == date.toEpochDay() }
+                    ?: dailySummary(date = this.date),
             )
         }
 
@@ -699,6 +718,7 @@ class TodayViewModelTest {
                 latestWeightKg = 82.4,
                 latestBodyFatPercent = null,
                 restingHeartRateBpm = 58,
+                hrvRmssdMillis = 55.0,
             )
 
         override suspend fun refreshRecentData(endDate: LocalDate, days: Int): HealthConnectRefreshResult {
@@ -708,5 +728,35 @@ class TodayViewModelTest {
         }
 
         override suspend fun exportLatestWorkout(): String? = null
+
+        val dailySummaries = MutableStateFlow<List<DailyHealthSummaryEntity>>(emptyList())
+
+        override fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> =
+            MutableStateFlow(
+                dailySummaries.value.filter { summary ->
+                    summary.dateEpochDay in startDate.toEpochDay()..endDate.toEpochDay()
+                },
+            )
+
+        fun dailySummary(
+            date: LocalDate,
+            sleepMinutes: Long = 450L,
+            restingHeartRateBpm: Long = 58L,
+            hrvRmssdMillis: Double = 55.0,
+        ) = DailyHealthSummaryEntity(
+            dateEpochDay = date.toEpochDay(),
+            steps = 8200L,
+            activeCaloriesKcal = 420.0,
+            totalCaloriesKcal = 2_300.0,
+            distanceMeters = 5_000.0,
+            sleepMinutes = sleepMinutes,
+            exerciseMinutes = 40L,
+            exerciseSessionCount = 1,
+            latestWeightKg = 82.4,
+            latestBodyFatPercent = null,
+            restingHeartRateBpm = restingHeartRateBpm,
+            hrvRmssdMillis = hrvRmssdMillis,
+            updatedAtEpochMillis = 1L,
+        )
     }
 }

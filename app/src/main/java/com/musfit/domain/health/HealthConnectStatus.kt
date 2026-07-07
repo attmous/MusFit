@@ -30,5 +30,6 @@ data class ImportedDailyHealthSummary(
     val latestWeightKg: Double? = null,
     val latestBodyFatPercent: Double? = null,
     val restingHeartRateBpm: Long? = null,
+    val hrvRmssdMillis: Double? = null,
     val bodyMetrics: List<ImportedBodyMetric> = emptyList(),
 )

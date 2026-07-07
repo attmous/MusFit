@@ -8,6 +8,7 @@ import androidx.health.connect.client.records.BodyFatRecord
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HydrationRecord
+import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.NutritionRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
@@ -58,6 +59,7 @@ class HealthConnectManager @Inject constructor(
         READ_WEIGHT_PERMISSION,
         READ_BODY_FAT_PERMISSION,
         READ_RESTING_HEART_RATE_PERMISSION,
+        READ_HEART_RATE_VARIABILITY_PERMISSION,
         WRITE_EXERCISE_PERMISSION,
     )
     private val foodPermissions = setOf(
@@ -90,6 +92,7 @@ class HealthConnectManager @Inject constructor(
         val canReadWeight = READ_WEIGHT_PERMISSION in grantedPermissions
         val canReadBodyFat = READ_BODY_FAT_PERMISSION in grantedPermissions
         val canReadRestingHeartRate = READ_RESTING_HEART_RATE_PERMISSION in grantedPermissions
+        val canReadHeartRateVariability = READ_HEART_RATE_VARIABILITY_PERMISSION in grantedPermissions
 
         if (
             !canReadSteps &&
@@ -100,7 +103,8 @@ class HealthConnectManager @Inject constructor(
             !canReadExercise &&
             !canReadWeight &&
             !canReadBodyFat &&
-            !canReadRestingHeartRate
+            !canReadRestingHeartRate &&
+            !canReadHeartRateVariability
         ) {
             return EMPTY_SUMMARY
         }
@@ -174,6 +178,12 @@ class HealthConnectManager @Inject constructor(
             null
         }
 
+        val hrvRmssd = if (canReadHeartRateVariability) {
+            runCatching { client.readLatestHeartRateVariabilityRmssdMillis(range) }.getOrNull()
+        } else {
+            null
+        }
+
         return ImportedDailyHealthSummary(
             steps = steps,
             activeCaloriesKcal = activeCalories,
@@ -185,6 +195,7 @@ class HealthConnectManager @Inject constructor(
             latestWeightKg = latestWeight?.value,
             latestBodyFatPercent = latestBodyFat?.value,
             restingHeartRateBpm = restingHeartRate,
+            hrvRmssdMillis = hrvRmssd,
             bodyMetrics = listOfNotNull(latestWeight, latestBodyFat),
         )
     }
@@ -307,6 +318,8 @@ class HealthConnectManager @Inject constructor(
         val READ_EXERCISE_PERMISSION = HealthPermission.getReadPermission(ExerciseSessionRecord::class)
         val READ_RESTING_HEART_RATE_PERMISSION =
             HealthPermission.getReadPermission(RestingHeartRateRecord::class)
+        val READ_HEART_RATE_VARIABILITY_PERMISSION =
+            HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
         val WRITE_EXERCISE_PERMISSION =
             HealthPermission.getWritePermission(ExerciseSessionRecord::class)
         val WRITE_NUTRITION_PERMISSION =
@@ -324,6 +337,7 @@ class HealthConnectManager @Inject constructor(
             latestWeightKg = null,
             latestBodyFatPercent = null,
             restingHeartRateBpm = null,
+            hrvRmssdMillis = null,
             bodyMetrics = emptyList(),
         )
 
@@ -391,6 +405,8 @@ internal interface HealthConnectClientAdapter {
     suspend fun readLatestBodyFatMetric(range: HealthConnectTimeRange): ImportedBodyMetric?
 
     suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long?
+
+    suspend fun readLatestHeartRateVariabilityRmssdMillis(range: HealthConnectTimeRange): Double?
 
     suspend fun insertExerciseSession(record: ExerciseSessionRecord): String?
 
@@ -517,6 +533,14 @@ private class DefaultHealthConnectClientAdapter(
                 timeRangeFilter = range.asTimeRangeFilter(),
             ),
         ).records.maxByOrNull { it.time }?.beatsPerMinute
+
+    override suspend fun readLatestHeartRateVariabilityRmssdMillis(range: HealthConnectTimeRange): Double? =
+        client.readRecords(
+            ReadRecordsRequest(
+                recordType = HeartRateVariabilityRmssdRecord::class,
+                timeRangeFilter = range.asTimeRangeFilter(),
+            ),
+        ).records.maxByOrNull { it.time }?.heartRateVariabilityMillis
 
     override suspend fun insertExerciseSession(record: ExerciseSessionRecord): String? =
         client.insertRecords(listOf(record)).recordIdsList.firstOrNull()

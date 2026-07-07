@@ -28,6 +28,9 @@ interface HealthDao {
     @Query("SELECT * FROM daily_health_summaries WHERE dateEpochDay = :dateEpochDay LIMIT 1")
     fun observeDailySummary(dateEpochDay: Long): Flow<DailyHealthSummaryEntity?>
 
+    @Query("SELECT * FROM daily_health_summaries WHERE dateEpochDay = :dateEpochDay LIMIT 1")
+    suspend fun getDailySummary(dateEpochDay: Long): DailyHealthSummaryEntity?
+
     @Query(
         "SELECT * FROM daily_health_summaries " +
             "WHERE dateEpochDay BETWEEN :startEpochDay AND :endEpochDay ORDER BY dateEpochDay",

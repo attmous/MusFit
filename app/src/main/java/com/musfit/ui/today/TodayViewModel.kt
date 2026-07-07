@@ -21,10 +21,12 @@ import com.musfit.domain.coach.CoachEngine
 import com.musfit.domain.coach.CoachInput
 import com.musfit.domain.coach.TimeOfDay
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.domain.today.DailyReadinessSample
 import com.musfit.domain.today.LoggingStreakCalculator
 import com.musfit.domain.today.MetricResolver
 import com.musfit.domain.today.MetricSnapshot
 import com.musfit.domain.today.MetricValue
+import com.musfit.domain.today.ReadinessCalculator
 import com.musfit.domain.today.TodayMetric
 import com.musfit.domain.today.WeeklyGoalsCalculator
 import com.musfit.domain.today.buildCarouselPages
@@ -67,9 +69,16 @@ data class CarouselPageUiState(
 
 data class CarouselUiState(val pages: List<CarouselPageUiState> = emptyList())
 
+data class TodayReadinessUiState(
+    val score: Int,
+    val levelLabel: String,
+    val label: String = "Ready $score",
+)
+
 data class TodayUiState(
     val dateLabel: String = "",
     val carousel: CarouselUiState = CarouselUiState(),
+    val readiness: TodayReadinessUiState? = null,
     val isRefreshing: Boolean = false,
     val isDashboardEditorVisible: Boolean = false,
     val editPins: List<TodayMetric> = emptyList(),
@@ -133,15 +142,20 @@ class TodayViewModel internal constructor(
     private fun observeCarousel() {
         viewModelScope.launch {
             activeDate.flatMapLatest { carouselFlow(it) }
-                .collect { carousel -> mutableState.update { it.copy(carousel = carousel) } }
+                .collect { dashboard ->
+                    mutableState.update {
+                        it.copy(carousel = dashboard.carousel, readiness = dashboard.readiness)
+                    }
+                }
         }
     }
 
-    private fun carouselFlow(date: LocalDate): Flow<CarouselUiState> {
+    private fun carouselFlow(date: LocalDate): Flow<TodayDashboardUiState> {
         val weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val weekStartMillis = weekStart.toEpochDay() * DAY_MILLIS
         val weightFromMillis = (date.toEpochDay() - 30L) * DAY_MILLIS
         val measurementsFromMillis = (date.toEpochDay() - 90L) * DAY_MILLIS
+        val readinessStart = date.minusDays(7)
         val food = combine(
             foodRepository.observeDailyNutrition(date),
             foodRepository.observeFoodGoal(),
@@ -150,9 +164,12 @@ class TodayViewModel internal constructor(
         ) { nutrition, goal, water, loggedDays -> FoodSnapshot(nutrition, goal, water, loggedDays) }
         val health = combine(
             healthRepository.observeDailySummary(date),
+            healthRepository.observeDailySummaries(readinessStart, date),
             goalsRepository.observeUserGoals(),
             healthRepository.observeWeightSeries(weightFromMillis),
-        ) { summary, userGoals, weights -> Triple(summary, userGoals, weights) }
+        ) { summary, recentSummaries, userGoals, weights ->
+            HealthSnapshot(summary, recentSummaries, userGoals, weights)
+        }
         val bodyAndTraining = combine(
             profileRepository.observeRecentMeasurements(measurementsFromMillis),
             trainingRepository.observeWorkoutHistory(),
@@ -163,11 +180,23 @@ class TodayViewModel internal constructor(
             bodyAndTraining,
             coachRepository.observeDashboardPins(),
         ) { f, h, bt, pins ->
-            val (summary, userGoals, weights) = h
             val (measurements, history) = bt
             currentPins = pins
-            currentUserGoals = userGoals
-            buildCarousel(f, summary, userGoals, weights, measurements, history, pins, date, weekStartMillis)
+            currentUserGoals = h.userGoals
+            TodayDashboardUiState(
+                carousel = buildCarousel(
+                    f,
+                    h.summary,
+                    h.userGoals,
+                    h.weights,
+                    measurements,
+                    history,
+                    pins,
+                    date,
+                    weekStartMillis,
+                ),
+                readiness = buildReadinessUiState(date, h.summary, h.recentSummaries),
+            )
         }
     }
 
@@ -427,6 +456,18 @@ private data class FoodSnapshot(
     val loggedDays: List<Long>,
 )
 
+private data class HealthSnapshot(
+    val summary: DailyHealthSummaryEntity?,
+    val recentSummaries: List<DailyHealthSummaryEntity>,
+    val userGoals: UserGoals,
+    val weights: List<BodyMetricEntity>,
+)
+
+private data class TodayDashboardUiState(
+    val carousel: CarouselUiState,
+    val readiness: TodayReadinessUiState?,
+)
+
 private data class TrainingGoalsProfile(
     val history: List<WorkoutHistorySummary>,
     val routines: List<RoutineSummary>,
@@ -485,3 +526,30 @@ private fun buildCarousel(
         },
     )
 }
+
+private fun buildReadinessUiState(
+    date: LocalDate,
+    health: DailyHealthSummaryEntity?,
+    recentSummaries: List<DailyHealthSummaryEntity>,
+): TodayReadinessUiState? {
+    val todayEpochDay = date.toEpochDay()
+    val today = health?.takeIf { it.dateEpochDay == todayEpochDay }
+        ?: recentSummaries.firstOrNull { it.dateEpochDay == todayEpochDay }
+        ?: return null
+    val readiness = ReadinessCalculator.resolve(
+        today = today.toReadinessSample(),
+        recent = recentSummaries.map { it.toReadinessSample() },
+    ) ?: return null
+    return TodayReadinessUiState(
+        score = readiness.score,
+        levelLabel = readiness.level.label,
+    )
+}
+
+private fun DailyHealthSummaryEntity.toReadinessSample(): DailyReadinessSample =
+    DailyReadinessSample(
+        epochDay = dateEpochDay,
+        sleepMinutes = sleepMinutes,
+        restingHeartRateBpm = restingHeartRateBpm,
+        hrvRmssdMillis = hrvRmssdMillis,
+    )

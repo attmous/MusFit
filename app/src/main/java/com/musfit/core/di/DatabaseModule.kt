@@ -62,6 +62,7 @@ object DatabaseModule {
                 MIGRATION_30_31,
                 MIGRATION_31_32,
                 MIGRATION_32_33,
+                MIGRATION_33_34,
             )
             .build()
     }
@@ -912,6 +913,13 @@ object DatabaseModule {
                 db.execSQL(
                     "ALTER TABLE health_connect_sync_state ADD COLUMN preferredStepsPackage TEXT",
                 )
+            }
+        }
+
+    internal val MIGRATION_33_34 =
+        object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN hrvRmssdMillis REAL")
             }
         }
 }
