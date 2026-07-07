@@ -870,6 +870,7 @@ private fun RoutineDetailExerciseRow(
                 contentDescription = exercise.exercise.name,
                 accent = accent,
                 size = 44.dp,
+                animateGif = false,
             )
         }
         Column(modifier = Modifier.weight(1f)) {
