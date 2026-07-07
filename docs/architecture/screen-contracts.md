@@ -547,7 +547,7 @@ Rest timer:
 | --- | --- | --- |
 | `TrainingHomeContent` | active workout presence and non-starter home routines | Start empty workout, create routine, open full-page routine Library, start/open user routine callbacks. |
 | `TrainingRoutineContent` | visible routines, folders, folder editor state | Library folder create/edit/delete, routine descriptions and muscle chips, drag/drop and menu-based routine assignment, start, edit, duplicate, delete routine callbacks. |
-| `TrainingRoutineEditor` | `RoutineEditorState`, exercises, folders | Edit routine metadata, folder assignment, exercise rest seconds, and set plans. |
+| `TrainingRoutineEditor` | `RoutineEditorState`, exercises | Edit the routine name (inline title), exercise order, rest seconds, and set plans. Notes/folder are managed elsewhere (folders from the Training home tab). |
 | `RoutineExercisePickerPage` | exercises, current routine ids, selected ids, query/filter state | Full-screen search/filter/multi-select picker for adding exercises to a routine after confirmation. |
 | `TrainingActiveWorkoutContent` | `ActiveWorkoutDetail`, exercises, `RestTimerState`, active workout notes draft, Training tool setting drafts | Set edits, set type changes, set reorder, workout notes, add exercise/set, timer controls, Training tool save, warm-up suggestions, PR/plate display, superset create/dissolve, finish/discard. |
 | `TrainingHistoryContent` | `history`, `historyOverview`, selected detail | Render month overview, consistency metrics, open/close workout detail, completed-workout recap, and completed supersets with grouped sections and A/B labels. |
