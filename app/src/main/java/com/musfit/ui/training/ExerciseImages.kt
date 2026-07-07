@@ -48,6 +48,7 @@ fun ExerciseThumb(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
     shape: Shape = RoundedCornerShape(10.dp),
+    animateGif: Boolean = true,
 ) {
     if (imageUrl.isNullOrBlank()) {
         ExerciseMediaPlaceholder(
@@ -60,9 +61,9 @@ fun ExerciseThumb(
         return
     }
     val context = LocalContext.current
-    val imageLoader = rememberExerciseMediaImageLoader(context)
+    val imageLoader = rememberExerciseMediaImageLoader(context, animateGif = animateGif)
     SubcomposeAsyncImage(
-        model = ImageRequest.Builder(context).data(imageUrl).crossfade(true).build(),
+        model = ImageRequest.Builder(context).data(imageUrl).crossfade(animateGif).build(),
         imageLoader = imageLoader,
         contentDescription = contentDescription,
         contentScale = ContentScale.Crop,
@@ -147,11 +148,13 @@ fun ExerciseGif(
 }
 
 @Composable
-private fun rememberExerciseMediaImageLoader(context: Context): ImageLoader =
-    remember(context) {
-        ImageLoader.Builder(context)
-            .components { add(ImageDecoderDecoder.Factory()) }
-            .build()
+private fun rememberExerciseMediaImageLoader(context: Context, animateGif: Boolean = true): ImageLoader =
+    remember(context, animateGif) {
+        val builder = ImageLoader.Builder(context)
+        if (animateGif) {
+            builder.components { add(ImageDecoderDecoder.Factory()) }
+        }
+        builder.build()
     }
 
 @Composable
