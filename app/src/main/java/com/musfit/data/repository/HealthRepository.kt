@@ -113,20 +113,23 @@ class LocalHealthRepository @Inject constructor(
         val preferredStepsPackage = healthDao.getHealthConnectSyncState()?.preferredStepsPackage
         val summary = gateway.readDailySummary(date, preferredStepsPackage)
         val now = clock()
+        val dateEpochDay = date.toEpochDay()
+        val existingSummary = healthDao.getDailySummary(dateEpochDay)
         val bodyMetrics = summary.bodyMetrics
         healthDao.upsertDailySummary(
             DailyHealthSummaryEntity(
-                dateEpochDay = date.toEpochDay(),
-                steps = summary.steps,
-                activeCaloriesKcal = summary.activeCaloriesKcal,
-                totalCaloriesKcal = summary.totalCaloriesKcal,
-                distanceMeters = summary.distanceMeters,
-                sleepMinutes = summary.sleepMinutes,
-                exerciseMinutes = summary.exerciseMinutes,
-                exerciseSessionCount = summary.exerciseSessionCount,
-                latestWeightKg = summary.latestWeightKg,
-                latestBodyFatPercent = summary.latestBodyFatPercent,
-                restingHeartRateBpm = summary.restingHeartRateBpm,
+                dateEpochDay = dateEpochDay,
+                steps = summary.steps ?: existingSummary?.steps,
+                activeCaloriesKcal = summary.activeCaloriesKcal ?: existingSummary?.activeCaloriesKcal,
+                totalCaloriesKcal = summary.totalCaloriesKcal ?: existingSummary?.totalCaloriesKcal,
+                distanceMeters = summary.distanceMeters ?: existingSummary?.distanceMeters,
+                sleepMinutes = summary.sleepMinutes ?: existingSummary?.sleepMinutes,
+                exerciseMinutes = summary.exerciseMinutes ?: existingSummary?.exerciseMinutes,
+                exerciseSessionCount = summary.exerciseSessionCount ?: existingSummary?.exerciseSessionCount,
+                latestWeightKg = summary.latestWeightKg ?: existingSummary?.latestWeightKg,
+                latestBodyFatPercent = summary.latestBodyFatPercent ?: existingSummary?.latestBodyFatPercent,
+                restingHeartRateBpm = summary.restingHeartRateBpm ?: existingSummary?.restingHeartRateBpm,
+                hrvRmssdMillis = summary.hrvRmssdMillis ?: existingSummary?.hrvRmssdMillis,
                 updatedAtEpochMillis = now,
             ),
         )

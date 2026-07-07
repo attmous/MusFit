@@ -44,6 +44,7 @@ class AccountProviderMigration27To28Test {
                     DatabaseModule.MIGRATION_30_31,
                     DatabaseModule.MIGRATION_31_32,
                     DatabaseModule.MIGRATION_32_33,
+                    DatabaseModule.MIGRATION_33_34,
                 )
                 .build()
         try {

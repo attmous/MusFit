@@ -80,7 +80,7 @@ fun TodayScreen(
 
 ### Purpose
 
-Today is the dashboard and cross-feature summary. It displays nutrition rings, macro split, training glimpse, weekly goal progress, weight context, deterministic coaching cues, and a goals editor.
+Today is the dashboard and cross-feature summary. It displays the configurable metric carousel, a local readiness estimate when Health Connect has enough recovery signals, deterministic coaching cues, and a dashboard editor.
 
 ### ViewModel State
 
@@ -100,6 +100,7 @@ val state: StateFlow<TodayUiState>
 | `training` | Short training summary tile. |
 | `weightKg` | Latest known weight. |
 | `weekly` | Seven-day rollup from `WeeklyGoalsCalculator`. |
+| `readiness` | Optional header chip with MusFit's local readiness estimate from sleep, HRV RMSSD, and resting heart rate. |
 | `isGoalsEditorVisible` | Controls the goals editor bottom sheet. |
 | `stepGoalInput` | Editable step goal field. |
 | `sessionTargetInput` | Editable weekly training session target. |
@@ -132,6 +133,7 @@ User actions:
 - `FoodRepository.observeFoodGoal()`
 - `TrainingRepository.observeDailyTrainingSummary(date)`
 - `HealthRepository.observeDailySummary(date)`
+- `HealthRepository.observeDailySummaries(date.minusDays(7), date)` for readiness baselines.
 - `GoalsRepository.observeUserGoals()`
 
 Weekly and coaching state also use:

@@ -389,6 +389,7 @@ class MusFitDebugSeedReceiver : BroadcastReceiver() {
                     latestWeightKg = 80.9 - (offset * 0.08),
                     latestBodyFatPercent = 14.8,
                     restingHeartRateBpm = 58L + (offset % 3),
+                    hrvRmssdMillis = 66.0 - (offset * 1.5),
                     updatedAtEpochMillis = now,
                 ),
             )

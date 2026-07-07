@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
@@ -73,6 +74,7 @@ class LocalHealthRepositoryTest {
         assertEquals(82.5, summary?.latestWeightKg ?: 0.0, 0.01)
         assertEquals(18.2, summary?.latestBodyFatPercent ?: 0.0, 0.01)
         assertEquals(58L, summary?.restingHeartRateBpm)
+        assertEquals(62.5, summary?.hrvRmssdMillis ?: 0.0, 0.01)
         assertEquals(1_000L, summary?.updatedAtEpochMillis)
         val weights = database.healthDao().getBodyMetrics("weight", 0L)
         val bodyFat = database.healthDao().getBodyMetrics("body_fat", 0L)
@@ -86,6 +88,45 @@ class LocalHealthRepositoryTest {
         assertEquals("hc-body-fat-1", bodyFat.single().externalId)
         assertEquals(1_000L, syncState?.lastImportAtEpochMillis)
         assertEquals(true, syncState?.isAvailable)
+    }
+
+    @Test
+    fun importDailySummary_preservesExistingValuesWhenImportHasNoValue() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        database.healthDao().upsertDailySummary(
+            DailyHealthSummaryEntity(
+                dateEpochDay = date.toEpochDay(),
+                steps = 7_800L,
+                activeCaloriesKcal = 360.0,
+                totalCaloriesKcal = 2_150.0,
+                distanceMeters = 5_200.0,
+                sleepMinutes = 430L,
+                exerciseMinutes = 35L,
+                exerciseSessionCount = 1,
+                latestWeightKg = 80.9,
+                latestBodyFatPercent = 14.8,
+                restingHeartRateBpm = 58L,
+                hrvRmssdMillis = 66.0,
+                updatedAtEpochMillis = 500L,
+            ),
+        )
+        gateway.dailySummaryFactory = { ImportedDailyHealthSummary() }
+
+        repository.importDailySummary(date)
+
+        val summary = database.healthDao().observeDailySummary(date.toEpochDay()).first()
+        assertEquals(7_800L, summary?.steps)
+        assertEquals(360.0, summary?.activeCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(2_150.0, summary?.totalCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(5_200.0, summary?.distanceMeters ?: 0.0, 0.01)
+        assertEquals(430L, summary?.sleepMinutes)
+        assertEquals(35L, summary?.exerciseMinutes)
+        assertEquals(1, summary?.exerciseSessionCount)
+        assertEquals(80.9, summary?.latestWeightKg ?: 0.0, 0.01)
+        assertEquals(14.8, summary?.latestBodyFatPercent ?: 0.0, 0.01)
+        assertEquals(58L, summary?.restingHeartRateBpm)
+        assertEquals(66.0, summary?.hrvRmssdMillis ?: 0.0, 0.01)
+        assertEquals(1_000L, summary?.updatedAtEpochMillis)
     }
 
     @Test
@@ -499,6 +540,37 @@ class LocalHealthRepositoryTest {
         val importedDates = mutableListOf<LocalDate>()
         val preferredStepsPackages = mutableListOf<String?>()
         var stepSources: List<StepSource> = emptyList()
+        var dailySummaryFactory: (LocalDate) -> ImportedDailyHealthSummary = { date ->
+            ImportedDailyHealthSummary(
+                steps = 1234L,
+                activeCaloriesKcal = 250.0,
+                totalCaloriesKcal = 2_050.0,
+                distanceMeters = 4_200.0,
+                sleepMinutes = 435L,
+                exerciseMinutes = 47L,
+                exerciseSessionCount = 2,
+                latestWeightKg = 82.5,
+                latestBodyFatPercent = 18.2,
+                restingHeartRateBpm = 58L,
+                hrvRmssdMillis = 62.5,
+                bodyMetrics = listOf(
+                    ImportedBodyMetric(
+                        type = "weight",
+                        value = 82.5,
+                        unit = "kg",
+                        measuredAtEpochMillis = date.toEpochDay() * 86_400_000L + 8 * 60 * 60 * 1_000L,
+                        externalId = "hc-weight-1",
+                    ),
+                    ImportedBodyMetric(
+                        type = "body_fat",
+                        value = 18.2,
+                        unit = "%",
+                        measuredAtEpochMillis = date.toEpochDay() * 86_400_000L + 8 * 60 * 60 * 1_000L,
+                        externalId = "hc-body-fat-1",
+                    ),
+                ),
+            )
+        }
 
         override suspend fun status(): HealthConnectStatus =
             HealthConnectStatus(
@@ -518,34 +590,7 @@ class LocalHealthRepositoryTest {
         ): ImportedDailyHealthSummary {
             importedDates += date
             preferredStepsPackages += preferredStepsPackage
-            return ImportedDailyHealthSummary(
-                steps = 1234L,
-                activeCaloriesKcal = 250.0,
-                totalCaloriesKcal = 2_050.0,
-                distanceMeters = 4_200.0,
-                sleepMinutes = 435L,
-                exerciseMinutes = 47L,
-                exerciseSessionCount = 2,
-                latestWeightKg = 82.5,
-                latestBodyFatPercent = 18.2,
-                restingHeartRateBpm = 58L,
-                bodyMetrics = listOf(
-                    ImportedBodyMetric(
-                        type = "weight",
-                        value = 82.5,
-                        unit = "kg",
-                        measuredAtEpochMillis = date.toEpochDay() * 86_400_000L + 8 * 60 * 60 * 1_000L,
-                        externalId = "hc-weight-1",
-                    ),
-                    ImportedBodyMetric(
-                        type = "body_fat",
-                        value = 18.2,
-                        unit = "%",
-                        measuredAtEpochMillis = date.toEpochDay() * 86_400_000L + 8 * 60 * 60 * 1_000L,
-                        externalId = "hc-body-fat-1",
-                    ),
-                ),
-            )
+            return dailySummaryFactory(date)
         }
 
         override suspend fun exportWorkout(

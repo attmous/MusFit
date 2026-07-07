@@ -30,7 +30,7 @@ Database:
 - Class: `MusFitDatabase`
 - File: `data/local/MusFitDatabase.kt`
 - Name: `musfit.db`
-- Version: 31
+- Version: 34
 - Exported schemas: `app/schemas/com.musfit.data.local.MusFitDatabase/`
 - DAOs: `AccountDao`, `FoodDao`, `TrainingDao`, `HealthDao`, `ProfileDao`, `UserGoalsDao`
 
@@ -114,7 +114,7 @@ Source: `app/src/main/java/com/musfit/data/local/entity/HealthEntities.kt`
 | Entity | Table | Purpose | Key fields |
 | --- | --- | --- | --- |
 | `BodyMetricEntity` | `body_metrics` | Imported or local body metrics. | type, value, unit, measured time, source, external id. |
-| `DailyHealthSummaryEntity` | `daily_health_summaries` | Dated Health Connect summary. | date, steps, active/total calories, distance, sleep minutes, exercise minutes/session count, latest weight, latest body fat, resting heart rate. |
+| `DailyHealthSummaryEntity` | `daily_health_summaries` | Dated Health Connect summary. | date, steps, active/total calories, distance, sleep minutes, exercise minutes/session count, latest weight, latest body fat, resting heart rate, HRV RMSSD. |
 | `HealthConnectSyncStateEntity` | `health_connect_sync_state` | Generic Health Connect sync state. | availability, granted permissions CSV, import/export timestamps, failure. |
 
 ### Profile And Goals Tables
@@ -356,7 +356,7 @@ Health uses domain and Room models directly for small boundary surfaces:
 | Model | Source | Purpose |
 | --- | --- | --- |
 | `HealthConnectStatus` | `domain/health` | Availability and granted permission set. |
-| `ImportedDailyHealthSummary` | `domain/health` | Imported steps, calories, distance, sleep, exercise, latest body metrics, and resting heart rate. |
+| `ImportedDailyHealthSummary` | `domain/health` | Imported steps, calories, distance, sleep, exercise, latest body metrics, resting heart rate, and HRV RMSSD. |
 | `ImportedBodyMetric` | `domain/health` | Imported body metric sample from Health Connect. |
 | `DailyHealthSummaryEntity` | `data/local/entity` | Persisted daily summary. |
 | `BodyMetricEntity` | `data/local/entity` | Weight and other body metric series. |
@@ -574,7 +574,7 @@ Source: `app/src/main/java/com/musfit/integrations/healthconnect`
 | `HealthConnectFoodExportPayload` | Dated food/hydration export input. |
 | `HealthConnectFoodMealExport` | One meal's nutrition payload. |
 | `HealthConnectFoodExportResult` | Nutrition and hydration record counts after export. |
-| `ImportedDailyHealthSummary` | Read model for steps, calories, distance, sleep, exercise, weight, body fat, and resting heart rate. |
+| `ImportedDailyHealthSummary` | Read model for steps, calories, distance, sleep, exercise, weight, body fat, resting heart rate, and HRV RMSSD. |
 
 Gateway:
 

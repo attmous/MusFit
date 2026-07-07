@@ -1,16 +1,23 @@
 package com.musfit.ui.today
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -20,6 +27,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -30,6 +41,7 @@ import com.musfit.ui.components.EmptyState
 import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,6 +77,7 @@ fun TodayScreen(
     }
     val onCoachAction: (CoachAction) -> Unit = { action -> navigateTo(coachActionDestination(action)) }
     val todayAccent = tabAccentFor(AppDestination.Today)
+    val healthAccent = tabAccentFor(AppDestination.Profile)
     val pullRefreshState = rememberPullToRefreshState()
 
     Box(
@@ -80,8 +93,19 @@ fun TodayScreen(
             title = "Today",
             subtitle = state.dateLabel,
             actions = {
+                state.readiness?.let { readiness ->
+                    ReadinessHeaderChip(
+                        readiness = readiness,
+                        onClick = onOpenHealth,
+                        accent = healthAccent,
+                    )
+                }
                 IconButton(onClick = viewModel::openDashboardEditor) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "Edit dashboard", tint = MusFitTheme.colors.onSurfaceVariant)
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = "Edit dashboard",
+                        tint = MusFitTheme.colors.onSurfaceVariant,
+                    )
                 }
             },
         ) {
@@ -142,6 +166,41 @@ fun TodayScreen(
             onSave = viewModel::saveDashboard,
             onDismiss = viewModel::closeDashboardEditor,
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReadinessHeaderChip(
+    readiness: TodayReadinessUiState,
+    onClick: () -> Unit,
+    accent: TabAccent,
+) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = accent.container,
+        modifier = Modifier.semantics {
+            contentDescription = "Readiness estimate ${readiness.score}, ${readiness.levelLabel}"
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Outlined.MonitorHeart,
+                contentDescription = null,
+                tint = accent.onContainer,
+            )
+            Text(
+                text = readiness.label,
+                style = MusFitTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = accent.onContainer,
+            )
+        }
     }
 }
 

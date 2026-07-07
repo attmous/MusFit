@@ -27,6 +27,7 @@ data class DailyHealthSummaryEntity(
     val latestWeightKg: Double?,
     val latestBodyFatPercent: Double?,
     val restingHeartRateBpm: Long?,
+    val hrvRmssdMillis: Double?,
     val updatedAtEpochMillis: Long,
 )
 

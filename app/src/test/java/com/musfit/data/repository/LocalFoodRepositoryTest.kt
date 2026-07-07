@@ -94,6 +94,7 @@ class LocalFoodRepositoryTest {
             latestWeightKg = null,
             latestBodyFatPercent = null,
             restingHeartRateBpm = null,
+            hrvRmssdMillis = null,
             updatedAtEpochMillis = 0L,
         )
 
