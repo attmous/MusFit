@@ -18,18 +18,15 @@ import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
-import com.musfit.data.repository.TrainingProgressAnalytics
 import com.musfit.data.repository.TrainingSettings
 import com.musfit.data.repository.TrainingSettingsInput
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.model.WorkoutSetInput
-import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.training.PlateCalculator
 import com.musfit.domain.training.WarmupSetCalculator
 import com.musfit.domain.training.WorkoutCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,7 +45,6 @@ enum class TrainingSection {
     Routines,
     Exercises,
     History,
-    Progress,
 }
 
 data class RoutineEditorState(
@@ -124,9 +120,6 @@ data class TrainingUiState(
     val workoutHistory: List<WorkoutHistorySummary> = emptyList(),
     val historyOverview: TrainingHistoryOverview = TrainingHistoryOverview(),
     val dashboard: TrainingDashboardState = TrainingDashboardState(),
-    val selectedProgressExerciseId: String? = null,
-    val selectedExerciseProgress: ExerciseProgress? = null,
-    val progressAnalytics: TrainingProgressAnalytics = TrainingProgressAnalytics(),
     val selectedWorkoutDetail: WorkoutHistoryDetail? = null,
     val exerciseSearchQuery: String = "",
     val exerciseMuscleFilter: String? = null,
@@ -176,7 +169,6 @@ class TrainingViewModel @Inject constructor(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(TrainingUiState())
     val state: StateFlow<TrainingUiState> = mutableState.asStateFlow()
-    private var progressObservationJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -248,11 +240,6 @@ class TrainingViewModel @Inject constructor(
                 }
             }
         }
-        viewModelScope.launch {
-            repository.observeTrainingProgressAnalytics().collect { analytics ->
-                mutableState.update { it.copy(progressAnalytics = analytics) }
-            }
-        }
     }
 
     fun selectSection(section: TrainingSection) {
@@ -267,27 +254,6 @@ class TrainingViewModel @Inject constructor(
         viewModelScope.launch {
             mutableState.update {
                 it.copy(selectedWorkoutDetail = repository.getWorkoutHistoryDetail(sessionId))
-            }
-        }
-    }
-
-    fun selectProgressExercise(exerciseId: String) {
-        mutableState.update {
-            it.copy(
-                selectedProgressExerciseId = exerciseId,
-                selectedExerciseProgress = null,
-            )
-        }
-        progressObservationJob?.cancel()
-        progressObservationJob = viewModelScope.launch {
-            repository.observeExerciseProgress(exerciseId).collect { progress ->
-                mutableState.update { current ->
-                    if (current.selectedProgressExerciseId == exerciseId) {
-                        current.copy(selectedExerciseProgress = progress)
-                    } else {
-                        current
-                    }
-                }
             }
         }
     }

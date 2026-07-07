@@ -1189,10 +1189,9 @@ class TrainingViewModelTest {
     @Test
     fun selectProgressExercise_loadsProgressForSelectedExercise() = runTest {
         val repository = FakeTrainingRepository()
-        val viewModel = TrainingViewModel(repository)
+        val viewModel = TrainingProgressViewModel(repository)
         dispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.selectSection(TrainingSection.Progress)
         viewModel.selectProgressExercise("exercise-bench-press")
         dispatcher.scheduler.advanceUntilIdle()
 
@@ -1210,7 +1209,7 @@ class TrainingViewModelTest {
             weeklyVolume = listOf(WeeklyTrainingVolume(weekStartEpochDay = 20_100L, workoutCount = 2, completedSetCount = 8, totalVolumeKg = 2400.0)),
         )
 
-        val viewModel = TrainingViewModel(repository)
+        val viewModel = TrainingProgressViewModel(repository)
         dispatcher.scheduler.advanceUntilIdle()
 
         val analytics = viewModel.state.value.progressAnalytics

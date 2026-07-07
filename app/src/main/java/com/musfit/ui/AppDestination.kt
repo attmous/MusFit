@@ -10,6 +10,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 const val BARCODE_SCANNER_ROUTE = "barcode-scanner"
 const val NUTRITION_LABEL_SCANNER_ROUTE = "nutrition-label-scanner"
 const val PROFILE_SETTINGS_ROUTE = "profile-settings"
+const val PROFILE_TRAINING_PROGRESS_ROUTE = "profile-training-progress"
+const val PROFILE_NUTRITION_TRENDS_ROUTE = "profile-nutrition-trends"
 
 enum class AppDestination(val route: String, val label: String, val icon: ImageVector) {
     Today(route = "today", label = "Today", icon = Icons.Outlined.Today),
@@ -20,7 +22,10 @@ enum class AppDestination(val route: String, val label: String, val icon: ImageV
 
 internal fun bottomDestinationForRoute(route: String?): AppDestination =
     when (route) {
-        PROFILE_SETTINGS_ROUTE -> AppDestination.Profile
+        PROFILE_SETTINGS_ROUTE,
+        PROFILE_TRAINING_PROGRESS_ROUTE,
+        PROFILE_NUTRITION_TRENDS_ROUTE,
+        -> AppDestination.Profile
         BARCODE_SCANNER_ROUTE, NUTRITION_LABEL_SCANNER_ROUTE -> AppDestination.Food
         else -> AppDestination.entries.firstOrNull { it.route == route } ?: AppDestination.Today
     }

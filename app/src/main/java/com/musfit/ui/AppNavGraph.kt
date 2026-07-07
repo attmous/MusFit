@@ -48,6 +48,7 @@ import androidx.navigation.compose.rememberNavController
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodScreen
 import com.musfit.ui.food.NutritionLabelScannerScreen
+import com.musfit.ui.food.NutritionTrendsScreen
 import com.musfit.ui.profile.ProfileScreen
 import com.musfit.ui.profile.ProfileSettingsScreen
 import com.musfit.ui.theme.MusFitTheme
@@ -56,6 +57,7 @@ import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.today.ChatPreviewFab
 import com.musfit.ui.today.ChatPreviewSheet
 import com.musfit.ui.today.TodayScreen
+import com.musfit.ui.training.TrainingProgressScreen
 import com.musfit.ui.training.TrainingScreen
 
 @Composable
@@ -142,10 +144,18 @@ fun AppNavGraph() {
                     onSettingsClick = { navController.navigate(PROFILE_SETTINGS_ROUTE) },
                     onOpenFood = { go(AppDestination.Food) },
                     onOpenTraining = { go(AppDestination.Training) },
+                    onOpenTrainingProgress = { navController.navigate(PROFILE_TRAINING_PROGRESS_ROUTE) },
+                    onOpenNutritionTrends = { navController.navigate(PROFILE_NUTRITION_TRENDS_ROUTE) },
                 )
             }
             composable(PROFILE_SETTINGS_ROUTE) {
                 ProfileSettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(PROFILE_TRAINING_PROGRESS_ROUTE) {
+                TrainingProgressScreen(onBack = { navController.popBackStack() })
+            }
+            composable(PROFILE_NUTRITION_TRENDS_ROUTE) {
+                NutritionTrendsScreen(onBack = { navController.popBackStack() })
             }
             composable(BARCODE_SCANNER_ROUTE) {
                 BarcodeScannerScreen(

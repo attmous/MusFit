@@ -295,15 +295,6 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     onOpenDetail = viewModel::openWorkoutDetail,
                     onCloseDetail = viewModel::closeWorkoutDetail,
                 )
-            TrainingSection.Progress ->
-                TrainingProgressContent(
-                    exercises = state.exercises,
-                    selectedExerciseId = state.selectedProgressExerciseId,
-                    progress = state.selectedExerciseProgress,
-                    analytics = state.progressAnalytics,
-                    accent = accent,
-                    onSelectExercise = viewModel::selectProgressExercise,
-                )
         }
     }
 }
