@@ -529,12 +529,8 @@ private fun TrainingRoutineWorkspace(
         state.routineEditor.isOpen -> TrainingRoutineEditor(
             editor = state.routineEditor,
             exercises = state.exercises,
-            // Offer the user's own folders as quick-picks, matching what the Home tab organizes into.
-            folders = state.homeFolders,
             accent = accent,
             onNameChange = viewModel::onRoutineNameChanged,
-            onNotesChange = viewModel::onRoutineNotesChanged,
-            onFolderNameChange = viewModel::onRoutineEditorFolderNameChanged,
             onOpenExercisePicker = viewModel::openRoutineExercisePicker,
             onRemoveExercise = viewModel::removeRoutineExercise,
             onMoveExerciseUp = viewModel::moveRoutineExerciseUp,

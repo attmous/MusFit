@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -65,6 +66,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -1158,11 +1160,8 @@ internal fun routineEditorCanSave(name: String, exercises: List<RoutineExerciseI
 fun TrainingRoutineEditor(
     editor: RoutineEditorState,
     exercises: List<ExerciseSummary>,
-    folders: List<RoutineFolder>,
     accent: TabAccent,
     onNameChange: (String) -> Unit,
-    onNotesChange: (String) -> Unit,
-    onFolderNameChange: (String) -> Unit,
     onOpenExercisePicker: () -> Unit,
     onRemoveExercise: (Int) -> Unit,
     onMoveExerciseUp: (Int) -> Unit,
@@ -1188,63 +1187,38 @@ fun TrainingRoutineEditor(
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            TextButton(onClick = onCancel, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
-                Text("Cancel")
-            }
-            Text(
-                text = if (editor.routineId == null) "New routine" else "Edit routine",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f),
-            )
-            Button(
-                onClick = onSave,
-                enabled = routineEditorCanSave(editor.name, editor.exercises),
-                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-            ) {
-                Text("Save")
-            }
-        }
-        OutlinedTextField(
-            value = editor.name,
-            onValueChange = onNameChange,
-            label = { Text("Name") },
-            singleLine = true,
-            colors = fieldColors,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = editor.notes,
-            onValueChange = onNotesChange,
-            label = { Text("Notes") },
-            colors = fieldColors,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = editor.folderName,
-            onValueChange = onFolderNameChange,
-            label = { Text("Folder") },
-            singleLine = true,
-            colors = fieldColors,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (folders.isNotEmpty()) {
+        // Lean header: the routine name IS the title (inline + editable), flanked by Cancel/Save.
+        // Notes and folder editing were removed — folders are organized from the Training home tab —
+        // so the editor leads straight into the exercises.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                folders.forEach { folder ->
-                    RoutinePickerChip(
-                        label = folder.name,
-                        selected = editor.folderName.equals(folder.name, ignoreCase = true),
-                        accent = accent,
-                        onClick = { onFolderNameChange(folder.name) },
-                    )
+                TextButton(onClick = onCancel, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
+                    Text("Cancel")
                 }
+                Spacer(modifier = Modifier.weight(1f))
+                Button(
+                    onClick = onSave,
+                    enabled = routineEditorCanSave(editor.name, editor.exercises),
+                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+                ) {
+                    Text("Save")
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = if (editor.routineId == null) "New routine" else "Edit routine",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+                RoutineEditorTitleField(
+                    value = editor.name,
+                    onValueChange = onNameChange,
+                    accent = accent,
+                )
             }
         }
         Button(
@@ -1315,6 +1289,43 @@ fun TrainingRoutineEditor(
                 }
             }
         }
+    }
+}
+
+/**
+ * The routine name rendered as an inline, editable title in the editor header: a borderless
+ * [BasicTextField] styled like a heading with a thin accent underline so it still reads as an input.
+ */
+@Composable
+private fun RoutineEditorTitleField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    accent: TabAccent,
+    modifier: Modifier = Modifier,
+) {
+    val titleStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            textStyle = titleStyle.copy(color = MusFitTheme.colors.onSurface),
+            cursorBrush = SolidColor(accent.color),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            decorationBox = { innerTextField ->
+                Box {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = "Name your routine",
+                            style = titleStyle,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    }
+                    innerTextField()
+                }
+            },
+        )
+        HorizontalDivider(thickness = 1.dp, color = accent.color.copy(alpha = 0.4f))
     }
 }
 
