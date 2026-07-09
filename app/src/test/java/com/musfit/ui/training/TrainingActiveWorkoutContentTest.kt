@@ -2,6 +2,7 @@ package com.musfit.ui.training
 
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSetDetail
+import com.musfit.data.repository.WorkoutExerciseBlock
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -161,6 +162,92 @@ class TrainingActiveWorkoutContentTest {
     }
 
     @Test
+    fun activeWorkoutStatLine_mergesDurationVolumeAndSetProgress() {
+        assertEquals(
+            "1:12 · 537.5 kg · set 3 of 13",
+            activeWorkoutStatLine(
+                elapsedSeconds = 72,
+                totalVolumeKg = 537.5,
+                completedSetCount = 2,
+                totalSetCount = 13,
+            ),
+        )
+        // All sets done: clamps to the last set instead of overshooting.
+        assertEquals(
+            "45:00 · 5000 kg · set 13 of 13",
+            activeWorkoutStatLine(
+                elapsedSeconds = 2700,
+                totalVolumeKg = 5000.0,
+                completedSetCount = 13,
+                totalSetCount = 13,
+            ),
+        )
+        // No sets yet: skip the set part entirely.
+        assertEquals(
+            "0:05 · 0 kg",
+            activeWorkoutStatLine(
+                elapsedSeconds = 5,
+                totalVolumeKg = 0.0,
+                completedSetCount = 0,
+                totalSetCount = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun defaultFocusedExerciseId_picksFirstUnfinishedElseLast() {
+        val doneBlock = block(
+            exerciseId = "squat",
+            sets = listOf(set(id = "s1", setType = "working", previousLabel = null, reps = 5, weightKg = 100.0, completed = true)),
+        )
+        val pendingBlock = block(
+            exerciseId = "bench",
+            sets = listOf(set(id = "b1", setType = "working", previousLabel = null, reps = null, weightKg = null)),
+        )
+
+        assertEquals("bench", defaultFocusedExerciseId(listOf(doneBlock, pendingBlock)))
+        assertEquals("squat", defaultFocusedExerciseId(listOf(doneBlock)))
+        assertEquals(null, defaultFocusedExerciseId(emptyList()))
+    }
+
+    @Test
+    fun upNextTarget_summarizesPlannedSets() {
+        val withReps = block(
+            exerciseId = "bench",
+            targetReps = "8",
+            sets = List(3) { set(id = "s$it", setType = "working", previousLabel = null, reps = null, weightKg = null) },
+        )
+        val withoutReps = block(
+            exerciseId = "row",
+            targetReps = null,
+            sets = List(2) { set(id = "r$it", setType = "working", previousLabel = null, reps = null, weightKg = null) },
+        )
+
+        assertEquals("3 × 8", upNextTarget(withReps))
+        assertEquals("2 sets", upNextTarget(withoutReps))
+        assertEquals("no sets", upNextTarget(block(exerciseId = "plank", sets = emptyList())))
+    }
+
+    @Test
+    fun lastTimeLabel_prefersPreviousLabelThenTargetReps() {
+        val withPrevious = block(
+            exerciseId = "squat",
+            targetReps = "5",
+            sets = listOf(set(id = "s1", setType = "working", previousLabel = "105 kg x 5", reps = null, weightKg = null)),
+        )
+        val withoutPrevious = block(
+            exerciseId = "bench",
+            targetReps = "8",
+            sets = listOf(set(id = "b1", setType = "working", previousLabel = null, reps = null, weightKg = null)),
+        )
+        val bare = block(exerciseId = "row", targetReps = null, sets = emptyList())
+
+        assertEquals("last time 105 kg x 5", lastTimeLabel(withPrevious))
+        assertEquals("target 8 reps", lastTimeLabel(withoutPrevious))
+        assertEquals(null, lastTimeLabel(bare))
+    }
+
+    @Test
     fun plateLineText_usesConfiguredBarAndPlates() {
         assertEquals(
             "Plates · 20 + 2.5 / side",
@@ -209,5 +296,16 @@ class TrainingActiveWorkoutContentTest {
             equipment = null,
             targetMuscles = "Full body",
             isCustom = false,
+        )
+
+    private fun block(
+        exerciseId: String,
+        targetReps: String? = null,
+        sets: List<LoggedWorkoutSetDetail> = emptyList(),
+    ): WorkoutExerciseBlock =
+        WorkoutExerciseBlock(
+            exercise = exercise(id = exerciseId, name = exerciseId.replaceFirstChar { it.uppercase() }),
+            targetReps = targetReps,
+            sets = sets,
         )
 }

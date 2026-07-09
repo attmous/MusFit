@@ -246,11 +246,144 @@ class TrainingHomeContentTest {
             ),
             selectedExerciseIds = emptySet(),
             query = "row",
-            equipmentFilter = "cable",
-            muscleFilter = "back",
+            filters = TrainingPickerFilters(equipment = setOf("cable"), muscles = setOf("back")),
         )
 
         assertEquals(listOf("Seated Cable Row"), suggestions.map { it.name })
+    }
+
+    @Test
+    fun routineExercisePickerSuggestions_onlyDoneKeepsLoggedExercises() {
+        val suggestions = routineExercisePickerSuggestions(
+            exercises = listOf(
+                exercise(id = "bench", name = "Barbell Bench Press"),
+                exercise(id = "row", name = "Seated Cable Row"),
+            ),
+            selectedExerciseIds = emptySet(),
+            query = "",
+            filters = TrainingPickerFilters(onlyDone = true),
+            loggedExerciseIds = setOf("row"),
+        )
+
+        assertEquals(listOf("Seated Cable Row"), suggestions.map { it.name })
+    }
+
+    @Test
+    fun pickerFilterSummary_titleCasesActiveFilters() {
+        assertEquals(
+            "Barbell · Quads",
+            pickerFilterSummary(TrainingPickerFilters(equipment = setOf("barbell"), muscles = setOf("quads"))),
+        )
+        assertEquals(
+            "Dumbbell · Done before",
+            pickerFilterSummary(TrainingPickerFilters(equipment = setOf("dumbbell"), onlyDone = true)),
+        )
+    }
+
+    @Test
+    fun trainingPickerFilters_countsActiveSelections() {
+        assertEquals(0, TrainingPickerFilters().activeCount)
+        assertEquals(
+            3,
+            TrainingPickerFilters(
+                equipment = setOf("barbell"),
+                muscles = setOf("quads"),
+                onlyDone = true,
+            ).activeCount,
+        )
+    }
+
+    @Test
+    fun topPickerMuscles_ranksByCatalogFrequency() {
+        val muscles = topPickerMuscles(
+            listOf(
+                exercise(id = "squat", name = "Back Squat", targetMuscles = "quads, glutes"),
+                exercise(id = "lunge", name = "Lunge", targetMuscles = "quads, glutes"),
+                exercise(id = "leg-ext", name = "Leg Extension", targetMuscles = "quads"),
+                exercise(id = "sit-up", name = "Sit-up", targetMuscles = "abs"),
+            ),
+            limit = 2,
+        )
+
+        assertEquals(listOf("quads", "glutes"), muscles)
+    }
+
+    @Test
+    fun topPickerEquipment_ranksByCatalogFrequency() {
+        val equipment = topPickerEquipment(
+            listOf(
+                exercise(id = "squat", name = "Back Squat", equipment = "barbell"),
+                exercise(id = "bench", name = "Bench Press", equipment = "barbell"),
+                exercise(id = "curl", name = "Curl", equipment = "dumbbell"),
+                exercise(id = "band", name = "Band Pull", equipment = "band"),
+            ),
+            limit = 2,
+        )
+
+        assertEquals(listOf("barbell", "band"), equipment)
+    }
+
+    @Test
+    fun pickerConfirmLabel_countsSelection() {
+        assertEquals("Add exercises", pickerConfirmLabel(0))
+        assertEquals("Add 1 exercise", pickerConfirmLabel(1))
+        assertEquals("Add 2 exercises", pickerConfirmLabel(2))
+    }
+
+    @Test
+    fun routineExerciseSubline_showsTargetAndRest() {
+        assertEquals(
+            "3 × 8 · 150s rest",
+            routineExerciseSubline(
+                RoutineExerciseInput(exerciseId = "bench", targetSets = 3, targetReps = "8", restSeconds = 150),
+            ),
+        )
+        assertEquals(
+            "2 sets",
+            routineExerciseSubline(
+                RoutineExerciseInput(exerciseId = "plank", targetSets = 2, targetReps = null),
+            ),
+        )
+    }
+
+    @Test
+    fun setPlanSummaryLabel_describesSpecialSets() {
+        assertEquals("Straight sets", setPlanSummaryLabel(listOf(RoutineSetInput(setType = "working"))))
+        assertEquals(
+            "First set to failure",
+            setPlanSummaryLabel(
+                listOf(RoutineSetInput(setType = "failure"), RoutineSetInput(setType = "working")),
+            ),
+        )
+        assertEquals(
+            "1 warm-up set · 1 drop set",
+            setPlanSummaryLabel(
+                listOf(
+                    RoutineSetInput(setType = "warmup"),
+                    RoutineSetInput(setType = "working"),
+                    RoutineSetInput(setType = "drop"),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun routineEditorMetaLine_summarizesBlockSizeAndDuration() {
+        val editor = RoutineEditorState(
+            routineId = "full-body-a",
+            name = "Full Body A",
+            folderName = "Strength block",
+            exercises = listOf(
+                RoutineExerciseInput(exerciseId = "squat", targetSets = 3, targetReps = "5"),
+                RoutineExerciseInput(exerciseId = "bench", targetSets = 3, targetReps = "8"),
+            ),
+        )
+
+        assertEquals("Strength block · 2 exercises · ~20 min", routineEditorMetaLine(editor))
+        assertEquals(
+            "Routine · 0 exercises",
+            routineEditorMetaLine(RoutineEditorState(name = "New")),
+        )
     }
 
     private fun routine(

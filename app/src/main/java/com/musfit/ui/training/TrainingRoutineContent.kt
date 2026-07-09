@@ -2,19 +2,21 @@ package com.musfit.ui.training
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -23,7 +25,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DragIndicator
 import androidx.compose.material.icons.outlined.Edit
@@ -42,24 +45,30 @@ import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,6 +87,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineDetail
@@ -87,6 +97,8 @@ import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.NeutralOutline
+import com.musfit.ui.theme.NeutralOutlineDark
 import com.musfit.ui.theme.TabAccent
 import kotlin.math.roundToInt
 
@@ -100,6 +112,7 @@ fun TrainingHomeContent(
     onStartBlankWorkout: () -> Unit,
     onNewRoutine: () -> Unit,
     onOpenLibrary: () -> Unit,
+    showLibraryLink: Boolean = true,
     onOpenFolderEditor: (String?) -> Unit = {},
     onFolderNameChange: (String) -> Unit = {},
     onSaveFolder: () -> Unit = {},
@@ -119,6 +132,7 @@ fun TrainingHomeContent(
             folderEditor = folderEditor,
             accent = accent,
             onOpenLibrary = onOpenLibrary,
+            showLibraryLink = showLibraryLink,
             onOpenFolderEditor = onOpenFolderEditor,
             onFolderNameChange = onFolderNameChange,
             onSaveFolder = onSaveFolder,
@@ -145,6 +159,7 @@ fun TrainingRoutineContent(
     folderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
     accent: TabAccent,
     onOpenLibrary: () -> Unit = {},
+    showLibraryLink: Boolean = true,
     onOpenFolderEditor: (String?) -> Unit = {},
     onFolderNameChange: (String) -> Unit = {},
     onSaveFolder: () -> Unit = {},
@@ -305,6 +320,7 @@ fun TrainingRoutineContent(
                 accent = accent,
                 onNewFolder = { onOpenFolderEditor(null) },
                 onOpenLibrary = onOpenLibrary,
+                showLibraryLink = showLibraryLink,
             )
             if (folderEditor.isOpen) {
                 RoutineFolderEditorCard(
@@ -367,6 +383,7 @@ private fun RoutineOrganizeActions(
     accent: TabAccent,
     onNewFolder: () -> Unit,
     onOpenLibrary: () -> Unit,
+    showLibraryLink: Boolean = true,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -378,10 +395,12 @@ private fun RoutineOrganizeActions(
             Text("New folder", color = accent.color, fontWeight = FontWeight.Medium)
         }
         Spacer(modifier = Modifier.weight(1f))
-        TextButton(onClick = onOpenLibrary) {
-            Icon(imageVector = Icons.Outlined.FitnessCenter, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Browse library", color = accent.color, fontWeight = FontWeight.Medium)
+        if (showLibraryLink) {
+            TextButton(onClick = onOpenLibrary) {
+                Icon(imageVector = Icons.Outlined.FitnessCenter, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Browse library", color = accent.color, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }
@@ -949,29 +968,6 @@ private fun RoutineMuscleChip(label: String) {
     }
 }
 
-@Composable
-private fun RoutineProgramChip(
-    label: String,
-    selected: Boolean,
-    accent: TabAccent,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        color = if (selected) accent.container else MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.large,
-        border = if (selected) null else androidx.compose.foundation.BorderStroke(0.5.dp, MusFitTheme.colors.outline),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-        )
-    }
-}
-
 internal fun nextQuickLogExpanded(current: Boolean): Boolean = !current
 
 internal const val MY_ROUTINES_GROUP_TITLE = "My routines"
@@ -1104,6 +1100,49 @@ internal fun validateTargetReps(raw: String): TargetFieldResult {
     return if (single in 1..100) TargetFieldResult.Valid else invalid
 }
 
+/** Collapsed-row subline (mock 5f): "3 × 8 · 150s rest" — one line, nothing else. */
+internal fun routineExerciseSubline(exercise: RoutineExerciseInput): String {
+    val sets = if (exercise.setPlans.isNotEmpty()) exercise.setPlans.size else exercise.targetSets
+    val reps = exercise.targetReps?.trim()?.takeIf(String::isNotBlank)
+    val base = if (reps != null) "$sets × $reps" else "$sets ${if (sets == 1) "set" else "sets"}"
+    val rest = exercise.restSeconds?.let { "${it}s rest" }
+    return listOfNotNull(base, rest).joinToString(" · ")
+}
+
+/** One quiet sentence describing what the per-set plan holds beyond straight working sets. */
+internal fun setPlanSummaryLabel(setPlans: List<RoutineSetInput>): String {
+    if (setPlans.isEmpty()) return "Straight sets"
+    val parts = mutableListOf<String>()
+    val warmups = setPlans.count { it.setType.equals("warmup", ignoreCase = true) }
+    if (warmups == 1) parts += "1 warm-up set"
+    if (warmups > 1) parts += "$warmups warm-up sets"
+    val failureIndex = setPlans.indexOfFirst { it.setType.equals("failure", ignoreCase = true) }
+    when {
+        failureIndex == 0 -> parts += "First set to failure"
+        failureIndex > 0 -> parts += "Set ${failureIndex + 1} to failure"
+    }
+    val drops = setPlans.count { it.setType.equals("drop", ignoreCase = true) }
+    if (drops == 1) parts += "1 drop set"
+    if (drops > 1) parts += "$drops drop sets"
+    return if (parts.isEmpty()) "Straight sets" else parts.joinToString(" · ")
+}
+
+/** Editor meta line (mock 5f): "Strength block · 5 exercises · ~40 min". */
+internal fun routineEditorMetaLine(editor: RoutineEditorState): String {
+    val block = editor.folderName.trim().takeIf(String::isNotBlank)
+        ?: if (editor.isStarter) "Pre-made routine" else "Routine"
+    val exerciseCount = editor.exercises.size
+    val totalSets = editor.exercises.sumOf { exercise ->
+        if (exercise.setPlans.isNotEmpty()) exercise.setPlans.size else exercise.targetSets
+    }
+    val estimatedMinutes = RoutineDisplayCalculator.estimatedMinutes(totalSets)
+    return buildString {
+        append(block)
+        append(" · $exerciseCount ${if (exerciseCount == 1) "exercise" else "exercises"}")
+        if (estimatedMinutes > 0) append(" · ~$estimatedMinutes min")
+    }
+}
+
 internal fun routineEditorCanSave(name: String, exercises: List<RoutineExerciseInput>): Boolean {
     if (name.isBlank()) return false
     if (exercises.isEmpty()) return false
@@ -1122,12 +1161,19 @@ internal fun routineEditorCanSave(name: String, exercises: List<RoutineExerciseI
     }
 }
 
+/**
+ * Routine editor, decluttered (mock 5f): back + the routine name as the page title (tap to
+ * rename) + filled Save; one meta line with a Details link (folder/notes moved into a sheet);
+ * exercises as collapsed hairline rows that expand one-at-a-time into a white card with
+ * Sets/Reps/Rest fields and a per-set plan behind a link. Drag handles reorder.
+ */
 @Composable
 fun TrainingRoutineEditor(
     editor: RoutineEditorState,
     exercises: List<ExerciseSummary>,
     accent: TabAccent,
     onNameChange: (String) -> Unit,
+    onNotesChange: (String) -> Unit = {},
     onOpenExercisePicker: () -> Unit,
     onRemoveExercise: (Int) -> Unit,
     onMoveExerciseUp: (Int) -> Unit,
@@ -1151,51 +1197,62 @@ fun TrainingRoutineEditor(
         focusedLabelColor = accent.color,
         cursorColor = accent.color,
     )
+    // Accordion: at most one exercise expanded; the id survives reorders (indices don't).
+    var expandedExerciseId by rememberSaveable(editor.routineId) { mutableStateOf<String?>(null) }
+    var detailsOpen by rememberSaveable { mutableStateOf(false) }
+    val currentExercises = rememberUpdatedState(editor.exercises)
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Lean header: the routine name IS the title (inline + editable), flanked by Cancel/Save.
-        // Notes and folder editing were removed — folders are organized from the Training home tab —
-        // so the editor leads straight into the exercises.
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onCancel, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
-                    Text("Cancel")
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Button(
-                    onClick = onSave,
-                    enabled = routineEditorCanSave(editor.name, editor.exercises),
-                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-                ) {
-                    Text("Save")
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = if (editor.routineId == null) "New routine" else "Edit routine",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-                RoutineEditorTitleField(
-                    value = editor.name,
-                    onValueChange = onNameChange,
-                    accent = accent,
-                )
-            }
-        }
-        Button(
-            onClick = onOpenExercisePicker,
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(if (editor.exercises.isEmpty()) "Add exercises" else "Add more exercises")
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Cancel",
+                tint = MusFitTheme.colors.onSurface,
+                modifier = Modifier.size(24.dp).clickable(onClick = onCancel),
+            )
+            RoutineEditorTitleField(
+                value = editor.name,
+                onValueChange = onNameChange,
+                accent = accent,
+                modifier = Modifier.weight(1f),
+            )
+            Button(
+                onClick = onSave,
+                enabled = routineEditorCanSave(editor.name, editor.exercises),
+                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+            ) {
+                Text("Save")
+            }
         }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = routineEditorMetaLine(editor),
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "Details",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = accent.color,
+                modifier = Modifier.clickable { detailsOpen = true },
+            )
+        }
+
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+
         if (editor.exercises.isEmpty()) {
             Text(
                 text = "Add at least one exercise to start this routine",
@@ -1203,55 +1260,455 @@ fun TrainingRoutineEditor(
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
         }
-        editor.exercises.forEachIndexed { index, exercise ->
-            val exerciseSummary = exerciseMap[exercise.exerciseId]
-            val setsError = (validateTargetSets(exercise.targetSets.toString()) as? TargetFieldResult.Invalid)?.message
-            val repsError = (validateTargetReps(exercise.targetReps.orEmpty()) as? TargetFieldResult.Invalid)?.message
-            RoutineEditorExerciseCard(
-                position = index + 1,
-                accent = accent,
-                fieldColors = fieldColors,
-                setsError = setsError,
-                repsError = repsError,
-                exerciseName = exerciseSummary?.name ?: "Unknown exercise",
-                exerciseMeta = exerciseSummary?.let {
-                    listOfNotNull(it.equipment, it.targetMuscles.takeIf(String::isNotBlank))
-                        .joinToString(" - ")
-                }.orEmpty(),
-                targetSets = exercise.targetSets.toString(),
-                targetReps = exercise.targetReps.orEmpty(),
-                restSeconds = exercise.restSeconds?.toString().orEmpty(),
-                setPlans = exercise.setPlans.ifEmpty { defaultRoutineEditorSetPlans(exercise.targetSets, exercise.targetReps) },
-                canMoveUp = index > 0,
-                canMoveDown = index < editor.exercises.lastIndex,
-                onMoveUp = { onMoveExerciseUp(index) },
-                onMoveDown = { onMoveExerciseDown(index) },
-                onRemove = { onRemoveExercise(index) },
-                onTargetSetsChange = { onTargetSetsChange(index, it) },
-                onTargetRepsChange = { onTargetRepsChange(index, it) },
-                onRestSecondsChange = { onRestSecondsChange(index, it) },
-                onAddSet = { onAddSet(index) },
-                onRemoveSet = { setIndex -> onRemoveSet(index, setIndex) },
-                onSetTypeChange = { setIndex, setType -> onSetTypeChange(index, setIndex, setType) },
-                onSetRepsChange = { setIndex, value -> onSetRepsChange(index, setIndex, value) },
-                onSetWeightChange = { setIndex, value -> onSetWeightChange(index, setIndex, value) },
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (editor.routineId != null && onDuplicate != null) {
-                TextButton(
-                    onClick = { onDuplicate(editor.routineId) },
-                    colors = ButtonDefaults.textButtonColors(contentColor = accent.color),
-                ) {
-                    Text("Duplicate")
+
+        Column {
+            editor.exercises.forEachIndexed { index, exercise ->
+                val exerciseSummary = exerciseMap[exercise.exerciseId]
+                val exerciseName = exerciseSummary?.name ?: "Unknown exercise"
+                if (expandedExerciseId == exercise.exerciseId) {
+                    RoutineEditorExpandedCard(
+                        exerciseIndex = index,
+                        exercise = exercise,
+                        exerciseName = exerciseName,
+                        exerciseMeta = listOfNotNull(
+                            exerciseSummary?.equipment,
+                            exerciseSummary?.targetMuscles?.takeIf(String::isNotBlank),
+                        ).joinToString(" · ") { it.lowercase(java.util.Locale.US) },
+                        accent = accent,
+                        fieldColors = fieldColors,
+                        onCollapse = { expandedExerciseId = null },
+                        onTargetSetsChange = { onTargetSetsChange(index, it) },
+                        onTargetRepsChange = { onTargetRepsChange(index, it) },
+                        onRestSecondsChange = { onRestSecondsChange(index, it) },
+                        onAddSet = { onAddSet(index) },
+                        onRemoveSet = { setIndex -> onRemoveSet(index, setIndex) },
+                        onSetTypeChange = { setIndex, setType -> onSetTypeChange(index, setIndex, setType) },
+                        onSetRepsChange = { setIndex, value -> onSetRepsChange(index, setIndex, value) },
+                        onSetWeightChange = { setIndex, value -> onSetWeightChange(index, setIndex, value) },
+                        onRemoveExercise = {
+                            expandedExerciseId = null
+                            onRemoveExercise(index)
+                        },
+                    )
+                } else {
+                    RoutineEditorCollapsedRow(
+                        exercise = exercise,
+                        exerciseName = exerciseName,
+                        currentIndexOf = { id -> currentExercises.value.indexOfFirst { it.exerciseId == id } },
+                        onExpand = { expandedExerciseId = exercise.exerciseId },
+                        onDragStarted = { expandedExerciseId = null },
+                        onMoveUp = onMoveExerciseUp,
+                        onMoveDown = onMoveExerciseDown,
+                    )
+                    if (index < editor.exercises.lastIndex &&
+                        editor.exercises.getOrNull(index + 1)?.exerciseId != expandedExerciseId
+                    ) {
+                        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+                    }
                 }
             }
-            if (editor.routineId != null && !editor.isStarter && onDelete != null) {
-                TextButton(
-                    onClick = { onDelete(editor.routineId) },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) {
-                    Text("Delete")
+            if (editor.exercises.isNotEmpty()) {
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenExercisePicker)
+                    .padding(vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Add,
+                    contentDescription = null,
+                    tint = accent.color,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = "Add exercise",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = accent.color,
+                )
+            }
+        }
+    }
+
+    if (detailsOpen) {
+        RoutineEditorDetailsSheet(
+            editor = editor,
+            accent = accent,
+            onNotesChange = onNotesChange,
+            onDuplicate = onDuplicate,
+            onDelete = onDelete,
+            onDismiss = { detailsOpen = false },
+        )
+    }
+}
+
+/** Collapsed exercise row (mock 5f): drag handle, name + one subline, expand chevron. */
+@Composable
+private fun RoutineEditorCollapsedRow(
+    exercise: RoutineExerciseInput,
+    exerciseName: String,
+    currentIndexOf: (String) -> Int,
+    onExpand: () -> Unit,
+    onDragStarted: () -> Unit,
+    onMoveUp: (Int) -> Unit,
+    onMoveDown: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onExpand)
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        RoutineEditorDragHandle(
+            exerciseId = exercise.exerciseId,
+            currentIndexOf = currentIndexOf,
+            onDragStarted = onDragStarted,
+            onMoveUp = onMoveUp,
+            onMoveDown = onMoveDown,
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = exerciseName,
+                style = MaterialTheme.typography.titleSmall,
+                color = MusFitTheme.colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = routineExerciseSubline(exercise),
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+                modifier = Modifier.padding(top = 1.dp),
+            )
+        }
+        Icon(
+            imageVector = Icons.Outlined.KeyboardArrowDown,
+            contentDescription = "Expand $exerciseName",
+            tint = MusFitTheme.colors.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+/**
+ * Reorder handle: vertical drag accumulates; each row-height crossed moves the exercise one
+ * position through the existing move-up/move-down actions.
+ */
+@Composable
+private fun RoutineEditorDragHandle(
+    exerciseId: String,
+    currentIndexOf: (String) -> Int,
+    onDragStarted: () -> Unit,
+    onMoveUp: (Int) -> Unit,
+    onMoveDown: (Int) -> Unit,
+) {
+    Icon(
+        imageVector = Icons.Outlined.DragIndicator,
+        contentDescription = "Reorder exercise",
+        tint = pickerOutlineColor(),
+        modifier = Modifier
+            .size(20.dp)
+            .pointerInput(exerciseId) {
+                val rowHeightPx = 64.dp.toPx()
+                var accumulated = 0f
+                detectDragGestures(
+                    onDragStart = {
+                        accumulated = 0f
+                        onDragStarted()
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        accumulated += dragAmount.y
+                        while (accumulated > rowHeightPx) {
+                            onMoveDown(currentIndexOf(exerciseId))
+                            accumulated -= rowHeightPx
+                        }
+                        while (accumulated < -rowHeightPx) {
+                            onMoveUp(currentIndexOf(exerciseId))
+                            accumulated += rowHeightPx
+                        }
+                    },
+                )
+            },
+    )
+}
+
+/** Expanded exercise (mock 5f): white 20dp card with Sets/Reps/Rest fields and the per-set plan link. */
+@Composable
+private fun RoutineEditorExpandedCard(
+    exerciseIndex: Int,
+    exercise: RoutineExerciseInput,
+    exerciseName: String,
+    exerciseMeta: String,
+    accent: TabAccent,
+    fieldColors: androidx.compose.material3.TextFieldColors,
+    onCollapse: () -> Unit,
+    onTargetSetsChange: (String) -> Unit,
+    onTargetRepsChange: (String) -> Unit,
+    onRestSecondsChange: (String) -> Unit,
+    onAddSet: () -> Unit,
+    onRemoveSet: (Int) -> Unit,
+    onSetTypeChange: (Int, String) -> Unit,
+    onSetRepsChange: (Int, String) -> Unit,
+    onSetWeightChange: (Int, String) -> Unit,
+    onRemoveExercise: () -> Unit,
+) {
+    var perSetPlanOpen by rememberSaveable(exercise.exerciseId) { mutableStateOf(false) }
+    val setsError = (validateTargetSets(exercise.targetSets.toString()) as? TargetFieldResult.Invalid)?.message
+    val repsError = (validateTargetReps(exercise.targetReps.orEmpty()) as? TargetFieldResult.Invalid)?.message
+    val setPlans = exercise.setPlans.ifEmpty { defaultRoutineEditorSetPlans(exercise.targetSets, exercise.targetReps) }
+
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onCollapse),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.DragIndicator,
+                    contentDescription = null,
+                    tint = pickerOutlineColor(),
+                    modifier = Modifier.size(20.dp),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = exerciseName,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MusFitTheme.colors.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (exerciseMeta.isNotBlank()) {
+                        Text(
+                            text = exerciseMeta,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 1.dp),
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowUp,
+                    contentDescription = "Collapse $exerciseName",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                RoutineEditorMiniField(
+                    label = "Sets",
+                    value = exercise.targetSets.toString(),
+                    isError = setsError != null,
+                    onValueChange = onTargetSetsChange,
+                    modifier = Modifier.weight(1f),
+                )
+                RoutineEditorMiniField(
+                    label = "Reps",
+                    value = exercise.targetReps.orEmpty(),
+                    isError = repsError != null,
+                    onValueChange = onTargetRepsChange,
+                    modifier = Modifier.weight(1f),
+                )
+                RoutineEditorMiniField(
+                    label = "Rest",
+                    value = exercise.restSeconds?.toString().orEmpty(),
+                    suffix = "s",
+                    onValueChange = onRestSecondsChange,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            listOfNotNull(setsError, repsError).firstOrNull()?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = setPlanSummaryLabel(setPlans),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+                Text(
+                    text = if (perSetPlanOpen) "Hide per-set plan" else "Per-set plan",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
+                    fontWeight = FontWeight.Medium,
+                    color = accent.color,
+                    modifier = Modifier.clickable { perSetPlanOpen = !perSetPlanOpen },
+                )
+            }
+
+            if (perSetPlanOpen) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    setPlans.forEachIndexed { setIndex, setPlan ->
+                        RoutineEditorSetRow(
+                            setIndex = setIndex,
+                            setPlan = setPlan,
+                            accent = accent,
+                            fieldColors = fieldColors,
+                            canRemove = setPlans.size > 1,
+                            onSetTypeChange = { onSetTypeChange(setIndex, it) },
+                            onSetRepsChange = { onSetRepsChange(setIndex, it) },
+                            onSetWeightChange = { onSetWeightChange(setIndex, it) },
+                            onRemove = { onRemoveSet(setIndex) },
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        TextButton(onClick = onAddSet, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
+                            Icon(imageVector = Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Set")
+                        }
+                        TextButton(
+                            onClick = onRemoveExercise,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        ) {
+                            Text("Remove exercise")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Quiet tonal input (mock 5f): tiny label over a 16sp value on a 14dp-radius fill. */
+@Composable
+private fun RoutineEditorMiniField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    suffix: String? = null,
+    isError: Boolean = false,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(MusFitTheme.colors.surfaceVariant)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+            color = if (isError) MaterialTheme.colorScheme.error else MusFitTheme.colors.onSurfaceVariant,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.Medium,
+                    color = MusFitTheme.colors.onSurface,
+                ),
+                cursorBrush = SolidColor(MusFitTheme.colors.onSurface),
+                modifier = Modifier.weight(1f, fill = false).widthIn(min = 20.dp),
+            )
+            if (suffix != null && value.isNotBlank()) {
+                Text(
+                    text = suffix,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                    color = MusFitTheme.colors.onSurface,
+                )
+            }
+        }
+    }
+}
+
+/** The Details sheet behind the meta line: folder (read-only), notes, duplicate/delete. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RoutineEditorDetailsSheet(
+    editor: RoutineEditorState,
+    accent: TabAccent,
+    onNotesChange: (String) -> Unit,
+    onDuplicate: ((String) -> Unit)?,
+    onDelete: ((String) -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MusFitTheme.colors.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                text = "Details",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Normal,
+                color = MusFitTheme.colors.onSurface,
+            )
+            editor.folderName.takeIf { it.isNotBlank() }?.let { folder ->
+                Text(
+                    text = "Folder · $folder",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            OutlinedTextField(
+                value = editor.notes,
+                onValueChange = onNotesChange,
+                label = { Text("Notes") },
+                minLines = 2,
+                shape = MusFitTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (editor.routineId != null && onDuplicate != null) {
+                    TextButton(
+                        onClick = {
+                            onDismiss()
+                            onDuplicate(editor.routineId)
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = accent.color),
+                    ) {
+                        Text("Duplicate")
+                    }
+                }
+                if (editor.routineId != null && !editor.isStarter && onDelete != null) {
+                    TextButton(
+                        onClick = {
+                            onDismiss()
+                            onDelete(editor.routineId)
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) {
+                        Text("Delete")
+                    }
                 }
             }
         }
@@ -1259,8 +1716,8 @@ fun TrainingRoutineEditor(
 }
 
 /**
- * The routine name rendered as an inline, editable title in the editor header: a borderless
- * [BasicTextField] styled like a heading with a thin accent underline so it still reads as an input.
+ * The routine name rendered as the page title (mock 5f): a borderless [BasicTextField]
+ * styled as the 24sp regular heading — tapping it renames in place.
  */
 @Composable
 private fun RoutineEditorTitleField(
@@ -1269,46 +1726,61 @@ private fun RoutineEditorTitleField(
     accent: TabAccent,
     modifier: Modifier = Modifier,
 ) {
-    val titleStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            textStyle = titleStyle.copy(color = MusFitTheme.colors.onSurface),
-            cursorBrush = SolidColor(accent.color),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            decorationBox = { innerTextField ->
-                Box {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = "Name your routine",
-                            style = titleStyle,
-                            color = MusFitTheme.colors.onSurfaceVariant,
-                        )
-                    }
-                    innerTextField()
+    val titleStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Normal)
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        textStyle = titleStyle.copy(color = MusFitTheme.colors.onSurface),
+        cursorBrush = SolidColor(accent.color),
+        singleLine = true,
+        modifier = modifier,
+        decorationBox = { innerTextField ->
+            Box {
+                if (value.isEmpty()) {
+                    Text(
+                        text = "Name your routine",
+                        style = titleStyle,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
                 }
-            },
-        )
-        HorizontalDivider(thickness = 1.dp, color = accent.color.copy(alpha = 0.4f))
-    }
+                innerTextField()
+            }
+        },
+    )
 }
 
+/**
+ * Exercise picker, decluttered (mock 5d): search pill + one `tune` filter button with an
+ * active-count badge, an active-filter summary line, plain selection rows (no thumbnails,
+ * no sublines), and a full-width "Add N exercises" bar. Filters live in the sheet (5e).
+ */
 @Composable
 fun RoutineExercisePickerPage(
     exercises: List<ExerciseSummary>,
     currentRoutineExerciseIds: Set<String>,
     selectedExerciseIds: Set<String>,
     searchQuery: String,
-    muscleFilter: String?,
-    equipmentFilter: String?,
+    filters: TrainingPickerFilters,
+    filterSheetOpen: Boolean,
+    loggedExerciseIds: Set<String>,
+    customExerciseEditor: ExerciseEditorState,
     accent: TabAccent,
     onSearchChange: (String) -> Unit,
-    onMuscleFilterChange: (String?) -> Unit,
-    onEquipmentFilterChange: (String?) -> Unit,
+    onOpenFilters: () -> Unit,
+    onCloseFilters: () -> Unit,
+    onToggleEquipment: (String) -> Unit,
+    onToggleMuscle: (String) -> Unit,
+    onOnlyDoneChange: (Boolean) -> Unit,
+    onResetFilters: () -> Unit,
     onClearFilters: () -> Unit,
     onToggleExercise: (String) -> Unit,
+    onOpenCustomExercise: () -> Unit,
+    onCloseCustomExercise: () -> Unit,
+    onCustomExerciseNameChange: (String) -> Unit,
+    onCustomExerciseCategoryChange: (String) -> Unit,
+    onCustomExerciseEquipmentChange: (String) -> Unit,
+    onCustomExerciseTargetMusclesChange: (String) -> Unit,
+    onSaveCustomExercise: () -> Unit,
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
 ) {
@@ -1318,190 +1790,504 @@ fun RoutineExercisePickerPage(
         exercises = availableExercises,
         selectedExerciseIds = emptySet(),
         query = searchQuery,
-        equipmentFilter = equipmentFilter,
-        muscleFilter = muscleFilter,
-    )
-    val filtersActive = searchQuery.isNotBlank() || muscleFilter != null || equipmentFilter != null
-    val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = accent.color,
-        focusedLabelColor = accent.color,
-        cursorColor = accent.color,
+        filters = filters,
+        loggedExerciseIds = loggedExerciseIds,
     )
 
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MusFitTheme.colors.background)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Cancel exercise selection",
+                tint = MusFitTheme.colors.onSurface,
+                modifier = Modifier.size(24.dp).clickable(onClick = onCancel),
+            )
+            Text(
+                "Add exercises",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Normal,
+                color = MusFitTheme.colors.onSurface,
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            PickerSearchField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                modifier = Modifier.weight(1f),
+            )
+            PickerFilterButton(
+                activeCount = filters.activeCount,
+                accent = accent,
+                onClick = onOpenFilters,
+            )
+        }
+
+        if (filters.isActive) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                IconButton(onClick = onCancel) {
+                Text(
+                    text = pickerFilterSummary(filters),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    modifier = Modifier.clickable(onClick = onClearFilters),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = "Clear",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = accent.color,
+                    )
                     Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = "Cancel exercise selection",
-                        tint = MusFitTheme.colors.onSurface,
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = "Clear filters",
+                        tint = accent.color,
+                        modifier = Modifier.size(15.dp),
                     )
                 }
+                Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    "Add exercises",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MusFitTheme.colors.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
-                Button(
-                    onClick = onConfirm,
-                    enabled = selectedExerciseIds.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-                ) {
-                    Text("OK")
-                }
-            }
-        }
-        item {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchChange,
-                label = { Text("Search exercises") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
-                },
-                singleLine = true,
-                colors = fieldColors,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            RoutinePickerFilterButtons(
-                muscleOptions = options.muscles,
-                equipmentOptions = options.equipment,
-                muscleFilter = muscleFilter,
-                equipmentFilter = equipmentFilter,
-                accent = accent,
-                onMuscleFilterChange = onMuscleFilterChange,
-                onEquipmentFilterChange = onEquipmentFilterChange,
-            )
-        }
-        if (filtersActive) {
-            item {
-                TextButton(onClick = onClearFilters, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
-                    Text("Clear filters")
-                }
-            }
-        }
-        item {
-            Text(
-                "${visibleExercises.size} available - ${selectedExerciseIds.size} selected",
-                style = MaterialTheme.typography.labelLarge,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
-        }
-        if (visibleExercises.isEmpty()) {
-            item {
-                Text(
-                    "No matching exercises",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "${visibleExercises.size} results",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
-        } else {
-            items(
+        }
+
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            if (visibleExercises.isEmpty()) {
+                item {
+                    Text(
+                        "No matching exercises",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 14.dp),
+                    )
+                }
+            }
+            itemsIndexed(
                 items = visibleExercises,
-                key = { exercise -> exercise.id },
-            ) { exercise ->
-                val selected = exercise.id in selectedExerciseIds
+                key = { _, exercise -> exercise.id },
+            ) { index, exercise ->
                 RoutineExercisePickerRow(
                     exercise = exercise,
-                    selected = selected,
+                    selected = exercise.id in selectedExerciseIds,
                     accent = accent,
                     onToggle = { onToggleExercise(exercise.id) },
                 )
+                if (index < visibleExercises.lastIndex) {
+                    HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+                }
+            }
+            item {
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+                Text(
+                    text = "+ Create custom exercise",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = accent.color,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onOpenCustomExercise)
+                        .padding(vertical = 14.dp),
+                )
             }
         }
-    }
-}
 
-@Composable
-private fun RoutinePickerFilterButtons(
-    muscleOptions: List<String>,
-    equipmentOptions: List<String>,
-    muscleFilter: String?,
-    equipmentFilter: String?,
-    accent: TabAccent,
-    onMuscleFilterChange: (String?) -> Unit,
-    onEquipmentFilterChange: (String?) -> Unit,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        RoutinePickerFilterButton(
-            label = muscleFilter ?: "Muscle",
-            allLabel = "All muscles",
-            options = muscleOptions,
-            accent = accent,
-            modifier = Modifier.weight(1f),
-            onSelected = onMuscleFilterChange,
-        )
-        RoutinePickerFilterButton(
-            label = equipmentFilter ?: "All equipment",
-            allLabel = "All equipment",
-            options = equipmentOptions,
-            accent = accent,
-            modifier = Modifier.weight(1f),
-            onSelected = onEquipmentFilterChange,
-        )
-    }
-}
-
-@Composable
-private fun RoutinePickerFilterButton(
-    label: String,
-    allLabel: String,
-    options: List<String>,
-    accent: TabAccent,
-    modifier: Modifier = Modifier,
-    onSelected: (String?) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box(modifier = modifier) {
         Button(
-            onClick = { expanded = true },
-            colors = ButtonDefaults.buttonColors(containerColor = accent.container, contentColor = accent.onContainer),
-            modifier = Modifier.fillMaxWidth(),
+            onClick = onConfirm,
+            enabled = selectedExerciseIds.isNotEmpty(),
+            colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp),
         ) {
-            Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Icon(imageVector = Icons.Outlined.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(pickerConfirmLabel(selectedExerciseIds.size), modifier = Modifier.padding(vertical = 4.dp))
         }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 360.dp),
-        ) {
-            DropdownMenuItem(
-                text = { Text(allLabel) },
-                onClick = {
-                    onSelected(null)
-                    expanded = false
-                },
+    }
+
+    if (filterSheetOpen) {
+        ExercisePickerFilterSheet(
+            equipmentOptions = topPickerEquipment(exercises, EQUIPMENT_OPTION_LIMIT),
+            muscleOptions = topPickerMuscles(exercises, MUSCLE_OPTION_LIMIT),
+            filters = filters,
+            resultCount = visibleExercises.size,
+            accent = accent,
+            onToggleEquipment = onToggleEquipment,
+            onToggleMuscle = onToggleMuscle,
+            onOnlyDoneChange = onOnlyDoneChange,
+            onReset = onResetFilters,
+            onDismiss = onCloseFilters,
+        )
+    }
+
+    if (customExerciseEditor.isOpen) {
+        CustomExerciseSheet(
+            editor = customExerciseEditor,
+            accent = accent,
+            onNameChange = onCustomExerciseNameChange,
+            onCategoryChange = onCustomExerciseCategoryChange,
+            onEquipmentChange = onCustomExerciseEquipmentChange,
+            onTargetMusclesChange = onCustomExerciseTargetMusclesChange,
+            onSave = onSaveCustomExercise,
+            onDismiss = onCloseCustomExercise,
+        )
+    }
+}
+
+/** Rounded neutral search pill matching the app's sheet search fields. */
+@Composable
+private fun PickerSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(MusFitTheme.colors.surfaceVariant)
+            .padding(horizontal = 18.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Search,
+            contentDescription = null,
+            tint = MusFitTheme.colors.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Box(modifier = Modifier.weight(1f)) {
+            if (value.isEmpty()) {
+                Text(
+                    text = "Search exercises",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MusFitTheme.colors.onSurface),
+                cursorBrush = SolidColor(MusFitTheme.colors.onSurface),
+                modifier = Modifier.fillMaxWidth(),
             )
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onSelected(option)
-                        expanded = false
-                    },
+        }
+    }
+}
+
+/** 48dp tonal `tune` button; a small accent badge carries the active-filter count. */
+@Composable
+private fun PickerFilterButton(
+    activeCount: Int,
+    accent: TabAccent,
+    onClick: () -> Unit,
+) {
+    Box {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(accent.container)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Tune,
+                contentDescription = "Filters",
+                tint = accent.onContainer,
+                modifier = Modifier.size(21.dp),
+            )
+        }
+        if (activeCount > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 3.dp, y = (-3).dp)
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(accent.color),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = activeCount.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent.onColor,
                 )
             }
         }
     }
 }
 
+/**
+ * The filter sheet (mock 5e) — the one place chips are allowed in the Training module:
+ * wrapping equipment/muscle pills, an "only exercises I've done" switch, and a live-count
+ * apply button.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun ExercisePickerFilterSheet(
+    equipmentOptions: List<String>,
+    muscleOptions: List<String>,
+    filters: TrainingPickerFilters,
+    resultCount: Int,
+    accent: TabAccent,
+    onToggleEquipment: (String) -> Unit,
+    onToggleMuscle: (String) -> Unit,
+    onOnlyDoneChange: (Boolean) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MusFitTheme.colors.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "Filters",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Normal,
+                    color = MusFitTheme.colors.onSurface,
+                )
+                Text(
+                    text = "Reset",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = accent.color,
+                    modifier = Modifier.clickable(onClick = onReset),
+                )
+            }
+
+            FilterPillSection(
+                title = "Equipment",
+                options = equipmentOptions,
+                selected = filters.equipment,
+                accent = accent,
+                onToggle = onToggleEquipment,
+            )
+            HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+            FilterPillSection(
+                title = "Muscle group",
+                options = muscleOptions,
+                selected = filters.muscles,
+                accent = accent,
+                onToggle = onToggleMuscle,
+            )
+            HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Only exercises I've done",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MusFitTheme.colors.onSurface,
+                    )
+                    Text(
+                        text = "Hides the full library",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                }
+                Switch(
+                    checked = filters.onlyDone,
+                    onCheckedChange = onOnlyDoneChange,
+                    colors = SwitchDefaults.colors(checkedTrackColor = accent.color),
+                )
+            }
+
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = "Show $resultCount ${if (resultCount == 1) "exercise" else "exercises"}",
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FilterPillSection(
+    title: String,
+    options: List<String>,
+    selected: Set<String>,
+    accent: TabAccent,
+    onToggle: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            options.forEach { option ->
+                val isSelected = selected.any { it.equals(option, ignoreCase = true) }
+                Surface(
+                    onClick = { onToggle(option) },
+                    color = if (isSelected) accent.container else MusFitTheme.colors.background,
+                    shape = RoundedCornerShape(999.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = null,
+                                tint = accent.onContainer,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                        Text(
+                            text = option.displayExerciseToken(),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                            color = if (isSelected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Bottom-sheet home for the custom exercise editor, opened from the picker's final row. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CustomExerciseSheet(
+    editor: ExerciseEditorState,
+    accent: TabAccent,
+    onNameChange: (String) -> Unit,
+    onCategoryChange: (String) -> Unit,
+    onEquipmentChange: (String) -> Unit,
+    onTargetMusclesChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MusFitTheme.colors.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Custom exercise",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Normal,
+                color = MusFitTheme.colors.onSurface,
+            )
+            OutlinedTextField(
+                value = editor.name,
+                onValueChange = onNameChange,
+                label = { Text("Name") },
+                singleLine = true,
+                shape = MusFitTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = editor.category,
+                    onValueChange = onCategoryChange,
+                    label = { Text("Category") },
+                    singleLine = true,
+                    shape = MusFitTheme.shapes.medium,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = editor.equipment,
+                    onValueChange = onEquipmentChange,
+                    label = { Text("Equipment") },
+                    singleLine = true,
+                    shape = MusFitTheme.shapes.medium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            OutlinedTextField(
+                value = editor.targetMuscles,
+                onValueChange = onTargetMusclesChange,
+                label = { Text("Target muscles") },
+                singleLine = true,
+                shape = MusFitTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = onSave,
+                    enabled = editor.name.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+                ) {
+                    Text("Save")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = accent.color)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Minimal picker row (mock 5d): a 26dp selection circle, the exercise name, and one
+ * trailing muscle word — no thumbnails, sublines, or badges.
+ */
 @Composable
 private fun RoutineExercisePickerRow(
     exercise: ExerciseSummary,
@@ -1509,394 +2295,55 @@ private fun RoutineExercisePickerRow(
     accent: TabAccent,
     onToggle: () -> Unit,
 ) {
-    Surface(
-        onClick = onToggle,
-        color = if (selected) accent.container else MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.medium,
-        border = BorderStroke(0.5.dp, if (selected) accent.color else MusFitTheme.colors.outline),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            ExerciseThumb(
-                imageUrl = exercise.thumbnailUrl(),
-                contentDescription = exercise.name,
-                accent = accent,
-                size = 44.dp,
-            )
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    exercise.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (selected) accent.onContainer else MusFitTheme.colors.onSurface,
-                )
-                Text(
-                    exercise.pickerMeta(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Outlined.Check,
-                    contentDescription = "Selected",
-                    tint = accent.color,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RoutineExercisePicker(
-    exercises: List<ExerciseSummary>,
-    selectedExerciseIds: Set<String>,
-    accent: TabAccent,
-    selectedCount: Int,
-    fieldColors: androidx.compose.material3.TextFieldColors,
-    query: String,
-    equipmentFilter: String?,
-    muscleFilter: String?,
-    onQueryChange: (String) -> Unit,
-    onEquipmentFilterChange: (String) -> Unit,
-    onMuscleFilterChange: (String) -> Unit,
-    onClearFilters: () -> Unit,
-    onAddExercise: (String) -> Unit,
-) {
-    val options = routineExercisePickerOptions(exercises)
-    val suggestions = routineExercisePickerSuggestions(
-        exercises = exercises,
-        selectedExerciseIds = selectedExerciseIds,
-        query = query,
-        equipmentFilter = equipmentFilter,
-        muscleFilter = muscleFilter,
-        limit = 8,
-    )
-    val filtersActive = query.isNotBlank() || equipmentFilter != null || muscleFilter != null
-
-    Surface(
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "Saved exercises",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MusFitTheme.colors.onSurface,
-                    )
-                    Text(
-                        text = if (selectedCount > 0) "$selectedCount added to this routine" else "Choose from your exercise library",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
-                }
-                if (filtersActive) {
-                    TextButton(onClick = onClearFilters, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
-                        Text("Clear")
-                    }
-                }
-            }
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                label = { Text("Search exercises") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
-                },
-                singleLine = true,
-                colors = fieldColors,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            RoutinePickerChipRow(
-                title = "Equipment",
-                options = options.equipment.take(8),
-                selected = equipmentFilter,
-                accent = accent,
-                onSelected = onEquipmentFilterChange,
-            )
-            RoutinePickerChipRow(
-                title = "Muscle",
-                options = options.muscles.take(10),
-                selected = muscleFilter,
-                accent = accent,
-                onSelected = onMuscleFilterChange,
-            )
-            if (suggestions.isEmpty()) {
-                Text(
-                    "No matching exercises",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                )
-            } else {
-                suggestions.forEach { exercise ->
-                    Surface(
-                        onClick = { onAddExercise(exercise.id) },
-                        color = MusFitTheme.colors.background,
-                        shape = MusFitTheme.shapes.medium,
-                        border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    exercise.name,
-                                    color = MusFitTheme.colors.onSurface,
-                                    style = MaterialTheme.typography.titleSmall,
-                                )
-                                val meta = listOfNotNull(
-                                    exercise.equipment,
-                                    exercise.targetMuscles.takeIf(String::isNotBlank),
-                                ).joinToString(" - ")
-                                if (meta.isNotBlank()) {
-                                    Text(
-                                        text = meta,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MusFitTheme.colors.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                            Icon(
-                                imageVector = Icons.Outlined.Add,
-                                contentDescription = "Add ${exercise.name}",
-                                tint = accent.color,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RoutinePickerChipRow(
-    title: String,
-    options: List<String>,
-    selected: String?,
-    accent: TabAccent,
-    onSelected: (String) -> Unit,
-) {
-    if (options.isEmpty()) return
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .clickable(onClick = onToggle)
+            .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            modifier = Modifier.padding(end = 2.dp),
-        )
-        options.forEach { option ->
-            RoutinePickerChip(
-                label = option,
-                selected = selected.equals(option, ignoreCase = true),
-                accent = accent,
-                onClick = { onSelected(option) },
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(accent.color),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = "Selected",
+                    tint = accent.onColor,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .border(1.5.dp, pickerOutlineColor(), CircleShape),
             )
         }
-    }
-}
-
-@Composable
-private fun RoutinePickerChip(
-    label: String,
-    selected: Boolean,
-    accent: TabAccent,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        color = if (selected) accent.container else MusFitTheme.colors.background,
-        shape = RoundedCornerShape(999.dp),
-        border = if (selected) null else BorderStroke(0.5.dp, MusFitTheme.colors.outline),
-    ) {
         Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            text = exercise.name,
+            style = MaterialTheme.typography.titleSmall,
+            color = MusFitTheme.colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = pickerTrailingMuscles(exercise),
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
         )
     }
 }
 
 @Composable
-private fun RoutineEditorExerciseCard(
-    position: Int,
-    accent: TabAccent,
-    fieldColors: androidx.compose.material3.TextFieldColors,
-    setsError: String?,
-    repsError: String?,
-    exerciseName: String,
-    exerciseMeta: String,
-    targetSets: String,
-    targetReps: String,
-    restSeconds: String,
-    setPlans: List<RoutineSetInput>,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    onRemove: () -> Unit,
-    onTargetSetsChange: (String) -> Unit,
-    onTargetRepsChange: (String) -> Unit,
-    onRestSecondsChange: (String) -> Unit,
-    onAddSet: () -> Unit,
-    onRemoveSet: (Int) -> Unit,
-    onSetTypeChange: (Int, String) -> Unit,
-    onSetRepsChange: (Int, String) -> Unit,
-    onSetWeightChange: (Int, String) -> Unit,
-) {
-    Surface(
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.large,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(accent.container),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        position.toString(),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = accent.onContainer,
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(exerciseName, style = MaterialTheme.typography.titleSmall, color = MusFitTheme.colors.onSurface)
-                    if (exerciseMeta.isNotBlank()) {
-                        Text(
-                            exerciseMeta,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MusFitTheme.colors.onSurfaceVariant,
-                        )
-                    }
-                }
-                IconButton(onClick = onMoveUp, enabled = canMoveUp) {
-                    Icon(
-                        imageVector = Icons.Outlined.KeyboardArrowUp,
-                        contentDescription = "Move exercise up",
-                        tint = if (canMoveUp) accent.color else MusFitTheme.colors.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = onMoveDown, enabled = canMoveDown) {
-                    Icon(
-                        imageVector = Icons.Outlined.KeyboardArrowDown,
-                        contentDescription = "Move exercise down",
-                        tint = if (canMoveDown) accent.color else MusFitTheme.colors.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = onRemove) {
-                    Icon(
-                        imageVector = Icons.Outlined.Delete,
-                        contentDescription = "Remove exercise",
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                OutlinedTextField(
-                    value = targetSets,
-                    onValueChange = onTargetSetsChange,
-                    label = { Text("Sets") },
-                    singleLine = true,
-                    isError = setsError != null,
-                    colors = fieldColors,
-                    supportingText = setsError?.let { message -> { Text(message) } },
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = targetReps,
-                    onValueChange = onTargetRepsChange,
-                    label = { Text("Reps") },
-                    singleLine = true,
-                    isError = repsError != null,
-                    colors = fieldColors,
-                    supportingText = repsError?.let { message -> { Text(message) } },
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = restSeconds,
-                    onValueChange = onRestSecondsChange,
-                    label = { Text("Rest sec") },
-                    singleLine = true,
-                    colors = fieldColors,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "Set plan",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
-                    TextButton(onClick = onAddSet, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
-                        Icon(imageVector = Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Set")
-                    }
-                }
-                setPlans.forEachIndexed { setIndex, setPlan ->
-                    RoutineEditorSetRow(
-                        setIndex = setIndex,
-                        setPlan = setPlan,
-                        accent = accent,
-                        fieldColors = fieldColors,
-                        canRemove = setPlans.size > 1,
-                        onSetTypeChange = { onSetTypeChange(setIndex, it) },
-                        onSetRepsChange = { onSetRepsChange(setIndex, it) },
-                        onSetWeightChange = { onSetWeightChange(setIndex, it) },
-                        onRemove = { onRemoveSet(setIndex) },
-                    )
-                }
-            }
-        }
-    }
-}
+internal fun pickerOutlineColor(): Color =
+    if (isSystemInDarkTheme()) NeutralOutlineDark else NeutralOutline
 
 @Composable
 private fun RoutineEditorSetRow(
@@ -1975,8 +2422,8 @@ internal fun routineExercisePickerSuggestions(
     exercises: List<ExerciseSummary>,
     selectedExerciseIds: Set<String>,
     query: String,
-    equipmentFilter: String? = null,
-    muscleFilter: String? = null,
+    filters: TrainingPickerFilters = TrainingPickerFilters(),
+    loggedExerciseIds: Set<String> = emptySet(),
     limit: Int? = null,
 ): List<ExerciseSummary> {
     val trimmedQuery = query.trim()
@@ -1989,15 +2436,63 @@ internal fun routineExercisePickerSuggestions(
                 exercise.targetMuscles.contains(trimmedQuery, ignoreCase = true) ||
                 exercise.primaryMuscles.contains(trimmedQuery, ignoreCase = true) ||
                 exercise.secondaryMuscles.contains(trimmedQuery, ignoreCase = true)
-        val matchesEquipment = equipmentFilter.isNullOrBlank() ||
-            exercise.equipment.equals(equipmentFilter, ignoreCase = true)
-        val matchesMuscle = muscleFilter.isNullOrBlank() ||
-            exercise.pickerMuscles().any { it.equals(muscleFilter, ignoreCase = true) }
+        val matchesEquipment = filters.equipment.isEmpty() ||
+            filters.equipment.any { exercise.equipment.equals(it, ignoreCase = true) }
+        val matchesMuscle = filters.muscles.isEmpty() ||
+            exercise.pickerMuscles().any { muscle ->
+                filters.muscles.any { it.equals(muscle, ignoreCase = true) }
+            }
+        val matchesDone = !filters.onlyDone || exercise.id in loggedExerciseIds
 
-        matchesQuery && matchesEquipment && matchesMuscle
+        matchesQuery && matchesEquipment && matchesMuscle && matchesDone
     }
     return limit?.let { filtered.take(it) } ?: filtered
 }
+
+/** "Barbell · Quads" — title-cased active filters for the picker's summary line. */
+internal fun pickerFilterSummary(filters: TrainingPickerFilters): String =
+    buildList {
+        addAll(filters.equipment.map { it.displayExerciseToken() })
+        addAll(filters.muscles.map { it.displayExerciseToken() })
+        if (filters.onlyDone) add("Done before")
+    }.joinToString(" · ")
+
+internal fun pickerConfirmLabel(selectedCount: Int): String = when (selectedCount) {
+    0 -> "Add exercises"
+    1 -> "Add 1 exercise"
+    else -> "Add $selectedCount exercises"
+}
+
+/** Trailing muscle word(s) on a picker row — first two muscles, lowercase, per mock 5d. */
+internal fun pickerTrailingMuscles(exercise: ExerciseSummary): String =
+    exercise.pickerMuscles()
+        .map { it.lowercase() }
+        .distinct()
+        .take(2)
+        .joinToString(", ")
+
+/** The filter sheet's muscle pills: the catalog's most common muscles, not an alphabetical slice. */
+internal fun topPickerMuscles(exercises: List<ExerciseSummary>, limit: Int): List<String> =
+    exercises.flatMap { it.pickerMuscles().map { muscle -> muscle.lowercase() }.distinct() }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+        .take(limit)
+        .map { it.key }
+
+/** The filter sheet's equipment pills, ranked by how much of the catalog each covers. */
+internal fun topPickerEquipment(exercises: List<ExerciseSummary>, limit: Int): List<String> =
+    exercises.mapNotNull { it.equipment?.trim()?.takeIf(String::isNotBlank)?.lowercase() }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+        .take(limit)
+        .map { it.key }
+
+internal const val EQUIPMENT_OPTION_LIMIT = 8
+internal const val MUSCLE_OPTION_LIMIT = 12
 
 internal fun defaultRoutineEditorSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> =
     (0 until targetSets.coerceAtLeast(1)).map {
@@ -2049,18 +2544,6 @@ private fun ExerciseSummary.pickerMuscles(): List<String> =
         .flatMap { raw -> raw.split(',', '/', ';') }
         .map { it.trim() }
         .filter { it.isNotBlank() }
-
-private fun ExerciseSummary.thumbnailUrl(): String? = imageUrl ?: gifUrl
-
-private fun ExerciseSummary.pickerMeta(): String =
-    listOfNotNull(
-        equipment?.displayExerciseToken(),
-        category.displayExerciseToken().takeIf(String::isNotBlank),
-        primaryMuscles.takeIf(String::isNotBlank)?.displayExerciseToken()
-            ?: targetMuscles.takeIf(String::isNotBlank)?.displayExerciseToken(),
-        secondaryMuscles.takeIf(String::isNotBlank)?.displayExerciseToken(),
-        if (isCustom) "Custom" else "Library",
-    ).joinToString(" - ")
 
 private fun String.displayExerciseToken(): String =
     trim()

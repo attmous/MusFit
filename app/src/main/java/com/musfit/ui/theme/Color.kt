@@ -40,6 +40,11 @@ val Water = Color(0xFF3FA9E0)
 val Indigo = Color(0xFF3D5AF1)
 val IndigoInk = Color(0xFF1E2A78)
 val IndigoContainer = Color(0xFFE4E7FD)
+// Indigo at ~25% on white — past-week bars on the Training progress charts.
+val IndigoMuted = Color(0xFFC9D0F5)
+// Resting outline for selection circles and drag handles (Training pickers/editor).
+val NeutralOutline = Color(0xFFC6CCD6)
+val NeutralOutlineDark = Color(0xFF454B55)
 val Teal = Color(0xFF0E7A79) // deep enough for white content at WCAG AA (was 0xFF0E9594, 3.66:1)
 val TealInk = Color(0xFF0B5E5D)
 val TealContainer = Color(0xFFD9F0EF)

@@ -20,6 +20,8 @@ import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.ExerciseProgressSetInput
 import com.musfit.domain.model.WorkoutSetInput
+import com.musfit.domain.training.PersonalRecordCalculator
+import com.musfit.domain.training.PersonalRecordSetInput
 import com.musfit.domain.training.PlateCalculator
 import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.domain.training.WorkoutCalculator
@@ -65,6 +67,16 @@ data class WeeklyTrainingVolume(
 data class TrainingProgressAnalytics(
     val muscleGroups: List<MuscleGroupProgress> = emptyList(),
     val weeklyVolume: List<WeeklyTrainingVolume> = emptyList(),
+)
+
+/** A dated PR event (best of its day) for the Progress page's "Recent PRs" list. */
+data class TrainingPrRecord(
+    val exerciseId: String,
+    val exerciseName: String,
+    val dateEpochDay: Long,
+    val reps: Int,
+    val weightKg: Double,
+    val estimatedOneRepMaxKg: Double,
 )
 
 data class WorkoutForExport(
@@ -311,6 +323,11 @@ interface TrainingRepository {
 
     fun observeTrainingProgressAnalytics(): Flow<TrainingProgressAnalytics> = flowOf(TrainingProgressAnalytics())
 
+    fun observeRecentPersonalRecords(): Flow<List<TrainingPrRecord>> = flowOf(emptyList())
+
+    /** Ids of exercises with at least one completed logged set — backs "only exercises I've done". */
+    fun observeLoggedExerciseIds(): Flow<Set<String>> = flowOf(emptySet())
+
     suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? = null
 
     fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary>
@@ -529,6 +546,41 @@ class LocalTrainingRepository @Inject constructor(
     override fun observeTrainingProgressAnalytics(): Flow<TrainingProgressAnalytics> =
         trainingDao.observeCompletedExerciseProgressSetRows().map { rows ->
             rows.toTrainingProgressAnalytics()
+        }
+
+    override fun observeRecentPersonalRecords(): Flow<List<TrainingPrRecord>> =
+        trainingDao.observeCompletedExerciseProgressSetRows().map { rows ->
+            PersonalRecordCalculator.recentPersonalRecords(
+                rows.mapNotNull { row ->
+                    val reps = row.reps
+                    val weightKg = row.weightKg
+                    if (!row.completed || reps == null || weightKg == null || reps <= 0 || weightKg <= 0.0) {
+                        null
+                    } else {
+                        PersonalRecordSetInput(
+                            exerciseId = row.exerciseId,
+                            exerciseName = row.exerciseName,
+                            dateEpochDay = row.startedAtEpochMillis.trainingDate().toEpochDay(),
+                            reps = reps,
+                            weightKg = weightKg,
+                        )
+                    }
+                },
+            ).map { event ->
+                TrainingPrRecord(
+                    exerciseId = event.exerciseId,
+                    exerciseName = event.exerciseName,
+                    dateEpochDay = event.dateEpochDay,
+                    reps = event.reps,
+                    weightKg = event.weightKg,
+                    estimatedOneRepMaxKg = event.estimatedOneRepMaxKg,
+                )
+            }
+        }
+
+    override fun observeLoggedExerciseIds(): Flow<Set<String>> =
+        trainingDao.observeCompletedExerciseProgressSetRows().map { rows ->
+            rows.filter { it.completed }.map { it.exerciseId }.toSet()
         }
 
     override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? {
