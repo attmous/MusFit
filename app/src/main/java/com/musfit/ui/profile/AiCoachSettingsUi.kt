@@ -199,14 +199,14 @@ fun AiCoachSettingsDialog(
                     OutlinedTextField(
                         value = apiKey,
                         onValueChange = onApiKeyChange,
-                        label = { Text("API key (optional)") },
+                        label = { Text(apiKeyFieldLabel(provider, localAgentKind)) },
                         supportingText = {
                             Text(
-                                if (hasSavedApiKey) {
-                                    "Leave blank to keep the saved key."
-                                } else {
-                                    "Stored encrypted on this device."
-                                },
+                                apiKeySupportingText(
+                                    provider = provider,
+                                    localAgentKind = localAgentKind,
+                                    hasSavedApiKey = hasSavedApiKey,
+                                ),
                             )
                         },
                         singleLine = true,
@@ -219,7 +219,7 @@ fun AiCoachSettingsDialog(
                     Text(error, color = MaterialTheme.colorScheme.error, style = MusFitTheme.typography.bodySmall)
                 }
                 Text(
-                    "MusFit keeps this local. Local agents can run without a key; hosted endpoints usually need one.",
+                    aiCoachSecurityNote(provider, localAgentKind),
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -278,3 +278,31 @@ private fun LocalAgentKind.shortLabel(): String = when (this) {
     LocalAgentKind.HermesAgent -> "Hermes"
     LocalAgentKind.Custom -> "Custom"
 }
+
+private fun apiKeyFieldLabel(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String =
+    if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
+        "API_SERVER_KEY"
+    } else {
+        "API key (optional)"
+    }
+
+private fun apiKeySupportingText(
+    provider: AiCoachProviderKind,
+    localAgentKind: LocalAgentKind,
+    hasSavedApiKey: Boolean,
+): String {
+    val isHermes = provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
+    return when {
+        isHermes && hasSavedApiKey -> "Leave blank to keep the saved API_SERVER_KEY."
+        isHermes -> "Paste API_SERVER_KEY from ~/.hermes/.env. Stored encrypted on this device."
+        hasSavedApiKey -> "Leave blank to keep the saved key."
+        else -> "Stored encrypted on this device."
+    }
+}
+
+private fun aiCoachSecurityNote(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String =
+    if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
+        "MusFit keeps this local. Hermes requires the API_SERVER_KEY bearer token from ~/.hermes/.env."
+    } else {
+        "MusFit keeps this local. Local agents can run without a key; hosted endpoints usually need one."
+    }

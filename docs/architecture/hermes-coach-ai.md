@@ -34,6 +34,14 @@ http://192.168.1.50:8080/v1/
 Hermes must be reachable from the device network and the API server key must
 match the gateway configuration.
 
+The verified Radxa development gateway is:
+
+```text
+Host: radxa@192.168.178.113
+Base URL: http://192.168.178.113:8080/v1/
+Model: hermes-agent
+```
+
 ## MusFit Behavior
 
 The first implementation is read-only:
@@ -43,8 +51,9 @@ The first implementation is read-only:
 - The coach cannot log, edit, or delete MusFit data.
 - Chat history is stored locally in Room per active account and coach provider.
 - API keys stay in the existing local encrypted AI coach secret store.
-- Debug builds allow cleartext HTTP to `10.0.2.2`, `127.0.0.1`, and
-  `localhost` so emulator-to-host Hermes works during development.
+- Debug builds allow cleartext HTTP for local development endpoints, including
+  emulator loopback and LAN hosts such as the Radxa Hermes gateway. Release
+  builds keep the default platform network policy.
 
 ## Verification
 

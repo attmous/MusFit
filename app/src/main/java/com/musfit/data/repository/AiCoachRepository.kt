@@ -109,20 +109,28 @@ class LocalAiCoachRepository @Inject constructor(
         }
 
         val existing = aiCoachDao.getSettings(account.id)
-        val apiKeyStored = when (val update = input.apiKey) {
-            AiCoachApiKeyUpdate.KeepExisting -> existing?.apiKeyStored ?: false
+        val existingApiKeyStored = existing?.apiKeyStored ?: false
+        val replacementApiKey = (input.apiKey as? AiCoachApiKeyUpdate.Replace)?.value?.trim()
+        val apiKeyStored = when (input.apiKey) {
+            AiCoachApiKeyUpdate.KeepExisting -> existingApiKeyStored
+            AiCoachApiKeyUpdate.Clear -> false
+            is AiCoachApiKeyUpdate.Replace -> replacementApiKey?.isNotBlank() == true
+        }
+        if (normalized.requiresApiServerKey() && !apiKeyStored) {
+            throw IllegalArgumentException("Hermes agent requires the API_SERVER_KEY bearer token.")
+        }
+
+        when (input.apiKey) {
+            AiCoachApiKeyUpdate.KeepExisting -> Unit
             AiCoachApiKeyUpdate.Clear -> {
                 secretStore.clearApiKey(account.id)
-                false
             }
             is AiCoachApiKeyUpdate.Replace -> {
-                val trimmed = update.value.trim()
+                val trimmed = replacementApiKey.orEmpty()
                 if (trimmed.isBlank()) {
                     secretStore.clearApiKey(account.id)
-                    false
                 } else {
                     secretStore.saveApiKey(account.id, trimmed)
-                    true
                 }
             }
         }
@@ -266,6 +274,9 @@ private fun NormalizedAiCoachSettings.toEntity(
         apiKeyStored = apiKeyStored,
         updatedAtEpochMillis = now,
     )
+
+private fun NormalizedAiCoachSettings.requiresApiServerKey(): Boolean =
+    providerKind == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
 
 private fun AiCoachSettingsEntity.toSettings(): AiCoachSettings =
     AiCoachSettings(
