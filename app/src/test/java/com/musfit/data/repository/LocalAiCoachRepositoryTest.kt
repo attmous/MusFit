@@ -113,6 +113,54 @@ class LocalAiCoachRepositoryTest {
     }
 
     @Test
+    fun saveHermesAgentSettings_requiresApiServerKey() = runTest {
+        try {
+            repository.saveSettings(
+                AiCoachSettingsInput(
+                    providerKind = AiCoachProviderKind.LocalAgent,
+                    baseUrl = "http://192.168.178.113:8080/v1",
+                    modelName = "hermes-agent",
+                    localAgentKind = LocalAgentKind.HermesAgent,
+                    apiKey = AiCoachApiKeyUpdate.KeepExisting,
+                ),
+            )
+            fail("Expected Hermes settings without API_SERVER_KEY to be rejected")
+        } catch (expected: IllegalArgumentException) {
+            assertEquals("Hermes agent requires the API_SERVER_KEY bearer token.", expected.message)
+        }
+
+        assertEquals(AiCoachProviderKind.Disabled, repository.observeSettings().first().providerKind)
+        assertNull(repository.activeConnection())
+    }
+
+    @Test
+    fun saveHermesAgentSettings_keepsExistingApiServerKeyWhenInputBlank() = runTest {
+        repository.saveSettings(
+            AiCoachSettingsInput(
+                providerKind = AiCoachProviderKind.LocalAgent,
+                baseUrl = "http://10.0.2.2:8080/v1",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent,
+                apiKey = AiCoachApiKeyUpdate.Replace("first-key"),
+            ),
+        )
+
+        repository.saveSettings(
+            AiCoachSettingsInput(
+                providerKind = AiCoachProviderKind.LocalAgent,
+                baseUrl = "http://192.168.178.113:8080/v1",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent,
+                apiKey = AiCoachApiKeyUpdate.KeepExisting,
+            ),
+        )
+
+        val connection = repository.activeConnection()
+        assertEquals("http://192.168.178.113:8080/v1/", connection?.baseUrl)
+        assertEquals("first-key", connection?.apiKey)
+    }
+
+    @Test
     fun saveSettings_rejectsInvalidUrlAndDoesNotPersist() = runTest {
         try {
             repository.saveSettings(
@@ -190,11 +238,12 @@ class LocalAiCoachRepositoryTest {
                 baseUrl = "http://10.0.2.2:8989",
                 modelName = "",
                 localAgentKind = LocalAgentKind.HermesAgent,
-                apiKey = AiCoachApiKeyUpdate.Clear,
+                apiKey = AiCoachApiKeyUpdate.Replace("second-key"),
             ),
         )
 
         assertEquals(LocalAgentKind.HermesAgent, repository.observeSettings().first().localAgentKind)
+        assertEquals("second-key", repository.activeConnection()?.apiKey)
 
         accountRepository.switchAccount("local-default")
         val firstSettings = repository.observeSettings().first()
