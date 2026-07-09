@@ -1,5 +1,9 @@
 package com.musfit.ui.today
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,11 +29,12 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -130,30 +135,41 @@ fun TodayScreen(
             }
         }
 
-        if (state.isRefreshing) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .statusBarsPadding(),
-                color = todayAccent.color,
-                trackColor = Color.Transparent,
-            )
-        } else {
-            LinearProgressIndicator(
-                progress = {
-                    todayRefreshIndicatorUiState(
-                        isRefreshing = false,
-                        pullDistanceFraction = pullRefreshState.distanceFraction,
-                    ).progress ?: 0f
-                },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .statusBarsPadding(),
-                color = todayAccent.color,
-                trackColor = Color.Transparent,
-            )
+        // Visibility only flips at the 0-boundary; derivedStateOf keeps the drag
+        // from recomposing this scope every frame.
+        val isPulling by remember(pullRefreshState) {
+            derivedStateOf { pullRefreshState.distanceFraction > 0f }
+        }
+        AnimatedVisibility(
+            visible = state.isRefreshing || isPulling,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .statusBarsPadding(),
+        ) {
+            Crossfade(targetState = state.isRefreshing, label = "todayRefreshIndicator") { refreshing ->
+                if (refreshing) {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = todayAccent.color,
+                        trackColor = todayAccent.container,
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        progress = {
+                            todayRefreshIndicatorUiState(
+                                isRefreshing = false,
+                                pullDistanceFraction = pullRefreshState.distanceFraction,
+                            ).progress ?: 0f
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = todayAccent.color,
+                        trackColor = todayAccent.container,
+                    )
+                }
+            }
         }
     }
 
