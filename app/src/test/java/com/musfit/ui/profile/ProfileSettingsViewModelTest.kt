@@ -6,6 +6,8 @@ import com.musfit.data.repository.Account
 import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.AiCoachApiKeyUpdate
+import com.musfit.data.repository.AiCoachChatMessage
+import com.musfit.data.repository.AiCoachChatRepository
 import com.musfit.data.repository.AiCoachConnection
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.AiCoachRepository
@@ -70,6 +72,7 @@ class ProfileSettingsViewModelTest {
         profileRepository: ProfileRepository = FakeProfileRepository(),
         externalAuthRepository: ExternalAuthRepository = FakeExternalAuthRepository(),
         aiCoachRepository: AiCoachRepository = FakeAiCoachRepository(),
+        aiCoachChatRepository: AiCoachChatRepository = FakeAiCoachChatRepository(),
         foodRepository: FoodRepository = FakeFoodRepository(),
     ) = ProfileSettingsViewModel(
         healthRepository,
@@ -77,6 +80,7 @@ class ProfileSettingsViewModelTest {
         profileRepository,
         externalAuthRepository,
         aiCoachRepository,
+        aiCoachChatRepository,
         foodRepository,
     )
 
@@ -568,6 +572,34 @@ class ProfileSettingsViewModelTest {
     }
 
     @Test
+    fun selectingHermesAgent_prefillsEmulatorDefaultsWhenBlank() = runTest {
+        val viewModel = settingsViewModel()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAiCoachEditor()
+        viewModel.onAiCoachProviderChanged(AiCoachProviderKind.LocalAgent)
+        viewModel.onAiCoachLocalAgentKindChanged(LocalAgentKind.HermesAgent)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(HERMES_DEFAULT_BASE_URL, viewModel.state.value.aiCoachBaseUrlInput)
+        assertEquals(HERMES_DEFAULT_MODEL_NAME, viewModel.state.value.aiCoachModelNameInput)
+    }
+
+    @Test
+    fun testAiCoachConnection_reportsReachableResult() = runTest {
+        val chatRepository = FakeAiCoachChatRepository()
+        val viewModel = settingsViewModel(aiCoachChatRepository = chatRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.testAiCoachConnection()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, chatRepository.testCalls)
+        assertEquals("AI coach connection is reachable.", viewModel.state.value.message)
+        assertFalse(viewModel.state.value.isAiCoachTesting)
+    }
+
+    @Test
     fun includeBurnedCalories_reflectsPersistedGoalFlag() = runTest {
         val foodRepository = FakeFoodRepository(
             goal = DEFAULT_REPOSITORY_FOOD_GOAL.copy(includeTrainingCalories = true),
@@ -852,5 +884,21 @@ class ProfileSettingsViewModelTest {
         }
 
         override suspend fun activeConnection(): AiCoachConnection? = null
+    }
+
+    private class FakeAiCoachChatRepository : AiCoachChatRepository {
+        var testCalls = 0
+        var testError: Throwable? = null
+
+        override fun observeMessages(): Flow<List<AiCoachChatMessage>> = flowOf(emptyList())
+
+        override suspend fun sendMessage(content: String, systemPrompt: String) = Unit
+
+        override suspend fun clearThread() = Unit
+
+        override suspend fun testConnection() {
+            testCalls += 1
+            testError?.let { throw it }
+        }
     }
 }

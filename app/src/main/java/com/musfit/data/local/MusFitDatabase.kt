@@ -3,6 +3,7 @@ package com.musfit.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.musfit.data.local.dao.AccountDao
+import com.musfit.data.local.dao.AiCoachChatDao
 import com.musfit.data.local.dao.AiCoachDao
 import com.musfit.data.local.dao.CoachDao
 import com.musfit.data.local.dao.FoodDao
@@ -12,7 +13,9 @@ import com.musfit.data.local.dao.TrainingDao
 import com.musfit.data.local.dao.UserGoalsDao
 import com.musfit.data.local.entity.AccountEntity
 import com.musfit.data.local.entity.AccountSessionEntity
+import com.musfit.data.local.entity.AiCoachChatMessageEntity
 import com.musfit.data.local.entity.AiCoachSettingsEntity
+import com.musfit.data.local.entity.AiCoachThreadEntity
 import com.musfit.data.local.entity.AppSettingsEntity
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.BodyMetricEntity
@@ -79,10 +82,12 @@ import com.musfit.data.local.entity.WorkoutSetEntity
         AppSettingsEntity::class,
         UserGoalsEntity::class,
         AiCoachSettingsEntity::class,
+        AiCoachThreadEntity::class,
+        AiCoachChatMessageEntity::class,
         CoachMessageEntity::class,
         DashboardPinEntity::class,
     ],
-    version = 34,
+    version = 35,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {
@@ -99,6 +104,8 @@ abstract class MusFitDatabase : RoomDatabase() {
     abstract fun userGoalsDao(): UserGoalsDao
 
     abstract fun aiCoachDao(): AiCoachDao
+
+    abstract fun aiCoachChatDao(): AiCoachChatDao
 
     abstract fun coachDao(): CoachDao
 }

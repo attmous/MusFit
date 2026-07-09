@@ -8,7 +8,6 @@ import com.musfit.core.di.DatabaseModule
 import java.io.File
 import org.json.JSONObject
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -16,7 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class MealDefinitionVisibilityMigration31To32Test {
+class AiCoachChatMigration34To35Test {
     private lateinit var context: Context
 
     @Before
@@ -31,13 +30,12 @@ class MealDefinitionVisibilityMigration31To32Test {
     }
 
     @Test
-    fun migration31To32_addsIsHiddenColumnDefaultingToVisibleAndPreservesRows() {
-        createDatabaseFromExportedSchema(version = 31)
-        seedVersion31MealDefinition()
+    fun migration34To35_createsCoachChatTables() {
+        createDatabaseFromExportedSchema(version = 34)
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_31_32, DatabaseModule.MIGRATION_32_33, DatabaseModule.MIGRATION_33_34, DatabaseModule.MIGRATION_34_35)
+                .addMigrations(DatabaseModule.MIGRATION_34_35)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -52,30 +50,13 @@ class MealDefinitionVisibilityMigration31To32Test {
                 SQLiteDatabase.OPEN_READONLY,
             )
         try {
-            assertTrue(tableHasColumn(migrated, "meal_definitions", "isHidden"))
-            // Existing definitions are preserved and default to visible (isHidden = 0).
-            assertEquals("Pre-workout", stringValue(migrated, "SELECT name FROM meal_definitions WHERE id = 'pre-workout'"))
-            assertEquals("0", stringValue(migrated, "SELECT isHidden FROM meal_definitions WHERE id = 'pre-workout'"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_threads", "remoteSessionId"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_threads", "localAgentKind"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_chat_messages", "threadId"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_chat_messages", "status"))
+            assertTrue(tableHasColumn(migrated, "ai_coach_chat_messages", "errorMessage"))
         } finally {
             migrated.close()
-        }
-    }
-
-    private fun seedVersion31MealDefinition() {
-        val databaseFile = context.getDatabasePath(TEST_DATABASE_NAME)
-        val database = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
-        try {
-            database.execSQL(
-                """
-                INSERT INTO meal_definitions (
-                    id, name, timeMinutes, sortOrder, createdAtEpochMillis, updatedAtEpochMillis
-                ) VALUES (
-                    'pre-workout', 'Pre-workout', 990, 5, 1000, 2000
-                )
-                """.trimIndent(),
-            )
-        } finally {
-            database.close()
         }
     }
 
@@ -84,11 +65,6 @@ class MealDefinitionVisibilityMigration31To32Test {
             val nameIndex = cursor.getColumnIndex("name")
             generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
                 .any { it == columnName }
-        }
-
-    private fun stringValue(database: SQLiteDatabase, query: String): String? =
-        database.rawQuery(query, null).use { cursor ->
-            if (cursor.moveToFirst()) cursor.getString(0) else null
         }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
@@ -132,6 +108,6 @@ class MealDefinitionVisibilityMigration31To32Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "mealdef-31-32"
+        const val TEST_DATABASE_NAME = "ai-coach-chat-34-35"
     }
 }

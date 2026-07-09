@@ -7,6 +7,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.AccountDao
+import com.musfit.data.local.dao.AiCoachChatDao
 import com.musfit.data.local.dao.AiCoachDao
 import com.musfit.data.local.dao.CoachDao
 import com.musfit.data.local.dao.FoodDao
@@ -63,6 +64,7 @@ object DatabaseModule {
                 MIGRATION_31_32,
                 MIGRATION_32_33,
                 MIGRATION_33_34,
+                MIGRATION_34_35,
             )
             .build()
     }
@@ -87,6 +89,9 @@ object DatabaseModule {
 
     @Provides
     fun provideAiCoachDao(database: MusFitDatabase): AiCoachDao = database.aiCoachDao()
+
+    @Provides
+    fun provideAiCoachChatDao(database: MusFitDatabase): AiCoachChatDao = database.aiCoachChatDao()
 
     @Provides
     fun provideCoachDao(database: MusFitDatabase): CoachDao = database.coachDao()
@@ -920,6 +925,52 @@ object DatabaseModule {
         object : Migration(33, 34) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE daily_health_summaries ADD COLUMN hrvRmssdMillis REAL")
+            }
+        }
+
+    internal val MIGRATION_34_35 =
+        object : Migration(34, 35) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS ai_coach_threads (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        accountId TEXT NOT NULL,
+                        providerKind TEXT NOT NULL,
+                        localAgentKind TEXT NOT NULL,
+                        remoteSessionId TEXT,
+                        createdAtEpochMillis INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL,
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS index_ai_coach_threads_accountId_providerKind_localAgentKind
+                    ON ai_coach_threads(accountId, providerKind, localAgentKind)
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS ai_coach_chat_messages (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        threadId TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        errorMessage TEXT,
+                        createdAtEpochMillis INTEGER NOT NULL,
+                        FOREIGN KEY(threadId) REFERENCES ai_coach_threads(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE INDEX IF NOT EXISTS index_ai_coach_chat_messages_threadId_createdAtEpochMillis
+                    ON ai_coach_chat_messages(threadId, createdAtEpochMillis)
+                    """.trimIndent(),
+                )
             }
         }
 }

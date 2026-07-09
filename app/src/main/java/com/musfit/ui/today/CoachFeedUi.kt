@@ -10,28 +10,42 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +56,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.musfit.data.repository.AiCoachChatMessage
+import com.musfit.data.repository.AiCoachChatMessageStatus
+import com.musfit.data.repository.AiCoachChatRole
 import com.musfit.data.repository.CoachMessage
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCategory
@@ -231,7 +249,7 @@ private fun CoachMessageCategory.icon(): ImageVector = when (this) {
 /**
  * The floating coach button: an extended "Ask coach" pill in the interactive
  * azure (the Google Health look), floating above the bottom nav — the one
- * elevated element in the app. Opens the "coming soon" preview sheet.
+ * elevated element in the app. Opens the coach chat sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -269,33 +287,228 @@ fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatPreviewSheet(onDismiss: () -> Unit) {
+fun ChatPreviewSheet(
+    onDismiss: () -> Unit,
+    onConfigure: () -> Unit,
+    viewModel: CoachChatViewModel = hiltViewModel(),
+) {
+    val state by viewModel.state.collectAsState()
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MusFitTheme.colors.surface) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, bottom = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.md),
         ) {
-            Icon(
-                Icons.Outlined.ChatBubbleOutline,
-                contentDescription = null,
-                tint = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.size(32.dp),
-            )
-            Spacer(Modifier.height(MusFitTheme.spacing.md))
-            Text(
-                text = "Coach chat is coming",
-                style = MusFitTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.onSurface,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Your coach will answer questions right here.",
-                style = MusFitTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(color = MusFitTheme.colors.accent.copy(alpha = 0.12f), shape = CircleShape) {
+                    Icon(
+                        Icons.Outlined.Forum,
+                        contentDescription = null,
+                        tint = MusFitTheme.colors.accent,
+                        modifier = Modifier.padding(8.dp).size(22.dp),
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Ask coach",
+                        style = MusFitTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MusFitTheme.colors.onSurface,
+                    )
+                    Text(
+                        text = state.providerLabel,
+                        style = MusFitTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = viewModel::clearChat, enabled = state.messages.isNotEmpty()) {
+                    Icon(Icons.Outlined.DeleteOutline, contentDescription = "Clear coach chat")
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Close coach chat")
+                }
+            }
+
+            if (!state.isConfigured) {
+                CoachChatEmptyState(
+                    title = "Coach connection is off",
+                    body = "Choose Hermes or another endpoint in Profile settings.",
+                    actionLabel = "Configure",
+                    onAction = {
+                        onDismiss()
+                        onConfigure()
+                    },
+                )
+            } else {
+                CoachChatMessages(
+                    messages = state.messages,
+                    isSending = state.isSending,
+                    modifier = Modifier.heightIn(min = 220.dp, max = 420.dp),
+                )
+                state.errorMessage?.let { message ->
+                    Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Text(
+                                text = message,
+                                style = MusFitTheme.typography.bodySmall,
+                                color = MusFitTheme.colors.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = viewModel::testConnection) { Text("Retry") }
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = state.input,
+                        onValueChange = viewModel::onInputChanged,
+                        placeholder = { Text("Ask about today") },
+                        singleLine = false,
+                        minLines = 1,
+                        maxLines = 4,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(
+                        onClick = viewModel::send,
+                        enabled = state.input.isNotBlank() && !state.isSending,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = if (state.input.isNotBlank() && !state.isSending) {
+                                MusFitTheme.colors.accent
+                            } else {
+                                MusFitTheme.colors.surfaceVariant
+                            },
+                        ),
+                    ) {
+                        if (state.isSending) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = MusFitTheme.colors.onSurfaceVariant,
+                            )
+                        } else {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.Send,
+                                contentDescription = "Send coach message",
+                                tint = if (state.input.isNotBlank()) MusFitTheme.colors.onAccent else MusFitTheme.colors.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoachChatMessages(
+    messages: List<AiCoachChatMessage>,
+    isSending: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (messages.isEmpty()) {
+        CoachChatEmptyState(
+            title = "Coach is ready",
+            body = "Ask about today's food, hydration, training, or recovery.",
+            actionLabel = null,
+            onAction = {},
+            modifier = modifier,
+        )
+        return
+    }
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(messages, key = { it.id }) { message ->
+            CoachChatBubble(message)
+        }
+        if (isSending && messages.none { it.status == AiCoachChatMessageStatus.Sending }) {
+            item {
+                Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.medium) {
+                    Text(
+                        text = "Thinking...",
+                        style = MusFitTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoachChatBubble(message: AiCoachChatMessage) {
+    val isUser = message.role == AiCoachChatRole.User
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+    ) {
+        Surface(
+            color = if (isUser) MusFitTheme.colors.accent else MusFitTheme.colors.surfaceVariant,
+            contentColor = if (isUser) MusFitTheme.colors.onAccent else MusFitTheme.colors.onSurface,
+            shape = RoundedCornerShape(
+                topStart = 18.dp,
+                topEnd = 18.dp,
+                bottomStart = if (isUser) 18.dp else 4.dp,
+                bottomEnd = if (isUser) 4.dp else 18.dp,
+            ),
+            modifier = Modifier.fillMaxWidth(0.86f),
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text(
+                    text = when {
+                        message.status == AiCoachChatMessageStatus.Sending -> "Thinking..."
+                        else -> message.content
+                    },
+                    style = MusFitTheme.typography.bodyMedium,
+                )
+                if (message.status == AiCoachChatMessageStatus.Failed && message.errorMessage != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = message.errorMessage,
+                        style = MusFitTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoachChatEmptyState(
+    title: String,
+    body: String,
+    actionLabel: String?,
+    onAction: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            Icons.Outlined.ChatBubbleOutline,
+            contentDescription = null,
+            tint = MusFitTheme.colors.onSurfaceVariant,
+            modifier = Modifier.size(30.dp),
+        )
+        Text(title, style = MusFitTheme.typography.titleSmall, color = MusFitTheme.colors.onSurface)
+        Text(
+            text = body,
+            style = MusFitTheme.typography.bodyMedium,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
+        if (actionLabel != null) {
+            Button(onClick = onAction) { Text(actionLabel) }
         }
     }
 }
