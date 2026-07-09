@@ -830,12 +830,13 @@ private fun FoodDiarySummaryCard(
                 accentColor = accent.color,
             )
             if (state.macroProgress.isNotEmpty()) {
+                val macroColors = MusFitTheme.colors.macroColors
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    state.macroProgress.forEach { macro ->
-                        HeroMacroBar(macro = macro, accentColor = accent.color)
+                    state.macroProgress.forEachIndexed { index, macro ->
+                        HeroMacroBar(macro = macro, barColor = macroColors[index % macroColors.size])
                     }
                 }
             } else {
@@ -856,7 +857,7 @@ private fun FoodDiarySummaryCard(
 @Composable
 private fun HeroMacroBar(
     macro: FoodMacroProgressUiState,
-    accentColor: Color,
+    barColor: Color,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(
@@ -879,7 +880,7 @@ private fun HeroMacroBar(
         }
         ProgressBar(
             progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
-            color = accentColor,
+            color = barColor,
         )
     }
 }
@@ -1848,26 +1849,25 @@ private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // One color per screen: macro bars share the Food accent.
                 MealMacroMetric(
                     label = meal.carbsLabel,
                     grams = meal.effectiveCarbsGrams,
                     goalGrams = meal.carbsGoalGrams,
-                    color = MusFitTheme.colors.brand,
+                    color = MusFitTheme.colors.macroColors[0],
                     modifier = Modifier.weight(1f),
                 )
                 MealMacroMetric(
                     label = "Protein",
                     grams = meal.proteinGrams,
                     goalGrams = meal.proteinGoalGrams,
-                    color = MusFitTheme.colors.brand,
+                    color = MusFitTheme.colors.macroColors[1],
                     modifier = Modifier.weight(1f),
                 )
                 MealMacroMetric(
                     label = "Fat",
                     grams = meal.fatGrams,
                     goalGrams = meal.fatGoalGrams,
-                    color = MusFitTheme.colors.brand,
+                    color = MusFitTheme.colors.macroColors[2],
                     modifier = Modifier.weight(1f),
                 )
             }
