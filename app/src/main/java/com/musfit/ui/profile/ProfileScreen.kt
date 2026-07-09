@@ -50,6 +50,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.DashboardHero
 import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.charts.TrendLineChart
@@ -122,10 +123,10 @@ fun ProfileScreen(
                     }
                 },
             )
+            WeightCard(state = state, accent = accent, onOpenEntries = { showWeightSheet = true })
             if (state.isHealthConnectNudgeVisible) {
                 HealthConnectNudge(accent = accent, onOpen = onSettingsClick)
             }
-            WeightCard(state = state, accent = accent, onOpenEntries = { showWeightSheet = true })
             ProfileQuickActions(
                 accent = accent,
                 onLogWeight = { showLogWeight = true },
@@ -363,20 +364,21 @@ private fun GoalCard(state: ProfileUiState, accent: TabAccent, onApply: () -> Un
 
 /**
  * The naked weight hero (mock 3d): `80.9 kg` at 44/300 with a smaller inline
- * unit, a tonal 7-day delta chip, a quiet goal caption, then a bare 90dp
+ * unit, a tonal 7-day delta chip, a quiet goal caption, then a compact
  * sparkline over a hairline baseline. Tapping it opens the weight history.
  */
 @Composable
 private fun WeightCard(state: ProfileUiState, accent: TabAccent, onOpenEntries: () -> Unit) {
     val hero = state.hero
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MusFitTheme.shapes.medium)
-            .clickable(onClickLabel = "Open weight history") { onOpenEntries() },
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        if (hero.hasAnyEntry) {
+    DashboardHero {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MusFitTheme.shapes.medium)
+                .clickable(onClickLabel = "Open weight history") { onOpenEntries() },
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (hero.hasAnyEntry) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
@@ -426,22 +428,16 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onOpenEntries: 
                         values = hero.chartSeries,
                         accent = accent.color,
                         showBaseline = true,
-                        modifier = Modifier.fillMaxWidth().height(90.dp).padding(top = 6.dp),
+                        modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 4.dp),
                     )
                 hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
                     Text("No entries in the last 30 days.", style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
                 else -> // exactly one point in the window — a chart or "no entries" text would both mislead
                     Text("Log again to see a trend.", style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
             }
-            if (hero.chartSeries.size >= 2) {
-                Text(
-                    "30 days",
-                    style = MusFitTheme.typography.labelSmall,
-                    color = MusFitTheme.colors.onSurfaceVariant.copy(alpha = 0.7f),
-                )
+            } else {
+                Text("No weight logged yet.", style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
             }
-        } else {
-            Text("No weight logged yet.", style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
         }
     }
 }

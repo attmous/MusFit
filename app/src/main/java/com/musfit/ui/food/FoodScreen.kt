@@ -85,6 +85,7 @@ import coil.compose.AsyncImage
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.DashboardHero
 import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.theme.TabAccent
@@ -815,7 +816,8 @@ private fun FoodDiarySummaryCard(
     state: FoodUiState,
     accent: TabAccent,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    DashboardHero {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -849,6 +851,7 @@ private fun FoodDiarySummaryCard(
             color = MusFitTheme.colors.onSurfaceVariant,
             maxLines = 1,
         )
+        }
     }
 }
 

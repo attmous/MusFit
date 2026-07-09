@@ -50,6 +50,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.ExerciseDetail
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.DashboardHero
 import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.components.charts.MetricRing
@@ -349,51 +350,53 @@ private fun TrainingWeekSummaryCard(
 ) {
     val workouts = overview.currentWeekWorkoutCount
     val progress = (workouts.toFloat() / WEEKLY_SESSION_GOAL).coerceIn(0f, 1f)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        MetricRing(
-            progress = progress,
-            color = accent.color,
-            diameter = 108.dp,
-            strokeWidth = 10.dp,
+    DashboardHero {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(verticalAlignment = Alignment.Bottom) {
+            MetricRing(
+                progress = progress,
+                color = accent.color,
+                diameter = 108.dp,
+                strokeWidth = 10.dp,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = workouts.toString(),
+                            style = MaterialTheme.typography.displaySmall.copy(fontSize = 28.sp, lineHeight = 32.sp),
+                            color = MusFitTheme.colors.onSurface,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = "/$WEEKLY_SESSION_GOAL",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
                     Text(
-                        text = workouts.toString(),
-                        style = MaterialTheme.typography.displaySmall.copy(fontSize = 28.sp, lineHeight = 32.sp),
-                        color = MusFitTheme.colors.onSurface,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = "/$WEEKLY_SESSION_GOAL",
+                        text = "sessions",
                         style = MaterialTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }
-                Text(
-                    text = "sessions",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                WeekSummaryMetric(
+                    value = "${overview.currentWeekVolumeKg.formatKgGrouped()} kg",
+                    label = "volume this week",
+                )
+                WeekSummaryMetric(
+                    value = overview.currentStreakDays.toString(),
+                    label = "day streak",
                 )
             }
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            WeekSummaryMetric(
-                value = "${overview.currentWeekVolumeKg.formatKgGrouped()} kg",
-                label = "volume this week",
-            )
-            WeekSummaryMetric(
-                value = overview.currentStreakDays.toString(),
-                label = "day streak",
-            )
         }
     }
 }

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.DashboardHero
 import com.musfit.ui.components.charts.MetricRing
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
@@ -59,30 +60,32 @@ fun MetricCarouselCard(
     val accent = tabAccentFor(AppDestination.Today)
     val pagerState = rememberPagerState(pageCount = { carousel.pages.size })
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        HorizontalPager(state = pagerState) { pageIndex ->
-            val page = carousel.pages[pageIndex]
-            if (page.hero != null) {
-                HeroPage(page = page, accent = accent, onMetricClick = onMetricClick)
-            } else {
-                ChipGridPage(chips = page.chips, accent = accent, onMetricClick = onMetricClick)
+    DashboardHero {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            HorizontalPager(state = pagerState) { pageIndex ->
+                val page = carousel.pages[pageIndex]
+                if (page.hero != null) {
+                    HeroPage(page = page, accent = accent, onMetricClick = onMetricClick)
+                } else {
+                    ChipGridPage(chips = page.chips, accent = accent, onMetricClick = onMetricClick)
+                }
             }
-        }
-        if (carousel.pages.size > 1) {
-            Spacer(Modifier.height(MusFitTheme.spacing.md))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                repeat(carousel.pages.size) { index ->
-                    val selected = pagerState.currentPage == index
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 3.dp)
-                            .size(width = if (selected) 16.dp else 6.dp, height = 6.dp)
-                            .clip(CircleShape)
-                            .background(if (selected) accent.color else MusFitTheme.colors.track),
-                    )
+            if (carousel.pages.size > 1) {
+                Spacer(Modifier.height(MusFitTheme.spacing.md))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    repeat(carousel.pages.size) { index ->
+                        val selected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 3.dp)
+                                .size(width = if (selected) 16.dp else 6.dp, height = 6.dp)
+                                .clip(CircleShape)
+                                .background(if (selected) accent.color else MusFitTheme.colors.track),
+                        )
+                    }
                 }
             }
         }
