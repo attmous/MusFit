@@ -6,18 +6,22 @@ import org.junit.Test
 class AppNavigationChromeTest {
 
     @Test
-    fun bottomNavMetricsReserveClearanceAndUseLargerIcons() {
+    fun bottomNavUsesFloatingExpressivePillMetrics() {
         assertTrue(
-            "Bottom nav should reserve a taller touch and clearance area.",
-            MusFitBottomNavMetrics.BarHeight.value >= 88f,
+            "The nav pill bar should use the M3 Expressive rounded container.",
+            MusFitBottomNavMetrics.BarCornerRadius.value >= 28f,
         )
         assertTrue(
-            "Bottom nav icons should be larger than the compact 22dp baseline.",
-            MusFitBottomNavMetrics.IconSize.value >= 26f,
+            "The active-item pill and the coach FAB should share the expressive 22dp radius.",
+            MusFitBottomNavMetrics.ActivePillRadius == MusFitBottomNavMetrics.FabCornerRadius,
         )
         assertTrue(
-            "Bottom nav should keep fixed bottom clearance before system-bar insets.",
-            MusFitBottomNavMetrics.BottomPadding.value >= 14f,
+            "The inline coach FAB should be a 58dp rounded square.",
+            MusFitBottomNavMetrics.FabSize.value >= 56f,
+        )
+        assertTrue(
+            "The bar should keep fixed bottom clearance before system-bar insets.",
+            MusFitBottomNavMetrics.RowBottomPadding.value >= 14f,
         )
     }
 }

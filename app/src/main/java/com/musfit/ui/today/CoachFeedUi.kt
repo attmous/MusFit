@@ -50,6 +50,7 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.semantics
@@ -247,39 +248,34 @@ private fun CoachMessageCategory.icon(): ImageVector = when (this) {
 }
 
 /**
- * The floating coach button: an extended "Ask coach" pill in the interactive
- * azure (the Google Health look), floating above the bottom nav — the one
- * elevated element in the app. Opens the coach chat sheet.
+ * The coach button: a compact 58dp azure rounded-square (Material 3 Expressive
+ * FAB), docked inline at the right of the floating nav bar. Azure is the one
+ * global accent — the coach never recolors per tab. Opens the coach chat sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(22.dp)
     Surface(
         onClick = onClick,
         color = MusFitTheme.colors.accent,
-        shape = RoundedCornerShape(999.dp),
-        shadowElevation = 6.dp,
-        modifier = modifier,
+        contentColor = MusFitTheme.colors.onAccent,
+        shape = shape,
+        modifier = modifier
+            .size(58.dp)
+            .shadow(
+                elevation = 10.dp,
+                shape = shape,
+                spotColor = MusFitTheme.colors.accent,
+                ambientColor = MusFitTheme.colors.accent,
+            ),
     ) {
-        Row(
-            modifier = Modifier
-                .height(52.dp)
-                .padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        Box(contentAlignment = Alignment.Center) {
             Icon(
                 Icons.Outlined.Forum,
-                contentDescription = null, // the visible label names the action
+                contentDescription = "Ask coach",
                 tint = MusFitTheme.colors.onAccent,
-                modifier = Modifier.size(22.dp),
-            )
-            Text(
-                text = "Ask coach",
-                style = MusFitTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-                color = MusFitTheme.colors.onAccent,
-                maxLines = 1,
+                modifier = Modifier.size(26.dp),
             )
         }
     }
