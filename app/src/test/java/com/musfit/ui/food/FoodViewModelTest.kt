@@ -2767,7 +2767,7 @@ class FoodViewModelTest {
         assertEquals("2000", viewModel.state.value.waterGoalInput)
 
         viewModel.logQuickWater(250.0)
-        dispatcher.scheduler.advanceUntilIdle()
+        dispatcher.scheduler.runCurrent()
 
         assertEquals(WaterLogInput(today, 250.0), repository.waterLogInput)
         assertEquals("Added 250 ml water", viewModel.state.value.message)
@@ -2785,6 +2785,32 @@ class FoodViewModelTest {
 
         assertEquals(2400.0, repository.waterGoalMilliliters ?: -1.0, 0.01)
         assertEquals("Updated water goal", viewModel.state.value.message)
+    }
+
+    @Test
+    fun logQuickWater_clearsAddedWaterHintAfterDelay() = runTest {
+        val today = LocalDate.now()
+        val repository =
+            FakeFoodRepository(
+                waterSummary = FoodWaterSummary(today, consumedMilliliters = 750.0, goalMilliliters = 2000.0),
+            )
+        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.logQuickWater(250.0)
+        dispatcher.scheduler.runCurrent()
+
+        assertEquals("Added 250 ml water", viewModel.state.value.message)
+
+        dispatcher.scheduler.advanceTimeBy(2_999)
+        dispatcher.scheduler.runCurrent()
+
+        assertEquals("Added 250 ml water", viewModel.state.value.message)
+
+        dispatcher.scheduler.advanceTimeBy(1)
+        dispatcher.scheduler.runCurrent()
+
+        assertNull(viewModel.state.value.message)
     }
 
     @Test
