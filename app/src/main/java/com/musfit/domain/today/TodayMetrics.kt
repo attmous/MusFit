@@ -194,12 +194,7 @@ object MetricResolver {
     private fun formatGrouped(value: Int): String = String.format(Locale.US, "%,d", value)
 
     private fun formatCount(value: Long): String =
-        if (value >= 1000) {
-            val thousands = value / 1000.0
-            if (thousands % 1.0 == 0.0) "${thousands.toInt()}k" else String.format(Locale.US, "%.1fk", thousands)
-        } else {
-            value.toString()
-        }
+        String.format(Locale.US, "%,d", value).replace(',', '.')
 
     private fun formatDuration(minutes: Long): String {
         val safeMinutes = minutes.coerceAtLeast(0L)
