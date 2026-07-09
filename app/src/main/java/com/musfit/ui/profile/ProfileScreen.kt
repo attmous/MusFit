@@ -18,10 +18,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -53,6 +53,7 @@ import com.musfit.ui.AppDestination
 import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.charts.TrendLineChart
+import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import java.util.Locale
@@ -117,12 +118,12 @@ fun ProfileScreen(
                 title = "Profile",
                 actions = {
                     IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MusFitTheme.colors.onSurfaceVariant)
                     }
                 },
             )
             if (state.isHealthConnectNudgeVisible) {
-                HealthConnectNudge(onOpen = onSettingsClick)
+                HealthConnectNudge(accent = accent, onOpen = onSettingsClick)
             }
             WeightCard(state = state, accent = accent, onOpenEntries = { showWeightSheet = true })
             ProfileQuickActions(
@@ -146,7 +147,7 @@ fun ProfileScreen(
                 trailingActionColor = accent.color,
                 onTrailingAction = { showEditor = true },
             )
-            GoalCard(state = state, onApply = viewModel::applyTargetsToFood, onComplete = { showEditor = true })
+            GoalCard(state = state, accent = accent, onApply = viewModel::applyTargetsToFood, onComplete = { showEditor = true })
             SectionHeader(title = "Plans")
             state.planCards.forEach { card ->
                 PlanCardRow(card = card, onClick = { if (card.id == "diet") onOpenFood() else onOpenTraining() })
@@ -233,11 +234,11 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun HealthConnectNudge(onOpen: () -> Unit) {
+private fun HealthConnectNudge(accent: TabAccent, onOpen: () -> Unit) {
     // Quiet neutral strip — no card chrome.
-    val shape = MaterialTheme.shapes.large
+    val shape = MusFitTheme.shapes.large
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = MusFitTheme.colors.surfaceVariant,
         shape = shape,
         modifier = Modifier
             .fillMaxWidth()
@@ -251,11 +252,11 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
         ) {
             Text(
                 "Connect Health Connect to mirror steps, sleep, workouts, weight, and heart rate",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MusFitTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            Text("Set up", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text("Set up", style = MusFitTheme.typography.labelLarge, color = accent.color)
         }
     }
 }
@@ -271,10 +272,10 @@ private fun ProfileNavRow(title: String, subtitle: String, onClick: () -> Unit) 
                 .padding(vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = MusFitTheme.typography.titleSmall)
+            Text(subtitle, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
         }
-        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
     }
 }
 
@@ -291,15 +292,15 @@ private fun PlanCardRow(card: PlanCard, onClick: () -> Unit) {
                 .padding(vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(card.title, style = MaterialTheme.typography.titleSmall)
-            Text(card.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(card.title, style = MusFitTheme.typography.titleSmall)
+            Text(card.subtitle, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
         }
-        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
     }
 }
 
 @Composable
-private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () -> Unit) {
+private fun GoalCard(state: ProfileUiState, accent: TabAccent, onApply: () -> Unit, onComplete: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val profile = state.profile
@@ -310,41 +311,49 @@ private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () 
                         append(" · ${profile.goalPaceKgPerWeek.format1()} kg/wk")
                     }
                 }
-                Text(goalText, style = MaterialTheme.typography.bodyMedium)
+                Text(goalText, style = MusFitTheme.typography.bodyMedium)
                 val currentWeight = state.hero.latestWeightKg
                 if (currentWeight != null && profile.goalWeightKg != null) {
                     Text(
                         "${currentWeight.format1()} kg → ${profile.goalWeightKg.format1()} kg",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MusFitTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
                     )
                 }
                 val progress = state.hero.goalProgressFraction
                 if (progress != null) {
-                    ProgressBar(fraction = progress.toFloat())
+                    ProgressBar(fraction = progress.toFloat(), fill = accent.color)
                 }
             }
             val targets = state.recommendedTargets
             if (targets != null) {
                 Text(
                     "${targets.caloriesKcal.format1()} kcal · recommended",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MusFitTheme.typography.titleLarge,
                 )
                 Text(
                     "P ${targets.proteinGrams.format1()} g · C ${targets.carbsGrams.format1()} g · F ${targets.fatGrams.format1()} g",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
-                Button(onClick = onApply, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onApply,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+                ) {
                     Text("Apply to Food goals")
                 }
             } else {
                 Text(
                     "Complete your profile to see recommended calories and macros.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
-                Button(onClick = onComplete, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onComplete,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+                ) {
                     Text("Complete your profile")
                 }
             }
@@ -363,7 +372,7 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onOpenEntries: 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
+            .clip(MusFitTheme.shapes.medium)
             .clickable(onClickLabel = "Open weight history") { onOpenEntries() },
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -373,14 +382,14 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onOpenEntries: 
                     // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
                     Text(
                         hero.latestWeightKg!!.format1(),
-                        style = MaterialTheme.typography.displayMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MusFitTheme.typography.displayMedium,
+                        color = MusFitTheme.colors.onSurface,
                         maxLines = 1,
                     )
                     Text(
                         "kg",
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MusFitTheme.typography.titleLarge.copy(fontSize = 20.sp),
+                        color = MusFitTheme.colors.onSurfaceVariant,
                         maxLines = 1,
                         modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
                     )
@@ -389,7 +398,7 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onOpenEntries: 
                     Surface(color = accent.container, shape = RoundedCornerShape(999.dp)) {
                         Text(
                             "${if (d < 0) "−" else "+"}${abs(d).format1()} · 7d",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MusFitTheme.typography.labelMedium,
                             fontWeight = FontWeight.Medium,
                             color = accent.onContainer,
                             maxLines = 1,
@@ -409,7 +418,7 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onOpenEntries: 
                 }
             }
             if (caption.isNotEmpty()) {
-                Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(caption, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
             }
             when {
                 hero.chartSeries.size >= 2 ->
@@ -420,19 +429,19 @@ private fun WeightCard(state: ProfileUiState, accent: TabAccent, onOpenEntries: 
                         modifier = Modifier.fillMaxWidth().height(90.dp).padding(top = 6.dp),
                     )
                 hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
-                    Text("No entries in the last 30 days.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No entries in the last 30 days.", style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
                 else -> // exactly one point in the window — a chart or "no entries" text would both mislead
-                    Text("Log again to see a trend.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Log again to see a trend.", style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
             }
             if (hero.chartSeries.size >= 2) {
                 Text(
                     "30 days",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    style = MusFitTheme.typography.labelSmall,
+                    color = MusFitTheme.colors.onSurfaceVariant.copy(alpha = 0.7f),
                 )
             }
         } else {
-            Text("No weight logged yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("No weight logged yet.", style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
         }
     }
 }
@@ -453,8 +462,8 @@ private fun ProfileQuickActions(
         )
         ProfileQuickChip(
             label = "Measure",
-            container = MaterialTheme.colorScheme.surfaceVariant,
-            content = MaterialTheme.colorScheme.onSurface,
+            container = MusFitTheme.colors.surfaceVariant,
+            content = MusFitTheme.colors.onSurface,
             onClick = onLogMeasurement,
         )
     }
@@ -476,7 +485,7 @@ private fun ProfileQuickChip(
     ) {
         Text(
             label,
-            style = MaterialTheme.typography.labelLarge,
+            style = MusFitTheme.typography.labelLarge,
             fontWeight = FontWeight.Medium,
             color = content,
             maxLines = 1,
@@ -491,7 +500,7 @@ private fun MeasurementsGrid(state: ProfileUiState, accent: TabAccent, onOpenTyp
     Column(modifier = Modifier.fillMaxWidth()) {
         state.tiles.forEach { tile ->
             MeasurementRow(tile = tile, accent = accent, onClick = { onOpenType(tile.type) })
-            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
         }
     }
 }
@@ -512,15 +521,15 @@ private fun MeasurementRow(tile: MeasurementTile, accent: TabAccent, onClick: ()
     ) {
         Text(
             tile.label,
-            style = MaterialTheme.typography.titleSmall,
-            color = if (empty) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            style = MusFitTheme.typography.titleSmall,
+            color = if (empty) MusFitTheme.colors.onSurfaceVariant else MusFitTheme.colors.onSurface,
             modifier = Modifier.weight(1f),
         )
         if (empty) {
             Text(
                 "Tap to log",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                style = MusFitTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant.copy(alpha = 0.7f),
             )
         } else {
             if (tile.sparkline.size >= 2) {
@@ -534,15 +543,15 @@ private fun MeasurementRow(tile: MeasurementTile, accent: TabAccent, onClick: ()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     "${tile.value!!.format1()} ${tile.unit}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MusFitTheme.typography.titleSmall,
+                    color = MusFitTheme.colors.onSurface,
                     maxLines = 1,
                 )
                 if (delta != null && delta != 0.0) {
                     Text(
                         "${if (delta < 0) "▼" else "▲"}${abs(delta).format1()}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MusFitTheme.typography.labelSmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
                         modifier = Modifier.semantics {
                             contentDescription = "${if (delta < 0) "down" else "up"} ${abs(delta).format1()}"
                         },
@@ -554,20 +563,20 @@ private fun MeasurementRow(tile: MeasurementTile, accent: TabAccent, onClick: ()
 }
 
 @Composable
-private fun ProgressBar(fraction: Float) {
+private fun ProgressBar(fraction: Float, fill: androidx.compose.ui.graphics.Color) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(6.dp)
             .clip(RoundedCornerShape(3.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(MusFitTheme.colors.track),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp))
-                .background(MaterialTheme.colorScheme.primary),
+                .background(fill),
         )
     }
 }

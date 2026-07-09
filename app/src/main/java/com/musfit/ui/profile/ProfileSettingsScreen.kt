@@ -31,12 +31,9 @@ import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -70,9 +67,6 @@ import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import kotlinx.coroutines.launch
-
-private const val SettingsCardBorderAlpha = 0.14f
-private const val SettingsDividerAlpha = 0.12f
 
 @Composable
 fun ProfileSettingsScreen(
@@ -252,7 +246,6 @@ private fun SettingsHeader(onBack: () -> Unit) {
                 "Settings",
                 style = MusFitTheme.typography.headlineMedium,
                 color = MusFitTheme.colors.onSurface,
-                fontWeight = FontWeight.Bold,
             )
             Text(
                 "Profile, identity, coach, and device sync.",
@@ -272,11 +265,11 @@ private fun ProviderSignInActions(
 ) {
     SettingsCard {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("External identity", style = MaterialTheme.typography.titleMedium)
+            Text("External identity", style = MusFitTheme.typography.titleMedium)
             Text(
                 "Optional account linking. It does not enable cloud sync.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MusFitTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
             )
         }
         ProviderActionRow(
@@ -285,7 +278,7 @@ private fun ProviderSignInActions(
             accent = accent,
             onClick = onGoogleSignIn,
         )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = SettingsDividerAlpha))
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
         ProviderActionRow(
             action = actions.github,
             icon = Icons.Outlined.Code,
@@ -313,15 +306,15 @@ private fun ProviderActionRow(
         ) {
             IconWell(
                 icon = icon,
-                tint = if (action.enabled) accent.color else MaterialTheme.colorScheme.onSurfaceVariant,
-                container = if (action.enabled) accent.container else MaterialTheme.colorScheme.surfaceVariant,
+                tint = if (action.enabled) accent.color else MusFitTheme.colors.onSurfaceVariant,
+                container = if (action.enabled) accent.container else MusFitTheme.colors.surfaceVariant,
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(action.providerLabel, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(action.providerLabel, style = MusFitTheme.typography.titleSmall)
                     StatusPill(
                         label = action.statusLabel,
                         container = statusContainer(action.statusLabel, accent),
@@ -330,8 +323,8 @@ private fun ProviderActionRow(
                 }
                 Text(
                     action.supportingText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
         }
@@ -342,7 +335,7 @@ private fun ProviderActionRow(
                 .align(Alignment.End)
                 .heightIn(min = 44.dp)
                 .widthIn(min = 180.dp),
-            shape = MaterialTheme.shapes.medium,
+            shape = MusFitTheme.shapes.medium,
         ) {
             Text(action.buttonLabel)
         }
@@ -358,15 +351,15 @@ private fun ProfileDetailsCard(accent: TabAccent, onOpen: () -> Unit) {
         ) {
             IconWell(icon = Icons.Outlined.Person, tint = accent.color, container = accent.container)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Profile details", style = MaterialTheme.typography.titleMedium)
+                Text("Profile details", style = MusFitTheme.typography.titleMedium)
                 Text(
                     "Age, height, goal, pace, and latest body weight.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
-            TextButton(onClick = onOpen, shape = MaterialTheme.shapes.small) {
-                Text("Edit", color = accent.color, fontWeight = FontWeight.SemiBold)
+            TextButton(onClick = onOpen, shape = MusFitTheme.shapes.small) {
+                Text("Edit", color = accent.color, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -391,23 +384,23 @@ private fun HealthConnectSettingsCard(
         ) {
             IconWell(icon = Icons.Outlined.FavoriteBorder, tint = accent.color, container = accent.container)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Health Connect sync", style = MaterialTheme.typography.titleMedium)
+                Text("Health Connect sync", style = MusFitTheme.typography.titleMedium)
                 Text(
                     permissionSummary(state),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
             StatusPill(
                 label = healthAvailabilityPillLabel(state.availabilityLabel),
-                container = if (state.availabilityLabel == "Available") accent.container else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (state.availabilityLabel == "Available") accent.onContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                container = if (state.availabilityLabel == "Available") accent.container else MusFitTheme.colors.surfaceVariant,
+                contentColor = if (state.availabilityLabel == "Available") accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
             )
         }
         Text(
             state.message,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MusFitTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
         )
         Button(
             onClick = onRequestPermissions,
@@ -415,7 +408,7 @@ private fun HealthConnectSettingsCard(
                 .fillMaxWidth()
                 .heightIn(min = 46.dp),
             enabled = state.canRequestPermissions,
-            shape = MaterialTheme.shapes.medium,
+            shape = MusFitTheme.shapes.medium,
             colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
         ) {
             Text(healthConnectPrimaryActionLabel(state))
@@ -426,7 +419,7 @@ private fun HealthConnectSettingsCard(
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 44.dp),
-                shape = MaterialTheme.shapes.medium,
+                shape = MusFitTheme.shapes.medium,
             ) {
                 Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("Refresh", modifier = Modifier.padding(start = 6.dp))
@@ -437,7 +430,7 @@ private fun HealthConnectSettingsCard(
                     .weight(1f)
                     .heightIn(min = 44.dp),
                 enabled = !state.isHealthConnectSyncing,
-                shape = MaterialTheme.shapes.medium,
+                shape = MusFitTheme.shapes.medium,
             ) {
                 Icon(Icons.Outlined.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text(
@@ -451,33 +444,33 @@ private fun HealthConnectSettingsCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 44.dp),
-            shape = MaterialTheme.shapes.medium,
+            shape = MusFitTheme.shapes.medium,
         ) {
             Text("Export latest workout")
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = SettingsCardBorderAlpha))
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Steps source", style = MaterialTheme.typography.titleSmall)
+                Text("Steps source", style = MusFitTheme.typography.titleSmall)
                 Text(
                     state.stepSourceLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
                 Text(
                     "Pick one app to match its step count, or keep the Health Connect combined total.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
             OutlinedButton(
                 onClick = onOpenStepSourcePicker,
                 enabled = state.availabilityLabel == "Available",
-                shape = MaterialTheme.shapes.medium,
+                shape = MusFitTheme.shapes.medium,
                 modifier = Modifier.heightIn(min = 44.dp),
             ) {
                 Text("Change")
@@ -513,8 +506,8 @@ private fun StepSourcePickerDialog(
                 Text(
                     "MusFit reads Health Connect's combined step total, which can read higher than a " +
                         "single app because it merges every source. Pick one source to mirror it exactly.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
                 StepSourceOption(
                     label = "All sources (unified)",
@@ -533,8 +526,8 @@ private fun StepSourcePickerDialog(
                 if (sources.isEmpty()) {
                     Text(
                         "No step sources found for today yet. Sync or walk a little, then reopen.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MusFitTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
                     )
                 }
             }
@@ -552,7 +545,7 @@ private fun StepSourceOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
+            .clip(MusFitTheme.shapes.small)
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -560,11 +553,11 @@ private fun StepSourceOption(
     ) {
         RadioButton(selected = selected, onClick = onClick)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(label, style = MusFitTheme.typography.bodyMedium)
             Text(
                 detail,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MusFitTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
             )
         }
     }
@@ -580,14 +573,17 @@ private fun SettingsCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    // Flat group on the pure surface — no border, no card chrome; whitespace
-    // and section headers do the separating.
-    Card(
+    // Flat group on the pure surface — no border, no elevation, no card chrome;
+    // whitespace and section headers do the separating.
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MusFitTheme.shapes.extraLarge,
+        color = MusFitTheme.colors.surface,
     ) {
-        Column(modifier = Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             content()
         }
     }
@@ -602,8 +598,8 @@ private fun SettingsValueRow(title: String, value: String, detail: String) {
     ) {
         IconWell(
             icon = Icons.Outlined.Info,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            container = MaterialTheme.colorScheme.surfaceVariant,
+            tint = MusFitTheme.colors.onSurfaceVariant,
+            container = MusFitTheme.colors.surfaceVariant,
             size = 34,
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -612,15 +608,15 @@ private fun SettingsValueRow(title: String, value: String, detail: String) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(title, style = MusFitTheme.typography.titleSmall)
                 Text(
                     value,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MusFitTheme.typography.labelLarge,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
                 )
             }
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(detail, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
         }
     }
 }
@@ -639,13 +635,13 @@ private fun SettingsToggleRow(
     ) {
         IconWell(
             icon = Icons.Outlined.FavoriteBorder,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            container = MaterialTheme.colorScheme.surfaceVariant,
+            tint = MusFitTheme.colors.onSurfaceVariant,
+            container = MusFitTheme.colors.surfaceVariant,
             size = 34,
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = MusFitTheme.typography.titleSmall)
+            Text(detail, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
@@ -658,7 +654,7 @@ private fun IconWell(
     container: Color,
     size: Int = 38,
 ) {
-    Surface(color = container, shape = MaterialTheme.shapes.small) {
+    Surface(color = container, shape = MusFitTheme.shapes.small) {
         Box(modifier = Modifier.size(size.dp), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size((size / 2).dp))
         }
@@ -667,12 +663,12 @@ private fun IconWell(
 
 @Composable
 private fun StatusPill(label: String, container: Color, contentColor: Color) {
-    Surface(color = container, shape = MaterialTheme.shapes.small) {
+    Surface(color = container, shape = MusFitTheme.shapes.small) {
         Text(
             label,
-            style = MaterialTheme.typography.labelSmall,
+            style = MusFitTheme.typography.labelSmall,
             color = contentColor,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         )
     }
@@ -682,16 +678,16 @@ private fun StatusPill(label: String, container: Color, contentColor: Color) {
 private fun statusContainer(statusLabel: String, accent: TabAccent): Color =
     when (statusLabel) {
         "Ready" -> accent.container
-        "In progress" -> MaterialTheme.colorScheme.secondaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
+        "In progress" -> accent.container
+        else -> MusFitTheme.colors.surfaceVariant
     }
 
 @Composable
 private fun statusContentColor(statusLabel: String, accent: TabAccent): Color =
     when (statusLabel) {
         "Ready" -> accent.onContainer
-        "In progress" -> MaterialTheme.colorScheme.onSecondaryContainer
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+        "In progress" -> accent.onContainer
+        else -> MusFitTheme.colors.onSurfaceVariant
     }
 
 private fun permissionSummary(state: ProfileSettingsUiState): String =
@@ -731,8 +727,8 @@ private fun GitHubDeviceCodeDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Enter this code at GitHub:")
-                Text(userCode, style = MaterialTheme.typography.headlineSmall)
-                Text(verificationUri, style = MaterialTheme.typography.bodySmall)
+                Text(userCode, style = MusFitTheme.typography.headlineSmall)
+                Text(verificationUri, style = MusFitTheme.typography.bodySmall)
             }
         },
         confirmButton = { TextButton(onClick = onOpen) { Text("Open GitHub") } },

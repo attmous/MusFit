@@ -12,12 +12,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,6 +26,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.Account
+import com.musfit.ui.AppDestination
+import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.tabAccentFor
 
 data class AccountUiState(
     val displayName: String = "You",
@@ -49,13 +50,14 @@ private fun String.accountInitial(): String =
 
 @Composable
 fun AccountSection(account: AccountUiState, onEdit: () -> Unit) {
-    Card(
+    val accent = tabAccentFor(AppDestination.Profile)
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MusFitTheme.shapes.extraLarge,
+        color = MusFitTheme.colors.surface,
     ) {
         Row(
-            modifier = Modifier.padding(vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -63,30 +65,30 @@ fun AccountSection(account: AccountUiState, onEdit: () -> Unit) {
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .background(accent.container)
                     // Decorative initial: without this TalkBack reads a bare letter before the name.
                     .clearAndSetSemantics {},
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     account.displayName.accountInitial(),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MusFitTheme.typography.titleMedium,
+                    color = accent.onContainer,
+                    fontWeight = FontWeight.Medium,
                 )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(account.displayName, style = MaterialTheme.typography.titleMedium)
+                Text(account.displayName, style = MusFitTheme.typography.titleMedium)
                 Text(
                     account.email ?: account.providerLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
                 if (account.email != null) {
                     Text(
                         account.providerLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MusFitTheme.typography.labelSmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
                     )
                 }
             }
@@ -130,8 +132,8 @@ fun AccountEditDialog(
                 )
                 Text(
                     "Stored on this device. Sync and sign-in are not enabled.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
         },
