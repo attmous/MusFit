@@ -114,7 +114,7 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             MusFitScreenHeader(
-                title = "Body",
+                title = "Profile",
                 actions = {
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -109,10 +109,11 @@ private fun CoachMessageCard(
     onAction: (CoachAction) -> Unit,
     onLongPress: () -> Unit,
 ) {
-    // Coach coral is global — the one color that stays the same on every tab.
+    // Coach cards are a quiet neutral strip — same on every tab; the brand green
+    // carries only the unread dot and the text action.
     val coachShape = RoundedCornerShape(20.dp)
     Surface(
-        color = MusFitTheme.colors.accentContainer,
+        color = MusFitTheme.colors.surfaceVariant,
         shape = coachShape,
         modifier = Modifier
             .fillMaxWidth()
@@ -130,7 +131,7 @@ private fun CoachMessageCard(
                 Icon(
                     message.category.icon(),
                     contentDescription = null, // decorative: the visible category label follows
-                    tint = MusFitTheme.colors.onAccentContainer,
+                    tint = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.size(14.dp),
                 )
                 Spacer(Modifier.width(6.dp))
@@ -138,7 +139,7 @@ private fun CoachMessageCard(
                     text = message.category.displayLabel().uppercase(),
                     style = MusFitTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
-                    color = MusFitTheme.colors.onAccentContainer,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
@@ -146,7 +147,7 @@ private fun CoachMessageCard(
                         Instant.ofEpochMilli(message.firstSeenAtEpochMillis).atZone(ZoneId.systemDefault()),
                     ),
                     style = MusFitTheme.typography.labelSmall,
-                    color = MusFitTheme.colors.onAccentContainer.copy(alpha = 0.7f),
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
                 if (!message.isRead) {
                     Spacer(Modifier.width(6.dp))
@@ -154,7 +155,7 @@ private fun CoachMessageCard(
                         modifier = Modifier
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(MusFitTheme.colors.accent),
+                            .background(MusFitTheme.colors.brand),
                     )
                 }
             }
@@ -162,13 +163,13 @@ private fun CoachMessageCard(
             Text(
                 text = message.title,
                 style = MusFitTheme.typography.titleSmall,
-                color = MusFitTheme.colors.onAccentContainer,
+                color = MusFitTheme.colors.onSurface,
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 text = message.body,
                 style = MusFitTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onAccentContainer.copy(alpha = 0.85f),
+                color = MusFitTheme.colors.onSurfaceVariant,
             )
             message.action?.let { action ->
                 Spacer(Modifier.height(MusFitTheme.spacing.sm))
@@ -181,7 +182,7 @@ private fun CoachMessageCard(
                         text = coachActionLabel(action),
                         style = MusFitTheme.typography.labelLarge,
                         fontWeight = FontWeight.Medium,
-                        color = MusFitTheme.colors.onAccentContainer,
+                        color = MusFitTheme.colors.brand,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                     )
                 }
@@ -228,16 +229,16 @@ private fun CoachMessageCategory.icon(): ImageVector = when (this) {
 }
 
 /**
- * The floating coach button: coach coral, 52dp with an 18dp radius, floating
- * above the bottom nav — the one elevated element in the app. Opens the
- * "coming soon" preview sheet.
+ * The floating coach button: monochrome ink (matching the dark segment pills),
+ * 52dp with an 18dp radius, floating above the bottom nav — the one elevated
+ * element in the app. Opens the "coming soon" preview sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         onClick = onClick,
-        color = MusFitTheme.colors.accent,
+        color = MusFitTheme.colors.onSurface,
         shape = RoundedCornerShape(18.dp),
         shadowElevation = 6.dp,
         modifier = modifier.size(52.dp),
@@ -246,7 +247,7 @@ fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
             Icon(
                 Icons.Outlined.Forum,
                 contentDescription = "Coach chat (coming soon)",
-                tint = MusFitTheme.colors.onAccent,
+                tint = MusFitTheme.colors.surface,
                 modifier = Modifier.size(24.dp),
             )
         }

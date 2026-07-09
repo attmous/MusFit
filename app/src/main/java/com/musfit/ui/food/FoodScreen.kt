@@ -273,7 +273,6 @@ fun FoodScreen(
                     FoodWaterRow(
                         consumedMilliliters = state.waterConsumedMilliliters,
                         goalMilliliters = state.waterGoalMilliliters,
-                        accent = accent,
                         onWaterClick = viewModel::openWaterSheet,
                         onQuickAddClick = { viewModel.logQuickWater(WATER_QUICK_ADD_MILLILITERS) },
                         onQuickRemoveClick = { viewModel.removeQuickWater(WATER_QUICK_ADD_MILLILITERS) },
@@ -668,19 +667,19 @@ private fun FoodDateChip(
 
 /**
  * At-a-glance water strip (mock 3b): one neutral-fill rounded strip — drop icon,
- * "Water", "x of y L", glass segments filled in the tab accent, and quick "−"/"+"
- * glass adjusters. The "−" undoes an accidental add and is disabled once the day
- * is empty. Tapping the strip opens the full water sheet.
+ * "Water", "x of y L", glass segments filled in the semantic water blue, and quick
+ * "−"/"+" glass adjusters. The "−" undoes an accidental add and is disabled once
+ * the day is empty. Tapping the strip opens the full water sheet.
  */
 @Composable
 private fun FoodWaterRow(
     consumedMilliliters: Double,
     goalMilliliters: Double,
-    accent: TabAccent,
     onWaterClick: () -> Unit,
     onQuickAddClick: () -> Unit,
     onQuickRemoveClick: () -> Unit,
 ) {
+    val waterColor = MusFitTheme.colors.water
     // Each segment is one 250 ml glass (so the "+" fills exactly one), capped for width.
     val segmentCount = (goalMilliliters / WATER_QUICK_ADD_MILLILITERS).roundToInt().coerceIn(1, 8)
     val filledSegments = (consumedMilliliters / WATER_QUICK_ADD_MILLILITERS).roundToInt().coerceIn(0, segmentCount)
@@ -744,7 +743,7 @@ private fun FoodWaterRow(
                             modifier = Modifier
                                 .size(width = 6.dp, height = 18.dp)
                                 .clip(RoundedCornerShape(percent = 50))
-                                .background(if (index < filledSegments) accent.color else MusFitTheme.colors.track),
+                                .background(if (index < filledSegments) waterColor else MusFitTheme.colors.track),
                         )
                     }
                 }
@@ -752,7 +751,7 @@ private fun FoodWaterRow(
                     onClick = onQuickAddClick,
                     modifier = Modifier.size(32.dp),
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add water", tint = accent.color)
+                    Icon(Icons.Filled.Add, contentDescription = "Add water", tint = waterColor)
                 }
             }
         }

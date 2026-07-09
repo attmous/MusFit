@@ -93,7 +93,6 @@ fun TodayScreen(
     ) {
         MusFitScreenScaffold(
             title = todayGreeting(java.time.LocalTime.now().hour),
-            subtitle = state.dateLabel,
             actions = {
                 state.readiness?.let { readiness ->
                     ReadinessHeaderChip(
@@ -193,7 +192,7 @@ private fun CoachSectionHeader(hasUnread: Boolean) {
                     .padding(start = 8.dp)
                     .size(7.dp)
                     .clip(CircleShape)
-                    .background(MusFitTheme.colors.accent),
+                    .background(MusFitTheme.colors.brand),
             )
         }
     }

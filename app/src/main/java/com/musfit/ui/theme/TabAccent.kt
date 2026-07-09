@@ -18,14 +18,16 @@ fun tabAccentFor(destination: AppDestination): TabAccent =
     if (isSystemInDarkTheme()) tabAccentForDark(destination) else tabAccentForLight(destination)
 
 internal fun tabAccentForLight(destination: AppDestination): TabAccent = when (destination) {
-    AppDestination.Today -> TabAccent(Coral, CoralOnAccent, CoralContainer, CoralInk)
+    // Today reads in the brand emerald (like the Turn 3 mocks) — coral read too loud
+    // as a whole-tab accent and is reserved for semantic warning tones.
+    AppDestination.Today -> TabAccent(Emerald, CardWhite, PositiveContainer, EmeraldInk)
     AppDestination.Food -> TabAccent(Emerald, CardWhite, PositiveContainer, EmeraldInk)
     AppDestination.Training -> TabAccent(Indigo, CardWhite, IndigoContainer, IndigoInk)
     AppDestination.Profile -> TabAccent(Teal, CardWhite, TealContainer, TealInk)
 }
 
 internal fun tabAccentForDark(destination: AppDestination): TabAccent = when (destination) {
-    AppDestination.Today -> TabAccent(CoralBright, CoralOnAccent, CoralContainerDark, CoralInkDark)
+    AppDestination.Today -> TabAccent(EmeraldBright, EmeraldOnDark, EmeraldContainerDark, EmeraldInkDark)
     AppDestination.Food -> TabAccent(EmeraldBright, EmeraldOnDark, EmeraldContainerDark, EmeraldInkDark)
     AppDestination.Training -> TabAccent(IndigoBright, Color(0xFF0B1240), IndigoContainerDark, IndigoInkDark)
     AppDestination.Profile -> TabAccent(TealBright, Color(0xFF06302F), TealContainerDark, TealInkDark)
