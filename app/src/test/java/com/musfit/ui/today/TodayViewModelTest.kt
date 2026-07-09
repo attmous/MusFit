@@ -165,6 +165,14 @@ class TodayViewModelTest {
     }
 
     @Test
+    fun todayRefreshIndicatorState_hiddenWhenIdle() {
+        val indicator = todayRefreshIndicatorUiState(isRefreshing = false, pullDistanceFraction = 0f)
+
+        assertFalse(indicator.isVisible)
+        assertNull(indicator.progress)
+    }
+
+    @Test
     fun feed_groupsByDayWithTodayAndYesterdayLabelsNewestFirst() = runTest {
         val date = LocalDate.now()
         val coachRepository = FakeCoachRepository()
