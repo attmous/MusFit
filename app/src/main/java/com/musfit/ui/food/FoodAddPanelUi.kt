@@ -28,8 +28,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -77,7 +75,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.musfit.ui.AppDestination
+import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.tabAccentFor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -154,7 +155,6 @@ internal fun AddFoodPanel(
                     "Add to ${state.selectedMealTitle}"
                 },
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
             )
             Text(
                 text = if (state.isPlanningMode) {
@@ -180,7 +180,7 @@ internal fun AddFoodPanel(
             Text(
                 text = "Keep adding",
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Medium,
             )
             Switch(
                 checked = state.keepAddingFoods,
@@ -192,7 +192,7 @@ internal fun AddFoodPanel(
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = MusFitTheme.colors.brand,
             )
         }
 
@@ -308,26 +308,22 @@ private fun FavoriteAddSection(
     onQuickLogClick: (String) -> Unit,
 ) {
     if (items.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "Favorites",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-        )
-        items.forEach { item ->
-            Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        SectionTitle("Favorites")
+        // Hairline rows — no card chrome inside the sheet.
+        Column(modifier = Modifier.fillMaxWidth()) {
+            items.forEach { item ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
+                        .padding(vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = item.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -354,6 +350,7 @@ private fun FavoriteAddSection(
                         Text(if (isSaving) actionProgressLabel else actionVerb)
                     }
                 }
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
             }
         }
     }
@@ -364,18 +361,13 @@ private fun AddModeTabs(
     selectedMode: FoodAddMode,
     onModeSelected: (FoodAddMode) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        FoodAddMode.entries.filter { it != FoodAddMode.Ai }.forEach { mode ->
-            FilterChip(
-                selected = selectedMode == mode,
-                onClick = { onModeSelected(mode) },
-                label = { Text(mode.label) },
-            )
-        }
-    }
+    MusFitSegmented(
+        options = FoodAddMode.entries.filter { it != FoodAddMode.Ai },
+        selected = selectedMode,
+        accent = tabAccentFor(AppDestination.Food),
+        label = { it.label },
+        onSelect = onModeSelected,
+    )
 }
 
 @Composable
@@ -427,14 +419,12 @@ private fun SavedFoodPickerRow(
     onServingSelected: (Double) -> Unit,
     onClick: () -> Unit,
 ) {
-    Surface(
-        color = MusFitTheme.colors.surfaceVariant,
-        shape = MusFitTheme.shapes.small,
-    ) {
+    // Hairline row — the serving chips keep their own tap targets.
+    Column(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
@@ -445,8 +435,7 @@ private fun SavedFoodPickerRow(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = food.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -481,6 +470,7 @@ private fun SavedFoodPickerRow(
                 }
             }
         }
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
     }
 }
 
@@ -492,26 +482,19 @@ private fun TemplateQuickList(
     onFavoriteClick: (String, Boolean) -> Unit,
 ) {
     if (templates.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "Meal templates",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-        )
-        templates.forEach { template ->
-            Surface(
-                color = MusFitTheme.colors.surfaceVariant,
-                shape = MusFitTheme.shapes.small,
-            ) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        SectionTitle("Meal templates")
+        Column(modifier = Modifier.fillMaxWidth()) {
+            templates.forEach { template ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
+                        .padding(vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(template.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(template.name, style = MaterialTheme.typography.titleSmall)
                         Text(
                             listOfNotNull(
                                 template.itemSummary,
@@ -532,6 +515,7 @@ private fun TemplateQuickList(
                         }
                     }
                 }
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
             }
         }
     }
@@ -546,11 +530,7 @@ private fun RecipeQuickList(
 ) {
     if (state.recipes.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "Recipes",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-        )
+        SectionTitle("Recipes")
         OutlinedTextField(
             value = state.recipeServingsToLog,
             onValueChange = onRecipeServingsChanged,
@@ -559,20 +539,17 @@ private fun RecipeQuickList(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
         )
-        state.recipes.forEach { recipe ->
-            Surface(
-                color = MusFitTheme.colors.surfaceVariant,
-                shape = MusFitTheme.shapes.small,
-            ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            state.recipes.forEach { recipe ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
+                        .padding(vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(recipe.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(recipe.name, style = MaterialTheme.typography.titleSmall)
                         Text(
                             text = listOfNotNull(
                                 "${recipe.caloriesPerServingKcal.roundToInt()} kcal",
@@ -594,6 +571,7 @@ private fun RecipeQuickList(
                         }
                     }
                 }
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
             }
         }
     }
@@ -663,7 +641,6 @@ private fun AiLoggingForm(
                     Text(
                         text = "${state.aiLoggingDraftSourceLabel ?: "AI"} draft",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
                         color = MusFitTheme.colors.brandInk,
                     )
                     state.aiLoggingDraftReview?.let { review ->
@@ -872,7 +849,6 @@ private fun BarcodeLookupSummary(
             Text(
                 text = "Product loaded",
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
                 color = MusFitTheme.colors.brandInk,
             )
             Text(
@@ -913,7 +889,6 @@ private fun NutritionLabelScanReview(
             Text(
                 text = review.confidenceLabel,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
                 color = MusFitTheme.colors.brandInk,
             )
             Text(
@@ -1097,8 +1072,7 @@ private fun NutritionFields(
         Text(
             text = "Per 100 g",
             style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = MusFitTheme.colors.brand,
+            color = MusFitTheme.colors.onSurface,
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1146,9 +1120,10 @@ private fun NutritionFields(
 private fun AmountNutritionPreview(
     preview: FoodAmountNutritionPreviewUiState,
 ) {
+    // The one tonal summary chip in the add forms — live totals for the chosen amount.
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MusFitTheme.shapes.small,
+        shape = MusFitTheme.shapes.medium,
         color = MusFitTheme.colors.positiveContainer,
     ) {
         Column(
@@ -1158,7 +1133,6 @@ private fun AmountNutritionPreview(
             Text(
                 text = "For ${preview.quantityGrams.formatNutritionDisplay()} g",
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
                 color = MusFitTheme.colors.brandInk,
             )
             Row(
@@ -1212,7 +1186,7 @@ private fun AmountNutritionMetric(
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Medium,
             color = MusFitTheme.colors.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1234,18 +1208,18 @@ private fun QuickCalorieForm(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (state.quickCaloriePresets.isNotEmpty()) {
-            Text("Favorite quick logs", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            state.quickCaloriePresets.forEach { preset ->
-                Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.small) {
+            SectionTitle("Favorite quick logs")
+            Column(modifier = Modifier.fillMaxWidth()) {
+                state.quickCaloriePresets.forEach { preset ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
+                            .padding(vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(preset.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(preset.name, style = MaterialTheme.typography.titleSmall)
                             Text(
                                 listOf(
                                     "${preset.caloriesKcal.roundToInt()} kcal",
@@ -1269,6 +1243,7 @@ private fun QuickCalorieForm(
                             }
                         }
                     }
+                    HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
                 }
             }
         }

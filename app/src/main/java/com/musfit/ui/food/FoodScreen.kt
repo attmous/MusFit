@@ -25,8 +25,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -942,11 +940,10 @@ private fun CalorieRing(
 @Composable
 internal fun MacroProgressRow(macros: List<FoodMacroProgressUiState>) {
     val macroColors = MusFitTheme.colors.macroColors
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
+        color = MusFitTheme.colors.surface,
         shape = MusFitTheme.shapes.extraLarge,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier
@@ -1705,11 +1702,10 @@ private fun MealDetailScreen(
                 }
             }
         } else {
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
+                color = MusFitTheme.colors.surface,
                 shape = MusFitTheme.shapes.extraLarge,
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     meal.entries.forEachIndexed { index, entry ->
@@ -1776,7 +1772,7 @@ private fun MessageBanner(
     message ?: return
 
     Surface(
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+        color = MusFitTheme.colors.positiveContainer,
         shape = MusFitTheme.shapes.extraLarge,
     ) {
         Row(
@@ -1789,7 +1785,7 @@ private fun MessageBanner(
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = MusFitTheme.colors.onSurface,
                 modifier = Modifier.weight(1f),
             )
             if (canUndoDelete) {
@@ -1806,11 +1802,10 @@ private fun MessageBanner(
 
 @Composable
 private fun MealDetailMacroCard(meal: FoodMealSectionUiState) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
+        color = MusFitTheme.colors.surface,
         shape = MusFitTheme.shapes.extraLarge,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),

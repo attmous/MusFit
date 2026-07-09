@@ -19,7 +19,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -37,6 +36,7 @@ import com.musfit.data.repository.MEASUREMENT_TYPES
 import com.musfit.data.repository.UserProfile
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.charts.TrendLineChart
+import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.tabAccentFor
 import com.musfit.domain.profile.ActivityLevel
 import com.musfit.domain.profile.GoalType
@@ -260,7 +260,7 @@ fun EntriesSheet(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(title, style = MusFitTheme.typography.titleMedium)
             if (chartSeries.size >= 2) {
                 TrendLineChart(
                     values = chartSeries,
@@ -271,8 +271,8 @@ fun EntriesSheet(
             if (items.isEmpty()) {
                 Text(
                     "No entries yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 12.dp),
                 )
             }
@@ -282,11 +282,11 @@ fun EntriesSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("${item.value.format1()} ${item.unit}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${item.value.format1()} ${item.unit}", style = MusFitTheme.typography.bodyLarge)
                         Text(
                             item.dateLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MusFitTheme.typography.bodySmall,
+                            color = MusFitTheme.colors.onSurfaceVariant,
                         )
                     }
                     IconButton(onClick = { editing = item }) {

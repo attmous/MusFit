@@ -14,8 +14,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -35,6 +34,7 @@ import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.LocalAgentKind
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.MusFitSegmented
+import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.tabAccentFor
 
 @Composable
@@ -44,13 +44,13 @@ fun AiCoachSettingsSection(
     onClearApiKey: () -> Unit,
 ) {
     val accent = tabAccentFor(AppDestination.Profile)
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MusFitTheme.shapes.extraLarge,
+        color = MusFitTheme.colors.surface,
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
@@ -58,36 +58,33 @@ fun AiCoachSettingsSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Coach connection", style = MaterialTheme.typography.titleMedium)
+                    Text("Coach connection", style = MusFitTheme.typography.titleMedium)
                     Text(
                         state.aiCoachSummary(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MusFitTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
                     )
                 }
                 AiCoachStatusPill(
                     label = state.providerLabel,
                     container = if (state.providerKind == AiCoachProviderKind.Disabled) {
-                        MaterialTheme.colorScheme.surfaceVariant
+                        MusFitTheme.colors.surfaceVariant
                     } else {
                         accent.container
                     },
                     contentColor = if (state.providerKind == AiCoachProviderKind.Disabled) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        MusFitTheme.colors.onSurfaceVariant
                     } else {
                         accent.onContainer
                     },
                 )
             }
-            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SettingsRow(label = "Endpoint", value = state.endpointLabel)
-                    SettingsRow(label = "Model", value = state.modelLabel)
-                    SettingsRow(label = "API key", value = state.apiKeyLabel)
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsRow(label = "Endpoint", value = state.endpointLabel)
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+                SettingsRow(label = "Model", value = state.modelLabel)
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+                SettingsRow(label = "API key", value = state.apiKeyLabel)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
@@ -95,7 +92,7 @@ fun AiCoachSettingsSection(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 46.dp),
-                    shape = MaterialTheme.shapes.medium,
+                    shape = MusFitTheme.shapes.medium,
                     colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
                 ) {
                     Icon(Icons.Outlined.Edit, contentDescription = null)
@@ -107,7 +104,7 @@ fun AiCoachSettingsSection(
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 44.dp),
-                        shape = MaterialTheme.shapes.medium,
+                        shape = MusFitTheme.shapes.medium,
                     ) {
                         Text("Clear key")
                     }
@@ -207,12 +204,12 @@ fun AiCoachSettingsDialog(
                     )
                 }
                 if (error != null) {
-                    Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text(error, color = MaterialTheme.colorScheme.error, style = MusFitTheme.typography.bodySmall)
                 }
                 Text(
                     "MusFit keeps this local. Local agents can run without a key; hosted endpoints usually need one.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
         },
@@ -231,23 +228,23 @@ private fun SettingsRow(label: String, value: String) {
         Text(
             label,
             modifier = Modifier.weight(0.35f),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MusFitTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
             fontWeight = FontWeight.Medium,
         )
-        Text(value, modifier = Modifier.weight(0.65f), style = MaterialTheme.typography.bodySmall)
+        Text(value, modifier = Modifier.weight(0.65f), style = MusFitTheme.typography.bodySmall)
     }
 }
 
 @Composable
 private fun AiCoachStatusPill(label: String, container: Color, contentColor: Color) {
-    Surface(color = container, shape = MaterialTheme.shapes.small) {
+    Surface(color = container, shape = MusFitTheme.shapes.small) {
         Text(
             label,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
+            style = MusFitTheme.typography.labelSmall,
             color = contentColor,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Medium,
         )
     }
 }

@@ -11,8 +11,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -29,8 +28,9 @@ import androidx.compose.ui.unit.dp
 import com.musfit.ui.theme.MusFitTheme
 import kotlin.math.roundToInt
 
-// Self-contained "More details" tracker cards (water + Health Connect sync),
-// extracted from FoodScreen.kt with no behavior change.
+// Self-contained tracker panels (water + Health Connect sync) rendered inside
+// the Food modal sheets. The sheet container is already colors.surface, so the
+// panels draw naked — no card chrome.
 
 @Composable
 internal fun WaterTrackerCard(
@@ -43,97 +43,94 @@ internal fun WaterTrackerCard(
     onGoalChanged: (String) -> Unit,
     onGoalSaveClick: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = MusFitTheme.shapes.small,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Water", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        "${state.waterConsumedMilliliters.roundToInt()} / ${state.waterGoalMilliliters.roundToInt()} ml",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
-                }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Water", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${(state.waterProgress * 100).roundToInt()}%",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MusFitTheme.colors.brand,
+                    "${state.waterConsumedMilliliters.roundToInt()} / ${state.waterGoalMilliliters.roundToInt()} ml",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
-
-            ProgressBar(progress = state.waterProgress.toFloat().coerceIn(0f, 1f), color = MusFitTheme.colors.water)
-
-            // Each preset is a "− amount +" stepper so a mistaken add can be undone. The
-            // "−" is disabled once the day is empty (there is nothing left to remove).
-            val canRemoveWater = state.waterConsumedMilliliters > 0.0
-            WaterQuickStepperRow(
-                amountMilliliters = 250.0,
-                addEnabled = !state.isSaving,
-                removeEnabled = !state.isSaving && canRemoveWater,
-                onRemove = onRemoveWaterClick,
-                onAdd = onQuickWaterClick,
+            Text(
+                "${(state.waterProgress * 100).roundToInt()}%",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MusFitTheme.colors.brand,
             )
-            WaterQuickStepperRow(
-                amountMilliliters = 500.0,
-                addEnabled = !state.isSaving,
-                removeEnabled = !state.isSaving && canRemoveWater,
-                onRemove = onRemoveWaterClick,
-                onAdd = onQuickWaterClick,
-            )
+        }
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+        ProgressBar(progress = state.waterProgress.toFloat().coerceIn(0f, 1f), color = MusFitTheme.colors.water)
+
+        // Each preset is a "− amount +" stepper so a mistaken add can be undone. The
+        // "−" is disabled once the day is empty (there is nothing left to remove).
+        val canRemoveWater = state.waterConsumedMilliliters > 0.0
+        WaterQuickStepperRow(
+            amountMilliliters = 250.0,
+            addEnabled = !state.isSaving,
+            removeEnabled = !state.isSaving && canRemoveWater,
+            onRemove = onRemoveWaterClick,
+            onAdd = onQuickWaterClick,
+        )
+        WaterQuickStepperRow(
+            amountMilliliters = 500.0,
+            addEnabled = !state.isSaving,
+            removeEnabled = !state.isSaving && canRemoveWater,
+            onRemove = onRemoveWaterClick,
+            onAdd = onQuickWaterClick,
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = state.waterCustomAmountInput,
+                onValueChange = onCustomAmountChanged,
+                label = { Text("Custom ml") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+            )
+            MusFitOutlinedButton(
+                onClick = onCustomRemoveClick,
+                enabled = !state.isSaving && canRemoveWater,
             ) {
-                OutlinedTextField(
-                    value = state.waterCustomAmountInput,
-                    onValueChange = onCustomAmountChanged,
-                    label = { Text("Custom ml") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
-                MusFitOutlinedButton(
-                    onClick = onCustomRemoveClick,
-                    enabled = !state.isSaving && canRemoveWater,
-                ) {
-                    Text("Remove")
-                }
-                Button(
-                    onClick = onCustomAddClick,
-                    enabled = !state.isSaving,
-                    colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-                ) {
-                    Text("Add")
-                }
+                Text("Remove")
             }
+            Button(
+                onClick = onCustomAddClick,
+                enabled = !state.isSaving,
+                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+            ) {
+                Text("Add")
+            }
+        }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = state.waterGoalInput,
-                    onValueChange = onGoalChanged,
-                    label = { Text("Goal ml") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
-                MusFitOutlinedButton(onClick = onGoalSaveClick, enabled = !state.isSaving) {
-                    Text("Save")
-                }
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = state.waterGoalInput,
+                onValueChange = onGoalChanged,
+                label = { Text("Goal ml") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+            )
+            MusFitOutlinedButton(onClick = onGoalSaveClick, enabled = !state.isSaving) {
+                Text("Save")
             }
         }
     }
@@ -167,7 +164,7 @@ private fun WaterQuickStepperRow(
         Text(
             text = label,
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
             color = MusFitTheme.colors.onSurface,
             modifier = Modifier.weight(1f),
@@ -189,75 +186,70 @@ internal fun FoodHealthConnectSyncCard(
     onRefreshClick: () -> Unit,
     onSyncClick: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
-        shape = MusFitTheme.shapes.small,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Health Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        state.foodHealthConnectPermissionSummary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
-                }
-                Switch(
-                    checked = state.foodHealthConnectSyncEnabled,
-                    onCheckedChange = onEnabledChanged,
-                    enabled = !state.isSaving,
-                )
-            }
-
-            Text(
-                text = "Writes logged meals and water from Food.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
-
-            state.foodHealthConnectLastFailureMessage?.let { failure ->
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Health Connect", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    text = failure,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.warning,
+                    state.foodHealthConnectPermissionSummary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
+            Switch(
+                checked = state.foodHealthConnectSyncEnabled,
+                onCheckedChange = onEnabledChanged,
+                enabled = !state.isSaving,
+            )
+        }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                MusFitOutlinedButton(
-                    onClick = onRequestPermissionsClick,
-                    enabled = state.foodHealthConnectCanRequestPermissions && !state.isSaving,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Permissions", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                MusFitOutlinedButton(
-                    onClick = onRefreshClick,
-                    enabled = !state.isSaving,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Refresh", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
+        Text(
+            text = "Writes logged meals and water from Food.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
 
-            Button(
-                onClick = onSyncClick,
-                enabled = state.foodHealthConnectSyncEnabled && state.foodHealthConnectCanSync && !state.isSaving,
-                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-                modifier = Modifier.fillMaxWidth(),
+        state.foodHealthConnectLastFailureMessage?.let { failure ->
+            Text(
+                text = failure,
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.warning,
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            MusFitOutlinedButton(
+                onClick = onRequestPermissionsClick,
+                enabled = state.foodHealthConnectCanRequestPermissions && !state.isSaving,
+                modifier = Modifier.weight(1f),
             ) {
-                Text("Sync Food to Health Connect")
+                Text("Permissions", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            MusFitOutlinedButton(
+                onClick = onRefreshClick,
+                enabled = !state.isSaving,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Refresh", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+
+        Button(
+            onClick = onSyncClick,
+            enabled = state.foodHealthConnectSyncEnabled && state.foodHealthConnectCanSync && !state.isSaving,
+            colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Sync Food to Health Connect")
         }
     }
 }
