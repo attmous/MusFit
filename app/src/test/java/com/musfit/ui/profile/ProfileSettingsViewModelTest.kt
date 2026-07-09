@@ -519,7 +519,7 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(false, viewModel.state.value.aiCoachEditorOpen)
-        assertEquals("AI coach setup saved.", viewModel.state.value.message)
+        assertEquals("AI coach setup saved.", viewModel.state.value.aiCoachMessage)
         assertEquals(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.OpenAiCompatible,
@@ -595,8 +595,22 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, chatRepository.testCalls)
-        assertEquals("AI coach connection is reachable.", viewModel.state.value.message)
+        assertEquals("AI coach connection is reachable.", viewModel.state.value.aiCoachMessage)
         assertFalse(viewModel.state.value.isAiCoachTesting)
+    }
+
+    @Test
+    fun reportAiCoachLocalNetworkPermissionDenied_updatesAiCoachMessage() = runTest {
+        val viewModel = settingsViewModel()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.reportAiCoachLocalNetworkPermissionDenied()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            "Allow Local Network access to reach a Hermes agent on your LAN.",
+            viewModel.state.value.aiCoachMessage,
+        )
     }
 
     @Test
@@ -658,7 +672,7 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, aiCoachRepository.clearCalls)
-        assertEquals("AI coach API key cleared.", viewModel.state.value.message)
+        assertEquals("AI coach API key cleared.", viewModel.state.value.aiCoachMessage)
     }
 
     private class FakeHealthRepository(

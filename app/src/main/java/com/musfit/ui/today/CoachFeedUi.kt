@@ -1,5 +1,7 @@
 package com.musfit.ui.today
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -47,12 +49,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -65,6 +71,8 @@ import com.musfit.data.repository.CoachMessage
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCategory
 import com.musfit.ui.AppDestination
+import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION
+import com.musfit.ui.permissions.hasLocalNetworkPermission
 import com.musfit.ui.theme.MusFitTheme
 import java.time.Instant
 import java.time.ZoneId
@@ -289,6 +297,28 @@ fun ChatPreviewSheet(
     viewModel: CoachChatViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    var pendingLocalNetworkAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val action = pendingLocalNetworkAction
+        pendingLocalNetworkAction = null
+        if (granted && action != null) {
+            action()
+        } else if (!granted) {
+            viewModel.reportLocalNetworkPermissionDenied()
+        }
+    }
+    fun runWithLocalNetworkPermission(action: () -> Unit) {
+        if (state.requiresLocalNetworkPermission && !hasLocalNetworkPermission(context)) {
+            pendingLocalNetworkAction = action
+            localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION)
+        } else {
+            action()
+        }
+    }
+
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MusFitTheme.colors.surface) {
         Column(
             modifier = Modifier
@@ -355,7 +385,11 @@ fun ChatPreviewSheet(
                                 color = MusFitTheme.colors.onSurfaceVariant,
                                 modifier = Modifier.weight(1f),
                             )
-                            TextButton(onClick = viewModel::testConnection) { Text("Retry") }
+                            TextButton(
+                                onClick = { runWithLocalNetworkPermission(viewModel::testConnection) },
+                            ) {
+                                Text("Retry")
+                            }
                         }
                     }
                 }
@@ -370,7 +404,7 @@ fun ChatPreviewSheet(
                         modifier = Modifier.weight(1f),
                     )
                     IconButton(
-                        onClick = viewModel::send,
+                        onClick = { runWithLocalNetworkPermission(viewModel::send) },
                         enabled = state.input.isNotBlank() && !state.isSending,
                         colors = IconButtonDefaults.iconButtonColors(
                             containerColor = if (state.input.isNotBlank() && !state.isSending) {

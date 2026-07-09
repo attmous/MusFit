@@ -40,6 +40,7 @@ data class CoachChatUiState(
     val isSending: Boolean = false,
     val isConfigured: Boolean = false,
     val providerLabel: String = "Off",
+    val requiresLocalNetworkPermission: Boolean = false,
     val errorMessage: String? = null,
 )
 
@@ -64,6 +65,7 @@ class CoachChatViewModel @Inject constructor(
             messages = messages,
             isConfigured = settings.providerKind != AiCoachProviderKind.Disabled,
             providerLabel = settings.providerKind.chatLabel(settings.localAgentKind),
+            requiresLocalNetworkPermission = settings.providerKind == AiCoachProviderKind.LocalAgent,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, CoachChatUiState())
 
@@ -93,6 +95,12 @@ class CoachChatViewModel @Inject constructor(
                 .onFailure { error ->
                     mutableState.update { it.copy(errorMessage = error.message ?: "Could not clear coach chat.") }
                 }
+        }
+    }
+
+    fun reportLocalNetworkPermissionDenied() {
+        mutableState.update {
+            it.copy(errorMessage = "Allow Local Network access to reach your local coach agent.")
         }
     }
 
