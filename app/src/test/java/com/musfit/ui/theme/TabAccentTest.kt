@@ -10,18 +10,18 @@ import org.junit.Test
 class TabAccentTest {
     @Test
     fun eachDestinationMapsToItsLightAccentColor() {
-        // One cool family in slight tones — azure/emerald/indigo/teal; amber is
-        // reserved for warning semantics, not a tab accent.
-        assertEquals(Azure, tabAccentForLight(AppDestination.Today).color)
-        assertEquals(Emerald, tabAccentForLight(AppDestination.Food).color)
+        // The M3 Expressive quad — coral/green/indigo/teal; amber is reserved
+        // for warning semantics, not a tab accent.
+        assertEquals(Coral, tabAccentForLight(AppDestination.Today).color)
+        assertEquals(Green, tabAccentForLight(AppDestination.Food).color)
         assertEquals(Indigo, tabAccentForLight(AppDestination.Training).color)
         assertEquals(Teal, tabAccentForLight(AppDestination.Profile).color)
     }
 
     @Test
     fun eachDestinationMapsToItsDarkAccentColor() {
-        assertEquals(AzureBright, tabAccentForDark(AppDestination.Today).color)
-        assertEquals(EmeraldBright, tabAccentForDark(AppDestination.Food).color)
+        assertEquals(CoralBright, tabAccentForDark(AppDestination.Today).color)
+        assertEquals(GreenBright, tabAccentForDark(AppDestination.Food).color)
         assertEquals(IndigoBright, tabAccentForDark(AppDestination.Training).color)
         assertEquals(TealBright, tabAccentForDark(AppDestination.Profile).color)
     }
@@ -49,6 +49,24 @@ class TabAccentTest {
                 "dark $destination onColor-on-color contrast is $ratio, needs >= 4.5",
                 ratio >= 4.5,
             )
+        }
+    }
+
+    // Hero containers carry their strong ink for display numerals; the pair must
+    // stay readable in both modes.
+    @Test
+    fun containerInkPairsMeetWcagAaInBothModes() {
+        AppDestination.entries.forEach { destination ->
+            listOf(
+                "light" to tabAccentForLight(destination),
+                "dark" to tabAccentForDark(destination),
+            ).forEach { (mode, accent) ->
+                val ratio = contrastRatio(accent.container, accent.onContainer)
+                assertTrue(
+                    "$mode $destination onContainer-on-container contrast is $ratio, needs >= 4.5",
+                    ratio >= 4.5,
+                )
+            }
         }
     }
 

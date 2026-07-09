@@ -1,7 +1,9 @@
 package com.musfit.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,8 +13,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.musfit.ui.theme.MusFitMotion
@@ -20,11 +22,10 @@ import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 
 /**
- * The shared single-select switcher, restyled to the health-grade clean language:
- * a plain row of text pills — the active option is a dark filled pill (onSurface
- * ground, surface text), inactive options are quiet secondary text. No borders.
- * [accent] is kept in the signature so call sites stay tab-aware, but the pill is
- * deliberately monochrome — one styling for every tab.
+ * The shared single-select switcher as a Material 3 Expressive connected button
+ * group: equal-width segments with 2dp gaps; the selected segment springs to a
+ * full accent-filled pill while unselected segments relax to quiet 12dp-radius
+ * tonal cells.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,33 +39,41 @@ fun <T> MusFitSegmented(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         options.forEach { option ->
             val active = option == selected
-            val pillColor by animateColorAsState(
-                targetValue = if (active) MusFitTheme.colors.onSurface else Color.Transparent,
+            val fillColor by animateColorAsState(
+                targetValue = if (active) accent.color else MusFitTheme.colors.track,
                 animationSpec = MusFitMotion.effects(),
-                label = "segmentPillColor",
+                label = "segmentFillColor",
             )
             val textColor by animateColorAsState(
-                targetValue = if (active) MusFitTheme.colors.surface else MusFitTheme.colors.onSurfaceVariant,
+                targetValue = if (active) accent.onColor else MusFitTheme.colors.onSurface,
                 animationSpec = MusFitMotion.effects(),
                 label = "segmentTextColor",
             )
+            val cornerRadius by animateDpAsState(
+                targetValue = if (active) 99.dp else 12.dp,
+                animationSpec = MusFitMotion.spatial(),
+                label = "segmentCornerRadius",
+            )
             Surface(
                 onClick = { onSelect(option) },
-                color = pillColor,
-                shape = RoundedCornerShape(999.dp),
+                color = fillColor,
+                shape = RoundedCornerShape(cornerRadius),
+                modifier = Modifier.weight(1f),
             ) {
-                Text(
-                    text = label(option),
-                    style = MusFitTheme.typography.labelLarge,
-                    fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
-                    color = textColor,
-                    maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = label(option),
+                        style = MusFitTheme.typography.labelMedium,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                        color = textColor,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 11.dp),
+                    )
+                }
             }
         }
     }

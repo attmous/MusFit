@@ -1,16 +1,15 @@
 package com.musfit.ui.profile
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,9 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -39,9 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -50,10 +47,19 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.ui.AppDestination
-import com.musfit.ui.components.DashboardHero
 import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.components.SectionHeader
+import com.musfit.ui.components.TonalHeaderIconButton
+import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.charts.TrendLineChart
+import com.musfit.ui.components.gridGroupShape
+import com.musfit.ui.components.groupedShape
+import com.musfit.ui.theme.LavenderBody
+import com.musfit.ui.theme.LavenderBodyDark
+import com.musfit.ui.theme.LavenderContainer
+import com.musfit.ui.theme.LavenderContainerDark
+import com.musfit.ui.theme.LavenderInk
+import com.musfit.ui.theme.LavenderInkDark
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -112,30 +118,36 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 88.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             MusFitScreenHeader(
                 title = "Profile",
                 actions = {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MusFitTheme.colors.onSurfaceVariant)
-                    }
+                    TonalHeaderIconButton(
+                        icon = Icons.Outlined.Settings,
+                        contentDescription = "Settings",
+                        onClick = onSettingsClick,
+                    )
                 },
             )
-            WeightCard(state = state, accent = accent, onOpenEntries = { showWeightSheet = true })
             if (state.isHealthConnectNudgeVisible) {
-                HealthConnectNudge(accent = accent, onOpen = onSettingsClick)
+                HealthConnectNudge(onOpen = onSettingsClick)
             }
-            ProfileQuickActions(
-                accent = accent,
-                onLogWeight = { showLogWeight = true },
-                onLogMeasurement = { showLogMeasurement = true },
-            )
-            SectionHeader(title = "Measurements")
-            MeasurementsGrid(
+            WeightCard(
                 state = state,
                 accent = accent,
+                onOpenEntries = { showWeightSheet = true },
+                onLogWeight = { showLogWeight = true },
+            )
+            SectionHeader(
+                title = "Measurements",
+                trailingActionLabel = "+ Log",
+                trailingActionColor = accent.color,
+                onTrailingAction = { showLogMeasurement = true },
+            )
+            MeasurementsGrid(
+                state = state,
                 onOpenType = { type ->
                     state.tiles.firstOrNull { it.type == type }?.let { tile ->
                         if (tile.entryCount == 0) logMeasurementInitialType = type else measurementSheetType = type
@@ -150,20 +162,30 @@ fun ProfileScreen(
             )
             GoalCard(state = state, accent = accent, onApply = viewModel::applyTargetsToFood, onComplete = { showEditor = true })
             SectionHeader(title = "Plans")
-            state.planCards.forEach { card ->
-                PlanCardRow(card = card, onClick = { if (card.id == "diet") onOpenFood() else onOpenTraining() })
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                state.planCards.forEachIndexed { index, card ->
+                    PlanCardRow(
+                        card = card,
+                        shape = groupedShape(index, state.planCards.size),
+                        onClick = { if (card.id == "diet") onOpenFood() else onOpenTraining() },
+                    )
+                }
             }
             SectionHeader(title = "Progress & trends")
-            ProfileNavRow(
-                title = "Training progress",
-                subtitle = "PRs, trends, and volume analytics per exercise.",
-                onClick = onOpenTrainingProgress,
-            )
-            ProfileNavRow(
-                title = "Nutrition trends",
-                subtitle = "Weekly MusFit score and 7/28-day progress.",
-                onClick = onOpenNutritionTrends,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ProfileNavRow(
+                    title = "Training progress",
+                    subtitle = "PRs, trends, and volume analytics per exercise.",
+                    shape = groupedShape(0, 2),
+                    onClick = onOpenTrainingProgress,
+                )
+                ProfileNavRow(
+                    title = "Nutrition trends",
+                    subtitle = "Weekly MusFit score and 7/28-day progress.",
+                    shape = groupedShape(1, 2),
+                    onClick = onOpenNutritionTrends,
+                )
+            }
         }
     }
 
@@ -234,12 +256,16 @@ fun ProfileScreen(
     }
 }
 
+/** The mock-6d Health Connect banner: a fully rounded lavender pill. */
 @Composable
-private fun HealthConnectNudge(accent: TabAccent, onOpen: () -> Unit) {
-    // Quiet neutral strip — no card chrome.
-    val shape = MusFitTheme.shapes.large
+private fun HealthConnectNudge(onOpen: () -> Unit) {
+    val dark = isSystemInDarkTheme()
+    val container = if (dark) LavenderContainerDark else LavenderContainer
+    val body = if (dark) LavenderBodyDark else LavenderBody
+    val action = if (dark) LavenderInkDark else LavenderInk
+    val shape = RoundedCornerShape(999.dp)
     Surface(
-        color = MusFitTheme.colors.surfaceVariant,
+        color = container,
         shape = shape,
         modifier = Modifier
             .fillMaxWidth()
@@ -248,62 +274,78 @@ private fun HealthConnectNudge(accent: TabAccent, onOpen: () -> Unit) {
             .clickable(onClickLabel = "Open Health Connect settings", onClick = onOpen),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Connect Health Connect to mirror steps, sleep, workouts, weight, and heart rate",
+                "Connect Health Connect to mirror steps and heart rate",
                 style = MusFitTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
+                color = body,
                 modifier = Modifier.weight(1f),
             )
-            Text("Set up", style = MusFitTheme.typography.labelLarge, color = accent.color)
+            Text(
+                "Set up",
+                style = MusFitTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = action,
+            )
         }
     }
 }
 
-/** A hairline list row: title 15/500, meta 13 secondary, no card chrome. */
+/** A grouped white list row: emphasized title over one quiet meta line. */
 @Composable
-private fun ProfileNavRow(title: String, subtitle: String, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+private fun ProfileNavRow(title: String, subtitle: String, shape: RoundedCornerShape, onClick: () -> Unit) {
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = shape,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .clickable(onClickLabel = title, onClick = onClick),
+    ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClickLabel = title, onClick = onClick)
-                .padding(vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(title, style = MusFitTheme.typography.titleSmall)
             Text(subtitle, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
         }
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
     }
 }
 
 @Composable
-private fun PlanCardRow(card: PlanCard, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+private fun PlanCardRow(card: PlanCard, shape: RoundedCornerShape, onClick: () -> Unit) {
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = shape,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .clickable(
+                onClickLabel = if (card.id == "diet") "Manage diet in Food" else "Manage program in Training",
+                onClick = onClick,
+            ),
+    ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    onClickLabel = if (card.id == "diet") "Manage diet in Food" else "Manage program in Training",
-                    onClick = onClick,
-                )
-                .padding(vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(card.title, style = MusFitTheme.typography.titleSmall)
             Text(card.subtitle, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
         }
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
     }
 }
 
 @Composable
 private fun GoalCard(state: ProfileUiState, accent: TabAccent, onApply: () -> Unit, onComplete: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = MusFitTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val profile = state.profile
             if (profile != null) {
                 val goalText = buildString {
@@ -312,18 +354,32 @@ private fun GoalCard(state: ProfileUiState, accent: TabAccent, onApply: () -> Un
                         append(" · ${profile.goalPaceKgPerWeek.format1()} kg/wk")
                     }
                 }
-                Text(goalText, style = MusFitTheme.typography.bodyMedium)
-                val currentWeight = state.hero.latestWeightKg
-                if (currentWeight != null && profile.goalWeightKg != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        "${currentWeight.format1()} kg → ${profile.goalWeightKg.format1()} kg",
-                        style = MusFitTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
+                        goalText,
+                        style = MusFitTheme.typography.titleSmall,
+                        fontWeight = FontWeight.ExtraBold,
                     )
+                    val currentWeight = state.hero.latestWeightKg
+                    if (currentWeight != null && profile.goalWeightKg != null) {
+                        Text(
+                            "${currentWeight.format1()} → ${profile.goalWeightKg.format1()} kg",
+                            style = MusFitTheme.typography.bodySmall,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    }
                 }
                 val progress = state.hero.goalProgressFraction
                 if (progress != null) {
-                    ProgressBar(fraction = progress.toFloat(), fill = accent.color)
+                    WavyProgressBar(
+                        progress = progress.toFloat().coerceIn(0f, 1f),
+                        color = accent.color,
+                        trackColor = accent.track,
+                    )
                 }
             }
             val targets = state.recommendedTargets
@@ -363,217 +419,198 @@ private fun GoalCard(state: ProfileUiState, accent: TabAccent, onApply: () -> Un
 }
 
 /**
- * The naked weight hero (mock 3d): `80.9 kg` at 44/300 with a smaller inline
- * unit, a tonal 7-day delta chip, a quiet goal caption, then a compact
- * sparkline over a hairline baseline. Tapping it opens the weight history.
+ * The mock-6d weight hero: a teal tonal container with the display weight and
+ * inline unit, an emphasized delta/BMI line, a white goal chip top-right, the
+ * 30-day sparkline, and a filled "+ Log weight" button. Tapping the container
+ * opens the weight history.
  */
 @Composable
-private fun WeightCard(state: ProfileUiState, accent: TabAccent, onOpenEntries: () -> Unit) {
+private fun WeightCard(
+    state: ProfileUiState,
+    accent: TabAccent,
+    onOpenEntries: () -> Unit,
+    onLogWeight: () -> Unit,
+) {
     val hero = state.hero
-    DashboardHero {
+    val shape = MusFitTheme.shapes.extraLarge
+    Surface(
+        color = accent.container,
+        shape = shape,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .clickable(onClickLabel = "Open weight history") { onOpenEntries() },
+    ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(MusFitTheme.shapes.medium)
-                .clickable(onClickLabel = "Open weight history") { onOpenEntries() },
+            modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (hero.hasAnyEntry) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
-                    Text(
-                        hero.latestWeightKg!!.format1(),
-                        style = MusFitTheme.typography.displayMedium,
-                        color = MusFitTheme.colors.onSurface,
-                        maxLines = 1,
-                    )
-                    Text(
-                        "kg",
-                        style = MusFitTheme.typography.titleLarge.copy(fontSize = 20.sp),
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        maxLines = 1,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-                    )
-                }
-                hero.deltaKg?.let { d ->
-                    Surface(color = accent.container, shape = RoundedCornerShape(999.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.weight(1f)) {
+                        // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
                         Text(
-                            "${if (d < 0) "−" else "+"}${abs(d).format1()} · 7d",
-                            style = MusFitTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Medium,
+                            hero.latestWeightKg!!.format1(),
+                            style = MusFitTheme.typography.displayLarge.copy(fontSize = 52.sp),
                             color = accent.onContainer,
                             maxLines = 1,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                        Text(
+                            "kg",
+                            style = MusFitTheme.typography.titleLarge.copy(fontSize = 19.sp),
+                            fontWeight = FontWeight.Medium,
+                            color = accent.onContainerVariant,
+                            maxLines = 1,
+                            modifier = Modifier.padding(start = 5.dp, bottom = 7.dp),
                         )
                     }
+                    if (hero.goalWeightKg != null) {
+                        Surface(color = MusFitTheme.colors.surface, shape = RoundedCornerShape(999.dp)) {
+                            Text(
+                                text = buildString {
+                                    append("goal ${hero.goalWeightKg.format1()} kg")
+                                    hero.goalProgressFraction?.let { append(" · ${(it * 100).roundToInt()}%") }
+                                },
+                                style = MusFitTheme.typography.labelMedium.copy(fontSize = 12.sp),
+                                fontWeight = FontWeight.ExtraBold,
+                                color = accent.onContainer,
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
                 }
-            }
-            val caption = buildString {
-                hero.goalWeightKg?.let { goal ->
-                    append("Goal ${goal.format1()} kg")
-                    hero.goalProgressFraction?.let { append(" · ${(it * 100).roundToInt()}% there") }
+                val delta = hero.deltaKg
+                val sub = buildAnnotatedString {
+                    if (delta != null) {
+                        withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, color = accent.onContainer)) {
+                            append("${if (delta < 0) "−" else "+"}${abs(delta).format1()} kg")
+                        }
+                        append(" · 7 days")
+                    }
+                    hero.bmi?.let {
+                        if (length > 0) append(" · ")
+                        append("BMI ${it.format1()}")
+                    }
                 }
-                hero.bmi?.let {
-                    if (isNotEmpty()) append(" · ")
-                    append("BMI ${it.format1()}")
+                if (sub.isNotEmpty()) {
+                    Text(sub, style = MusFitTheme.typography.bodySmall, color = accent.onContainerVariant)
                 }
-            }
-            if (caption.isNotEmpty()) {
-                Text(caption, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
-            }
-            when {
-                hero.chartSeries.size >= 2 ->
-                    TrendLineChart(
-                        values = hero.chartSeries,
-                        accent = accent.color,
-                        showBaseline = true,
-                        modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 4.dp),
-                    )
-                hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
-                    Text("No entries in the last 30 days.", style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
-                else -> // exactly one point in the window — a chart or "no entries" text would both mislead
-                    Text("Log again to see a trend.", style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
-            }
+                when {
+                    hero.chartSeries.size >= 2 ->
+                        TrendLineChart(
+                            values = hero.chartSeries,
+                            accent = accent.color,
+                            modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 4.dp),
+                        )
+                    hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
+                        Text("No entries in the last 30 days.", style = MusFitTheme.typography.bodySmall, color = accent.onContainerVariant)
+                    else -> // exactly one point in the window — a chart or "no entries" text would both mislead
+                        Text("Log again to see a trend.", style = MusFitTheme.typography.bodySmall, color = accent.onContainerVariant)
+                }
             } else {
-                Text("No weight logged yet.", style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
+                Text("No weight logged yet.", style = MusFitTheme.typography.bodyMedium, color = accent.onContainerVariant)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (hero.hasAnyEntry) "30 days" else "",
+                    style = MusFitTheme.typography.bodySmall,
+                    color = accent.onContainerVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Surface(
+                    onClick = onLogWeight,
+                    color = accent.color,
+                    contentColor = accent.onColor,
+                    shape = RoundedCornerShape(999.dp),
+                ) {
+                    Text(
+                        "+ Log weight",
+                        style = MusFitTheme.typography.labelMedium.copy(fontSize = 13.sp),
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
+                }
             }
         }
     }
 }
 
-/** Quick actions row (mock 3d): a tonal accent "Log weight" chip + a neutral "Measure" chip. */
+/**
+ * Measurements as the mock-6d two-column grid: white cells with grouped corners
+ * (24dp on the grid's outside, 8dp inside), quiet label over an emphasized
+ * value — or a faint "Tap to log" placeholder.
+ */
 @Composable
-private fun ProfileQuickActions(
-    accent: TabAccent,
-    onLogWeight: () -> Unit,
-    onLogMeasurement: () -> Unit,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        ProfileQuickChip(
-            label = "+ Log weight",
-            container = accent.container,
-            content = accent.onContainer,
-            onClick = onLogWeight,
-        )
-        ProfileQuickChip(
-            label = "Measure",
-            container = MusFitTheme.colors.surfaceVariant,
-            content = MusFitTheme.colors.onSurface,
-            onClick = onLogMeasurement,
-        )
-    }
-}
-
-@Composable
-private fun ProfileQuickChip(
-    label: String,
-    container: androidx.compose.ui.graphics.Color,
-    content: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit,
-) {
-    Surface(
-        color = container,
-        shape = RoundedCornerShape(999.dp),
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .clickable(onClick = onClick),
-    ) {
-        Text(
-            label,
-            style = MusFitTheme.typography.labelLarge,
-            fontWeight = FontWeight.Medium,
-            color = content,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
-        )
-    }
-}
-
-/** Measurements as a hairline list (mock 3d): name / small sparkline / value right-aligned. */
-@Composable
-private fun MeasurementsGrid(state: ProfileUiState, accent: TabAccent, onOpenType: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        state.tiles.forEach { tile ->
-            MeasurementRow(tile = tile, accent = accent, onClick = { onOpenType(tile.type) })
-            HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+private fun MeasurementsGrid(state: ProfileUiState, onOpenType: (String) -> Unit) {
+    val columns = 2
+    val rows = state.tiles.chunked(columns)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        rows.forEachIndexed { rowIndex, rowTiles ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                rowTiles.forEachIndexed { columnIndex, tile ->
+                    MeasurementCell(
+                        tile = tile,
+                        shape = gridGroupShape(rowIndex, rows.size, columnIndex, columns),
+                        onClick = { onOpenType(tile.type) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (rowTiles.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
 
 @Composable
-private fun MeasurementRow(tile: MeasurementTile, accent: TabAccent, onClick: () -> Unit) {
+private fun MeasurementCell(
+    tile: MeasurementTile,
+    shape: RoundedCornerShape,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val empty = tile.entryCount == 0
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = shape,
+        modifier = modifier
+            .clip(shape)
             .clickable(
                 onClickLabel = if (empty) "Log ${tile.label}" else "Open ${tile.label} history",
                 onClick = onClick,
-            )
-            .padding(vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ),
     ) {
-        Text(
-            tile.label,
-            style = MusFitTheme.typography.titleSmall,
-            color = if (empty) MusFitTheme.colors.onSurfaceVariant else MusFitTheme.colors.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        if (empty) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
             Text(
-                "Tap to log",
-                style = MusFitTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant.copy(alpha = 0.7f),
+                tile.label,
+                style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.5.sp),
+                fontWeight = FontWeight.SemiBold,
+                color = MusFitTheme.colors.onSurfaceVariant,
+                maxLines = 1,
             )
-        } else {
-            if (tile.sparkline.size >= 2) {
-                TrendLineChart(
-                    values = tile.sparkline,
-                    accent = accent.color,
-                    modifier = Modifier.width(60.dp).height(16.dp),
+            if (empty) {
+                Text(
+                    "Tap to log",
+                    style = MusFitTheme.typography.bodyLarge.copy(fontSize = 14.sp),
+                    fontWeight = FontWeight.Medium,
+                    color = MusFitTheme.colors.onSurfaceFaint,
+                    maxLines = 1,
                 )
-            }
-            val delta = tile.deltaFromPrevious
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            } else {
                 Text(
                     "${tile.value!!.format1()} ${tile.unit}",
-                    style = MusFitTheme.typography.titleSmall,
+                    style = MusFitTheme.typography.titleLarge.copy(fontSize = 18.sp),
                     color = MusFitTheme.colors.onSurface,
                     maxLines = 1,
                 )
-                if (delta != null && delta != 0.0) {
-                    Text(
-                        "${if (delta < 0) "▼" else "▲"}${abs(delta).format1()}",
-                        style = MusFitTheme.typography.labelSmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        modifier = Modifier.semantics {
-                            contentDescription = "${if (delta < 0) "down" else "up"} ${abs(delta).format1()}"
-                        },
-                    )
-                }
             }
         }
-    }
-}
-
-@Composable
-private fun ProgressBar(fraction: Float, fill: androidx.compose.ui.graphics.Color) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(6.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .background(MusFitTheme.colors.track),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(fill),
-        )
     }
 }
 

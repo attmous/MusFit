@@ -19,9 +19,9 @@ import androidx.compose.ui.unit.dp
 import com.musfit.ui.theme.MusFitTheme
 
 /**
- * The shared tab header: an optional muted eyebrow line (e.g. the date) over a
- * quiet regular-weight title that reads like a sentence, plus trailing actions.
- * One idiom for every tab — same type, height, and alignment.
+ * The shared tab header: an emphasized 34/w800 page title with an optional
+ * quiet subtitle underneath (e.g. the date), plus trailing actions. One idiom
+ * for every tab — same type, height, and alignment.
  */
 @Composable
 fun MusFitScreenHeader(
@@ -36,18 +36,18 @@ fun MusFitScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = MusFitTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
             Text(
                 text = title,
                 style = MusFitTheme.typography.headlineMedium,
                 color = MusFitTheme.colors.onSurface,
             )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MusFitTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically, content = actions)
     }

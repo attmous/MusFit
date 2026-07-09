@@ -3,6 +3,7 @@ package com.musfit.ui.theme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -20,19 +21,23 @@ class MusFitColorsTest {
 
     @Test
     fun lightPalette_usesApprovedBrandAccentBackground() {
-        assertEquals(Color(0xFF1E7A53), lightMusFitColors.brand)
-        // Interactive azure (Google-blue class) — links, coach, Today accent.
-        assertEquals(Color(0xFF0B57D0), lightMusFitColors.accent)
-        // Health-grade ground: soft cool blue-gray with white cards.
-        assertEquals(Color(0xFFF2F4F9), lightMusFitColors.background)
+        // M3 Expressive warm palette: brand green, interactive coral accent.
+        assertEquals(Color(0xFF1F6B3D), lightMusFitColors.brand)
+        assertEquals(Color(0xFFC2470F), lightMusFitColors.accent)
+        // Warm cream ground with pure white cards.
+        assertEquals(Color(0xFFF8F2E9), lightMusFitColors.background)
         assertEquals(Color(0xFFFFFFFF), lightMusFitColors.surface)
     }
 
     @Test
-    fun darkPalette_contentSitsDirectlyOnTheGround() {
-        // Same rule mirrored: cards/sheets share the near-black ground instead of
-        // floating as lighter panels.
-        assertEquals(darkMusFitColors.surface, darkMusFitColors.background)
+    fun darkPalette_elevatesCardsOffTheGround() {
+        // M3E containment relies on tonal separation, so dark cards sit one warm
+        // step above the near-black ground instead of blending into it.
+        assertNotEquals(darkMusFitColors.surface, darkMusFitColors.background)
+        assertTrue(
+            "dark cards must be lighter than the dark ground",
+            darkMusFitColors.surface.luminance() > darkMusFitColors.background.luminance(),
+        )
     }
 
     @Test

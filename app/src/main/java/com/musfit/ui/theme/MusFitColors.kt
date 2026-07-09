@@ -4,14 +4,13 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * Semantic color tokens for MusFit. Immutable; the dark-ready seam — a future
- * `darkMusFitColors` instance drops in here with no call-site changes.
+ * Semantic color tokens for MusFit. Immutable; the light/dark instances below
+ * are the single seam for the Material 3 Expressive warm palette.
  */
 data class MusFitColors(
     val brand: Color,
     val onBrand: Color,
     val brandInk: Color,
-    val brandGradient: List<Color>,
     val accent: Color,
     val onAccent: Color,
     val accentContainer: Color,
@@ -21,6 +20,7 @@ data class MusFitColors(
     val surfaceVariant: Color,
     val onSurface: Color,
     val onSurfaceVariant: Color,
+    val onSurfaceFaint: Color,
     val outline: Color,
     val track: Color,
     val macroProtein: Color,
@@ -31,65 +31,71 @@ data class MusFitColors(
     val warning: Color,
     val warningContainer: Color,
     val water: Color,
+    val waterFill: Color,
 ) {
     /** Index order preserved from the legacy `MacroColors` list: [carbs, protein, fat]. */
     val macroColors: List<Color> get() = listOf(macroCarbs, macroProtein, macroFat)
 }
 
 val lightMusFitColors = MusFitColors(
-    brand = Emerald,
+    // Brand green — Food's primary and the default filled-control color app-wide.
+    brand = Green,
     onBrand = CardWhite,
-    brandInk = EmeraldInk,
-    brandGradient = listOf(GradientLime, GradientGreen, GradientEmerald),
-    // Interactive blue — links, coach actions, primary emphasis.
-    accent = Azure,
+    brandInk = GreenInk,
+    // Interactive coral — coach, links, Today's accent. Text-safe #C2470F here;
+    // the brighter BrandCoral is reserved for the chat FAB fill.
+    accent = Coral,
     onAccent = CardWhite,
-    accentContainer = AzureContainer,
-    onAccentContainer = AzureInk,
-    // Health-grade clean: a soft cool blue-gray ground with white cards —
-    // no borders, no shadows, hairlines only.
-    background = CoolGround,
+    accentContainer = CoralContainer,
+    onAccentContainer = CoralInk,
+    // M3 Expressive ground: warm cream with pure white cards — tonal separation
+    // only, no borders or shadows on content.
+    background = Cream,
     surface = CardWhite,
-    surfaceVariant = NeutralFill,
+    surfaceVariant = TonalFill,
     onSurface = InkPrimary,
     onSurfaceVariant = InkSecondary,
+    onSurfaceFaint = InkFaint,
     outline = Hairline,
-    track = NeutralTrack,
+    track = SegmentFill,
     macroProtein = MacroProtein,
     macroCarbs = MacroCarbs,
     macroFat = MacroFat,
-    positive = Emerald,
-    positiveContainer = PositiveContainer,
+    positive = Green,
+    positiveContainer = GreenContainer,
     warning = AmberInk,
     warningContainer = AmberContainer,
     water = Water,
+    waterFill = WaterFill,
 )
 
 val darkMusFitColors = MusFitColors(
-    brand = EmeraldBright,
-    onBrand = EmeraldOnDark,
-    brandInk = EmeraldInkDark,
-    brandGradient = listOf(GradientLime, GradientGreen, EmeraldBright),
-    accent = AzureBright,
-    onAccent = AzureOnDark,
-    accentContainer = AzureContainerDark,
-    onAccentContainer = AzureInkDark,
-    // Mirrored rule: content sits directly on the near-black ground.
+    brand = GreenBright,
+    onBrand = GreenOnDark,
+    brandInk = GreenInkDark,
+    accent = CoralBright,
+    onAccent = CoralOnDark,
+    accentContainer = CoralContainerDark,
+    onAccentContainer = CoralInkDark,
+    // Mirrored rule: warm near-black ground, cards elevated one warm step so the
+    // grouped-list containment survives dark mode.
     background = DarkBg,
-    surface = DarkBg,
-    surfaceVariant = DarkSurfaceVariant,
+    surface = DarkCard,
+    surfaceVariant = DarkTonalFill,
     onSurface = DarkOnSurface,
     onSurfaceVariant = DarkOnSurfaceVariant,
-    outline = DarkOutline,
+    onSurfaceFaint = DarkInkFaint,
+    outline = DarkHairline,
     track = DarkTrack,
     macroProtein = MacroProteinDark,
     macroCarbs = MacroCarbsDark,
     macroFat = MacroFatDark,
-    positive = EmeraldBright,
-    positiveContainer = PositiveContainerDark,
+    positive = GreenBright,
+    positiveContainer = GreenContainerDark,
     warning = AmberBright,
     warningContainer = AmberContainerDark,
     water = WaterDark,
+    waterFill = WaterFillDark,
 )
 
 val LocalMusFitColors = staticCompositionLocalOf<MusFitColors> {
