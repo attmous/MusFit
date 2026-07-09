@@ -1,7 +1,6 @@
 package com.musfit.ui.training
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -15,14 +14,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -43,10 +39,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -55,6 +52,7 @@ import com.musfit.data.repository.ExerciseDetail
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.MusFitSegmented
+import com.musfit.ui.components.charts.MetricRing
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -204,7 +202,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
             val setCount = summary.completedSetCount
             ResumeBanner(
                 title = summary.title,
-                subtitle = "In progress · $setCount ${if (setCount == 1) "set" else "sets"} · ${summary.totalVolumeKg.formatKg()} kg",
+                subtitle = "$setCount ${if (setCount == 1) "set" else "sets"} done · ${summary.totalVolumeKg.formatKg()} kg",
                 accent = accent,
                 onResume = viewModel::resumeActiveWorkout,
             )
@@ -297,6 +295,11 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
     }
 }
 
+/**
+ * The "In progress" resume banner — the one tonal container on this screen
+ * (mock 3c): accent-container fill at 24dp radius, a tiny overline, the routine
+ * name at a calm 19/400, and a filled accent Resume button.
+ */
 @Composable
 private fun ResumeBanner(
     title: String,
@@ -304,13 +307,26 @@ private fun ResumeBanner(
     accent: TabAccent,
     onResume: () -> Unit,
 ) {
-    Surface(color = accent.container, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(modifier = Modifier.size(38.dp).clip(CircleShape).background(accent.color), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.PlayArrow, contentDescription = null, tint = accent.onColor)
-            }
+    Surface(color = accent.container, shape = MusFitTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = accent.onContainer)
+                Text(
+                    text = "IN PROGRESS",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = accent.onContainer.copy(alpha = 0.8f),
+                )
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 19.sp),
+                    color = accent.onContainer,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = accent.onContainer)
             }
             Button(onClick = onResume, colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor)) {
@@ -321,8 +337,9 @@ private fun ResumeBanner(
 }
 
 /**
- * Compact weekly snapshot heading the Routines tab: workouts, volume, and current streak, with a
- * slim progress bar toward the [WEEKLY_SESSION_GOAL]. Reads straight off [TrainingHistoryOverview]
+ * Weekly snapshot heading the Routines tab, drawn naked on the surface
+ * (mock 3c): a 108dp sessions ring (`2/3`) with a right column of plain stats —
+ * volume and day streak. Reads straight off [TrainingHistoryOverview]
  * (already computed for History), so it never needs its own data pass.
  */
 @Composable
@@ -332,70 +349,51 @@ private fun TrainingWeekSummaryCard(
 ) {
     val workouts = overview.currentWeekWorkoutCount
     val progress = (workouts.toFloat() / WEEKLY_SESSION_GOAL).coerceIn(0f, 1f)
-    Surface(
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.large,
-        border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
+    Row(
         modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        MetricRing(
+            progress = progress,
+            color = accent.color,
+            diameter = 108.dp,
+            strokeWidth = 10.dp,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = workouts.toString(),
+                        style = MaterialTheme.typography.displaySmall.copy(fontSize = 28.sp, lineHeight = 32.sp),
+                        color = MusFitTheme.colors.onSurface,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "/$WEEKLY_SESSION_GOAL",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
                 Text(
-                    text = "This week",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = accent.color,
-                )
-                Text(
-                    text = "Goal $WEEKLY_SESSION_GOAL sessions",
+                    text = "sessions",
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                WeekSummaryMetric(
-                    value = workouts.toString(),
-                    label = "workouts",
-                    modifier = Modifier.weight(1f),
-                )
-                WeekSummaryMetric(
-                    value = "${overview.currentWeekVolumeKg.formatKgGrouped()} kg",
-                    label = "volume",
-                    modifier = Modifier.weight(1f),
-                )
-                WeekSummaryMetric(
-                    value = overview.currentStreakDays.toString(),
-                    label = "day streak",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(CircleShape)
-                    .background(MusFitTheme.colors.track),
-            ) {
-                if (progress > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(progress)
-                            .height(6.dp)
-                            .clip(CircleShape)
-                            .background(accent.color),
-                    )
-                }
-            }
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            WeekSummaryMetric(
+                value = "${overview.currentWeekVolumeKg.formatKgGrouped()} kg",
+                label = "volume this week",
+            )
+            WeekSummaryMetric(
+                value = overview.currentStreakDays.toString(),
+                label = "day streak",
+            )
         }
     }
 }
@@ -409,8 +407,7 @@ private fun WeekSummaryMetric(
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge,
             color = MusFitTheme.colors.onSurface,
             maxLines = 1,
         )
@@ -813,10 +810,10 @@ private fun MuscleChipRow(label: String, muscles: String, accent: TabAccent, pri
                         )
                     }
                 } else {
+                    // Neutral chip: quiet warm fill, no border chrome.
                     Surface(
-                        color = MusFitTheme.colors.surface,
+                        color = MusFitTheme.colors.surfaceVariant,
                         shape = RoundedCornerShape(999.dp),
-                        border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
                     ) {
                         Text(
                             muscle,

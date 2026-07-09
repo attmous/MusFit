@@ -13,13 +13,13 @@ val CoralContainer = Color(0xFFFFEAE4)
 val CoralInk = Color(0xFF993C1D)
 // Content ink on a Coral/CoralBright fill (both modes); white on Coral is only 2.55:1.
 val CoralOnAccent = Color(0xFF3A1606)
-val Cream = Color(0xFFFBF7F1)
+// Health-grade clean neutrals: pure white ground, hairline dividers, quiet grays.
 val CardWhite = Color(0xFFFFFFFF)
-val WarmFill = Color(0xFFF4EEE6)
-val WarmInk = Color(0xFF2A2420)
-val WarmMuted = Color(0xFF8C8178)
-val WarmOutline = Color(0xFFECE4DA)
-val WarmTrack = Color(0xFFEFE7DC)
+val NeutralFill = Color(0xFFF4F1EC) // warm neutral fill for non-accent icon circles / strips
+val InkPrimary = Color(0xFF1C1B1F)
+val InkSecondary = Color(0xFF79747E)
+val Hairline = Color(0xFFF0F0EE)
+val NeutralTrack = Color(0xFFE8ECE8)
 // Rose-red keeps protein clearly apart from the brand green (0xFF1E7A53) on the calorie ring,
 // and from the blue Water accent on the same Food screen.
 val MacroProtein = Color(0xFFE11D48)
@@ -38,7 +38,6 @@ val TealContainer = Color(0xFFD9F0EF)
 
 // MusFit M3E dark palette — warm near-black surfaces, brighter accents.
 val DarkBg = Color(0xFF14110F)
-val DarkSurface = Color(0xFF221E1A)
 val DarkSurfaceVariant = Color(0xFF2B2621)
 val DarkOnSurface = Color(0xFFF3EDE6)
 val DarkOnSurfaceVariant = Color(0xFFB0A79E)

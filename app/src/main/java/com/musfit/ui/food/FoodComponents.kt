@@ -48,18 +48,19 @@ internal fun ProgressBar(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
+    // Health-grade clean bar: thin, fully rounded, neutral track + one accent fill.
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(8.dp)
-            .clip(MusFitTheme.shapes.small)
-            .background(color.copy(alpha = 0.18f)),
+            .height(6.dp)
+            .clip(CircleShape)
+            .background(MusFitTheme.colors.track),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(progress)
-                .height(8.dp)
-                .clip(MusFitTheme.shapes.small)
+                .height(6.dp)
+                .clip(CircleShape)
                 .background(color),
         )
     }
@@ -67,11 +68,11 @@ internal fun ProgressBar(
 
 @Composable
 internal fun SectionTitle(text: String) {
+    // Quiet 16/500 sentence-case section header — no ALL-CAPS shouting.
     Text(
-        text = text.uppercase(),
+        text = text,
         style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        color = MusFitTheme.colors.onSurfaceVariant,
+        color = MusFitTheme.colors.onSurface,
     )
 }
 

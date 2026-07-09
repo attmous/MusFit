@@ -2,24 +2,19 @@ package com.musfit.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -35,10 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.musfit.ui.theme.MusFitMotion
 import androidx.navigation.compose.NavHost
@@ -102,13 +94,13 @@ fun AppNavGraph() {
     Scaffold(
         containerColor = MusFitTheme.colors.background,
         bottomBar = {
-            FloatingPillNav(
+            MusFitBottomNav(
                 destinations = destinations,
                 currentRoute = currentBottomRoute,
                 onSelect = { go(it) },
-                onChat = { chatPreviewVisible = true },
             )
         },
+        floatingActionButton = { ChatPreviewFab(onClick = { chatPreviewVisible = true }) },
     ) { padding ->
         NavHost(
             navController = navController,
@@ -193,136 +185,88 @@ private fun BottomDestinationBackHandler(
     BackHandler(enabled = canPop, onBack = onBack)
 }
 
-/** Spacing between nav items, used both for layout and the sliding-indicator math. */
-private val NavItemSpacing = 2.dp
-
 /**
- * M3E-style floating bottom nav: a rounded pill of destinations + the coach-chat button.
- * A single pill indicator sits behind the items and springs to the selected tab on navigation —
- * the one motion in the bar. Add-food floating actions belong to Food's own content.
+ * Material 3 style bottom nav on the plain surface: no floating white card, just a
+ * hairline top edge. The active destination gets a tonal pill behind its icon (in
+ * the tab's accent container) with a dark label; inactive items are quiet gray.
  */
 @Composable
-private fun FloatingPillNav(
+private fun MusFitBottomNav(
     destinations: List<AppDestination>,
     currentRoute: String,
     onSelect: (AppDestination) -> Unit,
-    onChat: () -> Unit,
 ) {
-    val selectedIndex = destinations.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
-    val selectedAccent = tabAccentFor(destinations[selectedIndex])
-    val indicatorColor by animateColorAsState(
-        targetValue = selectedAccent.container,
-        animationSpec = MusFitMotion.effects(),
-        label = "navIndicatorColor",
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Surface(
-            color = MusFitTheme.colors.surface,
-            shape = RoundedCornerShape(28.dp),
-            shadowElevation = 4.dp,
-            modifier = Modifier.weight(1f),
+    Column(modifier = Modifier.fillMaxWidth().background(MusFitTheme.colors.background)) {
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            val density = LocalDensity.current
-            var rowSize by remember { mutableStateOf(IntSize.Zero) }
-            val count = destinations.size
-            val itemWidth = with(density) {
-                if (count > 0 && rowSize.width > 0) {
-                    (rowSize.width.toDp() - NavItemSpacing * (count - 1)) / count
-                } else 0.dp
-            }
-            val rowHeight = with(density) { rowSize.height.toDp() }
-            val indicatorOffset by animateDpAsState(
-                targetValue = (itemWidth + NavItemSpacing) * selectedIndex,
-                animationSpec = MusFitMotion.spatial(),
-                label = "navIndicatorOffset",
-            )
-
-            Box(modifier = Modifier.padding(6.dp)) {
-                // Sliding pill behind the items — the single nav animation.
-                if (itemWidth > 0.dp) {
-                    Box(
-                        modifier = Modifier
-                            .offset(x = indicatorOffset)
-                            .width(itemWidth)
-                            .height(rowHeight)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(indicatorColor),
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onSizeChanged { rowSize = it },
-                    horizontalArrangement = Arrangement.spacedBy(NavItemSpacing),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    destinations.forEach { destination ->
-                        NavPillItem(
-                            destination = destination,
-                            selected = currentRoute == destination.route,
-                            accent = tabAccentFor(destination),
-                            onClick = { onSelect(destination) },
-                        )
-                    }
-                }
+            destinations.forEach { destination ->
+                NavBarItem(
+                    destination = destination,
+                    selected = currentRoute == destination.route,
+                    accent = tabAccentFor(destination),
+                    onClick = { onSelect(destination) },
+                )
             }
         }
-        ChatPreviewFab(
-            onClick = onChat,
-            modifier = Modifier
-                .fillMaxHeight()
-                .aspectRatio(1f),
-        )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RowScope.NavPillItem(
+private fun RowScope.NavBarItem(
     destination: AppDestination,
     selected: Boolean,
     accent: TabAccent,
     onClick: () -> Unit,
 ) {
-    // Tint crossfades with the sliding pill so the label/icon don't pop mid-slide.
+    val pillColor by animateColorAsState(
+        targetValue = if (selected) accent.container else Color.Transparent,
+        animationSpec = MusFitMotion.effects(),
+        label = "navPillColor",
+    )
     val iconTint by animateColorAsState(
         targetValue = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
         animationSpec = MusFitMotion.effects(),
         label = "navIconTint",
     )
     val labelColor by animateColorAsState(
-        targetValue = if (selected) accent.color else MusFitTheme.colors.onSurfaceVariant,
+        targetValue = if (selected) MusFitTheme.colors.onSurface else MusFitTheme.colors.onSurfaceVariant,
         animationSpec = MusFitMotion.effects(),
         label = "navLabelColor",
     )
     Surface(
         onClick = onClick,
         color = Color.Transparent,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.weight(1f),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(vertical = 8.dp),
+            modifier = Modifier.padding(vertical = 6.dp),
         ) {
-            Icon(
-                destination.icon,
-                contentDescription = destination.label,
-                tint = iconTint,
-                modifier = Modifier.size(22.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(pillColor)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Icon(
+                    destination.icon,
+                    contentDescription = destination.label,
+                    tint = iconTint,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.height(2.dp))
             Text(
                 text = destination.label,
                 style = MaterialTheme.typography.labelSmall,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
                 color = labelColor,
                 maxLines = 1,
             )

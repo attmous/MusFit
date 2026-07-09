@@ -481,9 +481,10 @@ private fun RestTimerBar(
     onAdjust: (Int) -> Unit,
 ) {
     if (!restTimer.isVisible) return
+    // Tonal accent container — the rest timer stays quiet, not a saturated bar.
     Surface(
         color = accent.container,
-        shape = MusFitTheme.shapes.medium,
+        shape = MusFitTheme.shapes.large,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -500,7 +501,6 @@ private fun RestTimerBar(
             Text(
                 text = restTimer.remainingSeconds.toMinSec(),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
                 color = accent.onContainer,
                 modifier = Modifier
                     .weight(1f)
@@ -1424,7 +1424,7 @@ private fun CompactCellTextField(
                     .fillMaxWidth()
                     .heightIn(min = 32.dp)
                     .clip(MusFitTheme.shapes.small)
-                    .border(0.5.dp, MusFitTheme.colors.outline, MusFitTheme.shapes.small)
+                    .background(MusFitTheme.colors.surfaceVariant)
                     .padding(horizontal = 4.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1456,7 +1456,7 @@ private fun CompactRpeField(
                     .fillMaxWidth()
                     .heightIn(min = 32.dp)
                     .clip(MusFitTheme.shapes.small)
-                    .border(0.5.dp, MusFitTheme.colors.outline, MusFitTheme.shapes.small)
+                    .background(MusFitTheme.colors.surfaceVariant)
                     .padding(horizontal = 4.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1492,7 +1492,7 @@ private fun CompactNotesField(
                     .fillMaxWidth()
                     .heightIn(min = 32.dp)
                     .clip(MusFitTheme.shapes.small)
-                    .border(0.5.dp, MusFitTheme.colors.outline, MusFitTheme.shapes.small)
+                    .background(MusFitTheme.colors.surfaceVariant)
                     .padding(horizontal = 10.dp, vertical = 5.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {

@@ -22,7 +22,16 @@ class MusFitColorsTest {
     fun lightPalette_usesApprovedBrandAccentBackground() {
         assertEquals(Color(0xFF1E7A53), lightMusFitColors.brand)
         assertEquals(Color(0xFFFF7A66), lightMusFitColors.accent)
-        assertEquals(Color(0xFFFBF7F1), lightMusFitColors.background)
+        // Health-grade clean ground: pure surface, no cream app background.
+        assertEquals(Color(0xFFFFFFFF), lightMusFitColors.background)
+        assertEquals(lightMusFitColors.surface, lightMusFitColors.background)
+    }
+
+    @Test
+    fun darkPalette_contentSitsDirectlyOnTheGround() {
+        // Same rule mirrored: cards/sheets share the near-black ground instead of
+        // floating as lighter panels.
+        assertEquals(darkMusFitColors.surface, darkMusFitColors.background)
     }
 
     @Test

@@ -13,8 +13,9 @@ import androidx.compose.ui.text.font.FontWeight
 import com.musfit.ui.theme.MusFitTheme
 
 /**
- * Design-language §4: the shared header for every titled block — `titleMedium`
- * label + optional accent-colored trailing text action ("See all", "Edit", …).
+ * The shared header for every titled block — a small, quiet `titleMedium`
+ * (16/500) label + optional accent-colored trailing text action ("See all",
+ * "Edit", …).
  */
 @Composable
 fun SectionHeader(
@@ -32,7 +33,6 @@ fun SectionHeader(
         Text(
             text = title,
             style = MusFitTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
             color = MusFitTheme.colors.onSurface,
         )
         if (trailingActionLabel != null && onTrailingAction != null) {
@@ -40,7 +40,7 @@ fun SectionHeader(
                 Text(
                     text = trailingActionLabel,
                     style = MusFitTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     color = trailingActionColor,
                 )
             }

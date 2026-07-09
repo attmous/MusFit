@@ -15,12 +15,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.musfit.ui.theme.MusFitTheme
 
 /**
- * The shared tab header: title (left) + optional muted subtitle + trailing icon
- * actions (right). One idiom for every tab — same type, height, and alignment.
+ * The shared tab header: an optional muted eyebrow line (e.g. the date) over a
+ * quiet regular-weight title that reads like a sentence, plus trailing actions.
+ * One idiom for every tab — same type, height, and alignment.
  */
 @Composable
 fun MusFitScreenHeader(
@@ -35,28 +36,28 @@ fun MusFitScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MusFitTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MusFitTheme.colors.onSurface,
-            )
             if (subtitle != null) {
                 Text(
                     text = subtitle,
-                    style = MusFitTheme.typography.bodyMedium,
+                    style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
+            Text(
+                text = title,
+                style = MusFitTheme.typography.headlineMedium,
+                color = MusFitTheme.colors.onSurface,
+            )
         }
         Row(verticalAlignment = Alignment.CenterVertically, content = actions)
     }
 }
 
 /**
- * The shared scrolling screen container: cream background, standard edge padding,
- * a [MusFitScreenHeader] at the top, then a vertically-spaced content slot. Tabs
- * that need a non-scrolling or lazy container use [MusFitScreenHeader] directly.
+ * The shared scrolling screen container: content directly on the pure surface,
+ * generous edge padding, a [MusFitScreenHeader] at the top, then a vertically-
+ * spaced content slot. Bottom padding keeps the last row clear of the coach FAB.
+ * Tabs that need a non-scrolling or lazy container use [MusFitScreenHeader] directly.
  */
 @Composable
 fun MusFitScreenScaffold(
@@ -71,8 +72,9 @@ fun MusFitScreenScaffold(
             .fillMaxSize()
             .background(MusFitTheme.colors.background)
             .verticalScroll(rememberScrollState())
-            .padding(MusFitTheme.spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.lg),
+            .padding(start = MusFitTheme.spacing.xl, end = MusFitTheme.spacing.xl, top = MusFitTheme.spacing.xl)
+            .padding(bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.xl),
     ) {
         MusFitScreenHeader(title = title, subtitle = subtitle, actions = actions)
         content()

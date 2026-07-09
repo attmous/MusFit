@@ -17,7 +17,8 @@ enum class AppDestination(val route: String, val label: String, val icon: ImageV
     Today(route = "today", label = "Today", icon = Icons.Outlined.Today),
     Food(route = "food", label = "Food", icon = Icons.Outlined.Restaurant),
     Training(route = "training", label = "Training", icon = Icons.Outlined.FitnessCenter),
-    Profile(route = "profile", label = "Profile", icon = Icons.Outlined.Person),
+    // Route stays "profile" (nav state, deep links); the user-facing name is "Body".
+    Profile(route = "profile", label = "Body", icon = Icons.Outlined.Person),
 }
 
 internal fun bottomDestinationForRoute(route: String?): AppDestination =

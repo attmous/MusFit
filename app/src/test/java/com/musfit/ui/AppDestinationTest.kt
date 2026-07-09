@@ -12,7 +12,7 @@ class AppDestinationTest {
             AppDestination.entries.map { it.route },
         )
         assertEquals(
-            listOf("Today", "Food", "Training", "Profile"),
+            listOf("Today", "Food", "Training", "Body"),
             AppDestination.entries.map { it.label },
         )
     }

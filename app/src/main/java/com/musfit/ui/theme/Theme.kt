@@ -24,7 +24,10 @@ private fun musFitColorScheme(colors: MusFitColors, dark: Boolean) =
             onSurface = colors.onSurface,
             surfaceVariant = colors.surfaceVariant,
             onSurfaceVariant = colors.onSurfaceVariant,
-            outline = colors.outline,
+            // MusFitColors.outline is the hairline divider token — too faint for
+            // component borders (text fields, chips), which keep a visible gray.
+            outline = colors.onSurfaceVariant,
+            outlineVariant = colors.outline,
         )
     } else {
         lightColorScheme(
@@ -40,7 +43,8 @@ private fun musFitColorScheme(colors: MusFitColors, dark: Boolean) =
             onSurface = colors.onSurface,
             surfaceVariant = colors.surfaceVariant,
             onSurfaceVariant = colors.onSurfaceVariant,
-            outline = colors.outline,
+            outline = colors.onSurfaceVariant,
+            outlineVariant = colors.outline,
         )
     }
 
