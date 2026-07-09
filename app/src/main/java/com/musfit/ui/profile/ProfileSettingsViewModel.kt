@@ -79,6 +79,7 @@ data class ProfileSettingsUiState(
     val aiCoachLocalAgentInput: LocalAgentKind = LocalAgentKind.Custom,
     val aiCoachApiKeyInput: String = "",
     val aiCoachErrorMessage: String? = null,
+    val aiCoachMessage: String? = null,
     val isAiCoachTesting: Boolean = false,
     val includeBurnedCalories: Boolean = false,
 )
@@ -167,6 +168,7 @@ private data class HealthConnectState(
     val githubDeviceCode: GitHubDeviceAuthorization? = null,
     val githubSignInInProgress: Boolean = false,
     val isGitHubSignInConfigured: Boolean = false,
+    val aiCoachMessage: String? = null,
     val isAiCoachTesting: Boolean = false,
     val includeBurnedCalories: Boolean = false,
 )
@@ -276,6 +278,7 @@ class ProfileSettingsViewModel @Inject constructor(
             aiCoachLocalAgentInput = aiCoachEditor.localAgentKind,
             aiCoachApiKeyInput = aiCoachEditor.apiKeyInput,
             aiCoachErrorMessage = aiCoachEditor.errorMessage,
+            aiCoachMessage = base.aiCoachMessage,
             isAiCoachTesting = base.isAiCoachTesting,
             includeBurnedCalories = base.includeBurnedCalories,
         )
@@ -659,7 +662,7 @@ class ProfileSettingsViewModel @Inject constructor(
                 )
             }.onSuccess {
                 aiCoachEditorFlow.value = AiCoachEditorState()
-                mutableState.update { it.copy(message = "AI coach setup saved.") }
+                mutableState.update { it.copy(aiCoachMessage = "AI coach setup saved.") }
             }.onFailure { error ->
                 aiCoachEditorFlow.update {
                     it.copy(errorMessage = error.message ?: "Could not save AI coach setup.")
@@ -672,30 +675,38 @@ class ProfileSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { aiCoachRepository.clearApiKey() }
                 .onSuccess {
-                    mutableState.update { it.copy(message = "AI coach API key cleared.") }
+                    mutableState.update { it.copy(aiCoachMessage = "AI coach API key cleared.") }
                 }
                 .onFailure { error ->
                     mutableState.update {
-                        it.copy(message = error.message ?: "Could not clear AI coach API key.")
+                        it.copy(aiCoachMessage = error.message ?: "Could not clear AI coach API key.")
                     }
                 }
         }
     }
 
+    fun reportAiCoachLocalNetworkPermissionDenied() {
+        mutableState.update {
+            it.copy(aiCoachMessage = "Allow Local Network access to reach a Hermes agent on your LAN.")
+        }
+    }
+
     fun testAiCoachConnection() {
         viewModelScope.launch {
-            mutableState.update { it.copy(isAiCoachTesting = true, message = "Testing AI coach connection...") }
+            mutableState.update {
+                it.copy(isAiCoachTesting = true, aiCoachMessage = "Testing AI coach connection...")
+            }
             runCatching { aiCoachChatRepository.testConnection() }
                 .onSuccess {
                     mutableState.update {
-                        it.copy(isAiCoachTesting = false, message = "AI coach connection is reachable.")
+                        it.copy(isAiCoachTesting = false, aiCoachMessage = "AI coach connection is reachable.")
                     }
                 }
                 .onFailure { error ->
                     mutableState.update {
                         it.copy(
                             isAiCoachTesting = false,
-                            message = error.message ?: "AI coach connection is not reachable.",
+                            aiCoachMessage = error.message ?: "AI coach connection is not reachable.",
                         )
                     }
                 }
