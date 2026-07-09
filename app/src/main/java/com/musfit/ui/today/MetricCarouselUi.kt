@@ -39,19 +39,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
 import com.musfit.ui.AppDestination
-import com.musfit.ui.components.MusFitSummaryCard
 import com.musfit.ui.components.charts.MetricRing
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 
-/** Today's summary card: a swipeable pager of configurable metrics (Coral). */
+/** Today's hero: a swipeable pager of configurable metrics, drawn naked on the surface. */
 @Composable
 fun MetricCarouselCard(
     carousel: CarouselUiState,
@@ -61,7 +59,7 @@ fun MetricCarouselCard(
     val accent = tabAccentFor(AppDestination.Today)
     val pagerState = rememberPagerState(pageCount = { carousel.pages.size })
 
-    MusFitSummaryCard(accent = accent) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         HorizontalPager(state = pagerState) { pageIndex ->
             val page = carousel.pages[pageIndex]
             if (page.hero != null) {
@@ -83,7 +81,7 @@ fun MetricCarouselCard(
                             .padding(horizontal = 3.dp)
                             .size(width = if (selected) 16.dp else 6.dp, height = 6.dp)
                             .clip(CircleShape)
-                            .background(if (selected) accent.color else accent.onContainer.copy(alpha = 0.25f)),
+                            .background(if (selected) accent.color else MusFitTheme.colors.track),
                     )
                 }
             }
@@ -99,12 +97,12 @@ private fun HeroPage(
     onMetricClick: (TodayMetric) -> Unit,
 ) {
     val hero = page.hero ?: return
-    // Spec: with fewer pins the hero grows into the free space.
-    val heroDiameter = if (page.chips.isEmpty()) 128.dp else 96.dp
+    // Mock 3a: a 150dp thin ring with the plain stat column to its right.
+    val heroDiameter = 150.dp
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.lg),
+        horizontalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.xl),
     ) {
         val heroFigure = when (val value = hero.value) {
             is MetricValue.WithGoal -> value.figure
@@ -127,47 +125,46 @@ private fun HeroPage(
                         progress = value.progress,
                         color = accent.color,
                         diameter = heroDiameter,
-                        trackColor = MusFitTheme.colors.onSurface.copy(alpha = 0.12f),
+                        strokeWidth = 11.dp,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = heroFigure,
-                                style = MusFitTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = accent.onContainer,
+                                style = MusFitTheme.typography.displaySmall,
+                                color = MusFitTheme.colors.onSurface,
+                                maxLines = 1,
                             )
                             Text(
                                 text = heroCaption,
-                                style = MusFitTheme.typography.labelSmall,
-                                color = accent.onContainer,
+                                style = MusFitTheme.typography.bodySmall,
+                                color = MusFitTheme.colors.onSurfaceVariant,
                             )
                         }
                     }
                 is MetricValue.Plain, is MetricValue.NoData ->
-                    HeroFigure(figure = heroFigure, caption = heroCaption, accent = accent)
+                    HeroFigure(figure = heroFigure, caption = heroCaption)
             }
         }
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.md),
         ) {
             page.chips.forEach { chip ->
-                MetricChip(chip = chip, accent = accent, onClick = { onMetricClick(chip.metric) })
+                MetricChip(chip = chip, onClick = { onMetricClick(chip.metric) })
             }
         }
     }
 }
 
 @Composable
-private fun HeroFigure(figure: String, caption: String, accent: TabAccent) {
+private fun HeroFigure(figure: String, caption: String) {
     Column {
         Text(
             text = figure,
-            style = MusFitTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = accent.onContainer,
+            style = MusFitTheme.typography.displaySmall,
+            color = MusFitTheme.colors.onSurface,
         )
-        Text(text = caption, style = MusFitTheme.typography.labelSmall, color = accent.onContainer)
+        Text(text = caption, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
     }
 }
 
@@ -177,12 +174,12 @@ private fun ChipGridPage(
     accent: TabAccent,
     onMetricClick: (TodayMetric) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm)) {
+    Column(verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.md)) {
         chips.chunked(2).forEach { rowChips ->
-            Row(horizontalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.md)) {
                 rowChips.forEach { chip ->
                     Box(modifier = Modifier.weight(1f)) {
-                        MetricChip(chip = chip, accent = accent, onClick = { onMetricClick(chip.metric) })
+                        MetricChip(chip = chip, onClick = { onMetricClick(chip.metric) })
                     }
                 }
                 if (rowChips.size == 1) Spacer(Modifier.weight(1f))
@@ -191,16 +188,17 @@ private fun ChipGridPage(
     }
 }
 
+/** A plain stat — value over label, no fill, no chrome — in the mock's 22/400 + 13 secondary style. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MetricChip(chip: MetricCardUiState, accent: TabAccent, onClick: () -> Unit) {
+private fun MetricChip(chip: MetricCardUiState, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        color = MusFitTheme.colors.surface.copy(alpha = 0.55f),
-        shape = MusFitTheme.shapes.medium,
+        color = Color.Transparent,
+        shape = MusFitTheme.shapes.small,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(horizontal = MusFitTheme.spacing.md, vertical = MusFitTheme.spacing.sm)) {
+        Column {
             val figure = when (val value = chip.value) {
                 is MetricValue.WithGoal -> value.figure
                 is MetricValue.Plain -> value.figure
@@ -213,14 +211,14 @@ private fun MetricChip(chip: MetricCardUiState, accent: TabAccent, onClick: () -
             }
             Text(
                 text = figure,
-                style = MusFitTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = accent.onContainer,
+                style = MusFitTheme.typography.titleLarge,
+                color = MusFitTheme.colors.onSurface,
+                maxLines = 1,
             )
             Text(
                 text = "${chip.label} · $caption",
-                style = MusFitTheme.typography.labelSmall,
-                color = accent.onContainer,
+                style = MusFitTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
             )
         }
@@ -262,7 +260,6 @@ fun DashboardEditSheet(
             Text(
                 text = "Dashboard",
                 style = MusFitTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
                 color = MusFitTheme.colors.onSurface,
             )
             Text(
@@ -328,7 +325,6 @@ fun DashboardEditSheet(
             Text(
                 text = "Goals",
                 style = MusFitTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
                 color = MusFitTheme.colors.onSurface,
             )
             OutlinedTextField(

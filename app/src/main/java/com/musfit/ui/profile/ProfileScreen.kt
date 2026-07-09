@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,7 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +43,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -49,7 +51,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.MusFitScreenHeader
-import com.musfit.ui.components.MusFitSummaryCard
 import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.charts.TrendLineChart
 import com.musfit.ui.theme.TabAccent
@@ -123,13 +124,13 @@ fun ProfileScreen(
             if (state.isHealthConnectNudgeVisible) {
                 HealthConnectNudge(onOpen = onSettingsClick)
             }
-            WeightCard(state = state, accent = accent, onLog = { showLogWeight = true }, onOpenEntries = { showWeightSheet = true })
-            SectionHeader(
-                title = "Measurements",
-                trailingActionLabel = "+ Log",
-                trailingActionColor = accent.color,
-                onTrailingAction = { showLogMeasurement = true },
+            WeightCard(state = state, accent = accent, onOpenEntries = { showWeightSheet = true })
+            ProfileQuickActions(
+                accent = accent,
+                onLogWeight = { showLogWeight = true },
+                onLogMeasurement = { showLogMeasurement = true },
             )
+            SectionHeader(title = "Measurements")
             MeasurementsGrid(
                 state = state,
                 accent = accent,
@@ -233,14 +234,16 @@ fun ProfileScreen(
 
 @Composable
 private fun HealthConnectNudge(onOpen: () -> Unit) {
-    val shape = MaterialTheme.shapes.extraLarge
-    Card(
+    // Quiet neutral strip — no card chrome.
+    val shape = MaterialTheme.shapes.large
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = shape,
         modifier = Modifier
             .fillMaxWidth()
             // Clip before clickable so the ripple stays inside the rounded shape.
             .clip(shape)
             .clickable(onClickLabel = "Open Health Connect settings", onClick = onOpen),
-        shape = shape,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -257,49 +260,48 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
     }
 }
 
+/** A hairline list row: title 15/500, meta 13 secondary, no card chrome. */
 @Composable
 private fun ProfileNavRow(title: String, subtitle: String, onClick: () -> Unit) {
-    val shape = MaterialTheme.shapes.extraLarge
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Clip before clickable so the ripple stays inside the rounded shape.
-            .clip(shape)
-            .clickable(onClickLabel = title, onClick = onClick),
-        shape = shape,
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = title, onClick = onClick)
+                .padding(vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
 @Composable
 private fun PlanCardRow(card: PlanCard, onClick: () -> Unit) {
-    val shape = MaterialTheme.shapes.extraLarge
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Clip before clickable so the ripple stays inside the rounded shape.
-            .clip(shape)
-            .clickable(
-                onClickLabel = if (card.id == "diet") "Manage diet in Food" else "Manage program in Training",
-                onClick = onClick,
-            ),
-        shape = shape,
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(card.title, style = MaterialTheme.typography.titleMedium)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    onClickLabel = if (card.id == "diet") "Manage diet in Food" else "Manage program in Training",
+                    onClick = onClick,
+                )
+                .padding(vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(card.title, style = MaterialTheme.typography.titleSmall)
             Text(card.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
 @Composable
 private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val profile = state.profile
             if (profile != null) {
                 val goalText = buildString {
@@ -350,101 +352,194 @@ private fun GoalCard(state: ProfileUiState, onApply: () -> Unit, onComplete: () 
     }
 }
 
+/**
+ * The naked weight hero (mock 3d): `80.9 kg` at 44/300 with a smaller inline
+ * unit, a tonal 7-day delta chip, a quiet goal caption, then a bare 90dp
+ * sparkline over a hairline baseline. Tapping it opens the weight history.
+ */
 @Composable
-private fun WeightCard(state: ProfileUiState, accent: TabAccent, onLog: () -> Unit, onOpenEntries: () -> Unit) {
+private fun WeightCard(state: ProfileUiState, accent: TabAccent, onOpenEntries: () -> Unit) {
     val hero = state.hero
-    MusFitSummaryCard(accent = accent, onClick = onOpenEntries, onClickLabel = "Open weight history") {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Weight", style = MaterialTheme.typography.titleMedium, color = accent.onContainer, modifier = Modifier.weight(1f))
-                hero.goalWeightKg?.let { goal ->
-                    val percent = hero.goalProgressFraction?.let { " · ${(it * 100).roundToInt()}%" } ?: ""
-                    Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), shape = MaterialTheme.shapes.small) {
-                        Text(
-                            "goal ${goal.format1()} kg$percent",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = accent.onContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        )
-                    }
-                }
-            }
-            if (hero.hasAnyEntry) {
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClickLabel = "Open weight history") { onOpenEntries() },
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (hero.hasAnyEntry) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.Bottom) {
                     // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
-                    Text("${hero.latestWeightKg!!.format1()} kg", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = accent.onContainer)
                     Text(
-                        hero.deltaKg?.let { d -> "${if (d < 0) "−" else "+"}${abs(d).format1()} kg · 7d" } ?: "latest",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = accent.onContainer,
+                        hero.latestWeightKg!!.format1(),
+                        style = MaterialTheme.typography.displayMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                    )
+                    Text(
+                        "kg",
+                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
                     )
                 }
-                hero.bmi?.let { Text("BMI ${it.format1()}", style = MaterialTheme.typography.labelSmall, color = accent.onContainer) }
-                when {
-                    hero.chartSeries.size >= 2 ->
-                        TrendLineChart(values = hero.chartSeries, accent = accent.color, modifier = Modifier.fillMaxWidth().height(72.dp))
-                    hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
-                        Text("No entries in the last 30 days.", style = MaterialTheme.typography.bodySmall, color = accent.onContainer)
-                    else -> // exactly one point in the window — a chart or "no entries" text would both mislead
-                        Text("Log again to see a trend.", style = MaterialTheme.typography.bodySmall, color = accent.onContainer)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("30 days", style = MaterialTheme.typography.labelSmall, color = accent.onContainer, modifier = Modifier.weight(1f))
-                    // Accent-tonal per spec: content colored with the accent ink on the tinted card.
-                    TextButton(onClick = onLog) { Text("+ Log weight", color = accent.onContainer, fontWeight = FontWeight.SemiBold) }
-                }
-            } else {
-                Text("No weight logged yet.", style = MaterialTheme.typography.bodyMedium, color = accent.onContainer)
-                TextButton(onClick = onLog) { Text("+ Log weight", color = accent.onContainer, fontWeight = FontWeight.SemiBold) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MeasurementsGrid(state: ProfileUiState, accent: TabAccent, onOpenType: (String) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.tiles.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    row.forEach { tile ->
-                        MeasurementCell(
-                            tile = tile,
-                            accent = accent,
-                            onClick = { onOpenType(tile.type) },
-                            modifier = Modifier.weight(1f),
+                hero.deltaKg?.let { d ->
+                    Surface(color = accent.container, shape = RoundedCornerShape(999.dp)) {
+                        Text(
+                            "${if (d < 0) "−" else "+"}${abs(d).format1()} · 7d",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = accent.onContainer,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                         )
                     }
-                    if (row.size == 1) Box(modifier = Modifier.weight(1f))
                 }
             }
+            val caption = buildString {
+                hero.goalWeightKg?.let { goal ->
+                    append("Goal ${goal.format1()} kg")
+                    hero.goalProgressFraction?.let { append(" · ${(it * 100).roundToInt()}% there") }
+                }
+                hero.bmi?.let {
+                    if (isNotEmpty()) append(" · ")
+                    append("BMI ${it.format1()}")
+                }
+            }
+            if (caption.isNotEmpty()) {
+                Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            when {
+                hero.chartSeries.size >= 2 ->
+                    TrendLineChart(
+                        values = hero.chartSeries,
+                        accent = accent.color,
+                        showBaseline = true,
+                        modifier = Modifier.fillMaxWidth().height(90.dp).padding(top = 6.dp),
+                    )
+                hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
+                    Text("No entries in the last 30 days.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else -> // exactly one point in the window — a chart or "no entries" text would both mislead
+                    Text("Log again to see a trend.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (hero.chartSeries.size >= 2) {
+                Text(
+                    "30 days",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            }
+        } else {
+            Text("No weight logged yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Quick actions row (mock 3d): a tonal accent "Log weight" chip + a neutral "Measure" chip. */
+@Composable
+private fun ProfileQuickActions(
+    accent: TabAccent,
+    onLogWeight: () -> Unit,
+    onLogMeasurement: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        ProfileQuickChip(
+            label = "+ Log weight",
+            container = accent.container,
+            content = accent.onContainer,
+            onClick = onLogWeight,
+        )
+        ProfileQuickChip(
+            label = "Measure",
+            container = MaterialTheme.colorScheme.surfaceVariant,
+            content = MaterialTheme.colorScheme.onSurface,
+            onClick = onLogMeasurement,
+        )
+    }
+}
+
+@Composable
+private fun ProfileQuickChip(
+    label: String,
+    container: androidx.compose.ui.graphics.Color,
+    content: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+) {
+    Surface(
+        color = container,
+        shape = RoundedCornerShape(999.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick),
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            color = content,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+        )
+    }
+}
+
+/** Measurements as a hairline list (mock 3d): name / small sparkline / value right-aligned. */
+@Composable
+private fun MeasurementsGrid(state: ProfileUiState, accent: TabAccent, onOpenType: (String) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        state.tiles.forEach { tile ->
+            MeasurementRow(tile = tile, accent = accent, onClick = { onOpenType(tile.type) })
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
 
 @Composable
-private fun MeasurementCell(tile: MeasurementTile, accent: TabAccent, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+private fun MeasurementRow(tile: MeasurementTile, accent: TabAccent, onClick: () -> Unit) {
+    val empty = tile.entryCount == 0
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
             .clickable(
-                onClickLabel = if (tile.entryCount == 0) "Log ${tile.label}" else "Open ${tile.label} history",
+                onClickLabel = if (empty) "Log ${tile.label}" else "Open ${tile.label} history",
                 onClick = onClick,
             )
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(tile.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (tile.entryCount == 0) {
-            Text("— · Tap to log", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            tile.label,
+            style = MaterialTheme.typography.titleSmall,
+            color = if (empty) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        if (empty) {
+            Text(
+                "Tap to log",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
         } else {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("${tile.value!!.format1()} ${tile.unit}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                val delta = tile.deltaFromPrevious
-                when {
-                    delta == null -> Text("—", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) // spec: 1-entry state shows value + "—" delta
-                    delta != 0.0 -> Text(
+            if (tile.sparkline.size >= 2) {
+                TrendLineChart(
+                    values = tile.sparkline,
+                    accent = accent.color,
+                    modifier = Modifier.width(60.dp).height(16.dp),
+                )
+            }
+            val delta = tile.deltaFromPrevious
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "${tile.value!!.format1()} ${tile.unit}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+                if (delta != null && delta != 0.0) {
+                    Text(
                         "${if (delta < 0) "▼" else "▲"}${abs(delta).format1()}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -453,13 +548,6 @@ private fun MeasurementCell(tile: MeasurementTile, accent: TabAccent, onClick: (
                         },
                     )
                 }
-            }
-            if (tile.sparkline.size >= 2) {
-                TrendLineChart(
-                    values = tile.sparkline,
-                    accent = accent.color,
-                    modifier = Modifier.fillMaxWidth().height(24.dp).padding(top = 4.dp),
-                )
             }
         }
     }

@@ -17,15 +17,18 @@ data class TabAccent(
 fun tabAccentFor(destination: AppDestination): TabAccent =
     if (isSystemInDarkTheme()) tabAccentForDark(destination) else tabAccentForLight(destination)
 
+// One cool family in slight tones (the Google Health look): azure (Today) →
+// emerald (Food) → indigo (Training) → teal (Profile). Amber is reserved for
+// semantic warning tones.
 internal fun tabAccentForLight(destination: AppDestination): TabAccent = when (destination) {
-    AppDestination.Today -> TabAccent(Coral, CoralOnAccent, CoralContainer, CoralInk)
+    AppDestination.Today -> TabAccent(Azure, CardWhite, AzureContainer, AzureInk)
     AppDestination.Food -> TabAccent(Emerald, CardWhite, PositiveContainer, EmeraldInk)
     AppDestination.Training -> TabAccent(Indigo, CardWhite, IndigoContainer, IndigoInk)
     AppDestination.Profile -> TabAccent(Teal, CardWhite, TealContainer, TealInk)
 }
 
 internal fun tabAccentForDark(destination: AppDestination): TabAccent = when (destination) {
-    AppDestination.Today -> TabAccent(CoralBright, CoralOnAccent, CoralContainerDark, CoralInkDark)
+    AppDestination.Today -> TabAccent(AzureBright, AzureOnDark, AzureContainerDark, AzureInkDark)
     AppDestination.Food -> TabAccent(EmeraldBright, EmeraldOnDark, EmeraldContainerDark, EmeraldInkDark)
     AppDestination.Training -> TabAccent(IndigoBright, Color(0xFF0B1240), IndigoContainerDark, IndigoInkDark)
     AppDestination.Profile -> TabAccent(TealBright, Color(0xFF06302F), TealContainerDark, TealInkDark)

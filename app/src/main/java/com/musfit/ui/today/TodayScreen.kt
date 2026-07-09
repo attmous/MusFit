@@ -1,11 +1,13 @@
 package com.musfit.ui.today
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -26,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -39,7 +42,6 @@ import com.musfit.domain.coach.CoachAction
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.EmptyState
 import com.musfit.ui.components.MusFitScreenScaffold
-import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -90,8 +92,7 @@ fun TodayScreen(
             ),
     ) {
         MusFitScreenScaffold(
-            title = "Today",
-            subtitle = state.dateLabel,
+            title = todayGreeting(java.time.LocalTime.now().hour),
             actions = {
                 state.readiness?.let { readiness ->
                     ReadinessHeaderChip(
@@ -114,7 +115,7 @@ fun TodayScreen(
                 onMetricClick = { metric -> navigateTo(metricDestination(metric)) },
             )
 
-            SectionHeader(title = "Coach")
+            CoachSectionHeader(hasUnread = state.feed.any { group -> group.messages.any { !it.isRead } })
             if (state.feed.isEmpty()) {
                 EmptyState(
                     icon = Icons.Outlined.ChatBubbleOutline,
@@ -169,6 +170,34 @@ fun TodayScreen(
     }
 }
 
+/** Time-of-day greeting title — "Good morning", not a shouted tab label. */
+internal fun todayGreeting(hour: Int): String = when (hour) {
+    in 4..11 -> "Good morning"
+    in 12..17 -> "Good afternoon"
+    else -> "Good evening"
+}
+
+/** "Coach" section header with the 7dp coral unread dot from the mock. */
+@Composable
+private fun CoachSectionHeader(hasUnread: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "Coach",
+            style = MusFitTheme.typography.titleMedium,
+            color = MusFitTheme.colors.onSurface,
+        )
+        if (hasUnread) {
+            Box(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(MusFitTheme.colors.accent),
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReadinessHeaderChip(
@@ -197,7 +226,7 @@ private fun ReadinessHeaderChip(
             Text(
                 text = readiness.label,
                 style = MusFitTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.Medium,
                 color = accent.onContainer,
             )
         }

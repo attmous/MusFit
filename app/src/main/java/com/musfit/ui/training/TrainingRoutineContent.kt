@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
@@ -66,6 +67,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -109,14 +111,8 @@ fun TrainingHomeContent(
     onOpenRoutineDetail: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        TrainingHomePrimaryActions(
-            hasActiveWorkout = hasActiveWorkout,
-            accent = accent,
-            onStartBlankWorkout = onStartBlankWorkout,
-            onNewRoutine = onNewRoutine,
-        )
         // Your own routines live here, organized into folders you create and drag them into.
-        // Folder + library actions are quiet footer links so the top stays a single clear CTA.
+        // Creation and folder/library actions are quiet text links under the list (mock 3c).
         TrainingRoutineContent(
             routines = routines,
             folders = folders,
@@ -132,6 +128,12 @@ fun TrainingHomeContent(
             onStartRoutine = onStartRoutine,
             onEditRoutine = onEditRoutine,
             onOpenRoutineDetail = onOpenRoutineDetail,
+        )
+        TrainingHomePrimaryActions(
+            hasActiveWorkout = hasActiveWorkout,
+            accent = accent,
+            onStartBlankWorkout = onStartBlankWorkout,
+            onNewRoutine = onNewRoutine,
         )
     }
 }
@@ -180,19 +182,12 @@ fun TrainingRoutineContent(
                 )
             }
             if (routineGroups.isEmpty()) {
-                Surface(
-                    color = MusFitTheme.colors.surface,
-                    shape = MusFitTheme.shapes.large,
-                    border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = "Create a routine and it will appear here. Add folders to group them, then drag routines in.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
-                    )
-                }
+                Text(
+                    text = "Create a routine and it will appear here. Add folders to group them, then drag routines in.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
             }
             if (routineGroups.isNotEmpty()) {
                 routineGroups.forEach { group ->
@@ -239,14 +234,11 @@ fun TrainingRoutineContent(
                                 }
                             }
                         }
+                        // No resting card chrome — rows sit on the surface; the tonal
+                        // fill appears only while this section is an active drop target.
                         Surface(
-                            color = if (isActiveDropTarget) accent.container else MusFitTheme.colors.surface,
+                            color = if (isActiveDropTarget) accent.container else Color.Transparent,
                             shape = MusFitTheme.shapes.large,
-                            border = if (isActiveDropTarget) {
-                                BorderStroke(1.5.dp, accent.color)
-                            } else {
-                                BorderStroke(0.5.dp, MusFitTheme.colors.outline)
-                            },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Column {
@@ -297,9 +289,9 @@ fun TrainingRoutineContent(
                                         )
                                         if (index < group.routines.lastIndex) {
                                             HorizontalDivider(
-                                                thickness = 0.5.dp,
+                                                thickness = 1.dp,
                                                 color = MusFitTheme.colors.outline,
-                                                modifier = Modifier.padding(start = 61.dp),
+                                                modifier = Modifier.padding(start = 69.dp),
                                             )
                                         }
                                     }
@@ -332,9 +324,10 @@ fun TrainingRoutineContent(
 }
 
 /**
- * The Routines tab's single primary action zone: one filled "Start empty workout" CTA plus a quiet
- * "New routine" text link, matching the design's lean top. When a workout is already running the
- * Resume banner above owns the primary action, so this collapses to just a full-width "New routine".
+ * The mock's quiet creation row under the routine list: "+ New routine" and
+ * "empty workout" as plain accent text links. When a workout is already running
+ * the Resume banner above owns the primary action, so this collapses to just
+ * "+ New routine".
  */
 @Composable
 private fun TrainingHomePrimaryActions(
@@ -343,36 +336,23 @@ private fun TrainingHomePrimaryActions(
     onStartBlankWorkout: () -> Unit,
     onNewRoutine: () -> Unit,
 ) {
-    if (hasActiveWorkout) {
-        OutlinedButton(
-            onClick = onNewRoutine,
-            modifier = Modifier.fillMaxWidth(),
-            shape = MusFitTheme.shapes.large,
-            border = BorderStroke(1.dp, accent.color),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = accent.color),
-        ) {
-            Icon(imageVector = Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("New routine", fontWeight = FontWeight.SemiBold)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onNewRoutine) {
+            Icon(imageVector = Icons.Outlined.Add, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("New routine", color = accent.color, fontWeight = FontWeight.Medium, maxLines = 1)
         }
-    } else {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Button(
-                onClick = onStartBlankWorkout,
-                modifier = Modifier.weight(1f),
-                shape = MusFitTheme.shapes.large,
-                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-            ) {
-                Icon(imageVector = Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Start empty workout", fontWeight = FontWeight.SemiBold, maxLines = 1)
-            }
-            TextButton(onClick = onNewRoutine) {
-                Text("New routine", color = accent.color, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        if (!hasActiveWorkout) {
+            Text(
+                text = "or",
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+            TextButton(onClick = onStartBlankWorkout) {
+                Text("empty workout", color = accent.color, fontWeight = FontWeight.Medium, maxLines = 1)
             }
         }
     }
@@ -429,35 +409,28 @@ fun TrainingRoutineLibraryList(
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
-        Surface(
-            color = MusFitTheme.colors.surface,
-            shape = MusFitTheme.shapes.large,
-            border = BorderStroke(0.5.dp, MusFitTheme.colors.outline),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (routines.isEmpty()) {
-                Text(
-                    text = emptyMessage,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
-                )
-            } else {
-                Column {
-                    routines.forEachIndexed { index, routine ->
-                        RoutineRow(
-                            routine = routine,
-                            accent = accent,
-                            onOpenDetail = { onOpenRoutineDetail(routine.id) },
-                            onStart = { onStartRoutine(routine.id) },
+        if (routines.isEmpty()) {
+            Text(
+                text = emptyMessage,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MusFitTheme.colors.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        } else {
+            Column {
+                routines.forEachIndexed { index, routine ->
+                    RoutineRow(
+                        routine = routine,
+                        accent = accent,
+                        onOpenDetail = { onOpenRoutineDetail(routine.id) },
+                        onStart = { onStartRoutine(routine.id) },
+                    )
+                    if (index < routines.lastIndex) {
+                        HorizontalDivider(
+                            thickness = 1.dp,
+                            color = MusFitTheme.colors.outline,
+                            modifier = Modifier.padding(start = 69.dp),
                         )
-                        if (index < routines.lastIndex) {
-                            HorizontalDivider(
-                                thickness = 0.5.dp,
-                                color = MusFitTheme.colors.outline,
-                                modifier = Modifier.padding(start = 61.dp),
-                            )
-                        }
                     }
                 }
             }
@@ -509,13 +482,12 @@ private fun RoutineRow(
                 onDragCancel = onDragCancel,
             )
         } else {
-            RoutineLeadingIcon(accent = accent)
+            RoutineLeadingIcon(name = routine.name)
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
                 routine.name,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
                 color = MusFitTheme.colors.onSurface,
             )
             Text(
@@ -545,38 +517,31 @@ private fun RoutineRow(
                 onMoveToFolder = onMoveToFolder,
             )
         }
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(accent.container)
-                .clickable(onClick = onStart),
-            contentAlignment = Alignment.Center,
-        ) {
+        IconButton(onClick = onStart, modifier = Modifier.size(40.dp)) {
             Icon(
-                imageVector = Icons.Outlined.PlayArrow,
+                imageVector = Icons.Filled.PlayCircle,
                 contentDescription = "Start ${routine.name}",
-                tint = accent.onContainer,
-                modifier = Modifier.size(22.dp),
+                tint = accent.color,
+                modifier = Modifier.size(26.dp),
             )
         }
     }
 }
 
+/** 46dp neutral letter circle (mock 3c): the routine's initial on a quiet warm fill. */
 @Composable
-private fun RoutineLeadingIcon(accent: TabAccent) {
+private fun RoutineLeadingIcon(name: String) {
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(46.dp)
             .clip(CircleShape)
-            .background(accent.container),
+            .background(MusFitTheme.colors.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = Icons.Outlined.FitnessCenter,
-            contentDescription = null,
-            tint = accent.onContainer,
-            modifier = Modifier.size(20.dp),
+        Text(
+            text = name.firstOrNull()?.uppercase() ?: "?",
+            style = MaterialTheme.typography.titleSmall,
+            color = MusFitTheme.colors.onSurface,
         )
     }
 }
@@ -635,9 +600,9 @@ private fun RoutineDragHandle(
     var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     Box(
         modifier = Modifier
-            .size(38.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(accent.container)
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(MusFitTheme.colors.surfaceVariant)
             .onGloballyPositioned { coordinates = it }
             .pointerInput(routineId) {
                 detectDragGestures(
@@ -657,7 +622,7 @@ private fun RoutineDragHandle(
         Icon(
             imageVector = Icons.Outlined.DragIndicator,
             contentDescription = "Move routine",
-            tint = accent.onContainer,
+            tint = MusFitTheme.colors.onSurfaceVariant,
             modifier = Modifier.size(20.dp),
         )
     }

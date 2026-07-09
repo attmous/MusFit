@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.dp
 import com.musfit.domain.training.ChartPoint
 import com.musfit.domain.training.TrendChartScaler
 import com.musfit.ui.theme.MusFitTheme
@@ -23,12 +24,22 @@ fun TrendLineChart(
     values: List<Double>,
     accent: Color,
     modifier: Modifier = Modifier,
+    showBaseline: Boolean = false,
 ) {
     val surface = MusFitTheme.colors.surface
+    val hairline = MusFitTheme.colors.outline
     val areaColor = accent.copy(alpha = ChartDefaults.areaAlpha)
     val pad = 8f
 
     Canvas(modifier = modifier) {
+        if (showBaseline) {
+            drawLine(
+                color = hairline,
+                start = Offset(0f, size.height - 1f),
+                end = Offset(size.width, size.height - 1f),
+                strokeWidth = 1.dp.toPx(),
+            )
+        }
         if (values.isEmpty()) return@Canvas
         val geometry = TrendChartScaler.computeChartGeometry(values, size.width, size.height, pad, pad, pad, pad)
         val points = geometry.points

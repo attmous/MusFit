@@ -14,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.musfit.ui.theme.MusFitTheme
@@ -50,7 +49,6 @@ fun EmptyState(
         Text(
             text = title,
             style = MusFitTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
             color = MusFitTheme.colors.onSurface,
             textAlign = TextAlign.Center,
         )

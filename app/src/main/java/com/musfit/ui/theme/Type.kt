@@ -5,9 +5,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.musfit.R
 
-/** Google Sans Flex (bundled static weights) — the M3E display/heading face. */
+/** Google Sans Flex (bundled static weights) — the display/heading face. */
 private val GoogleSansFlex = FontFamily(
     Font(R.font.google_sans_flex_regular, FontWeight.Normal),
     Font(R.font.google_sans_flex_medium, FontWeight.Medium),
@@ -18,19 +19,24 @@ private val GoogleSansFlex = FontFamily(
 private fun TextStyle.gsf(weight: FontWeight) = copy(fontFamily = GoogleSansFlex, fontWeight = weight)
 
 /**
- * M3E type scale: display/headline/title use Google Sans Flex; body/label keep the
- * system Roboto (no bundling needed — Roboto is the Android system font).
+ * Health-grade clean type scale: quiet, regular-weight headlines that read like
+ * sentences, calm regular-weight Google Sans display numerals for hero metrics
+ * (the Google Health look — solid, not thin), and medium — never bold —
+ * section/row titles.
  */
 val MusFitTypography: Typography = Typography().let { base ->
     base.copy(
-        displayLarge = base.displayLarge.gsf(FontWeight.Bold),
-        displayMedium = base.displayMedium.gsf(FontWeight.Bold),
-        displaySmall = base.displaySmall.gsf(FontWeight.SemiBold),
-        headlineLarge = base.headlineLarge.gsf(FontWeight.Bold),
-        headlineMedium = base.headlineMedium.gsf(FontWeight.Bold),
-        headlineSmall = base.headlineSmall.gsf(FontWeight.SemiBold),
-        titleLarge = base.titleLarge.gsf(FontWeight.SemiBold),
-        titleMedium = base.titleMedium.gsf(FontWeight.SemiBold),
-        titleSmall = base.titleSmall.gsf(FontWeight.SemiBold),
+        // Hero numerals (34–44sp band) in Google Sans regular.
+        displayLarge = base.displayLarge.gsf(FontWeight.Normal),
+        displayMedium = base.displayMedium.gsf(FontWeight.Normal).copy(fontSize = 44.sp),
+        displaySmall = base.displaySmall.gsf(FontWeight.Normal),
+        // Screen titles: 28sp regular — "Good morning", not a shouted label.
+        headlineLarge = base.headlineLarge.gsf(FontWeight.Normal),
+        headlineMedium = base.headlineMedium.gsf(FontWeight.Normal),
+        headlineSmall = base.headlineSmall.gsf(FontWeight.Normal),
+        // Stats 22/400; section headers 16/500 — small and quiet; rows 15/500.
+        titleLarge = base.titleLarge.gsf(FontWeight.Normal),
+        titleMedium = base.titleMedium.gsf(FontWeight.Medium),
+        titleSmall = base.titleSmall.gsf(FontWeight.Medium).copy(fontSize = 15.sp),
     )
 }
