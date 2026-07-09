@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,8 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.musfit.ui.theme.MusFitMotion
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -43,6 +44,7 @@ import com.musfit.ui.food.NutritionLabelScannerScreen
 import com.musfit.ui.food.NutritionTrendsScreen
 import com.musfit.ui.profile.ProfileScreen
 import com.musfit.ui.profile.ProfileSettingsScreen
+import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -51,6 +53,18 @@ import com.musfit.ui.today.ChatPreviewSheet
 import com.musfit.ui.today.TodayScreen
 import com.musfit.ui.training.TrainingProgressScreen
 import com.musfit.ui.training.TrainingScreen
+
+internal object MusFitBottomNavMetrics {
+    val BarHeight: Dp = 96.dp
+    val HorizontalPadding: Dp = 8.dp
+    val TopPadding: Dp = 10.dp
+    val BottomPadding: Dp = 16.dp
+    val ItemVerticalPadding: Dp = 7.dp
+    val PillHorizontalPadding: Dp = 18.dp
+    val PillVerticalPadding: Dp = 5.dp
+    val IconSize: Dp = 26.dp
+    val LabelSpacing: Dp = 3.dp
+}
 
 @Composable
 fun AppNavGraph() {
@@ -196,12 +210,23 @@ private fun MusFitBottomNav(
     currentRoute: String,
     onSelect: (AppDestination) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().background(MusFitTheme.colors.background)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MusFitTheme.colors.background)
+            .navigationBarsPadding(),
+    ) {
         HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .height(MusFitBottomNavMetrics.BarHeight)
+                .padding(
+                    start = MusFitBottomNavMetrics.HorizontalPadding,
+                    top = MusFitBottomNavMetrics.TopPadding,
+                    end = MusFitBottomNavMetrics.HorizontalPadding,
+                    bottom = MusFitBottomNavMetrics.BottomPadding,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             destinations.forEach { destination ->
@@ -247,22 +272,25 @@ private fun RowScope.NavBarItem(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(vertical = 6.dp),
+            modifier = Modifier.padding(vertical = MusFitBottomNavMetrics.ItemVerticalPadding),
         ) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
                     .background(pillColor)
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(
+                        horizontal = MusFitBottomNavMetrics.PillHorizontalPadding,
+                        vertical = MusFitBottomNavMetrics.PillVerticalPadding,
+                    ),
             ) {
                 Icon(
                     destination.icon,
                     contentDescription = destination.label,
                     tint = iconTint,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(MusFitBottomNavMetrics.IconSize),
                 )
             }
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(MusFitBottomNavMetrics.LabelSpacing))
             Text(
                 text = destination.label,
                 style = MaterialTheme.typography.labelSmall,
