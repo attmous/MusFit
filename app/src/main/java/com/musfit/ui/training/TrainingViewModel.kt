@@ -72,6 +72,23 @@ data class ExerciseEditorState(
     val targetMuscles: String = "",
 )
 
+/**
+ * The exercise picker's filter set (mock 5e): filters left the page's chip rows and live in one
+ * bottom-sheet-backed state object — multi-select equipment + muscle pills and an "only exercises
+ * I've done" toggle. [activeCount] feeds the badge on the picker's `tune` button.
+ */
+data class TrainingPickerFilters(
+    val equipment: Set<String> = emptySet(),
+    val muscles: Set<String> = emptySet(),
+    val onlyDone: Boolean = false,
+) {
+    val activeCount: Int
+        get() = equipment.size + muscles.size + (if (onlyDone) 1 else 0)
+
+    val isActive: Boolean
+        get() = activeCount > 0
+}
+
 data class RestTimerState(
     val isVisible: Boolean = false,
     val sourceSetId: String? = null,
@@ -156,8 +173,9 @@ data class TrainingUiState(
     val routineFolderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
     val routineExercisePickerSelectedIds: Set<String> = emptySet(),
     val routineExercisePickerSearchQuery: String = "",
-    val routineExercisePickerMuscleFilter: String? = null,
-    val routineExercisePickerEquipmentFilter: String? = null,
+    val routineExercisePickerFilters: TrainingPickerFilters = TrainingPickerFilters(),
+    val routineExercisePickerFilterSheetOpen: Boolean = false,
+    val loggedExerciseIds: Set<String> = emptySet(),
     val selectedRoutineDetail: RoutineDetail? = null,
     val pageStack: List<TrainingPage> = emptyList(),
     val replaceExerciseTargetId: String? = null,
@@ -269,6 +287,11 @@ class TrainingViewModel @Inject constructor(
                         historyOverview = buildTrainingHistoryOverview(history),
                     ).withDashboard()
                 }
+            }
+        }
+        viewModelScope.launch {
+            repository.observeLoggedExerciseIds().collect { ids ->
+                mutableState.update { it.copy(loggedExerciseIds = ids) }
             }
         }
     }
@@ -535,8 +558,8 @@ class TrainingViewModel @Inject constructor(
             it.pushPage(TrainingPage.ExercisePicker).copy(
                 routineExercisePickerSelectedIds = emptySet(),
                 routineExercisePickerSearchQuery = "",
-                routineExercisePickerMuscleFilter = null,
-                routineExercisePickerEquipmentFilter = null,
+                routineExercisePickerFilters = TrainingPickerFilters(),
+                routineExercisePickerFilterSheetOpen = false,
             )
         }
     }
@@ -545,6 +568,7 @@ class TrainingViewModel @Inject constructor(
         mutableState.update {
             it.removePage(TrainingPage.ExercisePicker).copy(
                 routineExercisePickerSelectedIds = emptySet(),
+                routineExercisePickerFilterSheetOpen = false,
             )
         }
     }
@@ -553,20 +577,52 @@ class TrainingViewModel @Inject constructor(
         mutableState.update { it.copy(routineExercisePickerSearchQuery = value) }
     }
 
-    fun onRoutineExercisePickerMuscleFilterChanged(value: String?) {
-        mutableState.update { it.copy(routineExercisePickerMuscleFilter = value) }
+    fun openRoutineExercisePickerFilters() {
+        mutableState.update { it.copy(routineExercisePickerFilterSheetOpen = true) }
     }
 
-    fun onRoutineExercisePickerEquipmentFilterChanged(value: String?) {
-        mutableState.update { it.copy(routineExercisePickerEquipmentFilter = value) }
+    fun closeRoutineExercisePickerFilters() {
+        mutableState.update { it.copy(routineExercisePickerFilterSheetOpen = false) }
+    }
+
+    fun toggleRoutineExercisePickerEquipment(value: String) {
+        mutableState.update { current ->
+            val filters = current.routineExercisePickerFilters
+            current.copy(
+                routineExercisePickerFilters = filters.copy(
+                    equipment = filters.equipment.toggled(value),
+                ),
+            )
+        }
+    }
+
+    fun toggleRoutineExercisePickerMuscle(value: String) {
+        mutableState.update { current ->
+            val filters = current.routineExercisePickerFilters
+            current.copy(
+                routineExercisePickerFilters = filters.copy(
+                    muscles = filters.muscles.toggled(value),
+                ),
+            )
+        }
+    }
+
+    fun setRoutineExercisePickerOnlyDone(value: Boolean) {
+        mutableState.update {
+            it.copy(routineExercisePickerFilters = it.routineExercisePickerFilters.copy(onlyDone = value))
+        }
+    }
+
+    /** The sheet's "Reset" — clears the filter set but keeps the search query. */
+    fun resetRoutineExercisePickerFilters() {
+        mutableState.update { it.copy(routineExercisePickerFilters = TrainingPickerFilters()) }
     }
 
     fun clearRoutineExercisePickerFilters() {
         mutableState.update {
             it.copy(
                 routineExercisePickerSearchQuery = "",
-                routineExercisePickerMuscleFilter = null,
-                routineExercisePickerEquipmentFilter = null,
+                routineExercisePickerFilters = TrainingPickerFilters(),
             )
         }
     }
@@ -892,12 +948,11 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    // No section switch: since Turn 5 the custom-exercise editor opens in place (picker sheet or
+    // library page) instead of yanking the user to the Exercises section.
     fun openCustomExerciseEditor() {
         mutableState.update {
-            it.copy(
-                selectedSection = TrainingSection.Exercises,
-                exerciseEditor = ExerciseEditorState(isOpen = true),
-            )
+            it.copy(exerciseEditor = ExerciseEditorState(isOpen = true))
         }
     }
 
@@ -938,7 +993,6 @@ class TrainingViewModel @Inject constructor(
             repository.createCustomExercise(input)
             mutableState.update {
                 it.copy(
-                    selectedSection = TrainingSection.Exercises,
                     exerciseEditor = ExerciseEditorState(),
                     message = "Exercise saved.",
                 ).withFilteredExercises()
@@ -1573,6 +1627,13 @@ class TrainingViewModel @Inject constructor(
 
     private fun isStarterRoutine(routineId: String?): Boolean =
         routineId != null && state.value.routines.any { it.id == routineId && it.isStarter }
+
+    private fun Set<String>.toggled(value: String): Set<String> =
+        if (any { it.equals(value, ignoreCase = true) }) {
+            filterNot { it.equals(value, ignoreCase = true) }.toSet()
+        } else {
+            this + value
+        }
 }
 
 private fun defaultSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> =

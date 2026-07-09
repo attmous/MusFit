@@ -267,7 +267,8 @@ class TrainingViewModelTest {
         )
         assertFalse(viewModel.state.value.exerciseEditor.isOpen)
         assertEquals("", viewModel.state.value.exerciseEditor.name)
-        assertEquals(TrainingSection.Exercises, viewModel.state.value.selectedSection)
+        // Since Turn 5 the editor opens in place (picker sheet) — saving must not switch sections.
+        assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
     }
 
     @Test

@@ -24,7 +24,6 @@ import com.musfit.data.repository.WorkoutExerciseBlock
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutRecapSummary
-import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import java.util.Locale
@@ -52,8 +51,8 @@ fun TrainingHistoryContent(
         return
     }
 
+    // The page header above this content carries the "History" title.
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader(title = "History")
         HistoryOverviewCard(overview = overview, accent = accent)
         if (history.isEmpty()) {
             Text(

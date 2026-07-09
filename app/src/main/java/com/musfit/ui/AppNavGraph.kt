@@ -128,7 +128,10 @@ fun AppNavGraph() {
             }
             composable(AppDestination.Training.route) {
                 BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })
-                TrainingScreen()
+                TrainingScreen(
+                    onOpenProgress = { navController.navigate(PROFILE_TRAINING_PROGRESS_ROUTE) },
+                    onOpenCoach = { chatPreviewVisible = true },
+                )
             }
             composable(AppDestination.Profile.route) {
                 BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })

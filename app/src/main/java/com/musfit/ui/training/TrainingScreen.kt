@@ -7,23 +7,27 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,34 +43,40 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.ExerciseDetail
+import com.musfit.data.repository.RoutineSummary
+import com.musfit.data.repository.WorkoutHistorySummary
+import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.ui.AppDestination
-import com.musfit.ui.components.DashboardHero
 import com.musfit.ui.components.MusFitScreenScaffold
-import com.musfit.ui.components.MusFitSegmented
-import com.musfit.ui.components.charts.MetricRing
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** Max exercise rows rendered in the (non-lazy) library list before nudging the user to search. */
-private const val EXERCISE_LIST_DISPLAY_LIMIT = 40
-
-/** Default weekly training-session target the "This week" snapshot measures progress against. */
+/** Default weekly training-session target the "This week" strip measures progress against. */
 private const val WEEKLY_SESSION_GOAL = 3
 
 @Composable
-fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
+fun TrainingScreen(
+    viewModel: TrainingViewModel = hiltViewModel(),
+    onOpenProgress: () -> Unit = {},
+    onOpenCoach: () -> Unit = {},
+) {
     val state by viewModel.state.collectAsState()
     val activeWorkout = state.activeWorkout
     val accent = tabAccentFor(AppDestination.Training)
@@ -81,6 +91,11 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
             state.replaceExerciseTargetId == null,
     ) {
         viewModel.navigateBack()
+    }
+    // With the section chips gone, History is a page opened from the calendar icon; back returns
+    // to the dashboard instead of leaving the tab.
+    BackHandler(enabled = state.pageStack.isEmpty() && state.selectedSection != TrainingSection.Routines) {
+        viewModel.selectSection(TrainingSection.Routines)
     }
 
     if (state.activeWorkoutRouteOpen && activeWorkout != null) {
@@ -104,7 +119,6 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 onAddExercise = viewModel::addExerciseToActiveWorkout,
                 onAddSet = viewModel::addWorkoutSet,
                 onAddSuggestedWarmupSet = viewModel::addSuggestedWarmupSet,
-                onDuplicateSet = viewModel::duplicateLastWorkoutSet,
                 onUpdateSet = viewModel::updateWorkoutSetFields,
                 onDeleteSet = viewModel::deleteWorkoutSet,
                 onToggleSet = viewModel::toggleWorkoutSetCompletion,
@@ -115,8 +129,6 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 onMoveSetUp = viewModel::moveWorkoutSetUp,
                 onMoveSetDown = viewModel::moveWorkoutSetDown,
                 onTickRestTimer = viewModel::tickRestTimer,
-                onPauseRestTimer = viewModel::pauseRestTimer,
-                onResumeRestTimer = viewModel::resumeRestTimer,
                 onSkipRestTimer = viewModel::skipRestTimer,
                 onAdjustRestTimer = viewModel::adjustRestTimerSeconds,
                 onMakeSuperset = viewModel::makeSupersetWithNext,
@@ -127,6 +139,7 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                 replaceExerciseTargetId = state.replaceExerciseTargetId,
                 onReplacePick = viewModel::replaceActiveWorkoutExercise,
                 onReplaceDismiss = viewModel::closeReplaceExercisePicker,
+                onOpenCoach = onOpenCoach,
                 onClose = viewModel::closeActiveWorkoutRoute,
                 onFinish = viewModel::requestFinishActiveWorkout,
                 onDiscard = viewModel::requestDiscardActiveWorkout,
@@ -164,14 +177,27 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
                     currentRoutineExerciseIds = state.routineEditor.exercises.map { it.exerciseId }.toSet(),
                     selectedExerciseIds = state.routineExercisePickerSelectedIds,
                     searchQuery = state.routineExercisePickerSearchQuery,
-                    muscleFilter = state.routineExercisePickerMuscleFilter,
-                    equipmentFilter = state.routineExercisePickerEquipmentFilter,
+                    filters = state.routineExercisePickerFilters,
+                    filterSheetOpen = state.routineExercisePickerFilterSheetOpen,
+                    loggedExerciseIds = state.loggedExerciseIds,
+                    customExerciseEditor = state.exerciseEditor,
                     accent = accent,
                     onSearchChange = viewModel::onRoutineExercisePickerSearchChanged,
-                    onMuscleFilterChange = viewModel::onRoutineExercisePickerMuscleFilterChanged,
-                    onEquipmentFilterChange = viewModel::onRoutineExercisePickerEquipmentFilterChanged,
+                    onOpenFilters = viewModel::openRoutineExercisePickerFilters,
+                    onCloseFilters = viewModel::closeRoutineExercisePickerFilters,
+                    onToggleEquipment = viewModel::toggleRoutineExercisePickerEquipment,
+                    onToggleMuscle = viewModel::toggleRoutineExercisePickerMuscle,
+                    onOnlyDoneChange = viewModel::setRoutineExercisePickerOnlyDone,
+                    onResetFilters = viewModel::resetRoutineExercisePickerFilters,
                     onClearFilters = viewModel::clearRoutineExercisePickerFilters,
                     onToggleExercise = viewModel::toggleRoutineExercisePickerSelection,
+                    onOpenCustomExercise = viewModel::openCustomExerciseEditor,
+                    onCloseCustomExercise = viewModel::closeCustomExerciseEditor,
+                    onCustomExerciseNameChange = viewModel::onCustomExerciseNameChanged,
+                    onCustomExerciseCategoryChange = viewModel::onCustomExerciseCategoryChanged,
+                    onCustomExerciseEquipmentChange = viewModel::onCustomExerciseEquipmentChanged,
+                    onCustomExerciseTargetMusclesChange = viewModel::onCustomExerciseTargetMusclesChanged,
+                    onSaveCustomExercise = viewModel::saveCustomExercise,
                     onCancel = viewModel::closeRoutineExercisePicker,
                     onConfirm = viewModel::confirmRoutineExercisePicker,
                 )
@@ -180,261 +206,619 @@ fun TrainingScreen(viewModel: TrainingViewModel = hiltViewModel()) {
         return
     }
 
+    // Full-page overlays layered by the page stack: editor above detail, details above lists.
+    if (state.routineEditor.isOpen) {
+        TrainingPageContainer {
+            TrainingRoutineEditor(
+                editor = state.routineEditor,
+                exercises = state.exercises,
+                accent = accent,
+                onNameChange = viewModel::onRoutineNameChanged,
+                onNotesChange = viewModel::onRoutineNotesChanged,
+                onOpenExercisePicker = viewModel::openRoutineExercisePicker,
+                onRemoveExercise = viewModel::removeRoutineExercise,
+                onMoveExerciseUp = viewModel::moveRoutineExerciseUp,
+                onMoveExerciseDown = viewModel::moveRoutineExerciseDown,
+                onTargetSetsChange = viewModel::onRoutineExerciseTargetSetsChanged,
+                onTargetRepsChange = viewModel::onRoutineExerciseTargetRepsChanged,
+                onRestSecondsChange = viewModel::onRoutineExerciseRestSecondsChanged,
+                onAddSet = viewModel::addRoutineExerciseSet,
+                onRemoveSet = viewModel::removeRoutineExerciseSet,
+                onSetTypeChange = viewModel::onRoutineExerciseSetTypeChanged,
+                onSetRepsChange = viewModel::onRoutineExerciseSetRepsChanged,
+                onSetWeightChange = viewModel::onRoutineExerciseSetWeightChanged,
+                onSave = viewModel::saveRoutineEditor,
+                onCancel = viewModel::closeRoutineEditor,
+                onDuplicate = viewModel::duplicateRoutine,
+                onDelete = viewModel::deleteRoutine,
+            )
+        }
+        return
+    }
+
+    val exerciseDetail = state.selectedExerciseDetail
+    if (exerciseDetail != null) {
+        TrainingPageContainer {
+            ExerciseDetailPage(
+                detail = exerciseDetail,
+                target = state.exerciseDetailTarget,
+                notesInput = state.exerciseDetailNotesInput,
+                accent = accent,
+                onNotesChange = viewModel::onExerciseDetailNotesChanged,
+                onSaveNotes = viewModel::saveExerciseDetailNotes,
+                onClose = viewModel::closeExerciseDetail,
+            )
+        }
+        return
+    }
+
+    val routineDetail = state.selectedRoutineDetail
+    if (routineDetail != null) {
+        TrainingPageContainer {
+            RoutineDetailContent(
+                detail = routineDetail,
+                accent = accent,
+                onStart = { viewModel.startRoutine(routineDetail.id) },
+                onEdit = { viewModel.openRoutineEditor(routineDetail.id) },
+                onOpenExercise = viewModel::openRoutineExerciseDetail,
+                onDuplicate = {
+                    viewModel.closeRoutineDetail()
+                    viewModel.duplicateRoutine(routineDetail.id)
+                },
+                onDelete = {
+                    viewModel.closeRoutineDetail()
+                    viewModel.deleteRoutine(routineDetail.id)
+                },
+                onClose = viewModel::closeRoutineDetail,
+            )
+        }
+        return
+    }
+
     if (state.routineLibraryPageOpen) {
-        RoutineLibraryPage(
+        RoutineLibraryPage(state = state, accent = accent, viewModel = viewModel, onBack = viewModel::navigateBack)
+        return
+    }
+
+    if (state.selectedSection == TrainingSection.History) {
+        TrainingHistoryPage(
             state = state,
             accent = accent,
-            viewModel = viewModel,
-            // Pops one page like system back: an overlaying editor/detail first, then the library.
-            onBack = viewModel::navigateBack,
+            onBack = { viewModel.selectSection(TrainingSection.Routines) },
+            onOpenDetail = viewModel::openWorkoutDetail,
+            onCloseDetail = viewModel::closeWorkoutDetail,
         )
         return
     }
 
+    TrainingDashboard(
+        state = state,
+        accent = accent,
+        onOpenHistory = { viewModel.selectSection(TrainingSection.History) },
+        onResume = viewModel::resumeActiveWorkout,
+        onStartRoutine = viewModel::startRoutine,
+        onStartBlankWorkout = viewModel::startBlankWorkout,
+        onOpenRoutineDetail = viewModel::openRoutineDetail,
+        onOpenAllRoutines = viewModel::openRoutineLibraryPage,
+        onNewRoutine = { viewModel.openRoutineEditor(null) },
+        onOpenProgress = onOpenProgress,
+        onOpenCoach = onOpenCoach,
+    )
+}
+
+/**
+ * The decluttered Training tab (mock 5a): one tonal hero (today's session / resume),
+ * a 7-dot week strip, hairline routine rows with a filled play glyph, a Progress
+ * link, and the coach as a single hairline row.
+ */
+@Composable
+private fun TrainingDashboard(
+    state: TrainingUiState,
+    accent: TabAccent,
+    onOpenHistory: () -> Unit,
+    onResume: () -> Unit,
+    onStartRoutine: (String) -> Unit,
+    onStartBlankWorkout: () -> Unit,
+    onOpenRoutineDetail: (String) -> Unit,
+    onOpenAllRoutines: () -> Unit,
+    onNewRoutine: () -> Unit,
+    onOpenProgress: () -> Unit,
+    onOpenCoach: () -> Unit,
+) {
     MusFitScreenScaffold(
         title = "Training",
         actions = {
-            IconButton(onClick = { viewModel.selectSection(TrainingSection.History) }) {
-                Icon(Icons.Outlined.History, contentDescription = "Workout history", tint = MusFitTheme.colors.onSurfaceVariant)
+            IconButton(onClick = onOpenHistory) {
+                Icon(
+                    imageVector = Icons.Outlined.CalendarMonth,
+                    contentDescription = "Workout history",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                )
             }
         },
     ) {
-        state.activeWorkoutSummary?.let { summary ->
-            val setCount = summary.completedSetCount
-            ResumeBanner(
-                title = summary.title,
-                subtitle = "$setCount ${if (setCount == 1) "set" else "sets"} done · ${summary.totalVolumeKg.formatKg()} kg",
-                accent = accent,
-                onResume = viewModel::resumeActiveWorkout,
-            )
-        }
-
-        // The weekly snapshot heads the Routines tab only; History has its own detailed overview.
-        if (state.selectedSection == TrainingSection.Routines) {
-            TrainingWeekSummaryCard(overview = state.historyOverview, accent = accent)
-        }
-
-        SectionTabs(
-            selected = state.selectedSection,
+        TrainingTodayHero(
+            activeSummary = state.activeWorkoutSummary,
+            nextRoutine = state.dashboard.nextSuggestedRoutine ?: state.visibleRoutines.firstOrNull(),
             accent = accent,
-            onSelect = viewModel::selectSection,
+            onResume = onResume,
+            onStartRoutine = onStartRoutine,
+            onStartBlankWorkout = onStartBlankWorkout,
+        )
+
+        TrainingWeekStrip(
+            days = trainingWeekDays(state.workoutHistory, LocalDate.now()),
+            sessionsDone = state.historyOverview.currentWeekWorkoutCount,
+            accent = accent,
+        )
+
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+
+        DashboardRoutineList(
+            routines = state.homeRoutines.ifEmpty { state.visibleRoutines },
+            history = state.workoutHistory,
+            accent = accent,
+            onOpenRoutineDetail = onOpenRoutineDetail,
+            onStartRoutine = onStartRoutine,
+            onOpenAllRoutines = onOpenAllRoutines,
+            onNewRoutine = onNewRoutine,
+        )
+
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+
+        ProgressLinkRow(accent = accent, onOpenProgress = onOpenProgress)
+
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+
+        TrainingCoachRow(
+            cue = trainingCoachCue(
+                overview = state.historyOverview,
+                nextRoutineName = (state.dashboard.nextSuggestedRoutine ?: state.visibleRoutines.firstOrNull())?.name,
+            ),
+            onView = onOpenCoach,
         )
 
         state.message?.let { message ->
-            Text(text = message, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
-        }
-
-        when (state.selectedSection) {
-            TrainingSection.Routines ->
-                TrainingRoutineWorkspace(state = state, accent = accent, viewModel = viewModel) {
-                    TrainingHomeContent(
-                        hasActiveWorkout = state.activeWorkoutSummary != null,
-                        routines = state.homeRoutines,
-                        folders = state.homeFolders,
-                        folderEditor = state.routineFolderEditor,
-                        accent = accent,
-                        onStartBlankWorkout = viewModel::startBlankWorkout,
-                        onNewRoutine = { viewModel.openRoutineEditor(null) },
-                        onOpenLibrary = viewModel::openRoutineLibraryPage,
-                        onOpenFolderEditor = viewModel::openRoutineFolderEditor,
-                        onFolderNameChange = viewModel::onRoutineFolderNameChanged,
-                        onSaveFolder = viewModel::saveRoutineFolderEditor,
-                        onCancelFolder = viewModel::closeRoutineFolderEditor,
-                        onDeleteFolder = viewModel::deleteRoutineFolder,
-                        onAssignRoutineToFolder = viewModel::assignRoutineToFolder,
-                        onStartRoutine = viewModel::startRoutine,
-                        onEditRoutine = viewModel::openRoutineEditor,
-                        onOpenRoutineDetail = viewModel::openRoutineDetail,
-                    )
-                }
-            TrainingSection.Exercises -> {
-                val exerciseDetail = state.selectedExerciseDetail
-                if (exerciseDetail != null) {
-                    ExerciseDetailPage(
-                        detail = exerciseDetail,
-                        target = state.exerciseDetailTarget,
-                        notesInput = state.exerciseDetailNotesInput,
-                        accent = accent,
-                        onNotesChange = viewModel::onExerciseDetailNotesChanged,
-                        onSaveNotes = viewModel::saveExerciseDetailNotes,
-                        onClose = viewModel::closeExerciseDetail,
-                    )
-                } else {
-                    TrainingExerciseLibraryContent(
-                        visibleExercises = state.visibleExercises,
-                        allExercises = state.exercises,
-                        searchQuery = state.exerciseSearchQuery,
-                        muscleFilter = state.exerciseMuscleFilter,
-                        equipmentFilter = state.exerciseEquipmentFilter,
-                        editor = state.exerciseEditor,
-                        accent = accent,
-                        onSearchChange = viewModel::onExerciseSearchQueryChanged,
-                        onMuscleFilterChange = viewModel::onExerciseMuscleFilterChanged,
-                        onEquipmentFilterChange = viewModel::onExerciseEquipmentFilterChanged,
-                        onClearFilters = viewModel::clearExerciseFilters,
-                        onOpenExerciseDetail = viewModel::openExerciseDetail,
-                        onOpenCustomExercise = viewModel::openCustomExerciseEditor,
-                        onCloseCustomExercise = viewModel::closeCustomExerciseEditor,
-                        onCustomExerciseNameChange = viewModel::onCustomExerciseNameChanged,
-                        onCustomExerciseCategoryChange = viewModel::onCustomExerciseCategoryChanged,
-                        onCustomExerciseEquipmentChange = viewModel::onCustomExerciseEquipmentChanged,
-                        onCustomExerciseTargetMusclesChange = viewModel::onCustomExerciseTargetMusclesChanged,
-                        onSaveCustomExercise = viewModel::saveCustomExercise,
-                    )
-                }
-            }
-            TrainingSection.History ->
-                TrainingHistoryContent(
-                    history = state.workoutHistory,
-                    selectedDetail = state.selectedWorkoutDetail,
-                    overview = state.historyOverview,
-                    accent = accent,
-                    onOpenDetail = viewModel::openWorkoutDetail,
-                    onCloseDetail = viewModel::closeWorkoutDetail,
-                )
+            Text(text = message, style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
         }
     }
 }
 
 /**
- * The "In progress" resume banner — the one tonal container on this screen
- * (mock 3c): accent-container fill at 24dp radius, a tiny overline, the routine
- * name at a calm 19/400, and a filled accent Resume button.
+ * The one tonal container on the tab: today's suggested session with a filled Start
+ * button, or — when a workout is running — the same container as a Resume banner.
  */
 @Composable
-private fun ResumeBanner(
-    title: String,
-    subtitle: String,
+private fun TrainingTodayHero(
+    activeSummary: com.musfit.data.repository.ActiveWorkoutSummary?,
+    nextRoutine: RoutineSummary?,
     accent: TabAccent,
     onResume: () -> Unit,
+    onStartRoutine: (String) -> Unit,
+    onStartBlankWorkout: () -> Unit,
 ) {
-    Surface(color = accent.container, shape = MusFitTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth()) {
+    val overline: String
+    val title: String
+    val meta: String
+    val actionLabel: String
+    val onAction: () -> Unit
+    when {
+        activeSummary != null -> {
+            overline = "IN PROGRESS"
+            title = activeSummary.title
+            val sets = activeSummary.completedSetCount
+            meta = "$sets ${if (sets == 1) "set" else "sets"} done · ${activeSummary.totalVolumeKg.formatKg()} kg"
+            actionLabel = "Resume"
+            onAction = onResume
+        }
+        nextRoutine != null -> {
+            overline = trainingHeroOverline(nextRoutine)
+            title = nextRoutine.name
+            meta = trainingHeroMeta(nextRoutine)
+            actionLabel = "Start"
+            onAction = { onStartRoutine(nextRoutine.id) }
+        }
+        else -> {
+            overline = "TODAY"
+            title = "Empty workout"
+            meta = "Log sets as you go"
+            actionLabel = "Start"
+            onAction = onStartBlankWorkout
+        }
+    }
+    Surface(color = accent.container, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            modifier = Modifier.padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "IN PROGRESS",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = overline,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.5.sp, letterSpacing = 0.3.sp),
                     fontWeight = FontWeight.Medium,
-                    color = accent.onContainer.copy(alpha = 0.8f),
+                    color = accent.onContainer,
                 )
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 19.sp),
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
+                    fontWeight = FontWeight.Normal,
                     color = accent.onContainer,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
                 )
-                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = accent.onContainer)
+                Text(
+                    text = meta,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = accent.onContainer.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 1.dp),
+                )
             }
-            Button(onClick = onResume, colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor)) {
-                Text("Resume")
+            Button(
+                onClick = onAction,
+                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+            ) {
+                Text(actionLabel)
             }
         }
     }
 }
 
 /**
- * Weekly snapshot heading the Routines tab, drawn naked on the surface
- * (mock 3c): a 108dp sessions ring (`2/3`) with a right column of plain stats —
- * volume and day streak. Reads straight off [TrainingHistoryOverview]
- * (already computed for History), so it never needs its own data pass.
+ * "This week" strip (mock 5a): 7 day dots, 34dp — done days are filled accent circles
+ * with a check, today (when not yet trained) is a dashed accent outline, rest days a
+ * quiet neutral fill.
  */
 @Composable
-private fun TrainingWeekSummaryCard(
-    overview: TrainingHistoryOverview,
+private fun TrainingWeekStrip(
+    days: List<TrainingWeekDay>,
+    sessionsDone: Int,
     accent: TabAccent,
 ) {
-    val workouts = overview.currentWeekWorkoutCount
-    val progress = (workouts.toFloat() / WEEKLY_SESSION_GOAL).coerceIn(0f, 1f)
-    DashboardHero {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            MetricRing(
-                progress = progress,
-                color = accent.color,
-                diameter = 108.dp,
-                strokeWidth = 10.dp,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = workouts.toString(),
-                            style = MaterialTheme.typography.displaySmall.copy(fontSize = 28.sp, lineHeight = 32.sp),
-                            color = MusFitTheme.colors.onSurface,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = "/$WEEKLY_SESSION_GOAL",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MusFitTheme.colors.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
-                    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                text = "This week",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+            Text(
+                text = "$sessionsDone of $WEEKLY_SESSION_GOAL sessions",
+                style = MaterialTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            days.forEach { day ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    WeekDayDot(day = day, accent = accent)
                     Text(
-                        text = "sessions",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
+                        text = day.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (day.isToday) FontWeight.Medium else FontWeight.Normal,
+                        color = if (day.isToday) MusFitTheme.colors.onSurface else MusFitTheme.colors.onSurfaceVariant,
                     )
                 }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                WeekSummaryMetric(
-                    value = "${overview.currentWeekVolumeKg.formatKgGrouped()} kg",
-                    label = "volume this week",
-                )
-                WeekSummaryMetric(
-                    value = overview.currentStreakDays.toString(),
-                    label = "day streak",
-                )
             }
         }
     }
 }
 
 @Composable
-private fun WeekSummaryMetric(
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            color = MusFitTheme.colors.onSurface,
-            maxLines = 1,
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
+private fun WeekDayDot(day: TrainingWeekDay, accent: TabAccent) {
+    when {
+        day.isDone -> Box(
+            modifier = Modifier
+                .size(34.dp)
+                .background(accent.color, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Check,
+                contentDescription = "${day.label}: trained",
+                tint = accent.onColor,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+        day.isToday -> {
+            val dashColor = accent.color
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .drawBehind {
+                        drawCircle(
+                            color = dashColor,
+                            radius = (size.minDimension - 2.dp.toPx()) / 2f,
+                            style = Stroke(
+                                width = 2.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 5.dp.toPx())),
+                            ),
+                        )
+                    },
+            )
+        }
+        else -> Box(
+            modifier = Modifier
+                .size(34.dp)
+                .background(MusFitTheme.colors.surfaceVariant, CircleShape),
         )
     }
 }
 
+/** Hairline routine rows: name, one "last performed" meta line, and a filled play glyph. */
 @Composable
-private fun SectionTabs(
-    selected: TrainingSection,
+private fun DashboardRoutineList(
+    routines: List<RoutineSummary>,
+    history: List<WorkoutHistorySummary>,
     accent: TabAccent,
-    onSelect: (TrainingSection) -> Unit,
+    onOpenRoutineDetail: (String) -> Unit,
+    onStartRoutine: (String) -> Unit,
+    onOpenAllRoutines: () -> Unit,
+    onNewRoutine: () -> Unit,
 ) {
-    MusFitSegmented(
-        options = TrainingSection.entries,
-        selected = selected,
-        accent = accent,
-        label = { it.name },
-        onSelect = onSelect,
-    )
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "Routines",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+            Text(
+                text = "All",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = accent.color,
+                modifier = Modifier.clickable(onClick = onOpenAllRoutines),
+            )
+        }
+        if (routines.isEmpty()) {
+            Text(
+                text = "Create a routine and it will appear here.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MusFitTheme.colors.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 10.dp),
+            )
+        }
+        routines.forEachIndexed { index, routine ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenRoutineDetail(routine.id) }
+                    .padding(vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = routine.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MusFitTheme.colors.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = routineLastPerformedMeta(routine, history, LocalDate.now()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Filled.PlayCircle,
+                    contentDescription = "Start ${routine.name}",
+                    tint = accent.color,
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clickable { onStartRoutine(routine.id) },
+                )
+            }
+            if (index < routines.lastIndex) {
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+            }
+        }
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onNewRoutine)
+                .padding(vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Add,
+                contentDescription = null,
+                tint = accent.color,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = "New routine",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = accent.color,
+            )
+        }
+    }
+}
+
+/** Quiet entry to the dedicated Progress page (mock 5b) — the old Progress chip's new home. */
+@Composable
+private fun ProgressLinkRow(accent: TabAccent, onOpenProgress: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpenProgress)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Progress",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            color = accent.color,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = Icons.Outlined.ChevronRight,
+            contentDescription = null,
+            tint = accent.color,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+/** The coach shrunk to a hairline row: 7dp azure dot, one sentence, one text action. */
+@Composable
+private fun TrainingCoachRow(cue: String, onView: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .background(MusFitTheme.colors.accent, CircleShape),
+        )
+        Text(
+            text = cue,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp, lineHeight = 19.sp),
+            color = MusFitTheme.colors.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "View",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MusFitTheme.colors.accent,
+            modifier = Modifier.clickable(onClick = onView),
+        )
+    }
+}
+
+/** Full-page History (opened from the calendar icon): back header + the existing history content. */
+@Composable
+private fun TrainingHistoryPage(
+    state: TrainingUiState,
+    accent: TabAccent,
+    onBack: () -> Unit,
+    onOpenDetail: (String) -> Unit,
+    onCloseDetail: () -> Unit,
+) {
+    TrainingPageContainer {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = MusFitTheme.colors.onSurface,
+                modifier = Modifier.size(24.dp).clickable(onClick = onBack),
+            )
+            Text(
+                text = "History",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Normal,
+                color = MusFitTheme.colors.onSurface,
+            )
+        }
+        TrainingHistoryContent(
+            history = state.workoutHistory,
+            selectedDetail = state.selectedWorkoutDetail,
+            overview = state.historyOverview,
+            accent = accent,
+            onOpenDetail = onOpenDetail,
+            onCloseDetail = onCloseDetail,
+        )
+    }
+}
+
+/**
+ * "All routines" page behind the dashboard's "All" link: the full management
+ * workspace — user routines organized into folders (drag to move), plus the
+ * pre-made routine library.
+ */
+@Composable
+private fun RoutineLibraryPage(
+    state: TrainingUiState,
+    accent: TabAccent,
+    viewModel: TrainingViewModel,
+    onBack: () -> Unit,
+) {
+    TrainingPageContainer {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = MusFitTheme.colors.onSurface,
+                modifier = Modifier.size(24.dp).clickable(onClick = onBack),
+            )
+            Text(
+                text = "Routines",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Normal,
+                color = MusFitTheme.colors.onSurface,
+            )
+        }
+        TrainingHomeContent(
+            hasActiveWorkout = state.activeWorkoutSummary != null,
+            routines = state.homeRoutines,
+            folders = state.homeFolders,
+            folderEditor = state.routineFolderEditor,
+            accent = accent,
+            onStartBlankWorkout = viewModel::startBlankWorkout,
+            onNewRoutine = { viewModel.openRoutineEditor(null) },
+            onOpenLibrary = {},
+            showLibraryLink = false,
+            onOpenFolderEditor = viewModel::openRoutineFolderEditor,
+            onFolderNameChange = viewModel::onRoutineFolderNameChanged,
+            onSaveFolder = viewModel::saveRoutineFolderEditor,
+            onCancelFolder = viewModel::closeRoutineFolderEditor,
+            onDeleteFolder = viewModel::deleteRoutineFolder,
+            onAssignRoutineToFolder = viewModel::assignRoutineToFolder,
+            onStartRoutine = viewModel::startRoutine,
+            onEditRoutine = viewModel::openRoutineEditor,
+            onOpenRoutineDetail = viewModel::openRoutineDetail,
+        )
+        TrainingRoutineLibraryList(
+            routines = state.visibleRoutines,
+            accent = accent,
+            onStartRoutine = viewModel::startRoutine,
+            onOpenRoutineDetail = viewModel::openRoutineDetail,
+        )
+    }
+}
+
+/** Shared scrolling container for Training's full-screen inner pages. */
+@Composable
+internal fun TrainingPageContainer(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MusFitTheme.colors.background)
+            .verticalScroll(rememberScrollState())
+            .padding(start = MusFitTheme.spacing.xl, end = MusFitTheme.spacing.xl, top = MusFitTheme.spacing.lg)
+            .padding(bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.xl),
+    ) {
+        content()
+    }
 }
 
 @Composable
@@ -449,221 +833,6 @@ private fun ActiveWorkoutPlaceholder(state: TrainingUiState, onBack: () -> Unit)
                 Text(text = state.activeWorkoutSummary?.title ?: "Workout in progress", style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
                 TextButton(onClick = onBack) { Text("Back to home") }
             }
-        }
-    }
-}
-
-@Composable
-private fun RoutineLibraryPage(
-    state: TrainingUiState,
-    accent: TabAccent,
-    viewModel: TrainingViewModel,
-    onBack: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MusFitTheme.colors.background)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(
-            modifier = Modifier.clickable(onClick = onBack),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = "Back",
-                tint = accent.color,
-                modifier = Modifier.size(20.dp),
-            )
-            Text("Back", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = accent.color)
-        }
-        Text(
-            text = "Browse routines",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MusFitTheme.colors.onSurface,
-        )
-        TrainingRoutineWorkspace(state = state, accent = accent, viewModel = viewModel) {
-            TrainingRoutineLibraryList(
-                routines = state.visibleRoutines,
-                accent = accent,
-                onStartRoutine = viewModel::startRoutine,
-                onOpenRoutineDetail = viewModel::openRoutineDetail,
-                heading = null,
-            )
-        }
-    }
-}
-
-/**
- * Shared routine "workspace": when a routine editor, routine detail, or (routine) exercise detail is
- * active it renders that overlay; otherwise it renders the section-specific [routineList]. Used by
- * both the Home tab (user routines + folders) and the Library (pre-made routines) so those overlays
- * appear in-context regardless of which tab opened them.
- */
-@Composable
-private fun TrainingRoutineWorkspace(
-    state: TrainingUiState,
-    accent: TabAccent,
-    viewModel: TrainingViewModel,
-    routineList: @Composable () -> Unit,
-) {
-    val routineDetail = state.selectedRoutineDetail
-    val exerciseDetail = state.selectedExerciseDetail
-    when {
-        state.routineEditor.isOpen -> TrainingRoutineEditor(
-            editor = state.routineEditor,
-            exercises = state.exercises,
-            accent = accent,
-            onNameChange = viewModel::onRoutineNameChanged,
-            onOpenExercisePicker = viewModel::openRoutineExercisePicker,
-            onRemoveExercise = viewModel::removeRoutineExercise,
-            onMoveExerciseUp = viewModel::moveRoutineExerciseUp,
-            onMoveExerciseDown = viewModel::moveRoutineExerciseDown,
-            onTargetSetsChange = viewModel::onRoutineExerciseTargetSetsChanged,
-            onTargetRepsChange = viewModel::onRoutineExerciseTargetRepsChanged,
-            onRestSecondsChange = viewModel::onRoutineExerciseRestSecondsChanged,
-            onAddSet = viewModel::addRoutineExerciseSet,
-            onRemoveSet = viewModel::removeRoutineExerciseSet,
-            onSetTypeChange = viewModel::onRoutineExerciseSetTypeChanged,
-            onSetRepsChange = viewModel::onRoutineExerciseSetRepsChanged,
-            onSetWeightChange = viewModel::onRoutineExerciseSetWeightChanged,
-            onSave = viewModel::saveRoutineEditor,
-            onCancel = viewModel::closeRoutineEditor,
-            onDuplicate = viewModel::duplicateRoutine,
-            onDelete = viewModel::deleteRoutine,
-        )
-        exerciseDetail != null -> ExerciseDetailPage(
-            detail = exerciseDetail,
-            target = state.exerciseDetailTarget,
-            notesInput = state.exerciseDetailNotesInput,
-            accent = accent,
-            onNotesChange = viewModel::onExerciseDetailNotesChanged,
-            onSaveNotes = viewModel::saveExerciseDetailNotes,
-            onClose = viewModel::closeExerciseDetail,
-        )
-        routineDetail != null -> RoutineDetailContent(
-            detail = routineDetail,
-            accent = accent,
-            onStart = { viewModel.startRoutine(routineDetail.id) },
-            onEdit = { viewModel.openRoutineEditor(routineDetail.id) },
-            onOpenExercise = viewModel::openRoutineExerciseDetail,
-            onDuplicate = {
-                viewModel.closeRoutineDetail()
-                viewModel.duplicateRoutine(routineDetail.id)
-            },
-            onDelete = {
-                viewModel.closeRoutineDetail()
-                viewModel.deleteRoutine(routineDetail.id)
-            },
-            onClose = viewModel::closeRoutineDetail,
-        )
-        else -> routineList()
-    }
-}
-
-@Composable
-private fun TrainingExerciseLibraryContent(
-    visibleExercises: List<ExerciseSummary>,
-    allExercises: List<ExerciseSummary>,
-    searchQuery: String,
-    muscleFilter: String?,
-    equipmentFilter: String?,
-    editor: ExerciseEditorState,
-    accent: TabAccent,
-    onSearchChange: (String) -> Unit,
-    onMuscleFilterChange: (String?) -> Unit,
-    onEquipmentFilterChange: (String?) -> Unit,
-    onClearFilters: () -> Unit,
-    onOpenExerciseDetail: (String) -> Unit,
-    onOpenCustomExercise: () -> Unit,
-    onCloseCustomExercise: () -> Unit,
-    onCustomExerciseNameChange: (String) -> Unit,
-    onCustomExerciseCategoryChange: (String) -> Unit,
-    onCustomExerciseEquipmentChange: (String) -> Unit,
-    onCustomExerciseTargetMusclesChange: (String) -> Unit,
-    onSaveCustomExercise: () -> Unit,
-) {
-    val equipmentOptions = allExercises.mapNotNull { it.equipment?.takeIf(String::isNotBlank) }.distinct().sorted()
-    val muscleOptions = allExercises
-        .flatMap { exercise ->
-            listOf(exercise.targetMuscles, exercise.primaryMuscles, exercise.secondaryMuscles)
-                .flatMap { muscles -> muscles.split(",") }
-        }
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
-        .distinct()
-        .sorted()
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = searchQuery, onValueChange = onSearchChange, label = { Text("Search exercises") }, singleLine = true, shape = MusFitTheme.shapes.medium, modifier = Modifier.weight(1f))
-            Button(onClick = onOpenCustomExercise, colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor)) { Text("Custom") }
-        }
-        FilterChipRow(title = "Equipment", options = equipmentOptions, selected = equipmentFilter, accent = accent, onSelected = onEquipmentFilterChange)
-        FilterChipRow(title = "Muscle", options = muscleOptions.take(8), selected = muscleFilter, accent = accent, onSelected = onMuscleFilterChange)
-        if (searchQuery.isNotBlank() || equipmentFilter != null || muscleFilter != null) {
-            TextButton(onClick = onClearFilters) { Text("Clear filters", color = accent.color) }
-        }
-        if (editor.isOpen) {
-            Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Custom exercise", style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
-                    OutlinedTextField(value = editor.name, onValueChange = onCustomExerciseNameChange, label = { Text("Name") }, singleLine = true, shape = MusFitTheme.shapes.medium, modifier = Modifier.fillMaxWidth())
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = editor.category, onValueChange = onCustomExerciseCategoryChange, label = { Text("Category") }, singleLine = true, shape = MusFitTheme.shapes.medium, modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = editor.equipment, onValueChange = onCustomExerciseEquipmentChange, label = { Text("Equipment") }, singleLine = true, shape = MusFitTheme.shapes.medium, modifier = Modifier.weight(1f))
-                    }
-                    OutlinedTextField(value = editor.targetMuscles, onValueChange = onCustomExerciseTargetMusclesChange, label = { Text("Target muscles") }, singleLine = true, shape = MusFitTheme.shapes.medium, modifier = Modifier.fillMaxWidth())
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = onSaveCustomExercise, enabled = editor.name.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor)) { Text("Save") }
-                        TextButton(onClick = onCloseCustomExercise) { Text("Cancel") }
-                    }
-                }
-            }
-        }
-        Text(text = "${visibleExercises.size} exercises", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MusFitTheme.colors.onSurface)
-        if (visibleExercises.isEmpty()) {
-            Text(text = "No exercises match these filters.", style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
-        }
-        // The catalog holds ~1,300 exercises; this list is a plain (non-lazy) column, so cap the
-        // rendered rows and steer the user to search/filter instead of materialising them all.
-        val shownExercises = visibleExercises.take(EXERCISE_LIST_DISPLAY_LIMIT)
-        shownExercises.forEach { exercise ->
-            Surface(
-                color = MusFitTheme.colors.surface,
-                shape = MusFitTheme.shapes.medium,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenExerciseDetail(exercise.id) },
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    ExerciseThumb(imageUrl = exercise.imageUrl, contentDescription = exercise.name, accent = accent, size = 44.dp)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(exercise.name, style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
-                        Text(
-                            text = listOfNotNull(exercise.equipment, exercise.targetMuscles.takeIf(String::isNotBlank), if (exercise.isCustom) "Custom" else "Library").joinToString(" · "),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MusFitTheme.colors.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-        if (visibleExercises.size > EXERCISE_LIST_DISPLAY_LIMIT) {
-            Text(
-                text = "Showing ${shownExercises.size} of ${visibleExercises.size}. Search or filter to narrow.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
         }
     }
 }
@@ -734,7 +903,7 @@ private fun ExerciseDetailPage(
             Text(
                 detail.name,
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.Normal,
                 color = MusFitTheme.colors.onSurface,
                 modifier = Modifier.weight(1f),
             )
@@ -743,7 +912,7 @@ private fun ExerciseDetailPage(
                     Text(
                         target,
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         color = accent.onContainer,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
@@ -813,7 +982,7 @@ private fun MuscleChipRow(label: String, muscles: String, accent: TabAccent, pri
                         )
                     }
                 } else {
-                    // Neutral chip: quiet warm fill, no border chrome.
+                    // Neutral chip: quiet cool fill, no border chrome.
                     Surface(
                         color = MusFitTheme.colors.surfaceVariant,
                         shape = RoundedCornerShape(999.dp),
@@ -826,31 +995,6 @@ private fun MuscleChipRow(label: String, muscles: String, accent: TabAccent, pri
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FilterChipRow(
-    title: String,
-    options: List<String>,
-    selected: String?,
-    accent: TabAccent,
-    onSelected: (String?) -> Unit,
-) {
-    if (options.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, style = MaterialTheme.typography.labelLarge, color = MusFitTheme.colors.onSurfaceVariant)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            options.forEach { option ->
-                val isSelected = selected.equals(option, ignoreCase = true)
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { onSelected(if (isSelected) null else option) },
-                    label = { Text(option) },
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = accent.container, selectedLabelColor = accent.onContainer),
-                )
             }
         }
     }
@@ -906,13 +1050,100 @@ private fun ActiveWorkoutConfirmationDialogs(
     }
 }
 
+// --- Dashboard display helpers (pure, unit-tested) ---
+
+internal data class TrainingWeekDay(
+    val label: String,
+    val isDone: Boolean,
+    val isToday: Boolean,
+)
+
+/** Mon-Sun dots for the current week: a day is done when any workout was started on it. */
+internal fun trainingWeekDays(
+    history: List<WorkoutHistorySummary>,
+    today: LocalDate,
+): List<TrainingWeekDay> {
+    val startOfWeek = today.minusDays((today.dayOfWeek.value - 1).toLong())
+    val trainedDays = history
+        .map { Instant.ofEpochMilli(it.startedAtEpochMillis).atZone(ZoneId.systemDefault()).toLocalDate() }
+        .toSet()
+    return (0..6).map { offset ->
+        val date = startOfWeek.plusDays(offset.toLong())
+        TrainingWeekDay(
+            label = date.format(DateTimeFormatter.ofPattern("EEE", Locale.US)),
+            isDone = date in trainedDays,
+            isToday = date == today,
+        )
+    }
+}
+
+/** Hero overline: "TODAY · QUADS DAY" from the routine's lead muscle group, else just "TODAY". */
+internal fun trainingHeroOverline(routine: RoutineSummary): String {
+    val muscle = routine.muscleGroups.firstOrNull()?.trim()?.takeIf(String::isNotBlank)
+    return if (muscle == null) "TODAY" else "TODAY · ${muscle.uppercase(Locale.US)} DAY"
+}
+
+internal fun trainingHeroMeta(routine: RoutineSummary): String {
+    val estimatedMinutes = RoutineDisplayCalculator.estimatedMinutes(routine.targetSetCount)
+    return buildString {
+        append("${routine.exerciseCount} ${if (routine.exerciseCount == 1) "exercise" else "exercises"}")
+        if (estimatedMinutes > 0) append(" · ~$estimatedMinutes min")
+    }
+}
+
+/**
+ * One meta line per routine row: when the routine has been run (matched by session title),
+ * "last: Wed" style recency; otherwise fall back to the size summary.
+ */
+internal fun routineLastPerformedMeta(
+    routine: RoutineSummary,
+    history: List<WorkoutHistorySummary>,
+    today: LocalDate,
+): String {
+    val lastRun = history
+        .filter { it.title.equals(routine.name, ignoreCase = true) }
+        .maxByOrNull { it.startedAtEpochMillis }
+        ?.let { Instant.ofEpochMilli(it.startedAtEpochMillis).atZone(ZoneId.systemDefault()).toLocalDate() }
+    if (lastRun != null) {
+        return "last: ${lastRun.recencyLabel(today)}"
+    }
+    return trainingHeroMeta(routine)
+}
+
+private fun LocalDate.recencyLabel(today: LocalDate): String = when {
+    this == today -> "today"
+    this == today.minusDays(1) -> "yesterday"
+    !isBefore(today.minusDays(6)) -> format(DateTimeFormatter.ofPattern("EEE", Locale.US))
+    else -> format(DateTimeFormatter.ofPattern("d MMM", Locale.US))
+}
+
+/** One deterministic coaching sentence for the hairline coach row — data-derived, no prose engine. */
+internal fun trainingCoachCue(
+    overview: TrainingHistoryOverview,
+    nextRoutineName: String?,
+): String {
+    val done = overview.currentWeekWorkoutCount
+    return when {
+        done >= WEEKLY_SESSION_GOAL ->
+            "Weekly goal done — $done of $WEEKLY_SESSION_GOAL sessions. Recovery counts too."
+        done == 0 ->
+            if (nextRoutineName != null) {
+                "No sessions yet this week — $nextRoutineName would be a good start."
+            } else {
+                "No sessions yet this week — start with an empty workout."
+            }
+        else ->
+            if (nextRoutineName != null) {
+                "$done of $WEEKLY_SESSION_GOAL sessions this week — $nextRoutineName is up next."
+            } else {
+                "$done of $WEEKLY_SESSION_GOAL sessions this week — one more keeps the plan on track."
+            }
+    }
+}
+
 private fun Double.formatKg(): String =
     if (this % 1.0 == 0.0) {
         toInt().toString()
     } else {
         String.format(Locale.US, "%.1f", this)
     }
-
-/** Whole-kg with thousands separators for the weekly snapshot, e.g. 3755.0 -> "3,755". */
-private fun Double.formatKgGrouped(): String =
-    String.format(Locale.US, "%,d", Math.round(this))
