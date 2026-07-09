@@ -4,6 +4,7 @@ package com.musfit.ui.food
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,17 +27,13 @@ import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,10 +45,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.musfit.ui.AppDestination
+import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
 
 @Composable
@@ -102,7 +101,6 @@ fun AddFoodScreen(
                         Text(
                             text = state.selectedMealTitle,
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
                             color = MusFitTheme.colors.onSurface,
                         )
                         Text(
@@ -200,15 +198,15 @@ fun AddFoodScreen(
                     AddTab.Recents ->
                         if (query.isBlank()) {
                             if (state.sameAsYesterday.isNotEmpty()) {
-                                SectionLabel("SAME AS YESTERDAY?")
+                                SectionLabel("Same as yesterday?")
                                 state.sameAsYesterday.forEach { AddFoodRow(it, state.foodEntryActionVerb, onFoodClick) }
                             }
                             state.recentFoods.firstOrNull()?.let { last ->
-                                SectionLabel("LAST TRACKED")
+                                SectionLabel("Last tracked")
                                 AddFoodRow(last, state.foodEntryActionVerb, onFoodClick)
                             }
                             if (state.recentFoods.size > 1) {
-                                SectionLabel("ALL RECENTS")
+                                SectionLabel("All recents")
                                 state.recentFoods.drop(1).forEach { AddFoodRow(it, state.foodEntryActionVerb, onFoodClick) }
                             }
                             if (state.recentFoods.isEmpty() && state.sameAsYesterday.isEmpty()) {
@@ -258,23 +256,22 @@ fun AddFoodScreen(
 
 @Composable
 private fun DailyIntakeCard(state: FoodUiState) {
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 14.dp),
-        colors = CardDefaults.cardColors(containerColor = MusFitTheme.colors.surface),
+        color = MusFitTheme.colors.surface,
         shape = MusFitTheme.shapes.large,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("Daily intake", fontWeight = FontWeight.Bold, color = MusFitTheme.colors.onSurface)
+                Text("Daily intake", style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
                 Text(
                     "${state.eatenCaloriesKcal.roundToInt()} / ${state.calorieGoalKcal.roundToInt()} kcal",
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
                     color = MusFitTheme.colors.onSurface,
                 )
             }
@@ -286,37 +283,14 @@ private fun DailyIntakeCard(state: FoodUiState) {
 
 @Composable
 private fun AddTabRow(selected: AddTab, onTabSelected: (AddTab) -> Unit) {
-    val tabs = AddTab.entries
-    SingleChoiceSegmentedButtonRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-    ) {
-        tabs.forEachIndexed { index, tab ->
-            val isSelected = tab == selected
-            SegmentedButton(
-                selected = isSelected,
-                onClick = { onTabSelected(tab) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = tabs.size),
-                colors = SegmentedButtonDefaults.colors(
-                    activeContainerColor = MusFitTheme.colors.positiveContainer,
-                    activeContentColor = MusFitTheme.colors.brand,
-                    activeBorderColor = MusFitTheme.colors.brand,
-                    inactiveContainerColor = MusFitTheme.colors.surface,
-                    inactiveContentColor = MusFitTheme.colors.onSurfaceVariant,
-                ),
-                icon = {},
-                label = {
-                    Text(
-                        text = tab.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                    )
-                },
-            )
-        }
-    }
+    MusFitSegmented(
+        options = AddTab.entries,
+        selected = selected,
+        accent = tabAccentFor(AppDestination.Food),
+        label = { it.label },
+        modifier = Modifier.padding(horizontal = 16.dp),
+        onSelect = onTabSelected,
+    )
 }
 
 private val AddTab.label: String
@@ -328,11 +302,11 @@ private val AddTab.label: String
 
 @Composable
 private fun SectionLabel(text: String) {
+    // Quiet 16/500 sentence-case section header — no ALL-CAPS shouting.
     Text(
         text = text,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold,
-        color = MusFitTheme.colors.onSurfaceVariant,
+        style = MaterialTheme.typography.titleMedium,
+        color = MusFitTheme.colors.onSurface,
         modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
     )
 }
@@ -353,16 +327,13 @@ private fun AddFoodRow(
     actionVerb: String,
     onFoodClick: (String) -> Unit,
 ) {
-    Surface(
-        onClick = { onFoodClick(food.id) },
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.medium,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-    ) {
+    // Hairline list row — the whole row logs the food, no card chrome.
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = "$actionVerb ${food.name}") { onFoodClick(food.id) }
+                .padding(vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -370,8 +341,7 @@ private fun AddFoodRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = food.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MusFitTheme.colors.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -389,8 +359,9 @@ private fun AddFoodRow(
                     .background(MusFitTheme.colors.positiveContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "$actionVerb ${food.name}", tint = MusFitTheme.colors.brand)
+                Icon(Icons.Filled.Add, contentDescription = null, tint = MusFitTheme.colors.brand)
             }
         }
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
     }
 }
