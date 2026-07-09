@@ -89,6 +89,17 @@ class TodayMetricsTest {
     }
 
     @Test
+    fun steps_withGoalUsesFullDotGroupedCounts() {
+        val value = MetricResolver.resolve(
+            TodayMetric.Steps,
+            snapshot(steps = 5_500L, stepGoal = 10_000L),
+        ) as MetricValue.WithGoal
+
+        assertEquals("5.500", value.figure)
+        assertEquals("of 10.000", value.caption)
+    }
+
+    @Test
     fun weight_showsLatestWithDeltaAndNoDataWhenNeverLogged() {
         val value = MetricResolver.resolve(TodayMetric.Weight, snapshot()) as MetricValue.Plain
         assertEquals("82.4 kg", value.figure)
