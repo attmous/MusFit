@@ -47,6 +47,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -842,6 +843,7 @@ class FoodViewModel @Inject constructor(
     private val mutableState = MutableStateFlow(FoodUiState())
     val state: StateFlow<FoodUiState> = mutableState.asStateFlow()
     private var lookupJob: Job? = null
+    private var transientMessageJob: Job? = null
     private var currentDiary: FoodDiary = emptyFoodDiary()
 
     init {
@@ -1103,9 +1105,9 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         waterCustomAmountInput = if (clearCustomAmount) "" else it.waterCustomAmountInput,
-                        message = "Added ${amountMilliliters.formatInputNumber()} ml water",
                     )
                 }
+                showTransientMessage("Added ${amountMilliliters.formatInputNumber()} ml water")
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
@@ -1160,6 +1162,21 @@ class FoodViewModel @Inject constructor(
             } catch (error: Exception) {
                 mutableState.update {
                     it.copy(message = error.message ?: "Failed to refresh Health Connect")
+                }
+            }
+        }
+    }
+
+    private fun showTransientMessage(message: String) {
+        transientMessageJob?.cancel()
+        mutableState.update { it.copy(message = message) }
+        transientMessageJob = viewModelScope.launch {
+            delay(TRANSIENT_MESSAGE_DISMISS_MILLIS)
+            mutableState.update { currentState ->
+                if (currentState.message == message) {
+                    currentState.copy(message = null)
+                } else {
+                    currentState
                 }
             }
         }
@@ -4579,6 +4596,7 @@ private const val SUGAR_GOAL_GRAMS = 50.0
 private const val SATURATED_FAT_GOAL_GRAMS = 20.0
 private const val SODIUM_GOAL_MILLIGRAMS = 2300.0
 private const val WATER_GOAL_MILLILITERS = 2000.0
+private const val TRANSIENT_MESSAGE_DISMISS_MILLIS = 3_000L
 private const val FOOD_PLANNING_LIMIT_DAYS = 7L
 private const val FOOD_PLANNING_LIMIT_MESSAGE = "You can plan up to 1 week ahead."
 
