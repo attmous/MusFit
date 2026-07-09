@@ -229,16 +229,17 @@ private fun CoachMessageCategory.icon(): ImageVector = when (this) {
 }
 
 /**
- * The floating coach button: monochrome ink (matching the dark segment pills),
- * 52dp with an 18dp radius, floating above the bottom nav — the one elevated
- * element in the app. Opens the "coming soon" preview sheet.
+ * The floating coach button in the brand emerald — the coach speaks in the
+ * app's own color (matching the green text actions on coach cards). 52dp with
+ * an 18dp radius, floating above the bottom nav — the one elevated element in
+ * the app. Opens the "coming soon" preview sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         onClick = onClick,
-        color = MusFitTheme.colors.onSurface,
+        color = MusFitTheme.colors.brand,
         shape = RoundedCornerShape(18.dp),
         shadowElevation = 6.dp,
         modifier = modifier.size(52.dp),
@@ -247,7 +248,7 @@ fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
             Icon(
                 Icons.Outlined.Forum,
                 contentDescription = "Coach chat (coming soon)",
-                tint = MusFitTheme.colors.surface,
+                tint = MusFitTheme.colors.onBrand,
                 modifier = Modifier.size(24.dp),
             )
         }

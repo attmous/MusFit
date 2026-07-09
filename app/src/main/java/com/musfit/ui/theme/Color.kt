@@ -29,6 +29,12 @@ val PositiveContainer = Color(0xFFE7F4EC)
 val Water = Color(0xFF3FA9E0)
 
 // Per-tab accents (color coding).
+// Today's warm amber: "your day" — distinct from Food's emerald and Profile's teal.
+// White on amber fails AA, so amber fills carry dark ink content (like coral did).
+val Amber = Color(0xFFD97706)
+val AmberOnAccent = Color(0xFF2E1D04)
+val AmberContainer = Color(0xFFFBEFDD)
+val AmberInk = Color(0xFF8A4E06)
 val Indigo = Color(0xFF3D5AF1)
 val IndigoInk = Color(0xFF1E2A78)
 val IndigoContainer = Color(0xFFE4E7FD)
@@ -51,6 +57,9 @@ val EmeraldInkDark = Color(0xFFBFF3DD)
 val CoralBright = Color(0xFFFF8A66)
 val CoralContainerDark = Color(0xFF55271A)
 val CoralInkDark = Color(0xFFFFD9C9)
+val AmberBright = Color(0xFFF2B04E)
+val AmberContainerDark = Color(0xFF4A340F)
+val AmberInkDark = Color(0xFFF7DFB5)
 val IndigoBright = Color(0xFF8593FF)
 val IndigoContainerDark = Color(0xFF29306B)
 val IndigoInkDark = Color(0xFFDDE1FF)
