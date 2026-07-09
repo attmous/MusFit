@@ -130,8 +130,10 @@ fun ProfileSettingsScreen(
             SectionHeader(title = "AI coach")
             AiCoachSettingsSection(
                 state = state.aiCoach,
+                isTesting = state.isAiCoachTesting,
                 onEdit = viewModel::openAiCoachEditor,
                 onClearApiKey = viewModel::clearAiCoachApiKey,
+                onTestConnection = viewModel::testAiCoachConnection,
             )
 
             SectionHeader(title = "Health Connect")

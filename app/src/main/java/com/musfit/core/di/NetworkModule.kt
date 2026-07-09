@@ -1,6 +1,9 @@
 package com.musfit.core.di
+
 import com.musfit.BuildConfig
 import com.musfit.data.remote.auth.GitHubAuthApi
+import com.musfit.data.remote.coach.CoachCompletionClient
+import com.musfit.data.remote.coach.HermesCoachClient
 import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.OpenFoodFactsApi
 import com.musfit.data.remote.food.OpenFoodFactsProductProvider
@@ -77,4 +80,7 @@ object NetworkProvidesModule {
 abstract class NetworkBindsModule {
     @Binds
     abstract fun bindFoodProductProvider(provider: OpenFoodFactsProductProvider): FoodProductProvider
+
+    @Binds
+    abstract fun bindCoachCompletionClient(client: HermesCoachClient): CoachCompletionClient
 }

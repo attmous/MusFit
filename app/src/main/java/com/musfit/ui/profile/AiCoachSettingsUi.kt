@@ -40,8 +40,10 @@ import com.musfit.ui.theme.tabAccentFor
 @Composable
 fun AiCoachSettingsSection(
     state: AiCoachSettingsUiState,
+    isTesting: Boolean,
     onEdit: () -> Unit,
     onClearApiKey: () -> Unit,
+    onTestConnection: () -> Unit,
 ) {
     val accent = tabAccentFor(AppDestination.Profile)
     Surface(
@@ -97,6 +99,16 @@ fun AiCoachSettingsSection(
                 ) {
                     Icon(Icons.Outlined.Edit, contentDescription = null)
                     Text("Configure", modifier = Modifier.padding(start = 8.dp))
+                }
+                OutlinedButton(
+                    onClick = onTestConnection,
+                    enabled = state.providerKind != AiCoachProviderKind.Disabled && !isTesting,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp),
+                    shape = MaterialTheme.shapes.medium,
+                ) {
+                    Text(if (isTesting) "Testing" else "Test")
                 }
                 if (state.hasApiKey) {
                     OutlinedButton(
@@ -154,7 +166,7 @@ fun AiCoachSettingsDialog(
                         value = baseUrl,
                         onValueChange = onBaseUrlChange,
                         label = { Text("Base URL") },
-                        placeholder = { Text("http://10.0.2.2:11434") },
+                        placeholder = { Text("http://10.0.2.2:8080/v1/") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )

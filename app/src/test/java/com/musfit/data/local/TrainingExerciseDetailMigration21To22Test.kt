@@ -51,6 +51,7 @@ class TrainingExerciseDetailMigration21To22Test {
                     DatabaseModule.MIGRATION_31_32,
                     DatabaseModule.MIGRATION_32_33,
                     DatabaseModule.MIGRATION_33_34,
+                    DatabaseModule.MIGRATION_34_35,
                 )
                 .build()
         try {

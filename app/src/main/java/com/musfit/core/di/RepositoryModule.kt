@@ -1,6 +1,7 @@
 package com.musfit.core.di
 
 import com.musfit.data.repository.AccountRepository
+import com.musfit.data.repository.AiCoachChatRepository
 import com.musfit.data.repository.AiCoachRepository
 import com.musfit.data.repository.AiCoachSecretStore
 import com.musfit.data.repository.AndroidKeyStoreAiCoachSecretStore
@@ -13,6 +14,7 @@ import com.musfit.data.repository.GitHubExternalAuthRepository
 import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.LocalAccountRepository
+import com.musfit.data.repository.LocalAiCoachChatRepository
 import com.musfit.data.repository.LocalAiCoachRepository
 import com.musfit.data.repository.LocalCoachRepository
 import com.musfit.data.repository.LocalFoodRepository
@@ -42,6 +44,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindAiCoachRepository(repository: LocalAiCoachRepository): AiCoachRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAiCoachChatRepository(repository: LocalAiCoachChatRepository): AiCoachChatRepository
 
     @Binds
     @Singleton

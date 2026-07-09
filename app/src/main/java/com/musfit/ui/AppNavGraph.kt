@@ -187,7 +187,10 @@ fun AppNavGraph() {
     }
 
     if (chatPreviewVisible) {
-        ChatPreviewSheet(onDismiss = { chatPreviewVisible = false })
+        ChatPreviewSheet(
+            onDismiss = { chatPreviewVisible = false },
+            onConfigure = { go(AppDestination.Profile) },
+        )
     }
 }
 

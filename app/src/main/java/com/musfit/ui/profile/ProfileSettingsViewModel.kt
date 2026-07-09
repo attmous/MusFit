@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountRepository
+import com.musfit.data.repository.AiCoachChatRepository
 import com.musfit.data.repository.AiCoachApiKeyUpdate
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.AiCoachRepository
@@ -38,6 +39,8 @@ import javax.inject.Inject
 
 private const val DEFAULT_STATUS_MESSAGE = "Refresh status to check whether Health Connect is ready."
 private const val ALL_STEP_SOURCES_LABEL = "All sources (unified)"
+internal const val HERMES_DEFAULT_BASE_URL = "http://10.0.2.2:8080/v1/"
+internal const val HERMES_DEFAULT_MODEL_NAME = "hermes-agent"
 
 private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSource>): String =
     if (preferredStepsPackage == null) {
@@ -76,6 +79,7 @@ data class ProfileSettingsUiState(
     val aiCoachLocalAgentInput: LocalAgentKind = LocalAgentKind.Custom,
     val aiCoachApiKeyInput: String = "",
     val aiCoachErrorMessage: String? = null,
+    val isAiCoachTesting: Boolean = false,
     val includeBurnedCalories: Boolean = false,
 )
 
@@ -163,6 +167,7 @@ private data class HealthConnectState(
     val githubDeviceCode: GitHubDeviceAuthorization? = null,
     val githubSignInInProgress: Boolean = false,
     val isGitHubSignInConfigured: Boolean = false,
+    val isAiCoachTesting: Boolean = false,
     val includeBurnedCalories: Boolean = false,
 )
 
@@ -190,6 +195,7 @@ class ProfileSettingsViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val externalAuthRepository: ExternalAuthRepository,
     private val aiCoachRepository: AiCoachRepository,
+    private val aiCoachChatRepository: AiCoachChatRepository,
     private val foodRepository: FoodRepository,
 ) : ViewModel() {
     // Health Connect fields live in this mutable base; account/profile fields are
@@ -270,6 +276,7 @@ class ProfileSettingsViewModel @Inject constructor(
             aiCoachLocalAgentInput = aiCoachEditor.localAgentKind,
             aiCoachApiKeyInput = aiCoachEditor.apiKeyInput,
             aiCoachErrorMessage = aiCoachEditor.errorMessage,
+            isAiCoachTesting = base.isAiCoachTesting,
             includeBurnedCalories = base.includeBurnedCalories,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileSettingsUiState())
@@ -582,7 +589,24 @@ class ProfileSettingsViewModel @Inject constructor(
     }
 
     fun onAiCoachProviderChanged(value: AiCoachProviderKind) {
-        aiCoachEditorFlow.update { it.copy(providerKind = value, errorMessage = null) }
+        aiCoachEditorFlow.update { editor ->
+            val isHermesLocal = value == AiCoachProviderKind.LocalAgent &&
+                editor.localAgentKind == LocalAgentKind.HermesAgent
+            editor.copy(
+                providerKind = value,
+                errorMessage = null,
+                baseUrlInput = if (isHermesLocal && editor.baseUrlInput.isBlank()) {
+                    HERMES_DEFAULT_BASE_URL
+                } else {
+                    editor.baseUrlInput
+                },
+                modelNameInput = if (isHermesLocal && editor.modelNameInput.isBlank()) {
+                    HERMES_DEFAULT_MODEL_NAME
+                } else {
+                    editor.modelNameInput
+                },
+            )
+        }
     }
 
     fun onAiCoachBaseUrlChanged(value: String) {
@@ -594,7 +618,22 @@ class ProfileSettingsViewModel @Inject constructor(
     }
 
     fun onAiCoachLocalAgentKindChanged(value: LocalAgentKind) {
-        aiCoachEditorFlow.update { it.copy(localAgentKind = value, errorMessage = null) }
+        aiCoachEditorFlow.update { editor ->
+            editor.copy(
+                localAgentKind = value,
+                errorMessage = null,
+                baseUrlInput = if (value == LocalAgentKind.HermesAgent && editor.baseUrlInput.isBlank()) {
+                    HERMES_DEFAULT_BASE_URL
+                } else {
+                    editor.baseUrlInput
+                },
+                modelNameInput = if (value == LocalAgentKind.HermesAgent && editor.modelNameInput.isBlank()) {
+                    HERMES_DEFAULT_MODEL_NAME
+                } else {
+                    editor.modelNameInput
+                },
+            )
+        }
     }
 
     fun onAiCoachApiKeyChanged(value: String) {
@@ -638,6 +677,26 @@ class ProfileSettingsViewModel @Inject constructor(
                 .onFailure { error ->
                     mutableState.update {
                         it.copy(message = error.message ?: "Could not clear AI coach API key.")
+                    }
+                }
+        }
+    }
+
+    fun testAiCoachConnection() {
+        viewModelScope.launch {
+            mutableState.update { it.copy(isAiCoachTesting = true, message = "Testing AI coach connection...") }
+            runCatching { aiCoachChatRepository.testConnection() }
+                .onSuccess {
+                    mutableState.update {
+                        it.copy(isAiCoachTesting = false, message = "AI coach connection is reachable.")
+                    }
+                }
+                .onFailure { error ->
+                    mutableState.update {
+                        it.copy(
+                            isAiCoachTesting = false,
+                            message = error.message ?: "AI coach connection is not reachable.",
+                        )
                     }
                 }
         }
