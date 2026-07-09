@@ -21,10 +21,11 @@ class MusFitColorsTest {
     @Test
     fun lightPalette_usesApprovedBrandAccentBackground() {
         assertEquals(Color(0xFF1E7A53), lightMusFitColors.brand)
-        assertEquals(Color(0xFFFF7A66), lightMusFitColors.accent)
-        // Health-grade clean ground: pure surface, no cream app background.
-        assertEquals(Color(0xFFFFFFFF), lightMusFitColors.background)
-        assertEquals(lightMusFitColors.surface, lightMusFitColors.background)
+        // Interactive azure (Google-blue class) — links, coach, Today accent.
+        assertEquals(Color(0xFF0B57D0), lightMusFitColors.accent)
+        // Health-grade ground: soft cool blue-gray with white cards.
+        assertEquals(Color(0xFFF2F4F9), lightMusFitColors.background)
+        assertEquals(Color(0xFFFFFFFF), lightMusFitColors.surface)
     }
 
     @Test

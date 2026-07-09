@@ -192,7 +192,7 @@ private fun CoachSectionHeader(hasUnread: Boolean) {
                     .padding(start = 8.dp)
                     .size(7.dp)
                     .clip(CircleShape)
-                    .background(MusFitTheme.colors.brand),
+                    .background(MusFitTheme.colors.accent),
             )
         }
     }

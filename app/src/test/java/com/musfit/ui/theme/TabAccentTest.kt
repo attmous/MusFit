@@ -10,9 +10,9 @@ import org.junit.Test
 class TabAccentTest {
     @Test
     fun eachDestinationMapsToItsLightAccentColor() {
-        // Four distinct hues — amber/emerald/indigo/teal; coral is reserved for
-        // warning semantics, not a tab accent.
-        assertEquals(Amber, tabAccentForLight(AppDestination.Today).color)
+        // One cool family in slight tones — azure/emerald/indigo/teal; amber is
+        // reserved for warning semantics, not a tab accent.
+        assertEquals(Azure, tabAccentForLight(AppDestination.Today).color)
         assertEquals(Emerald, tabAccentForLight(AppDestination.Food).color)
         assertEquals(Indigo, tabAccentForLight(AppDestination.Training).color)
         assertEquals(Teal, tabAccentForLight(AppDestination.Profile).color)
@@ -20,7 +20,7 @@ class TabAccentTest {
 
     @Test
     fun eachDestinationMapsToItsDarkAccentColor() {
-        assertEquals(AmberBright, tabAccentForDark(AppDestination.Today).color)
+        assertEquals(AzureBright, tabAccentForDark(AppDestination.Today).color)
         assertEquals(EmeraldBright, tabAccentForDark(AppDestination.Food).color)
         assertEquals(IndigoBright, tabAccentForDark(AppDestination.Training).color)
         assertEquals(TealBright, tabAccentForDark(AppDestination.Profile).color)

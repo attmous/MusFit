@@ -235,7 +235,7 @@ private fun RowScope.NavBarItem(
         label = "navIconTint",
     )
     val labelColor by animateColorAsState(
-        targetValue = if (selected) MusFitTheme.colors.onSurface else MusFitTheme.colors.onSurfaceVariant,
+        targetValue = if (selected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
         animationSpec = MusFitMotion.effects(),
         label = "navLabelColor",
     )

@@ -20,16 +20,16 @@ private fun TextStyle.gsf(weight: FontWeight) = copy(fontFamily = GoogleSansFlex
 
 /**
  * Health-grade clean type scale: quiet, regular-weight headlines that read like
- * sentences, thin (300) display numerals for hero metrics, and medium — never
- * bold — section/row titles. display* stays on the system Roboto because Google
- * Sans Flex ships no Light cut; Roboto Light is exactly the mock numeral face.
+ * sentences, calm regular-weight Google Sans display numerals for hero metrics
+ * (the Google Health look — solid, not thin), and medium — never bold —
+ * section/row titles.
  */
 val MusFitTypography: Typography = Typography().let { base ->
     base.copy(
-        // Thin hero numerals (34–44sp band).
-        displayLarge = base.displayLarge.copy(fontWeight = FontWeight.Light),
-        displayMedium = base.displayMedium.copy(fontWeight = FontWeight.Light, fontSize = 44.sp),
-        displaySmall = base.displaySmall.copy(fontWeight = FontWeight.Light),
+        // Hero numerals (34–44sp band) in Google Sans regular.
+        displayLarge = base.displayLarge.gsf(FontWeight.Normal),
+        displayMedium = base.displayMedium.gsf(FontWeight.Normal).copy(fontSize = 44.sp),
+        displaySmall = base.displaySmall.gsf(FontWeight.Normal),
         // Screen titles: 28sp regular — "Good morning", not a shouted label.
         headlineLarge = base.headlineLarge.gsf(FontWeight.Normal),
         headlineMedium = base.headlineMedium.gsf(FontWeight.Normal),

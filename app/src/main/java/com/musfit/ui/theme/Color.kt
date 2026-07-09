@@ -2,24 +2,31 @@ package com.musfit.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// MusFit "Evergreen x Lifesum" (B1) palette — light.
+// MusFit "health-grade clean" palette — light.
 val Emerald = Color(0xFF1E7A53)
 val EmeraldInk = Color(0xFF0F3D2E)
 val GradientLime = Color(0xFF8FE38C)
 val GradientGreen = Color(0xFF43C57E)
 val GradientEmerald = Color(0xFF1E7A53)
-val Coral = Color(0xFFFF7A66)
-val CoralContainer = Color(0xFFFFEAE4)
-val CoralInk = Color(0xFF993C1D)
-// Content ink on a Coral/CoralBright fill (both modes); white on Coral is only 2.55:1.
-val CoralOnAccent = Color(0xFF3A1606)
-// Health-grade clean neutrals: pure white ground, hairline dividers, quiet grays.
+
+// Interactive blue — links, coach actions, and Today's accent (Google-blue class).
+val Azure = Color(0xFF0B57D0)
+val AzureContainer = Color(0xFFD8E4FB)
+val AzureInk = Color(0xFF0A408F)
+
+// Semantic warning amber ("goal not met" class) — never a tab accent.
+val AmberContainer = Color(0xFFFBEFDD)
+val AmberInk = Color(0xFF8A4E06)
+
+// Cool health-grade neutrals: soft blue-gray ground, white cards, quiet inks.
+val CoolGround = Color(0xFFF2F4F9)
 val CardWhite = Color(0xFFFFFFFF)
-val NeutralFill = Color(0xFFF4F1EC) // warm neutral fill for non-accent icon circles / strips
-val InkPrimary = Color(0xFF1C1B1F)
-val InkSecondary = Color(0xFF79747E)
-val Hairline = Color(0xFFF0F0EE)
-val NeutralTrack = Color(0xFFE8ECE8)
+val NeutralFill = Color(0xFFE7EBF3) // cool fill for chips, strips, and icon circles
+val InkPrimary = Color(0xFF1A1C21)
+val InkSecondary = Color(0xFF575E68)
+val Hairline = Color(0xFFE5E8EF)
+val NeutralTrack = Color(0xFFE1E6EE)
+
 // Rose-red keeps protein clearly apart from the brand green (0xFF1E7A53) on the calorie ring,
 // and from the blue Water accent on the same Food screen.
 val MacroProtein = Color(0xFFE11D48)
@@ -28,13 +35,8 @@ val MacroFat = Color(0xFF6D5BD0)
 val PositiveContainer = Color(0xFFE7F4EC)
 val Water = Color(0xFF3FA9E0)
 
-// Per-tab accents (color coding).
-// Today's warm amber: "your day" — distinct from Food's emerald and Profile's teal.
-// White on amber fails AA, so amber fills carry dark ink content (like coral did).
-val Amber = Color(0xFFD97706)
-val AmberOnAccent = Color(0xFF2E1D04)
-val AmberContainer = Color(0xFFFBEFDD)
-val AmberInk = Color(0xFF8A4E06)
+// Per-tab accents: slight tones of one cool family — azure (Today), emerald
+// (Food), indigo (Training), teal (Profile) — rather than contrasting hues.
 val Indigo = Color(0xFF3D5AF1)
 val IndigoInk = Color(0xFF1E2A78)
 val IndigoContainer = Color(0xFFE4E7FD)
@@ -42,21 +44,22 @@ val Teal = Color(0xFF0E7A79) // deep enough for white content at WCAG AA (was 0x
 val TealInk = Color(0xFF0B5E5D)
 val TealContainer = Color(0xFFD9F0EF)
 
-// MusFit M3E dark palette — warm near-black surfaces, brighter accents.
-val DarkBg = Color(0xFF14110F)
-val DarkSurfaceVariant = Color(0xFF2B2621)
-val DarkOnSurface = Color(0xFFF3EDE6)
-val DarkOnSurfaceVariant = Color(0xFFB0A79E)
-val DarkOutline = Color(0xFF332E29)
-val DarkTrack = Color(0xFF332E29)
+// MusFit dark palette — cool near-black surfaces, brighter accents.
+val DarkBg = Color(0xFF13161B)
+val DarkSurfaceVariant = Color(0xFF23272F)
+val DarkOnSurface = Color(0xFFE6E8ED)
+val DarkOnSurfaceVariant = Color(0xFF9BA1AB)
+val DarkOutline = Color(0xFF272C34)
+val DarkTrack = Color(0xFF272C34)
 
 val EmeraldBright = Color(0xFF3CCB9B)
 val EmeraldOnDark = Color(0xFF08321F)
 val EmeraldContainerDark = Color(0xFF13402E)
 val EmeraldInkDark = Color(0xFFBFF3DD)
-val CoralBright = Color(0xFFFF8A66)
-val CoralContainerDark = Color(0xFF55271A)
-val CoralInkDark = Color(0xFFFFD9C9)
+val AzureBright = Color(0xFFA8C7FA)
+val AzureOnDark = Color(0xFF08316B)
+val AzureContainerDark = Color(0xFF1C3454)
+val AzureInkDark = Color(0xFFD6E3FC)
 val AmberBright = Color(0xFFF2B04E)
 val AmberContainerDark = Color(0xFF4A340F)
 val AmberInkDark = Color(0xFFF7DFB5)

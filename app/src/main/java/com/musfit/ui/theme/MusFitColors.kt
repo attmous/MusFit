@@ -41,13 +41,14 @@ val lightMusFitColors = MusFitColors(
     onBrand = CardWhite,
     brandInk = EmeraldInk,
     brandGradient = listOf(GradientLime, GradientGreen, GradientEmerald),
-    accent = Coral,
-    onAccent = CoralOnAccent,
-    accentContainer = CoralContainer,
-    onAccentContainer = CoralInk,
-    // Health-grade clean: screens sit on the pure surface — no cream app
-    // background, no white-card-on-cream chrome.
-    background = CardWhite,
+    // Interactive blue — links, coach actions, primary emphasis.
+    accent = Azure,
+    onAccent = CardWhite,
+    accentContainer = AzureContainer,
+    onAccentContainer = AzureInk,
+    // Health-grade clean: a soft cool blue-gray ground with white cards —
+    // no borders, no shadows, hairlines only.
+    background = CoolGround,
     surface = CardWhite,
     surfaceVariant = NeutralFill,
     onSurface = InkPrimary,
@@ -59,8 +60,8 @@ val lightMusFitColors = MusFitColors(
     macroFat = MacroFat,
     positive = Emerald,
     positiveContainer = PositiveContainer,
-    warning = CoralInk,
-    warningContainer = CoralContainer,
+    warning = AmberInk,
+    warningContainer = AmberContainer,
     water = Water,
 )
 
@@ -69,10 +70,10 @@ val darkMusFitColors = MusFitColors(
     onBrand = EmeraldOnDark,
     brandInk = EmeraldInkDark,
     brandGradient = listOf(GradientLime, GradientGreen, EmeraldBright),
-    accent = CoralBright,
-    onAccent = CoralOnAccent,
-    accentContainer = CoralContainerDark,
-    onAccentContainer = CoralInkDark,
+    accent = AzureBright,
+    onAccent = AzureOnDark,
+    accentContainer = AzureContainerDark,
+    onAccentContainer = AzureInkDark,
     // Mirrored rule: content sits directly on the near-black ground.
     background = DarkBg,
     surface = DarkBg,
@@ -86,8 +87,8 @@ val darkMusFitColors = MusFitColors(
     macroFat = MacroFatDark,
     positive = EmeraldBright,
     positiveContainer = PositiveContainerDark,
-    warning = CoralBright,
-    warningContainer = CoralContainerDark,
+    warning = AmberBright,
+    warningContainer = AmberContainerDark,
     water = WaterDark,
 )
 

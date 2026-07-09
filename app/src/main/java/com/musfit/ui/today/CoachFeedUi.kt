@@ -109,8 +109,8 @@ private fun CoachMessageCard(
     onAction: (CoachAction) -> Unit,
     onLongPress: () -> Unit,
 ) {
-    // Coach cards are a quiet neutral strip — same on every tab; the brand green
-    // carries only the unread dot and the text action.
+    // Coach cards are a quiet neutral strip — same on every tab; the interactive
+    // azure carries only the unread dot and the text action.
     val coachShape = RoundedCornerShape(20.dp)
     Surface(
         color = MusFitTheme.colors.surfaceVariant,
@@ -155,7 +155,7 @@ private fun CoachMessageCard(
                         modifier = Modifier
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(MusFitTheme.colors.brand),
+                            .background(MusFitTheme.colors.accent),
                     )
                 }
             }
@@ -182,7 +182,7 @@ private fun CoachMessageCard(
                         text = coachActionLabel(action),
                         style = MusFitTheme.typography.labelLarge,
                         fontWeight = FontWeight.Medium,
-                        color = MusFitTheme.colors.brand,
+                        color = MusFitTheme.colors.accent,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                     )
                 }
@@ -229,27 +229,39 @@ private fun CoachMessageCategory.icon(): ImageVector = when (this) {
 }
 
 /**
- * The floating coach button in the brand emerald — the coach speaks in the
- * app's own color (matching the green text actions on coach cards). 52dp with
- * an 18dp radius, floating above the bottom nav — the one elevated element in
- * the app. Opens the "coming soon" preview sheet.
+ * The floating coach button: an extended "Ask coach" pill in the interactive
+ * azure (the Google Health look), floating above the bottom nav — the one
+ * elevated element in the app. Opens the "coming soon" preview sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         onClick = onClick,
-        color = MusFitTheme.colors.brand,
-        shape = RoundedCornerShape(18.dp),
+        color = MusFitTheme.colors.accent,
+        shape = RoundedCornerShape(999.dp),
         shadowElevation = 6.dp,
-        modifier = modifier.size(52.dp),
+        modifier = modifier,
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Row(
+            modifier = Modifier
+                .height(52.dp)
+                .padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Icon(
                 Icons.Outlined.Forum,
-                contentDescription = "Coach chat (coming soon)",
-                tint = MusFitTheme.colors.onBrand,
-                modifier = Modifier.size(24.dp),
+                contentDescription = null, // the visible label names the action
+                tint = MusFitTheme.colors.onAccent,
+                modifier = Modifier.size(22.dp),
+            )
+            Text(
+                text = "Ask coach",
+                style = MusFitTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = MusFitTheme.colors.onAccent,
+                maxLines = 1,
             )
         }
     }
