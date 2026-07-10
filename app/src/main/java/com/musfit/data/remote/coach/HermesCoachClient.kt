@@ -1,13 +1,21 @@
 package com.musfit.data.remote.coach
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.musfit.data.repository.AiCoachConnection
+import com.musfit.data.repository.AiCoachProviderKind
 import com.squareup.moshi.Json
 import com.squareup.moshi.Moshi
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
+import java.net.InetAddress
+import java.net.URI
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Dns
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -39,7 +47,9 @@ interface CoachCompletionClient {
 class HermesCoachClient @Inject constructor(
     okHttpClient: OkHttpClient,
     moshi: Moshi,
+    @ApplicationContext context: Context,
 ) : CoachCompletionClient {
+    private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
     private val client = okHttpClient.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
@@ -103,7 +113,7 @@ class HermesCoachClient @Inject constructor(
                 .header("Content-Type", JSON_MEDIA_TYPE.toString())
         }
 
-        client.newCall(builder.build()).execute().use { response ->
+        clientFor(connection).newCall(builder.build()).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 val message = errorAdapter.fromJsonOrNull(body)?.error?.message
@@ -115,6 +125,21 @@ class HermesCoachClient @Inject constructor(
                 remoteSessionId = response.header("X-Hermes-Session-Id")?.takeIf { it.isNotBlank() },
             )
         }
+    }
+
+    private fun clientFor(connection: AiCoachConnection): OkHttpClient {
+        if (!connection.shouldPreferLocalNetwork()) return client
+        val localNetwork = connectivityManager.allNetworks.firstOrNull { network ->
+            connectivityManager.getNetworkCapabilities(network)?.isLocalTransport == true
+        } ?: return client
+
+        return client.newBuilder()
+            .socketFactory(localNetwork.socketFactory)
+            .dns(object : Dns {
+                override fun lookup(hostname: String): List<InetAddress> =
+                    localNetwork.getAllByName(hostname).toList()
+            })
+            .build()
     }
 
     private fun String.normalizedEndpoint(relativePath: String): String =
@@ -132,6 +157,33 @@ class HermesCoachClient @Inject constructor(
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         const val DEFAULT_HERMES_MODEL = "hermes-agent"
     }
+}
+
+internal fun AiCoachConnection.shouldPreferLocalNetwork(): Boolean {
+    if (providerKind != AiCoachProviderKind.LocalAgent) return false
+    val host = runCatching { URI(baseUrl).host }.getOrNull()?.trim()?.trim('[', ']') ?: return false
+    return host.isLocalNetworkHost()
+}
+
+private val NetworkCapabilities.isLocalTransport: Boolean
+    get() = hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+        hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+
+private fun String.isLocalNetworkHost(): Boolean {
+    val host = lowercase()
+    if (host == "localhost" || host == "127.0.0.1" || host == "::1") return false
+    if (host.endsWith(".local") || host.endsWith(".lan") || host.endsWith(".home") || host.endsWith(".fritz.box")) {
+        return true
+    }
+    if (!host.contains('.')) return true
+    if (host.contains(':')) return host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80")
+
+    val octets = host.split('.').map { it.toIntOrNull() ?: return false }
+    if (octets.size != 4 || octets.any { it !in 0..255 }) return false
+    return octets[0] == 10 ||
+        (octets[0] == 172 && octets[1] in 16..31) ||
+        (octets[0] == 192 && octets[1] == 168) ||
+        (octets[0] == 169 && octets[1] == 254)
 }
 
 private data class OpenAiChatCompletionRequest(
