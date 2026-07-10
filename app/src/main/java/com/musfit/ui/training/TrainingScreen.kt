@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -19,15 +20,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,9 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,7 +57,14 @@ import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.MusFitScreenScaffold
+import com.musfit.ui.components.MusFitSegmented
+import com.musfit.ui.components.SectionHeader
+import com.musfit.ui.components.TonalHeaderIconButton
+import com.musfit.ui.components.expressiveBadgeShapeFor
+import com.musfit.ui.components.groupedShape
+import com.musfit.ui.components.rowGroupShape
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -296,6 +302,7 @@ fun TrainingScreen(
         accent = accent,
         onOpenHistory = { viewModel.selectSection(TrainingSection.History) },
         onResume = viewModel::resumeActiveWorkout,
+        onDiscardActiveWorkout = viewModel::requestDiscardActiveWorkout,
         onStartRoutine = viewModel::startRoutine,
         onStartBlankWorkout = viewModel::startBlankWorkout,
         onOpenRoutineDetail = viewModel::openRoutineDetail,
@@ -304,12 +311,29 @@ fun TrainingScreen(
         onOpenProgress = onOpenProgress,
         onOpenCoach = onOpenCoach,
     )
+    // The resume hero's split-button menu can request a discard from the
+    // dashboard, so the confirmation dialogs live here too.
+    ActiveWorkoutConfirmationDialogs(
+        state = state,
+        onConfirmFinish = viewModel::finishActiveWorkout,
+        onCancelFinish = viewModel::cancelFinishActiveWorkout,
+        onConfirmDiscard = viewModel::discardActiveWorkout,
+        onCancelDiscard = viewModel::cancelDiscardActiveWorkout,
+    )
+}
+
+/** The dashboard's connected-button-group destinations (mock 6c). */
+private enum class TrainingDashboardSegment(val label: String) {
+    Routines("Routines"),
+    History("History"),
+    Progress("Progress"),
 }
 
 /**
- * The decluttered Training tab (mock 5a): one tonal hero (today's session / resume),
- * a 7-dot week strip, hairline routine rows with a filled play glyph, a Progress
- * link, and the coach as a single hairline row.
+ * The M3 Expressive Training tab (mock 6c): the Resume hero (only while a
+ * workout is running) with a split button, a three-cell stats row, the
+ * connected button group, a filled start-workout action row, and the routine
+ * list as grouped white rows with alternating expressive badges.
  */
 @Composable
 private fun TrainingDashboard(
@@ -317,6 +341,7 @@ private fun TrainingDashboard(
     accent: TabAccent,
     onOpenHistory: () -> Unit,
     onResume: () -> Unit,
+    onDiscardActiveWorkout: () -> Unit,
     onStartRoutine: (String) -> Unit,
     onStartBlankWorkout: () -> Unit,
     onOpenRoutineDetail: (String) -> Unit,
@@ -328,31 +353,63 @@ private fun TrainingDashboard(
     MusFitScreenScaffold(
         title = "Training",
         actions = {
-            IconButton(onClick = onOpenHistory) {
-                Icon(
-                    imageVector = Icons.Outlined.CalendarMonth,
-                    contentDescription = "Workout history",
-                    tint = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
+            TonalHeaderIconButton(
+                icon = Icons.Outlined.History,
+                contentDescription = "Workout history",
+                onClick = onOpenHistory,
+            )
         },
     ) {
-        TrainingTodayHero(
-            activeSummary = state.activeWorkoutSummary,
-            nextRoutine = state.dashboard.nextSuggestedRoutine ?: state.visibleRoutines.firstOrNull(),
+        state.activeWorkoutSummary?.let { summary ->
+            TrainingResumeHero(
+                summary = summary,
+                accent = accent,
+                onResume = onResume,
+                onDiscard = onDiscardActiveWorkout,
+            )
+        }
+
+        TrainingStatsRow(overview = state.historyOverview)
+
+        MusFitSegmented(
+            options = TrainingDashboardSegment.entries,
+            selected = TrainingDashboardSegment.Routines,
             accent = accent,
-            onResume = onResume,
-            onStartRoutine = onStartRoutine,
-            onStartBlankWorkout = onStartBlankWorkout,
+            label = { it.label },
+            onSelect = { segment ->
+                when (segment) {
+                    TrainingDashboardSegment.Routines -> Unit
+                    TrainingDashboardSegment.History -> onOpenHistory()
+                    TrainingDashboardSegment.Progress -> onOpenProgress()
+                }
+            },
         )
 
-        TrainingWeekStrip(
-            days = trainingWeekDays(state.workoutHistory, LocalDate.now()),
-            sessionsDone = state.historyOverview.currentWeekWorkoutCount,
-            accent = accent,
-        )
-
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Button(
+                onClick = onStartBlankWorkout,
+                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+                modifier = Modifier.weight(1f).height(52.dp),
+            ) {
+                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(
+                    text = "Start empty workout",
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.5.sp),
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            TextButton(onClick = onNewRoutine) {
+                Text(
+                    text = "New routine",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = accent.color,
+                )
+            }
+        }
 
         DashboardRoutineList(
             routines = state.homeRoutines.ifEmpty { state.visibleRoutines },
@@ -361,14 +418,7 @@ private fun TrainingDashboard(
             onOpenRoutineDetail = onOpenRoutineDetail,
             onStartRoutine = onStartRoutine,
             onOpenAllRoutines = onOpenAllRoutines,
-            onNewRoutine = onNewRoutine,
         )
-
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
-
-        ProgressLinkRow(accent = accent, onOpenProgress = onOpenProgress)
-
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
 
         TrainingCoachRow(
             cue = trainingCoachCue(
@@ -385,48 +435,20 @@ private fun TrainingDashboard(
 }
 
 /**
- * The one tonal container on the tab: today's suggested session with a filled Start
- * button, or — when a workout is running — the same container as a Resume banner.
+ * The Resume hero (mock 6c): indigo tonal container, emphasized overline/title,
+ * and an M3E split button — the leading segment resumes, the trailing chevron
+ * opens a menu with Discard and View details.
  */
 @Composable
-private fun TrainingTodayHero(
-    activeSummary: com.musfit.data.repository.ActiveWorkoutSummary?,
-    nextRoutine: RoutineSummary?,
+private fun TrainingResumeHero(
+    summary: com.musfit.data.repository.ActiveWorkoutSummary,
     accent: TabAccent,
     onResume: () -> Unit,
-    onStartRoutine: (String) -> Unit,
-    onStartBlankWorkout: () -> Unit,
+    onDiscard: () -> Unit,
 ) {
-    val overline: String
-    val title: String
-    val meta: String
-    val actionLabel: String
-    val onAction: () -> Unit
-    when {
-        activeSummary != null -> {
-            overline = "IN PROGRESS"
-            title = activeSummary.title
-            val sets = activeSummary.completedSetCount
-            meta = "$sets ${if (sets == 1) "set" else "sets"} done · ${activeSummary.totalVolumeKg.formatKg()} kg"
-            actionLabel = "Resume"
-            onAction = onResume
-        }
-        nextRoutine != null -> {
-            overline = trainingHeroOverline(nextRoutine)
-            title = nextRoutine.name
-            meta = trainingHeroMeta(nextRoutine)
-            actionLabel = "Start"
-            onAction = { onStartRoutine(nextRoutine.id) }
-        }
-        else -> {
-            overline = "TODAY"
-            title = "Empty workout"
-            meta = "Log sets as you go"
-            actionLabel = "Start"
-            onAction = onStartBlankWorkout
-        }
-    }
-    Surface(color = accent.container, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    val sets = summary.completedSetCount
+    val meta = "$sets ${if (sets == 1) "set" else "sets"} · ${summary.totalVolumeKg.formatKg()} kg"
+    Surface(color = accent.container, shape = MusFitTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -434,74 +456,115 @@ private fun TrainingTodayHero(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = overline,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.5.sp, letterSpacing = 0.3.sp),
-                    fontWeight = FontWeight.Medium,
+                    text = "IN PROGRESS",
+                    style = MaterialTheme.typography.labelSmall,
                     color = accent.onContainer,
                 )
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
-                    fontWeight = FontWeight.Normal,
+                    text = summary.title,
+                    style = MaterialTheme.typography.headlineSmall,
                     color = accent.onContainer,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 3.dp),
+                    modifier = Modifier.padding(top = 2.dp),
                 )
                 Text(
                     text = meta,
                     style = MaterialTheme.typography.bodySmall,
-                    color = accent.onContainer.copy(alpha = 0.7f),
+                    color = accent.onContainer.copy(alpha = 0.75f),
                     modifier = Modifier.padding(top = 1.dp),
                 )
             }
-            Button(
-                onClick = onAction,
-                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
+            TrainingResumeSplitButton(accent = accent, onResume = onResume, onDiscard = onDiscard)
+        }
+    }
+}
+
+/** M3E split button: pill-edged leading action + 2dp gap + chevron menu segment. */
+@Composable
+private fun TrainingResumeSplitButton(
+    accent: TabAccent,
+    onResume: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Surface(
+            onClick = onResume,
+            color = accent.color,
+            contentColor = accent.onColor,
+            shape = RoundedCornerShape(topStart = 99.dp, bottomStart = 99.dp, topEnd = 8.dp, bottomEnd = 8.dp),
+        ) {
+            Text(
+                text = "Resume",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 13.dp),
+            )
+        }
+        Box {
+            Surface(
+                onClick = { menuOpen = true },
+                color = accent.color,
+                contentColor = accent.onColor,
+                shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 99.dp, bottomEnd = 99.dp),
             ) {
-                Text(actionLabel)
+                Box(modifier = Modifier.padding(horizontal = 10.dp, vertical = 13.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.ExpandMore,
+                        contentDescription = "Workout options",
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(text = { Text("View details") }, onClick = { menuOpen = false; onResume() })
+                DropdownMenuItem(text = { Text("Discard") }, onClick = { menuOpen = false; onDiscard() })
             }
         }
     }
 }
 
-/**
- * "This week" strip (mock 5a): 7 day dots, 34dp — done days are filled accent circles
- * with a check, today (when not yet trained) is a dashed accent outline, rest days a
- * quiet neutral fill.
- */
+/** Three white stat cells with grouped corners: workouts · volume · streak. */
 @Composable
-private fun TrainingWeekStrip(
-    days: List<TrainingWeekDay>,
-    sessionsDone: Int,
-    accent: TabAccent,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                text = "This week",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
-            Text(
-                text = "$sessionsDone of $WEEKLY_SESSION_GOAL sessions",
-                style = MaterialTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
+private fun TrainingStatsRow(overview: TrainingHistoryOverview) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        val volume = overview.currentWeekVolumeKg
+        val volumeFigure = if (volume >= 1000.0) {
+            String.format(Locale.US, "%.1f t", volume / 1000.0)
+        } else {
+            "${volume.formatKg()} kg"
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            days.forEach { day ->
+        val cells = listOf(
+            "${overview.currentWeekWorkoutCount}" to
+                (if (overview.currentWeekWorkoutCount == 1) "workout" else "workouts"),
+            volumeFigure to "volume",
+            "${overview.currentStreakDays}" to
+                (if (overview.currentStreakDays == 1) "day streak" else "days streak"),
+        )
+        cells.forEachIndexed { index, (figure, label) ->
+            Surface(
+                color = MusFitTheme.colors.surface,
+                shape = rowGroupShape(index, cells.size),
+                modifier = Modifier.weight(1f),
+            ) {
                 Column(
+                    modifier = Modifier.padding(vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    WeekDayDot(day = day, accent = accent)
                     Text(
-                        text = day.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (day.isToday) FontWeight.Medium else FontWeight.Normal,
-                        color = if (day.isToday) MusFitTheme.colors.onSurface else MusFitTheme.colors.onSurfaceVariant,
+                        text = figure,
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MusFitTheme.colors.onSurface,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 1,
                     )
                 }
             }
@@ -509,48 +572,10 @@ private fun TrainingWeekStrip(
     }
 }
 
-@Composable
-private fun WeekDayDot(day: TrainingWeekDay, accent: TabAccent) {
-    when {
-        day.isDone -> Box(
-            modifier = Modifier
-                .size(34.dp)
-                .background(accent.color, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Check,
-                contentDescription = "${day.label}: trained",
-                tint = accent.onColor,
-                modifier = Modifier.size(17.dp),
-            )
-        }
-        day.isToday -> {
-            val dashColor = accent.color
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .drawBehind {
-                        drawCircle(
-                            color = dashColor,
-                            radius = (size.minDimension - 2.dp.toPx()) / 2f,
-                            style = Stroke(
-                                width = 2.dp.toPx(),
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 5.dp.toPx())),
-                            ),
-                        )
-                    },
-            )
-        }
-        else -> Box(
-            modifier = Modifier
-                .size(34.dp)
-                .background(MusFitTheme.colors.surfaceVariant, CircleShape),
-        )
-    }
-}
-
-/** Hairline routine rows: name, one "last performed" meta line, and a filled play glyph. */
+/**
+ * Routine rows as an M3E grouped list: alternating sunny/circle/squircle badge,
+ * emphasized title, one meta line, and a tonal play button.
+ */
 @Composable
 private fun DashboardRoutineList(
     routines: List<RoutineSummary>,
@@ -559,28 +584,14 @@ private fun DashboardRoutineList(
     onOpenRoutineDetail: (String) -> Unit,
     onStartRoutine: (String) -> Unit,
     onOpenAllRoutines: () -> Unit,
-    onNewRoutine: () -> Unit,
 ) {
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = "Routines",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
-            Text(
-                text = "All",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = accent.color,
-                modifier = Modifier.clickable(onClick = onOpenAllRoutines),
-            )
-        }
+        SectionHeader(
+            title = "Routines",
+            trailingActionLabel = "All",
+            trailingActionColor = accent.color,
+            onTrailingAction = onOpenAllRoutines,
+        )
         if (routines.isEmpty()) {
             Text(
                 text = "Create a routine and it will appear here.",
@@ -589,91 +600,61 @@ private fun DashboardRoutineList(
                 modifier = Modifier.padding(vertical = 10.dp),
             )
         }
-        routines.forEachIndexed { index, routine ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenRoutineDetail(routine.id) }
-                    .padding(vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = routine.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MusFitTheme.colors.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = routineLastPerformedMeta(routine, history, LocalDate.now()),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 1.dp),
-                    )
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            routines.forEachIndexed { index, routine ->
+                Surface(
+                    onClick = { onOpenRoutineDetail(routine.id) },
+                    color = MusFitTheme.colors.surface,
+                    shape = groupedShape(index, routines.size),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        ExpressiveBadge(
+                            icon = Icons.Filled.FitnessCenter,
+                            shape = expressiveBadgeShapeFor(index),
+                            containerColor = accent.container,
+                            contentColor = accent.onContainer,
+                            size = 46.dp,
+                            iconSize = 20.dp,
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = routine.name,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MusFitTheme.colors.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = routineLastPerformedMeta(routine, history, LocalDate.now()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MusFitTheme.colors.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 1.dp),
+                            )
+                        }
+                        Surface(
+                            onClick = { onStartRoutine(routine.id) },
+                            color = accent.container,
+                            contentColor = accent.onContainer,
+                            shape = if (index % 2 == 0) CircleShape else RoundedCornerShape(16.dp),
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = "Start ${routine.name}",
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
+                        }
+                    }
                 }
-                Icon(
-                    imageVector = Icons.Filled.PlayCircle,
-                    contentDescription = "Start ${routine.name}",
-                    tint = accent.color,
-                    modifier = Modifier
-                        .size(26.dp)
-                        .clickable { onStartRoutine(routine.id) },
-                )
-            }
-            if (index < routines.lastIndex) {
-                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
             }
         }
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onNewRoutine)
-                .padding(vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Add,
-                contentDescription = null,
-                tint = accent.color,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = "New routine",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-                color = accent.color,
-            )
-        }
-    }
-}
-
-/** Quiet entry to the dedicated Progress page (mock 5b) — the old Progress chip's new home. */
-@Composable
-private fun ProgressLinkRow(accent: TabAccent, onOpenProgress: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpenProgress)
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "Progress",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Medium,
-            color = accent.color,
-            modifier = Modifier.weight(1f),
-        )
-        Icon(
-            imageVector = Icons.Outlined.ChevronRight,
-            contentDescription = null,
-            tint = accent.color,
-            modifier = Modifier.size(20.dp),
-        )
     }
 }
 

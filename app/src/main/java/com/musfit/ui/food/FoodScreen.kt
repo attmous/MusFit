@@ -47,8 +47,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.outlined.BakeryDining
 import androidx.compose.material.icons.outlined.Cookie
 import androidx.compose.material.icons.outlined.DinnerDining
@@ -56,7 +55,6 @@ import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.LunchDining
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -75,19 +73,27 @@ import androidx.compose.ui.graphics.Color
 import com.musfit.ui.theme.MusFitTheme
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.ui.AppDestination
-import com.musfit.ui.components.DashboardHero
+import com.musfit.ui.components.ExpressiveBadge
+import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.components.MusFitSegmented
+import com.musfit.ui.components.WavyProgressBar
+import com.musfit.ui.components.groupedShape
+import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
@@ -242,7 +248,7 @@ fun FoodScreen(
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
                     MusFitScreenHeader(
-                        title = "Nutrition",
+                        title = "Food",
                         actions = {
                             FoodDateChip(
                                 date = state.selectedDate,
@@ -268,6 +274,10 @@ fun FoodScreen(
                         state = state,
                         accent = accent,
                     )
+
+                    if (state.macroProgress.isNotEmpty()) {
+                        MacroProgressRow(state.macroProgress)
+                    }
 
                     FoodWaterRow(
                         consumedMilliliters = state.waterConsumedMilliliters,
@@ -622,8 +632,9 @@ fun FoodScreen(
 private const val WATER_QUICK_ADD_MILLILITERS = 250.0
 
 /**
- * Inline day switcher for the tab header: ‹ chevron, the selected date as plain
- * text (tap to jump back to today), › chevron. No pill, no fill.
+ * Day switcher for the tab header (mock 6b): a floating white pill — ‹ chevron,
+ * the selected date as an emphasized label (tap to jump back to today), ›
+ * chevron — with a whisper of shadow so it reads as a control on the cream.
  */
 @Composable
 private fun FoodDateChip(
@@ -632,43 +643,54 @@ private fun FoodDateChip(
     onNextDayClick: () -> Unit,
     onTodayClick: () -> Unit,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    val accent = tabAccentFor(AppDestination.Food)
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = CircleShape,
+        shadowElevation = 2.dp,
     ) {
-        IconButton(onClick = onPreviousDayClick, modifier = Modifier.size(32.dp)) {
-            Icon(
-                Icons.Filled.ChevronLeft,
-                contentDescription = "Previous day",
-                tint = MusFitTheme.colors.onSurfaceVariant,
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            IconButton(onClick = onPreviousDayClick, modifier = Modifier.size(30.dp)) {
+                Icon(
+                    Icons.Filled.ChevronLeft,
+                    contentDescription = "Previous day",
+                    tint = MusFitTheme.colors.onSurface,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Text(
+                text = date.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = accent.onContainer,
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onTodayClick)
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
             )
-        }
-        Text(
-            text = date.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Medium,
-            color = MusFitTheme.colors.onSurface,
-            maxLines = 1,
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable(onClick = onTodayClick)
-                .padding(horizontal = 4.dp, vertical = 6.dp),
-        )
-        IconButton(onClick = onNextDayClick, modifier = Modifier.size(32.dp)) {
-            Icon(
-                Icons.Filled.ChevronRight,
-                contentDescription = "Next day",
-                tint = MusFitTheme.colors.onSurfaceVariant,
-            )
+            IconButton(onClick = onNextDayClick, modifier = Modifier.size(30.dp)) {
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = "Next day",
+                    tint = MusFitTheme.colors.onSurface,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }
 
 /**
- * At-a-glance water strip (mock 3b): one neutral-fill rounded strip — drop icon,
- * "Water", "x of y L", glass segments filled in the semantic water blue, and quick
- * "−"/"+" glass adjusters. The "−" undoes an accidental add and is disabled once
- * the day is empty. Tapping the strip opens the full water sheet.
+ * The mock-6b water card: a white card with a filled drop icon, "Water" label
+ * with the consumed/goal figure, a segmented glass tracker (one cell per 250 ml
+ * glass — outer corners fully round, inner 6dp, and the fill edge rounds too so
+ * the shape itself marks progress), and a trailing tonal add button. Tapping a
+ * cell logs a glass; long actions live in the water sheet behind [onWaterClick].
  */
 @Composable
 private fun FoodWaterRow(
@@ -676,90 +698,113 @@ private fun FoodWaterRow(
     goalMilliliters: Double,
     onWaterClick: () -> Unit,
     onQuickAddClick: () -> Unit,
-    onQuickRemoveClick: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onQuickRemoveClick: () -> Unit,
 ) {
     val waterColor = MusFitTheme.colors.water
-    // Each segment is one 250 ml glass (so the "+" fills exactly one), capped for width.
-    val segmentCount = (goalMilliliters / WATER_QUICK_ADD_MILLILITERS).roundToInt().coerceIn(1, 8)
+    val emptyColor = MusFitTheme.colors.waterFill
+    // Each segment is one 250 ml glass (so the "+" fills exactly one).
+    val segmentCount = (goalMilliliters / WATER_QUICK_ADD_MILLILITERS).roundToInt().coerceIn(1, 12)
     val filledSegments = (consumedMilliliters / WATER_QUICK_ADD_MILLILITERS).roundToInt().coerceIn(0, segmentCount)
     Surface(
         onClick = onWaterClick,
-        color = MusFitTheme.colors.surfaceVariant,
+        color = MusFitTheme.colors.surface,
         shape = MusFitTheme.shapes.large,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(start = 16.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Icon(
-                Icons.Outlined.WaterDrop,
+                Icons.Filled.WaterDrop,
                 contentDescription = null,
-                tint = MusFitTheme.colors.onSurface,
+                tint = waterColor,
                 modifier = Modifier.size(20.dp),
             )
-            Text(
-                text = "Water",
-                style = MaterialTheme.typography.titleSmall,
-                color = MusFitTheme.colors.onSurface,
-                maxLines = 1,
-            )
-            Text(
-                text = formatWaterLiters(consumedMilliliters, goalMilliliters),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            // Compact "− bars +" stepper: minus on the left, the glass gauge in the
-            // middle, plus on the right, kept tight so it reads as one control.
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
             ) {
-                IconButton(
-                    onClick = onQuickRemoveClick,
-                    enabled = consumedMilliliters > 0.0,
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.Remove,
-                        contentDescription = "Remove water",
-                        tint = if (consumedMilliliters > 0.0) {
-                            waterColor
-                        } else {
-                            waterColor.copy(alpha = 0.35f)
-                        },
-                    )
-                }
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Text(
+                        text = "Water",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MusFitTheme.colors.onSurface,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = buildAnnotatedString {
+                            withStyle(
+                                SpanStyle(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MusFitTheme.colors.onSurface,
+                                ),
+                            ) {
+                                append("%.1f".format(consumedMilliliters / 1000.0))
+                            }
+                            append(" / %.1f L".format(goalMilliliters / 1000.0))
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     repeat(segmentCount) { index ->
+                        val filled = index < filledSegments
                         Box(
                             modifier = Modifier
-                                .size(width = 5.dp, height = 16.dp)
-                                .clip(RoundedCornerShape(percent = 50))
-                                .background(if (index < filledSegments) waterColor else MusFitTheme.colors.track),
+                                .weight(1f)
+                                .height(20.dp)
+                                .clip(waterSegmentShape(index, segmentCount, filledSegments))
+                                .background(if (filled) waterColor else emptyColor)
+                                .clickable(onClick = onQuickAddClick),
                         )
                     }
                 }
-                IconButton(
-                    onClick = onQuickAddClick,
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add water", tint = waterColor)
+            }
+            Surface(
+                onClick = onQuickAddClick,
+                color = emptyColor,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(36.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = "Add water",
+                        tint = waterColor,
+                        modifier = Modifier.size(20.dp),
+                    )
                 }
             }
         }
     }
 }
 
-private fun formatWaterLiters(consumedMilliliters: Double, goalMilliliters: Double): String =
-    "%.1f of %.1f L".format(consumedMilliliters / 1000.0, goalMilliliters / 1000.0)
+/**
+ * Segment corners per mock 6b: the tracker's outer ends are fully round, inner
+ * edges 6dp — and the progress edge rounds as well (the last filled cell's
+ * trailing corners), so the fill reads as its own pill.
+ */
+private fun waterSegmentShape(index: Int, count: Int, filledCount: Int): RoundedCornerShape {
+    val round = 99.dp
+    val inner = 6.dp
+    val isFirst = index == 0
+    val isLast = index == count - 1
+    val isFillEdge = filledCount in 1 until count && index == filledCount - 1
+    val left = if (isFirst) round else inner
+    val right = if (isLast || isFillEdge) round else inner
+    return RoundedCornerShape(topStart = left, bottomStart = left, topEnd = right, bottomEnd = right)
+}
 
 internal val FoodUiState.foodEntryActionVerb: String
     get() = if (isPlanningMode) "Plan" else "Log"
@@ -808,151 +853,158 @@ private fun FoodDiaryOverflowAction(
 }
 
 /**
- * The Nutrition hero, drawn naked on the surface (mock 3b): a 132dp thin kcal
- * ring on the left, the three macro bars — all in the Food accent — on the
- * right, and one quiet eaten/burned/goal meta line underneath.
+ * The Food hero (mock 6b): a green tonal container with a semicircular calorie
+ * gauge — translucent white track, accent arc with a white dot at its end, the
+ * remaining kcal as an emphasized display in the middle — and an eaten/goal
+ * footer row.
  */
 @Composable
 private fun FoodDiarySummaryCard(
     state: FoodUiState,
     accent: TabAccent,
 ) {
-    DashboardHero {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        color = accent.container,
+        shape = MusFitTheme.shapes.extraLarge,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CalorieRing(
+            CalorieGauge(
                 eatenCalories = state.eatenCaloriesKcal,
                 remainingCalories = state.remainingCaloriesKcal,
                 calorieGoal = state.effectiveCalorieBudgetKcal,
-                accentColor = accent.color,
+                accent = accent,
             )
-            if (state.macroProgress.isNotEmpty()) {
-                val macroColors = MusFitTheme.colors.macroColors
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    state.macroProgress.forEachIndexed { index, macro ->
-                        HeroMacroBar(macro = macro, barColor = macroColors[index % macroColors.size])
-                    }
-                }
-            } else {
-                Spacer(modifier = Modifier.weight(1f))
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GaugeFooterStat(
+                    figure = state.eatenCaloriesKcal.roundToInt().toString(),
+                    label = "eaten",
+                    accent = accent,
+                )
+                GaugeFooterStat(
+                    figure = state.calorieGoalKcal.roundToInt().toString(),
+                    label = "goal",
+                    accent = accent,
+                )
             }
         }
-        Text(
-            text = "Eaten ${state.eatenCaloriesKcal.roundToInt()} · " +
-                "Burned ${state.burnedCaloriesKcal.roundToInt()} · " +
-                "Goal ${state.calorieGoalKcal.roundToInt()} kcal",
-            style = MaterialTheme.typography.bodySmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            maxLines = 1,
-        )
-        }
     }
 }
 
 @Composable
-private fun HeroMacroBar(
-    macro: FoodMacroProgressUiState,
-    barColor: Color,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = macro.label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MusFitTheme.colors.onSurface,
-                maxLines = 1,
-            )
-            Text(
-                text = "${macro.currentGrams.roundToInt()} / ${macro.goalGrams.roundToInt()} g",
-                style = MaterialTheme.typography.labelSmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                maxLines = 1,
-            )
-        }
-        ProgressBar(
-            progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
-            color = barColor,
-        )
-    }
+private fun GaugeFooterStat(figure: String, label: String, accent: TabAccent) {
+    Text(
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, color = accent.onContainer)) {
+                append(figure)
+            }
+            append(" $label")
+        },
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.Medium,
+        color = accent.onContainerVariant,
+        maxLines = 1,
+    )
 }
 
+/** The mock-6b semicircular gauge; the arc sweeps in on entry with a spring. */
 @Composable
-private fun CalorieRing(
+private fun CalorieGauge(
     eatenCalories: Double,
     remainingCalories: Double,
     calorieGoal: Double,
-    accentColor: Color,
+    accent: TabAccent,
 ) {
     val progress = (eatenCalories / calorieGoal).toFloat().coerceIn(0f, 1f)
-    val trackColor = MusFitTheme.colors.track
+    val animated = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(progress) { animated.animateTo(progress, MusFitMotion.spatial()) }
+    val trackColor = Color.White.copy(alpha = 0.7f)
+    val arcColor = accent.color
 
     Box(
-        modifier = Modifier.size(132.dp),
-        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(width = 216.dp, height = 128.dp)
+            .padding(top = 4.dp),
+        contentAlignment = Alignment.BottomCenter,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val strokeWidth = 11.dp.toPx()
-            val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+            val strokeWidth = 15.dp.toPx()
+            val dotRadius = 5.dp.toPx()
+            val arcSize = Size(size.width - strokeWidth, (size.width - strokeWidth))
             val topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
             drawArc(
                 color = trackColor,
-                startAngle = 0f,
-                sweepAngle = 360f,
+                startAngle = 180f,
+                sweepAngle = 180f,
                 useCenter = false,
                 topLeft = topLeft,
                 size = arcSize,
                 style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
             )
-            drawArc(
-                color = accentColor,
-                startAngle = -90f,
-                sweepAngle = 360f * progress,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            val sweep = 180f * animated.value
+            if (sweep > 0f) {
+                drawArc(
+                    color = arcColor,
+                    startAngle = 180f,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                )
+            }
+            // White dot riding the end of the arc.
+            val angleRad = Math.toRadians((180f + sweep).toDouble())
+            val radius = arcSize.width / 2f
+            val center = Offset(size.width / 2f, strokeWidth / 2f + radius)
+            drawCircle(
+                color = Color.White,
+                radius = dotRadius,
+                center = Offset(
+                    x = center.x + radius * kotlin.math.cos(angleRad).toFloat(),
+                    y = center.y + radius * kotlin.math.sin(angleRad).toFloat(),
+                ),
             )
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = remainingCalories.roundToInt().toString(),
-                style = MaterialTheme.typography.displaySmall,
-                color = MusFitTheme.colors.onSurface,
+                style = MaterialTheme.typography.displayMedium,
+                color = accent.onContainer,
                 maxLines = 1,
             )
             Text(
                 text = "kcal left",
                 style = MaterialTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                color = accent.onContainerVariant,
             )
         }
     }
 }
 
+/** The mock-6b macros card: three columns, each with a mini wavy indicator. */
 @Composable
 internal fun MacroProgressRow(macros: List<FoodMacroProgressUiState>) {
     val macroColors = MusFitTheme.colors.macroColors
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.extraLarge,
+        shape = MusFitTheme.shapes.large,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             macros.forEachIndexed { index, macro ->
@@ -972,7 +1024,7 @@ private fun MacroProgressColumn(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -980,20 +1032,26 @@ private fun MacroProgressColumn(
         ) {
             Text(
                 text = macro.label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MusFitTheme.colors.onSurface,
                 maxLines = 1,
             )
             Text(
                 text = "${macro.currentGrams.roundToInt()}/${macro.goalGrams.roundToInt()}",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
             )
         }
-        ProgressBar(
+        WavyProgressBar(
             progress = (macro.currentGrams / macro.goalGrams).toFloat().coerceIn(0f, 1f),
             color = color,
+            trackColor = color.copy(alpha = 0.25f),
+            strokeWidth = 3.5.dp,
+            amplitude = 2.5.dp,
+            wavelength = 15.dp,
         )
     }
 }
@@ -2023,9 +2081,10 @@ private fun MealMacroMetric(
 }
 
 /**
- * A meal as a plain hairline list row (mock 3b): 44dp neutral icon circle,
- * 15/500 title, one 13sp meta line (kcal + logged items), and a trailing accent
- * add-circle. No card, no border — the hairline underneath separates rows.
+ * A meal as an M3E grouped list (mock 6b): a white header row — 48dp sunny badge
+ * in the Food container tint, 17/w800 title, quiet kcal/rating meta, trailing
+ * filled 44dp add button — followed by one white row per logged item, all with
+ * 4dp gaps and 24dp-outer/8dp-inner corners.
  */
 @Composable
 private fun MealSectionCard(
@@ -2033,72 +2092,110 @@ private fun MealSectionCard(
     onMealClick: () -> Unit,
     onAddClick: () -> Unit,
 ) {
+    val accent = tabAccentFor(AppDestination.Food)
+    val rowCount = 1 + meal.entries.size
     val meta = buildString {
         append(meal.compactDiarySummaryLabel())
         if (meal.entries.isNotEmpty()) {
-            append(" · ")
-            append(meal.entries.joinToString(", ") { it.name })
+            meal.rating?.let { append(" · ${it.label.lowercase()}") }
         }
     }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Surface(
+            onClick = onMealClick,
+            color = MusFitTheme.colors.surface,
+            shape = groupedShape(0, rowCount),
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(
-                onClick = onMealClick,
-                color = Color.Transparent,
-                shape = MusFitTheme.shapes.medium,
-                modifier = Modifier.weight(1f),
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                ExpressiveBadge(
+                    icon = mealTypeIcon(meal.id, meal.title),
+                    shape = ExpressiveBadgeShape.Sunny,
+                    containerColor = accent.container,
+                    contentColor = accent.onContainerVariant,
+                    size = 48.dp,
+                    iconSize = 20.dp,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = meal.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MusFitTheme.colors.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = meta,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Surface(
+                    onClick = onAddClick,
+                    color = accent.color,
+                    contentColor = accent.onColor,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.size(44.dp),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(MusFitTheme.colors.surfaceVariant),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = mealTypeIcon(meal.id, meal.title),
-                            contentDescription = null,
-                            tint = MusFitTheme.colors.onSurface,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = meal.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = meta,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MusFitTheme.colors.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            Icons.Filled.Add,
+                            contentDescription = "Add to ${meal.title}",
+                            modifier = Modifier.size(22.dp),
                         )
                     }
                 }
             }
-
-            IconButton(onClick = onAddClick, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Outlined.AddCircleOutline,
-                    contentDescription = "Add to ${meal.title}",
-                    tint = MusFitTheme.colors.brand,
-                    modifier = Modifier.size(24.dp),
-                )
+        }
+        meal.entries.forEachIndexed { index, entry ->
+            Surface(
+                onClick = onMealClick,
+                color = MusFitTheme.colors.surface,
+                shape = groupedShape(index + 1, rowCount),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = buildAnnotatedString {
+                            withStyle(
+                                SpanStyle(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MusFitTheme.colors.onSurface,
+                                ),
+                            ) {
+                                append(entry.name)
+                            }
+                            append(", ${entry.quantityGrams.roundToInt()} g")
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "${entry.caloriesKcal.roundToInt()} kcal",
+                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.5.sp),
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accent.onContainer,
+                        maxLines = 1,
+                    )
+                }
             }
         }
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
     }
 }
 

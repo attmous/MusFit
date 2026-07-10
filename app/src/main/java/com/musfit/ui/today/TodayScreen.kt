@@ -8,11 +8,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -20,7 +22,6 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,6 +48,7 @@ import com.musfit.domain.coach.CoachAction
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.EmptyState
 import com.musfit.ui.components.MusFitScreenScaffold
+import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -97,7 +99,8 @@ fun TodayScreen(
             ),
     ) {
         MusFitScreenScaffold(
-            title = todayGreeting(java.time.LocalTime.now().hour),
+            title = "Today",
+            subtitle = todayHeaderDate(java.time.LocalDate.now()),
             actions = {
                 state.readiness?.let { readiness ->
                     ReadinessHeaderChip(
@@ -105,14 +108,13 @@ fun TodayScreen(
                         onClick = onOpenHealth,
                         accent = healthAccent,
                     )
+                    Spacer(Modifier.width(8.dp))
                 }
-                IconButton(onClick = viewModel::openDashboardEditor) {
-                    Icon(
-                        Icons.Outlined.Edit,
-                        contentDescription = "Edit dashboard",
-                        tint = MusFitTheme.colors.onSurfaceVariant,
-                    )
-                }
+                TonalHeaderIconButton(
+                    icon = Icons.Outlined.Edit,
+                    contentDescription = "Edit dashboard",
+                    onClick = viewModel::openDashboardEditor,
+                )
             },
         ) {
             MetricCarouselCard(
@@ -186,12 +188,9 @@ fun TodayScreen(
     }
 }
 
-/** Time-of-day greeting title — "Good morning", not a shouted tab label. */
-internal fun todayGreeting(hour: Int): String = when (hour) {
-    in 4..11 -> "Good morning"
-    in 12..17 -> "Good afternoon"
-    else -> "Good evening"
-}
+/** The header's quiet date line under the emphasized "Today" title. */
+internal fun todayHeaderDate(date: java.time.LocalDate): String =
+    date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM"))
 
 /** "Coach" section header with the 7dp coral unread dot from the mock. */
 @Composable

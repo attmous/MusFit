@@ -71,8 +71,10 @@ import com.musfit.data.repository.CoachMessage
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCategory
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.groupedShape
 import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION
 import com.musfit.ui.permissions.hasLocalNetworkPermission
+import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitTheme
 import java.time.Instant
 import java.time.ZoneId
@@ -82,25 +84,32 @@ import java.util.Locale
 
 private val TIME_FORMATTER = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.getDefault())
 
-/** The feed body: day-grouped coach messages, newest first. */
+/**
+ * The feed body: day-grouped coach messages, newest first, each group rendered
+ * as an M3E grouped list — white cards, 4dp gaps, 24dp outer / 8dp inner corners.
+ */
 @Composable
 fun CoachFeed(
     groups: List<CoachFeedDayGroup>,
     onAction: (CoachAction) -> Unit,
     onDismiss: (Long) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm)) {
+    Column(verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.xs)) {
         groups.forEach { group ->
             Text(
                 text = group.label.uppercase(),
                 style = MusFitTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
                 color = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.padding(top = MusFitTheme.spacing.sm),
+                modifier = Modifier.padding(top = MusFitTheme.spacing.sm, bottom = MusFitTheme.spacing.xs),
             )
-            group.messages.forEach { message ->
+            group.messages.forEachIndexed { index, message ->
                 key(message.id) {
-                    DismissableMessageCard(message = message, onAction = onAction, onDismiss = onDismiss)
+                    DismissableMessageCard(
+                        message = message,
+                        shape = groupedShape(index, group.messages.size),
+                        onAction = onAction,
+                        onDismiss = onDismiss,
+                    )
                 }
             }
         }
@@ -111,6 +120,7 @@ fun CoachFeed(
 @Composable
 private fun DismissableMessageCard(
     message: CoachMessage,
+    shape: RoundedCornerShape,
     onAction: (CoachAction) -> Unit,
     onDismiss: (Long) -> Unit,
 ) {
@@ -123,6 +133,7 @@ private fun DismissableMessageCard(
     ) {
         CoachMessageCard(
             message = message,
+            shape = shape,
             onAction = onAction,
             onLongPress = { onDismiss(message.id) }, // spec: swipe OR long-press dismisses
         )
@@ -133,18 +144,18 @@ private fun DismissableMessageCard(
 @Composable
 private fun CoachMessageCard(
     message: CoachMessage,
+    shape: RoundedCornerShape,
     onAction: (CoachAction) -> Unit,
     onLongPress: () -> Unit,
 ) {
-    // Coach cards are a quiet neutral strip — same on every tab; the interactive
-    // azure carries only the unread dot and the text action.
-    val coachShape = RoundedCornerShape(20.dp)
+    // White cards on the cream ground; the coral accent carries the overline,
+    // the unread dot, and the tonal action pill.
     Surface(
-        color = MusFitTheme.colors.surfaceVariant,
-        shape = coachShape,
+        color = MusFitTheme.colors.surface,
+        shape = shape,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(coachShape)
+            .clip(shape)
             .semantics { if (!message.isRead) stateDescription = "Unread" }
             .combinedClickable(
                 onClick = { message.action?.let(onAction) },
@@ -158,15 +169,14 @@ private fun CoachMessageCard(
                 Icon(
                     message.category.icon(),
                     contentDescription = null, // decorative: the visible category label follows
-                    tint = MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp),
+                    tint = MusFitTheme.colors.accent,
+                    modifier = Modifier.size(15.dp),
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = message.category.displayLabel().uppercase(),
                     style = MusFitTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
+                    color = MusFitTheme.colors.accent,
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
@@ -174,7 +184,8 @@ private fun CoachMessageCard(
                         Instant.ofEpochMilli(message.firstSeenAtEpochMillis).atZone(ZoneId.systemDefault()),
                     ),
                     style = MusFitTheme.typography.labelSmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                    color = MusFitTheme.colors.onSurfaceFaint,
                 )
                 if (!message.isRead) {
                     Spacer(Modifier.width(6.dp))
@@ -186,10 +197,10 @@ private fun CoachMessageCard(
                     )
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = message.title,
-                style = MusFitTheme.typography.titleSmall,
+                style = MusFitTheme.typography.titleLarge,
                 color = MusFitTheme.colors.onSurface,
             )
             Spacer(Modifier.height(2.dp))
@@ -199,18 +210,17 @@ private fun CoachMessageCard(
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
             message.action?.let { action ->
-                Spacer(Modifier.height(MusFitTheme.spacing.sm))
+                Spacer(Modifier.height(MusFitTheme.spacing.md))
                 Surface(
                     onClick = { onAction(action) },
-                    color = Color.Transparent,
+                    color = MusFitTheme.colors.accentContainer,
                     shape = RoundedCornerShape(999.dp),
                 ) {
                     Text(
                         text = coachActionLabel(action),
-                        style = MusFitTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MusFitTheme.colors.accent,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                        style = MusFitTheme.typography.labelMedium,
+                        color = MusFitTheme.colors.onAccentContainer,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                     )
                 }
             }
@@ -256,8 +266,8 @@ private fun CoachMessageCategory.icon(): ImageVector = when (this) {
 }
 
 /**
- * The coach button: a compact 58dp azure rounded-square (Material 3 Expressive
- * FAB), docked inline at the right of the floating nav bar. Azure is the one
+ * The coach button: a compact 58dp rounded-square FAB (Material 3 Expressive),
+ * docked inline at the right of the floating nav bar. Brand coral is the one
  * global accent — the coach never recolors per tab. Opens the coach chat sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -266,23 +276,23 @@ fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(22.dp)
     Surface(
         onClick = onClick,
-        color = MusFitTheme.colors.accent,
-        contentColor = MusFitTheme.colors.onAccent,
+        color = BrandCoral,
+        contentColor = Color.White,
         shape = shape,
         modifier = modifier
             .size(58.dp)
             .shadow(
                 elevation = 10.dp,
                 shape = shape,
-                spotColor = MusFitTheme.colors.accent,
-                ambientColor = MusFitTheme.colors.accent,
+                spotColor = BrandCoral,
+                ambientColor = BrandCoral,
             ),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 Icons.Outlined.Forum,
                 contentDescription = "Ask coach",
-                tint = MusFitTheme.colors.onAccent,
+                tint = Color.White,
                 modifier = Modifier.size(26.dp),
             )
         }

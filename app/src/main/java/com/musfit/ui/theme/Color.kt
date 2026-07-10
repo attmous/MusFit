@@ -2,80 +2,116 @@ package com.musfit.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// MusFit "health-grade clean" palette — light.
-val Emerald = Color(0xFF1E7A53)
-val EmeraldInk = Color(0xFF0F3D2E)
-val GradientLime = Color(0xFF8FE38C)
-val GradientGreen = Color(0xFF43C57E)
-val GradientEmerald = Color(0xFF1E7A53)
+// MusFit Material 3 Expressive palette — light.
+// Neutrals: warm cream ground, pure white cards, warm inks.
+val Cream = Color(0xFFF8F2E9)
+val CardWhite = Color(0xFFFFFFFF)
+val TonalFill = Color(0xFFF1E8DA) // tonal icon buttons, quiet chips and strips
+val SegmentFill = Color(0xFFEDE4D5) // unselected segments and neutral progress tracks
+val InkPrimary = Color(0xFF1E1B16)
+val InkSecondary = Color(0xFF6F675C)
+val InkFaint = Color(0xFF9A9184) // placeholders, timestamps
+val Hairline = Color(0xFFEFE6D8)
 
-// Interactive blue — links, coach actions, and Today's accent (Google-blue class).
-val Azure = Color(0xFF0B57D0)
-val AzureContainer = Color(0xFFD8E4FB)
-val AzureInk = Color(0xFF0A408F)
+// Today (coral). BrandCoral is reserved for the coach FAB; Coral is the
+// text/progress-safe accent (WCAG AA on white).
+val Coral = Color(0xFFC2470F)
+val CoralContainer = Color(0xFFFFDBD1)
+val CoralInk = Color(0xFF5C1A00)
+val CoralInkStrong = Color(0xFF390C00) // hero display numerals on the coral container
+val CoralBadge = Color(0xFFFFB59F)
+val CoralChip = Color(0xFFFFF5F1)
+val CoralTrack = Color(0xFFF3AD97)
+val BrandCoral = Color(0xFFF05D42)
+
+// Food (green) — doubles as the app-wide brand green.
+val Green = Color(0xFF1F6B3D)
+val GreenContainer = Color(0xFFD5E8CE)
+val GreenInk = Color(0xFF12401F)
+val GreenBody = Color(0xFF1F5432)
+val GreenTrack = Color(0xFFB9D8AE)
+
+// Training (indigo).
+val Indigo = Color(0xFF3D5AF1)
+val IndigoContainer = Color(0xFFDEE1FF)
+val IndigoInk = Color(0xFF1B2A80)
+val IndigoTrack = Color(0xFFC2C8F9)
+// Indigo at ~25% on white — past-week bars on the Training progress charts.
+val IndigoMuted = Color(0xFFC9D0F5)
+// Resting outline for selection circles and drag handles (Training pickers/editor).
+val NeutralOutline = Color(0xFFCBC3B4)
+val NeutralOutlineDark = Color(0xFF4A443A)
+
+// Profile (teal).
+val Teal = Color(0xFF177D6E)
+val TealContainer = Color(0xFFCBE8E2)
+val TealInk = Color(0xFF0C4A42)
+val TealBody = Color(0xFF155E52)
+val TealTrack = Color(0xFFC4E2DC)
+
+// Macro trio — distinct from every tab container they sit on.
+val MacroCarbs = Color(0xFFB98300)
+val MacroProtein = Color(0xFF177D6E)
+val MacroFat = Color(0xFF6750A4)
+
+// Water tracker.
+val Water = Color(0xFF1668A8)
+val WaterFill = Color(0xFFDDEBF7) // empty tracker cells, tonal water buttons
+
+// Health Connect banner (lavender).
+val LavenderContainer = Color(0xFFE6E0F5)
+val LavenderBody = Color(0xFF453768)
+val LavenderInk = Color(0xFF4F3D8F)
 
 // Semantic warning amber ("goal not met" class) — never a tab accent.
 val AmberContainer = Color(0xFFFBEFDD)
 val AmberInk = Color(0xFF8A4E06)
 
-// Cool health-grade neutrals: soft blue-gray ground, white cards, quiet inks.
-val CoolGround = Color(0xFFF2F4F9)
-val CardWhite = Color(0xFFFFFFFF)
-val NeutralFill = Color(0xFFE7EBF3) // cool fill for chips, strips, and icon circles
-val InkPrimary = Color(0xFF1A1C21)
-val InkSecondary = Color(0xFF575E68)
-val Hairline = Color(0xFFE5E8EF)
-val NeutralTrack = Color(0xFFE1E6EE)
+// MusFit dark palette — warm near-black ground with elevated warm cards,
+// containers deepened and accents brightened for AA on dark.
+val DarkBg = Color(0xFF16120C)
+val DarkCard = Color(0xFF221C14)
+val DarkTonalFill = Color(0xFF2E2820)
+val DarkOnSurface = Color(0xFFEDE6DA)
+val DarkOnSurfaceVariant = Color(0xFFA89E90)
+val DarkInkFaint = Color(0xFF7D7466)
+val DarkHairline = Color(0xFF2A241B)
+val DarkTrack = Color(0xFF332C22)
 
-// Rose-red keeps protein clearly apart from the brand green (0xFF1E7A53) on the calorie ring,
-// and from the blue Water accent on the same Food screen.
-val MacroProtein = Color(0xFFE11D48)
-val MacroCarbs = Color(0xFFF59E0B)
-val MacroFat = Color(0xFF6D5BD0)
-val PositiveContainer = Color(0xFFE7F4EC)
-val Water = Color(0xFF3FA9E0)
+val CoralBright = Color(0xFFFFB59A)
+val CoralOnDark = Color(0xFF4A1500)
+val CoralContainerDark = Color(0xFF4C2314)
+val CoralInkDark = Color(0xFFFFDBCF)
+val CoralBadgeDark = Color(0xFF6E3B26)
+val CoralChipDark = Color(0xFF33261D)
+val CoralTrackDark = Color(0xFF6E3B26)
 
-// Per-tab accents: slight tones of one cool family — azure (Today), emerald
-// (Food), indigo (Training), teal (Profile) — rather than contrasting hues.
-val Indigo = Color(0xFF3D5AF1)
-val IndigoInk = Color(0xFF1E2A78)
-val IndigoContainer = Color(0xFFE4E7FD)
-// Indigo at ~25% on white — past-week bars on the Training progress charts.
-val IndigoMuted = Color(0xFFC9D0F5)
-// Resting outline for selection circles and drag handles (Training pickers/editor).
-val NeutralOutline = Color(0xFFC6CCD6)
-val NeutralOutlineDark = Color(0xFF454B55)
-val Teal = Color(0xFF0E7A79) // deep enough for white content at WCAG AA (was 0xFF0E9594, 3.66:1)
-val TealInk = Color(0xFF0B5E5D)
-val TealContainer = Color(0xFFD9F0EF)
+val GreenBright = Color(0xFF85CB93)
+val GreenOnDark = Color(0xFF05320F)
+val GreenContainerDark = Color(0xFF21402A)
+val GreenInkDark = Color(0xFFD9EFD9)
+val GreenTrackDark = Color(0xFF375A3F)
 
-// MusFit dark palette — cool near-black surfaces, brighter accents.
-val DarkBg = Color(0xFF13161B)
-val DarkSurfaceVariant = Color(0xFF23272F)
-val DarkOnSurface = Color(0xFFE6E8ED)
-val DarkOnSurfaceVariant = Color(0xFF9BA1AB)
-val DarkOutline = Color(0xFF272C34)
-val DarkTrack = Color(0xFF272C34)
+val IndigoBright = Color(0xFF99A5FF)
+val IndigoOnDark = Color(0xFF0A1560)
+val IndigoContainerDark = Color(0xFF2A3170)
+val IndigoInkDark = Color(0xFFE1E4FF)
+val IndigoTrackDark = Color(0xFF454E9E)
 
-val EmeraldBright = Color(0xFF3CCB9B)
-val EmeraldOnDark = Color(0xFF08321F)
-val EmeraldContainerDark = Color(0xFF13402E)
-val EmeraldInkDark = Color(0xFFBFF3DD)
-val AzureBright = Color(0xFFA8C7FA)
-val AzureOnDark = Color(0xFF08316B)
-val AzureContainerDark = Color(0xFF1C3454)
-val AzureInkDark = Color(0xFFD6E3FC)
+val TealBright = Color(0xFF5BC4B2)
+val TealOnDark = Color(0xFF003731)
+val TealContainerDark = Color(0xFF14453E)
+val TealInkDark = Color(0xFFCFF0E9)
+val TealTrackDark = Color(0xFF23685C)
+
+val MacroCarbsDark = Color(0xFFE0B54A)
+val MacroProteinDark = Color(0xFF52C4B0)
+val MacroFatDark = Color(0xFFB4A0E8)
+val WaterDark = Color(0xFF62A8DC)
+val WaterFillDark = Color(0xFF1C3A52)
+val LavenderContainerDark = Color(0xFF352C4E)
+val LavenderBodyDark = Color(0xFFCFC3EF)
+val LavenderInkDark = Color(0xFFD8CCFA)
 val AmberBright = Color(0xFFF2B04E)
 val AmberContainerDark = Color(0xFF4A340F)
 val AmberInkDark = Color(0xFFF7DFB5)
-val IndigoBright = Color(0xFF8593FF)
-val IndigoContainerDark = Color(0xFF29306B)
-val IndigoInkDark = Color(0xFFDDE1FF)
-val TealBright = Color(0xFF3CCBC9)
-val TealContainerDark = Color(0xFF0C3B3A)
-val TealInkDark = Color(0xFFC7F2F1)
-val MacroProteinDark = Color(0xFFFB7185)
-val MacroCarbsDark = Color(0xFFFBBF24)
-val MacroFatDark = Color(0xFFA78BFA)
-val PositiveContainerDark = Color(0xFF1B3A2B)
-val WaterDark = Color(0xFF5BA8E8)
