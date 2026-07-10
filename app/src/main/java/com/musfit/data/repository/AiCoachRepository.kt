@@ -63,6 +63,12 @@ data class AiCoachConnection(
     val apiKey: String?,
 )
 
+data class AiCoachDebugDefaults(
+    val hermesBaseUrl: String = "",
+    val hermesModelName: String = "",
+    val hermesApiKey: String = "",
+)
+
 interface AiCoachSecretStore {
     suspend fun saveApiKey(accountId: String, apiKey: String)
     suspend fun getApiKey(accountId: String): String?
@@ -81,6 +87,7 @@ class LocalAiCoachRepository @Inject constructor(
     private val aiCoachDao: AiCoachDao,
     private val accountRepository: AccountRepository,
     private val secretStore: AiCoachSecretStore,
+    private val debugDefaults: AiCoachDebugDefaults,
 ) : AiCoachRepository {
     private var clock: () -> Long = { System.currentTimeMillis() }
 
@@ -88,14 +95,17 @@ class LocalAiCoachRepository @Inject constructor(
         aiCoachDao: AiCoachDao,
         accountRepository: AccountRepository,
         secretStore: AiCoachSecretStore,
+        debugDefaults: AiCoachDebugDefaults = AiCoachDebugDefaults(),
         clock: () -> Long,
-    ) : this(aiCoachDao, accountRepository, secretStore) {
+    ) : this(aiCoachDao, accountRepository, secretStore, debugDefaults) {
         this.clock = clock
     }
 
     override fun observeSettings(): Flow<AiCoachSettings> =
         accountRepository.observeActiveAccount().flatMapLatest { account ->
-            aiCoachDao.observeSettings(account.id).map { row -> row?.toSettings() ?: AiCoachSettings() }
+            aiCoachDao.observeSettings(account.id).map { row ->
+                row?.toSettings() ?: debugDefaults.toHermesSettings() ?: AiCoachSettings()
+            }
         }
 
     override suspend fun saveSettings(input: AiCoachSettingsInput) {
@@ -111,8 +121,9 @@ class LocalAiCoachRepository @Inject constructor(
         val existing = aiCoachDao.getSettings(account.id)
         val existingApiKeyStored = existing?.apiKeyStored ?: false
         val replacementApiKey = (input.apiKey as? AiCoachApiKeyUpdate.Replace)?.value?.trim()
+        val debugApiKey = debugDefaults.apiKeyFor(normalized)
         val apiKeyStored = when (input.apiKey) {
-            AiCoachApiKeyUpdate.KeepExisting -> existingApiKeyStored
+            AiCoachApiKeyUpdate.KeepExisting -> existingApiKeyStored || debugApiKey != null
             AiCoachApiKeyUpdate.Clear -> false
             is AiCoachApiKeyUpdate.Replace -> replacementApiKey?.isNotBlank() == true
         }
@@ -147,15 +158,20 @@ class LocalAiCoachRepository @Inject constructor(
 
     override suspend fun activeConnection(): AiCoachConnection? {
         val account = accountRepository.ensureActiveAccount()
-        val row = aiCoachDao.getSettings(account.id) ?: return null
+        val row = aiCoachDao.getSettings(account.id) ?: return debugDefaults.toHermesConnection()
         val settings = row.toSettings()
         if (settings.providerKind == AiCoachProviderKind.Disabled) return null
+        val debugApiKey = debugDefaults.apiKeyFor(settings)
         return AiCoachConnection(
             providerKind = settings.providerKind,
             baseUrl = settings.baseUrl,
             modelName = settings.modelName,
             localAgentKind = settings.localAgentKind,
-            apiKey = if (settings.hasApiKey) secretStore.getApiKey(account.id) else null,
+            apiKey = if (settings.hasApiKey) {
+                secretStore.getApiKey(account.id) ?: debugApiKey
+            } else {
+                null
+            },
         )
     }
 }
@@ -278,6 +294,48 @@ private fun NormalizedAiCoachSettings.toEntity(
 private fun NormalizedAiCoachSettings.requiresApiServerKey(): Boolean =
     providerKind == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
 
+private fun AiCoachDebugDefaults.toHermesSettings(): AiCoachSettings? {
+    val normalizedBaseUrl = hermesBaseUrl.normalizedBaseUrlOrNull() ?: return null
+    val model = hermesModelName.trim().takeIf { it.isNotBlank() } ?: return null
+    val apiKey = hermesApiKey.trim().takeIf { it.isNotBlank() } ?: return null
+    return AiCoachSettings(
+        providerKind = AiCoachProviderKind.LocalAgent,
+        baseUrl = normalizedBaseUrl,
+        modelName = model,
+        localAgentKind = LocalAgentKind.HermesAgent,
+        hasApiKey = apiKey.isNotBlank(),
+    )
+}
+
+private fun AiCoachDebugDefaults.toHermesConnection(): AiCoachConnection? {
+    val settings = toHermesSettings() ?: return null
+    return AiCoachConnection(
+        providerKind = settings.providerKind,
+        baseUrl = settings.baseUrl,
+        modelName = settings.modelName,
+        localAgentKind = settings.localAgentKind,
+        apiKey = hermesApiKey.trim().takeIf { it.isNotBlank() },
+    )
+}
+
+private fun AiCoachDebugDefaults.apiKeyFor(settings: AiCoachSettings): String? =
+    if (settings.providerKind == AiCoachProviderKind.LocalAgent &&
+        settings.localAgentKind == LocalAgentKind.HermesAgent
+    ) {
+        hermesApiKey.trim().takeIf { it.isNotBlank() }
+    } else {
+        null
+    }
+
+private fun AiCoachDebugDefaults.apiKeyFor(settings: NormalizedAiCoachSettings): String? =
+    if (settings.providerKind == AiCoachProviderKind.LocalAgent &&
+        settings.localAgentKind == LocalAgentKind.HermesAgent
+    ) {
+        hermesApiKey.trim().takeIf { it.isNotBlank() }
+    } else {
+        null
+    }
+
 private fun AiCoachSettingsEntity.toSettings(): AiCoachSettings =
     AiCoachSettings(
         providerKind = runCatching { AiCoachProviderKind.valueOf(providerKind) }
@@ -289,6 +347,9 @@ private fun AiCoachSettingsEntity.toSettings(): AiCoachSettings =
         hasApiKey = apiKeyStored,
         updatedAtEpochMillis = updatedAtEpochMillis,
     )
+
+private fun String.normalizedBaseUrlOrNull(): String? =
+    runCatching { normalizedBaseUrl() }.getOrNull()
 
 private fun String.normalizedBaseUrl(): String {
     val trimmed = trim()

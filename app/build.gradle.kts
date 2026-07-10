@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.android.legacy.kapt)
@@ -7,6 +9,19 @@ plugins {
 
 fun String.asBuildConfigString(): String =
     "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.isFile) {
+        file.inputStream().use(::load)
+    }
+}
+
+fun localConfigValue(name: String, defaultValue: String = ""): String =
+    providers.gradleProperty(name)
+        .orElse(providers.environmentVariable(name))
+        .orElse(localProperties.getProperty(name).orEmpty().ifBlank { defaultValue })
+        .get()
 
 // Monotonic build number derived from the git history so every master build
 // gets a higher versionCode than the last — required for over-the-air (Obtainium)
@@ -27,16 +42,19 @@ fun gitCommitCount(): Int =
     }
 
 val musfitGoogleWebClientId =
-    providers.gradleProperty("MUSFIT_GOOGLE_WEB_CLIENT_ID")
-        .orElse(providers.environmentVariable("MUSFIT_GOOGLE_WEB_CLIENT_ID"))
-        .orElse("")
-        .get()
+    localConfigValue("MUSFIT_GOOGLE_WEB_CLIENT_ID")
 
 val musfitGitHubOAuthClientId =
-    providers.gradleProperty("MUSFIT_GITHUB_OAUTH_CLIENT_ID")
-        .orElse(providers.environmentVariable("MUSFIT_GITHUB_OAUTH_CLIENT_ID"))
-        .orElse("")
-        .get()
+    localConfigValue("MUSFIT_GITHUB_OAUTH_CLIENT_ID")
+
+val musfitDebugHermesBaseUrl =
+    localConfigValue("MUSFIT_DEBUG_HERMES_BASE_URL", "http://192.168.178.113:8080/v1/")
+
+val musfitDebugHermesModelName =
+    localConfigValue("MUSFIT_DEBUG_HERMES_MODEL_NAME", "hermes-agent")
+
+val musfitDebugHermesApiKey =
+    localConfigValue("MUSFIT_DEBUG_HERMES_API_KEY")
 
 android {
     namespace = "com.musfit"
@@ -67,6 +85,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", musfitGoogleWebClientId.asBuildConfigString())
         buildConfigField("String", "GITHUB_OAUTH_CLIENT_ID", musfitGitHubOAuthClientId.asBuildConfigString())
+        buildConfigField("String", "DEBUG_HERMES_BASE_URL", "".asBuildConfigString())
+        buildConfigField("String", "DEBUG_HERMES_MODEL_NAME", "".asBuildConfigString())
+        buildConfigField("String", "DEBUG_HERMES_API_KEY", "".asBuildConfigString())
+    }
+
+    buildTypes {
+        debug {
+            buildConfigField("String", "DEBUG_HERMES_BASE_URL", musfitDebugHermesBaseUrl.asBuildConfigString())
+            buildConfigField("String", "DEBUG_HERMES_MODEL_NAME", musfitDebugHermesModelName.asBuildConfigString())
+            buildConfigField("String", "DEBUG_HERMES_API_KEY", musfitDebugHermesApiKey.asBuildConfigString())
+        }
     }
 
     sourceSets {
