@@ -42,6 +42,24 @@ Base URL: http://192.168.178.113:8080/v1/
 Model: hermes-agent
 ```
 
+## Debug Build Defaults
+
+Debug builds can auto-configure Hermes after a fresh install, app-data reset, or
+seeded setup. Keep the secret in ignored `local.properties` or in environment
+variables; never commit the API server key.
+
+```properties
+MUSFIT_DEBUG_HERMES_BASE_URL=http://192.168.178.113:8080/v1/
+MUSFIT_DEBUG_HERMES_MODEL_NAME=hermes-agent
+MUSFIT_DEBUG_HERMES_API_KEY=<API_SERVER_KEY from ~/.hermes/.env>
+```
+
+When `MUSFIT_DEBUG_HERMES_API_KEY` is present, an empty debug install exposes
+Hermes as the default AI coach connection. If the user saves explicit AI coach
+settings, those settings take precedence. Clearing the key in-app disables the
+persisted connection until the app data is reset or the user configures it again.
+Release builds leave these debug fields blank.
+
 ## MusFit Behavior
 
 The first implementation is read-only:
