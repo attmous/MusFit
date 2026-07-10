@@ -2,8 +2,10 @@ package com.musfit.data.repository
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.MealEntity
@@ -29,11 +31,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 
 @RunWith(RobolectricTestRunner::class)
 class LocalFoodRepositoryTest {
     private lateinit var database: MusFitDatabase
     private lateinit var repository: LocalFoodRepository
+    private val executedSql = CopyOnWriteArrayList<String>()
 
     @Before
     fun setUp() {
@@ -41,6 +46,10 @@ class LocalFoodRepositoryTest {
         database =
             Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
                 .allowMainThreadQueries()
+                .setQueryCallback(
+                    RoomDatabase.QueryCallback { sqlQuery, _ -> executedSql += sqlQuery },
+                    Executor { command -> command.run() },
+                )
                 .build()
         repository = LocalFoodRepository(database = database, foodDao = database.foodDao())
     }
@@ -743,6 +752,129 @@ class LocalFoodRepositoryTest {
         assertEquals(32.0, savedFood.nutritionPer100g.proteinGrams, 0.01)
         assertEquals(1, servings.size)
         assertEquals("120 g", servings.single().label)
+    }
+
+    @Test
+    fun toggleFavoriteFood_preservesEveryReferencedChildRow() = runTest {
+        val graph = createReferencedFoodGraph()
+        val dao = database.foodDao()
+        val servingsBefore = dao.getServings(graph.foodId)
+        val mealItemBefore = dao.getMealItem(graph.mealItemId)
+        val templateRowsBefore = dao.getMealTemplateRows(graph.templateId)
+        val recipeRowsBefore = dao.getRecipeRows(graph.recipeId)
+        val barcodeBefore = dao.getBarcodeProduct(graph.barcode)
+        executedSql.clear()
+
+        repository.toggleFavoriteFood(graph.foodId, true)
+
+        assertEquals(true, dao.getFood(graph.foodId)?.isFavorite)
+        assertEquals(servingsBefore, dao.getServings(graph.foodId))
+        assertEquals(mealItemBefore, dao.getMealItem(graph.mealItemId))
+        assertEquals(templateRowsBefore, dao.getMealTemplateRows(graph.templateId))
+        assertEquals(recipeRowsBefore, dao.getRecipeRows(graph.recipeId))
+        assertEquals(barcodeBefore, dao.getBarcodeProduct(graph.barcode))
+        val graphWrites =
+            executedSql.filter { sql ->
+                val normalized = sql.trimStart().lowercase()
+                val isWrite = normalized.startsWith("insert") || normalized.startsWith("update") || normalized.startsWith("delete")
+                isWrite &&
+                    listOf(
+                        "foods",
+                        "food_servings",
+                        "meal_items",
+                        "barcode_products",
+                        "meal_template_items",
+                        "recipe_ingredients",
+                    ).any { table -> Regex("\\b$table\\b").containsMatchIn(normalized) }
+            }
+        assertEquals(1, graphWrites.size)
+        assertTrue(graphWrites.single().startsWith("UPDATE foods SET isFavorite", ignoreCase = true))
+    }
+
+    @Test
+    fun upsertSavedFood_editsReferencedFoodWithoutRewritingItsRelationships() = runTest {
+        val graph = createReferencedFoodGraph()
+        val dao = database.foodDao()
+        val mealItemBefore = dao.getMealItem(graph.mealItemId)
+        val templateItemId = dao.getMealTemplateRows(graph.templateId).single().itemId
+        val recipeIngredientId = dao.getRecipeRows(graph.recipeId).single().ingredientId
+
+        repository.upsertSavedFood(
+            SavedFoodUpsertInput(
+                foodId = graph.foodId,
+                name = "Rolled oats",
+                brand = "Updated pantry",
+                defaultServingGrams = 75.0,
+                nutritionPer100g = nutrition(calories = 390.0, protein = 17.0, carbs = 67.0, fat = 7.0),
+                servingName = "Scoop",
+                barcode = graph.barcode,
+                category = "Grains",
+                isFavorite = true,
+                servings = listOf(FoodServingInput(label = "Scoop", grams = 75.0)),
+            ),
+        )
+
+        val updated = repository.getFoodDetail(graph.foodId)!!
+        assertEquals("Rolled oats", updated.name)
+        assertEquals("Updated pantry", updated.brand)
+        assertTrue(updated.isFavorite)
+        assertEquals(listOf("Scoop"), updated.servings.map { it.label })
+        assertEquals(mealItemBefore, dao.getMealItem(graph.mealItemId))
+        assertEquals(templateItemId, dao.getMealTemplateRows(graph.templateId).single().itemId)
+        assertEquals(graph.foodId, dao.getMealTemplateRows(graph.templateId).single().foodId)
+        assertEquals(recipeIngredientId, dao.getRecipeRows(graph.recipeId).single().ingredientId)
+        assertEquals(graph.foodId, dao.getRecipeRows(graph.recipeId).single().foodId)
+        assertEquals(graph.foodId, dao.getBarcodeProduct(graph.barcode)?.linkedFoodId)
+    }
+
+    @Test
+    fun failedTemplateAndRecipeGraphReplacements_restoreOriginalParentsAndChildren() = runTest {
+        val graph = createReferencedFoodGraph()
+        val dao = database.foodDao()
+        val templateBefore = dao.getMealTemplate(graph.templateId)
+        val templateRowsBefore = dao.getMealTemplateRows(graph.templateId)
+        val recipeBefore = dao.getRecipe(graph.recipeId)
+        val recipeRowsBefore = dao.getRecipeRows(graph.recipeId)
+
+        val templateFailure =
+            runCatching {
+                repository.updateMealTemplate(
+                    MealTemplateUpdateInput(
+                        templateId = graph.templateId,
+                        name = "Partially replaced template",
+                        mealType = "lunch",
+                        items = listOf(
+                            MealTemplateItemInput(graph.foodId, 80.0),
+                            MealTemplateItemInput("missing-template-food", 50.0),
+                        ),
+                    ),
+                )
+            }.exceptionOrNull()
+
+        assertTrue(templateFailure is IllegalStateException)
+        assertEquals(templateBefore, dao.getMealTemplate(graph.templateId))
+        assertEquals(templateRowsBefore, dao.getMealTemplateRows(graph.templateId))
+
+        val recipeFailure =
+            runCatching {
+                repository.upsertRecipe(
+                    RecipeUpsertInput(
+                        recipeId = graph.recipeId,
+                        name = "Partially replaced recipe",
+                        category = "Lunch",
+                        servingName = "Plate",
+                        servingGrams = 250.0,
+                        ingredients = listOf(
+                            RecipeIngredientInput(graph.foodId, 80.0),
+                            RecipeIngredientInput("missing-recipe-food", 50.0),
+                        ),
+                    ),
+                )
+            }.exceptionOrNull()
+
+        assertTrue(recipeFailure is IllegalStateException)
+        assertEquals(recipeBefore, dao.getRecipe(graph.recipeId))
+        assertEquals(recipeRowsBefore, dao.getRecipeRows(graph.recipeId))
     }
 
     @Test
@@ -1861,6 +1993,63 @@ class LocalFoodRepositoryTest {
         assertEquals(5.0, meal.fiberGrams, 0.01)
         assertEquals(500.0, gateway.lastPayload?.hydrationMilliliters ?: 0.0, 0.01)
     }
+
+    private suspend fun createReferencedFoodGraph(): ReferencedFoodGraph {
+        val date = LocalDate.of(2026, 7, 10)
+        val foodId = "referenced-food"
+        val barcode = "400000000009"
+        repository.upsertSavedFood(
+            SavedFoodUpsertInput(
+                foodId = foodId,
+                name = "Oats",
+                brand = "Pantry",
+                defaultServingGrams = 50.0,
+                nutritionPer100g = nutrition(calories = 389.0, protein = 17.0, carbs = 66.0, fat = 7.0),
+                servingName = "Bowl",
+                barcode = barcode,
+                category = "Grains",
+                servings = listOf(
+                    FoodServingInput(label = "Bowl", grams = 50.0),
+                    FoodServingInput(label = "Cup", grams = 80.0),
+                ),
+            ),
+        )
+        val mealItemId = repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 50.0, date))
+        val templateId = repository.saveMealAsTemplate(date, "breakfast", "Oats breakfast")
+        val recipeId =
+            repository.upsertRecipe(
+                RecipeUpsertInput(
+                    recipeId = null,
+                    name = "Overnight oats",
+                    category = "Breakfast",
+                    servingName = "Jar",
+                    servingGrams = 250.0,
+                    ingredients = listOf(RecipeIngredientInput(foodId, 80.0)),
+                ),
+            )
+        database.foodDao().upsertBarcodeProduct(
+            BarcodeProductEntity(
+                id = "referenced-barcode",
+                barcode = barcode,
+                provider = "test",
+                providerProductName = "Oats",
+                providerBrand = "Pantry",
+                rawJson = "{}",
+                quality = "verified",
+                linkedFoodId = foodId,
+                fetchedAtEpochMillis = 1L,
+            ),
+        )
+        return ReferencedFoodGraph(foodId, mealItemId, templateId, recipeId, barcode)
+    }
+
+    private data class ReferencedFoodGraph(
+        val foodId: String,
+        val mealItemId: String,
+        val templateId: String,
+        val recipeId: String,
+        val barcode: String,
+    )
 
     private fun foundProduct(
         barcode: String = "1234567890123",

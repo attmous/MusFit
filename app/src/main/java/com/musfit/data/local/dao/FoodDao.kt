@@ -2,9 +2,8 @@ package com.musfit.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
@@ -198,7 +197,7 @@ interface FoodDao {
     @Query("SELECT * FROM meal_definitions WHERE id = :mealId LIMIT 1")
     suspend fun getMealDefinition(mealId: String): MealDefinitionEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertMealDefinition(definition: MealDefinitionEntity)
 
     @Query("SELECT * FROM meal_items WHERE mealId = :mealId")
@@ -417,7 +416,7 @@ interface FoodDao {
     @Query("SELECT * FROM food_goals WHERE id = :id LIMIT 1")
     suspend fun getFoodGoal(id: String): FoodGoalEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertFoodGoal(goal: FoodGoalEntity)
 
     @Query("SELECT * FROM food_health_connect_sync WHERE `key` = :key LIMIT 1")
@@ -426,7 +425,7 @@ interface FoodDao {
     @Query("SELECT * FROM food_health_connect_sync WHERE `key` = :key LIMIT 1")
     suspend fun getFoodHealthConnectSyncState(key: String): FoodHealthConnectSyncEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertFoodHealthConnectSyncState(state: FoodHealthConnectSyncEntity)
 
     @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE dateEpochDay = :dateEpochDay")
@@ -443,7 +442,7 @@ interface FoodDao {
     )
     fun observeWaterTotalsForDateRange(startEpochDay: Long, endEpochDay: Long): Flow<List<WaterTotalRow>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertWaterEntry(entry: WaterEntryEntity)
 
     @Query("SELECT * FROM quick_calorie_presets ORDER BY isFavorite DESC, updatedAtEpochMillis DESC, name")
@@ -467,7 +466,7 @@ interface FoodDao {
     @Query("SELECT * FROM shopping_list_items WHERE isManual = 0")
     suspend fun getGeneratedShoppingListItems(): List<ShoppingListItemEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertShoppingListItem(item: ShoppingListItemEntity)
 
     @Query("UPDATE shopping_list_items SET isChecked = :isChecked, updatedAtEpochMillis = :updatedAtEpochMillis WHERE id = :itemId")
@@ -476,7 +475,7 @@ interface FoodDao {
     @Query("DELETE FROM shopping_list_items WHERE id = :itemId")
     suspend fun deleteShoppingListItemById(itemId: String): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertQuickCaloriePreset(preset: QuickCaloriePresetEntity)
 
     @Query(
@@ -532,7 +531,7 @@ interface FoodDao {
     @Query("SELECT * FROM meal_templates WHERE id = :templateId LIMIT 1")
     suspend fun getMealTemplate(templateId: String): MealTemplateEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertMealTemplate(template: MealTemplateEntity)
 
     @Query(
@@ -558,7 +557,7 @@ interface FoodDao {
         updatedAtEpochMillis: Long,
     ): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertMealTemplateItem(item: MealTemplateItemEntity)
 
     @Query("DELETE FROM meal_template_items WHERE templateId = :templateId")
@@ -656,7 +655,7 @@ interface FoodDao {
     @Query("SELECT * FROM recipes WHERE lower(name) = lower(:name) ORDER BY updatedAtEpochMillis DESC LIMIT 1")
     suspend fun getRecipeByName(name: String): RecipeEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertRecipe(recipe: RecipeEntity)
 
     @Query(
@@ -670,7 +669,7 @@ interface FoodDao {
         updatedAtEpochMillis: Long,
     ): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertRecipeIngredient(ingredient: RecipeIngredientEntity)
 
     @Query("DELETE FROM recipe_ingredients WHERE recipeId = :recipeId")
@@ -703,18 +702,28 @@ interface FoodDao {
     @Query("UPDATE meal_items SET status = :status WHERE id = :mealItemId")
     suspend fun updateMealItemStatus(mealItemId: String, status: String): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertFood(food: FoodEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Query(
+        "UPDATE foods SET isFavorite = :isFavorite, updatedAtEpochMillis = :updatedAtEpochMillis " +
+            "WHERE id = :foodId",
+    )
+    suspend fun updateFoodFavorite(
+        foodId: String,
+        isFavorite: Boolean,
+        updatedAtEpochMillis: Long,
+    ): Int
+
+    @Upsert
     suspend fun upsertServing(serving: FoodServingEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertMeal(meal: MealEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertMealItem(item: MealItemEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertBarcodeProduct(product: BarcodeProductEntity)
 }

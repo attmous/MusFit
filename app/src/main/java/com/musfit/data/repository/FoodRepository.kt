@@ -912,8 +912,13 @@ class LocalFoodRepository @Inject constructor(
     override suspend fun toggleFavoriteFood(foodId: String, isFavorite: Boolean) {
         require(foodId.isNotBlank()) { "Food id is required" }
         database.withTransaction {
-            val food = foodDao.getFood(foodId) ?: error("Saved food not found")
-            foodDao.upsertFood(food.copy(isFavorite = isFavorite, updatedAtEpochMillis = System.currentTimeMillis()))
+            val updatedCount =
+                foodDao.updateFoodFavorite(
+                    foodId = foodId,
+                    isFavorite = isFavorite,
+                    updatedAtEpochMillis = System.currentTimeMillis(),
+                )
+            check(updatedCount > 0) { "Saved food not found" }
         }
     }
 
@@ -1285,6 +1290,8 @@ class LocalFoodRepository @Inject constructor(
                 updatedAtEpochMillis = now,
             )
             check(updatedCount > 0) { "Template not found" }
+            // This is an intentional whole-list replacement. The enclosing transaction restores
+            // both the original template metadata and every item if validation or insertion fails.
             foodDao.deleteMealTemplateItems(input.templateId)
             input.items.forEachIndexed { index, item ->
                 foodDao.getFood(item.foodId) ?: error("Template item food not found")
@@ -1476,6 +1483,8 @@ class LocalFoodRepository @Inject constructor(
                     isFavorite = existing?.isFavorite ?: false,
                 ),
             )
+            // Recipe ingredients are an owned collection and are replaced as one atomic graph.
+            // A later validation/write failure rolls back both this parent edit and every child row.
             foodDao.deleteRecipeIngredients(recipeId)
             input.ingredients.forEachIndexed { index, ingredient ->
                 foodDao.getFood(ingredient.foodId) ?: error("Ingredient food not found")
@@ -1828,16 +1837,20 @@ class LocalFoodRepository @Inject constructor(
     }
 
     private suspend fun replaceServings(foodId: String, servings: List<FoodServingInput>) {
-        foodDao.deleteServingsForFood(foodId)
-        servings.forEachIndexed { index, serving ->
-            foodDao.upsertServing(
-                FoodServingEntity(
-                    id = "$foodId:serving:$index",
-                    foodId = foodId,
-                    label = serving.label.trim().ifBlank { servingLabel(serving.grams) },
-                    grams = serving.grams,
-                ),
-            )
+        // Servings are an owned collection. Keep the delete/recreate behavior atomic even if a
+        // future caller does not already have an outer repository transaction.
+        database.withTransaction {
+            foodDao.deleteServingsForFood(foodId)
+            servings.forEachIndexed { index, serving ->
+                foodDao.upsertServing(
+                    FoodServingEntity(
+                        id = "$foodId:serving:$index",
+                        foodId = foodId,
+                        label = serving.label.trim().ifBlank { servingLabel(serving.grams) },
+                        grams = serving.grams,
+                    ),
+                )
+            }
         }
     }
 
