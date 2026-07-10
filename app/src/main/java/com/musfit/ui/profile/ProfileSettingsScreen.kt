@@ -3,6 +3,7 @@ package com.musfit.ui.profile
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,6 +64,9 @@ import com.musfit.BuildConfig
 import com.musfit.domain.health.StepSource
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.SectionHeader
+import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION
+import com.musfit.ui.permissions.hasLocalNetworkPermission
+import com.musfit.ui.permissions.requiresLocalNetworkPermission
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -81,6 +85,15 @@ fun ProfileSettingsScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
     ) { viewModel.refreshStatus() }
+    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            viewModel.testAiCoachConnection()
+        } else {
+            viewModel.reportAiCoachLocalNetworkPermissionDenied()
+        }
+    }
     val signInActions = providerSignInActions(
         googleConfigured = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank(),
         githubConfigured = state.isGitHubSignInConfigured,
@@ -131,9 +144,19 @@ fun ProfileSettingsScreen(
             AiCoachSettingsSection(
                 state = state.aiCoach,
                 isTesting = state.isAiCoachTesting,
+                message = state.aiCoachMessage,
                 onEdit = viewModel::openAiCoachEditor,
                 onClearApiKey = viewModel::clearAiCoachApiKey,
-                onTestConnection = viewModel::testAiCoachConnection,
+                onTestConnection = {
+                    if (
+                        requiresLocalNetworkPermission(state.aiCoach.providerKind) &&
+                        !hasLocalNetworkPermission(context)
+                    ) {
+                        localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION)
+                    } else {
+                        viewModel.testAiCoachConnection()
+                    }
+                },
             )
 
             SectionHeader(title = "Health Connect")

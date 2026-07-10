@@ -41,6 +41,7 @@ import com.musfit.ui.theme.tabAccentFor
 fun AiCoachSettingsSection(
     state: AiCoachSettingsUiState,
     isTesting: Boolean,
+    message: String?,
     onEdit: () -> Unit,
     onClearApiKey: () -> Unit,
     onTestConnection: () -> Unit,
@@ -87,6 +88,13 @@ fun AiCoachSettingsSection(
                 SettingsRow(label = "Model", value = state.modelLabel)
                 HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
                 SettingsRow(label = "API key", value = state.apiKeyLabel)
+            }
+            if (message != null) {
+                Text(
+                    text = message,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
