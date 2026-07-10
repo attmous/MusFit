@@ -14,8 +14,6 @@
 . .\.superpowers\sdd\android-env.ps1
 ```
 
-If Gradle fails with `AccessDeniedException` / `Cannot snapshot` under `app/build`, that's the OneDrive issue — recover per `AGENTS.md` (stop daemon, delete `app/build`, rerun).
-
 ---
 
 ## File structure

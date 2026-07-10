@@ -14,8 +14,8 @@
 
 ## Process constraints
 
-- Work in a git worktree **outside OneDrive** (e.g. `C:\Users\att1a\.mfwt\m3e1`, short path) — OneDrive syncs `.worktrees/**/app/build`, causing Gradle `AccessDenied` and locking cleanup. Source the env from the main tree: `. C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1`.
-- Full gate: `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain`. OneDrive recovery if needed: `--stop`, delete `app/build`, rerun.
+- Work in an isolated git worktree so concurrent changes remain untouched. Source the environment with `. .\scripts\android\android-env.ps1`.
+- Full gate: `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain`.
 - On-device verification needs **light + dark** screenshots (toggle system dark mode via `adb shell "cmd uimode night yes|no"`). Screenshot via `adb exec-out`/`adb pull` (PowerShell `>` corrupts PNGs). Pixel 8 Pro is 1344×2992.
 - Colour values below are a starting point — tune on-device during this pilot (spec allows).
 

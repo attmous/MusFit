@@ -155,13 +155,7 @@ Run:
 ```powershell
 .\gradlew.bat compileDebugKotlin --no-daemon --console=plain
 ```
-Expected: `BUILD SUCCESSFUL`. If it fails with `AccessDeniedException` / `Cannot snapshot` / `not a regular file` under `app/build`, that's the OneDrive/Gradle caveat — recover and retry:
-```powershell
-.\gradlew.bat --stop
-Start-Sleep -Seconds 3
-Remove-Item -LiteralPath (Resolve-Path 'app\build').Path -Recurse -Force
-.\gradlew.bat compileDebugKotlin --no-daemon --console=plain
-```
+Expected: `BUILD SUCCESSFUL`.
 
 - [ ] **Step 5: Commit**
 
@@ -304,7 +298,7 @@ Run:
 ```powershell
 .\gradlew.bat compileDebugKotlin --no-daemon --console=plain
 ```
-Expected: `BUILD SUCCESSFUL`. (On the OneDrive/Gradle error, recover per Task 1 Step 4 and retry.)
+Expected: `BUILD SUCCESSFUL`.
 
 - [ ] **Step 3: Commit**
 
@@ -484,7 +478,7 @@ Run:
 ```powershell
 .\gradlew.bat compileDebugKotlin --no-daemon --console=plain
 ```
-Expected: `BUILD SUCCESSFUL`. (On the OneDrive/Gradle error, recover per Task 1 Step 4 and retry.)
+Expected: `BUILD SUCCESSFUL`.
 
 - [ ] **Step 5: Commit**
 
@@ -505,7 +499,7 @@ Run:
 ```powershell
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
 ```
-Expected: `BUILD SUCCESSFUL`; `FoodViewModelTest` and the rest of `testDebugUnitTest` pass; `lintDebug` reports no new errors; APK at `app/build/outputs/apk/debug/app-debug.apk`. (On the OneDrive/Gradle error, recover per Task 1 Step 4 and retry.)
+Expected: `BUILD SUCCESSFUL`; `FoodViewModelTest` and the rest of `testDebugUnitTest` pass; `lintDebug` reports no new errors; APK at `app/build/outputs/apk/debug/app-debug.apk`.
 
 - [ ] **Step 2: Install and open on the dev phone**
 

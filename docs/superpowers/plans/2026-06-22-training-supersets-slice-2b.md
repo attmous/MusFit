@@ -97,7 +97,7 @@
 - [ ] **Step 5.** Thread callbacks `TrainingActiveWorkoutContent` → `TrainingScreen.kt`: `onMakeSuperset = viewModel::makeSupersetWithNext`, `onDissolveSuperset = viewModel::dissolveSuperset`.
 
 ### Task 8: Full verification + device + commit
-- [ ] `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain` → green. (OneDrive AccessDenied → `--stop`, delete `app/build`, rerun.)
+- [ ] `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain` → green.
 - [ ] On the dev phone: start a workout with 2+ exercises → "Make superset with next" → Indigo grouped card with A/B badges; add a set inside it (stays grouped); dissolve → back to two standalone blocks.
 - [ ] Commit `feat(training): supersets — pair exercises in the active-workout logger (v19)` including `19.json`.
 

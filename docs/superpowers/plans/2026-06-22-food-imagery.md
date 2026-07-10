@@ -215,7 +215,7 @@ private fun FoodThumb(
 
 ## Task 7: Verify & screenshots
 
-- [ ] **Step 1** — Build gate green (OneDrive recovery if needed).
+- [ ] **Step 1** — Build gate green.
 - [ ] **Step 2** — Install; import an online food / scan a barcode that has a photo; confirm the thumbnail
   renders on the diary row and in the food database; confirm manual/quick foods show the category fallback.
 - [ ] **Step 3** — Screenshot Food with a photo-backed entry and the food database.

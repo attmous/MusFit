@@ -18,8 +18,6 @@
 ```powershell
 . 'C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1'
 ```
-OneDrive `app\build` flakiness: `.\gradlew.bat --stop`, wait, delete `app\build`, rerun.
-
 ---
 
 ## File Structure
@@ -198,7 +196,7 @@ Remove the entire `@Composable private fun FoodSummaryHeader(...) { ... }` (the 
 ```powershell
 . 'C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1'; if ($?) { .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain }
 ```
-Expected: `BUILD SUCCESSFUL`, all existing tests green (no test changes — behavior-preserving), lint clean. If Gradle fails on `app\build` (OneDrive), recover once (`--stop`, delete `app\build`, re-source env, rerun).
+Expected: `BUILD SUCCESSFUL`, all existing tests green (no test changes — behavior-preserving), lint clean.
 
 Also confirm no now-unused imports remain (e.g. if `Brush`/`brandGradient` were used only by the deleted `FoodSummaryHeader`, remove the unused import — but verify by search first; `brandInk`/`brandGradient` may still be used elsewhere in the file).
 

@@ -18,7 +18,7 @@
 - Before Gradle/adb on Windows, run `. .\.superpowers\sdd\android-env.ps1` when that local file exists.
 - Focused test run: `.\gradlew.bat testDebugUnitTest --tests "<fqcn>" --no-daemon --console=plain`.
 - Full verification (run before claiming completion or pushing): `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain`.
-- If Gradle fails on generated output under `app/build` with `AccessDeniedException`/`Cannot snapshot`/`not a regular file`, recover with `.\gradlew.bat --stop`, wait, delete `app/build`, then rerun.
+- If Gradle fails because generated output is stale, run `.\scripts\dev\clean-generated.ps1`, then rerun.
 
 ---
 

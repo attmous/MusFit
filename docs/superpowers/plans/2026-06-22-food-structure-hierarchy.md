@@ -483,7 +483,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ## Task 7: Full verification & screenshots
 
-- [ ] **Step 1: Full gate** — `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain` → BUILD SUCCESSFUL. (OneDrive `AccessDenied` recovery: stop daemon, delete `app/build`, retry.)
+- [ ] **Step 1: Full gate** — `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain` → BUILD SUCCESSFUL.
 - [ ] **Step 2: Install** — `adb install -r app\build\outputs\apk\debug\app-debug.apk` then launch.
 - [ ] **Step 3: Screenshots** (via `adb exec-out screencap -p > file.png`, animations off for reliable taps): Food collapsed, Food with "More" expanded, a meal-detail screen, and the four tabs showing the new nav icons.
 - [ ] **Step 4: Confirm** — meals sit under the macros; secondary content hidden until "More"; header shows overflow menu + date nav; coral FAB present and opens the add flow; category icons + coral add render; nav shows real icons. No regressions on the other tabs.

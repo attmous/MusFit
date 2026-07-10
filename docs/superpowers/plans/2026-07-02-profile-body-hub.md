@@ -16,8 +16,6 @@
 . C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1; .\gradlew.bat <targets> --no-daemon --console=plain
 ```
 
-OneDrive recovery (environmental `AccessDeniedException`/`Cannot snapshot` under `app/build`): `.\gradlew.bat --stop; Start-Sleep -Seconds 3; Remove-Item -LiteralPath (Resolve-Path 'app\build').Path -Recurse -Force`, rerun (≤3 attempts).
-
 ---
 
 ## File structure

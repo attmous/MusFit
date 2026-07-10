@@ -81,7 +81,7 @@ The implementation plan written now covers **Phase 1**; Phases 2–3 get their o
 - **APK size** from bundled variable fonts (~0.5–1 MB). Acceptable for offline-first; revisit only if it becomes an issue.
 - **Hardcoded colors** that bypass `MusFitTheme.colors` will break in dark. Mitigation: a grep/audit task per phase to route them through tokens.
 - **Scope** is multi-session; Food is the long pole. Mitigation: phased plans, each independently shippable.
-- **Build/process:** implement in a git worktree **outside OneDrive** (recurring constraint: OneDrive syncs `.worktrees/**/app/build`, causing Gradle `AccessDenied` and locking cleanup). Source the env from the main tree. Run the full Gradle gate; capture **light + dark** on-device screenshots.
+- **Build/process:** implement in an isolated git worktree to protect concurrent changes. Source `. .\scripts\android\android-env.ps1`, run the full Gradle gate, and capture **light + dark** on-device screenshots.
 
 ## Verification
 
