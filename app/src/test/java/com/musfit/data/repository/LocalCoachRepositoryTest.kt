@@ -180,6 +180,14 @@ class LocalCoachRepositoryTest {
             listOf(TodayMetric.Weight, TodayMetric.Water),
             repository.observeDashboardPins().first(),
         )
+
+        // dashboard_pins is a relationship-free snapshot table. Replacing an overlapping
+        // snapshot is intentional and must atomically rewrite positions without duplicates.
+        repository.saveDashboardPins(listOf(TodayMetric.Water, TodayMetric.Steps))
+        assertEquals(
+            listOf(TodayMetric.Water, TodayMetric.Steps),
+            repository.observeDashboardPins().first(),
+        )
     }
 
     @Test

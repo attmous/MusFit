@@ -1299,12 +1299,8 @@ class LocalTrainingRepository @Inject constructor(
         return session
     }
 
-    private suspend fun upsertWorkoutRoutine(routine: RoutineEntity) {
-        val inserted = trainingDao.insertRoutine(routine)
-        if (inserted == -1L) {
-            trainingDao.updateRoutine(routine)
-        }
-    }
+    private suspend fun upsertWorkoutRoutine(routine: RoutineEntity) =
+        trainingDao.upsertRoutine(routine)
 
     private suspend fun saveRoutine(
         routineId: String,
@@ -1403,12 +1399,8 @@ class LocalTrainingRepository @Inject constructor(
         return session.id
     }
 
-    private suspend fun upsertWorkoutSession(session: WorkoutSessionEntity) {
-        val inserted = trainingDao.insertWorkoutSession(session)
-        if (inserted == -1L) {
-            trainingDao.updateWorkoutSession(session)
-        }
-    }
+    private suspend fun upsertWorkoutSession(session: WorkoutSessionEntity) =
+        trainingDao.upsertWorkoutSession(session)
 
     private companion object {
         const val DEFAULT_EXERCISE_NAME = "Custom exercise"

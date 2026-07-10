@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
@@ -480,19 +481,19 @@ interface TrainingDao {
         endEpochMillis: Long,
     ): Flow<List<WorkoutSetEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertExercise(exercise: ExerciseEntity)
 
     @Update
     suspend fun updateExercise(exercise: ExerciseEntity): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertExercises(exercises: List<ExerciseEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertRoutine(routine: RoutineEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertRoutineFolder(folder: RoutineFolderEntity)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -507,19 +508,19 @@ interface TrainingDao {
     @Update
     suspend fun updateRoutine(routine: RoutineEntity): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertRoutines(routines: List<RoutineEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertRoutineExercise(routineExercise: RoutineExerciseEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertRoutineExercises(routineExercises: List<RoutineExerciseEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertRoutineExerciseSets(routineExerciseSets: List<RoutineExerciseSetEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertWorkoutSession(session: WorkoutSessionEntity)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -528,10 +529,10 @@ interface TrainingDao {
     @Update
     suspend fun updateWorkoutSession(session: WorkoutSessionEntity): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertWorkoutSet(set: WorkoutSetEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertTrainingSettings(settings: TrainingSettingsEntity)
 
     @Query("UPDATE workout_sets SET completed = :completed WHERE id = :setId")

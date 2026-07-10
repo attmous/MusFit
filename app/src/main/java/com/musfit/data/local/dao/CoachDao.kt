@@ -42,6 +42,8 @@ interface CoachDao {
     @Query("DELETE FROM dashboard_pins")
     suspend fun clearPins()
 
+    // Intentional leaf replacement: dashboard_pins has no dependents or foreign keys, and
+    // replacePins clears and rebuilds the complete ordered snapshot in one transaction.
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPins(pins: List<DashboardPinEntity>)
 

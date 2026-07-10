@@ -1,11 +1,10 @@
 package com.musfit.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import com.musfit.data.local.entity.AiCoachChatMessageEntity
 import com.musfit.data.local.entity.AiCoachThreadEntity
 import kotlinx.coroutines.flow.Flow
@@ -24,7 +23,7 @@ interface AiCoachChatDao {
     )
     fun observeThread(accountId: String, providerKind: String, localAgentKind: String): Flow<AiCoachThreadEntity?>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertThread(thread: AiCoachThreadEntity)
 
     @Update
@@ -42,7 +41,7 @@ interface AiCoachChatDao {
     )
     suspend fun getRecentMessages(threadId: String, limit: Int): List<AiCoachChatMessageEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertMessage(message: AiCoachChatMessageEntity)
 
     @Update
