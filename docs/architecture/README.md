@@ -1,6 +1,9 @@
 # MusFit App Architecture
 
-This documentation describes the current MusFit Android app architecture as implemented in source on 2026-07-03. It is intended for product planning, engineering handoff, and future feature work.
+This is the living map of the current MusFit Android architecture. Stable facts
+such as routes, schema continuity, and workflow paths are checked against source
+by `scripts/dev/test-dev-workflow.ps1`. The dated full-app audit below records a
+deeper snapshot and the remediation backlog derived from it.
 
 Related documents:
 
@@ -17,12 +20,15 @@ Top-level navigation is a bottom bar with four destinations:
 
 | Destination | Route | Purpose |
 | --- | --- | --- |
-| Today | `today` | Daily dashboard, rings, coaching cues, weekly goals, and shortcuts into feature areas. |
-| Food | `food` | Food diary, add food flow, saved foods, barcode lookup, nutrition goals, water, templates, recipes, shopping list, and food Health Connect sync. |
+| Today | `today` | Configurable metric carousel, readiness, dashboard editor, deterministic coach feed, and feature shortcuts. |
+| Food | `food` | Food diary, add food flow, saved foods, barcode lookup, nutrition goals, water, templates, recipes, shopping list, and Food Health Connect sync UI/boundary. |
 | Training | `training` | Routines, exercise library, active workouts, rest timer, supersets, PR/plate hints, workout history/recaps, progress, and quick set logging. |
-| Health | `health` | Health Connect status, permission entrypoint, recent health import, and workout export. |
+| Profile | `profile` | Body/progress hub, account identity, goals, coach configuration, app settings, and Health Connect controls. |
 
-The MVP is local-first. It has a local account ownership boundary with optional Google/GitHub identity sign-in, but no cloud sync, analytics, subscription layer, social features, or wearable cloud API integration.
+The MVP is local-first. It has local account/session identity plus optional
+Google/GitHub identity sign-in, but no cloud sync, analytics, subscription
+layer, social features, or wearable cloud API integration. Full per-account data
+isolation is not implemented yet; see the architecture audit.
 
 ## Platform
 
@@ -32,7 +38,7 @@ The MVP is local-first. It has a local account ownership boundary with optional 
 | UI | Jetpack Compose with Material 3 |
 | Navigation | Navigation Compose, single activity |
 | State | Hilt ViewModels exposing immutable `StateFlow` UI state |
-| Storage | Room local database, schema version 30 |
+| Storage | Room local database with exported, migration-only schemas |
 | Async | Kotlin coroutines and Flow |
 | DI | Hilt |
 | Food remote data | Retrofit and Moshi client for Open Food Facts |
@@ -55,14 +61,19 @@ The MVP is local-first. It has a local account ownership boundary with optional 
 | `app/src/main/java/com/musfit/data/local/` | Room database, DAOs, entities, and query projection rows. |
 | `app/src/main/java/com/musfit/data/remote/food/` | Open Food Facts provider interface and Retrofit implementation models. |
 | `app/src/main/java/com/musfit/data/remote/auth/` | GitHub OAuth device flow Retrofit API models. |
+| `app/src/main/java/com/musfit/data/remote/coach/` | OpenAI-compatible/Hermes coach transport and completion client. |
 | `app/src/main/java/com/musfit/domain/` | Pure Kotlin domain models and calculators. No Android, Compose, Retrofit, Room, or Health Connect dependencies. |
 | `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect gateway, record mapping, and permission rationale activity. |
 | `app/src/test/java/com/musfit/` | Unit tests for ViewModels, repositories, DAOs, domain calculators, and integration boundaries. |
-| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Exported Room schema JSON files for versions 1 through 30. |
+| `app/src/androidTest/java/com/musfit/` | Device/instrumentation tests, including the non-distributed debug seed boundary. |
+| `app/schemas/com.musfit.data.local.MusFitDatabase/` | Contiguous exported Room schema JSON files through the version declared in `MusFitDatabase.kt`. |
 
 ## Layering
 
-Dependencies flow inward from UI to data sources. Domain helpers stay pure and are used from repositories and ViewModels where appropriate.
+Dependencies are intended to flow inward from UI to data sources. Domain helpers
+stay pure and are used from repositories and ViewModels where appropriate. The
+July 2026 audit documents current cross-feature and integration leaks that still
+need remediation.
 
 ```mermaid
 flowchart TD
@@ -74,7 +85,7 @@ flowchart TD
     LocalRepos["Local repository implementations"]
     DAOs["Room DAOs"]
     DB["Room database"]
-    Remote["Open Food Facts provider"]
+    Remote["Remote providers and coach client"]
     AuthRemote["External identity APIs"]
     Health["Health Connect gateway"]
     Domain["Pure domain calculators"]
@@ -105,14 +116,22 @@ setContent {
 }
 ```
 
-`AppNavGraph` owns a `NavController`, renders the bottom `NavigationBar`, and defines routes:
+`AppNavGraph` owns a `NavController`, renders the custom `MusFitBottomNav`, and
+defines the top-level routes:
 
 - `today`
 - `food`
 - `training`
-- `health`
+- `profile`
+
+Profile also owns `profile-settings`, `profile-training-progress`, and
+`profile-nutrition-trends` routes. Food owns the scanner routes:
+
 - `barcode-scanner`
 - `nutrition-label-scanner`
+
+The app shell also exposes a global coach action in `MusFitBottomNav` and mounts
+`ChatPreviewSheet` above the current destination.
 
 Barcode and nutrition-label scanner routes return simple strings through `rememberSaveable` state held in `AppNavGraph`. `FoodScreen` receives those strings as parameters, forwards them into `FoodViewModel`, then calls consume callbacks so the same scan is not processed twice.
 
@@ -123,28 +142,28 @@ Hilt modules live under `core/di`.
 | Module | Responsibility |
 | --- | --- |
 | `DatabaseModule` | Builds `MusFitDatabase`, registers all migrations, and provides DAOs. |
-| `RepositoryModule` | Binds repository interfaces to local implementations: Account, ExternalAuth, Food, Training, Health, Goals. |
-| `NetworkModule` | Provides Moshi, OkHttp, auth config, Open Food Facts Retrofit API, GitHub auth Retrofit API, and binds `FoodProductProvider`. |
+| `RepositoryModule` | Binds account/auth, AI coach/chat, coach feed, Food, Training, Health, Profile, Goals, secret-store, and exercise-dataset boundaries. |
+| `NetworkModule` | Provides Moshi, OkHttp, auth config, Open Food Facts and GitHub Retrofit APIs, and binds the Food product and coach-completion clients. |
+| `AiCoachConfigModule` | Provides optional debug-only local-agent defaults from local configuration. |
 | `HealthModule` | Binds `HealthConnectGateway` to `HealthConnectManager`. |
 
 Repositories are injected into ViewModels. DAOs, remote providers, and gateways are injected into repository implementations.
 
 ## State Management
 
-Each feature screen follows the same general pattern:
-
-1. A `@HiltViewModel` owns a private `MutableStateFlow`.
-2. The public UI contract is `val state: StateFlow<...UiState> = mutableState.asStateFlow()`.
-3. Compose screens call `collectAsState()`.
-4. User events call ViewModel methods.
-5. ViewModels call repository methods inside `viewModelScope.launch`.
-6. Repository reads are exposed as `Flow` and collected by the ViewModel.
+Feature screens generally expose immutable observable state from a
+`@HiltViewModel`. Some ViewModels wrap a private `MutableStateFlow`; others
+combine repository flows and materialize them with `stateIn`. Compose collects
+that state, user events call ViewModel methods, and repositories expose Flow
+reads plus suspend/write APIs.
 
 Food and Today use date-scoped Flow collection. Food owns a `selectedDateFlow` and switches diary, plan, and water streams with `flatMapLatest`.
 
 ## Persistence
 
-The database is `MusFitDatabase`, version 30, with `exportSchema = true`.
+The database is `MusFitDatabase` with `exportSchema = true`. Derive its current
+version from `app/src/main/java/com/musfit/data/local/MusFitDatabase.kt`; the
+newest committed schema file must match it.
 
 Major table groups:
 
@@ -152,9 +171,12 @@ Major table groups:
 - Food: foods, servings, meals, meal items, barcode products, goals, quick presets, meal definitions, templates, recipes, shopping list, water entries, food Health Connect sync state.
 - Training: exercises, routines, routine exercises, workout sessions, workout sets with set type, RPE, notes, completion state, optional superset grouping, and local tool settings.
 - Health: body metrics, daily health summaries, Health Connect sync state.
-- Today goals: user goals.
+- Profile/Today: profile and app settings, user goals, coach-feed messages, and dashboard pin order.
+- AI coach: provider settings plus account/provider-scoped chat threads and messages; runtime-entered secrets are stored outside Room.
 
-Room migrations are registered from version 1 to 30 in `DatabaseModule`. The app does not use destructive migration fallback, so schema changes must include a migration and a committed schema JSON.
+Room migrations are registered from version 1 through the current version in
+`DatabaseModule`. The app does not use destructive migration fallback, so schema
+changes must include a registered migration and a committed schema JSON.
 
 ### Training Persistence Notes
 
@@ -178,6 +200,15 @@ Food product lookup is hidden behind `FoodProductProvider`.
 - `searchProducts(query, pageSize)` returns `ProductSearchResult.Success` or `Failed`.
 - The Retrofit API calls `https://world.openfoodfacts.org/api/v2/product/{barcode}.json` and `https://search.openfoodfacts.org/search`.
 
+### AI Coach
+
+The global coach uses `AiCoachRepository` for configured provider/agent metadata,
+`AiCoachChatRepository` for local thread history and orchestration, and
+`CoachCompletionClient` for the configured OpenAI-compatible or local-agent
+endpoint. Runtime-entered keys use the local `AiCoachSecretStore`. The optional
+debug Hermes key can still be compiled into `BuildConfig`; SEC-003 tracks removal
+of that exception.
+
 ### Camera And ML Kit
 
 `BarcodeScannerScreen` uses CameraX preview and ML Kit barcode recognition for EAN/UPC formats. `NutritionLabelScannerScreen` uses CameraX preview and ML Kit text recognition, returning raw OCR text to Food. The Food domain parser then performs best-effort macro extraction and still requires user review before save.
@@ -193,7 +224,10 @@ The app currently supports:
 - Exporting completed workouts.
 - Food and hydration export boundary through `HealthConnectFoodExportPayload`.
 
-The Food sync card handles availability, permission summary, enable/disable state, last sync, and sync errors.
+The Food sync card handles availability, permission summary, enable/disable
+state, last sync, and sync errors. The July 2026 audit records that the main
+manifest still lacks the nutrition/hydration write declarations, so that export
+path is not fully operational until HC-001 is resolved.
 
 ## Theme And Design System
 
@@ -207,7 +241,7 @@ The Food sync card handles availability, permission summary, enable/disable stat
 The current implementation ships light and dark token sets, selected through
 `isSystemInDarkTheme()`. The app uses a stable-Compose interpretation of
 Material 3 Expressive: standard `MaterialTheme`, fixed MusFit tab accents,
-Google Sans Flex display/title type, rounded content cards, and spring motion
+Roboto Flex display/title type, rounded content cards, and spring motion
 tokens.
 
 Design-system guidance:
@@ -228,16 +262,18 @@ UI direction:
 | Test type | Location | Purpose |
 | --- | --- | --- |
 | ViewModel tests | `app/src/test/java/com/musfit/ui/...` | UI state and action behavior using fake repositories/providers. |
-| Repository tests | `app/src/test/java/com/musfit/data/repository/...` | Local repository behavior against in-memory Room. |
-| DAO/database tests | `app/src/test/java/com/musfit/data/local/...` | Room migrations, schemas, queries, and persistence behavior. |
+| Repository tests | `app/src/test/java/com/musfit/data/repository/...` | Local repository behavior against current-schema in-memory Room. |
+| DAO/database tests | `app/src/test/java/com/musfit/data/local/...` | Current-schema queries, transactions, and persistence behavior. |
+| Migration tests | `app/src/test/java/com/musfit/data/local/*Migration*Test.kt` | Selected exported-schema transitions and migration regressions. |
 | Domain tests | `app/src/test/java/com/musfit/domain/...` | Pure calculator and parser behavior. |
 | Integration-boundary tests | `app/src/test/java/com/musfit/integrations/...` | Health Connect mapping and gateway assumptions. |
+| Instrumentation tests | `app/src/androidTest/java/com/musfit/...` | Device-only contracts and approved emulator seeding; compiled by the full gate but not distributed by CI. |
 
 Windows verification command:
 
 ```powershell
 . .\scripts\android\android-env.ps1
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-daemon --console=plain
 ```
 
 ## Architectural Decisions
@@ -250,4 +286,5 @@ Windows verification command:
 - Prefer Flow from DAOs to ViewModels for live UI updates.
 - Use Room transactions for multi-step writes.
 - Store food nutrition primarily per 100 g and derive logged quantities from gram amounts.
-- Avoid adding cross-cutting abstractions until the existing feature files create a concrete need.
+- Add cross-cutting abstractions only for a concrete feature need or an explicitly
+  scoped architecture-remediation package with tests.

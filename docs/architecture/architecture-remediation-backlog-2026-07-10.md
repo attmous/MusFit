@@ -12,6 +12,20 @@ No agent should combine packages merely because they are nearby. A package may
 be split further if its red test or file diff proves larger than estimated; it
 must not be silently expanded to another top-level feature.
 
+## Revalidation status
+
+Revalidate every package against current `origin/master` before starting it. At
+`7bb6218`, the first three Wave 1 packages are complete:
+
+| Package | Current status |
+| --- | --- |
+| `W1-SEC-01` | Completed by PR #79 (`266cf1f`; merge `d31d187`) |
+| `W1-DATA-01` | Completed by PR #80 (`976727a`; merge `92ef43a`) |
+| `W1-DATA-02` | Completed by PR #81 (`7f97e7f`; merge `7bb6218`) |
+
+Their original scope and acceptance criteria remain below as implementation
+history and as regression invariants; do not open duplicate remediation work.
+
 ## Common handoff contract
 
 Every package must:
@@ -71,6 +85,7 @@ flowchart LR
 
 ### W1-SEC-01 — Remove the exported seed/data-wipe surface
 
+- **Status:** Completed in PR #79 (`266cf1f`; merge `d31d187`).
 - **Findings/size/key:** SEC-001; M; debug source set, `ci` only for manifest assertion.
 - **Scope:** replace the exported receiver with an instrumentation or non-distributed internal seed interface; keep emulator reset/seed usable.
 - **Dependencies/concurrency:** none; may run with DATA packages; coordinate variant name with W1-REL-01.
@@ -79,6 +94,7 @@ flowchart LR
 
 ### W1-DATA-01 — Replace unsafe Food parent `REPLACE` writers
 
+- **Status:** Completed in PR #80 (`976727a`; merge `92ef43a`).
 - **Findings/size/key:** DATA-001 (Food); M; `food-data`.
 - **Scope:** true upsert/update for foods, meals, templates, recipes, and other parent rows; retain only proven intentional child replacements.
 - **Dependencies/concurrency:** none; parallel with W1-DATA-02; precedes all ownership migrations.
@@ -87,6 +103,7 @@ flowchart LR
 
 ### W1-DATA-02 — Replace unsafe Training/AI parent `REPLACE` writers
 
+- **Status:** Completed in PR #81 (`7f97e7f`; merge `7bb6218`).
 - **Findings/size/key:** DATA-001 (Training/AI); M; `training-data` plus AI DAO files.
 - **Scope:** update-preserving writes for exercises, routines, sessions, folders, chat threads/settings; document safe child replacements.
 - **Dependencies/concurrency:** none; parallel with W1-DATA-01, but serialize any shared DAO module file.

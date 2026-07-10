@@ -4,8 +4,9 @@
 
 ## Verification
 
-- [ ] `.\scripts\dev\verify-musfit.ps1 -Preset Full`
-- [ ] Seeded emulator verified with `.\scripts\dev\verify-musfit.ps1 -Preset None -InstallSeed -ResetSeed`
+- [ ] `.\scripts\dev\test-dev-workflow.ps1 -SelfTest` (when live docs, scripts, or CI changed)
+- [ ] `.\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue`
+- [ ] Seeded emulator verified, or marked N/A with a reason for non-runtime changes
 - [ ] UI-visible changes include screenshot or UI-tree evidence when applicable
 
 ## Notes
