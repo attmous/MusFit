@@ -163,6 +163,9 @@ dependencies {
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+
     testImplementation(libs.junit)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)
@@ -171,3 +174,10 @@ dependencies {
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.robolectric)
 }
+
+// The seed-surface contract reads both installable merged manifests. Keep the
+// generating tasks wired to the focused unit-test lane used locally and in CI.
+tasks.matching { it.name == "testDebugUnitTest" || it.name == "testReleaseUnitTest" }
+    .configureEach {
+        dependsOn("processDebugMainManifest", "processReleaseMainManifest")
+    }
