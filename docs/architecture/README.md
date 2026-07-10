@@ -4,6 +4,8 @@ This documentation describes the current MusFit Android app architecture as impl
 
 Related documents:
 
+- [Full app architecture audit — 2026-07-10](app-architecture-audit-2026-07-10.md)
+- [Architecture remediation backlog — 2026-07-10](architecture-remediation-backlog-2026-07-10.md)
 - [Screen contracts](screen-contracts.md)
 - [Data models](data-models.md)
 
