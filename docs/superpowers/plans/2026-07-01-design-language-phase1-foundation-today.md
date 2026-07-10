@@ -24,8 +24,6 @@ speculatively here.
 . .\.superpowers\sdd\android-env.ps1
 ```
 
-If Gradle fails on `app/build` with `AccessDeniedException` / `Cannot snapshot` (OneDrive flakiness), recover per AGENTS.md (`.\gradlew.bat --stop`, wait, delete `app\build`) and rerun.
-
 ---
 
 ## File Structure

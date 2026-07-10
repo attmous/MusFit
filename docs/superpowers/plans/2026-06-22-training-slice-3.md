@@ -60,7 +60,7 @@
 - [ ] **B8:** Indigo sweep — Save/Cancel/Duplicate/Edit + picker "Add exercise"/suggestions → `accent`; **Delete → `MaterialTheme.colorScheme.error`**; `OutlinedTextField` focus colors → `accent`. Reorder: leading 3.dp Indigo bar (`drawBehind`), numbered index chip (`accent.container`/`onContainer`), move-arrow enabled/disabled tints. Wire `isError` + `supportingText` from `setsError`/`repsError`; `Save enabled = routineEditorCanSave(...)`. UX bundle: keep picker open on non-blank-query add, "(N added)" header, empty-routine hint.
 
 ## Task C: verify + device + commit
-- [ ] `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain` → green. (OneDrive AccessDenied → `--stop`, delete `app/build`, rerun.)
+- [ ] `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain` → green.
 - [ ] On the dev phone: Progress → pick an exercise → line chart renders; toggle Volume/Est-1RM/Heaviest; tap a session → tooltip. Routine editor → Indigo buttons + index chips + leading bar; type a bad set/rep → error helper text + Save disabled.
 - [ ] Commit (`feat(training): progress trend chart + routine-editor polish`).
 

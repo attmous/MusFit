@@ -158,9 +158,6 @@ This is a presentation-only refactor, so verification is build + visual, not new
   so nothing renders pure-white where cream is expected (or vice versa).
 - **Tonal elevation tint** — keeping cards flat (elevation 0) avoids M3 tinting white cards with primary on the
   cream background.
-- **OneDrive/Gradle flakiness** — the known `app/build` `AccessDeniedException`; recover per the documented
-  stop-daemon-and-clean procedure, not by changing code.
-
 ## Definition of done
 
 - Token layer (`Color`, `MusFitColors`, `Type`, `Spacing`, `Shape`, `Theme`) implemented and provided by

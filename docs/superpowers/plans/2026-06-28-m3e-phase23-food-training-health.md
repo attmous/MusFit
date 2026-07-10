@@ -10,7 +10,7 @@
 
 ## Process constraints
 
-Worktree **outside OneDrive** (`C:\Users\att1a\.mfwt\m3e23`). Source env from main tree. Full gate + on-device **light and dark** screenshots (`adb shell "cmd uimode night yes|no"`, pull via `adb`). Stable Compose only — no `material3:1.5.0-alpha`.
+Use an isolated worktree and source `. .\scripts\android\android-env.ps1`. Run the full gate and capture on-device **light and dark** screenshots (`adb shell "cmd uimode night yes|no"`, pull via `adb`). Stable Compose only — no `material3:1.5.0-alpha`.
 
 ---
 

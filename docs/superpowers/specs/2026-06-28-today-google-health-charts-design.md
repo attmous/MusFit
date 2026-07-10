@@ -309,15 +309,14 @@ TDD where the logic is pure; Canvas drawing is verified by build + on-device scr
 
 ## Build / process constraints
 
-- **Isolated worktree outside OneDrive.** All implementation + verification happens in a
-  git worktree created from committed `master`, located outside the OneDrive path. The
+- **Isolated worktree.** All implementation + verification happens in a git worktree
+  created from committed `master`. The
   main working tree currently holds **another session's uncommitted Training WIP that must
   not be touched, committed, or discarded.** Working from a clean worktree keeps this slice
-  independent of that WIP and sidesteps the OneDrive/Gradle `AccessDenied` flakiness.
+  independent of that WIP.
 - **Do not edit any `ui/training/**` or `domain/training/**` file** — `TrendChartScaler` is
   reused by import only. This also avoids colliding with the concurrent Training WIP.
-- Source `. .\.superpowers\sdd\android-env.ps1` before Gradle. OneDrive recovery if needed:
-  `.\gradlew.bat --stop`, delete `app/build`, rerun.
+- Source `. .\scripts\android\android-env.ps1` before Gradle.
 - Deploy: push the verified branch to `origin/master` only when the user asks, advancing
   `master` without disturbing the main tree's WIP (as done previously).
 

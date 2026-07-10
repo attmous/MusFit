@@ -45,9 +45,10 @@ adb shell monkey -p com.musfit -c android.intent.category.LAUNCHER 1
 
 CI (`.github/workflows/android.yml`) runs `testDebugUnitTest lintDebug assembleDebug` for PRs and pushes, uploads the APK as the `musfit-debug-apk` artifact, and runs the full `build` task only for default-branch pushes.
 
-### OneDrive / Gradle caveat
+### Generated-output cleanup
 
-The repo lives under OneDrive. Gradle intermittently fails on **generated output** with `AccessDeniedException`, `Cannot snapshot`, or `not a regular file` under `app/build`. This is environmental, not a code defect. Recover by stopping the daemon and deleting `app/build`, then rerun the verification command:
+If Gradle leaves stale or locked generated files under `app/build`, use the
+repo-owned cleanup helper and then rerun the verification command:
 
 ```powershell
 .\scripts\dev\clean-generated.ps1

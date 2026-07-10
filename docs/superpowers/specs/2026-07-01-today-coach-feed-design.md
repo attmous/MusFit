@@ -356,9 +356,6 @@ Each slice is independently verified (tests + build) before the next.
 - **Dual weight-goal stores** (`user_goals.targetWeightKg` vs
   `user_profile.goalWeightKg`) are bridged, not merged, in this spec —
   reconciliation belongs to the Profile follow-up.
-- **OneDrive/Gradle** flakiness on `app/build` is environmental; recover per
-  `AGENTS.md`.
-
 ## Non-goals
 
 - Real conversational AI, cloud AI, accounts, sync, analytics (local-first).

@@ -533,13 +533,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - [ ] **Step 1: Full build gate**
 
 Run: `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain`
-Expected: BUILD SUCCESSFUL. If it fails with a OneDrive `AccessDeniedException`/`Cannot snapshot` under `app/build`, recover and retry:
-
-```powershell
-.\gradlew.bat --stop
-Start-Sleep -Seconds 3
-Remove-Item -LiteralPath (Resolve-Path 'app\build').Path -Recurse -Force
-```
+Expected: BUILD SUCCESSFUL.
 
 - [ ] **Step 2: Install on the connected device**
 

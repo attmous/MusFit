@@ -1806,29 +1806,6 @@ Run:
 
 Expected: PASS.
 
-If Gradle fails with OneDrive-generated-output errors under `app/build`, use the AGENTS.md cleanup pattern exactly:
-
-```powershell
-.\gradlew.bat --stop
-Start-Sleep -Seconds 3
-$workspace = (Resolve-Path -LiteralPath '.').Path
-$target = Resolve-Path -LiteralPath 'app\build' -ErrorAction SilentlyContinue
-if ($target) {
-  if ($target.Path.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
-    Remove-Item -LiteralPath $target.Path -Recurse -Force -ErrorAction Stop
-  } else {
-    throw "Refusing to remove outside workspace: $($target.Path)"
-  }
-}
-```
-
-Then rerun:
-
-```powershell
-. .\.superpowers\sdd\android-env.ps1
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
-```
-
 - [ ] **Step 6: Commit Task 5**
 
 Run:

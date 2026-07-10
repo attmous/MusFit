@@ -234,8 +234,8 @@ Run the full verification build:
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
 ```
 
-The repo-owned helper runs the same gate and can also retry once after the known
-OneDrive/generated-output cleanup:
+The repo-owned helper runs the same gate and can also clean `app/build` and retry
+once when Gradle reports a generated-output filesystem failure:
 
 ```powershell
 .\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue

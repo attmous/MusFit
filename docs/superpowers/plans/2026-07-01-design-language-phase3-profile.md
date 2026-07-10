@@ -18,8 +18,6 @@
 ```powershell
 . 'C:\Users\att1a\WS\MusFit\.superpowers\sdd\android-env.ps1'
 ```
-OneDrive `app\build` flakiness: `.\gradlew.bat --stop`, wait, delete `app\build`, rerun.
-
 ---
 
 ## File Structure

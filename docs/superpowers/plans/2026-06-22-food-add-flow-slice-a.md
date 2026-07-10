@@ -237,7 +237,7 @@ private fun DailyIntakeCard(state: FoodUiState) {
 
 ## Task 4: Verify & screenshots
 
-- [ ] **Step 1** — Build gate green (OneDrive recovery if needed).
+- [ ] **Step 1** — Build gate green.
 - [ ] **Step 2** — Install; tap a meal "+" / the FAB → the full-screen add view opens. Confirm: search +
   barcode icon, daily-intake card, Recents default (same-as-yesterday / last tracked / all recents),
   Favorites tab, ⋮ → Quick track + Adjust goals. Search filters results; tapping a row logs it. Barcode icon

@@ -14,19 +14,12 @@
 
 ## Process constraints (read first)
 
-- **Work in an isolated git worktree created from committed `master`, located OUTSIDE OneDrive.** The use-git-worktrees skill handles this. The main working tree may hold another session's uncommitted Training WIP — do not touch it.
+- **Work in an isolated git worktree created from committed `master`.** The main working tree may hold another session's uncommitted Training WIP — do not touch it.
 - **Do not edit any file under `ui/training/**` or `domain/training/**`.** `TrendChartScaler` is reused by import only.
 - **Source the toolchain once per shell** before any Gradle command:
   ```powershell
-  . .\.superpowers\sdd\android-env.ps1
+  . .\scripts\android\android-env.ps1
   ```
-- **OneDrive/Gradle recovery** if a build fails with `AccessDenied` / `Cannot snapshot` / `not a regular file`:
-  ```powershell
-  .\gradlew.bat --stop
-  Start-Sleep -Seconds 3
-  Remove-Item -LiteralPath (Resolve-Path 'app\build').Path -Recurse -Force
-  ```
-  then rerun. This is environmental, not a code defect.
 - Each task ends with a commit. Colour rule: the new charts use the Today accent (Coral) via `tabAccentFor(AppDestination.Today)`; the rings keep their per-metric colours (Calories = Emerald/brand, Protein = teal, Steps = blue) and change shape only.
 
 ## File structure
@@ -1155,7 +1148,7 @@ git commit -m "feat(today): lead the dashboard with Google-Health-style charts"
 ```powershell
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
 ```
-Expected: `BUILD SUCCESSFUL`; all unit tests pass; lint clean. (If you hit the OneDrive `AccessDenied`/`Cannot snapshot` flake, run the recovery block from "Process constraints" and rerun — it is environmental.)
+Expected: `BUILD SUCCESSFUL`; all unit tests pass; lint clean.
 
 - [ ] **Step 2: Install and launch on the connected device**
 

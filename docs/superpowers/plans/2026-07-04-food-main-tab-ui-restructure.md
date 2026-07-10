@@ -18,8 +18,6 @@
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
 ```
 
-If Gradle fails on `app/build` with `AccessDeniedException` / `Cannot snapshot` (OneDrive), run the cleanup from `CLAUDE.md` ("OneDrive / Gradle caveat") and rerun.
-
 ---
 
 ## File structure
@@ -721,7 +719,7 @@ git commit -m "feat(food): split More details into Today's summary and Trends; m
 - [ ] **Step 1: Full verification build**
 
 Run: `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain`
-Expected: BUILD SUCCESSFUL, all unit tests PASS. (On OneDrive `AccessDeniedException`, apply the `CLAUDE.md` cleanup and rerun.)
+Expected: BUILD SUCCESSFUL, all unit tests PASS.
 
 - [ ] **Step 2: Install on the seeded emulator/device**
 

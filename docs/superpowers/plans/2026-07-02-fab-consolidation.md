@@ -170,7 +170,7 @@ private fun FabSquare(color: Color, contentColor: Color, onClick: () -> Unit) {
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
 ```
 
-Expected: `BUILD SUCCESSFUL`. If it fails on unresolved references, a still-used import was deleted — re-check Step 1 (only the two `Icons` lines go). If Gradle fails with `AccessDeniedException` / `Cannot snapshot` under `app/build`, that's the OneDrive issue — recover with `.\gradlew.bat --stop`, delete `app\build`, rerun.
+Expected: `BUILD SUCCESSFUL`. If it fails on unresolved references, a still-used import was deleted — re-check Step 1 (only the two `Icons` lines go).
 
 - [ ] **Step 7: Commit**
 
@@ -412,7 +412,7 @@ private fun FloatingPillNav(
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
 ```
 
-Expected: `BUILD SUCCESSFUL`. OneDrive recovery if needed: `.\gradlew.bat --stop`, wait 3 s, `Remove-Item -Recurse -Force app\build`, rerun.
+Expected: `BUILD SUCCESSFUL`.
 
 - [ ] **Step 6: Commit**
 
@@ -596,7 +596,7 @@ to:
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
 ```
 
-Expected: `BUILD SUCCESSFUL`. OneDrive recovery if needed: `.\gradlew.bat --stop`, wait 3 s, `Remove-Item -Recurse -Force app\build`, rerun.
+Expected: `BUILD SUCCESSFUL`.
 
 - [ ] **Step 4: Commit**
 

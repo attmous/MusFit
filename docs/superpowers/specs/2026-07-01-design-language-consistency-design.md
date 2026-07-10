@@ -205,8 +205,6 @@ Presentational work, so the safety net is regression, not new tests:
 - **Dark mode**: both `lightMusFitColors` and `darkMusFitColors` (and light/dark `TabAccent`) must stay correct
   — verify every phase in both modes.
 - **Snackbar on Profile** must survive the `TopAppBar` removal.
-- **OneDrive/Gradle** flakiness on `app/build` is environmental; recover per `AGENTS.md` and rerun.
-
 ## Summary
 
 A shared **scaffold + header**, a reusable **summary card**, and a common **component language** (section

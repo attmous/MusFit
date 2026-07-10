@@ -78,33 +78,14 @@ Known connected phone serial used during development:
 38241FDJG00BLY
 ```
 
-## OneDrive / Gradle Caveat
+## Generated-output cleanup
 
-The repo is under OneDrive. Gradle occasionally fails on generated files with `AccessDeniedException`, `Cannot snapshot`, or `not a regular file` under `app/build`. This has been environmental/generated-output state, not usually a code defect.
-
-Safe cleanup helper:
+If Gradle leaves stale or locked generated files under `app/build`, use the
+repo-owned cleanup helper and then rerun the same verification command:
 
 ```powershell
 .\scripts\dev\clean-generated.ps1
 ```
-
-Manual cleanup pattern:
-
-```powershell
-.\gradlew.bat --stop
-Start-Sleep -Seconds 3
-$workspace = (Resolve-Path -LiteralPath '.').Path
-$target = Resolve-Path -LiteralPath 'app\build' -ErrorAction SilentlyContinue
-if ($target) {
-  if ($target.Path.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
-    Remove-Item -LiteralPath $target.Path -Recurse -Force -ErrorAction Stop
-  } else {
-    throw "Refusing to remove outside workspace: $($target.Path)"
-  }
-}
-```
-
-Then rerun the same verification command.
 
 ## Current Food Miniapp State
 
