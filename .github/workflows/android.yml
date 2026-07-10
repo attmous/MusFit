@@ -24,6 +24,10 @@ jobs:
           # A shallow checkout would collapse it to 1 and break OTA updates.
           fetch-depth: 0
 
+      - name: Verify repository workflow contract
+        shell: pwsh
+        run: ./scripts/dev/test-dev-workflow.ps1 -SelfTest
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -35,7 +39,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Verify debug build
-        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-daemon --console=plain
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -44,7 +48,7 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
 
   # Publish each master build as a GitHub Release so Obtainium on the phone can
-  # auto-fetch it. Reuses the APK the verify job already built. See docs/ops/auto-update.md.
+  # discover it. Reuses the APK the verify job already built. See docs/ops/auto-update.md.
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
@@ -76,6 +80,7 @@ jobs:
           name: MusFit build ${{ env.BUILD_NUMBER }}
           body: |
             Automated MusFit build (versionCode ${{ env.BUILD_NUMBER }}) from ${{ github.sha }}.
-            Installed automatically via Obtainium — see docs/ops/auto-update.md.
+            Discoverable through Obtainium; Android normally requires install confirmation.
+            See docs/ops/auto-update.md.
           files: dist/musfit-${{ env.BUILD_NUMBER }}.apk
           make_latest: true

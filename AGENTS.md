@@ -1,260 +1,228 @@
 # MusFit Agent Handoff
 
-## Product Direction
+## Purpose And Authority
 
-MusFit is an Android-only fitness and nutrition tracker inspired by Lifesum for food and Hevy for training. The intended top-level product structure is:
+This is the repository-level execution contract for coding agents. Keep it
+stable and operational; do not turn it into a feature changelog or copy volatile
+schema versions, file sizes, or roadmap tables into it.
 
-- Today
-- Food / Cals in
-- Training / Cals out
-- Settings / Profile
+Follow the current user request. For factual repository truth, use this order:
 
-Work menu by menu. The current active priority is the Food miniapp. The user wants a clean, polished Lifesum-like UX, but do not copy Lifesum assets or exact layouts. Build original UI with similar information architecture and a premium, practical feel.
+1. current source, build files, helper scripts, and CI;
+2. the latest applicable audit or remediation package, revalidated against
+   current `origin/master`;
+3. living architecture and feature docs;
+4. historical plans/specs, which explain intent but are not current status.
 
-## Tech Stack
+If a living doc conflicts with source, source wins and the doc should be fixed
+in the same PR. The current repo-wide engineering handoff is:
 
-- Android Kotlin
-- Jetpack Compose Material 3
-- Hilt ViewModels
-- Room local database
-- Kotlin Flow / coroutines
-- Open Food Facts barcode/product lookup
-- Health Connect boundary exists for Android health data, but Food nutrition sync is not implemented yet
-- Local-first MVP: local account identity exists; no cloud sync, analytics, subscriptions, or social features
+- [`docs/architecture/app-architecture-audit-2026-07-10.md`](docs/architecture/app-architecture-audit-2026-07-10.md)
+- [`docs/architecture/architecture-remediation-backlog-2026-07-10.md`](docs/architecture/architecture-remediation-backlog-2026-07-10.md)
 
-Main package/application id: `com.musfit`.
+The audit is a dated snapshot. Re-check a finding before implementing it.
 
-## Build And Test
+## Product Boundary
 
-Before Gradle/adb commands on Windows:
+MusFit is an Android-only, single-module (`:app`) fitness and nutrition tracker.
+The application id is `com.musfit`. Top-level destinations are: Today, Food,
+Training, Profile.
+
+- Kotlin, Jetpack Compose Material 3, Hilt, Room, coroutines, and Flow.
+- Local-first storage. Local accounts and optional Google/GitHub identity links
+  exist, but there is no MusFit cloud-sync backend.
+- The coach supports opt-in, user-configured OpenAI-compatible endpoints and
+  local agents such as Hermes. MusFit does not operate a hosted AI backend.
+- Open Food Facts, CameraX/ML Kit, and Health Connect are external boundaries.
+- Do not add analytics, subscriptions, social features, new identity providers,
+  or a MusFit-operated backend unless explicitly requested.
+- Keep UI dense, clean, practical, and original. Lifesum/Hevy may inspire
+  information architecture, but do not copy their assets or exact layouts.
+
+Do not assume Food is the active priority. Scope work from the current request
+and current backlog. Food is the largest mature feature; its feature reference
+is [`docs/architecture/food-system.md`](docs/architecture/food-system.md).
+Historical plans under `docs/superpowers/` are not the active backlog.
+
+## Known Sharp Edges
+
+Read the linked audit before broad changes. In particular:
+
+- DATA-001 was remediated for Food and Training/AI in PRs #80-81. Preserve that
+  invariant: relationship-bearing parents use `@Upsert` or targeted `@Update`;
+  any retained `REPLACE` must be relationship-free, intentional, and tested.
+- Account/provider UI exists, but most personal-data tables are not yet fully
+  account-isolated. Do not assume switching accounts isolates all data.
+- Food nutrition/hydration export code and UI exist, but the main manifest does
+  not yet declare the required write permissions. Treat Health Connect export
+  as blocked until the relevant remediation package lands.
+- The legacy exported seed receiver (SEC-001) has been removed. Debug seeding now
+  runs through a separately installed instrumentation APK that CI must not
+  distribute; keep all target manifests free of seed components and actions.
+- Seed/reset tooling is for the named dedicated AVD only and rejects physical or
+  mismatched-emulator serials. Never seed, clear, or reset a phone or user-data
+  device.
+- Current CI distributes a debuggable APK. It is a developer build, not a
+  production- or Play-ready release artifact.
+- Debug configuration can currently compile `MUSFIT_DEBUG_HERMES_API_KEY` into
+  `BuildConfig` and the APK. Treat SEC-003 as open: do not put a real or reusable
+  secret there; prefer runtime entry into the local secret store.
+- Never commit OAuth client secrets, AI keys, gateway tokens, or other secrets.
+  Provider client ids are configuration, not bearer secrets, but keep
+  environment-specific values in the existing local configuration path unless a
+  task changes that policy explicitly.
+
+## Build And Verification
+
+On Windows PowerShell, initialize the checked-in toolchain environment before
+direct Gradle or adb work:
 
 ```powershell
 . .\scripts\android\android-env.ps1
 ```
 
-Focused Food tests:
+Run the executable workflow contract after changing live docs, scripts, or CI:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.food.FoodViewModelTest" --no-daemon --console=plain
-.\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalFoodRepositoryTest" --no-daemon --console=plain
+.\scripts\dev\test-dev-workflow.ps1 -SelfTest
 ```
 
-Full verification before claiming completion or pushing:
+The standard debug gate is:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+.\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
 ```
 
-Repo helper equivalent:
+It runs `testDebugUnitTest`, `lintDebug`, `assembleDebug`, and
+`assembleDebugAndroidTest`. The target APK is written to
+`app/build/outputs/apk/debug/app-debug.apk`; CI publishes only that target APK,
+not the instrumentation APK.
+
+Focused Food verification:
 
 ```powershell
-.\scripts\dev\verify-musfit.ps1 -Preset Full
+.\scripts\dev\verify-musfit.ps1 -Preset Food
 ```
 
-Seeded emulator setup and verification:
-
-```powershell
-.\scripts\android\setup-musfit-emulator.ps1
-.\scripts\android\install-seed-musfit.ps1 -Reset
-```
-
-Debug APK:
-
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-Install and launch on a connected device:
-
-```powershell
-adb devices
-adb install -r app\build\outputs\apk\debug\app-debug.apk
-adb shell monkey -p com.musfit -c android.intent.category.LAUNCHER 1
-```
-
-Known connected phone serial used during development:
-
-```text
-38241FDJG00BLY
-```
-
-## Generated-output cleanup
-
-If Gradle leaves stale or locked generated files under `app/build`, use the
-repo-owned cleanup helper and then rerun the same verification command:
+For another focused test class, use `-Tests` or invoke Gradle directly with
+`--tests`. If generated files under `app/build` are stale or locked, run:
 
 ```powershell
 .\scripts\dev\clean-generated.ps1
 ```
 
-## Current Food Miniapp State
+Then rerun the same failed command. Do not treat cleanup as a product-code fix.
 
-> The authoritative, detailed reference for Food is now
-> [`docs/architecture/food-system.md`](docs/architecture/food-system.md) —
-> full feature map, state/sheet-mode reference, data model, and the refactor
-> backlog. The summary below is the quick handoff view.
+### Seeded Emulator
 
-The Food miniapp is feature-complete against most of the original 24-slice
-roadmap. Shipped and working:
+Create the standard AVD only when it is missing:
 
-- **Diary**: date navigation, planning mode, calorie ring, macro progress,
-  advanced-nutrient and micronutrient progress, meal sections + custom meals,
-  per-item macro rows, deterministic daily insights and a day-rating card,
-  weekly plan strip.
-- **Add flow** (`FoodAddMode`): Saved (recents, same-as-yesterday, favorites,
-  templates, recipes), Manual, Barcode (Open Food Facts lookup + edit + save),
-  Quick calories (with favorite presets), and an AI shell. "Keep adding" mode.
-- **Saved food database**: full editor (name/brand/barcode/category/favorite,
-  per-100 g vs per-serving, custom servings, full macros + micros, delete,
-  duplicate), local search, online search/import, duplicate detection + merge,
-  starter-food import.
-- **Servings**: per-food default + custom units with live amount preview.
-- **Recipes v2**: ingredients, serving units, cooked yield, per-serving
-  nutrition, edit/duplicate/delete/favorite, fractional-serving logging.
-- **Meal templates v2**: editable items, duplicate/favorite, save current meal
-  as template, log to any meal.
-- **Custom meals**: rename, time, reorder.
-- **Goals**: calorie + macro + advanced-nutrient targets, diet modes
-  (`FoodGoalMode`: Balanced/HighProtein/KetoLowCarb/MuscleGain/WeightLoss/Custom),
-  include-training-calories, net-carbs toggle.
-- **Planning / shopping / water**: planned-vs-logged, copy day/meal, 7-day plan,
-  shopping list generated from planned meals (grouped, checkable, manual adds),
-  water tracking with goal.
-- **Health Connect**: food/hydration export with sync state card.
-- **Cross-cutting**: favorites across foods/templates/recipes/quick-logs, undo
-  delete, copy/move entries, mark planned → logged.
-
-Known shells / placeholders (intentional, not yet real):
-
-- **Nutrition-label OCR** — camera + ML Kit text recognition feed a best-effort
-  `NutritionLabelParser`; values are always shown for user review. Real parsing
-  is partial.
-- **AI voice / photo logging** — UX shells only; AI text logging produces a
-  simple editable draft. Cloud AI is out of scope (local-first).
-
-## Key Files
-
-Food UI:
-
-```text
-app/src/main/java/com/musfit/ui/food/FoodScreen.kt
-app/src/main/java/com/musfit/ui/food/FoodViewModel.kt
+```powershell
+.\scripts\android\setup-musfit-emulator.ps1
 ```
 
-Food data/repository:
+Install, reset, seed, launch, and capture evidence on the dedicated emulator:
 
-```text
-app/src/main/java/com/musfit/data/repository/FoodRepository.kt
-app/src/main/java/com/musfit/data/local/dao/FoodDao.kt
-app/src/main/java/com/musfit/data/local/entity/FoodEntities.kt
-app/src/main/java/com/musfit/data/remote/food/OpenFoodFactsProductProvider.kt
+```powershell
+.\scripts\dev\verify-musfit.ps1 -Preset None -InstallSeed -ResetSeed -EvidenceDir verification\musfit-emulator
 ```
 
-Food tests:
+Use `MusFit_API36` / `emulator-5554` as the normal seeded baseline. UI-visible
+changes require workflow-specific verification plus screenshot or UI-tree
+evidence. Documentation-only changes do not require an emulator; record why the
+device step is not applicable.
 
-```text
-app/src/test/java/com/musfit/ui/food/FoodViewModelTest.kt
-app/src/test/java/com/musfit/data/repository/LocalFoodRepositoryTest.kt
+### Physical Device
+
+Discover the current serial instead of trusting an old handoff value, and always
+qualify adb commands when more than one device may be connected:
+
+```powershell
+adb devices -l
+adb -s <serial> install -r app\build\outputs\apk\debug\app-debug.apk
+adb -s <serial> shell am start -W -n com.musfit/.MainActivity
+adb -s <serial> shell dumpsys window | Select-String 'mCurrentFocus|mFocusedApp'
 ```
 
-Existing Food plans:
+Do not use the seed/reset helper on a physical device.
 
-```text
-docs/superpowers/plans/2026-06-20-food-menu-v1.md
-docs/superpowers/plans/2026-06-20-food-v2-database-diary-management.md
-docs/superpowers/plans/2026-06-21-food-meal-detail-menu.md
+## Architecture And Test Rules
+
+The intended dependency direction is Compose UI -> ViewModel -> repository
+boundary -> DAO/remote/integration boundary. The current code has documented
+cross-feature and integration leaks, so treat this as a target direction rather
+than a claim that every file already complies.
+
+- Prefer existing public contracts where they are sound; do not reproduce a
+  pattern identified as defective by the audit.
+- Keep domain calculators free of Android, Compose, Room, and Retrofit imports.
+- ViewModels expose immutable observable state, but the implementation may be a
+  private `MutableStateFlow`, combined repository flows with `stateIn`, or both.
+- Use TDD for behavior changes where practical: demonstrate the failure, make
+  the smallest fix, and keep the regression test.
+- ViewModel tests use plain JUnit with hand-written fakes and coroutine test
+  dispatchers; keep them free of Robolectric unless Android behavior is required.
+- Repository/DAO query tests generally use Robolectric with an in-memory Room
+  database. Migration tests are separate and must exercise the relevant schema
+  transition.
+- For Room changes, derive the current version from
+  `app/src/main/java/com/musfit/data/local/MusFitDatabase.kt`, add and register
+  the next migration in `core/di/DatabaseModule.kt`, and commit the exported
+  schema JSON. There is no destructive-migration fallback.
+- For Food work, read `food-system.md` for the feature map and state conventions,
+  but let the July architecture audit/backlog supersede older refactor advice
+  when they conflict.
+- Preserve local-first behavior and explicit user review for nutrition-label OCR
+  and Food AI drafts. Food voice/photo logging remain shells; the global coach
+  chat is implemented and currently read-only with respect to app data.
+
+## Branch, PR, And Task Flow
+
+New work uses a scoped branch and PR. Because Codex often runs in detached
+worktrees while another checkout owns `master`, inspect ownership before
+switching or publishing:
+
+```powershell
+git status --short --branch
+git worktree list --porcelain
 ```
 
-## Development Expectations
+Use `scripts/dev/new-task-branch.ps1` when it fits; it starts from current
+`origin/master` and refuses a dirty checkout.
 
-- New tasks use a branch + PR flow. Start from current `origin/master`, create a
-  scoped branch (`codex/<task-name>`), implement, verify, push the branch, open a
-  draft PR, and merge only after verification is complete.
-- Prefer TDD for behavior changes: add/adjust failing ViewModel or repository tests first, run them red, then implement.
-- Keep changes scoped to Food unless the user explicitly asks for Training, Today, Settings/Profile, or architecture changes.
-- Follow existing repository/ViewModel/Compose patterns before introducing new abstractions.
-- Keep UI dense but clean. Avoid marketing-style layouts inside the app.
-- Do not add accounts, cloud sync, analytics, subscriptions, or social features unless explicitly requested.
-- Keep data local-first.
-- Before PR/merge, run full verification and install the debug build onto the
-  seeded emulator. Use `.\scripts\android\install-seed-musfit.ps1 -Reset` and
-  verify the touched workflow in-app with the seeded data.
-- Do not push directly to `origin/master`; use PRs for integration unless the
-  user explicitly asks for a different emergency workflow.
+For each task:
 
-## Standard Task Flow
-
-For each new task:
-
-1. Sync from `origin/master` and create a scoped branch.
-2. Read the relevant architecture docs and existing code before changing files.
+1. Fetch `origin`, confirm a clean checkout/worktree, and create a scoped branch.
+2. Read current source, tests, and applicable architecture/feature docs. For
+   remediation work, also read the exact audit finding/package and keep one
+   remediation package per PR unless the user explicitly changes that scope.
 3. Add or adjust focused tests first for behavior changes where practical.
-4. Implement the change in the smallest relevant surface area.
-5. Run focused tests for the touched area, then run:
+4. Implement the smallest coherent change without widening into unrelated
+   feature areas.
+5. Run focused checks, the workflow contract when applicable, and the standard
+   debug gate.
+6. For runtime/UI changes, verify the exact workflow on the seeded emulator and
+   retain privacy-safe evidence. For non-runtime changes, state why it is N/A.
+7. Run `git diff --check` and review the final diff for secrets, generated files,
+   accidental scope, and stale documentation.
+8. Commit intentionally, push the branch, and open a draft PR with commands,
+   evidence, risks, compatibility decisions, and rollback notes.
+9. Do not push directly to `origin/master`. Merge only after required checks and
+   user approval, unless the user explicitly requests an emergency exception.
 
-   ```powershell
-   .\scripts\dev\verify-musfit.ps1 -Preset Full
-   ```
+## CI And Reference Map
 
-6. Install and seed the emulator:
+`.github/workflows/android.yml` runs the workflow contract and debug verification
+gate for PRs and pushes to `master`/`main`, uploads `musfit-debug-apk`, and
+publishes that verified debug APK as a GitHub Release on `master` for the current
+development update flow. It does not produce a production-signed APK/AAB.
 
-   ```powershell
-   .\scripts\android\install-seed-musfit.ps1 -Reset
-   ```
+Use these living references instead of duplicating their detail here:
 
-7. Verify the changed user workflow on `MusFit_API36` / `emulator-5554` with
-   screenshots or UI-tree evidence when the task is UI-visible.
-8. Commit, push the branch, open a draft PR, and include the Gradle and emulator
-   verification in the PR body.
-9. Merge only after the PR is verified and approved by the user or required
-   checks.
-
-## Food Roadmap Status
-
-The original 24-slice Food roadmap is largely delivered. Each shipped slice has
-a plan under `docs/superpowers/plans/` (see "Existing Food plans" above for the
-filenames). Status:
-
-| #  | Slice | Status |
-| -- | ----- | ------ |
-| 1  | Unified Add Food Flow | Shipped |
-| 2  | Full Serving Unit System | Shipped |
-| 3  | Full Food Editor | Shipped |
-| 4  | Barcode No-Match Custom Food Flow | Shipped |
-| 5  | Nutrition Label Scan | Shell + best-effort parser; real OCR partial |
-| 6  | Food Database Quality | Shipped (search, duplicate merge, states) |
-| 7  | Meal Item Editor Polish | Shipped |
-| 8  | Meal Detail Upgrade | Shipped |
-| 9  | Favorites Everywhere | Shipped |
-| 10 | Custom Meals And Meal Times | Shipped |
-| 11 | Nutrition Goals And Diet Modes | Shipped (`FoodGoalMode`) |
-| 12 | Net Carbs And Advanced Macros | Shipped |
-| 13 | Micronutrient Foundation | Shipped |
-| 14 | Recipes V2 | Shipped |
-| 15 | Meal Templates V2 | Shipped |
-| 16 | Meal Planning | Shipped |
-| 17 | Shopping List | Shipped |
-| 18 | Water Tracking | Shipped |
-| 19 | Health Connect Nutrition Sync | Shipped |
-| 20 | AI Logging Shell | Text draft works; voice/photo are shells |
-| 21 | Daily Food Insights | Shipped (deterministic) |
-| 22 | Food/Meal/Day Rating | Shipped (deterministic) |
-| 23 | UX Polish Pass | Ongoing |
-| 24 | Food Performance And Reliability | Ongoing |
-
-Genuinely remaining Food work:
-
-- Real nutrition-label OCR parsing (Slice 5 completion).
-- Continued UX polish and performance hardening (Slices 23–24).
-- AI voice/photo logging stay shells by design (no cloud AI; local-first).
-
-### Active internal effort: Food structure refactor
-
-A behavior-preserving **structure refactor** is underway. Done so far: the
-Food UI is split by feature (`FoodScreen.kt` ~2,400 lines + `FoodComponents.kt`,
-`FoodTrackersUi.kt`, `FoodModalSheets.kt`, `FoodAddPanelUi.kt`), the
-amount-preview math moved into `NutritionCalculator`, and the `FoodUiState`
-editor sub-state objects are **Tier 1b DONE**. The full plan, status, and the
-test-coupling cost of remaining cleanup live in
-[`docs/architecture/food-system.md`](docs/architecture/food-system.md#refactor-backlog).
-Read it before doing large Food work so new code lands in the new structure.
+- App map: [`docs/architecture/README.md`](docs/architecture/README.md)
+- Screen/navigation contracts: [`docs/architecture/screen-contracts.md`](docs/architecture/screen-contracts.md)
+- Data models: [`docs/architecture/data-models.md`](docs/architecture/data-models.md)
+- Food feature map: [`docs/architecture/food-system.md`](docs/architecture/food-system.md)
+- Coach/Hermes boundary: [`docs/architecture/hermes-coach-ai.md`](docs/architecture/hermes-coach-ai.md)
+- Design system: [`docs/design/musfit-design-system.md`](docs/design/musfit-design-system.md)
+- Auto-update flow: [`docs/ops/auto-update.md`](docs/ops/auto-update.md)

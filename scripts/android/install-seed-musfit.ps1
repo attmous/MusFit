@@ -23,12 +23,34 @@ function Assert-LastExitCode([string] $Action) {
     }
 }
 
+function Get-EmulatorAvdName([string] $serial) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & adb -s $serial emu avd name 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($exitCode -ne 0) {
+        return $null
+    }
+
+    @($output |
+        ForEach-Object { $_.ToString().Trim() } |
+        Where-Object { $_ -and $_ -ne "OK" }) |
+        Select-Object -First 1
+}
+
 function Get-EmulatorSerial {
     $lines = & adb devices
     Assert-LastExitCode "adb devices"
     foreach ($line in $lines) {
         if ($line -match "^(emulator-\d+)\s+device$") {
-            return $Matches[1]
+            $serial = $Matches[1]
+            if ((Get-EmulatorAvdName $serial) -eq $AvdName) {
+                return $serial
+            }
         }
     }
     return $null
@@ -101,6 +123,15 @@ if ([string]::IsNullOrWhiteSpace($DeviceSerial)) {
     throw "No running emulator found. Start $AvdName or pass -DeviceSerial emulator-5554."
 }
 
+if ($DeviceSerial -notmatch '^emulator-\d+$') {
+    throw "Refusing to seed or reset non-emulator device '$DeviceSerial'. Use a dedicated Android emulator."
+}
+
+$actualAvdName = Get-EmulatorAvdName $DeviceSerial
+if ($actualAvdName -ne $AvdName) {
+    throw "Refusing to seed emulator '$DeviceSerial' because it is AVD '$actualAvdName', not '$AvdName'."
+}
+
 Wait-ForEmulatorBoot $DeviceSerial
 Write-Host "Using emulator: $DeviceSerial"
 
@@ -153,8 +184,9 @@ if ($seedText -match "FAILURES!!!" -or $seedText -notmatch "OK \(1 test\)" -or $
 }
 
 if (-not $NoLaunch) {
-    & adb -s $DeviceSerial shell monkey -p com.musfit -c android.intent.category.LAUNCHER 1
-    Assert-LastExitCode "app launch"
+    & adb -s $DeviceSerial shell am start -W -n com.musfit/.MainActivity
+    Assert-LastExitCode "explicit app launch"
+    Start-Sleep -Seconds 2
 }
 
 if (-not [string]::IsNullOrWhiteSpace($EvidenceDir)) {

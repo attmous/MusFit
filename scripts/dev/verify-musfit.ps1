@@ -62,7 +62,14 @@ if ($Tests.Count -gt 0) {
     }
 } else {
     switch ($Preset) {
-        "Full" { $gradleArgs = @("testDebugUnitTest", "lintDebug", "assembleDebug") }
+        "Full" {
+            $gradleArgs = @(
+                "testDebugUnitTest",
+                "lintDebug",
+                "assembleDebug",
+                "assembleDebugAndroidTest"
+            )
+        }
         "Unit" { $gradleArgs = @("testDebugUnitTest") }
         "Food" {
             $gradleArgs = @(
@@ -74,6 +81,14 @@ if ($Tests.Count -gt 0) {
         "Assemble" { $gradleArgs = @("assembleDebug") }
         "None" { $gradleArgs = @() }
     }
+}
+
+if ($InstallSeed) {
+    $missingSeedBuildTasks = @(
+        "assembleDebug",
+        "assembleDebugAndroidTest"
+    ) | Where-Object { $_ -notin $gradleArgs }
+    $gradleArgs = @($missingSeedBuildTasks) + $gradleArgs
 }
 
 if ($gradleArgs.Count -gt 0) {

@@ -1,10 +1,12 @@
 # Material 3 Expressive Reference
 
-Snapshot date: 2026-06-28.
-
 This document is MusFit's local working reference for Material 3 Expressive
 (M3E). It is not a copy of Google's docs. It translates the official guidance
 into stable rules for this Android app.
+
+Exact tokens live under `app/src/main/java/com/musfit/ui/theme/` and are not
+duplicated here. See the source-owned
+[`musfit-design-system.md`](musfit-design-system.md) map.
 
 ## Official Sources
 
@@ -70,9 +72,9 @@ screen where everything is loud has no hierarchy.
 
 ### 2. Rounded But Structured
 
-Large full-width content cards can use 28dp rounded corners. Smaller controls
-should use smaller radii so dense UI does not turn into a stack of oversized
-pills.
+Use the shape roles from `MusFitTheme.shapes`. Large outer or hero surfaces may
+use the most expressive role; smaller controls should step down so dense UI does
+not turn into a stack of oversized pills.
 
 Recommended shape roles:
 
@@ -103,8 +105,9 @@ background for every element on a screen.
 
 ### 4. Confident Type
 
-Use Google Sans Flex for display, headline, title, and important numbers. Use
-Roboto/system body text for dense labels, descriptions, and list rows.
+Use the bundled Roboto Flex family and the roles defined in `Type.kt` for all
+display, headline, title, body, and label text. Weight and tracking contrast make
+hero values expressive while dense rows remain readable.
 
 Good uses of display/headline roles:
 

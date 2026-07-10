@@ -1,92 +1,62 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Read [`AGENTS.md`](AGENTS.md) in full before changing this repository. It is the
+canonical MusFit contract for product boundaries, current safety warnings,
+branch/PR policy, verification, emulator/device handling, and source-of-truth
+rules. Do not create a separate Claude-only workflow here.
 
-## What this is
+## Repository Orientation
 
-MusFit is an **Android-only** fitness and nutrition tracker (Kotlin, Jetpack Compose Material 3, Hilt, Room, Coroutines/Flow). It is local-first: local account identity exists, but there is no cloud sync, analytics, subscriptions, social features, or cloud AI. Single Gradle module (`:app`), application id `com.musfit`.
+MusFit is an Android-only, single-module (`:app`) Kotlin application with package
+id `com.musfit`. Top-level destinations are: Today, Food, Training, Profile. The
+custom bottom chrome is `MusFitBottomNav` in
+`app/src/main/java/com/musfit/ui/AppNavGraph.kt`; route truth is
+`app/src/main/java/com/musfit/ui/AppDestination.kt`.
 
-The product is organized as menu-by-menu "miniapps" reached from a bottom nav: **Today, Food, Training, Health**. **Food is the active focus** and by far the largest area — keep changes scoped to Food unless the user explicitly asks for Training, Today, Health, or cross-cutting architecture work.
+Important source locations:
 
-`AGENTS.md` is the living handoff doc: current Food feature state, the 24-slice Food roadmap, and the known dev-phone serial. Read it for *what to build next*; read this file for *how the code is shaped and how to build/verify it*.
+- UI/navigation: `app/src/main/java/com/musfit/ui/`
+- repositories: `app/src/main/java/com/musfit/data/repository/`
+- Room database/DAOs/entities: `app/src/main/java/com/musfit/data/local/`
+- pure domain logic: `app/src/main/java/com/musfit/domain/`
+- remote clients: `app/src/main/java/com/musfit/data/remote/`
+- Health Connect: `app/src/main/java/com/musfit/integrations/healthconnect/`
+- DI and migrations: `app/src/main/java/com/musfit/core/di/`
+- local/unit tests: `app/src/test/java/com/musfit/`
+- device/instrumentation tests: `app/src/androidTest/java/com/musfit/`
 
-## Build & verify (Windows PowerShell)
+The intended dependency direction is:
 
-First, source the committed local Android toolchain env (sets JDK 17 + Android SDK for the shell):
-
-```powershell
-. .\scripts\android\android-env.ps1
+```text
+Compose UI -> ViewModel -> repository boundary -> DAO / remote / integration boundary
 ```
 
-Full verification — run this (and confirm it passes) before claiming completion or pushing:
+Current source has known exceptions. Before cross-feature, persistence,
+navigation, build, release, or structural work, read:
 
-```powershell
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
-```
+- [`docs/architecture/app-architecture-audit-2026-07-10.md`](docs/architecture/app-architecture-audit-2026-07-10.md)
+- [`docs/architecture/architecture-remediation-backlog-2026-07-10.md`](docs/architecture/architecture-remediation-backlog-2026-07-10.md)
 
-Repo helper equivalent with optional generated-output retry:
+## Claude Working Rules
 
-```powershell
-.\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
-```
+- Follow the scope, sharp-edge warnings, test strategy, device rules, and
+  branch-to-draft-PR flow in `AGENTS.md`.
+- Inspect current source and tests before relying on prose. Historical plans are
+  intent records, not live status.
+- Do not copy volatile file counts or a Room version into handoff prose. Derive
+  the version from
+  `app/src/main/java/com/musfit/data/local/MusFitDatabase.kt` and verify the
+  newest exported schema matches it.
+- Follow the local state pattern: some ViewModels wrap a private
+  `MutableStateFlow`; others combine repository flows with `stateIn`.
+- Keep pure domain code free of Android, Compose, Room, and Retrofit imports.
+- On Windows PowerShell, source the checked-in environment before direct Gradle
+  or adb commands:
 
-Run a single test class (the fast inner loop for Food work):
+  ```powershell
+  . .\scripts\android\android-env.ps1
+  ```
 
-```powershell
-.\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.food.FoodViewModelTest" --no-daemon --console=plain
-```
-
-Debug APK lands at `app/build/outputs/apk/debug/app-debug.apk`. Install/launch on a connected device:
-
-```powershell
-adb install -r app\build\outputs\apk\debug\app-debug.apk
-adb shell monkey -p com.musfit -c android.intent.category.LAUNCHER 1
-```
-
-CI (`.github/workflows/android.yml`) runs `testDebugUnitTest lintDebug assembleDebug` for PRs and pushes, uploads the APK as the `musfit-debug-apk` artifact, and runs the full `build` task only for default-branch pushes.
-
-### Generated-output cleanup
-
-If Gradle leaves stale or locked generated files under `app/build`, use the
-repo-owned cleanup helper and then rerun the verification command:
-
-```powershell
-.\scripts\dev\clean-generated.ps1
-```
-
-## Architecture
-
-Strict layering, one direction of dependency: **Compose screen → ViewModel → Repository → DAO / Remote → Room / Open Food Facts**.
-
-- **UI** (`ui/<feature>/`): `@Composable` screens + a `@HiltViewModel`. ViewModels expose a single immutable `StateFlow<...State>` built from a private `MutableStateFlow(...).asStateFlow()`, drive date-scoped data with `flatMapLatest` over a date flow, and run mutations in `viewModelScope`. Navigation is a bottom-nav `NavHost` in `ui/AppNavGraph.kt`; destinations are the `AppDestination` enum.
-- **Repository** (`data/repository/`): each feature has an **interface** (`FoodRepository`) plus a `Local*` implementation (`LocalFoodRepository`) bound via Hilt `@Binds` in `core/di/RepositoryModule.kt`. Repositories map Room entities ↔ domain models, expose `Flow`, and wrap multi-step writes in `withTransaction`. Public input/output types are `data class`es declared alongside the interface.
-- **DAO** (`data/local/dao/`): Room DAOs return `Flow`. Aggregate/joined reads use dedicated **query-projection row** types (e.g. `FoodDiaryEntryRow`, `MealNutritionRow`) rather than full entities.
-- **Domain** (`domain/`): pure Kotlin models and stateless calculators (e.g. `NutritionCalculator`, `WorkoutCalculator`) — no Android/Room dependencies, trivially unit-testable.
-- **Remote** (`data/remote/food/`): Open Food Facts via Retrofit + Moshi, behind a `FoodProductProvider` interface. Barcode capture uses CameraX + ML Kit (`ui/food/BarcodeScannerScreen.kt`).
-- **Health Connect** (`integrations/healthconnect/`): the boundary for Android health data (status, permissions, read summaries, food/nutrition export). Gated behind a `HealthConnectGateway` interface so it's fakeable in tests.
-- **DI** (`core/di/`): `DatabaseModule` (DB + DAOs + migrations), `RepositoryModule` (interface→impl binds), `NetworkModule`, `HealthModule`. App entry: `MusFitApplication` (`@HiltAndroidApp`) → `MainActivity`.
-
-### Room database — migrations are mandatory
-
-`MusFitDatabase` is at **version 32** with `exportSchema = true`; every version's schema JSON is committed under `app/schemas/` and ships as a test asset. Any entity/schema change **must**: (1) add a `MIGRATION_x_y` to `core/di/DatabaseModule.kt` and register it in `addMigrations(...)`, (2) bump `version`, and (3) commit the new `app/schemas/...json`. There is no `fallbackToDestructiveMigration` — a missing migration crashes existing installs. Match the column names/types Room expects exactly (compare against the generated schema JSON).
-
-### The Food miniapp is concentrated and large
-
-The Food UI is large but now split by feature seam: `ui/food/FoodScreen.kt` (~2,000 lines: diary, summary, meal detail, the `FoodSheetMode` dispatch) plus `FoodComponents.kt` (shared primitives), `FoodTrackersUi.kt` (water/Health Connect), `FoodModalSheets.kt` (the 10 sheet panels), and `FoodAddPanelUi.kt` (add-food forms). `ui/food/FoodViewModel.kt` is still ~4,800 lines and `data/repository/FoodRepository.kt` ~2,160. New Food work extends these existing files and patterns — prefer following the established `FoodAddMode` / `FoodSheetMode` / state-driven sheet conventions over introducing new abstractions or splitting files unprompted.
-
-For a full map of the Food miniapp — feature inventory, the state-driven sheet/add modes, the `FoodUiState` shape, and the in-progress structure refactor — see [`docs/architecture/food-system.md`](docs/architecture/food-system.md). Read it before large Food work.
-
-## Testing
-
-TDD is expected for behavior changes: add/adjust a failing test, run it red, then implement.
-
-- **ViewModel tests** — plain JUnit with hand-written fakes (`FakeFoodRepository`, `FakeProductProvider`), `StandardTestDispatcher` + `Dispatchers.setMain/resetMain`, Turbine available for Flow assertions. No Robolectric.
-- **Repository / DAO tests** — `@RunWith(RobolectricTestRunner::class)` against an **in-memory** Room database, exercising real migrations and queries.
-- **Domain calculators** — pure JUnit, no Android.
-
-## Conventions
-
-- Android-only; do not add cloud sync, analytics, subscriptions, social, cloud-AI features, or new account providers unless explicitly requested. Keep data local-first.
-- UI should be dense, clean, and practical (Lifesum-like information architecture, original layouts — do not copy Lifesum assets). Avoid marketing-style layouts inside the app.
-- Plans and specs live in `docs/superpowers/plans/` and `docs/superpowers/specs/`.
-- The established deploy flow is to push verified work to `origin/master` when the user asks.
+- Run the applicable focused, workflow-contract, full-debug, and device checks
+  specified in `AGENTS.md`. Never seed/reset a physical device, and never push
+  directly to `origin/master` without an explicit emergency instruction.
