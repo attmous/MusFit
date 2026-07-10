@@ -283,6 +283,39 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun tiles_thirtyDayTrendComparesAgainstValueAsOfThirtyDaysAgo() = runTest {
+        val repo = FakeProfileRepository(
+            measurements = mapOf(
+                "waist" to listOf( // baseline is the newest entry at/before the 30-day cutoff
+                    BodyMeasurement("w3", "waist", 82.0, "cm", daysAgo(1)),
+                    BodyMeasurement("w2", "waist", 82.6, "cm", daysAgo(10)),
+                    BodyMeasurement("w1", "waist", 83.2, "cm", daysAgo(40)),
+                ),
+                "chest" to listOf( // whole history inside the window → oldest entry is the baseline
+                    BodyMeasurement("c2", "chest", 104.5, "cm", daysAgo(5)),
+                    BodyMeasurement("c1", "chest", 103.7, "cm", daysAgo(20)),
+                ),
+                "arms" to listOf( // a single entry has no baseline
+                    BodyMeasurement("a1", "arms", 38.5, "cm", daysAgo(3)),
+                ),
+                "hips" to listOf( // stale logger: nothing since the window → no trend claimed
+                    BodyMeasurement("h2", "hips", 96.0, "cm", daysAgo(100)),
+                    BodyMeasurement("h1", "hips", 98.0, "cm", daysAgo(150)),
+                ),
+            ),
+        )
+        val viewModel = profileViewModel(profileRepository = repo)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val tiles = viewModel.state.value.tiles.associateBy { it.type }
+        assertEquals(-1.2, tiles["waist"]!!.delta30d!!, 0.001)
+        assertEquals(0.8, tiles["chest"]!!.delta30d!!, 0.001)
+        assertNull(tiles["arms"]!!.delta30d)
+        assertNull(tiles["hips"]!!.delta30d)
+        assertNull(tiles["thighs"]!!.delta30d) // never logged
+    }
+
+    @Test
     fun onScreenResumed_reanchorsDateWindows() = runTest {
         var currentDate = fixedDate
         val repo = FakeProfileRepository()

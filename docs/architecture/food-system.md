@@ -42,10 +42,10 @@ than introducing parallel ViewModels.
 ## Feature map
 
 **Diary (home).** Date navigation, planning mode, calorie ring, macro progress,
-advanced-nutrient and micronutrient progress, meal sections (default + custom),
-per-item macro rows, deterministic daily insights, day/meal/per-food ratings
-with factor drill-down, a weekly MusFit score, derived daily habit trackers, and
-a 7-day plan strip.
+advanced-nutrient and micronutrient progress, summarized meal rows (default +
+custom meals; Turn 8 moved per-item rows onto the meal detail page), deterministic
+daily insights, day/meal/per-food ratings with factor drill-down, a weekly MusFit
+score, derived daily habit trackers, and a 7-day plan strip.
 
 **Add flow (`FoodAddMode`).** Saved (recents, same-as-yesterday, favorites,
 templates, recipes), Manual, Barcode (Open Food Facts lookup → edit → save and/or

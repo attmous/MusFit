@@ -92,6 +92,7 @@ import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.components.WavyProgressBar
+import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.TabAccent
@@ -306,21 +307,27 @@ fun FoodScreen(
 
                     when (selectedDiaryTab) {
                         FoodDiaryTab.Diary ->
-                            state.mealSections.forEach { meal ->
-                                MealSectionCard(
-                                    meal = meal,
-                                    // Tapping a meal opens its detail once it has logged
-                                    // items; an empty meal jumps straight to add-food.
-                                    // The + is always quick-add.
-                                    onMealClick = {
-                                        if (meal.entries.isNotEmpty()) {
-                                            viewModel.openMealDetail(meal.id)
-                                        } else {
-                                            viewModel.openAddFood(meal.id)
-                                        }
-                                    },
-                                    onAddClick = { viewModel.openAddFood(meal.id) },
-                                )
+                            // Turn 8 (8b): the diary is one grouped list of meal
+                            // summary rows — item rows live on the meal detail page.
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                state.mealSections.forEachIndexed { index, meal ->
+                                    MealSummaryRow(
+                                        meal = meal,
+                                        badgeShape = expressiveBadgeShapeFor(index),
+                                        shape = groupedShape(index, state.mealSections.size),
+                                        // Tapping a meal opens its detail once it has logged
+                                        // items; an empty meal jumps straight to add-food.
+                                        // The + is always quick-add.
+                                        onMealClick = {
+                                            if (meal.entries.isNotEmpty()) {
+                                                viewModel.openMealDetail(meal.id)
+                                            } else {
+                                                viewModel.openAddFood(meal.id)
+                                            }
+                                        },
+                                        onAddClick = { viewModel.openAddFood(meal.id) },
+                                    )
+                                }
                             }
 
                         FoodDiaryTab.Summary -> {
@@ -2087,111 +2094,76 @@ private fun MealMacroMetric(
  * 4dp gaps and 24dp-outer/8dp-inner corners.
  */
 @Composable
-private fun MealSectionCard(
+private fun MealSummaryRow(
     meal: FoodMealSectionUiState,
+    badgeShape: ExpressiveBadgeShape,
+    shape: RoundedCornerShape,
     onMealClick: () -> Unit,
     onAddClick: () -> Unit,
 ) {
     val accent = tabAccentFor(AppDestination.Food)
-    val rowCount = 1 + meal.entries.size
-    val meta = buildString {
-        append(meal.compactDiarySummaryLabel())
-        if (meal.entries.isNotEmpty()) {
-            meal.rating?.let { append(" · ${it.label.lowercase()}") }
-        }
-    }
-    Column(
+    val summary = meal.mealDiarySummary()
+    Surface(
+        onClick = onMealClick,
+        color = MusFitTheme.colors.surface,
+        shape = shape,
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Surface(
-            onClick = onMealClick,
-            color = MusFitTheme.colors.surface,
-            shape = groupedShape(0, rowCount),
-            modifier = Modifier.fillMaxWidth(),
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ExpressiveBadge(
-                    icon = mealTypeIcon(meal.id, meal.title),
-                    shape = ExpressiveBadgeShape.Sunny,
-                    containerColor = accent.container,
-                    contentColor = accent.onContainerVariant,
-                    size = 48.dp,
-                    iconSize = 20.dp,
+            ExpressiveBadge(
+                icon = mealTypeIcon(meal.id, meal.title),
+                shape = badgeShape,
+                containerColor = accent.container,
+                contentColor = accent.onContainerVariant,
+                size = 48.dp,
+                iconSize = 22.dp,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = meal.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MusFitTheme.colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = meal.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MusFitTheme.colors.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = meta,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Surface(
-                    onClick = onAddClick,
-                    color = accent.color,
-                    contentColor = accent.onColor,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.size(44.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Filled.Add,
-                            contentDescription = "Add to ${meal.title}",
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                }
-            }
-        }
-        meal.entries.forEachIndexed { index, entry ->
-            Surface(
-                onClick = onMealClick,
-                color = MusFitTheme.colors.surface,
-                shape = groupedShape(index + 1, rowCount),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = buildAnnotatedString {
+                Text(
+                    text = buildAnnotatedString {
+                        append(summary.prefix)
+                        if (summary.kcal.isNotEmpty()) {
                             withStyle(
                                 SpanStyle(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MusFitTheme.colors.onSurface,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = accent.onContainer,
                                 ),
                             ) {
-                                append(entry.name)
+                                append(summary.kcal)
                             }
-                            append(", ${entry.quantityGrams.roundToInt()} g")
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = "${entry.caloriesKcal.roundToInt()} kcal",
-                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.5.sp),
-                        fontWeight = FontWeight.ExtraBold,
-                        color = accent.onContainer,
-                        maxLines = 1,
+                        }
+                        append(summary.qualifier)
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 1.dp),
+                )
+            }
+            Surface(
+                onClick = onAddClick,
+                color = accent.color,
+                contentColor = accent.onColor,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.size(44.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = "Add to ${meal.title}",
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }

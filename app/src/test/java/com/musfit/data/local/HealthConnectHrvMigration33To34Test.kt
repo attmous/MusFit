@@ -35,7 +35,7 @@ class HealthConnectHrvMigration33To34Test {
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_33_34, DatabaseModule.MIGRATION_34_35)
+                .addMigrations(DatabaseModule.MIGRATION_33_34, DatabaseModule.MIGRATION_34_35, DatabaseModule.MIGRATION_35_36)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()

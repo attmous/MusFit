@@ -58,10 +58,11 @@ class TodayMetricsTest {
     )
 
     @Test
-    fun calories_withGoalShowsRemainingAndProgress() {
+    fun calories_withGoalShowsEatenOfGoalWithPercent() {
+        // Turn 8 vitals tile: the EATEN figure with the full goal and percent in the sub line.
         val value = MetricResolver.resolve(TodayMetric.Calories, snapshot()) as MetricValue.WithGoal
-        assertEquals("800", value.figure)
-        assertEquals("kcal left", value.caption)
+        assertEquals("1,200", value.figure)
+        assertEquals("of 2,000 kcal · 60%", value.caption)
         assertEquals(0.6f, value.progress, 0.001f)
     }
 
@@ -72,13 +73,13 @@ class TodayMetricsTest {
     }
 
     @Test
-    fun calories_overGoalShowsOverageWithGrouping() {
+    fun calories_overGoalReportsPercentPastHundredWithFullWave() {
         val value = MetricResolver.resolve(
             TodayMetric.Calories,
             snapshot(caloriesKcal = 3500.0, calorieGoalKcal = 2000.0),
         ) as MetricValue.WithGoal
-        assertEquals("1,500", value.figure)
-        assertEquals("kcal over", value.caption)
+        assertEquals("3,500", value.figure)
+        assertEquals("of 2,000 kcal · 175%", value.caption)
         assertEquals(1.0f, value.progress, 0.001f)
     }
 
@@ -96,7 +97,35 @@ class TodayMetricsTest {
         ) as MetricValue.WithGoal
 
         assertEquals("5.500", value.figure)
-        assertEquals("of 10.000", value.caption)
+        assertEquals("of 10.000 · 55%", value.caption)
+    }
+
+    @Test
+    fun protein_withGoalShowsGramsOfGoalWithPercent() {
+        val value = MetricResolver.resolve(TodayMetric.Protein, snapshot()) as MetricValue.WithGoal
+        assertEquals("80 g", value.figure)
+        assertEquals("of 150 g · 53%", value.caption)
+    }
+
+    @Test
+    fun water_withGoalShowsLitersOfGoalWithPercent() {
+        val value = MetricResolver.resolve(
+            TodayMetric.Water,
+            snapshot(waterMl = 1500.0, waterGoalMl = 2500.0),
+        ) as MetricValue.WithGoal
+        assertEquals("1.5 L", value.figure)
+        assertEquals("of 2.5 L · 60%", value.caption)
+        assertEquals(0.6f, value.progress, 0.001f)
+    }
+
+    @Test
+    fun water_wholeLitersDropTheDecimal() {
+        val value = MetricResolver.resolve(
+            TodayMetric.Water,
+            snapshot(waterMl = 2000.0, waterGoalMl = 2000.0),
+        ) as MetricValue.WithGoal
+        assertEquals("2 L", value.figure)
+        assertEquals("of 2 L · 100%", value.caption)
     }
 
     @Test
@@ -141,7 +170,7 @@ class TodayMetricsTest {
     @Test
     fun remainingMetrics_noDataAndNoGoalBranches() {
         assertEquals(MetricValue.Plain("80 g", "today"), MetricResolver.resolve(TodayMetric.Protein, snapshot(proteinGoalGrams = 0.0)))
-        assertEquals(MetricValue.Plain("1000 ml", "today"), MetricResolver.resolve(TodayMetric.Water, snapshot(waterGoalMl = 0.0)))
+        assertEquals(MetricValue.Plain("1 L", "today"), MetricResolver.resolve(TodayMetric.Water, snapshot(waterGoalMl = 0.0)))
         assertEquals(MetricValue.NoData("No data"), MetricResolver.resolve(TodayMetric.BodyFat, snapshot(bodyFatPercent = null)))
         assertEquals(MetricValue.NoData("Not connected"), MetricResolver.resolve(TodayMetric.ActiveCalories, snapshot(activeCaloriesKcal = null)))
         assertEquals(MetricValue.NoData("Not connected"), MetricResolver.resolve(TodayMetric.Sleep, snapshot(sleepMinutes = null)))
@@ -164,36 +193,17 @@ class TodayMetricsTest {
     }
 
     @Test
-    fun pages_threePinsFitOnHeroPage() {
-        val pages = buildCarouselPages(listOf(TodayMetric.Calories, TodayMetric.Steps, TodayMetric.Protein))
-        assertEquals(1, pages.size)
-        assertEquals(TodayMetric.Calories, pages[0].hero)
-        assertEquals(listOf(TodayMetric.Steps, TodayMetric.Protein), pages[0].chips)
+    fun vitals_tilesFollowPinOrder() {
+        val pins = listOf(TodayMetric.Weight, TodayMetric.Sleep, TodayMetric.Calories)
+        assertEquals(pins, vitalsTileMetrics(pins))
     }
 
     @Test
-    fun pages_singlePinIsHeroOnly() {
-        val pages = buildCarouselPages(listOf(TodayMetric.Weight))
-        assertEquals(1, pages.size)
-        assertEquals(TodayMetric.Weight, pages[0].hero)
-        assertTrue(pages[0].chips.isEmpty())
-    }
-
-    @Test
-    fun pages_eightPinsOverflowInChunksOfFour() {
-        val pins = TodayMetric.entries.take(8)
-        val pages = buildCarouselPages(pins)
-        assertEquals(3, pages.size) // hero+2, then 4, then 1
-        assertEquals(pins[0], pages[0].hero)
-        assertEquals(pins.subList(1, 3), pages[0].chips)
-        assertEquals(null, pages[1].hero)
-        assertEquals(pins.subList(3, 7), pages[1].chips)
-        assertEquals(pins.subList(7, 8), pages[2].chips)
-    }
-
-    @Test
-    fun pages_emptyPinsFallBackToDefaults() {
-        val pages = buildCarouselPages(emptyList())
-        assertEquals(TodayMetric.Calories, pages[0].hero)
+    fun vitals_emptyPinsFallBackToTheDefaultFour() {
+        assertEquals(
+            listOf(TodayMetric.Calories, TodayMetric.Steps, TodayMetric.Protein, TodayMetric.Water),
+            vitalsTileMetrics(emptyList()),
+        )
+        assertTrue(TodayMetric.DEFAULT_PINS == vitalsTileMetrics(emptyList()))
     }
 }

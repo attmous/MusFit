@@ -10,13 +10,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.TrendingDown
+import androidx.compose.material.icons.automirrored.outlined.TrendingFlat
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -148,6 +153,7 @@ fun ProfileScreen(
             )
             MeasurementsGrid(
                 state = state,
+                accent = accent,
                 onOpenType = { type ->
                     state.tiles.firstOrNull { it.type == type }?.let { tile ->
                         if (tile.entryCount == 0) logMeasurementInitialType = type else measurementSheetType = type
@@ -540,12 +546,13 @@ private fun WeightCard(
 }
 
 /**
- * Measurements as the mock-6d two-column grid: white cells with grouped corners
- * (24dp on the grid's outside, 8dp inside), quiet label over an emphasized
- * value — or a faint "Tap to log" placeholder.
+ * Measurements as the Turn 8 (8d) two-column grid: white cells with grouped
+ * corners (24dp on the grid's outside, 8dp inside), quiet label, emphasized
+ * value with its unit at the baseline, and a 30-day trend row — or a faint
+ * "Tap to log" placeholder for genuinely empty cells.
  */
 @Composable
-private fun MeasurementsGrid(state: ProfileUiState, onOpenType: (String) -> Unit) {
+private fun MeasurementsGrid(state: ProfileUiState, accent: TabAccent, onOpenType: (String) -> Unit) {
     val columns = 2
     val rows = state.tiles.chunked(columns)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -554,6 +561,7 @@ private fun MeasurementsGrid(state: ProfileUiState, onOpenType: (String) -> Unit
                 rowTiles.forEachIndexed { columnIndex, tile ->
                     MeasurementCell(
                         tile = tile,
+                        accent = accent,
                         shape = gridGroupShape(rowIndex, rows.size, columnIndex, columns),
                         onClick = { onOpenType(tile.type) },
                         modifier = Modifier.weight(1f),
@@ -568,6 +576,7 @@ private fun MeasurementsGrid(state: ProfileUiState, onOpenType: (String) -> Unit
 @Composable
 private fun MeasurementCell(
     tile: MeasurementTile,
+    accent: TabAccent,
     shape: RoundedCornerShape,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -603,14 +612,62 @@ private fun MeasurementCell(
                     maxLines = 1,
                 )
             } else {
-                Text(
-                    "${tile.value!!.format1()} ${tile.unit}",
-                    style = MusFitTheme.typography.titleLarge.copy(fontSize = 18.sp),
-                    color = MusFitTheme.colors.onSurface,
-                    maxLines = 1,
-                )
+                Row {
+                    Text(
+                        tile.value!!.format1(),
+                        style = MusFitTheme.typography.titleLarge.copy(fontSize = 20.sp, letterSpacing = (-0.4).sp),
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MusFitTheme.colors.onSurface,
+                        maxLines = 1,
+                        modifier = Modifier.alignByBaseline(),
+                    )
+                    Text(
+                        tile.unit,
+                        style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        fontWeight = FontWeight.Medium,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier.alignByBaseline().padding(start = 3.dp),
+                    )
+                }
+                MeasurementTrendRow(delta = tile.delta30d, accent = accent)
             }
         }
+    }
+}
+
+/**
+ * The 30-day trend line: direction icon + delta in the Profile teal for a
+ * meaningful change, gray trending_flat with "no change" when the value is
+ * effectively unchanged. Hidden until a 30-day baseline exists.
+ */
+@Composable
+private fun MeasurementTrendRow(delta: Double?, accent: TabAccent) {
+    if (delta == null) return
+    // Below display resolution (one decimal) counts as flat.
+    val flat = abs(delta) < 0.05
+    val color = if (flat) MusFitTheme.colors.onSurfaceFaint else accent.color
+    val icon = when {
+        flat -> Icons.AutoMirrored.Outlined.TrendingFlat
+        delta < 0 -> Icons.AutoMirrored.Outlined.TrendingDown
+        else -> Icons.AutoMirrored.Outlined.TrendingUp
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
+        Text(
+            text = if (flat) {
+                "no change · 30 days"
+            } else {
+                "${if (delta < 0) "−" else "+"}${abs(delta).format1()} · 30 days"
+            },
+            style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.5.sp),
+            fontWeight = FontWeight.Bold,
+            color = color,
+            maxLines = 1,
+        )
     }
 }
 

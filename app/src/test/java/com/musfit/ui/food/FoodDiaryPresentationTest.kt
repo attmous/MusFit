@@ -6,34 +6,60 @@ import org.junit.Test
 
 class FoodDiaryPresentationTest {
     @Test
-    fun mealSectionSummaryUsesCompactDiaryCalories() {
-        val loggedMeal = foodMealSection(caloriesKcal = 512.4)
-        val plannedMeal = foodMealSection(plannedCaloriesKcal = 245.0)
-        val mixedMeal = foodMealSection(caloriesKcal = 410.0, plannedCaloriesKcal = 180.0)
+    fun mealDiarySummary_countsLoggedItemsAndEmphasizesCalories() {
+        val breakfast = foodMealSection(
+            caloriesKcal = 545.0,
+            entries = List(3) { foodMealEntry(name = "Item $it", caloriesKcal = 180.0) },
+            rating = rating("Great"),
+        )
+        val lunch = foodMealSection(
+            caloriesKcal = 620.0,
+            entries = List(2) { foodMealEntry(name = "Item $it", caloriesKcal = 310.0) },
+        )
+        val single = foodMealSection(
+            caloriesKcal = 278.0,
+            entries = listOf(foodMealEntry(name = "Item", caloriesKcal = 278.0)),
+        )
 
-        assertEquals("512 kcal", loggedMeal.compactDiarySummaryLabel())
-        assertEquals("245 kcal planned", plannedMeal.compactDiarySummaryLabel())
-        assertEquals("410 kcal + 180 planned", mixedMeal.compactDiarySummaryLabel())
+        assertEquals(MealDiarySummary("3 items · ", "545 kcal", " · great"), breakfast.mealDiarySummary())
+        assertEquals(MealDiarySummary("2 items · ", "620 kcal", ""), lunch.mealDiarySummary())
+        assertEquals(MealDiarySummary("1 item · ", "278 kcal", ""), single.mealDiarySummary())
     }
 
     @Test
-    fun mealEntriesUseSingleCommaSeparatedHomeLine() {
-        val entries = listOf(
-            foodMealEntry(name = "Blueberries", caloriesKcal = 46.0),
-            foodMealEntry(name = "Rolled oats", caloriesKcal = 233.0),
-            foodMealEntry(name = "Greek yogurt 2%", caloriesKcal = 146.0),
+    fun mealDiarySummary_saysSoFarWhilePlannedItemsRemain() {
+        val dinner = foodMealSection(
+            caloriesKcal = 278.0,
+            plannedCaloriesKcal = 320.0,
+            entries = listOf(
+                foodMealEntry(name = "Logged", caloriesKcal = 278.0),
+                foodMealEntry(name = "Planned", caloriesKcal = 320.0, isPlanned = true),
+            ),
+            rating = rating("Great"), // "so far" outranks the rating while items are pending
         )
 
-        assertEquals(
-            "Blueberries (46 kcal), Rolled oats (233 kcal), Greek yogurt 2% (146 kcal)",
-            entries.compactDiaryEntriesLabel(),
-        )
+        assertEquals(MealDiarySummary("1 item · ", "278 kcal", " · so far"), dinner.mealDiarySummary())
     }
+
+    @Test
+    fun mealDiarySummary_plannedOnlyAndEmptyStates() {
+        val plannedMeal = foodMealSection(
+            plannedCaloriesKcal = 245.0,
+            entries = listOf(foodMealEntry(name = "Planned", caloriesKcal = 245.0, isPlanned = true)),
+        )
+        val emptyMeal = foodMealSection()
+
+        assertEquals(MealDiarySummary("", "245 kcal", " planned"), plannedMeal.mealDiarySummary())
+        assertEquals(MealDiarySummary("No items yet", "", ""), emptyMeal.mealDiarySummary())
+    }
+
 }
 
 private fun foodMealSection(
     caloriesKcal: Double = 0.0,
     plannedCaloriesKcal: Double = 0.0,
+    entries: List<FoodMealEntryUiState> = emptyList(),
+    rating: FoodRatingUiState? = null,
 ): FoodMealSectionUiState =
     FoodMealSectionUiState(
         id = "breakfast",
@@ -43,7 +69,16 @@ private fun foodMealSection(
         calorieTargetKcal = 625.0,
         calorieProgress = 0.0,
         plannedCaloriesKcal = plannedCaloriesKcal,
-        entries = emptyList(),
+        rating = rating,
+        entries = entries,
+    )
+
+private fun rating(label: String): FoodRatingUiState =
+    FoodRatingUiState(
+        label = label,
+        reason = "On plan",
+        suggestion = "Keep going",
+        tone = FoodInsightTone.Positive,
     )
 
 private fun foodMealEntry(
@@ -53,6 +88,7 @@ private fun foodMealEntry(
     proteinGrams: Double = 0.0,
     carbsGrams: Double = 0.0,
     fatGrams: Double = 0.0,
+    isPlanned: Boolean = false,
 ): FoodMealEntryUiState =
     FoodMealEntryUiState(
         id = "entry-1",
@@ -64,4 +100,5 @@ private fun foodMealEntry(
         proteinGrams = proteinGrams,
         carbsGrams = carbsGrams,
         fatGrams = fatGrams,
+        isPlanned = isPlanned,
     )

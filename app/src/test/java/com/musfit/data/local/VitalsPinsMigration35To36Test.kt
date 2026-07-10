@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class CoachMigration25To26Test {
+class VitalsPinsMigration35To36Test {
     private lateinit var context: Context
 
     @Before
@@ -31,72 +31,69 @@ class CoachMigration25To26Test {
     }
 
     @Test
-    fun migration25To26_createsCoachTablesAndSeedsDefaultPins() {
-        createDatabaseFromExportedSchema(version = 25)
+    fun migration35To36_appendsWaterToTheUntouchedDefaultPins() {
+        createDatabaseFromExportedSchema(version = 35) { database ->
+            database.execSQL(
+                "INSERT INTO dashboard_pins (metricId, position) " +
+                    "VALUES ('calories', 0), ('steps', 1), ('protein', 2)",
+            )
+        }
 
+        runMigration()
+
+        readPins().let { pins ->
+            assertEquals(
+                listOf("calories" to 0, "steps" to 1, "protein" to 2, "water" to 3),
+                pins,
+            )
+        }
+    }
+
+    @Test
+    fun migration35To36_leavesCustomizedPinsAlone() {
+        createDatabaseFromExportedSchema(version = 35) { database ->
+            // The user reordered and trimmed the set — never touch it.
+            database.execSQL(
+                "INSERT INTO dashboard_pins (metricId, position) VALUES ('weight', 0), ('calories', 1)",
+            )
+        }
+
+        runMigration()
+
+        assertEquals(listOf("weight" to 0, "calories" to 1), readPins())
+    }
+
+    private fun runMigration() {
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(
-                    DatabaseModule.MIGRATION_25_26,
-                    DatabaseModule.MIGRATION_26_27,
-                    DatabaseModule.MIGRATION_27_28,
-                    DatabaseModule.MIGRATION_28_29,
-                    DatabaseModule.MIGRATION_29_30,
-                    DatabaseModule.MIGRATION_30_31,
-                    DatabaseModule.MIGRATION_31_32,
-                    DatabaseModule.MIGRATION_32_33,
-                    DatabaseModule.MIGRATION_33_34,
-                    DatabaseModule.MIGRATION_34_35,
-                    DatabaseModule.MIGRATION_35_36,
-                )
+                .addMigrations(DatabaseModule.MIGRATION_35_36)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
         } finally {
             roomDatabase.close()
         }
+    }
 
+    private fun readPins(): List<Pair<String, Int>> {
         val migrated =
             SQLiteDatabase.openDatabase(
                 context.getDatabasePath(TEST_DATABASE_NAME).path,
                 null,
                 SQLiteDatabase.OPEN_READONLY,
             )
-        try {
-            assertTrue(tableHasColumn(migrated, "coach_messages", "ruleKey"))
-            assertTrue(tableHasColumn(migrated, "coach_messages", "firstSeenAtEpochMillis"))
-            assertTrue(tableHasColumn(migrated, "coach_messages", "source"))
-            // 25→26 seeds the three default pins; 35→36 appends water for users
-            // still on that untouched default, so the full chain lands on four.
-            migrated.rawQuery(
+        return migrated.use { database ->
+            database.rawQuery(
                 "SELECT metricId, position FROM dashboard_pins ORDER BY position",
                 null,
             ).use { cursor ->
-                assertEquals(4, cursor.count)
-                assertTrue(cursor.moveToFirst())
-                assertEquals("calories", cursor.getString(0))
-                assertEquals(0, cursor.getInt(1))
-                assertTrue(cursor.moveToNext())
-                assertEquals("steps", cursor.getString(0))
-                assertTrue(cursor.moveToNext())
-                assertEquals("protein", cursor.getString(0))
-                assertTrue(cursor.moveToNext())
-                assertEquals("water", cursor.getString(0))
-                assertEquals(3, cursor.getInt(1))
+                generateSequence { if (cursor.moveToNext()) cursor.getString(0) to cursor.getInt(1) else null }
+                    .toList()
             }
-        } finally {
-            migrated.close()
         }
     }
 
-    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean =
-        database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
-            val nameIndex = cursor.getColumnIndex("name")
-            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
-                .any { it == columnName }
-        }
-
-    private fun createDatabaseFromExportedSchema(version: Int) {
+    private fun createDatabaseFromExportedSchema(version: Int, seed: (SQLiteDatabase) -> Unit) {
         val schemaFile = resolveSchemaFile(version)
         val schemaJson = JSONObject(schemaFile.readText())
         val databaseJson = schemaJson.getJSONObject("database")
@@ -121,6 +118,7 @@ class CoachMigration25To26Test {
             for (index in 0 until setupQueries.length()) {
                 database.execSQL(setupQueries.getString(index))
             }
+            seed(database)
             database.version = version
         } finally {
             database.close()
@@ -137,6 +135,7 @@ class CoachMigration25To26Test {
     }
 
     private companion object {
-        const val TEST_DATABASE_NAME = "coach-25-26"
+        // Deliberately short: long Room DB names overflow Windows MAX_PATH at WAL setup.
+        const val TEST_DATABASE_NAME = "pins-35-36"
     }
 }

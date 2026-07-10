@@ -53,6 +53,9 @@ data class MeasurementTile(
     val value: Double?,
     val unit: String,
     val deltaFromPrevious: Double?,
+    /** Turn 8 trend row: change vs the value as of 30 days ago; null without a
+     *  distinct baseline (single entry, or nothing logged since the window). */
+    val delta30d: Double?,
     val sparkline: List<Double>,
     val entryCount: Int,
 )
@@ -130,6 +133,7 @@ class ProfileViewModel internal constructor(
         // disagree across a midnight rollover, and a resume re-anchor re-runs the math.
         val todayEpochDay = today.toEpochDay()
         val sparkFromMillis = (todayEpochDay - 90L) * DAY_MILLIS
+        val trendFromMillis = (todayEpochDay - 30L) * DAY_MILLIS
         val complete = profile.sex != null && profile.heightCm != null &&
             profile.birthDateEpochDay != null && weightSeries.isNotEmpty()
         ProfileUiState(
@@ -137,7 +141,7 @@ class ProfileViewModel internal constructor(
             profile = profile,
             hero = buildWeightHero(profile, weightSeries, todayEpochDay),
             tiles = MEASUREMENT_TYPES.map { type ->
-                buildMeasurementTile(type, measurements[type].orEmpty(), sparkFromMillis)
+                buildMeasurementTile(type, measurements[type].orEmpty(), sparkFromMillis, trendFromMillis)
             },
             isProfileComplete = complete,
             recommendedTargets = targets,
@@ -299,17 +303,31 @@ private fun buildMeasurementTile(
     type: String,
     history: List<BodyMeasurement>, // newest-first
     sparkFromMillis: Long,
-): MeasurementTile = MeasurementTile(
-    type = type,
-    label = MEASUREMENT_LABELS[type] ?: type,
-    value = history.firstOrNull()?.value,
-    unit = history.firstOrNull()?.unit ?: defaultUnitFor(type),
-    // Deltas subtract raw values across rows; safe while the log dialog fixes one unit per type.
-    deltaFromPrevious = history.getOrNull(1)?.let { prev -> history.first().value - prev.value },
-    sparkline = history.filter { it.measuredAtEpochMillis >= sparkFromMillis }
-        .map { it.value }.reversed(),
-    entryCount = history.size,
-)
+    trendFromMillis: Long,
+): MeasurementTile {
+    val latest = history.firstOrNull()
+    // Value as of 30 days ago: the newest entry at or before the cutoff, or the
+    // oldest entry when the whole history is younger than the window. A baseline
+    // that IS the latest entry (single entry, or a stale logger) yields no trend.
+    val baseline = history.firstOrNull { it.measuredAtEpochMillis <= trendFromMillis }
+        ?: history.lastOrNull()
+    return MeasurementTile(
+        type = type,
+        label = MEASUREMENT_LABELS[type] ?: type,
+        value = latest?.value,
+        unit = latest?.unit ?: defaultUnitFor(type),
+        // Deltas subtract raw values across rows; safe while the log dialog fixes one unit per type.
+        deltaFromPrevious = history.getOrNull(1)?.let { prev -> history.first().value - prev.value },
+        delta30d = if (latest != null && baseline != null && baseline.id != latest.id) {
+            latest.value - baseline.value
+        } else {
+            null
+        },
+        sparkline = history.filter { it.measuredAtEpochMillis >= sparkFromMillis }
+            .map { it.value }.reversed(),
+        entryCount = history.size,
+    )
+}
 
 private fun buildPlanCards(
     goal: FoodGoal,
