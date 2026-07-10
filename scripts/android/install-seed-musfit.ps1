@@ -15,6 +15,7 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
 
 $emulator = Join-Path $env:ANDROID_HOME "emulator\emulator.exe"
 $apk = Join-Path $repoRoot "app\build\outputs\apk\debug\app-debug.apk"
+$testApk = Join-Path $repoRoot "app\build\outputs\apk\androidTest\debug\app-debug-androidTest.apk"
 
 function Assert-LastExitCode([string] $Action) {
     if ($LASTEXITCODE -ne 0) {
@@ -106,8 +107,8 @@ Write-Host "Using emulator: $DeviceSerial"
 if (-not $SkipBuild) {
     Push-Location $repoRoot
     try {
-        & .\gradlew.bat assembleDebug --no-daemon --console=plain
-        Assert-LastExitCode "assembleDebug"
+        & .\gradlew.bat assembleDebug assembleDebugAndroidTest --no-daemon --console=plain
+        Assert-LastExitCode "assembleDebug and assembleDebugAndroidTest"
     } finally {
         Pop-Location
     }
@@ -116,9 +117,14 @@ if (-not $SkipBuild) {
 if (-not (Test-Path -LiteralPath $apk)) {
     throw "Debug APK not found: $apk"
 }
+if (-not (Test-Path -LiteralPath $testApk)) {
+    throw "Debug instrumentation APK not found: $testApk"
+}
 
 & adb -s $DeviceSerial install -r $apk
 Assert-LastExitCode "adb install"
+& adb -s $DeviceSerial install -r $testApk
+Assert-LastExitCode "adb install instrumentation APK"
 
 if ($Reset) {
     $clearOutput = & adb -s $DeviceSerial shell pm clear com.musfit 2>&1
@@ -130,18 +136,20 @@ if ($Reset) {
 }
 
 $resetValue = if ($Reset) { "true" } else { "false" }
-$seedOutput = & adb -s $DeviceSerial shell am broadcast `
-    --receiver-foreground `
-    -a com.musfit.debug.SEED_TEST_DATA `
-    -n com.musfit/com.musfit.debug.MusFitDebugSeedReceiver `
-    --ez reset $resetValue 2>&1
+$seedOutput = & adb -s $DeviceSerial shell am instrument `
+    -w `
+    -r `
+    -e reset $resetValue `
+    -e class com.musfit.debug.MusFitDebugSeedInstrumentationTest `
+    com.musfit.test/androidx.test.runner.AndroidJUnitRunner 2>&1
 $seedExitCode = $LASTEXITCODE
 $seedOutput | ForEach-Object { Write-Host $_ }
 if ($seedExitCode -ne 0) {
-    throw "Debug seed broadcast failed with exit code $seedExitCode"
+    throw "Debug seed instrumentation failed with exit code $seedExitCode"
 }
-if (($seedOutput -join "`n") -notmatch "result=-1") {
-    throw "Debug seed broadcast did not report RESULT_OK. Output: $($seedOutput -join ' ')"
+$seedText = $seedOutput -join "`n"
+if ($seedText -match "FAILURES!!!" -or $seedText -notmatch "OK \(1 test\)" -or $seedText -notmatch "INSTRUMENTATION_CODE: -1") {
+    throw "Debug seed instrumentation did not pass. Output: $($seedOutput -join ' ')"
 }
 
 if (-not $NoLaunch) {
@@ -185,4 +193,4 @@ if (-not [string]::IsNullOrWhiteSpace($EvidenceDir)) {
     Write-Host "Evidence written to $resolvedEvidenceDir"
 }
 
-Write-Host "MusFit debug APK installed and seeded on $DeviceSerial (reset=$resetValue)."
+Write-Host "MusFit debug APK installed and instrumentation-seeded on $DeviceSerial (reset=$resetValue)."

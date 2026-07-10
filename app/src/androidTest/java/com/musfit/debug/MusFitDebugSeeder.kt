@@ -1,11 +1,8 @@
 package com.musfit.debug
 
-import android.app.Activity
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.util.Log
 import androidx.room.withTransaction
+import com.musfit.core.di.DatabaseModule
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.entity.ACTIVE_ACCOUNT_SESSION_KEY
 import com.musfit.data.local.entity.AccountEntity
@@ -35,48 +32,25 @@ import com.musfit.data.local.entity.WaterEntryEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.data.repository.AccountAuthProvider
+import com.musfit.data.repository.AssetExerciseDatasetProvider
 import com.musfit.data.repository.FoodGoalMode
+import com.musfit.data.repository.LocalTrainingRepository
 import com.musfit.data.repository.TrainingRepository
-import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDate
 import java.time.ZoneId
-import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 
-@AndroidEntryPoint
-class MusFitDebugSeedReceiver : BroadcastReceiver() {
-    @Inject
-    lateinit var database: MusFitDatabase
-
-    @Inject
-    lateinit var trainingRepository: TrainingRepository
-
-    override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != ACTION_SEED_TEST_DATA) return
-
-        val reset = intent.getBooleanExtra(EXTRA_RESET, false)
-        val result = runCatching {
-            runBlocking(Dispatchers.IO) {
-                seedDebugData(reset = reset)
-            }
-        }
-
-        result
-            .onSuccess { summary ->
-                Log.i(TAG, summary)
-                setResultCode(Activity.RESULT_OK)
-                setResultData(summary)
-            }
-            .onFailure { error ->
-                val message = "MusFit debug seed failed: ${error.message}"
-                Log.e(TAG, message, error)
-                setResultCode(Activity.RESULT_CANCELED)
-                setResultData(message)
-            }
-    }
-
-    private suspend fun seedDebugData(reset: Boolean): String {
+/**
+ * Deterministic seed implementation compiled only into the instrumentation APK.
+ *
+ * The installable MusFit APK contains neither this implementation nor an IPC
+ * component that can reach it. Android's instrumentation entry point is guarded
+ * by the platform and is started by the developer helper through adb shell.
+ */
+internal class MusFitDebugSeeder private constructor(
+    private val database: MusFitDatabase,
+    private val trainingRepository: TrainingRepository,
+) : AutoCloseable {
+    suspend fun seed(reset: Boolean): String {
         if (reset) {
             database.clearAllTables()
         }
@@ -496,9 +470,16 @@ class MusFitDebugSeedReceiver : BroadcastReceiver() {
     )
 
     companion object {
-        const val ACTION_SEED_TEST_DATA = "com.musfit.debug.SEED_TEST_DATA"
-        const val EXTRA_RESET = "reset"
-        private const val TAG = "MusFitDebugSeed"
+        fun create(context: Context): MusFitDebugSeeder {
+            val appContext = context.applicationContext
+            val database = DatabaseModule.provideDatabase(appContext)
+            val trainingRepository = LocalTrainingRepository(
+                database = database,
+                trainingDao = database.trainingDao(),
+                exerciseDataset = AssetExerciseDatasetProvider(appContext),
+            )
+            return MusFitDebugSeeder(database, trainingRepository)
+        }
 
         private val DEBUG_FOODS = listOf(
             DebugFood("debug-food-yogurt", "Greek yogurt 2%", "MusFit Test Kitchen", 200.0, "cup", "900000000001", "Dairy", true, 73.0, 10.0, 3.9, 2.0, 0.0, 3.2, 1.3, 36.0, 141.0, 110.0, 0.1, 0.0, 0.0, 11.0, servings = listOf(DebugServing("cup", 200.0))),
@@ -516,6 +497,10 @@ class MusFitDebugSeedReceiver : BroadcastReceiver() {
             DebugFood("debug-food-eggs", "Eggs", null, 100.0, "2 large", "900000000013", "Protein", false, 143.0, 12.6, 0.7, 9.5, 0.0, 0.4, 3.1, 142.0, 138.0, 56.0, 1.8, 2.0, 0.0, 12.0, servings = listOf(DebugServing("large egg", 50.0), DebugServing("2 large", 100.0))),
             DebugFood("debug-food-turkey", "Turkey mince 5%", null, 150.0, "portion", "900000000014", "Protein", false, 155.0, 27.0, 0.0, 5.0, 0.0, 0.0, 1.4, 70.0, 250.0, 15.0, 1.1, 0.2, 0.0, 28.0, servings = listOf(DebugServing("portion", 150.0))),
         )
+    }
+
+    override fun close() {
+        database.close()
     }
 }
 
