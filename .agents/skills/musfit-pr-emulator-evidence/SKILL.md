@@ -1,6 +1,6 @@
 ---
 name: musfit-pr-emulator-evidence
-description: Verify and document MusFit pull requests that change Android functionality or design by running the repository's complete local gate, installing deterministic seed data on the MusFit emulator, exercising the affected workflow, capturing reviewed screenshot and UI-tree evidence, waiting for PR checks, and upserting an evidence comment. Use whenever Codex creates, updates, reviews, or prepares to merge a MusFit PR whose diff changes runtime Kotlin, Compose UI, Android resources, manifest behavior, or build configuration; skip docs-only, test-only, CI-only, and non-runtime tooling changes.
+description: Verify and document MusFit pull requests that change Android functionality or design by running the repository's complete local gate, installing deterministic seed data on the MusFit emulator, exercising the affected workflow, capturing reviewed screenshot and UI-tree evidence, waiting for PR checks, and upserting an evidence comment. Use whenever an agent creates, updates, reviews, hands off, or prepares to merge a MusFit PR whose diff changes runtime Kotlin, Compose UI, Android resources, manifest behavior, or build configuration; skip docs-only, test-only, CI-only, and non-runtime tooling changes.
 ---
 
 # MusFit PR Emulator Evidence
@@ -16,6 +16,7 @@ Use this repo-scoped skill from the MusFit repository root. Reuse the repository
 - Capture the success state for each changed user workflow. Capture both light and dark mode for design changes.
 - Inspect every selected PNG with the image viewer before publishing. Reject transitional, blank, clipped, keyboard-covered, secret-bearing, or wrong-screen captures.
 - Treat any new commit as invalidating all prior test and screenshot evidence.
+- Local captures are not PR evidence. Complete `publish-pr-evidence.ps1` and confirm that the marker-based PR comment and `MusFit emulator evidence` status verify the exact current PR head SHA before handoff or merge.
 - Do not merge when a required scenario cannot be verified. State the limitation on the PR instead.
 
 ## 1. Decide whether the skill applies
@@ -27,6 +28,7 @@ Run this workflow when production behavior can change, including changes under:
 - `app/src/main/java/`
 - `app/src/main/res/`
 - `app/src/main/AndroidManifest.xml`
+- runtime files in other app source sets such as `app/src/internal/` or `app/src/production/`
 - runtime Gradle or version-catalog configuration
 
 Skip it only when the diff is exclusively documentation, tests, CI, repository metadata, or non-runtime tooling. Record the skip reason in the PR verification section.
@@ -112,15 +114,9 @@ $serial = (Get-Content "$evidenceDir\verification.json" -Raw | ConvertFrom-Json)
 adb -s $serial shell cmd uimode night auto
 ```
 
-## 5. Confirm GitHub checks and publish one evidence comment
+## 5. Publish one evidence comment and satisfy the exact-head status
 
-Wait for the PR checks on the same head:
-
-```powershell
-gh pr checks $pr --watch --fail-fast --interval 10
-```
-
-After visually reviewing all captures, publish them:
+Wait for the normal PR checks on the same head and visually review all captures, then publish them. The publisher requires every non-evidence check to pass, but intentionally ignores the failing `MusFit emulator evidence` status that this publication will satisfy:
 
 ```powershell
 & "$skillRoot\scripts\publish-pr-evidence.ps1" `
@@ -137,6 +133,15 @@ The publisher:
 - uses immutable commit-pinned image URLs;
 - creates or updates one marker-based PR comment instead of spamming comments;
 - includes exact local commands, emulator identity, scenario captions, and the evidence commit.
+
+The trusted default-branch workflow reevaluates the PR when that comment is created or updated. Before handoff, confirm that `gh pr checks $pr` shows `MusFit emulator evidence` passing for the current head. If it does not turn green, run the repository checker locally to obtain the exact failure:
+
+```powershell
+$repo = (gh repo view --json nameWithOwner --jq .nameWithOwner).Trim()
+$token = (gh auth token).Trim()
+& ".\scripts\dev\check-pr-emulator-evidence.ps1" `
+  -Repository $repo -PullRequest $pr -Token $token
+```
 
 The repository is public, so anything on `pr-evidence` is public. Stop before publishing if a screenshot contains non-seeded or sensitive content.
 

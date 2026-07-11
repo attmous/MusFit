@@ -6,13 +6,13 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $EvidenceDir,
     [string] $Repository = "",
-    [string] $EvidenceBranch = "pr-evidence",
     [switch] $ConfirmVisualReview,
     [switch] $DryRun
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$EvidenceBranch = "pr-evidence"
 
 function Assert-LastExitCode([string] $Action) {
     if ($LASTEXITCODE -ne 0) {
@@ -56,16 +56,70 @@ function ConvertTo-UrlPath([string] $Path) {
     return (($Path -split '/') | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/'
 }
 
+function Get-OptionalProperty([object] $Object, [string] $Name) {
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+    $property.Value
+}
+
+function Assert-NonEvidencePrChecksPassed([int] $PrNumber, [string] $Repo) {
+    $status = Invoke-GhJson -Arguments @(
+        "pr", "view", $PrNumber.ToString(),
+        "--repo", $Repo,
+        "--json", "statusCheckRollup"
+    )
+    $allChecks = @()
+    foreach ($check in (Get-OptionalProperty $status "statusCheckRollup")) {
+        $allChecks += $check
+    }
+    $checked = 0
+    $blocking = @()
+    foreach ($check in $allChecks) {
+        $type = [string](Get-OptionalProperty $check "__typename")
+        $name = if ($type -eq "StatusContext") {
+            [string](Get-OptionalProperty $check "context")
+        } else {
+            [string](Get-OptionalProperty $check "name")
+        }
+        if ($name -eq "MusFit emulator evidence") {
+            continue
+        }
+
+        $checked++
+        if ($type -eq "StatusContext") {
+            $state = [string](Get-OptionalProperty $check "state")
+            if ($state -ne "SUCCESS") {
+                $blocking += "$name ($state)"
+            }
+            continue
+        }
+
+        $checkStatus = [string](Get-OptionalProperty $check "status")
+        $conclusion = [string](Get-OptionalProperty $check "conclusion")
+        if (
+            $checkStatus -ne "COMPLETED" -or
+            $conclusion -notin @("SUCCESS", "SKIPPED", "NEUTRAL")
+        ) {
+            $blocking += "$name ($checkStatus/$conclusion)"
+        }
+    }
+
+    if ($checked -eq 0) {
+        throw "No non-evidence GitHub PR checks were found; wait for CI before publishing evidence"
+    }
+    if ($blocking.Count -gt 0) {
+        throw "Non-evidence GitHub PR checks are not all passing: $($blocking -join ', ')"
+    }
+}
+
 if (-not $ConfirmVisualReview) {
     throw "Inspect every selected PNG, then rerun with -ConfirmVisualReview"
 }
 if (-not $DryRun -and $PullRequest -lt 1) {
     throw "A real pull request number is required unless -DryRun is used"
 }
-if ($EvidenceBranch -notmatch '^[A-Za-z0-9._/-]+$' -or $EvidenceBranch.StartsWith('/') -or $EvidenceBranch.EndsWith('/')) {
-    throw "EvidenceBranch is not a safe Git ref name: $EvidenceBranch"
-}
-
 $repoRootOutput = & git rev-parse --show-toplevel 2>&1
 Assert-LastExitCode "Resolve repository root"
 $repoRoot = [IO.Path]::GetFullPath(($repoRootOutput | Select-Object -First 1).Trim())
@@ -96,14 +150,26 @@ if ($worktreeChanges.Count -gt 0) {
     throw "Worktree changes appeared after verification; rerun the complete evidence workflow from a clean PR head"
 }
 
-foreach ($check in @($receipt.checks)) {
+$receiptChecks = @()
+foreach ($check in $receipt.checks) {
+    $receiptChecks += $check
     if ($check.status -ne "passed") {
         throw "Verification check did not pass: $($check.name)"
+    }
+}
+if ($receiptChecks.Count -eq 0) {
+    throw "Verification receipt does not contain any checks"
+}
+$receiptCheckNames = @($receiptChecks | ForEach-Object { [string] $_.name })
+foreach ($requiredCheck in @("Full Gradle gate", "Seeded emulator install", "Foreground launch")) {
+    if ($requiredCheck -notin $receiptCheckNames) {
+        throw "Verification receipt is missing required check: $requiredCheck"
     }
 }
 if (
     $receipt.device.serial -notmatch '^emulator-\d+$' -or
     $receipt.device.avdName -ne "MusFit_API36" -or
+    $receipt.device.packageName -ne "com.musfit.internal" -or
     -not $receipt.device.seeded
 ) {
     throw "Evidence receipt is not from the seeded MusFit_API36 emulator"
@@ -174,17 +240,7 @@ if ($prData.headRefOid -ne $receipt.headSha) {
 }
 
 if (-not $DryRun) {
-    $previousPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    try {
-        $checkOutput = @(& gh pr checks $PullRequest --repo $Repository 2>&1)
-        $checkExitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previousPreference
-    }
-    if ($checkExitCode -ne 0) {
-        throw "GitHub PR checks are not all passing; do not publish evidence yet.`n$($checkOutput -join "`n")"
-    }
+    Assert-NonEvidencePrChecksPassed -PrNumber $PullRequest -Repo $Repository
 }
 
 $remoteRoot = "pr/$PullRequest/$($receipt.headSha)"
@@ -344,22 +400,19 @@ if ($latestPr.state -ne "OPEN" -or $latestPr.headRefOid -ne $receipt.headSha) {
     throw "The PR head changed while evidence was uploading. Rerun the complete gate and capture workflow."
 }
 
-$previousPreference = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-try {
-    $finalCheckOutput = @(& gh pr checks $PullRequest --repo $Repository 2>&1)
-    $finalCheckExitCode = $LASTEXITCODE
-} finally {
-    $ErrorActionPreference = $previousPreference
-}
-if ($finalCheckExitCode -ne 0) {
-    throw "GitHub PR checks stopped passing while evidence was uploading.`n$($finalCheckOutput -join "`n")"
-}
+Assert-NonEvidencePrChecksPassed -PrNumber $PullRequest -Repo $Repository
 
 $viewer = Invoke-GhJson -Arguments @("api", "user")
-$comments = @(Invoke-GhJson -Arguments @(
-    "api", "repos/$Repository/issues/$PullRequest/comments?per_page=100"
-))
+$commentPages = Invoke-GhJson -Arguments @(
+    "api", "--paginate", "--slurp",
+    "repos/$Repository/issues/$PullRequest/comments?per_page=100"
+)
+$comments = @()
+foreach ($page in $commentPages) {
+    foreach ($entry in $page) {
+        $comments += $entry
+    }
+}
 $existing = $comments |
     Where-Object { $_.user.login -eq $viewer.login -and $_.body -like "*$marker*" } |
     Select-Object -Last 1
