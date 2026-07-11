@@ -1,72 +1,86 @@
-# Auto-updating the app on your phone (no USB)
+# Development Auto-Update With Obtainium
 
-Goal: every push to `master` produces a build that lands on the dev phone automatically,
-with no USB cable and no manual "install" tap beyond the one-time setup below.
+The current development lane publishes a debug APK after a successful push to
+`master`. Obtainium can detect that GitHub Release without USB. Standard Android
+still asks the user to confirm installation unless the device has separately
+configured privileged/device-owner support.
 
-## How it works
+This is a developer convenience, not a production release channel.
 
-```
+## Current Flow
+
+```text
 push to master
-   └─ GitHub Actions (.github/workflows/android.yml)
-        ├─ verify job   → tests + lint + assembleDebug → uploads app-debug.apk
-        └─ publish job  → creates a GitHub Release "build-<n>" with musfit-<n>.apk
-                              │
-                              ▼
-        Obtainium on the phone polls the repo's Releases,
-        sees a higher versionCode, downloads and installs it.
+  -> GitHub Actions verify
+       -> workflow contract
+       -> unit tests + lint + target/instrumentation APK compilation
+       -> musfit-debug-apk workflow artifact
+  -> GitHub Actions publish
+       -> build-<versionCode> GitHub Release
+       -> musfit-<versionCode>.apk
+  -> Obtainium detects the newer release and offers it for installation
 ```
 
-Two things make this reliable:
+Relevant source:
 
-- **Stable signing.** Every build (local *and* CI) is signed with the committed keystore
-  at [`app/keystore/musfit.debug.keystore`](../../app/keystore/musfit.debug.keystore) — a
-  copy of the standard Android debug key. Android only lets an update install over an
-  existing app if the signature matches, so a single shared key is mandatory. Because it's
-  the *same* debug key this machine already flashes with, the first OTA update installs over
-  your current app with **no uninstall and no data loss**. The credentials are the public
-  Android debug defaults (`storepass`/`keypass` = `android`, alias `androiddebugkey`); it's a
-  debug-only key, safe to commit.
-- **Monotonic versionCode.** `versionCode` is the git commit count (see `gitCommitCount()` in
-  [`app/build.gradle.kts`](../../app/build.gradle.kts)). Every merge to master raises it, and
-  Android only installs an APK whose `versionCode` is *higher* than what's installed. CI checks
-  out with `fetch-depth: 0` so the count is real (a shallow clone would make it 1).
+- `.github/workflows/android.yml`
+- `app/build.gradle.kts`
+- `app/keystore/musfit.debug.keystore`
 
-The distributed build is the **debug** variant (what you already flash). It's larger and
-unminified but functionally identical — no ProGuard/R8 rules to maintain. To switch to a
-release variant later, add a `release` buildType that reuses the same `signingConfig` and have
-the `publish` job build/attach `assembleRelease` instead.
+The development update lane works because:
 
-## One-time phone setup (Obtainium)
+- Every debug build in this lane uses the same committed public development
+  signing key, so a CI APK can update a locally installed debug APK without an
+  uninstall.
+- `versionCode` comes from the full Git commit count. CI uses `fetch-depth: 0`,
+  so each merge to `master` advances it monotonically.
 
-1. Install **Obtainium** (FOSS): from [GitHub Releases](https://github.com/ImranR98/Obtainium/releases)
-   or F-Droid / the IzzyOnDroid repo. Grant it permission to install unknown apps when prompted.
-2. In Obtainium → **Add App**, paste the MusFit repo URL, e.g.
-   `https://github.com/attmous/MusFit` (use the actual repo URL).
-3. In the app's Obtainium settings:
-   - Source: GitHub.
-   - Enable **"Attempt to filter APKs by CPU architecture"** off (single universal APK).
-   - Optionally enable **background update checking** and set an interval (e.g. every 6h).
-   - If the repo is private, add a GitHub Personal Access Token (repo:read) in
-     Obtainium → Settings → Source-specific → GitHub.
-4. Tap the app in Obtainium → it detects `build-<n>` → **Install**. From then on Obtainium
-   checks on its schedule and installs new master builds automatically.
+The APK is debuggable, unminified, signed with a public key, and includes
+debug-only behavior. It is not functionally or operationally equivalent to a
+production build. Do not reuse the debug signing configuration for a store or
+production release; private signing, install migration, shrinking, and verified
+APK/AAB publication are tracked in the architecture remediation backlog.
 
-> Fully silent (no install tap) is only possible if Obtainium is granted "device owner" via
-> shizuku/root. Without that, Android shows a one-tap install confirmation per update — still
-> no USB, no cable, no dev flashing.
+The legacy exported seed receiver tracked as SEC-001 has been removed. The APK
+published by this lane contains no seed component or seed action. Deterministic
+development seeding is separate: `install-seed-musfit.ps1` installs the
+instrumentation APK only on the named dedicated emulator and invokes the Android
+test runner. The public signing key, debuggability, and lack of a
+production-shaped, signed distribution lane still make this a developer channel
+rather than a production-safe one.
 
-## Trigger a build manually
+## One-Time Obtainium Setup
 
-- Push to `master` (normal path), **or**
-- GitHub → Actions → **Android** → *Run workflow* (`workflow_dispatch`) — note this only
-  publishes a Release when run on the `master` ref.
+1. Install [Obtainium](https://github.com/ImranR98/Obtainium/releases) and grant
+   its requested unknown-app install permission.
+2. Add the MusFit GitHub repository URL.
+3. Select GitHub as the source. The current artifact is one universal APK, so
+   architecture filtering is unnecessary.
+4. If the repository is private, configure a read-only GitHub token in
+   Obtainium's source settings.
+5. Install the detected `build-<n>` release. Later checks can discover newer
+   builds automatically, but installation normally still requires confirmation.
 
-## Gotchas
+Fully silent installation requires separate privileged/device-owner, Shizuku,
+or root configuration. That is outside this repository's update workflow.
 
-- **Don't re-generate the keystore.** Replacing `app/keystore/musfit.debug.keystore` with a
-  different key breaks updates for every phone already on the old key (forces uninstall).
-- **Building from a second machine is fine** — Gradle uses the committed keystore, not that
-  machine's `~/.android/debug.keystore`.
-- **Downgrades won't auto-install.** If you flash an older local build over a newer OTA one,
-  its lower versionCode means Obtainium won't "update" backward; use `adb install -r -d` if you
-  really need to.
+## Triggering And Artifacts
+
+- A push to `master` runs verification and, if successful, creates the GitHub
+  Release consumed by Obtainium.
+- `workflow_dispatch` runs verification and uploads the workflow artifact, but
+  the current `publish` condition is push-only; manual dispatch does not create a
+  GitHub Release.
+- Pull requests and pushes to `main` run the debug verification path but do not
+  publish the Obtainium release.
+
+## Operational Notes
+
+- Do not replace `app/keystore/musfit.debug.keystore` casually. A different key
+  cannot update phones installed with the old key without an uninstall or an
+  explicit signing-key migration.
+- A full Git history is required for the real commit-count `versionCode`.
+- Downgrades do not install as normal updates. Use an explicit adb downgrade only
+  on a development device and only after considering schema compatibility.
+- Treat the GitHub Release and workflow artifact as debug developer artifacts,
+  not Play-ready or production-safe binaries.

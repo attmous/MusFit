@@ -3,14 +3,14 @@
 **Your AI strength coach — with a real app around it.**
 MusFit is an Android strength-training and nutrition tracker built to become the rich, hands-on
 interface for a personal AI coach that *you* run: a locally hosted model, your own API key, or a
-personal agent you already operate. No account. No subscription. Nobody else's cloud.
+personal agent you already operate. No MusFit cloud account. No subscription. No middleman cloud.
 
 | Today — coach feed | Food — diary | Training — routines | Active workout | Profile — body hub |
 | :---: | :---: | :---: | :---: | :---: |
 | ![Today tab with metric summary and coach feed](docs/media/today.png) | ![Food diary with calorie ring and macro progress](docs/media/food.png) | ![Training tab with weekly summary and routines](docs/media/training.png) | ![Active workout with PR badge, warm-up ramp, and plate math](docs/media/workout.png) | ![Profile body hub with weight trend and measurements](docs/media/profile.png) |
 
-*The shipped app today, on seeded demo data — and the coral chat bubble in every corner is
-where the coach will live.*
+*The shipped app today, on seeded demo data — the coral chat bubble opens the
+app-wide coach conversation.*
 
 ## The idea
 
@@ -21,11 +21,12 @@ agents (OpenClaw, Hermes, and friends) already run on people's own machines with
 data. What's missing is the interface: a plain chat window can't photograph a plate, scan a
 barcode, time a rest period, read your wearable, or draw a calorie ring.
 
-MusFit is that interface — a feature-rich native app that gives a personal AI eyes and hands:
+MusFit is being built as that interface — a feature-rich native app that gives a
+personal AI eyes and hands:
 
 - **A serious tracker underneath.** Meals, workouts, body measurements, water, goals — all
-  structured data in a local Room database. The coach reasons over real numbers, not vibes,
-  and everything it suggests lands back in the same diary you can edit by hand.
+  structured data in a local Room database. The coach reasons over real numbers, not vibes;
+  future write actions must remain explicit and reviewable in the same app data you edit by hand.
 - **Bring your own AI.** The intelligence layer is pluggable: an on-device model, any
   API-compatible endpoint with your own key, or a bridge to a local agent that already knows
   you. MusFit itself has no AI vendor lock-in and no middleman.
@@ -34,14 +35,15 @@ MusFit is that interface — a feature-rich native app that gives a personal AI 
   session and last night's sleep. Separately, a **floating chat** gives you a full
   ChatGPT/Claude-style conversation with the same coach whenever you want to ask, plan, or
   push back.
-- **Local-first, still.** Your data lives on the phone. AI access happens on your terms —
-  local inference or your own key — never through a MusFit account, because there isn't one.
+- **Local-first, still.** Persistent app data lives on the phone. If you enable
+  the coach, a bounded context snapshot goes to the configured local/API endpoint
+  on your terms — never through a MusFit-operated cloud backend.
 
 And the coach has a specialty: MusFit is **strength-first**. The training half is a serious gym
 log, and the programming, recovery, and nutrition intelligence all orbit one goal — steady
 progress under the bar.
 
-## The daily loop
+## The envisioned daily loop
 
 1. **Photograph your meals.** The coach analyzes the photo, estimates calories and the
    protein/carb/fat split, and drafts the diary entry for your review — barcode scanning,
@@ -59,19 +61,23 @@ The tracker foundation is shipped and daily-drivable; the AI layer is the active
 
 **Shipped:** the four-tab app described below, a deterministic (rule-based) coach feed on
 Today, AI logging shells in Food (text-draft logging works; photo and voice are UX shells),
-and Health Connect integration that reads steps, weight, and heart data and exports workouts,
-nutrition, and hydration.
+and Health Connect integration for health import and workout export. Nutrition/hydration
+export code exists, but its required manifest write permissions remain an open audit finding.
+
+The app-wide **Ask coach** conversation is backed by either a user-configured
+OpenAI-compatible endpoint or a local agent such as Hermes. Chat history stays
+in local Room storage and the coach receives a compact local context snapshot;
+it cannot mutate MusFit data.
 
 **The AI coach roadmap:**
 
-- [ ] Pluggable AI backend — on-device model, OpenAI/Anthropic-compatible API key, or a bridge
-      to a locally running agent (OpenClaw, Hermes, or similar)
+- [x] Configurable OpenAI-compatible endpoint or local-agent bridge (Hermes/OpenClaw/custom)
+- [ ] On-device model provider
 - [ ] Meal-photo analysis → calories + macro split drafted into the diary
 - [ ] Voice logging through the mic
-- [ ] Sleep duration and quality import from wearables via Health Connect
 - [ ] AI-generated coach feed on Today — bedtime, intake, and training-intensity cues from the
       combined nutrition/training/sleep picture
-- [ ] Floating coach chat with full local context
+- [ ] Proactive notifications and explicitly approved coach write actions
 
 ## The end game — a complete strength coach
 
@@ -153,8 +159,8 @@ Four tabs, each a focused miniapp with its own accent color on a shared design l
 ### 📅 Today — the coach's home
 
 The daily dashboard and the coach's mouthpiece: a configurable metric carousel (calories,
-macros, steps, water, weight, training volume, …), progress rings, weekly goals, and the coach
-feed — today deterministic cues generated locally from your own data, tomorrow the AI coach.
+macros, steps, water, weight, training volume, …), local readiness, a dashboard editor, and a
+deterministic coach feed generated from your own data.
 
 ### 🍽 Food — calories in
 
@@ -173,7 +179,8 @@ A full food diary with the depth of the big trackers:
   include-training-calories.
 - **Planning** — plan future days, planned-vs-logged tracking, copy day/meal, a 7-day plan
   strip, and a shopping list generated from planned meals.
-- **Water tracking** with goals, and nutrition/hydration export to Health Connect.
+- **Water tracking** with goals, plus a nutrition/hydration Health Connect export
+  path whose manifest write-permission gap is tracked in the architecture audit.
 - **Experimental** — nutrition-label OCR (camera scan with user review) and AI text-draft
   logging, the seed of the photo/voice flows above.
 
@@ -193,7 +200,8 @@ sparklines, goal and target-weight management, plan launchers, and app settings.
 
 ## How it's built
 
-Single-module Android app (`:app`, `com.musfit`) with strict one-direction layering:
+Single-module Android app (`:app`, `com.musfit`) with this intended dependency
+direction; the architecture audit tracks current boundary leaks:
 
 ```text
 Compose screen → ViewModel (StateFlow) → Repository interface → Room DAO / Open Food Facts
@@ -203,19 +211,19 @@ Compose screen → ViewModel (StateFlow) → Repository interface → Room DAO /
 | --- | --- |
 | Language / UI | Kotlin, Jetpack Compose, Material 3 (Expressive), single activity |
 | State | Hilt ViewModels exposing immutable `StateFlow`, date-scoped `flatMapLatest` streams |
-| Storage | Room (schema v30, exported schemas, migration-only — no destructive fallback) |
+| Storage | Room (exported schemas, migration-only — no destructive fallback) |
 | Domain | Pure Kotlin calculators (`NutritionCalculator`, `WorkoutCalculator`) with no Android deps |
-| Integrations | Retrofit + Moshi (Open Food Facts), CameraX + ML Kit (barcode/label scan), Health Connect behind a fakeable gateway |
-| Testing | TDD culture: JUnit ViewModel tests with hand-written fakes, Robolectric repository/DAO tests against in-memory Room with real migrations, pure domain tests |
+| Integrations | Retrofit + Moshi (Open Food Facts, GitHub identity, coach endpoints), Credential Manager, CameraX + ML Kit, Health Connect |
+| Testing | JUnit ViewModel tests with hand-written fakes, Robolectric current-schema repository/DAO tests, dedicated migration tests, pure domain tests |
 | Min / target SDK | 28 (Android 9) / 37 |
 
 The full architecture map lives in [`docs/architecture/`](docs/architecture/README.md), with a
 deep dive into the Food miniapp in
 [`docs/architecture/food-system.md`](docs/architecture/food-system.md). The design system
 (shared header/summary-card language, per-tab accents, spacing/shape/type tokens) is documented
-under [`docs/design/`](docs/design/musfit-design-system.md). Feature specs and implementation
-plans are kept in [`docs/superpowers/`](docs/superpowers/) — the repo is developed spec-first,
-and every shipped slice has a written plan.
+under [`docs/design/`](docs/design/musfit-design-system.md). Historical feature specs and
+implementation plans are kept in [`docs/superpowers/`](docs/superpowers/); the current
+repo-wide engineering queue is the architecture remediation backlog.
 
 ## Building from source
 
@@ -228,10 +236,10 @@ Set up the local Android toolchain for the shell:
 . .\scripts\android\android-env.ps1
 ```
 
-Run the full verification build:
+Run the standard debug verification gate:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-daemon --console=plain
 ```
 
 The repo-owned helper runs the same gate and can also clean `app/build` and retry
@@ -241,29 +249,34 @@ once when Gradle reports a generated-output filesystem failure:
 .\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
 ```
 
-Install the debug APK on a connected device or emulator:
+Install the debug APK on an explicitly selected device or emulator:
 
 ```powershell
-adb install -r app\build\outputs\apk\debug\app-debug.apk
-adb shell monkey -p com.musfit -c android.intent.category.LAUNCHER 1
+adb devices -l
+adb -s <serial> install -r app\build\outputs\apk\debug\app-debug.apk
+adb -s <serial> shell am start -W -n com.musfit/.MainActivity
 ```
 
-CI (GitHub Actions, [`android.yml`](.github/workflows/android.yml)) runs the same debug
-verification gate on every PR and push, uploads the debug APK as the `musfit-debug-apk`
-artifact, and runs a full `build` job only for default-branch pushes.
+CI (GitHub Actions, [`android.yml`](.github/workflows/android.yml)) runs the workflow contract
+and debug verification gate on every PR and on pushes to `master`/`main`, uploads the APK as
+the `musfit-debug-apk` artifact, and publishes that verified developer APK as a GitHub Release
+on `master`. This is not a production-signed APK/AAB lane.
 
 ## Status
 
-MusFit is a personal project under active development. The Food miniapp has shipped nearly all
-of its original 24-slice roadmap; Training, Today, and Profile are shipped and being polished
-under a unified cross-tab design language. The AI coach layer is the next chapter. There are
-no store releases — grab the CI artifact or build from source.
+MusFit is a personal project under active development. Food, Training, Today, and Profile are
+all substantial shipped surfaces. The AI coach is usable for read-only conversation, while
+agent actions, photo/voice logging, and production release hardening remain in progress. There
+is no Play release; `master` currently publishes a verified debug build for the development
+update flow. The legacy exported seed receiver has been removed; deterministic development
+seeding now uses a separately installed instrumentation APK on the dedicated emulator. The
+published APK remains a debuggable developer artifact, not a production-safe release.
 
 ## Privacy
 
-All health, meal, body, and workout data stays on-device. MusFit has no accounts, no cloud
-sync, no analytics or tracking, no subscriptions, and no social features. AI is strictly
-opt-in and bring-your-own: on-device inference, your own API key, or your own local agent —
-requests go where you point them and nowhere else. The only other integrations are Open Food
-Facts (outbound product lookups only) and Android Health Connect (on-device,
-permission-gated).
+Health, meal, body, workout, account, and chat history are stored locally; MusFit has no cloud
+data-sync backend, analytics or tracking, subscriptions, or social features. External identity
+linking, Open Food Facts lookup, and Health Connect are explicit integration boundaries. AI is
+opt-in and bring-your-own: when enabled, MusFit sends a bounded food/health/training/profile/goals
+context snapshot and the user's message to the configured API endpoint or local agent. MusFit
+does not proxy those requests through its own service.

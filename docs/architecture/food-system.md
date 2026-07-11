@@ -1,25 +1,27 @@
 # MusFit Food System
 
 The Food miniapp is the largest and most polished area of MusFit. This document
-is the authoritative deep-dive: feature map, the state-driven navigation model,
-the `FoodUiState` shape, the domain logic Food relies on, and the live refactor
-backlog.
+is the feature deep-dive: feature map, state-driven navigation, `FoodUiState`,
+domain logic, and a record of the completed structure refactor. For current
+cross-cutting defects or new structural work, the July 2026 architecture audit
+and remediation backlog take precedence.
 
 It complements, and does not duplicate, the cross-cutting docs:
 
 - [Architecture overview](README.md) — layering, DI, persistence, theme.
-- [Screen contracts](screen-contracts.md) — the `FoodScreen` public contract and
-  flow sequence diagrams.
-- [Data models](data-models.md) — Room entities, repository models, and enums
-  (the canonical model reference; not repeated here).
+- [Screen contracts](screen-contracts.md) — the `FoodScreen` public entrypoint
+  and scanner-result flow.
+- [Data models](data-models.md) — model ownership and source-of-truth map.
 
-Snapshot date: 2026-07-03. Schema version 28.
+Do not infer the live Room version from this feature document. Derive it from
+`app/src/main/java/com/musfit/data/local/MusFitDatabase.kt` and the newest
+committed schema JSON.
 
 ## Where Food lives
 
 | Path | Responsibility |
 | --- | --- |
-| `ui/food/FoodScreen.kt` | Diary screen, summary/header, meal detail, and the `FoodSheetMode` dispatch (~2,000 lines). |
+| `ui/food/FoodScreen.kt` | Diary screen, summary/header, meal detail, and the `FoodSheetMode` dispatch. |
 | `ui/food/FoodComponents.kt` | Shared leaf composables + formatters (`ProgressBar`, `FoodThumb`, `SectionTitle`, …). |
 | `ui/food/FoodTrackersUi.kt` | Water + Health Connect cards, shown as bottom-sheet content (Water via the quick-actions tile, Health Connect via the tools menu). |
 | `ui/food/FoodModalSheets.kt` | The `FoodSheetMode` panels (database, editors, goals, recipes, templates, shopping, barcode comparison, fasting timer). |
@@ -28,24 +30,26 @@ Snapshot date: 2026-07-03. Schema version 28.
 | `ui/food/FoodViewModel.kt` | Single `@HiltViewModel`; owns `FoodUiState` and every Food action. |
 | `ui/food/BarcodeScannerScreen.kt` | CameraX + ML Kit barcode capture route. |
 | `ui/food/NutritionLabelScannerScreen.kt` | CameraX + ML Kit OCR capture route. |
+| `ui/food/NutritionTrends.kt`, `NutritionTrendsViewModel.kt`, `NutritionTrendsScreen.kt` | Profile-owned nutrition trends route backed by Food range summaries. |
 | `data/repository/FoodRepository.kt` | `FoodRepository` interface, `LocalFoodRepository`, and Food repo models. |
 | `data/local/dao/FoodDao.kt` | Room DAO + Food projection rows. |
 | `data/local/entity/FoodEntities.kt` | Food Room entities. |
 | `data/remote/food/` | Open Food Facts provider behind `FoodProductProvider`. |
 | `domain/nutrition/`, `domain/food/` | Pure nutrition calculators and the OCR parser. |
 
-Food deliberately uses **one ViewModel and one broad UI state** for the diary,
-add flow, database, all editors, and related panels. New Food work extends these
-files and the `FoodAddMode` / `FoodSheetMode` state-driven conventions rather
-than introducing parallel ViewModels.
+Food currently uses **one ViewModel and one broad UI state** for the diary, add
+flow, database, editors, and related panels. Preserve the established
+`FoodAddMode` / `FoodSheetMode` behavior for feature changes. Structural changes
+must follow the current remediation package rather than blindly growing or
+splitting this state machine.
 
 ## Feature map
 
 **Diary (home).** Date navigation, planning mode, calorie ring, macro progress,
 advanced-nutrient and micronutrient progress, summarized meal rows (default +
-custom meals; Turn 8 moved per-item rows onto the meal detail page), deterministic
-daily insights, day/meal/per-food ratings with factor drill-down, a weekly MusFit
-score, derived daily habit trackers, and a 7-day plan strip.
+custom meals; Turn 8 moved per-item rows onto the meal detail page),
+deterministic daily insights, day/meal/per-food ratings with factor drill-down,
+derived daily habit trackers, and a 7-day plan strip.
 
 **Add flow (`FoodAddMode`).** Saved (recents, same-as-yesterday, favorites,
 templates, recipes), Manual, Barcode (Open Food Facts lookup → edit → save and/or
@@ -82,7 +86,7 @@ template", and log-to-any-meal.
 **Custom meals.** Rename, optional time, reorder, and show/hide. Meals are the 4
 hardcoded defaults (breakfast, lunch, dinner, snacks) merged with `meal_definitions`
 rows that override a default by id or add new meals. Hiding is a soft flag
-(`meal_definitions.isHidden`, DB v32) — a hidden meal is excluded from the diary
+(`meal_definitions.isHidden`) — a hidden meal is excluded from the diary
 and from add-target pickers (`FoodUiState.visibleMealDefinitions`) but its logged
 food still counts toward day totals; at least one meal must stay visible.
 
@@ -102,21 +106,21 @@ tracking with a goal.
 UI state for the MVP: selected plan, start time, derived fasting/eating windows,
 and progress as the fast-hours share of the day.
 
-**Quality, habits, and weekly score.** Ratings remain deterministic/local-first.
+**Quality and habits.** Ratings remain deterministic/local-first.
 Day and meal ratings expose calorie, protein, fiber, sodium, and diet-mode
 factors; logged foods get compact quality ratings; fruit, vegetable, fish, and
-water habits are derived from today's diary and water progress. The weekly
-MusFit score combines seven-day nutrition consistency, tracked-day hydration,
-weekly fruit/vegetable/fish habit coverage, and a neutral training factor until
-Food has a real weekly training/Health Connect signal. The range is the
-selected date's trailing seven-day window.
+water habits are derived from today's diary and water progress.
 
-**Progress stats.** `FoodProgressSummary` reuses the range diary/water queries
-for 28-day local history. `FoodProgressStatsUiState` derives weekly and monthly
-cards with tracked days, average calories/protein, calorie-target adherence,
-hydration adherence, habit coverage, and calorie trend labels.
+**Profile-owned nutrition trends.** `NutritionTrendsScreen` is a Profile
+secondary route implemented in the Food UI package. Its ViewModel observes a
+today-anchored seven-day `FoodWeeklySummary` and 28-day `FoodProgressSummary`.
+`NutritionTrends.kt` derives the weekly MusFit score plus weekly/monthly cards
+for tracked days, average calories/protein, target and hydration adherence,
+habit coverage, and calorie trends. The score uses a neutral training factor
+until a weekly Training/Health Connect signal is connected.
 
-**Health Connect.** Food/hydration export with a sync-state card.
+**Health Connect.** Food/hydration export implementation with a sync-state card;
+the manifest write-permission gap is tracked by the July 2026 audit.
 
 **Cross-cutting.** Favorites across foods/templates/recipes/quick-logs, undo
 delete, copy/move entries, and mark planned → logged.
@@ -124,17 +128,22 @@ delete, copy/move entries, and mark planned → logged.
 **Shells (intentional).** Nutrition-label OCR is a camera + ML Kit feed into a
 best-effort `NutritionLabelParser` that extracts calories, macros, fiber, sugar,
 saturated fat, and sodium when present, then exposes a confidence label and
-parsed-field count for review before save/log. AI voice/photo logging are UX
-shells. Cloud AI is out of scope (local-first).
+parsed-field count for review before save/log. Food voice/photo logging are UX
+shells. The separate global coach supports opt-in local or user-configured API
+endpoints but does not currently write Food data.
 
 ## Remaining Food work
 
-The Lifesum-style Food parity loop is closed. Remaining Food work is intentionally
-limited to hardening and explicitly deferred local-first scope:
+The Lifesum-style feature-parity loop is closed. The list below is
+Food-specific deferred scope; repo-wide data-safety, account, performance,
+Health Connect, and architecture work remains in the remediation backlog.
 
-- AI voice/photo logging remain UX shells; cloud AI stays out of scope.
+- AI voice/photo logging remain UX shells and require explicit product scope
+  before becoming model-backed write flows.
 - Nutrition-label OCR parsing is best-effort and always review-before-save/log.
-- Weekly MusFit score uses a neutral training factor until a real weekly
+- Nutrition/hydration export is implemented in code, but the required Health
+  Connect manifest write declarations remain an open audit finding.
+- The Profile nutrition-trends score uses a neutral training factor until a real weekly
   Training/Health Connect signal is connected.
 - Food trust reports are local UI state, not a persisted review queue.
 - Fasting timer state is MVP-local UI state; notifications and fasting history
@@ -157,12 +166,16 @@ full-screen add surface, the full-screen recipe browser, the diary, or a
 | `DiaryEntryEditor` | Edit a logged/planned item: amount, meal, copy, delete, undo. |
 | `SavedFoodEditor` | Full saved-food editor. |
 | `NutritionLabelScan` | OCR review-before-save fields. |
+| `BarcodeComparison` | Compare saved/imported barcode foods and nutrient highlights. |
+| `FastingTimer` | Local fasting-program timer and progress. |
 | `GoalEditor` | Calorie/macro/detail goal editor. |
 | `RecipeBrowser` | Full-screen recipe discovery, saved-recipe browsing, and plan-to-date/meal actions. |
 | `RecipeEditor` | Recipe create/edit/log. |
 | `MealTemplates` | Template list, edit, duplicate, favorite, log. |
 | `MealSettings` | Custom meal definitions: rename, time, order, and per-meal show/hide toggle. |
 | `ShoppingList` | Generated and manual shopping list. |
+| `Water` | Water quick-add, custom amount, and goal controls. |
+| `HealthConnect` | Food/hydration sync settings and status. |
 
 `FoodAddMode`: `Saved`, `Manual`, `Barcode`, `Quick`, `Ai`.
 `AddTab`: `Recents`, `Favorites`, `Create`.
@@ -170,15 +183,13 @@ full-screen add surface, the full-screen recipe browser, the diary, or a
 
 ## `FoodUiState`
 
-`FoodUiState` is intentionally broad because one ViewModel backs every Food
-surface. Today it is a single flat data class of ~160 fields. The logical groups
-(see [screen-contracts.md](screen-contracts.md#food-screen) for the field-level
-table):
+`FoodUiState` is a broad route-level coordinator because one ViewModel backs
+every Food surface. Common diary/add/tracker state remains flat, while the major
+editors use dedicated sub-state objects. Its logical groups are:
 
 - Date / loading / message
 - Diary summary (eaten/remaining, macro + advanced + micronutrient progress,
-  insights, rating, weekly score, progress stats, quality factors, habit
-  trackers)
+  insights, rating, quality factors, and habit trackers)
 - Meals (sections, definitions, selected detail, sort)
 - Planning (weekly plan, planning mode)
 - Add flow (panel visibility, sheet mode, add mode, add tab, keep-adding,
@@ -187,35 +198,32 @@ table):
 - Barcode / manual draft (barcode, name, brand, per-100 g macros, quantity,
   lookup result, amount preview, serving choices)
 - Saved foods (all, visible, duplicates, detail, trust state, local review flags)
-  **+ saved-food editor inputs**
+  plus nullable `SavedFoodEditorState`
 - Barcode comparison (`BarcodeComparisonUiState`, loaded comparison items,
   nutrient highlights)
 - Fasting timer (`FastingTimerUiState`, preset/custom program inputs)
-- **Diary entry editor inputs**
-- **Recipe editor inputs**
+- Nullable `DiaryEntryEditorState`
+- Nullable `RecipeEditorState`
 - Recipe discovery (`RecipeDiscoveryItemUiState`, `RecipeDiscoveryFilter`)
-- **Meal template editor inputs**
-- **Goal editor inputs**
+- Nullable `MealTemplateEditorState`
+- Non-null `GoalEditorState`
 - Program catalog (`FoodProgramUiState`) derived from local goal presets
-- **Custom meal definition editor inputs**
+- Custom meal definition editor inputs (still flat)
 - Quick calories, water, shopping, Health Connect sync
-
-The **bold** groups are per-editor input fields. Collapsing them into dedicated
-nullable sub-state objects is the core of Tier 1 below.
 
 ## Domain logic Food relies on
 
-Pure, Android-free calculators (see [data-models.md](data-models.md#domain-models-and-calculators)):
+Pure, Android-free calculators (see [data-models.md](data-models.md#domain)):
 
-- `domain/nutrition/NutritionCalculator` — meal totals; **target home for the
-  amount-preview and progress-accumulation math currently inlined in the
-  ViewModel** (Tier 1).
+- `domain/nutrition/NutritionCalculator` — meal totals and amount-preview
+  nutrition math extracted from the ViewModel.
 - `domain/food/NutritionLabelParser` — best-effort OCR parsing.
 - Parser output includes label calories, macros, selected advanced nutrients,
   parsed-field count, and a confidence label.
-- Planned (Tier 1): a `ui/food` presentation-calculator extraction for the
-  currently in-ViewModel `buildDailyInsights`, `buildDayRating`, and weekly
-  score heuristics.
+- Daily insight, rating, and nutrient-progress presentation heuristics remain
+  coordinated by `FoodViewModel`. Weekly score/progress derivation lives in
+  `NutritionTrends.kt` and `NutritionTrendsViewModel`. Move either boundary only
+  through an explicitly scoped, regression-tested remediation package.
 
 ## Testing
 
@@ -231,17 +239,15 @@ Run the focused Food suites:
 .\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalFoodRepositoryTest" --no-daemon --console=plain
 ```
 
-## Refactor backlog
+## Historical Structure-Refactor Record
 
-The layering is clean (no Android types in `domain/`, repository interfaces are
-a real boundary, one-directional flow). The weight is concentrated in three
-deliberate large surfaces: `FoodUiState` (~160 fields), `FoodViewModel`
-(~4,500 lines), and `FoodScreen` (~4,900 lines). The goal of this backlog is to
-reduce cognitive load **without changing behavior** and **without** fragmenting
-the single-ViewModel state machine.
+This section records the earlier behavior-preserving Food cleanup. It is not the
+active architecture backlog. Current source has known boundary leaks and large
+state surfaces documented by the July 2026 audit. Use the remediation package
+for new extraction or state-ownership decisions.
 
 Each item is behavior-preserving and gated on the full verification command
-(`testDebugUnitTest lintDebug assembleDebug`).
+(`testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`).
 
 ### Tier 1a — extract pure logic (lowest risk)
 
@@ -261,30 +267,30 @@ Each item is behavior-preserving and gated on the full verification command
 Each editor's flat input fields in `FoodUiState` were collapsed into a dedicated
 sub-state data class, one editor at a time, each behavior-preserving and verified:
 
-- [x] `DiaryEntryEditorState` — 15 flat `editingDiaryEntry*` fields → one nullable
+- [x] `DiaryEntryEditorState` — flat `editingDiaryEntry*` fields → one nullable
   `diaryEntryEditor`.
-- [x] `GoalEditorState` — 11 `goal*Input` fields → a **non-nullable** `goalEditor`
+- [x] `GoalEditorState` — `goal*Input` fields → a **non-nullable** `goalEditor`
   (the goal draft is always present/synced, never nulled, so non-nullable
   preserves behavior exactly).
-- [x] `MealTemplateEditorState` — 6 `template*` fields → nullable `mealTemplateEditor`.
-- [x] `RecipeEditorState` — 12 `recipe*` editor fields → nullable `recipeEditor`.
+- [x] `MealTemplateEditorState` — `template*` fields → nullable `mealTemplateEditor`.
+- [x] `RecipeEditorState` — recipe editor fields → nullable `recipeEditor`.
   Note: `recipeServingsToLog` stays a flat field — it is the recipe-**log** quantity
   (RecipeQuickList / `logRecipe`), not the editor.
-- [x] `SavedFoodEditorState` — 22 `editingSavedFoodId`/`savedFood*` fields → nullable
+- [x] `SavedFoodEditorState` — `editingSavedFoodId`/`savedFood*` fields → nullable
   `savedFoodEditor`. (Earlier worry that this editor shared the add-draft fields was
   **wrong** — it uses entirely dedicated `savedFood*` fields. The overloaded prefix
   fields `savedFoodQuantityGrams`, `savedFoods`, `selectedSavedFoodDetail` are the
   picker/database, not the editor, and stay flat.)
 
-Result: `FoodUiState`'s flat editor-input fields (~80) collapsed into 6 sub-state
-objects, making "which fields are live in which mode" explicit and each editor
-unit-reasonable in isolation.
+Result: the flat editor-input groups collapsed into dedicated sub-state objects, making
+"which fields are live in which mode" explicit and each editor unit-reasonable
+in isolation.
 
 ### Tier 2 — split `FoodScreen.kt` along feature seams (mechanical)
 
 Relocate composables into sibling files in the same `com.musfit.ui.food` package
 (private composables that cross a file boundary become `internal`). No behavior
-change. **Done — FoodScreen.kt went from ~4,900 to ~1,980 lines.**
+change. **Done.**
 
 - [x] `FoodComponents.kt` — shared primitives (`FoodThumb`, `ProgressBar`,
   `SectionTitle`, avatars, `SmallNumberField`, formatters).
@@ -295,18 +301,14 @@ change. **Done — FoodScreen.kt went from ~4,900 to ~1,980 lines.**
 - [x] `FoodScreen.kt` keeps the diary screen, summary/header, meal detail, and
   the `when (sheetMode)` dispatch.
 
-Remaining optional Tier 2 polish:
+### Decisions Recorded By The Original Refactor
 
-- [ ] Split the diary "Today's summary" / "Trends" collapsible-group cards
-  (rating, insights, advanced nutrition, micronutrients, weekly score, progress
-  stats) into a `FoodSummaryUi.kt` if `FoodScreen.kt` needs to shrink further.
-
-### Deferred / do NOT
+These constraints explain the earlier slice. A newer, explicitly scoped
+architecture-remediation package may supersede them.
 
 - **Do not** split `FoodViewModel` into per-sheet ViewModels — it breaks the
   unified state machine and the single-fake test model.
 - **Do not** introduce a generic `(field, value)` callback bus — it loses the
   type-safety of named `onXxx` actions.
-- **Defer** splitting `FoodRepository` into per-domain repositories. The 40-method
-  interface with empty-default impls is a mild fat-interface smell, but each impl
-  method is < 80 lines; revisit only when a natural seam forces it.
+- **Defer** splitting `FoodRepository` into per-domain repositories until a
+  current remediation package identifies and tests a natural seam.

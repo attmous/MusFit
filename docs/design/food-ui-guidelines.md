@@ -1,11 +1,10 @@
 # Food UI Guidelines
 
-Snapshot date: 2026-06-28.
-
 This document translates the MusFit design system into Food miniapp rules. The
-Food miniapp is the active priority and should remain clean, dense, and
+Food miniapp is a large mature surface and should remain clean, dense, and
 Lifesum-like in information architecture without copying Lifesum's assets or
-exact layouts.
+exact layouts. This document does not establish a standing feature priority;
+scope comes from the current request and backlog.
 
 Authoritative Food architecture remains
 [`docs/architecture/food-system.md`](../architecture/food-system.md).
@@ -18,8 +17,9 @@ Food is the daily nutrition command center:
 - Make logging fast from saved foods, recents, barcode, manual entry, recipes,
   templates, and quick calories.
 - Keep nutrition details trustworthy and editable.
-- Support planning, shopping, water, and Health Connect export without making
-  the primary diary feel crowded.
+- Support planning, shopping, water, and the Health Connect sync boundary without
+  making the primary diary feel crowded. Current export limitations remain in
+  the architecture audit.
 
 Food should feel practical and premium: polished enough to trust, dense enough
 for daily use.

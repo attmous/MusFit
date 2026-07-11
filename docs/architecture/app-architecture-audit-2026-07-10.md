@@ -14,6 +14,14 @@ behavior. Raw traces, screenshots, database experiments, and reports remain
 ignored under `build/reports/architecture-audit/`; only privacy-safe summaries
 are committed.
 
+> **Post-audit status:** on current `master` at `7bb6218`, SEC-001 was resolved
+> by PR #79 (`266cf1f`, merged as `d31d187`): the target APK exposes no seed
+> component/action and local seeding uses a separately installed instrumentation
+> APK. DATA-001 was resolved for Food by PR #80 (`976727a`) and for Training/AI
+> by PR #81 (`7f97e7f`), with relationship-preservation and rollback tests. The
+> original findings below remain unchanged as evidence for the pinned audit
+> commit.
+
 Severity is interpreted as follows:
 
 - **P0** — verified data-loss, security, release-integrity, or blocking correctness risk.
