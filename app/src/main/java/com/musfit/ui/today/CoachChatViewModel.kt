@@ -20,6 +20,8 @@ import com.musfit.data.repository.UserProfile
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.AiCoachRepository
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
+import com.musfit.ui.permissions.requiresLocalNetworkPermission
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.util.Locale
@@ -65,7 +67,7 @@ class CoachChatViewModel @Inject constructor(
             messages = messages,
             isConfigured = settings.providerKind != AiCoachProviderKind.Disabled,
             providerLabel = settings.providerKind.chatLabel(settings.localAgentKind),
-            requiresLocalNetworkPermission = settings.providerKind == AiCoachProviderKind.LocalAgent,
+            requiresLocalNetworkPermission = requiresLocalNetworkPermission(settings.baseUrl),
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, CoachChatUiState())
 
@@ -100,7 +102,7 @@ class CoachChatViewModel @Inject constructor(
 
     fun reportLocalNetworkPermissionDenied() {
         mutableState.update {
-            it.copy(errorMessage = "Allow Local Network access to reach your local coach agent.")
+            it.copy(errorMessage = LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE)
         }
     }
 

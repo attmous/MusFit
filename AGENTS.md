@@ -72,6 +72,12 @@ Read the linked audit before broad changes. In particular:
   into `BuildConfig` and the internal APK. Treat SEC-003 as open: do not put a
   real or reusable secret there; prefer runtime entry into the local secret
   store. Production fields remain blank.
+- AI coach endpoint policy is enforced at settings save and again before request
+  dispatch. Production accepts HTTPS only. Internal HTTP is limited to exact
+  `localhost`, literal IPv4 loopback/RFC1918, and literal IPv6 loopback/ULA;
+  hostnames, link-local addresses, redirects, and default-network fallback are
+  rejected. Keep LAN permission and broad platform cleartext opt-in internal;
+  the pure request policy is the CIDR gate because Android XML cannot express it.
 - Never commit OAuth client secrets, AI keys, gateway tokens, or other secrets.
   Provider client ids are configuration, not bearer secrets, but keep
   environment-specific values in the existing local configuration path unless a

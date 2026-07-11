@@ -4,6 +4,7 @@ import com.musfit.data.local.dao.AiCoachChatDao
 import com.musfit.data.local.entity.AiCoachChatMessageEntity
 import com.musfit.data.local.entity.AiCoachThreadEntity
 import com.musfit.data.remote.coach.CoachCompletionClient
+import com.musfit.data.remote.coach.AiCoachEndpointPolicy
 import com.musfit.data.remote.coach.HermesChatMessage
 import com.musfit.data.remote.coach.HermesChatRequest
 import java.util.UUID
@@ -79,6 +80,7 @@ class LocalAiCoachChatRepository @Inject constructor(
         require(trimmed.isNotBlank()) { "Ask coach something first." }
         val connection = aiCoachRepository.activeConnection()
             ?: throw IllegalStateException("Choose a coach connection in Profile settings first.")
+        AiCoachEndpointPolicy.requireAllowed(connection.baseUrl)
         val account = accountRepository.ensureActiveAccount()
         val thread = ensureThread(account.id, connection)
         val now = clock()

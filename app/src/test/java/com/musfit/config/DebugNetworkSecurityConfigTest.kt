@@ -1,18 +1,22 @@
 package com.musfit.config
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DebugNetworkSecurityConfigTest {
     @Test
-    fun internalNetworkSecurityConfig_allowsLanCleartextForLocalAgents() {
+    fun internalNetworkSecurityConfig_defersCidrsToTheAppPolicyAndTrustsOnlySystemCas() {
         val config = resolveDebugNetworkSecurityConfig().readText()
 
         assertTrue(
-            "Internal builds retain the existing LAN HTTP policy until W1-SEC-02 narrows it.",
+            "Android network-security XML cannot express IP CIDRs; the request-boundary policy is the actual host gate.",
             config.contains("""<base-config cleartextTrafficPermitted="true">"""),
         )
+        assertTrue(config.contains("""<certificates src="system" />"""))
+        assertFalse(config.contains("""<certificates src="user"""))
+        assertFalse(config.contains("overridePins"))
     }
 
     private fun resolveDebugNetworkSecurityConfig(): File {
