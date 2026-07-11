@@ -1,141 +1,230 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.musfit.ui.profile
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.LocalAgentKind
-import com.musfit.ui.AppDestination
-import com.musfit.ui.components.MusFitSegmented
+import com.musfit.ui.components.InnerScreenHeader
+import com.musfit.ui.components.PillButton
+import com.musfit.ui.components.SheetDragHandle
+import com.musfit.ui.components.groupedShape
 import com.musfit.ui.theme.MusFitTheme
-import com.musfit.ui.theme.tabAccentFor
+import com.musfit.ui.theme.TabAccent
 
+/**
+ * The Turn 11 AI coach settings page (11c): connection hero with the coral
+ * composite mark and a status dot, grouped value rows for the endpoint
+ * details, and the on-device key note. The editor opens as a sheet.
+ */
 @Composable
-fun AiCoachSettingsSection(
-    state: AiCoachSettingsUiState,
-    isTesting: Boolean,
-    message: String?,
+internal fun AiCoachSettingsPage(
+    state: ProfileSettingsUiState,
+    accent: TabAccent,
+    onBack: () -> Unit,
     onEdit: () -> Unit,
     onClearApiKey: () -> Unit,
     onTestConnection: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val accent = tabAccentFor(AppDestination.Profile)
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MusFitTheme.shapes.extraLarge,
-        color = MusFitTheme.colors.surface,
+    val coach = state.aiCoach
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MusFitTheme.colors.background)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+        InnerScreenHeader(
+            title = "AI coach",
+            subtitle = "The coach runs on your own model connection",
+            onBack = onBack,
+        )
+
+        AiCoachConnectionHero(
+            state = state,
+            accent = accent,
+            onTestConnection = onTestConnection,
+        )
+
+        val message = state.aiCoachMessage
+        if (message != null) {
+            Text(
+                message,
+                style = MusFitTheme.typography.bodySmall,
+                color = MusFitTheme.colors.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+
+        GroupLabel(
+            text = "Connection",
+            actionLabel = "Edit",
+            actionColor = accent.color,
+            onAction = onEdit,
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            CompactValueRow(title = "Provider", value = coach.providerLabel, shape = groupedShape(0, 4))
+            CompactValueRow(title = "Base URL", value = coach.endpointLabel, shape = groupedShape(1, 4))
+            CompactValueRow(title = "Model", value = coach.modelLabel, shape = groupedShape(2, 4))
+            ApiKeyRow(
+                hasApiKey = coach.hasApiKey,
+                accent = accent,
+                shape = groupedShape(3, 4),
+                onClear = onClearApiKey,
+            )
+        }
+
+        Text(
+            "Your key stays on this device.",
+            style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            color = MusFitTheme.colors.onSurfaceFaint,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+    }
+}
+
+/** Tonal hero: white mark circle · name + status dot line · filled Test pill. */
+@Composable
+private fun AiCoachConnectionHero(
+    state: ProfileSettingsUiState,
+    accent: TabAccent,
+    onTestConnection: () -> Unit,
+) {
+    val coach = state.aiCoach
+    val disabled = coach.providerKind == AiCoachProviderKind.Disabled
+    Surface(color = accent.container, shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Coach connection", style = MusFitTheme.typography.titleMedium)
-                    Text(
-                        state.aiCoachSummary(),
-                        style = MusFitTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
+            Surface(color = MusFitTheme.colors.surface, shape = CircleShape, modifier = Modifier.size(52.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    CoachChatMark(knockoutColor = MusFitTheme.colors.surface, size = 26.dp)
                 }
-                AiCoachStatusPill(
-                    label = state.providerLabel,
-                    container = if (state.providerKind == AiCoachProviderKind.Disabled) {
-                        MusFitTheme.colors.surfaceVariant
-                    } else {
-                        accent.container
-                    },
-                    contentColor = if (state.providerKind == AiCoachProviderKind.Disabled) {
-                        MusFitTheme.colors.onSurfaceVariant
-                    } else {
-                        accent.onContainer
-                    },
-                )
             }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingsRow(label = "Endpoint", value = state.endpointLabel)
-                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
-                SettingsRow(label = "Model", value = state.modelLabel)
-                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
-                SettingsRow(label = "API key", value = state.apiKeyLabel)
-            }
-            if (message != null) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
-                    text = message,
-                    style = MusFitTheme.typography.bodySmall,
+                    if (disabled) "Not set up" else coach.providerLabel,
+                    style = MusFitTheme.typography.titleLarge.copy(fontSize = 19.sp, letterSpacing = (-0.3).sp),
+                    color = accent.onContainer,
+                )
+                AiCoachStatusLine(state = state, accent = accent)
+            }
+            HeroActionPill(
+                text = if (state.isAiCoachTesting) "Testing" else "Test",
+                accent = accent,
+                onClick = onTestConnection,
+                enabled = !disabled && !state.isAiCoachTesting,
+            )
+        }
+    }
+}
+
+/** "● Connected" — 7dp status dot + 12.5 label driven by the test lifecycle. */
+@Composable
+private fun AiCoachStatusLine(state: ProfileSettingsUiState, accent: TabAccent) {
+    val disabled = state.aiCoach.providerKind == AiCoachProviderKind.Disabled
+    val (dotColor, label) = when {
+        disabled -> MusFitTheme.colors.onSurfaceFaint to "Off"
+        state.aiCoachTestState == AiCoachTestState.Testing -> accent.onContainerVariant to "Testing…"
+        state.aiCoachTestState == AiCoachTestState.Success -> accent.color to "Connected"
+        state.aiCoachTestState == AiCoachTestState.Failure ->
+            MusFitTheme.colors.onDestructiveContainer to "Not reachable"
+        else -> accent.onContainerVariant to "Not tested yet"
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(Modifier.size(7.dp).background(dotColor, CircleShape))
+        Text(
+            label,
+            style = MusFitTheme.typography.bodySmall,
+            color = accent.onContainerVariant,
+        )
+    }
+}
+
+@Composable
+private fun ApiKeyRow(
+    hasApiKey: Boolean,
+    accent: TabAccent,
+    shape: RoundedCornerShape,
+    onClear: () -> Unit,
+) {
+    Surface(color = MusFitTheme.colors.surface, shape = shape, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(13.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    "API key",
+                    style = MusFitTheme.typography.titleSmall.copy(fontSize = 14.5.sp),
+                    color = MusFitTheme.colors.onSurface,
+                )
+                Text(
+                    // The key is stored encrypted, so only its presence can be shown.
+                    if (hasApiKey) "•••• •••• saved" else "No key",
+                    style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = onEdit,
+            if (hasApiKey) {
+                Text(
+                    "Clear",
+                    style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
+                    color = accent.color,
                     modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 46.dp),
-                    shape = MusFitTheme.shapes.medium,
-                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-                ) {
-                    Icon(Icons.Outlined.Edit, contentDescription = null)
-                    Text("Configure", modifier = Modifier.padding(start = 8.dp))
-                }
-                OutlinedButton(
-                    onClick = onTestConnection,
-                    enabled = state.providerKind != AiCoachProviderKind.Disabled && !isTesting,
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 44.dp),
-                    shape = MaterialTheme.shapes.medium,
-                ) {
-                    Text(if (isTesting) "Testing" else "Test")
-                }
-                if (state.hasApiKey) {
-                    OutlinedButton(
-                        onClick = onClearApiKey,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 44.dp),
-                        shape = MusFitTheme.shapes.medium,
-                    ) {
-                        Text("Clear key")
-                    }
-                }
+                        .clip(RoundedCornerShape(99.dp))
+                        .clickable(onClickLabel = "Clear API key", onClick = onClear)
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                )
             }
         }
     }
 }
 
+/**
+ * The coach connection editor as a Turn 11 sheet — the same fields the old
+ * `AiCoachSettingsDialog` carried: provider kind, base URL, local-agent kind,
+ * model, and the write-only API key.
+ */
 @Composable
-fun AiCoachSettingsDialog(
+fun AiCoachEditorSheet(
     provider: AiCoachProviderKind,
     baseUrl: String,
     modelName: String,
@@ -143,6 +232,7 @@ fun AiCoachSettingsDialog(
     apiKey: String,
     hasSavedApiKey: Boolean,
     error: String?,
+    accent: TabAccent,
     onProviderChange: (AiCoachProviderKind) -> Unit,
     onBaseUrlChange: (String) -> Unit,
     onModelNameChange: (String) -> Unit,
@@ -151,128 +241,195 @@ fun AiCoachSettingsDialog(
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Profile)
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("AI coach setup") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 520.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                MusFitSegmented(
-                    options = AiCoachProviderKind.entries,
-                    selected = provider,
-                    accent = accent,
-                    label = { it.shortLabel() },
-                    onSelect = onProviderChange,
-                )
-                if (provider != AiCoachProviderKind.Disabled) {
-                    OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = onBaseUrlChange,
-                        label = { Text("Base URL") },
-                        placeholder = { Text("http://10.0.2.2:8080/v1/") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (provider == AiCoachProviderKind.LocalAgent) {
-                    MusFitSegmented(
-                        options = LocalAgentKind.entries,
-                        selected = localAgentKind,
-                        accent = accent,
-                        label = { it.shortLabel() },
-                        onSelect = onLocalAgentKindChange,
-                    )
-                }
-                if (provider != AiCoachProviderKind.Disabled) {
-                    OutlinedTextField(
-                        value = modelName,
-                        onValueChange = onModelNameChange,
-                        label = {
-                            Text(
-                                if (provider == AiCoachProviderKind.OpenAiCompatible) {
-                                    "Model"
-                                } else {
-                                    "Model or agent id (optional)"
-                                },
-                            )
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = apiKey,
-                        onValueChange = onApiKeyChange,
-                        label = { Text(apiKeyFieldLabel(provider, localAgentKind)) },
-                        supportingText = {
-                            Text(
-                                apiKeySupportingText(
-                                    provider = provider,
-                                    localAgentKind = localAgentKind,
-                                    hasSavedApiKey = hasSavedApiKey,
-                                ),
-                            )
-                        },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (error != null) {
-                    Text(error, color = MaterialTheme.colorScheme.error, style = MusFitTheme.typography.bodySmall)
-                }
+        sheetState = sheetState,
+        containerColor = MusFitTheme.colors.background,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)) { SheetDragHandle() }
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp),
+        ) {
+            Column {
                 Text(
-                    aiCoachSecurityNote(provider, localAgentKind),
+                    "AI coach setup",
+                    style = MusFitTheme.typography.headlineMedium.copy(fontSize = 22.sp, lineHeight = 25.sp),
+                )
+                Text(
+                    "Bring your own agent or API-compatible endpoint",
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
-        },
-        confirmButton = { TextButton(onClick = onSave) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}
 
-@Composable
-private fun SettingsRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Text(
-            label,
-            modifier = Modifier.weight(0.35f),
-            style = MusFitTheme.typography.bodySmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            fontWeight = FontWeight.Medium,
-        )
-        Text(value, modifier = Modifier.weight(0.65f), style = MusFitTheme.typography.bodySmall)
+            ConnectedSegmentRow(
+                options = AiCoachProviderKind.entries,
+                selected = provider,
+                label = { it.shortLabel() },
+                accent = accent,
+                onSelect = onProviderChange,
+            )
+
+            if (provider != AiCoachProviderKind.Disabled) {
+                EditorTextTile(
+                    label = "Base URL",
+                    value = baseUrl,
+                    onValueChange = onBaseUrlChange,
+                    placeholder = "http://10.0.2.2:8080/v1/",
+                    keyboardType = KeyboardType.Uri,
+                )
+            }
+            if (provider == AiCoachProviderKind.LocalAgent) {
+                ConnectedSegmentRow(
+                    options = LocalAgentKind.entries,
+                    selected = localAgentKind,
+                    label = { it.shortLabel() },
+                    accent = accent,
+                    onSelect = onLocalAgentKindChange,
+                )
+            }
+            if (provider != AiCoachProviderKind.Disabled) {
+                EditorTextTile(
+                    label = if (provider == AiCoachProviderKind.OpenAiCompatible) {
+                        "Model"
+                    } else {
+                        "Model or agent id (optional)"
+                    },
+                    value = modelName,
+                    onValueChange = onModelNameChange,
+                )
+                EditorTextTile(
+                    label = apiKeyFieldLabel(provider, localAgentKind),
+                    value = apiKey,
+                    onValueChange = onApiKeyChange,
+                    masked = true,
+                    supporting = apiKeySupportingText(
+                        provider = provider,
+                        localAgentKind = localAgentKind,
+                        hasSavedApiKey = hasSavedApiKey,
+                    ),
+                )
+            }
+            if (error != null) {
+                Text(
+                    error,
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onDestructiveContainer,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
+            Text(
+                aiCoachSecurityNote(provider, localAgentKind),
+                style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = MusFitTheme.colors.onSurfaceFaint,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+
+            PillButton(
+                text = "Save",
+                onClick = onSave,
+                containerColor = accent.color,
+                contentColor = accent.onColor,
+                height = 50.dp,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            )
+            Text(
+                "Cancel",
+                style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
+                color = MusFitTheme.colors.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .clip(RoundedCornerShape(99.dp))
+                    .clickable(onClickLabel = "Cancel", onClick = onDismiss)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
     }
 }
 
+/** White field tile with optional masking, placeholder, and supporting text. */
 @Composable
-private fun AiCoachStatusPill(label: String, container: Color, contentColor: Color) {
-    Surface(color = container, shape = MusFitTheme.shapes.small) {
-        Text(
-            label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MusFitTheme.typography.labelSmall,
-            color = contentColor,
-            fontWeight = FontWeight.Medium,
-        )
+private fun EditorTextTile(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String? = null,
+    supporting: String? = null,
+    masked: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Text,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Surface(
+            color = MusFitTheme.colors.surface,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+            ) {
+                Text(
+                    text = label,
+                    style = MusFitTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.W600,
+                        letterSpacing = 0.sp,
+                    ),
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Box {
+                    if (value.isEmpty() && placeholder != null) {
+                        Text(
+                            placeholder,
+                            style = MusFitTheme.typography.titleSmall.copy(fontSize = 15.sp, fontWeight = FontWeight.W500),
+                            color = MusFitTheme.colors.onSurfaceFaint,
+                            maxLines = 1,
+                        )
+                    }
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        singleLine = true,
+                        textStyle = MusFitTheme.typography.titleSmall.copy(
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.W700,
+                            color = MusFitTheme.colors.onSurface,
+                        ),
+                        cursorBrush = SolidColor(MusFitTheme.colors.brand),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = if (masked) KeyboardType.Password else keyboardType,
+                        ),
+                        visualTransformation = if (masked) {
+                            PasswordVisualTransformation()
+                        } else {
+                            androidx.compose.ui.text.input.VisualTransformation.None
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+        if (supporting != null) {
+            Text(
+                supporting,
+                style = MusFitTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                color = MusFitTheme.colors.onSurfaceFaint,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
     }
-}
-
-private fun AiCoachSettingsUiState.aiCoachSummary(): String = when (providerKind) {
-    AiCoachProviderKind.Disabled -> "Coach features stay off until you choose a local agent or API endpoint."
-    AiCoachProviderKind.OpenAiCompatible -> "Uses your configured API-compatible endpoint. The key stays on this device."
-    AiCoachProviderKind.LocalAgent -> "Connects to a local agent running on this device or your network."
 }
 
 private fun AiCoachProviderKind.shortLabel(): String = when (this) {

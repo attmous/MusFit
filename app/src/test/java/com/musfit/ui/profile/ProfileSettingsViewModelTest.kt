@@ -597,6 +597,75 @@ class ProfileSettingsViewModelTest {
         assertEquals(1, chatRepository.testCalls)
         assertEquals("AI coach connection is reachable.", viewModel.state.value.aiCoachMessage)
         assertFalse(viewModel.state.value.isAiCoachTesting)
+        assertEquals(AiCoachTestState.Success, viewModel.state.value.aiCoachTestState)
+    }
+
+    @Test
+    fun testAiCoachConnection_failureSetsFailureStateAndMessage() = runTest {
+        val chatRepository = FakeAiCoachChatRepository()
+        chatRepository.testError = IllegalStateException("Connection refused")
+        val viewModel = settingsViewModel(aiCoachChatRepository = chatRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.testAiCoachConnection()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Connection refused", viewModel.state.value.aiCoachMessage)
+        assertFalse(viewModel.state.value.isAiCoachTesting)
+        assertEquals(AiCoachTestState.Failure, viewModel.state.value.aiCoachTestState)
+    }
+
+    @Test
+    fun saveAiCoachSettings_resetsStaleTestResult() = runTest {
+        val chatRepository = FakeAiCoachChatRepository()
+        val viewModel = settingsViewModel(aiCoachChatRepository = chatRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.testAiCoachConnection()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(AiCoachTestState.Success, viewModel.state.value.aiCoachTestState)
+
+        // New settings invalidate the old result: the 11c hero must fall back to
+        // "not tested" instead of claiming the fresh endpoint is connected.
+        viewModel.openAiCoachEditor()
+        viewModel.saveAiCoachSettings()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AiCoachTestState.Idle, viewModel.state.value.aiCoachTestState)
+    }
+
+    @Test
+    fun applyRecommendedTargetsToFood_writesGoalPreservingOtherFields() = runTest {
+        val foodRepository = FakeFoodRepository(
+            goal = DEFAULT_REPOSITORY_FOOD_GOAL.copy(includeTrainingCalories = true, useNetCarbs = true),
+        )
+        val viewModel = settingsViewModel(foodRepository = foodRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.applyRecommendedTargetsToFood(RecommendedTargets(2759.0, 144.0, 270.0, 77.0))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val saved = foodRepository.updatedGoal!!
+        assertEquals(2759.0, saved.dailyCaloriesKcal, 0.001)
+        assertEquals(144.0, saved.proteinGrams, 0.001)
+        assertEquals(270.0, saved.carbsGrams, 0.001)
+        assertEquals(77.0, saved.fatGrams, 0.001)
+        assertEquals(true, saved.includeTrainingCalories)
+        assertEquals(true, saved.useNetCarbs)
+        assertEquals("Applied your targets to Food goals.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun applyRecommendedTargetsToFood_failureSurfacesMessage() = runTest {
+        val foodRepository = FakeFoodRepository()
+        foodRepository.updateError = IllegalStateException("disk full")
+        val viewModel = settingsViewModel(foodRepository = foodRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.applyRecommendedTargetsToFood(RecommendedTargets(2759.0, 144.0, 270.0, 77.0))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("disk full", viewModel.state.value.message)
     }
 
     @Test

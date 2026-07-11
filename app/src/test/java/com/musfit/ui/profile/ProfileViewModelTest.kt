@@ -54,9 +54,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModelTest {
@@ -66,7 +64,6 @@ class ProfileViewModelTest {
     // local-zone times would flake in far-west zones.
     private val fixedDate = LocalDate.of(2026, 7, 2)
     private val DAY = 86_400_000L
-    private val nowMillis = fixedDate.toEpochDay() * DAY + 14L * 3_600_000L
     private fun daysAgo(n: Long) = (fixedDate.toEpochDay() - n) * DAY + 12L * 3_600_000L
 
     private fun profileViewModel(
@@ -323,71 +320,20 @@ class ProfileViewModelTest {
             WeightEntry("w2", daysAgo(1), 82.0, "manual"),   // inside every window in play
             WeightEntry("w1", daysAgo(25), 84.0, "manual"),  // in the 30d chart at fixedDate, out at +8d
         )
-        val training = FakeTrainingRepo()
-        training.routines.value = listOf(
-            RoutineSummary(id = "r1", name = "Machine A", notes = null, exerciseCount = 5, targetSetCount = 15, isStarter = false),
-        )
-        // Monday-anchored so the session sits inside fixedDate's week regardless of
-        // weekday, and +8 days always rolls past it into the next week.
-        val weekStartMillis =
-            fixedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay() * DAY
-        training.history.value = listOf(
-            WorkoutHistorySummary("s1", "Machine A", weekStartMillis + 3_600_000L, null, 12, 1000.0),
-        )
         val viewModel = profileViewModel(
             profileRepository = repo,
-            trainingRepository = training,
             dateProvider = { currentDate },
         )
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf(84.0, 82.0), viewModel.state.value.hero.chartSeries)
-        assertTrue(
-            viewModel.state.value.planCards.first { it.id == "training" }
-                .subtitle.contains("1 of 4 sessions this week"),
-        )
 
         currentDate = fixedDate.plusDays(8) // midnight passes while the process is cached
         viewModel.onScreenResumed()
         dispatcher.scheduler.advanceUntilIdle()
 
-        // Both arms re-anchor: the 30d chart window slides past w1 and the
-        // Monday-anchored week rolls over, dropping the session count to zero.
+        // The 30d chart window re-anchors and slides past w1.
         assertEquals(listOf(82.0), viewModel.state.value.hero.chartSeries)
-        assertTrue(
-            viewModel.state.value.planCards.first { it.id == "training" }
-                .subtitle.contains("0 of 4 sessions this week"),
-        )
-    }
-
-    @Test
-    fun applyTargetsToFood_writesGoalPreservingOtherFields() = runTest {
-        val food = FakeFoodGoalRepo(
-            initial = FoodGoal(
-                dailyCaloriesKcal = 2000.0, proteinGrams = 100.0, carbsGrams = 250.0, fatGrams = 60.0,
-                fiberGrams = 30.0, sugarGrams = 50.0, saturatedFatGrams = 20.0, sodiumMilligrams = 2300.0,
-                mode = FoodGoalMode.Balanced, includeTrainingCalories = true, useNetCarbs = true,
-                waterGoalMilliliters = 2500.0,
-            ),
-        )
-        val repo = FakeProfileRepository(
-            profile = UserProfile(Sex.Male, 0L, 180.0, ActivityLevel.Moderate, GoalType.Maintain, 0.0, 80.0),
-            latestWeight = WeightEntry("w1", 1_000L, 80.0, "manual"),
-            targets = RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
-        )
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), food, FakeTrainingRepo(), FakeGoalsRepo())
-        dispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.applyTargetsToFood()
-        dispatcher.scheduler.advanceUntilIdle()
-
-        val saved = food.saved!!
-        assertEquals(2759.0, saved.dailyCaloriesKcal, 0.001)
-        assertEquals(144.0, saved.proteinGrams, 0.001)
-        assertEquals(true, saved.includeTrainingCalories)
-        assertEquals(true, saved.useNetCarbs)
-        assertEquals(2500.0, saved.waterGoalMilliliters, 0.001)
-        assertEquals("Applied your targets to Food goals.", viewModel.state.value.message)
     }
 
     @Test
@@ -450,29 +396,28 @@ class ProfileViewModelTest {
     }
 
     @Test
-    fun planCards_dietAlwaysAndTrainingWithProgram() = runTest {
+    fun plansSummary_combinesPaceDietAndProgram() = runTest {
+        val repo = FakeProfileRepository(
+            profile = UserProfile(Sex.Male, 0L, 183.0, ActivityLevel.Moderate, GoalType.Gain, 0.3, 82.0),
+        )
         val training = FakeTrainingRepo()
         training.routines.value = listOf(
             RoutineSummary(id = "r1", name = "Machine A", notes = null, exerciseCount = 5, targetSetCount = 15, isStarter = false, programName = "Beginner Program"),
         )
-        training.history.value = listOf(
-            WorkoutHistorySummary("s1", "Machine A", nowMillis - 86_400_000L, null, 12, 1000.0),
-        )
         val goals = FakeGoalsRepo() // default weeklySessionTarget = 4
-        val viewModel = profileViewModel(trainingRepository = training, goalsRepository = goals)
+        val viewModel = profileViewModel(
+            profileRepository = repo,
+            trainingRepository = training,
+            goalsRepository = goals,
+        )
         dispatcher.scheduler.advanceUntilIdle()
 
-        val cards = viewModel.state.value.planCards
-        assertEquals("diet", cards[0].id)
-        assertEquals("Balanced diet", cards[0].title)                    // FakeFoodGoalRepo mode = Balanced
-        assertTrue(cards[0].subtitle.contains("2000 kcal target"))       // calorie figure for non-protein-led modes
-        assertEquals("training", cards[1].id)
-        assertEquals("Beginner Program", cards[1].title)
-        assertTrue(cards[1].subtitle.contains("1 of 4 sessions this week"))
+        // FakeFoodGoalRepo default: Balanced, 2000 kcal → the calorie figure with grouping.
+        assertEquals("Gain 0.3 kg/wk · 2,000 kcal · Beginner Program ×4", viewModel.state.value.plansSummary)
     }
 
     @Test
-    fun planCards_proteinLedModeShowsProteinFigure() = runTest {
+    fun plansSummary_proteinLedModeShowsProteinFigure() = runTest {
         val food = FakeFoodGoalRepo(
             initial = FoodGoal(
                 2400.0, 180.0, 220.0, 70.0, 30.0, 50.0, 20.0, 2300.0,
@@ -482,34 +427,29 @@ class ProfileViewModelTest {
         val viewModel = profileViewModel(foodRepository = food)
         dispatcher.scheduler.advanceUntilIdle()
 
-        val diet = viewModel.state.value.planCards.first { it.id == "diet" }
-        assertEquals("High protein diet", diet.title)
-        assertTrue(diet.subtitle.contains("180 g protein target"))
+        // DEFAULT_USER_PROFILE is Maintain; no routine → no program part.
+        assertEquals("Maintain · 180 g protein", viewModel.state.value.plansSummary)
     }
 
     @Test
-    fun planCards_noRoutinesShowsSetupCard_andZeroTargetDropsDenominator() = runTest {
-        val training = FakeTrainingRepo() // no routines, no history
+    fun plansSummary_noRoutineOmitsProgram_andZeroTargetDropsMultiplier() = runTest {
+        val training = FakeTrainingRepo() // no routines
         val goals = FakeGoalsRepo(userGoals = UserGoals(weeklySessionTarget = 0))
         val viewModel = profileViewModel(trainingRepository = training, goalsRepository = goals)
         dispatcher.scheduler.advanceUntilIdle()
 
-        val card = viewModel.state.value.planCards.first { it.id == "training" }
-        assertEquals("No program yet", card.title)
-        assertEquals("Set one up in Training", card.subtitle)
+        assertEquals("Maintain · 2,000 kcal", viewModel.state.value.plansSummary)
 
         training.routines.value = listOf(
             RoutineSummary(id = "r1", name = "Machine A", notes = null, exerciseCount = 5, targetSetCount = 15, isStarter = false),
         )
         dispatcher.scheduler.advanceUntilIdle()
-        val withRoutine = viewModel.state.value.planCards.first { it.id == "training" }
-        assertEquals("Machine A", withRoutine.title)                     // no programName → routine name
-        assertTrue(withRoutine.subtitle.contains("0 sessions this week"))
-        assertEquals(false, withRoutine.subtitle.contains(" of "))       // target 0 drops the denominator
+        // No programName → routine name; target 0 drops the ×n multiplier.
+        assertEquals("Maintain · 2,000 kcal · Machine A", viewModel.state.value.plansSummary)
     }
 
     @Test
-    fun planCards_allEightModesGetLabelAndFigureKind() = runTest {
+    fun plansSummary_allEightModesGetFigureKind() = runTest {
         val proteinLed = setOf(FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain)
         FoodGoalMode.entries.forEach { mode ->
             val food = FakeFoodGoalRepo(
@@ -521,16 +461,11 @@ class ProfileViewModelTest {
             val viewModel = profileViewModel(foodRepository = food)
             dispatcher.scheduler.advanceUntilIdle()
 
-            val diet = viewModel.state.value.planCards.first { it.id == "diet" }
-            assertTrue("$mode title", diet.title.endsWith(" diet"))
-            // endsWith alone passes for an empty label — pin one concrete full title.
-            if (mode == FoodGoalMode.HighProtein) {
-                assertEquals("High protein diet", diet.title)
-            }
+            val summary = viewModel.state.value.plansSummary
             if (mode in proteinLed) {
-                assertTrue("$mode figure", diet.subtitle.contains("160 g protein target"))
+                assertTrue("$mode figure", summary.contains("160 g protein"))
             } else {
-                assertTrue("$mode figure", diet.subtitle.contains("2100 kcal target"))
+                assertTrue("$mode figure", summary.contains("2,100 kcal"))
             }
         }
     }

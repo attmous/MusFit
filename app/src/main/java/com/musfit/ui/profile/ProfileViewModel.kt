@@ -15,25 +15,21 @@ import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.UserProfile
 import com.musfit.data.repository.WeightEntry
-import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.profile.BodyMetricsCalculator
+import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.today.WeeklyGoalsCalculator
-import com.musfit.domain.today.countSessionsInWeek
-import com.musfit.ui.food.label
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
+import java.util.Locale
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
@@ -60,9 +56,6 @@ data class MeasurementTile(
     val entryCount: Int,
 )
 
-/** One launcher row on the Profile hub: the diet plan or the training program. */
-data class PlanCard(val id: String, val title: String, val subtitle: String)
-
 data class ProfileUiState(
     val isLoaded: Boolean = false,
     val profile: UserProfile? = null,
@@ -72,7 +65,8 @@ data class ProfileUiState(
     val recommendedTargets: RecommendedTargets? = null,
     val weightEntries: List<WeightEntry> = emptyList(),
     val measurementEntries: Map<String, List<BodyMeasurement>> = emptyMap(),
-    val planCards: List<PlanCard> = emptyList(),
+    /** The "Goals & programs" row subline: pace · diet figure · program ×target. */
+    val plansSummary: String = "",
     val isHealthConnectNudgeVisible: Boolean = false,
     val message: String? = null,
 )
@@ -150,26 +144,27 @@ class ProfileViewModel internal constructor(
         )
     }
 
-    // At the 5-arity combine cap — pre-combine pairs (see TodayViewModel.carouselFlow) before adding inputs.
-    private val planCardsFlow: Flow<List<PlanCard>> = combine(
+    // Turn 11 folds the plan cards into one "Goals & programs" subline; the parts
+    // are position-independent of the date, so the plans flow no longer needs
+    // history or the activeDate anchor.
+    private val plansContextFlow: Flow<Triple<FoodGoal, List<RoutineSummary>, UserGoals>> = combine(
         foodRepository.observeFoodGoal(),
         trainingRepository.observeRoutineSummaries(),
-        trainingRepository.observeWorkoutHistory(),
         goalsRepository.observeUserGoals(),
-        activeDate,
-    ) { goal, routines, history, userGoals, today ->
-        buildPlanCards(goal, routines, history, userGoals, today)
+    ) { goal, routines, userGoals ->
+        Triple(goal, routines, userGoals)
     }
 
     val state: StateFlow<ProfileUiState> = combine(
         dataState,
         messageFlow,
-        planCardsFlow,
+        plansContextFlow,
         nudgeFlow,
-    ) { base, message, cards, nudge ->
+    ) { base, message, plans, nudge ->
+        val (goal, routines, userGoals) = plans
         base.copy(
             message = message,
-            planCards = cards,
+            plansSummary = buildPlansSummary(base.profile, goal, routines, userGoals),
             isHealthConnectNudgeVisible = nudge,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileUiState())
@@ -232,27 +227,6 @@ class ProfileViewModel internal constructor(
         viewModelScope.launch {
             runCatching { profileRepository.deleteEntry(id) }
                 .onFailure { messageFlow.value = it.message ?: "Could not delete entry." }
-        }
-    }
-
-    fun applyTargetsToFood() {
-        val targets = state.value.recommendedTargets ?: return
-        viewModelScope.launch {
-            runCatching {
-                val current = foodRepository.observeFoodGoal().first()
-                foodRepository.updateFoodGoal(
-                    current.copy(
-                        dailyCaloriesKcal = targets.caloriesKcal,
-                        proteinGrams = targets.proteinGrams,
-                        carbsGrams = targets.carbsGrams,
-                        fatGrams = targets.fatGrams,
-                    ),
-                )
-            }.onSuccess {
-                messageFlow.value = "Applied your targets to Food goals."
-            }.onFailure {
-                messageFlow.value = it.message ?: "Could not apply targets to Food."
-            }
         }
     }
 
@@ -329,32 +303,35 @@ private fun buildMeasurementTile(
     )
 }
 
-private fun buildPlanCards(
+/**
+ * The Turn 11 "Goals & programs" subline: "Gain 0.3 kg/wk · 2,450 kcal ·
+ * Full body ×3". Parts drop out when unset — no pace before a saved goal, no
+ * program part without a routine; protein-led diet modes headline protein.
+ */
+internal fun buildPlansSummary(
+    profile: UserProfile?,
     goal: FoodGoal,
     routines: List<RoutineSummary>,
-    history: List<WorkoutHistorySummary>,
     userGoals: UserGoals,
-    today: LocalDate,
-): List<PlanCard> {
-    // Protein-led modes headline the protein target; everything else headlines calories.
+): String {
+    val pace = profile?.let {
+        when (it.goalType) {
+            GoalType.Maintain -> "Maintain"
+            GoalType.Lose -> "Lose ${it.goalPaceKgPerWeek.format1()} kg/wk"
+            GoalType.Gain -> "Gain ${it.goalPaceKgPerWeek.format1()} kg/wk"
+        }
+    }
     val dietFigure = when (goal.mode) {
-        FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain -> "${goal.proteinGrams.roundToInt()} g protein target"
-        else -> "${goal.dailyCaloriesKcal.roundToInt()} kcal target"
+        FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain ->
+            "${goal.proteinGrams.roundToInt()} g protein"
+        else -> String.format(Locale.US, "%,d kcal", goal.dailyCaloriesKcal.roundToInt())
     }
-    val diet = PlanCard(id = "diet", title = "${goal.mode.label} diet", subtitle = "$dietFigure · manage in Food")
-
-    // Monday-anchored week on UTC epoch days, matching Today's sessions metric.
-    val weekStartMillis = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay() * DAY_MILLIS
-    val sessions = countSessionsInWeek(history.map { it.startedAtEpochMillis }, weekStartMillis)
     val routine = routines.firstOrNull() // the coach's existing "next routine" convention
-    val training = if (routine == null) {
-        PlanCard(id = "training", title = "No program yet", subtitle = "Set one up in Training")
-    } else {
-        val target = userGoals.weeklySessionTarget
-        val subtitle = if (target > 0) "$sessions of $target sessions this week" else "$sessions sessions this week"
-        PlanCard(id = "training", title = routine.programName ?: routine.name, subtitle = subtitle)
+    val program = routine?.let {
+        val name = it.programName ?: it.name
+        if (userGoals.weeklySessionTarget > 0) "$name ×${userGoals.weeklySessionTarget}" else name
     }
-    return listOf(diet, training)
+    return listOfNotNull(pace, dietFigure, program).joinToString(" · ")
 }
 
 private const val DAY_MILLIS = 86_400_000L
