@@ -1062,6 +1062,59 @@ class LocalTrainingRepositoryTest {
     }
 
     @Test
+    fun observeActiveWorkoutDetail_alignsPreviousLabelsPerSet() = runTest {
+        repository.seedStarterTrainingData()
+        val bench = repository.observeExercises(query = "bench").first().single()
+
+        val priorSessionId = repository.startBlankWorkout()
+        listOf(5 to 100.0, 5 to 102.5, 4 to 105.0).forEach { (reps, weightKg) ->
+            repository.addSetToExercise(
+                sessionId = priorSessionId,
+                exerciseId = bench.id,
+                input = WorkoutSetInputData(
+                    setType = "working",
+                    reps = reps,
+                    weightKg = weightKg,
+                    rpe = null,
+                    notes = null,
+                    completed = true,
+                ),
+            )
+        }
+        repository.finishWorkout(priorSessionId)
+
+        currentInstant = WORKOUT_START.plusSeconds(7_200)
+        val sessionId = repository.startBlankWorkout()
+        repeat(4) {
+            repository.addSetToExercise(
+                sessionId = sessionId,
+                exerciseId = bench.id,
+                input = WorkoutSetInputData(
+                    setType = "working",
+                    reps = null,
+                    weightKg = null,
+                    rpe = null,
+                    notes = null,
+                    completed = false,
+                ),
+            )
+        }
+
+        val sets = repository.observeActiveWorkoutDetail().first()
+            ?.exerciseBlocks
+            ?.singleOrNull()
+            ?.sets
+            .orEmpty()
+
+        // Turn 10 per-set LAST column: labels align positionally with the prior
+        // session's sets; the extra fourth set reuses the final prior set.
+        assertEquals(
+            listOf("100 kg x 5", "102.5 kg x 5", "105 kg x 4", "105 kg x 4"),
+            sets.map { it.previousLabel },
+        )
+    }
+
+    @Test
     fun discardWorkout_removesActiveSessionFromActiveReads() = runTest {
         val sessionId = repository.startBlankWorkout()
 

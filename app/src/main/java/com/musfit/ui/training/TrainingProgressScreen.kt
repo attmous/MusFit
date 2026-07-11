@@ -16,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Search
@@ -31,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -43,9 +43,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -103,49 +105,38 @@ fun TrainingProgressScreen(
     }
 }
 
+/** 10f header: back circle, 27/800 title, and the tonal period pill dropdown. */
 @Composable
 private fun TrainingProgressHeader(
     period: TrainingProgressPeriod,
     onBack: () -> Unit,
     onSelectPeriod: (TrainingProgressPeriod) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-            contentDescription = "Back",
-            tint = MusFitTheme.colors.onSurface,
-            modifier = Modifier.size(24.dp).clickable(onClick = onBack),
-        )
-        Text(
-            text = "Progress",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Normal,
-            color = MusFitTheme.colors.onSurface,
-            modifier = Modifier.weight(1f),
-        )
+    InnerScreenHeader(title = "Progress", onBack = onBack) {
         Box {
             var menuOpen by remember { mutableStateOf(false) }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                modifier = Modifier.clickable { menuOpen = true },
+            Surface(
+                onClick = { menuOpen = true },
+                color = MusFitTheme.colors.surfaceVariant,
+                contentColor = MusFitTheme.colors.onSurface,
+                shape = RoundedCornerShape(99.dp),
             ) {
-                Text(
-                    text = period.label,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-                Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = "Change period",
-                    tint = MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(start = 14.dp, end = 10.dp, top = 9.dp, bottom = 9.dp),
+                ) {
+                    Text(
+                        text = period.label,
+                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.KeyboardArrowDown,
+                        contentDescription = "Change period",
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 TrainingProgressPeriod.entries.forEach { option ->

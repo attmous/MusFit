@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -32,7 +33,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -43,6 +43,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +67,7 @@ import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
+import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.components.SectionHeader
@@ -297,6 +299,7 @@ fun TrainingScreen(
             onBack = { viewModel.selectSection(TrainingSection.Routines) },
             onOpenDetail = viewModel::openWorkoutDetail,
             onCloseDetail = viewModel::closeWorkoutDetail,
+            onOpenCoach = onOpenCoach,
         )
         return
     }
@@ -783,7 +786,11 @@ private fun TrainingCoachRow(cue: String, onView: () -> Unit) {
     }
 }
 
-/** Full-page History (opened from the calendar icon): back header + the existing history content. */
+/**
+ * Full-page History (Turn 10 §10g): back-circle header with a calendar toggle
+ * over the month hero and week sections. An open session summary (§10b) takes
+ * over the page with its own header.
+ */
 @Composable
 private fun TrainingHistoryPage(
     state: TrainingUiState,
@@ -791,33 +798,35 @@ private fun TrainingHistoryPage(
     onBack: () -> Unit,
     onOpenDetail: (String) -> Unit,
     onCloseDetail: () -> Unit,
+    onOpenCoach: () -> Unit,
 ) {
-    TrainingPageContainer {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = "Back",
-                tint = MusFitTheme.colors.onSurface,
-                modifier = Modifier.size(24.dp).clickable(onClick = onBack),
+    val detail = state.selectedWorkoutDetail
+    if (detail != null) {
+        TrainingPageContainer {
+            WorkoutCompleteContent(
+                detail = detail,
+                accent = accent,
+                onClose = onCloseDetail,
+                onOpenCoach = onOpenCoach,
             )
-            Text(
-                text = "History",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Normal,
-                color = MusFitTheme.colors.onSurface,
+        }
+        return
+    }
+    var calendarOpen by rememberSaveable { mutableStateOf(false) }
+    TrainingPageContainer {
+        InnerScreenHeader(title = "History", onBack = onBack) {
+            TonalHeaderIconButton(
+                icon = Icons.Outlined.CalendarMonth,
+                contentDescription = if (calendarOpen) "Hide calendar" else "Show calendar",
+                onClick = { calendarOpen = !calendarOpen },
             )
         }
         TrainingHistoryContent(
             history = state.workoutHistory,
-            selectedDetail = state.selectedWorkoutDetail,
             overview = state.historyOverview,
             accent = accent,
+            calendarOpen = calendarOpen,
             onOpenDetail = onOpenDetail,
-            onCloseDetail = onCloseDetail,
         )
     }
 }

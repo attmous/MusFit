@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.sin
 
 /**
@@ -113,6 +115,96 @@ fun WavyProgressBar(
         }
         // Stop dot at the 100% end.
         drawCircle(color = color, radius = dotRadius, center = Offset(size.width - dotRadius, midY))
+    }
+}
+
+/**
+ * The M3 Expressive circular wavy countdown ring (the expressive-Clock timer
+ * pattern, hand-built because material3 1.4.0 keeps
+ * `CircularWavyProgressIndicator` internal). The elapsed arc is a sinusoidal
+ * wave sweeping clockwise from 12 o'clock; the remainder is a quiet straight
+ * track ending in a stop dot. [running] drifts the wave phase; [flatten]
+ * (0 → 1) eases the wave to flat as the countdown completes.
+ */
+@Composable
+fun CircularWavyRing(
+    progress: Float,
+    color: Color,
+    trackColor: Color,
+    modifier: Modifier = Modifier,
+    strokeWidth: Dp = 4.5.dp,
+    amplitude: Dp = 2.5.dp,
+    waves: Int = 16,
+    running: Boolean = false,
+    flatten: Float = 0f,
+) {
+    val target = progress.coerceIn(0f, 1f)
+    // Entry sweep 0 → value with the spatial spring, then follow value changes.
+    val animated = remember { Animatable(0f) }
+    LaunchedEffect(target) { animated.animateTo(target, MusFitMotion.spatial()) }
+
+    val phase by if (running) {
+        rememberInfiniteTransition(label = "wavyRingPhase").animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(durationMillis = 6000, easing = LinearEasing), RepeatMode.Restart),
+            label = "wavyRingPhaseValue",
+        )
+    } else {
+        remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    }
+    val amplitudeScale by animateFloatAsState(
+        targetValue = (1f - flatten).coerceIn(0f, 1f),
+        animationSpec = MusFitMotion.effects(),
+        label = "wavyRingAmplitudeScale",
+    )
+
+    Canvas(modifier = modifier) {
+        val stroke = strokeWidth.toPx()
+        val maxAmp = amplitude.toPx()
+        val amp = maxAmp * amplitudeScale
+        val radius = (size.minDimension - stroke) / 2f - maxAmp
+        if (radius <= 0f) return@Canvas
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val startAngle = -90f
+        val sweep = animated.value * 360f
+        val gapDegrees = 12f
+        val dotAngle = startAngle + 360f - 7f
+
+        if (animated.value > 0.003f) {
+            val path = Path()
+            var deg = 0f
+            while (deg <= sweep) {
+                val theta = (startAngle + deg) * (PI.toFloat() / 180f)
+                val r = radius + amp * sin(deg / 360f * waves * 2f * PI.toFloat() + phase * 2f * PI.toFloat())
+                val x = center.x + r * cos(theta)
+                val y = center.y + r * sin(theta)
+                if (deg == 0f) path.moveTo(x, y) else path.lineTo(x, y)
+                deg += 2f
+            }
+            drawPath(path, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
+        }
+
+        val trackStart = startAngle + sweep + gapDegrees
+        val trackSweep = dotAngle - 6f - trackStart
+        if (trackSweep > 0f) {
+            drawArc(
+                color = trackColor,
+                startAngle = trackStart,
+                sweepAngle = trackSweep,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = Size(radius * 2f, radius * 2f),
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
+            )
+        }
+        // Stop dot at the 100% end of the ring.
+        val dotTheta = dotAngle * (PI.toFloat() / 180f)
+        drawCircle(
+            color = if (animated.value >= 0.999f) color else trackColor,
+            radius = stroke * 0.6f,
+            center = Offset(center.x + radius * cos(dotTheta), center.y + radius * sin(dotTheta)),
+        )
     }
 }
 

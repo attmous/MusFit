@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -14,19 +15,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.FitnessCenter
-import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.MoreVert
@@ -40,7 +43,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -62,10 +64,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musfit.data.repository.ActiveWorkoutDetail
@@ -77,15 +84,24 @@ import com.musfit.domain.training.PlateCalculator
 import com.musfit.domain.training.WarmupSetCalculator
 import com.musfit.domain.training.WarmupSetSuggestion
 import com.musfit.domain.training.WorkoutCalculator
+import com.musfit.ui.components.CircularWavyRing
+import com.musfit.ui.components.ExpressiveBadge
+import com.musfit.ui.components.ExpressiveBadgeShape
+import com.musfit.ui.components.PillButton
+import com.musfit.ui.components.TonalHeaderIconButton
+import com.musfit.ui.components.groupedShape
+import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import kotlinx.coroutines.delay
 import java.util.Locale
 
 /**
- * Active workout, focused (mock 5c): a small header with one merged stat line, the rest
- * timer as the screen's single tonal container, full set UI for the current exercise
- * only, and the remaining exercises as plain "Up next" hairline rows.
+ * Active workout (Turn 10 §10a on the Turn-5 declutter structure): a back-circle
+ * header with one merged stat line and a filled Finish pill, the rest timer as
+ * the screen's single tonal container (M3E circular wavy countdown), the current
+ * exercise as a white card with a per-set LAST column, and the remaining
+ * exercises as grouped "Up next" rows.
  */
 @Composable
 fun TrainingActiveWorkoutContent(
@@ -154,18 +170,19 @@ fun TrainingActiveWorkoutContent(
             onAdjust = onAdjustRestTimer,
         )
 
-        // Exercises already passed (before the focused one) stay reachable as quiet rows.
+        // Exercises already passed (before the focused one) stay reachable as
+        // quiet grouped rows above the current card.
         if (focusedIndex > 0) {
-            Column {
-                blocks.take(focusedIndex).forEachIndexed { index, block ->
+            val passed = blocks.take(focusedIndex)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                passed.forEachIndexed { index, block ->
                     CollapsedExerciseRow(
                         block = block,
                         accent = accent,
+                        shape = groupedShape(index, passed.size),
+                        badgeShape = if (index % 2 == 0) ExpressiveBadgeShape.Circle else ExpressiveBadgeShape.Squircle,
                         onClick = { focusedOverrideId = block.exercise.id },
                     )
-                    if (index < focusedIndex - 1) {
-                        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
-                    }
                 }
             }
         }
@@ -196,30 +213,29 @@ fun TrainingActiveWorkoutContent(
         }
 
         if (focusedIndex < blocks.lastIndex) {
-            HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
             Column {
                 Text(
                     text = "Up next",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp),
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MusFitTheme.colors.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp, start = 4.dp),
                 )
                 val upNext = blocks.drop(focusedIndex + 1)
-                upNext.forEachIndexed { index, block ->
-                    CollapsedExerciseRow(
-                        block = block,
-                        accent = accent,
-                        onClick = { focusedOverrideId = block.exercise.id },
-                    )
-                    if (index < upNext.lastIndex) {
-                        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    upNext.forEachIndexed { index, block ->
+                        CollapsedExerciseRow(
+                            block = block,
+                            accent = accent,
+                            shape = groupedShape(index, upNext.size),
+                            badgeShape = if (index % 2 == 0) ExpressiveBadgeShape.Circle else ExpressiveBadgeShape.Squircle,
+                            onClick = { focusedOverrideId = block.exercise.id },
+                        )
                     }
                 }
             }
         }
 
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
         AddExerciseRow(exercises = exercises, accent = accent, onAddExercise = onAddExercise)
     }
 
@@ -257,7 +273,12 @@ fun TrainingActiveWorkoutContent(
     }
 }
 
-/** Small header (mock 5c): back, title with the merged stat line under it, filled Finish. */
+/**
+ * 10a header: 44dp tonal back circle, 22/800 title over the merged stat line
+ * (live duration emphasized), and a filled Finish pill. Notes, rest settings,
+ * and discard stay reachable behind a small overflow — the mock hides them, but
+ * dropping the features is out of scope for a restyle.
+ */
 @Composable
 private fun ActiveWorkoutHeader(
     workout: ActiveWorkoutDetail,
@@ -277,45 +298,54 @@ private fun ActiveWorkoutHeader(
     }
     val elapsedSeconds = ((nowMillis - workout.startedAtEpochMillis) / 1_000L).coerceAtLeast(0L)
     val totalSets = workout.exerciseBlocks.sumOf { it.sets.size }
+    val statLine = activeWorkoutStatLine(
+        elapsedSeconds = elapsedSeconds,
+        totalVolumeKg = workout.totalVolumeKg,
+        completedSetCount = workout.completedSetCount,
+        totalSetCount = totalSets,
+    )
+    val clock = statLine.substringBefore(" · ")
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+        TonalHeaderIconButton(
+            icon = Icons.AutoMirrored.Outlined.ArrowBack,
             contentDescription = "Back",
-            tint = MusFitTheme.colors.onSurface,
-            modifier = Modifier.size(24.dp).clickable(onClick = onClose),
+            onClick = onClose,
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = workout.title,
-                style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 22.sp),
                 color = MusFitTheme.colors.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = activeWorkoutStatLine(
-                    elapsedSeconds = elapsedSeconds,
-                    totalVolumeKg = workout.totalVolumeKg,
-                    completedSetCount = workout.completedSetCount,
-                    totalSetCount = totalSets,
-                ),
+                text = buildAnnotatedString {
+                    withStyle(
+                        SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface),
+                    ) {
+                        append(clock)
+                    }
+                    append(statLine.removePrefix(clock))
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
+                maxLines = 1,
                 modifier = Modifier.padding(top = 1.dp),
             )
         }
-        Button(
+        PillButton(
+            text = "Finish",
             onClick = onFinish,
-            colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-        ) {
-            Text("Finish")
-        }
+            containerColor = accent.color,
+            contentColor = accent.onColor,
+            height = 44.dp,
+        )
         Box {
             var menu by remember { mutableStateOf(false) }
             Icon(
@@ -352,8 +382,10 @@ private fun ActiveWorkoutHeader(
 }
 
 /**
- * The rest timer is the one tonal container on this screen (mock 5c): a thin 40sp
- * countdown, one "+30s" text action, and a filled Skip.
+ * The rest hero (10a) — the screen's one tonal container: the M3E circular wavy
+ * countdown ring (elapsed arc wavy, remainder a quiet track with a stop dot)
+ * with the time inside, next to a REST overline, the connected −30s/+30s pair,
+ * and a filled Skip pill.
  */
 @Composable
 private fun RestTimerHero(
@@ -363,85 +395,168 @@ private fun RestTimerHero(
     onAdjust: (Int) -> Unit,
 ) {
     if (!restTimer.isVisible) return
+    val quietPill = MusFitTheme.colors.surface.copy(alpha = 0.75f)
     Surface(
         color = accent.container,
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(28.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+            modifier = Modifier.padding(18.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Rest",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.5.sp),
-                    color = accent.onContainer,
+            Box(modifier = Modifier.size(118.dp), contentAlignment = Alignment.Center) {
+                CircularWavyRing(
+                    progress = restElapsedFraction(restTimer),
+                    color = accent.color,
+                    trackColor = quietPill,
+                    running = restTimer.isRunning,
+                    flatten = restWaveFlatten(restTimer.remainingSeconds),
+                    modifier = Modifier.fillMaxSize(),
                 )
-                Text(
-                    text = restTimer.remainingSeconds.toMinSec(),
-                    style = MaterialTheme.typography.displaySmall.copy(fontSize = 40.sp),
-                    fontWeight = FontWeight.Light,
-                    color = accent.onContainer,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = restTimer.remainingSeconds.toMinSec(),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
+                        color = accent.onContainer,
+                    )
+                    Text(
+                        text = "of ${restTimer.durationSeconds.toMinSec()}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, letterSpacing = 0.sp),
+                        fontWeight = FontWeight.Medium,
+                        color = accent.onContainer.copy(alpha = 0.7f),
+                    )
+                }
             }
-            Text(
-                text = "+30s",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = accent.onContainer,
-                modifier = Modifier
-                    .clickable { onAdjust(30) }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            )
-            Button(
-                onClick = onSkip,
-                colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-            ) {
-                Text("Skip")
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "REST",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accent.onContainer,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
+                    RestAdjustSegment(
+                        label = "−30s",
+                        contentDescription = "Shorten rest by 30 seconds",
+                        color = quietPill,
+                        contentColor = accent.onContainer,
+                        shape = RoundedCornerShape(topStart = 99.dp, bottomStart = 99.dp, topEnd = 8.dp, bottomEnd = 8.dp),
+                        onClick = { onAdjust(-30) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    RestAdjustSegment(
+                        label = "+30s",
+                        contentDescription = "Extend rest by 30 seconds",
+                        color = quietPill,
+                        contentColor = accent.onContainer,
+                        shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 99.dp, bottomEnd = 99.dp),
+                        onClick = { onAdjust(30) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                PillButton(
+                    text = "Skip",
+                    onClick = onSkip,
+                    containerColor = accent.color,
+                    contentColor = accent.onColor,
+                    height = 44.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
 }
 
-/** A non-focused exercise as one hairline row: name + "3 × 8" target, tap to focus. */
+/** One half of the connected −30s/+30s pair: 99 outer / 8 inner corners, 2dp gap. */
+@Composable
+private fun RestAdjustSegment(
+    label: String,
+    contentDescription: String,
+    color: Color,
+    contentColor: Color,
+    shape: RoundedCornerShape,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        color = color,
+        contentColor = contentColor,
+        shape = shape,
+        modifier = modifier.height(40.dp).semantics { this.contentDescription = contentDescription },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
+                fontWeight = FontWeight.ExtraBold,
+            )
+        }
+    }
+}
+
+/**
+ * A non-focused exercise as one grouped white row (10a "Up next"): 40dp tonal
+ * badge, 15/700 name, trailing "3 × 8" target (or a check once complete). Tap
+ * brings the exercise into focus.
+ */
 @Composable
 private fun CollapsedExerciseRow(
     block: WorkoutExerciseBlock,
     accent: TabAccent,
+    shape: RoundedCornerShape,
+    badgeShape: ExpressiveBadgeShape,
     onClick: () -> Unit,
 ) {
     val isComplete = block.sets.isNotEmpty() && block.sets.all { it.completed }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    Surface(
+        onClick = onClick,
+        color = MusFitTheme.colors.surface,
+        shape = shape,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(
-            text = block.exercise.name,
-            style = MaterialTheme.typography.titleSmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        if (isComplete) {
-            Icon(
-                imageVector = Icons.Outlined.Check,
-                contentDescription = "${block.exercise.name} complete",
-                tint = accent.color,
-                modifier = Modifier.size(18.dp),
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ExpressiveBadge(
+                icon = Icons.Outlined.FitnessCenter,
+                shape = badgeShape,
+                containerColor = accent.container,
+                contentColor = accent.onContainer,
+                size = 40.dp,
+                iconSize = 18.dp,
             )
-        } else {
-            Text(
-                text = upNextTarget(block),
-                style = MaterialTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                block.supersetLabel?.let { SupersetBadge(label = it, accent = accent) }
+                Text(
+                    text = block.exercise.name,
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                    color = MusFitTheme.colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (isComplete) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = "${block.exercise.name} complete",
+                    tint = accent.color,
+                    modifier = Modifier.size(18.dp),
+                )
+            } else {
+                Text(
+                    text = upNextTarget(block),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -472,116 +587,93 @@ private fun FocusedExerciseSection(
 ) {
     var optionsOpen by remember { mutableStateOf(false) }
     val warmupSuggestions = warmupSuggestionsFor(block, barWeightKg)
+    val rows = formatWorkoutSetRowsForDisplay(block.sets, block.priorBestEstimatedOneRepMaxKg)
+    val currentRowIndex = rows.indexOfFirst { !it.set.completed }
 
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    block.supersetLabel?.let { SupersetBadge(label = it, accent = accent) }
-                    Text(
-                        text = block.exercise.name,
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
-                        fontWeight = FontWeight.Normal,
-                        color = MusFitTheme.colors.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                lastTimeLabel(block)?.let { label ->
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 1.dp),
-                    )
-                }
-            }
-            Icon(
-                imageVector = Icons.Outlined.MoreVert,
-                contentDescription = "Exercise options",
-                tint = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.size(20.dp).clickable { optionsOpen = true },
-            )
-        }
-
-        val rows = formatWorkoutSetRowsForDisplay(block.sets, block.priorBestEstimatedOneRepMaxKg)
-        rows.forEach { row ->
-            FocusedSetRow(
-                row = row,
-                accent = accent,
-                onUpdateSet = onUpdateSet,
-                onDeleteSet = onDeleteSet,
-                onToggleSet = onToggleSet,
-                onMoveSetUp = onMoveSetUp,
-                onMoveSetDown = onMoveSetDown,
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.clickable { onAddSet(block.exercise.id) },
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Add,
-                    contentDescription = null,
-                    tint = accent.color,
-                    modifier = Modifier.size(17.dp),
-                )
+                block.supersetLabel?.let { SupersetBadge(label = it, accent = accent) }
                 Text(
-                    text = "Set",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
-                    fontWeight = FontWeight.Medium,
-                    color = accent.color,
+                    text = block.exercise.name,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp),
+                    color = MusFitTheme.colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = Icons.Outlined.MoreVert,
+                    contentDescription = "Exercise options",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp).clickable { optionsOpen = true },
                 )
             }
-            plateSummary(block, barWeightKg, availablePlatesKg)?.let { plates ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+
+            SetColumnHeaderRow()
+
+            rows.forEachIndexed { index, row ->
+                FocusedSetRow(
+                    row = row,
+                    isCurrent = index == currentRowIndex,
+                    accent = accent,
+                    onUpdateSet = onUpdateSet,
+                    onDeleteSet = onDeleteSet,
+                    onToggleSet = onToggleSet,
+                    onMoveSetUp = onMoveSetUp,
+                    onMoveSetDown = onMoveSetDown,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Surface(
+                    onClick = { onAddSet(block.exercise.id) },
+                    color = accent.container,
+                    contentColor = accent.onContainer,
+                    shape = RoundedCornerShape(99.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.FitnessCenter,
-                        contentDescription = null,
-                        tint = MusFitTheme.colors.onSurfaceVariant,
-                        modifier = Modifier.size(17.dp),
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp),
+                        )
+                        Text(
+                            text = "Set",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                    }
+                }
+                plateSummary(block, barWeightKg, availablePlatesKg)?.let { plates ->
                     Text(
                         text = plates,
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 8.dp),
                     )
                 }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.clickable(onClick = onOpenCoach),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Forum,
-                    contentDescription = null,
-                    tint = MusFitTheme.colors.accent,
-                    modifier = Modifier.size(17.dp),
-                )
-                Text(
-                    text = "Coach",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
-                    fontWeight = FontWeight.Medium,
-                    color = MusFitTheme.colors.accent,
-                )
+                CoachGlyphButton(onClick = onOpenCoach)
             }
         }
     }
@@ -610,14 +702,82 @@ private fun FocusedExerciseSection(
     }
 }
 
+/** Shared column geometry for the set table (header + rows must line up). */
+private val SetColumnWidth = 30.dp
+private val LastColumnWidth = 64.dp
+private val CheckButtonSize = 42.dp
+
+/** SET · LAST · KG · REPS column headers (10a), 10.5/800 +0.6 faint. */
+@Composable
+private fun SetColumnHeaderRow() {
+    val headerStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, letterSpacing = 0.6.sp)
+    val headerColor = MusFitTheme.colors.onSurfaceFaint
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("SET", style = headerStyle, color = headerColor, modifier = Modifier.width(SetColumnWidth))
+        Text("LAST", style = headerStyle, color = headerColor, modifier = Modifier.width(LastColumnWidth))
+        Text(
+            "KG",
+            style = headerStyle,
+            color = headerColor,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "REPS",
+            style = headerStyle,
+            color = headerColor,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(modifier = Modifier.width(CheckButtonSize))
+    }
+}
+
+/** The coral coach mark (filled chat bubble + knocked-out sparkle) → chat. */
+@Composable
+private fun CoachGlyphButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(modifier = Modifier.size(22.dp)) {
+            Icon(
+                imageVector = Icons.Filled.ChatBubble,
+                contentDescription = "Ask coach about this workout",
+                tint = BrandCoral,
+                modifier = Modifier.size(22.dp),
+            )
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = MusFitTheme.colors.surface,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 5.dp)
+                    .size(10.dp),
+            )
+        }
+    }
+}
+
 /**
- * One set row (mock 5c): set number (tap for type/detail options, trophy glyph on a PR),
- * equal kg/reps input fields at 14dp radius, and a 42dp check button. RPE, notes, and
- * move/delete live behind "Details" on the set-number menu.
+ * One set row (10a): set number (tap for type/detail options, trophy glyph on a
+ * PR), the per-set LAST column (bold ink on the current set), kg/reps fields at
+ * 14dp radius (tonal once done, pre-filled placeholders from LAST while
+ * pending), and a 42dp check button. RPE, notes, and move/delete live behind
+ * the set-number menu.
  */
 @Composable
 private fun FocusedSetRow(
     row: WorkoutSetRowDisplay,
+    isCurrent: Boolean,
     accent: TabAccent,
     onUpdateSet: (setId: String, setType: String, reps: String, weightKg: String, rpe: String, notes: String) -> Unit,
     onDeleteSet: (String) -> Unit,
@@ -656,16 +816,16 @@ private fun FocusedSetRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Box(modifier = Modifier.width(40.dp)) {
+            Box(modifier = Modifier.width(SetColumnWidth)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                     modifier = Modifier.clickable { setMenuOpen = true },
                 ) {
                     Text(
                         text = row.setLabel,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Medium,
                         color = when (row.setLabel) {
                             "W" -> MusFitTheme.colors.macroCarbs
                             "D", "F" -> accent.color
@@ -677,7 +837,7 @@ private fun FocusedSetRow(
                             imageVector = Icons.Outlined.EmojiEvents,
                             contentDescription = "Personal record",
                             tint = MusFitTheme.colors.warning,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(13.dp),
                         )
                     }
                 }
@@ -722,6 +882,16 @@ private fun FocusedSetRow(
                     )
                 }
             }
+            Text(
+                text = compactLastLabel(row.previousLabel),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Normal,
+                color = if (isCurrent) MusFitTheme.colors.onSurface else MusFitTheme.colors.onSurfaceFaint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.width(LastColumnWidth),
+            )
+            val previousParts = previousSetParts(row.previousLabel)
             SetValueField(
                 value = weightKg,
                 onValueChange = {
@@ -731,6 +901,7 @@ private fun FocusedSetRow(
                 completed = set.completed,
                 accent = accent,
                 keyboardType = KeyboardType.Decimal,
+                placeholder = previousParts?.first,
                 modifier = Modifier.weight(1f),
             )
             SetValueField(
@@ -742,11 +913,12 @@ private fun FocusedSetRow(
                 completed = set.completed,
                 accent = accent,
                 keyboardType = KeyboardType.Number,
+                placeholder = previousParts?.second,
                 modifier = Modifier.weight(1f),
             )
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(CheckButtonSize)
                     .clip(RoundedCornerShape(14.dp))
                     .background(if (set.completed) accent.color else MusFitTheme.colors.surfaceVariant)
                     .clickable { onToggleSet(set.id, !set.completed) },
@@ -762,7 +934,7 @@ private fun FocusedSetRow(
         }
         if (detailsOpen) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 50.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 40.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -787,7 +959,11 @@ private fun FocusedSetRow(
     }
 }
 
-/** kg/reps cell: done = tonal fill + ink at 500; pending = plain card fill, quiet value. */
+/**
+ * kg/reps cell (10a): done = accent tonal fill with 14.5/800 accent ink;
+ * pending = quiet cream fill whose [placeholder] pre-fills from that set's
+ * LAST performance.
+ */
 @Composable
 private fun SetValueField(
     value: String,
@@ -796,6 +972,7 @@ private fun SetValueField(
     accent: TabAccent,
     keyboardType: KeyboardType,
     modifier: Modifier = Modifier,
+    placeholder: String? = null,
 ) {
     BasicTextField(
         value = value,
@@ -803,7 +980,8 @@ private fun SetValueField(
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         textStyle = MaterialTheme.typography.bodyLarge.copy(
-            fontWeight = if (completed) FontWeight.Medium else FontWeight.Normal,
+            fontSize = 14.5.sp,
+            fontWeight = if (completed) FontWeight.ExtraBold else FontWeight.Medium,
             color = if (completed) accent.onContainer else MusFitTheme.colors.onSurface,
             textAlign = TextAlign.Center,
         ),
@@ -814,10 +992,19 @@ private fun SetValueField(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(if (completed) accent.container else MusFitTheme.colors.surface)
+                    .background(if (completed) accent.container else MusFitTheme.colors.background)
                     .padding(vertical = 12.dp, horizontal = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
+                if (value.isBlank() && !placeholder.isNullOrBlank()) {
+                    Text(
+                        text = placeholder,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.5.sp),
+                        fontWeight = FontWeight.Medium,
+                        color = MusFitTheme.colors.onSurfaceFaint,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 innerTextField()
             }
         },
@@ -840,26 +1027,38 @@ private fun AddExerciseRow(
     )
 
     Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        Surface(
+            onClick = { expanded = !expanded },
+            color = MusFitTheme.colors.surface,
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Icon(
-                imageVector = if (expanded) Icons.Outlined.Close else Icons.Outlined.Add,
-                contentDescription = null,
-                tint = accent.color,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = "Add exercise",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-                color = accent.color,
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(accent.container),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Outlined.Close else Icons.Outlined.Add,
+                        contentDescription = null,
+                        tint = accent.onContainer,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Text(
+                    text = "Add exercise",
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accent.color,
+                )
+            }
         }
         if (expanded) {
             OutlinedTextField(
@@ -1311,15 +1510,30 @@ internal fun upNextTarget(block: WorkoutExerciseBlock): String {
     }
 }
 
-/** "last time 105 kg × 5" from the first set carrying a previous label (replaces the PREVIOUS column). */
-internal fun lastTimeLabel(block: WorkoutExerciseBlock): String? {
-    val previous = block.sets.firstNotNullOfOrNull { set ->
-        set.previousLabel?.trim()?.takeIf(String::isNotBlank)
-    }
-    if (previous != null) return "last time $previous"
-    val target = block.targetReps?.trim()?.takeIf(String::isNotBlank)
-    return target?.let { "target $it reps" }
+/** LAST column text: "102.5 kg x 5" → "102.5 × 5"; em dash when no history. */
+internal fun compactLastLabel(previousLabel: String?): String {
+    val label = previousLabel?.trim()?.takeIf(String::isNotBlank) ?: return "—"
+    return previousSetParts(label)?.let { (weightKg, reps) -> "$weightKg × $reps" } ?: label
 }
+
+/** kg/reps parsed from a previous-set label — feeds pending-row placeholders. */
+internal fun previousSetParts(previousLabel: String?): Pair<String, String>? {
+    val label = previousLabel?.trim() ?: return null
+    val match = PREVIOUS_LABEL_PATTERN.find(label) ?: return null
+    return match.groupValues[1] to match.groupValues[2]
+}
+
+private val PREVIOUS_LABEL_PATTERN = Regex("""^([\d.,]+)\s*kg\s*[x×]\s*(\d+)$""", RegexOption.IGNORE_CASE)
+
+/** Fraction of the rest ALREADY elapsed — the wavy arc of the countdown ring. */
+internal fun restElapsedFraction(restTimer: RestTimerState): Float {
+    val duration = restTimer.durationSeconds.coerceAtLeast(1)
+    return (1f - restTimer.remainingSeconds.toFloat() / duration).coerceIn(0f, 1f)
+}
+
+/** The wave flattens across the final ten seconds of rest (0 = full wave, 1 = flat). */
+internal fun restWaveFlatten(remainingSeconds: Int): Float =
+    ((10 - remainingSeconds) / 10f).coerceIn(0f, 1f)
 
 internal fun warmupSuggestionsFor(
     block: WorkoutExerciseBlock,
