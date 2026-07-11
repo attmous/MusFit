@@ -45,6 +45,7 @@ import com.musfit.domain.profile.ActivityLevel
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
+import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -677,7 +678,7 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(
-            "Allow Local Network access to reach a Hermes agent on your LAN.",
+            LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE,
             viewModel.state.value.aiCoachMessage,
         )
     }

@@ -229,22 +229,44 @@ class TrainingActiveWorkoutContentTest {
     }
 
     @Test
-    fun lastTimeLabel_prefersPreviousLabelThenTargetReps() {
-        val withPrevious = block(
-            exerciseId = "squat",
-            targetReps = "5",
-            sets = listOf(set(id = "s1", setType = "working", previousLabel = "105 kg x 5", reps = null, weightKg = null)),
-        )
-        val withoutPrevious = block(
-            exerciseId = "bench",
-            targetReps = "8",
-            sets = listOf(set(id = "b1", setType = "working", previousLabel = null, reps = null, weightKg = null)),
-        )
-        val bare = block(exerciseId = "row", targetReps = null, sets = emptyList())
+    fun compactLastLabel_compressesRepositoryLabelsAndFallsBackHonestly() {
+        // The repository emits "102.5 kg x 5"; the LAST column shows "102.5 × 5".
+        assertEquals("102.5 × 5", compactLastLabel("102.5 kg x 5"))
+        assertEquals("105 × 4", compactLastLabel("105 kg x 4"))
+        // Unparseable history still surfaces verbatim instead of vanishing.
+        assertEquals("3 × 30s", compactLastLabel("3 × 30s"))
+        // No history → em dash.
+        assertEquals("—", compactLastLabel(null))
+        assertEquals("—", compactLastLabel("  "))
+    }
 
-        assertEquals("last time 105 kg x 5", lastTimeLabel(withPrevious))
-        assertEquals("target 8 reps", lastTimeLabel(withoutPrevious))
-        assertEquals(null, lastTimeLabel(bare))
+    @Test
+    fun previousSetParts_feedsPlaceholdersFromLastTime() {
+        assertEquals("102.5" to "5", previousSetParts("102.5 kg x 5"))
+        assertEquals("105" to "4", previousSetParts("105 kg × 4"))
+        assertEquals(null, previousSetParts(null))
+        assertEquals(null, previousSetParts("no history"))
+    }
+
+    @Test
+    fun restElapsedFraction_isElapsedShareOfTheRestWindow() {
+        val halfway = RestTimerState(isVisible = true, durationSeconds = 120, remainingSeconds = 60)
+        assertEquals(0.5f, restElapsedFraction(halfway), 1e-4f)
+        val fresh = RestTimerState(isVisible = true, durationSeconds = 120, remainingSeconds = 120)
+        assertEquals(0f, restElapsedFraction(fresh), 1e-4f)
+        val done = RestTimerState(isVisible = true, durationSeconds = 120, remainingSeconds = 0)
+        assertEquals(1f, restElapsedFraction(done), 1e-4f)
+        // Zero-duration timers never divide by zero.
+        val degenerate = RestTimerState(isVisible = true, durationSeconds = 0, remainingSeconds = 0)
+        assertEquals(1f, restElapsedFraction(degenerate), 1e-4f)
+    }
+
+    @Test
+    fun restWaveFlatten_easesToFlatOverTheFinalTenSeconds() {
+        assertEquals(0f, restWaveFlatten(60), 1e-4f)
+        assertEquals(0f, restWaveFlatten(10), 1e-4f)
+        assertEquals(0.5f, restWaveFlatten(5), 1e-4f)
+        assertEquals(1f, restWaveFlatten(0), 1e-4f)
     }
 
     @Test

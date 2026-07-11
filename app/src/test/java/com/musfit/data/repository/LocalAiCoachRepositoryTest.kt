@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.entity.AiCoachSettingsEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -66,7 +67,7 @@ class LocalAiCoachRepositoryTest {
             accountRepository = accountRepository,
             secretStore = secretStore,
             debugDefaults = AiCoachDebugDefaults(
-                hermesBaseUrl = "http://192.168.178.113:8080/v1",
+                hermesBaseUrl = "https://192.168.178.113:8443/v1",
                 hermesModelName = "hermes-agent",
                 hermesApiKey = "debug-key",
             ),
@@ -75,7 +76,7 @@ class LocalAiCoachRepositoryTest {
 
         val settings = repository.observeSettings().first()
         assertEquals(AiCoachProviderKind.LocalAgent, settings.providerKind)
-        assertEquals("http://192.168.178.113:8080/v1/", settings.baseUrl)
+        assertEquals("https://192.168.178.113:8443/v1/", settings.baseUrl)
         assertEquals("hermes-agent", settings.modelName)
         assertEquals(LocalAgentKind.HermesAgent, settings.localAgentKind)
         assertTrue(settings.hasApiKey)
@@ -83,7 +84,7 @@ class LocalAiCoachRepositoryTest {
 
         val connection = repository.activeConnection()
         assertEquals(AiCoachProviderKind.LocalAgent, connection?.providerKind)
-        assertEquals("http://192.168.178.113:8080/v1/", connection?.baseUrl)
+        assertEquals("https://192.168.178.113:8443/v1/", connection?.baseUrl)
         assertEquals("hermes-agent", connection?.modelName)
         assertEquals("debug-key", connection?.apiKey)
     }
@@ -93,7 +94,7 @@ class LocalAiCoachRepositoryTest {
         repository.saveSettings(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.OpenAiCompatible,
-                baseUrl = "  http://127.0.0.1:11434  ",
+                baseUrl = "  https://127.0.0.1:11434  ",
                 modelName = "  llama3.1  ",
                 localAgentKind = LocalAgentKind.Custom,
                 apiKey = AiCoachApiKeyUpdate.Replace("sk-local"),
@@ -102,7 +103,7 @@ class LocalAiCoachRepositoryTest {
 
         val settings = repository.observeSettings().first()
         assertEquals(AiCoachProviderKind.OpenAiCompatible, settings.providerKind)
-        assertEquals("http://127.0.0.1:11434/", settings.baseUrl)
+        assertEquals("https://127.0.0.1:11434/", settings.baseUrl)
         assertEquals("llama3.1", settings.modelName)
         assertTrue(settings.hasApiKey)
         assertEquals("sk-local", secretStore.apiKeyFor("local-default"))
@@ -121,7 +122,7 @@ class LocalAiCoachRepositoryTest {
         repository.saveSettings(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.LocalAgent,
-                baseUrl = "http://192.168.1.40:8787/coach",
+                baseUrl = "https://192.168.1.40:8443/coach",
                 modelName = "",
                 localAgentKind = LocalAgentKind.OpenClaw,
                 apiKey = AiCoachApiKeyUpdate.Clear,
@@ -130,7 +131,7 @@ class LocalAiCoachRepositoryTest {
 
         val settings = repository.observeSettings().first()
         assertEquals(AiCoachProviderKind.LocalAgent, settings.providerKind)
-        assertEquals("http://192.168.1.40:8787/coach/", settings.baseUrl)
+        assertEquals("https://192.168.1.40:8443/coach/", settings.baseUrl)
         assertEquals("", settings.modelName)
         assertEquals(LocalAgentKind.OpenClaw, settings.localAgentKind)
         assertFalse(settings.hasApiKey)
@@ -147,7 +148,7 @@ class LocalAiCoachRepositoryTest {
             repository.saveSettings(
                 AiCoachSettingsInput(
                     providerKind = AiCoachProviderKind.LocalAgent,
-                    baseUrl = "http://192.168.178.113:8080/v1",
+                    baseUrl = "https://192.168.178.113:8443/v1",
                     modelName = "hermes-agent",
                     localAgentKind = LocalAgentKind.HermesAgent,
                     apiKey = AiCoachApiKeyUpdate.KeepExisting,
@@ -169,7 +170,7 @@ class LocalAiCoachRepositoryTest {
             accountRepository = accountRepository,
             secretStore = secretStore,
             debugDefaults = AiCoachDebugDefaults(
-                hermesBaseUrl = "http://192.168.178.113:8080/v1",
+                hermesBaseUrl = "https://192.168.178.113:8443/v1",
                 hermesModelName = "hermes-agent",
                 hermesApiKey = "debug-key",
             ),
@@ -179,7 +180,7 @@ class LocalAiCoachRepositoryTest {
         repository.saveSettings(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.LocalAgent,
-                baseUrl = "http://192.168.178.113:8080/v1",
+                baseUrl = "https://192.168.178.113:8443/v1",
                 modelName = "hermes-agent",
                 localAgentKind = LocalAgentKind.HermesAgent,
                 apiKey = AiCoachApiKeyUpdate.KeepExisting,
@@ -197,7 +198,7 @@ class LocalAiCoachRepositoryTest {
         repository.saveSettings(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.LocalAgent,
-                baseUrl = "http://10.0.2.2:8080/v1",
+                baseUrl = "https://10.0.2.2:8443/v1",
                 modelName = "hermes-agent",
                 localAgentKind = LocalAgentKind.HermesAgent,
                 apiKey = AiCoachApiKeyUpdate.Replace("first-key"),
@@ -207,7 +208,7 @@ class LocalAiCoachRepositoryTest {
         repository.saveSettings(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.LocalAgent,
-                baseUrl = "http://192.168.178.113:8080/v1",
+                baseUrl = "https://192.168.178.113:8443/v1",
                 modelName = "hermes-agent",
                 localAgentKind = LocalAgentKind.HermesAgent,
                 apiKey = AiCoachApiKeyUpdate.KeepExisting,
@@ -215,7 +216,7 @@ class LocalAiCoachRepositoryTest {
         )
 
         val connection = repository.activeConnection()
-        assertEquals("http://192.168.178.113:8080/v1/", connection?.baseUrl)
+        assertEquals("https://192.168.178.113:8443/v1/", connection?.baseUrl)
         assertEquals("first-key", connection?.apiKey)
     }
 
@@ -237,6 +238,72 @@ class LocalAiCoachRepositoryTest {
         }
 
         assertEquals(AiCoachProviderKind.Disabled, repository.observeSettings().first().providerKind)
+    }
+
+    @Test
+    fun saveSettings_rejectsPublicHttpBeforeAccountSecretOrDaoSideEffects() = runTest {
+        try {
+            repository.saveSettings(
+                AiCoachSettingsInput(
+                    providerKind = AiCoachProviderKind.OpenAiCompatible,
+                    baseUrl = "http://api.example.com/v1/",
+                    modelName = "dummy-model",
+                    localAgentKind = LocalAgentKind.Custom,
+                    apiKey = AiCoachApiKeyUpdate.Replace("dummy-never-store"),
+                ),
+            )
+            fail("Expected public HTTP to be rejected")
+        } catch (_: IllegalArgumentException) {
+            assertNull(database.accountDao().getActiveAccount())
+            assertNull(database.aiCoachDao().getSettings("local-default"))
+            assertEquals(0, secretStore.saveCalls)
+            assertEquals(0, secretStore.clearCalls)
+            assertEquals(0, secretStore.getCalls)
+        }
+    }
+
+    @Test
+    fun activeConnection_revalidatesPersistedUrlBeforeReadingSecret() = runTest {
+        accountRepository.ensureActiveAccount()
+        secretStore.saveApiKey("local-default", "dummy-stale-key")
+        secretStore.resetCounters()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.OpenAiCompatible.name,
+                baseUrl = "http://api.example.com/v1/",
+                modelName = "dummy-model",
+                localAgentKind = LocalAgentKind.Custom.name,
+                apiKeyStored = true,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        try {
+            repository.activeConnection()
+            fail("Expected stale public HTTP connection to be rejected")
+        } catch (_: IllegalArgumentException) {
+            assertEquals(0, secretStore.getCalls)
+        }
+    }
+
+    @Test
+    fun invalidDebugDefaultIsNotExposedAsSettingsOrConnection() = runTest {
+        repository = LocalAiCoachRepository(
+            aiCoachDao = database.aiCoachDao(),
+            accountRepository = accountRepository,
+            secretStore = secretStore,
+            debugDefaults = AiCoachDebugDefaults(
+                hermesBaseUrl = "http://api.example.com/v1/",
+                hermesModelName = "hermes-agent",
+                hermesApiKey = "dummy-invalid-default",
+            ),
+            clock = { clockMillis += 1_000L; clockMillis },
+        )
+
+        assertEquals(AiCoachProviderKind.Disabled, repository.observeSettings().first().providerKind)
+        assertNull(repository.activeConnection())
+        assertEquals(0, secretStore.getCalls)
     }
 
     @Test
@@ -284,7 +351,7 @@ class LocalAiCoachRepositoryTest {
             accountRepository = accountRepository,
             secretStore = secretStore,
             debugDefaults = AiCoachDebugDefaults(
-                hermesBaseUrl = "http://192.168.178.113:8080/v1",
+                hermesBaseUrl = "https://192.168.178.113:8443/v1",
                 hermesModelName = "hermes-agent",
                 hermesApiKey = "debug-key",
             ),
@@ -293,7 +360,7 @@ class LocalAiCoachRepositoryTest {
         repository.saveSettings(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.LocalAgent,
-                baseUrl = "http://192.168.178.113:8080/v1",
+                baseUrl = "https://192.168.178.113:8443/v1",
                 modelName = "hermes-agent",
                 localAgentKind = LocalAgentKind.HermesAgent,
                 apiKey = AiCoachApiKeyUpdate.KeepExisting,
@@ -325,7 +392,7 @@ class LocalAiCoachRepositoryTest {
         repository.saveSettings(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.LocalAgent,
-                baseUrl = "http://10.0.2.2:8989",
+                baseUrl = "https://10.0.2.2:8443",
                 modelName = "",
                 localAgentKind = LocalAgentKind.HermesAgent,
                 apiKey = AiCoachApiKeyUpdate.Replace("second-key"),
@@ -344,17 +411,34 @@ class LocalAiCoachRepositoryTest {
 
     private class FakeAiCoachSecretStore : AiCoachSecretStore {
         private val keys = mutableMapOf<String, String>()
+        var saveCalls = 0
+            private set
+        var getCalls = 0
+            private set
+        var clearCalls = 0
+            private set
 
         override suspend fun saveApiKey(accountId: String, apiKey: String) {
+            saveCalls += 1
             keys[accountId] = apiKey
         }
 
-        override suspend fun getApiKey(accountId: String): String? = keys[accountId]
+        override suspend fun getApiKey(accountId: String): String? {
+            getCalls += 1
+            return keys[accountId]
+        }
 
         override suspend fun clearApiKey(accountId: String) {
+            clearCalls += 1
             keys.remove(accountId)
         }
 
         fun apiKeyFor(accountId: String): String? = keys[accountId]
+
+        fun resetCounters() {
+            saveCalls = 0
+            getCalls = 0
+            clearCalls = 0
+        }
     }
 }

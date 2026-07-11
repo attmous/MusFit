@@ -36,8 +36,6 @@ val Indigo = Color(0xFF3D5AF1)
 val IndigoContainer = Color(0xFFDEE1FF)
 val IndigoInk = Color(0xFF1B2A80)
 val IndigoTrack = Color(0xFFC2C8F9)
-// Indigo at ~25% on white — past-week bars on the Training progress charts.
-val IndigoMuted = Color(0xFFC9D0F5)
 // Resting outline for selection circles and drag handles (Training pickers/editor).
 val NeutralOutline = Color(0xFFCBC3B4)
 val NeutralOutlineDark = Color(0xFF4A443A)

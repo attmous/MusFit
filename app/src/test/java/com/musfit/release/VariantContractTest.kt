@@ -46,11 +46,14 @@ class VariantContractTest {
         assertTrue(internal.debuggable)
         assertTrue(internal.permissions.contains(LOCAL_NETWORK_PERMISSION))
         assertEquals(DEBUG_NETWORK_CONFIG, internal.networkSecurityConfig)
+        assertTrue(internal.hasUsesCleartextTrafficAttribute)
+        assertTrue(internal.usesCleartextTraffic)
 
         assertEquals(PRODUCTION_APPLICATION_ID, production.applicationId)
         assertFalse(production.debuggable)
         assertFalse(production.permissions.contains(LOCAL_NETWORK_PERMISSION))
         assertTrue(production.networkSecurityConfig.isBlank())
+        assertTrue("Production must explicitly disable platform cleartext", production.hasUsesCleartextTrafficAttribute)
         assertFalse(production.usesCleartextTraffic)
     }
 
@@ -83,6 +86,10 @@ class VariantContractTest {
             applicationId = root.getAttribute("package"),
             debuggable = application.androidAttribute("debuggable").toBoolean(),
             networkSecurityConfig = application.androidAttribute("networkSecurityConfig"),
+            hasUsesCleartextTrafficAttribute = application.hasAttributeNS(
+                ANDROID_NAMESPACE,
+                "usesCleartextTraffic",
+            ),
             usesCleartextTraffic = application.androidAttribute("usesCleartextTraffic").toBoolean(),
             permissions = (0 until permissionNodes.length)
                 .mapNotNull { index ->
@@ -119,6 +126,7 @@ class VariantContractTest {
         val applicationId: String,
         val debuggable: Boolean,
         val networkSecurityConfig: String,
+        val hasUsesCleartextTrafficAttribute: Boolean,
         val usesCleartextTraffic: Boolean,
         val permissions: Set<String>,
     )

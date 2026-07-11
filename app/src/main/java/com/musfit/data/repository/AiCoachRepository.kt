@@ -6,8 +6,8 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.musfit.data.local.dao.AiCoachDao
 import com.musfit.data.local.entity.AiCoachSettingsEntity
+import com.musfit.data.remote.coach.AiCoachEndpointPolicy
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.net.URI
 import java.security.GeneralSecurityException
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -109,8 +109,8 @@ class LocalAiCoachRepository @Inject constructor(
         }
 
     override suspend fun saveSettings(input: AiCoachSettingsInput) {
-        val account = accountRepository.ensureActiveAccount()
         val normalized = input.normalized()
+        val account = accountRepository.ensureActiveAccount()
 
         if (normalized.providerKind == AiCoachProviderKind.Disabled) {
             secretStore.clearApiKey(account.id)
@@ -161,10 +161,11 @@ class LocalAiCoachRepository @Inject constructor(
         val row = aiCoachDao.getSettings(account.id) ?: return debugDefaults.toHermesConnection()
         val settings = row.toSettings()
         if (settings.providerKind == AiCoachProviderKind.Disabled) return null
+        val validatedEndpoint = AiCoachEndpointPolicy.requireAllowed(settings.baseUrl)
         val debugApiKey = debugDefaults.apiKeyFor(settings)
         return AiCoachConnection(
             providerKind = settings.providerKind,
-            baseUrl = settings.baseUrl,
+            baseUrl = validatedEndpoint.normalizedBaseUrl,
             modelName = settings.modelName,
             localAgentKind = settings.localAgentKind,
             apiKey = if (settings.hasApiKey) {
@@ -263,14 +264,14 @@ private fun AiCoachSettingsInput.normalized(): NormalizedAiCoachSettings =
         )
         AiCoachProviderKind.OpenAiCompatible -> NormalizedAiCoachSettings(
             providerKind = AiCoachProviderKind.OpenAiCompatible,
-            baseUrl = baseUrl.normalizedBaseUrl(),
+            baseUrl = AiCoachEndpointPolicy.requireAllowed(baseUrl).normalizedBaseUrl,
             modelName = modelName.trim().takeIf { it.isNotBlank() }
                 ?: throw IllegalArgumentException("Model name is required for API-compatible providers."),
             localAgentKind = LocalAgentKind.Custom,
         )
         AiCoachProviderKind.LocalAgent -> NormalizedAiCoachSettings(
             providerKind = AiCoachProviderKind.LocalAgent,
-            baseUrl = baseUrl.normalizedBaseUrl(),
+            baseUrl = AiCoachEndpointPolicy.requireAllowed(baseUrl).normalizedBaseUrl,
             modelName = modelName.trim(),
             localAgentKind = localAgentKind,
         )
@@ -295,7 +296,7 @@ private fun NormalizedAiCoachSettings.requiresApiServerKey(): Boolean =
     providerKind == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
 
 private fun AiCoachDebugDefaults.toHermesSettings(): AiCoachSettings? {
-    val normalizedBaseUrl = hermesBaseUrl.normalizedBaseUrlOrNull() ?: return null
+    val normalizedBaseUrl = AiCoachEndpointPolicy.normalizedBaseUrlOrNull(hermesBaseUrl) ?: return null
     val model = hermesModelName.trim().takeIf { it.isNotBlank() } ?: return null
     val apiKey = hermesApiKey.trim().takeIf { it.isNotBlank() } ?: return null
     return AiCoachSettings(
@@ -347,16 +348,3 @@ private fun AiCoachSettingsEntity.toSettings(): AiCoachSettings =
         hasApiKey = apiKeyStored,
         updatedAtEpochMillis = updatedAtEpochMillis,
     )
-
-private fun String.normalizedBaseUrlOrNull(): String? =
-    runCatching { normalizedBaseUrl() }.getOrNull()
-
-private fun String.normalizedBaseUrl(): String {
-    val trimmed = trim()
-    val uri = runCatching { URI(trimmed) }.getOrNull()
-    val scheme = uri?.scheme?.lowercase()
-    if (uri == null || scheme !in setOf("http", "https") || uri.host.isNullOrBlank()) {
-        throw IllegalArgumentException("Enter a valid http(s) base URL.")
-    }
-    return trimmed.trimEnd('/') + "/"
-}

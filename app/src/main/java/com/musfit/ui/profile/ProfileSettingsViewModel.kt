@@ -23,6 +23,7 @@ import com.musfit.data.repository.UserProfile
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.StepSource
 import com.musfit.domain.profile.RecommendedTargets
+import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,7 +41,6 @@ import javax.inject.Inject
 
 private const val DEFAULT_STATUS_MESSAGE = "Refresh status to check whether Health Connect is ready."
 private const val ALL_STEP_SOURCES_LABEL = "All sources (unified)"
-internal const val HERMES_DEFAULT_BASE_URL = "http://10.0.2.2:8080/v1/"
 internal const val HERMES_DEFAULT_MODEL_NAME = "hermes-agent"
 
 private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSource>): String =
@@ -687,7 +687,7 @@ class ProfileSettingsViewModel @Inject constructor(
 
     fun reportAiCoachLocalNetworkPermissionDenied() {
         mutableState.update {
-            it.copy(aiCoachMessage = "Allow Local Network access to reach a Hermes agent on your LAN.")
+            it.copy(aiCoachMessage = LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE)
         }
     }
 

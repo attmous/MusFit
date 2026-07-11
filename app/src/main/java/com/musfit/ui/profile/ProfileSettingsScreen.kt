@@ -88,7 +88,7 @@ fun ProfileSettingsScreen(
     }
     val onTestAiCoach = {
         if (
-            requiresLocalNetworkPermission(state.aiCoach.providerKind) &&
+            requiresLocalNetworkPermission(state.aiCoach.baseUrl) &&
             !hasLocalNetworkPermission(context)
         ) {
             localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION)

@@ -34,6 +34,12 @@ http://192.168.1.50:8080/v1/
 Hermes must be reachable from the device network and the API server key must
 match the gateway configuration.
 
+These cleartext examples apply only to `internalDebug`. Use literal IP
+addresses: arbitrary hostnames (including single-label, `.local`, and `.lan`
+names) are rejected for HTTP so DNS rebinding cannot change the destination
+after validation. Production configuration must use a trusted HTTPS endpoint or
+HTTPS tunnel.
+
 The verified Radxa development gateway is:
 
 ```text
@@ -69,10 +75,24 @@ The first implementation is read-only:
 - The coach cannot log, edit, or delete MusFit data.
 - Chat history is stored locally in Room per active account and coach provider.
 - API keys stay in the existing local encrypted AI coach secret store.
-- Internal builds own the existing cleartext HTTP/LAN development surface,
-  including emulator loopback and the Radxa Hermes gateway. Production omits
-  that manifest/network surface; W1-SEC-02 will narrow the internal policy and
-  add explicit URL-policy enforcement.
+- Endpoint validation occurs before settings can create account/DAO/secret side
+  effects and is repeated for stored/default connections and immediately before
+  request construction. Invalid chat endpoints therefore dispatch no bearer,
+  system prompt, or message body.
+- `internalDebug` permits HTTP only for exact `localhost`, literal IPv4
+  loopback (`127/8`) or RFC1918 (`10/8`, `172.16/12`, `192.168/16`), and literal
+  IPv6 loopback/ULA (`::1`, `fc00::/7`). Link-local, public, reserved,
+  multicast, obfuscated, hostname, and zone-id forms are rejected. HTTPS is
+  valid for ordinary public/private/loopback IPv4, IPv6, and DNS hosts.
+- Private internal endpoints bind to an active Wi-Fi or Ethernet network. They
+  fail closed rather than falling back to cellular/default routing. Loopback is
+  left unbound. Redirect following is disabled so sensitive headers and chat
+  bodies cannot cross to a follow-up endpoint.
+- `productionRelease` explicitly disables platform cleartext, omits Local
+  Network permission/configuration, and rejects every HTTP endpoint in code.
+- Android network-security XML cannot express IP CIDRs. The internal manifest
+  therefore enables platform cleartext broadly, but trusts only system CAs; the
+  pure, DNS-free request-boundary policy above is the actual host gate.
 
 ## Verification
 

@@ -2,23 +2,23 @@ package com.musfit.ui.training
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.EmojiEvents
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.automirrored.outlined.TrendingDown
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,16 +27,20 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musfit.data.repository.TrainingPrRecord
 import com.musfit.data.repository.WeeklyTrainingVolume
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.TrainingTrendPoint
-import com.musfit.ui.theme.IndigoContainerDark
-import com.musfit.ui.theme.IndigoMuted
+import com.musfit.ui.components.ExpressiveBadge
+import com.musfit.ui.components.ExpressiveBadgeShape
+import com.musfit.ui.components.groupedShape
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import java.time.LocalDate
@@ -46,8 +50,9 @@ import java.time.temporal.WeekFields
 import java.util.Locale
 
 /**
- * Progress page body (mock 5b): the anchored exercise's e1RM chart with one big thin
- * number, weekly volume bars, and cross-exercise Recent PR rows — no cards, no grids.
+ * Progress page body (Turn 10 §10f): the anchored exercise's e1RM trend as the
+ * tonal hero, the weekly volume card, and Recent PR grouped rows with the
+ * "All exercises" re-anchor link.
  */
 @Composable
 fun TrainingProgressContent(
@@ -58,87 +63,106 @@ fun TrainingProgressContent(
     accent: TabAccent,
     onOpenAllExercises: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        EstimatedOneRepMaxSection(progress = progress, period = period, accent = accent)
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
-        WeeklyVolumeSection(weeklyVolume = weeklyVolume, accent = accent)
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        EstimatedOneRepMaxHero(progress = progress, period = period, accent = accent)
+        WeeklyVolumeCard(weeklyVolume = weeklyVolume, accent = accent)
         RecentPrsSection(recentPrs = recentPrs, accent = accent, onOpenAllExercises = onOpenAllExercises)
     }
 }
 
+/** e1RM hero (10f): overline, 44/800 figure, trend delta, and the line chart. */
 @Composable
-private fun EstimatedOneRepMaxSection(
+private fun EstimatedOneRepMaxHero(
     progress: ExerciseProgress?,
     period: TrainingProgressPeriod,
     accent: TabAccent,
 ) {
     val trend = progress?.let { filterTrendByPeriod(it.trend, period, LocalDate.now()) }.orEmpty()
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            text = if (progress != null) "${progress.exerciseName} · estimated 1RM" else "Estimated 1RM",
-            style = MaterialTheme.typography.bodySmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
-        )
-        if (progress == null || trend.isEmpty()) {
-            Text(
-                text = "Complete workouts to build an e1RM trend.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 12.dp),
-            )
-            return
-        }
-        Row(
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+    Surface(
+        color = accent.container,
+        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = progressHeroOverline(progress?.exerciseName),
+                style = MaterialTheme.typography.labelSmall,
+                color = accent.onContainer,
+            )
+            if (progress == null || trend.isEmpty()) {
+                Text(
+                    text = "Complete workouts to build an e1RM trend.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = accent.onContainer.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
+                return@Column
+            }
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Text(
                     text = trend.last().bestEstimatedOneRepMaxKg.formatE1rm(),
-                    style = MaterialTheme.typography.displaySmall.copy(fontSize = 40.sp),
-                    fontWeight = FontWeight.Light,
-                    color = MusFitTheme.colors.onSurface,
+                    style = MaterialTheme.typography.displayMedium,
+                    color = accent.onContainer,
                 )
                 Text(
                     text = " kg",
-                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
-                    fontWeight = FontWeight.Normal,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 5.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = accent.onContainer.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(bottom = 6.dp),
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                val delta = e1rmDeltaKg(trend)
+                if (delta != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (delta >= 0) Icons.AutoMirrored.Outlined.TrendingUp else Icons.AutoMirrored.Outlined.TrendingDown,
+                            contentDescription = null,
+                            tint = accent.onContainer,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = deltaLabel(delta),
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
+                            fontWeight = FontWeight.ExtraBold,
+                            color = accent.onContainer,
+                        )
+                    }
+                }
             }
-            val delta = e1rmDeltaKg(trend)
-            if (delta != null) {
-                Text(
-                    text = deltaLabel(delta),
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = if (delta >= 0) MusFitTheme.colors.positive else MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 7.dp),
-                )
-            }
-        }
-        ProgressLineChart(
-            values = trend.map { it.bestEstimatedOneRepMaxKg },
-            accent = accent,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp),
-        )
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            monthLabelsFor(trend).forEach { label ->
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
+            ProgressLineChart(
+                values = trend.map { it.bestEstimatedOneRepMaxKg },
+                accent = accent,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(96.dp),
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                val labels = monthLabelsFor(trend)
+                labels.forEachIndexed { index, label ->
+                    val isCurrent = index == labels.lastIndex
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.sp),
+                        fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Medium,
+                        color = if (isCurrent) accent.onContainer else accent.onContainer.copy(alpha = 0.7f),
+                    )
+                }
             }
         }
     }
 }
 
-/** Bare 2.5dp line with an endpoint dot over a hairline baseline — no grid, no card (mock 5b). */
+/** 2.5dp line + endpoint dot over an on-container hairline baseline (10f hero). */
 @Composable
 private fun ProgressLineChart(
     values: List<Double>,
@@ -146,7 +170,7 @@ private fun ProgressLineChart(
     modifier: Modifier = Modifier,
 ) {
     val lineColor = accent.color
-    val baselineColor = MusFitTheme.colors.outline
+    val baselineColor = accent.onContainer.copy(alpha = 0.18f)
     Canvas(modifier = modifier) {
         if (values.isEmpty()) return@Canvas
         val minValue = values.min()
@@ -184,178 +208,205 @@ private fun ProgressLineChart(
     }
 }
 
+/** Weekly volume (10f): white card, 6 rounded bars — tonal past, filled current. */
 @Composable
-private fun WeeklyVolumeSection(
+private fun WeeklyVolumeCard(
     weeklyVolume: List<WeeklyTrainingVolume>,
     accent: TabAccent,
 ) {
     val weeks = weeklyVolume.sortedBy { it.weekStartEpochDay }.takeLast(VOLUME_WEEK_COUNT)
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom,
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
-                text = "Weekly volume",
-                style = MaterialTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
-            weeks.lastOrNull()?.let { current ->
-                Row(verticalAlignment = Alignment.Bottom) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Weekly volume",
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MusFitTheme.colors.onSurface,
+                )
+                weeks.lastOrNull()?.let { current ->
                     Text(
-                        text = volumeTonsLabel(current.totalVolumeKg),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
-                        color = MusFitTheme.colors.onSurface,
-                    )
-                    Text(
-                        text = " this week",
+                        text = buildAnnotatedString {
+                            withStyle(
+                                SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface),
+                            ) {
+                                append(volumeTonsLabel(current.totalVolumeKg))
+                            }
+                            append(" this week")
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                     )
                 }
             }
-        }
-        if (weeks.isEmpty()) {
-            Text(
-                text = "Complete workouts to build weekly volume.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 12.dp),
-            )
-            return
-        }
-        val maxVolume = weeks.maxOf { it.totalVolumeKg }.takeIf { it > 0 } ?: 1.0
-        val pastBarColor = if (isSystemInDarkTheme()) IndigoContainerDark else IndigoMuted
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(84.dp)
-                .padding(top = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            weeks.forEachIndexed { index, week ->
-                val fraction = (week.totalVolumeKg / maxVolume).toFloat().coerceIn(0.04f, 1f)
-                val isCurrent = index == weeks.lastIndex
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Bottom,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height((78 * fraction).dp)
-                            .background(
-                                color = if (isCurrent) accent.color else pastBarColor,
-                                shape = RoundedCornerShape(6.dp),
-                            ),
-                    )
+            if (weeks.isEmpty()) {
+                Text(
+                    text = "Complete workouts to build weekly volume.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
+                return@Column
+            }
+            val maxVolume = weeks.maxOf { it.totalVolumeKg }.takeIf { it > 0 } ?: 1.0
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(84.dp)
+                    .padding(top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                weeks.forEachIndexed { index, week ->
+                    val fraction = (week.totalVolumeKg / maxVolume).toFloat().coerceIn(0.04f, 1f)
+                    val isCurrent = index == weeks.lastIndex
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Bottom,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height((78 * fraction).dp)
+                                .background(
+                                    color = if (isCurrent) accent.color else accent.container,
+                                    shape = RoundedCornerShape(6.dp),
+                                ),
+                        )
+                    }
                 }
             }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            weeks.forEachIndexed { index, week ->
-                val isCurrent = index == weeks.lastIndex
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = weekLabel(week.weekStartEpochDay),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (isCurrent) FontWeight.Medium else FontWeight.Normal,
-                        color = if (isCurrent) MusFitTheme.colors.onSurface else MusFitTheme.colors.onSurfaceVariant,
-                    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                weeks.forEachIndexed { index, week ->
+                    val isCurrent = index == weeks.lastIndex
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = weekLabel(week.weekStartEpochDay),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.sp),
+                            fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Normal,
+                            color = if (isCurrent) MusFitTheme.colors.onSurface else MusFitTheme.colors.onSurfaceFaint,
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+/** Recent PRs (10f): grouped rows with amber trophy badges + teal e1RM figures. */
 @Composable
 private fun RecentPrsSection(
     recentPrs: List<TrainingPrRecord>,
     accent: TabAccent,
     onOpenAllExercises: () -> Unit,
 ) {
+    val prs = recentPrs.take(RECENT_PR_COUNT)
+    // PR rows plus the trailing "All exercises" link share one grouped list.
+    val groupCount = prs.size + 1
     Column {
         Text(
             text = "Recent PRs",
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 6.dp),
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+            fontWeight = FontWeight.ExtraBold,
+            color = MusFitTheme.colors.onSurface,
+            modifier = Modifier.padding(bottom = 8.dp, start = 4.dp),
         )
-        if (recentPrs.isEmpty()) {
+        if (prs.isEmpty()) {
             Text(
                 text = "Beat a previous best to log a PR.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 10.dp),
+                modifier = Modifier.padding(bottom = 10.dp, start = 4.dp),
             )
         }
-        recentPrs.take(RECENT_PR_COUNT).forEach { pr ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            prs.forEachIndexed { index, pr ->
+                Surface(
+                    color = MusFitTheme.colors.surface,
+                    shape = groupedShape(index, groupCount),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        ExpressiveBadge(
+                            icon = Icons.Filled.EmojiEvents,
+                            shape = if (index % 2 == 0) ExpressiveBadgeShape.Sunny else ExpressiveBadgeShape.Circle,
+                            containerColor = MusFitTheme.colors.warningContainer,
+                            contentColor = MusFitTheme.colors.warning,
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = pr.exerciseName,
+                                style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                                color = MusFitTheme.colors.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = prMetaLabel(pr, LocalDate.now()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MusFitTheme.colors.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 1.dp),
+                            )
+                        }
+                        Text(
+                            text = "e1RM ${pr.estimatedOneRepMaxKg.formatE1rm()}",
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MusFitTheme.colors.positive,
+                        )
+                    }
+                }
+            }
+            Surface(
+                onClick = onOpenAllExercises,
+                color = MusFitTheme.colors.surface,
+                shape = groupedShape(groupCount - 1, groupCount),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.EmojiEvents,
-                    contentDescription = null,
-                    tint = MusFitTheme.colors.warning,
-                    modifier = Modifier.size(20.dp),
-                )
-                Column(modifier = Modifier.weight(1f)) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 14.dp),
+                ) {
                     Text(
-                        text = pr.exerciseName,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MusFitTheme.colors.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = prMetaLabel(pr, LocalDate.now()),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
+                        text = "All exercises",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accent.color,
                     )
                 }
-                Text(
-                    text = "e1RM ${pr.estimatedOneRepMaxKg.formatE1rm()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MusFitTheme.colors.positive,
-                )
             }
-            HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpenAllExercises)
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "All exercises",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-                color = accent.color,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(
-                imageVector = Icons.Outlined.ChevronRight,
-                contentDescription = null,
-                tint = accent.color,
-                modifier = Modifier.size(20.dp),
-            )
         }
     }
 }
 
 // --- Display helpers (pure, unit-tested) ---
+
+/** "BACK SQUAT · ESTIMATED 1RM" — the e1RM hero overline. */
+internal fun progressHeroOverline(exerciseName: String?): String =
+    listOfNotNull(
+        exerciseName?.trim()?.takeIf(String::isNotBlank)?.uppercase(Locale.US),
+        "ESTIMATED 1RM",
+    ).joinToString(" · ")
 
 internal fun filterTrendByPeriod(
     trend: List<TrainingTrendPoint>,

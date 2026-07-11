@@ -286,7 +286,7 @@ fun AiCoachEditorSheet(
                     label = "Base URL",
                     value = baseUrl,
                     onValueChange = onBaseUrlChange,
-                    placeholder = "http://10.0.2.2:8080/v1/",
+                    placeholder = AI_COACH_BASE_URL_PLACEHOLDER,
                     keyboardType = KeyboardType.Uri,
                 )
             }
@@ -467,7 +467,7 @@ private fun apiKeySupportingText(
 
 private fun aiCoachSecurityNote(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String =
     if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
-        "MusFit keeps this local. Hermes requires the API_SERVER_KEY bearer token from ~/.hermes/.env."
+        "Hermes requires the API_SERVER_KEY bearer token from ~/.hermes/.env. $AI_COACH_ENDPOINT_POLICY_NOTE"
     } else {
-        "MusFit keeps this local. Local agents can run without a key; hosted endpoints usually need one."
+        "Keys stay encrypted on this device. $AI_COACH_ENDPOINT_POLICY_NOTE"
     }
