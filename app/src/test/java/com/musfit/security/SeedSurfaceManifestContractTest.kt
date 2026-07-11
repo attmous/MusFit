@@ -9,7 +9,7 @@ import org.w3c.dom.Element
 class SeedSurfaceManifestContractTest {
     @Test
     fun distributedAndProductionManifestsExposeNoSeedComponentOrAction() {
-        listOf("debug", "release").forEach(::assertNoSeedSurface)
+        listOf("internalDebug", "productionRelease").forEach(::assertNoSeedSurface)
     }
 
     private fun assertNoSeedSurface(variant: String) {

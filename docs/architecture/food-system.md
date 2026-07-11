@@ -235,8 +235,8 @@ Pure, Android-free calculators (see [data-models.md](data-models.md#domain)):
 Run the focused Food suites:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "com.musfit.ui.food.FoodViewModelTest" --no-daemon --console=plain
-.\gradlew.bat testDebugUnitTest --tests "com.musfit.data.repository.LocalFoodRepositoryTest" --no-daemon --console=plain
+.\gradlew.bat testInternalDebugUnitTest --tests "com.musfit.ui.food.FoodViewModelTest" --no-daemon --console=plain
+.\gradlew.bat testInternalDebugUnitTest --tests "com.musfit.data.repository.LocalFoodRepositoryTest" --no-daemon --console=plain
 ```
 
 ## Historical Structure-Refactor Record
@@ -247,7 +247,10 @@ state surfaces documented by the July 2026 audit. Use the remediation package
 for new extraction or state-ownership decisions.
 
 Each item is behavior-preserving and gated on the full verification command
-(`testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`).
+(`verifyReleaseVariantMatrix testInternalDebugUnitTest
+testProductionReleaseUnitTest lintInternalDebug
+lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest
+assembleProductionRelease bundleProductionRelease`).
 
 ### Tier 1a — extract pure logic (lowest risk)
 

@@ -1,3 +1,6 @@
+import com.android.build.api.variant.ApplicationVariantBuilder
+import com.android.build.api.variant.DeviceTestBuilder
+import com.android.build.api.variant.HostTestBuilder
 import java.util.Properties
 
 plugins {
@@ -23,9 +26,8 @@ fun localConfigValue(name: String, defaultValue: String = ""): String =
         .orElse(localProperties.getProperty(name).orEmpty().ifBlank { defaultValue })
         .get()
 
-// Monotonic build number derived from the git history so every master build
-// gets a higher versionCode than the last — required for over-the-air (Obtainium)
-// updates to install over the previously distributed build. Falls back to 1 when
+// Monotonic build number derived from the git history. Retain the established
+// version sequence while release publication is suspended. Falls back to 1 when
 // git is unavailable (e.g. a source-only checkout). CI must checkout with full
 // history (fetch-depth: 0) or this collapses to 1. See docs/ops/auto-update.md.
 fun gitCommitCount(): Int =
@@ -47,13 +49,13 @@ val musfitGoogleWebClientId =
 val musfitGitHubOAuthClientId =
     localConfigValue("MUSFIT_GITHUB_OAUTH_CLIENT_ID")
 
-val musfitDebugHermesBaseUrl =
+val musfitInternalHermesBaseUrl =
     localConfigValue("MUSFIT_DEBUG_HERMES_BASE_URL", "http://192.168.178.113:8080/v1/")
 
-val musfitDebugHermesModelName =
+val musfitInternalHermesModelName =
     localConfigValue("MUSFIT_DEBUG_HERMES_MODEL_NAME", "hermes-agent")
 
-val musfitDebugHermesApiKey =
+val musfitInternalHermesApiKey =
     localConfigValue("MUSFIT_DEBUG_HERMES_API_KEY")
 
 android {
@@ -63,10 +65,8 @@ android {
     val buildNumber = gitCommitCount()
 
     signingConfigs {
-        // Reuse the committed MusFit debug keystore (a copy of the standard Android
-        // debug key) for EVERY build — local and CI. A stable signature is what lets
-        // Obtainium install a CI-built update over a build flashed from this machine
-        // without an uninstall. Debug-only key with public credentials; safe to commit.
+        // Stable public development key for internalDebug only. Never use this
+        // signing config for productionRelease or a distribution artifact.
         getByName("debug") {
             storeFile = file("keystore/musfit.debug.keystore")
             storePassword = "android"
@@ -90,11 +90,40 @@ android {
         buildConfigField("String", "DEBUG_HERMES_API_KEY", "".asBuildConfigString())
     }
 
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("internal") {
+            dimension = "distribution"
+            applicationIdSuffix = ".internal"
+            versionNameSuffix = "-internal"
+            buildConfigField(
+                "String",
+                "DEBUG_HERMES_BASE_URL",
+                musfitInternalHermesBaseUrl.asBuildConfigString(),
+            )
+            buildConfigField(
+                "String",
+                "DEBUG_HERMES_MODEL_NAME",
+                musfitInternalHermesModelName.asBuildConfigString(),
+            )
+            buildConfigField(
+                "String",
+                "DEBUG_HERMES_API_KEY",
+                musfitInternalHermesApiKey.asBuildConfigString(),
+            )
+        }
+        create("production") {
+            dimension = "distribution"
+            applicationId = "com.musfit"
+        }
+    }
+
     buildTypes {
         debug {
-            buildConfigField("String", "DEBUG_HERMES_BASE_URL", musfitDebugHermesBaseUrl.asBuildConfigString())
-            buildConfigField("String", "DEBUG_HERMES_MODEL_NAME", musfitDebugHermesModelName.asBuildConfigString())
-            buildConfigField("String", "DEBUG_HERMES_API_KEY", musfitDebugHermesApiKey.asBuildConfigString())
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        release {
+            isDebuggable = false
         }
     }
 
@@ -112,6 +141,71 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+}
+
+val enabledApplicationVariants = mutableSetOf<String>()
+
+androidComponents {
+    beforeVariants(selector().all()) { variantBuilder ->
+        val distribution = variantBuilder.productFlavors
+            .firstOrNull { (dimension, _) -> dimension == "distribution" }
+            ?.second
+        val enabled =
+            (distribution == "internal" && variantBuilder.buildType == "debug") ||
+            (distribution == "production" && variantBuilder.buildType == "release")
+        variantBuilder.enable = enabled
+        if (enabled) {
+            val applicationVariantBuilder = variantBuilder as ApplicationVariantBuilder
+            applicationVariantBuilder.hostTests
+                .getValue(HostTestBuilder.UNIT_TEST_TYPE)
+                .enable = true
+            applicationVariantBuilder.deviceTests
+                .getValue(DeviceTestBuilder.ANDROID_TEST_TYPE)
+                .enable = distribution == "internal"
+        }
+    }
+    onVariants(selector().all()) { variant ->
+        enabledApplicationVariants += variant.name
+    }
+}
+
+tasks.register("verifyReleaseVariantMatrix") {
+    group = "verification"
+    description = "Verifies the only enabled installable variants and their canonical task families."
+    doLast {
+        val expectedVariants = setOf("internalDebug", "productionRelease")
+        check(enabledApplicationVariants == expectedVariants) {
+            "Enabled application variants must be $expectedVariants, got $enabledApplicationVariants"
+        }
+
+        val requiredTasks = setOf(
+            "assembleInternalDebug",
+            "assembleInternalDebugAndroidTest",
+            "testInternalDebugUnitTest",
+            "lintInternalDebug",
+            "assembleProductionRelease",
+            "bundleProductionRelease",
+            "testProductionReleaseUnitTest",
+            "lintProductionRelease",
+        )
+        val missingTasks = requiredTasks - project.tasks.names
+        check(missingTasks.isEmpty()) { "Missing required variant tasks: $missingTasks" }
+
+        val forbiddenTasks = setOf(
+            "assembleProductionDebug",
+            "assembleProductionDebugAndroidTest",
+            "testProductionDebugUnitTest",
+            "lintProductionDebug",
+            "assembleInternalRelease",
+            "bundleInternalRelease",
+            "testInternalReleaseUnitTest",
+            "lintInternalRelease",
+        )
+        val presentForbiddenTasks = forbiddenTasks.intersect(project.tasks.names)
+        check(presentForbiddenTasks.isEmpty()) {
+            "Unsupported variant tasks must remain absent: $presentForbiddenTasks"
+        }
+    }
 }
 
 kapt {
@@ -177,7 +271,13 @@ dependencies {
 
 // The seed-surface contract reads both installable merged manifests. Keep the
 // generating tasks wired to the focused unit-test lane used locally and in CI.
-tasks.matching { it.name == "testDebugUnitTest" || it.name == "testReleaseUnitTest" }
+tasks.matching {
+    it.name == "testInternalDebugUnitTest" || it.name == "testProductionReleaseUnitTest"
+}
     .configureEach {
-        dependsOn("processDebugMainManifest", "processReleaseMainManifest")
+        dependsOn(
+            "processInternalDebugMainManifest",
+            "processProductionReleaseMainManifest",
+            "processInternalDebugAndroidTestManifest",
+        )
     }

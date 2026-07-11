@@ -38,49 +38,13 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      - name: Verify debug build
-        run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-daemon --console=plain
+      - name: Verify internal and production-shaped builds
+        run: ./gradlew verifyReleaseVariantMatrix testInternalDebugUnitTest testProductionReleaseUnitTest lintInternalDebug lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
 
-      - name: Upload debug APK
+      - name: Retain internal verification APK
         uses: actions/upload-artifact@v4
         with:
-          name: musfit-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-  # Publish each master build as a GitHub Release so Obtainium on the phone can
-  # discover it. Reuses the APK the verify job already built. See docs/ops/auto-update.md.
-  publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    needs: verify
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Compute build number
-        run: echo "BUILD_NUMBER=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
-
-      - name: Download debug APK
-        uses: actions/download-artifact@v4
-        with:
-          name: musfit-debug-apk
-          path: dist
-
-      - name: Name the APK for humans
-        run: mv dist/app-debug.apk "dist/musfit-${BUILD_NUMBER}.apk"
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ env.BUILD_NUMBER }}
-          name: MusFit build ${{ env.BUILD_NUMBER }}
-          body: |
-            Automated MusFit build (versionCode ${{ env.BUILD_NUMBER }}) from ${{ github.sha }}.
-            Discoverable through Obtainium; Android normally requires install confirmation.
-            See docs/ops/auto-update.md.
-          files: dist/musfit-${{ env.BUILD_NUMBER }}.apk
-          make_latest: true
+          name: musfit-internal-debug-apk
+          path: app/build/outputs/apk/internal/debug/app-internal-debug.apk
+          if-no-files-found: error
+          retention-days: 7

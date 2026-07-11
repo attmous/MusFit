@@ -376,29 +376,40 @@ Assert-FileContains "scripts/android/install-seed-musfit.ps1" "Wait-ForUiDump"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" '(?s)if\s*\(\s*\$DeviceSerial\s+-notmatch\s+[''"]\^emulator-\\d\+\$[''"]\s*\)\s*\{\s*throw\s+[''"]Refusing to seed or reset non-emulator'
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "emu avd name"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "Refusing to seed emulator"
-Assert-FileContains "scripts/android/install-seed-musfit.ps1" "assembleDebugAndroidTest"
+Assert-FileContains "scripts/android/install-seed-musfit.ps1" "assembleInternalDebugAndroidTest"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "am instrument"
-Assert-FileContains "scripts/android/install-seed-musfit.ps1" "com\.musfit\.test/androidx\.test\.runner\.AndroidJUnitRunner"
-Assert-FileContains "scripts/android/install-seed-musfit.ps1" "am start -W -n com\.musfit/\.MainActivity"
+Assert-FileContains "scripts/android/install-seed-musfit.ps1" "com\.musfit\.internal\.test"
+Assert-FileContains "scripts/android/install-seed-musfit.ps1" 'com\.musfit\.internal/com\.musfit\.MainActivity'
 Assert-FileDoesNotContain "scripts/android/install-seed-musfit.ps1" "am broadcast|shell monkey|MusFitDebugSeedReceiver|com\.musfit\.debug\.SEED_TEST_DATA"
-Assert-FileDoesNotContain "app/src/debug/AndroidManifest.xml" "<receiver|com\.musfit\.debug\.SEED_TEST_DATA"
+Assert-FileDoesNotContain "app/src/internal/AndroidManifest.xml" "<receiver|com\.musfit\.debug\.SEED_TEST_DATA"
 Assert-FileExists "app/src/androidTest/java/com/musfit/debug/MusFitDebugSeedInstrumentationTest.kt"
+Assert-FileContains "app/build.gradle.kts" 'create\("internal"\)'
+Assert-FileContains "app/build.gradle.kts" 'applicationIdSuffix\s*=\s*"\.internal"'
+Assert-FileContains "app/build.gradle.kts" 'create\("production"\)'
+Assert-FileContains "app/build.gradle.kts" 'verifyReleaseVariantMatrix'
+Assert-FileDoesNotContain "app/src/main/AndroidManifest.xml" "android\.permission\.ACCESS_LOCAL_NETWORK"
+Assert-FileContains "app/src/internal/AndroidManifest.xml" "android\.permission\.ACCESS_LOCAL_NETWORK"
+Assert-FileContains "app/src/internal/java/com/musfit/ui/permissions/LocalNetworkPermission.kt" "android\.permission\.ACCESS_LOCAL_NETWORK"
+Assert-FileDoesNotContain "app/src/production/java/com/musfit/ui/permissions/LocalNetworkPermission.kt" "android\.permission\.ACCESS_LOCAL_NETWORK"
 
 Assert-FileContains "scripts/dev/clean-generated.ps1" "Remove-Item"
 Assert-FileContains "scripts/dev/verify-musfit.ps1" "RetryOnGeneratedOutputIssue"
-Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)"Full"\s*\{.{0,500}"assembleDebugAndroidTest"'
-Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$InstallSeed\)\s*\{.{0,500}"assembleDebug".{0,200}"assembleDebugAndroidTest"'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)"Full"\s*\{.{0,300}"verifyReleaseVariantMatrix".{0,300}"testInternalDebugUnitTest".{0,200}"testProductionReleaseUnitTest".{0,500}"assembleInternalDebugAndroidTest".{0,300}"bundleProductionRelease"'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$InstallSeed\)\s*\{.{0,500}"assembleInternalDebug".{0,200}"assembleInternalDebugAndroidTest"'
 Assert-FileContains "scripts/dev/new-task-branch.ps1" "origin/master"
 Assert-FileContains "scripts/dev/new-task-branch.ps1" "DryRun"
 
 Assert-FileContains ".github/workflows/android.yml" "concurrency:"
 Assert-FileContains ".github/workflows/android.yml" "permissions:"
 Assert-FileContains ".github/workflows/android.yml" "test-dev-workflow\.ps1"
-Assert-FileContains ".github/workflows/android.yml" "testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest"
-Assert-FileDoesNotContain ".github/workflows/android.yml" "app-debug-androidTest\.apk|outputs/apk/androidTest|Installed automatically via Obtainium"
+Assert-FileContains ".github/workflows/android.yml" "verifyReleaseVariantMatrix testInternalDebugUnitTest testProductionReleaseUnitTest lintInternalDebug lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleProductionRelease bundleProductionRelease"
+Assert-FileContains ".github/workflows/android.yml" "app/build/outputs/apk/internal/debug/app-internal-debug\.apk"
+Assert-FileContains ".github/workflows/android.yml" "if-no-files-found:\s*error"
+Assert-FileDoesNotContain ".github/workflows/android.yml" "app-internal-debug-androidTest\.apk|outputs/apk/androidTest|softprops/action-gh-release|Publish GitHub Release"
 Assert-FileContains ".github/pull_request_template.md" "Verification"
 Assert-FileContains ".github/pull_request_template.md" '\$musfit-pr-emulator-evidence'
 Assert-FileContains ".gitignore" "verification/"
+Assert-FileContains ".gitignore" '(?m)^/\.kotlin/\r?$'
 
 $prEvidenceSkillRoot = ".agents/skills/musfit-pr-emulator-evidence"
 foreach ($skillFile in @(
@@ -412,6 +423,8 @@ foreach ($skillFile in @(
 }
 Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" '(?m)^name: musfit-pr-emulator-evidence\r?$'
 Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" 'git rev-parse --show-toplevel'
+Assert-FileContains "$prEvidenceSkillRoot/scripts/invoke-musfit-pr-gate.ps1" 'com\.musfit\.internal'
+Assert-FileContains "$prEvidenceSkillRoot/scripts/capture-emulator-evidence.ps1" 'receipt\.device\.packageName'
 
 if ($SelfTest) {
     $mismatchDetected = $false

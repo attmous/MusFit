@@ -56,7 +56,7 @@ function Invoke-Gradle([string[]] $Arguments) {
 
 $gradleArgs = @()
 if ($Tests.Count -gt 0) {
-    $gradleArgs = @("testDebugUnitTest")
+    $gradleArgs = @("testInternalDebugUnitTest")
     foreach ($test in $Tests) {
         $gradleArgs += @("--tests", $test)
     }
@@ -64,29 +64,40 @@ if ($Tests.Count -gt 0) {
     switch ($Preset) {
         "Full" {
             $gradleArgs = @(
-                "testDebugUnitTest",
-                "lintDebug",
-                "assembleDebug",
-                "assembleDebugAndroidTest"
+                "verifyReleaseVariantMatrix",
+                "testInternalDebugUnitTest",
+                "testProductionReleaseUnitTest",
+                "lintInternalDebug",
+                "lintProductionRelease",
+                "assembleInternalDebug",
+                "assembleInternalDebugAndroidTest",
+                "assembleProductionRelease",
+                "bundleProductionRelease"
             )
         }
-        "Unit" { $gradleArgs = @("testDebugUnitTest") }
+        "Unit" { $gradleArgs = @("testInternalDebugUnitTest", "testProductionReleaseUnitTest") }
         "Food" {
             $gradleArgs = @(
-                "testDebugUnitTest",
+                "testInternalDebugUnitTest",
                 "--tests", "com.musfit.ui.food.FoodViewModelTest",
                 "--tests", "com.musfit.data.repository.LocalFoodRepositoryTest"
             )
         }
-        "Assemble" { $gradleArgs = @("assembleDebug") }
+        "Assemble" {
+            $gradleArgs = @(
+                "assembleInternalDebug",
+                "assembleProductionRelease",
+                "bundleProductionRelease"
+            )
+        }
         "None" { $gradleArgs = @() }
     }
 }
 
 if ($InstallSeed) {
     $missingSeedBuildTasks = @(
-        "assembleDebug",
-        "assembleDebugAndroidTest"
+        "assembleInternalDebug",
+        "assembleInternalDebugAndroidTest"
     ) | Where-Object { $_ -notin $gradleArgs }
     $gradleArgs = @($missingSeedBuildTasks) + $gradleArgs
 }

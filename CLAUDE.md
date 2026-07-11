@@ -7,8 +7,9 @@ rules. Do not create a separate Claude-only workflow here.
 
 ## Repository Orientation
 
-MusFit is an Android-only, single-module (`:app`) Kotlin application with package
-id `com.musfit`. Top-level destinations are: Today, Food, Training, Profile. The
+MusFit is an Android-only, single-module (`:app`) Kotlin application with
+production id `com.musfit` and side-by-side internal id `com.musfit.internal`.
+Top-level destinations are: Today, Food, Training, Profile. The
 custom bottom chrome is `MusFitBottomNav` in
 `app/src/main/java/com/musfit/ui/AppNavGraph.kt`; route truth is
 `app/src/main/java/com/musfit/ui/AppDestination.kt`.
@@ -57,6 +58,6 @@ navigation, build, release, or structural work, read:
   . .\scripts\android\android-env.ps1
   ```
 
-- Run the applicable focused, workflow-contract, full-debug, and device checks
+- Run the applicable focused, workflow-contract, full-variant, and device checks
   specified in `AGENTS.md`. Never seed/reset a physical device, and never push
   directly to `origin/master` without an explicit emergency instruction.

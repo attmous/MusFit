@@ -47,7 +47,7 @@ isolation is not implemented yet; see the architecture audit.
 | Barcode and label scan | CameraX plus ML Kit barcode/text recognition |
 | Health data | Android Health Connect boundary |
 | Min/target SDK | minSdk 28, targetSdk 37 |
-| Application id | `com.musfit` |
+| Application ids | production `com.musfit`; side-by-side internal `com.musfit.internal` |
 
 ## Source Layout
 
@@ -65,7 +65,8 @@ isolation is not implemented yet; see the architecture audit.
 | `app/src/main/java/com/musfit/domain/` | Pure Kotlin domain models and calculators. No Android, Compose, Retrofit, Room, or Health Connect dependencies. |
 | `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect gateway, record mapping, and permission rationale activity. |
 | `app/src/test/java/com/musfit/` | Unit tests for ViewModels, repositories, DAOs, domain calculators, and integration boundaries. |
-| `app/src/androidTest/java/com/musfit/` | Device/instrumentation tests, including the non-distributed debug seed boundary. |
+| `app/src/internal/` | Internal-only LAN manifest/resource surface and developer identity overrides. |
+| `app/src/androidTest/java/com/musfit/` | Device/instrumentation tests, including the non-distributed internal seed boundary. |
 | `app/schemas/com.musfit.data.local.MusFitDatabase/` | Contiguous exported Room schema JSON files through the version declared in `MusFitDatabase.kt`. |
 
 ## Layering
@@ -144,7 +145,7 @@ Hilt modules live under `core/di`.
 | `DatabaseModule` | Builds `MusFitDatabase`, registers all migrations, and provides DAOs. |
 | `RepositoryModule` | Binds account/auth, AI coach/chat, coach feed, Food, Training, Health, Profile, Goals, secret-store, and exercise-dataset boundaries. |
 | `NetworkModule` | Provides Moshi, OkHttp, auth config, Open Food Facts and GitHub Retrofit APIs, and binds the Food product and coach-completion clients. |
-| `AiCoachConfigModule` | Provides optional debug-only local-agent defaults from local configuration. |
+| `AiCoachConfigModule` | Provides optional internal-only local-agent defaults from local configuration. |
 | `HealthModule` | Binds `HealthConnectGateway` to `HealthConnectManager`. |
 
 Repositories are injected into ViewModels. DAOs, remote providers, and gateways are injected into repository implementations.
@@ -206,8 +207,8 @@ The global coach uses `AiCoachRepository` for configured provider/agent metadata
 `AiCoachChatRepository` for local thread history and orchestration, and
 `CoachCompletionClient` for the configured OpenAI-compatible or local-agent
 endpoint. Runtime-entered keys use the local `AiCoachSecretStore`. The optional
-debug Hermes key can still be compiled into `BuildConfig`; SEC-003 tracks removal
-of that exception.
+internal Hermes key can still be compiled into `BuildConfig`; SEC-003 tracks
+removal of that exception. Production-shaped fields remain blank.
 
 ### Camera And ML Kit
 
@@ -267,13 +268,13 @@ UI direction:
 | Migration tests | `app/src/test/java/com/musfit/data/local/*Migration*Test.kt` | Selected exported-schema transitions and migration regressions. |
 | Domain tests | `app/src/test/java/com/musfit/domain/...` | Pure calculator and parser behavior. |
 | Integration-boundary tests | `app/src/test/java/com/musfit/integrations/...` | Health Connect mapping and gateway assumptions. |
-| Instrumentation tests | `app/src/androidTest/java/com/musfit/...` | Device-only contracts and approved emulator seeding; compiled by the full gate but not distributed by CI. |
+| Instrumentation tests | `app/src/androidTest/java/com/musfit/...` | Device-only contracts and approved internal-app emulator seeding; compiled by the full gate but not distributed by CI. |
 
 Windows verification command:
 
 ```powershell
 . .\scripts\android\android-env.ps1
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-daemon --console=plain
+.\gradlew.bat verifyReleaseVariantMatrix testInternalDebugUnitTest testProductionReleaseUnitTest lintInternalDebug lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
 ```
 
 ## Architectural Decisions

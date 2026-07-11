@@ -61,8 +61,7 @@ The tracker foundation is shipped and daily-drivable; the AI layer is the active
 
 **Shipped:** the four-tab app described below, a deterministic (rule-based) coach feed on
 Today, AI logging shells in Food (text-draft logging works; photo and voice are UX shells),
-and Health Connect integration for health import and workout export. Nutrition/hydration
-export code exists, but its required manifest write permissions remain an open audit finding.
+and Health Connect integration for health import plus workout, nutrition, and hydration export.
 
 The app-wide **Ask coach** conversation is backed by either a user-configured
 OpenAI-compatible endpoint or a local agent such as Hermes. Chat history stays
@@ -179,8 +178,7 @@ A full food diary with the depth of the big trackers:
   include-training-calories.
 - **Planning** — plan future days, planned-vs-logged tracking, copy day/meal, a 7-day plan
   strip, and a shopping list generated from planned meals.
-- **Water tracking** with goals, plus a nutrition/hydration Health Connect export
-  path whose manifest write-permission gap is tracked in the architecture audit.
+- **Water tracking** with goals, plus nutrition/hydration Health Connect export.
 - **Experimental** — nutrition-label OCR (camera scan with user review) and AI text-draft
   logging, the seed of the photo/voice flows above.
 
@@ -200,8 +198,9 @@ sparklines, goal and target-weight management, plan launchers, and app settings.
 
 ## How it's built
 
-Single-module Android app (`:app`, `com.musfit`) with this intended dependency
-direction; the architecture audit tracks current boundary leaks:
+Single-module Android app (`:app`) with production id `com.musfit` and a
+side-by-side internal id `com.musfit.internal`. It follows this intended
+dependency direction; the architecture audit tracks current boundary leaks:
 
 ```text
 Compose screen → ViewModel (StateFlow) → Repository interface → Room DAO / Open Food Facts
@@ -236,10 +235,10 @@ Set up the local Android toolchain for the shell:
 . .\scripts\android\android-env.ps1
 ```
 
-Run the standard debug verification gate:
+Run the standard internal and production-shaped verification gate:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-daemon --console=plain
+.\gradlew.bat verifyReleaseVariantMatrix testInternalDebugUnitTest testProductionReleaseUnitTest lintInternalDebug lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
 ```
 
 The repo-owned helper runs the same gate and can also clean `app/build` and retry
@@ -249,28 +248,29 @@ once when Gradle reports a generated-output filesystem failure:
 .\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
 ```
 
-Install the debug APK on an explicitly selected device or emulator:
+Install the internal APK on an explicitly selected device or emulator:
 
 ```powershell
 adb devices -l
-adb -s <serial> install -r app\build\outputs\apk\debug\app-debug.apk
-adb -s <serial> shell am start -W -n com.musfit/.MainActivity
+adb -s <serial> install -r app\build\outputs\apk\internal\debug\app-internal-debug.apk
+adb -s <serial> shell am start -W -n com.musfit.internal/com.musfit.MainActivity
 ```
 
 CI (GitHub Actions, [`android.yml`](.github/workflows/android.yml)) runs the workflow contract
-and debug verification gate on every PR and on pushes to `master`/`main`, uploads the APK as
-the `musfit-debug-apk` artifact, and publishes that verified developer APK as a GitHub Release
-on `master`. This is not a production-signed APK/AAB lane.
+and both variant gates on every PR and on pushes to `master`/`main`. It retains the internal
+APK as a seven-day verification artifact. GitHub Release/Obtainium publication is suspended;
+the production-shaped APK/AAB remain unsigned and undistributed.
 
 ## Status
 
 MusFit is a personal project under active development. Food, Training, Today, and Profile are
 all substantial shipped surfaces. The AI coach is usable for read-only conversation, while
 agent actions, photo/voice logging, and production release hardening remain in progress. There
-is no Play release; `master` currently publishes a verified debug build for the development
-update flow. The legacy exported seed receiver has been removed; deterministic development
-seeding now uses a separately installed instrumentation APK on the dedicated emulator. The
-published APK remains a debuggable developer artifact, not a production-safe release.
+is no Play release and no current GitHub Release publication lane.
+The legacy exported seed receiver has been removed; deterministic development seeding targets
+only the internal app through a separately installed instrumentation APK on the dedicated
+emulator. Production signing, install migration, shrinking, and verified publication remain
+gated remediation work.
 
 ## Privacy
 

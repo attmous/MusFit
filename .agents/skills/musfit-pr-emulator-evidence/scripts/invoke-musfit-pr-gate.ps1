@@ -81,6 +81,9 @@ $headShaOutput = & git -C $repoRoot rev-parse HEAD 2>&1
 Assert-LastExitCode "Resolve HEAD"
 $headSha = ($headShaOutput | Select-Object -First 1).Trim()
 $startedAt = [DateTime]::UtcNow
+$targetPackage = "com.musfit.internal"
+$mainActivity = "com.musfit.MainActivity"
+$mainComponent = "com.musfit.internal/com.musfit.MainActivity"
 
 $powerShellExe = Join-Path $PSHOME "powershell.exe"
 if (-not (Test-Path -LiteralPath $powerShellExe)) {
@@ -185,13 +188,13 @@ if (-not $DeviceSerial -or $DeviceSerial -notmatch '^emulator-\d+$') {
     throw "The seeded install did not leave a usable emulator device"
 }
 
-& adb -s $DeviceSerial shell am start -W -n com.musfit/.MainActivity | Out-Host
+& adb -s $DeviceSerial shell am start -W -n $mainComponent | Out-Host
 Assert-LastExitCode "Launch MusFit MainActivity"
 Start-Sleep -Seconds 2
 
 $activityState = @(& adb -s $DeviceSerial shell dumpsys activity activities 2>&1)
 Assert-LastExitCode "Inspect foreground activity"
-if (($activityState -join "`n") -notmatch '(mResumedActivity|topResumedActivity).*com\.musfit') {
+if (($activityState -join "`n") -notmatch "(mResumedActivity|topResumedActivity).*$([regex]::Escape($targetPackage))") {
     throw "MusFit is not the resumed foreground activity on $DeviceSerial"
 }
 
@@ -199,7 +202,7 @@ if (($activityState -join "`n") -notmatch '(mResumedActivity|topResumedActivity)
 Assert-LastExitCode "Clear emulator logcat"
 $receiptChecks += [ordered]@{
     name = "Foreground launch"
-    command = "adb -s $DeviceSerial shell am start -W -n com.musfit/.MainActivity"
+    command = "adb -s $DeviceSerial shell am start -W -n $mainComponent"
     status = "passed"
     localLog = $null
 }
@@ -228,8 +231,8 @@ $receipt = [ordered]@{
     device = [ordered]@{
         serial = $DeviceSerial
         avdName = $avdName
-        packageName = "com.musfit"
-        activity = ".MainActivity"
+        packageName = $targetPackage
+        activity = $mainActivity
         seeded = $true
     }
 }
