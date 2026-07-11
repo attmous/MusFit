@@ -41,6 +41,13 @@ class TrainingProgressDisplayTest {
     }
 
     @Test
+    fun progressHeroOverline_uppercasesTheAnchoredExercise() {
+        assertEquals("BACK SQUAT · ESTIMATED 1RM", progressHeroOverline("Back Squat"))
+        assertEquals("ESTIMATED 1RM", progressHeroOverline(null))
+        assertEquals("ESTIMATED 1RM", progressHeroOverline("  "))
+    }
+
+    @Test
     fun monthLabelsFor_capsAtFourSpreadMonths() {
         val trend = (0L..180L step 10).map { daysAgo -> point(daysAgo = daysAgo, e1rm = 100.0) }
 

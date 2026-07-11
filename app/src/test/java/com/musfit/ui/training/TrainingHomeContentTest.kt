@@ -331,6 +331,41 @@ class TrainingHomeContentTest {
     }
 
     @Test
+    fun pickerRowSubline_leadsWithMuscleThenEquipment() {
+        assertEquals(
+            "Quads · barbell",
+            pickerRowSubline(exercise(id = "squat", name = "Back Squat", equipment = "Barbell", targetMuscles = "quads, glutes")),
+        )
+        assertEquals(
+            "Abs",
+            pickerRowSubline(exercise(id = "sit-up", name = "Sit-up", equipment = null, targetMuscles = "abs")),
+        )
+    }
+
+    @Test
+    fun pickerMuscleCounts_countsExercisesPerMuscleOnce() {
+        val counts = pickerMuscleCounts(
+            listOf(
+                exercise(id = "squat", name = "Back Squat", targetMuscles = "quads, glutes"),
+                exercise(id = "lunge", name = "Lunge", targetMuscles = "Quads"),
+                exercise(id = "sit-up", name = "Sit-up", targetMuscles = "abs"),
+            ),
+        )
+
+        assertEquals(2, counts["quads"])
+        assertEquals(1, counts["glutes"])
+        assertEquals(1, counts["abs"])
+    }
+
+    @Test
+    fun muscleMonogram_takesTwoTitlecasedLetters() {
+        assertEquals("Qu", muscleMonogram("quads"))
+        assertEquals("Ha", muscleMonogram("Hamstrings"))
+        assertEquals("Co", muscleMonogram(" core "))
+        assertEquals("?", muscleMonogram("  "))
+    }
+
+    @Test
     fun routineExerciseSubline_showsTargetAndRest() {
         assertEquals(
             "3 × 8 · 150s rest",

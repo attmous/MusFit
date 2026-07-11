@@ -1684,11 +1684,20 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
     trainingDao: TrainingDao,
 ): ActiveWorkoutDetail {
     val distinctExerciseIds = map { it.exerciseId }.distinct()
+    // Per-set LAST labels: the most recent prior session's completed sets for the
+    // exercise, in set order, so row N can show what set N lifted last time.
     val previousLabels = distinctExerciseIds.associateWith { exerciseId ->
-        trainingDao.getLatestCompletedSetForExerciseBefore(
+        val latestSet = trainingDao.getLatestCompletedSetForExerciseBefore(
             exerciseId = exerciseId,
             beforeStartedAtEpochMillis = session.startedAtEpochMillis,
-        )?.toPreviousLabel()
+        ) ?: return@associateWith emptyList()
+        trainingDao.getCompletedSetsForExerciseBefore(
+            exerciseId = exerciseId,
+            beforeStartedAtEpochMillis = session.startedAtEpochMillis,
+        )
+            .filter { it.sessionId == latestSet.sessionId }
+            .sortedBy { it.sortOrder }
+            .mapNotNull { it.toPreviousLabel() }
     }
     val priorBest1RM = distinctExerciseIds.associateWith { exerciseId ->
         trainingDao.getCompletedSetsForExerciseBefore(
@@ -1751,7 +1760,7 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
 
 private fun buildWorkoutExerciseBlock(
     exerciseRows: List<WorkoutSetDetailRow>,
-    previousLabels: Map<String, String?>,
+    previousLabels: Map<String, List<String>>,
     priorBest1RM: Map<String, Double>,
     exerciseSupersetLabels: Map<String, String>,
 ): WorkoutExerciseBlock {
@@ -1773,7 +1782,8 @@ private fun buildWorkoutExerciseBlock(
         priorBestEstimatedOneRepMaxKg = priorBest1RM[first.exerciseId] ?: 0.0,
         supersetGroupId = groupId,
         supersetLabel = exerciseSupersetLabels[first.exerciseId],
-        sets = exerciseRows.map { row ->
+        sets = exerciseRows.mapIndexed { index, row ->
+            val exercisePreviousLabels = previousLabels[row.exerciseId].orEmpty()
             LoggedWorkoutSetDetail(
                 id = row.setId,
                 exerciseId = row.exerciseId,
@@ -1784,7 +1794,10 @@ private fun buildWorkoutExerciseBlock(
                 rpe = row.rpe,
                 notes = parsedNotes.getValue(row.setId).userNote,
                 completed = row.completed,
-                previousLabel = previousLabels[row.exerciseId],
+                // Positional match against last time's sets; extra sets reuse the
+                // final prior set so a new fourth set still shows a reference.
+                previousLabel = exercisePreviousLabels.getOrNull(index)
+                    ?: exercisePreviousLabels.lastOrNull(),
                 supersetGroupId = groupId,
                 restSeconds = row.restSeconds,
             )
