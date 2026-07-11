@@ -86,6 +86,13 @@ function Assert-NonEvidencePrChecksPassed([int] $PrNumber, [string] $Repo) {
         if ($name -eq "MusFit emulator evidence") {
             continue
         }
+        # The evidence workflow's own evaluate run stays FAILURE until this very
+        # publication lands, so treating it as a prerequisite would deadlock every
+        # runtime PR. It is part of the evidence loop, not a gate for it.
+        $workflowName = [string](Get-OptionalProperty $check "workflowName")
+        if ($type -ne "StatusContext" -and $workflowName -eq "PR emulator evidence") {
+            continue
+        }
 
         $checked++
         if ($type -eq "StatusContext") {

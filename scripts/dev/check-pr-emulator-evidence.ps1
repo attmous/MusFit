@@ -30,19 +30,52 @@ function ConvertTo-UrlPath([string] $Path) {
     (($Path -split '/') | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/'
 }
 
+function Test-TestSourceSet([string] $SourceSet) {
+    if ($SourceSet -ceq 'test' -or
+        $SourceSet -ceq 'androidTest' -or
+        $SourceSet -ceq 'testFixtures') {
+        return $true
+    }
+
+    $SourceSet -cmatch '^(?:test|androidTest)[A-Z]' -or $SourceSet -cmatch 'Test$'
+}
+
+function Test-RuntimeModule([string] $Module) {
+    if ($Module -ceq 'core/testing') {
+        return $false
+    }
+
+    $Module -cmatch '^(?:app|(?:core|integration|feature)/[^/]+|build-logic(?:/[^/]+)?)$'
+}
+
 function Test-RuntimePath([string] $Path) {
     $normalized = $Path -replace '\\', '/'
 
-    if ($normalized -match '^app/src/(?:test|androidTest|testFixtures|[^/]+Test)/') {
-        return $false
+    $sourceMatch = [regex]::Match(
+        $normalized,
+        '^(?<module>app|(?:core|integration|feature)/[^/]+|build-logic(?:/[^/]+)?)/src/(?<sourceSet>[^/]+)/'
+    )
+    if ($sourceMatch.Success) {
+        $module = $sourceMatch.Groups['module'].Value
+        $sourceSet = $sourceMatch.Groups['sourceSet'].Value
+        return (Test-RuntimeModule $module) -and -not (Test-TestSourceSet $sourceSet)
     }
-    if ($normalized -match '^app/src/[^/]+/') {
-        return $true
+
+    $buildFileMatch = [regex]::Match(
+        $normalized,
+        '^(?<module>app|(?:core|integration|feature)/[^/]+|build-logic(?:/[^/]+)?)/build\.gradle(?:\.kts)?$'
+    )
+    if ($buildFileMatch.Success) {
+        return Test-RuntimeModule $buildFileMatch.Groups['module'].Value
     }
-    if ($normalized -match '^(?:app/)?build\.gradle(?:\.kts)?$') {
+
+    if ($normalized -match '^build\.gradle(?:\.kts)?$') {
         return $true
     }
     if ($normalized -match '^(?:settings\.gradle(?:\.kts)?|gradle\.properties|gradle/libs\.versions\.toml|app/proguard-rules\.pro)$') {
+        return $true
+    }
+    if ($normalized -match '^build-logic/(?:settings\.gradle(?:\.kts)?|gradle\.properties)$') {
         return $true
     }
     if ($normalized -match '^buildSrc/') {
@@ -403,8 +436,21 @@ function Invoke-SelfTest {
 
     Assert-SelfTest (Test-RuntimePath "app/src/internal/AndroidManifest.xml") "internal manifest must require evidence"
     Assert-SelfTest (Test-RuntimePath "app/build.gradle.kts") "runtime Gradle changes must require evidence"
+    Assert-SelfTest (Test-RuntimePath "core/model/src/main/kotlin/com/musfit/Model.kt") "core runtime sources must require evidence"
+    Assert-SelfTest (Test-RuntimePath "core/designsystem/src/main/res/values/colors.xml") "core runtime resources must require evidence"
+    Assert-SelfTest (Test-RuntimePath "integration/healthconnect/build.gradle.kts") "integration build files must require evidence"
+    Assert-SelfTest (Test-RuntimePath "feature/food/src/internal/kotlin/com/musfit/FoodDebug.kt") "feature runtime source sets must require evidence"
+    Assert-SelfTest (Test-RuntimePath "build-logic/src/main/kotlin/musfit.android-library.gradle.kts") "build convention sources must require evidence"
     Assert-SelfTest (-not (Test-RuntimePath "app/src/test/java/com/musfit/ExampleTest.kt")) "unit tests must not require evidence"
+    Assert-SelfTest (-not (Test-RuntimePath "feature/food/src/test/kotlin/com/musfit/FoodTest.kt")) "feature tests must not require evidence"
+    Assert-SelfTest (-not (Test-RuntimePath "feature/food/src/testInternal/kotlin/com/musfit/FoodTest.kt")) "variant tests must not require evidence"
+    Assert-SelfTest (-not (Test-RuntimePath "core/testing/src/main/kotlin/com/musfit/Fake.kt")) "testing-support modules must not require evidence"
+    Assert-SelfTest (-not (Test-RuntimePath "docs/examples/feature/food/src/main/kotlin/Example.kt")) "documentation examples must not require evidence"
     Assert-SelfTest (-not (Test-RuntimePath "docs/architecture/README.md")) "docs must not require evidence"
+    Assert-SelfTest (-not (Test-RuntimePath "docs/architecture/modules.md")) "module documentation must not require evidence"
+
+    $futureModuleWithoutEvidence = Get-EvidenceEvaluation -Repo $repo -PrNumber $pr -HeadSha $head -Files @([pscustomobject]@{ filename = "feature/food/src/main/kotlin/com/musfit/FoodScreen.kt" }) -Comments @() -ReadArtifact $readArtifact -EvidenceCommitReachable $reachable -PullRequestUrl "https://github.com/$repo/pull/$pr"
+    Assert-SelfTest ($futureModuleWithoutEvidence.Required -and -not $futureModuleWithoutEvidence.Passed) "future feature runtime changes must fail without evidence"
 
     $valid = Get-EvidenceEvaluation -Repo $repo -PrNumber $pr -HeadSha $head -Files $runtimeFiles -Comments @($validComment) -ReadArtifact $readArtifact -EvidenceCommitReachable $reachable -PullRequestUrl "https://github.com/$repo/pull/$pr"
     Assert-SelfTest ($valid.Required -and $valid.Passed) "valid exact-head evidence must pass"
