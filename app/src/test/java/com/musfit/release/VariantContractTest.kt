@@ -11,6 +11,16 @@ import org.w3c.dom.Element
 
 class VariantContractTest {
     @Test
+    fun currentVariantDoesNotExposeACompiledHermesCredentialField() {
+        assertFalse(
+            "Hermes bearer credentials must be runtime-only for every variant",
+            BuildConfig::class.java.declaredFields.any { field ->
+                field.name == "DEBUG_HERMES_API_KEY"
+            },
+        )
+    }
+
+    @Test
     fun currentVariantHasOneOfTheTwoApprovedInstallIdentities() {
         assertTrue(
             "Only the side-by-side internal identity and production identity are supported",
@@ -29,10 +39,6 @@ class VariantContractTest {
             assertTrue(
                 "The production-shaped variant must not compile a developer Hermes model",
                 BuildConfig.DEBUG_HERMES_MODEL_NAME.isBlank(),
-            )
-            assertTrue(
-                "The production-shaped variant must not compile a developer Hermes credential",
-                BuildConfig.DEBUG_HERMES_API_KEY.isBlank(),
             )
         }
     }

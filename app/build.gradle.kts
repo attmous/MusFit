@@ -55,9 +55,6 @@ val musfitInternalHermesBaseUrl =
 val musfitInternalHermesModelName =
     localConfigValue("MUSFIT_DEBUG_HERMES_MODEL_NAME", "hermes-agent")
 
-val musfitInternalHermesApiKey =
-    localConfigValue("MUSFIT_DEBUG_HERMES_API_KEY")
-
 android {
     namespace = "com.musfit"
     compileSdk = 37
@@ -87,7 +84,6 @@ android {
         buildConfigField("String", "GITHUB_OAUTH_CLIENT_ID", musfitGitHubOAuthClientId.asBuildConfigString())
         buildConfigField("String", "DEBUG_HERMES_BASE_URL", "".asBuildConfigString())
         buildConfigField("String", "DEBUG_HERMES_MODEL_NAME", "".asBuildConfigString())
-        buildConfigField("String", "DEBUG_HERMES_API_KEY", "".asBuildConfigString())
     }
 
     flavorDimensions += "distribution"
@@ -105,11 +101,6 @@ android {
                 "String",
                 "DEBUG_HERMES_MODEL_NAME",
                 musfitInternalHermesModelName.asBuildConfigString(),
-            )
-            buildConfigField(
-                "String",
-                "DEBUG_HERMES_API_KEY",
-                musfitInternalHermesApiKey.asBuildConfigString(),
             )
         }
         create("production") {

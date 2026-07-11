@@ -68,10 +68,14 @@ Read the linked audit before broad changes. In particular:
   only the internal APK as a short-lived workflow artifact. GitHub Release and
   Obtainium publication are suspended until the remaining Wave 1 release gates
   land; no current artifact is production- or Play-ready.
-- Internal configuration can currently compile `MUSFIT_DEBUG_HERMES_API_KEY`
-  into `BuildConfig` and the internal APK. Treat SEC-003 as open: do not put a
-  real or reusable secret there; prefer runtime entry into the local secret
-  store. Production fields remain blank.
+- Hermes/API bearer credentials are runtime-only and live in the account-keyed,
+  Android-Keystore-backed AI secret store. Build configuration may provide only
+  nonsecret internal endpoint/model defaults; it has no API-key field or
+  fallback. A stale Room `apiKeyStored` flag is reconciled against the runtime
+  store before the UI or a connection treats the key as present.
+- Treat any real Hermes key compiled by a pre-SEC-003 build as compromised:
+  rotate/revoke it outside the repository, remove the obsolete local property,
+  and clear stale generated output with `scripts/dev/clean-generated.ps1`.
 - AI coach endpoint policy is enforced at settings save and again before request
   dispatch. Production accepts HTTPS only. Internal HTTP is limited to exact
   `localhost`, literal IPv4 loopback/RFC1918, and literal IPv6 loopback/ULA;
