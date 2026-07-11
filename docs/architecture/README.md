@@ -207,8 +207,10 @@ The global coach uses `AiCoachRepository` for configured provider/agent metadata
 `AiCoachChatRepository` for local thread history and orchestration, and
 `CoachCompletionClient` for the configured OpenAI-compatible or local-agent
 endpoint. Runtime-entered keys use the local `AiCoachSecretStore`. The optional
-internal Hermes key can still be compiled into `BuildConfig`; SEC-003 tracks
-removal of that exception. Production-shaped fields remain blank.
+internal configuration contains only nonsecret endpoint/model defaults. No
+variant has an API-key BuildConfig field or fallback; a connection uses only an
+account-keyed credential resolved from the Android-Keystore-backed runtime
+store.
 
 ### Camera And ML Kit
 

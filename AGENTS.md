@@ -68,10 +68,14 @@ Read the linked audit before broad changes. In particular:
   only the internal APK as a short-lived workflow artifact. GitHub Release and
   Obtainium publication are suspended until the remaining Wave 1 release gates
   land; no current artifact is production- or Play-ready.
-- Internal configuration can currently compile `MUSFIT_DEBUG_HERMES_API_KEY`
-  into `BuildConfig` and the internal APK. Treat SEC-003 as open: do not put a
-  real or reusable secret there; prefer runtime entry into the local secret
-  store. Production fields remain blank.
+- Hermes/API bearer credentials are runtime-only and live in the account-keyed,
+  Android-Keystore-backed AI secret store. Build configuration may provide only
+  nonsecret internal endpoint/model defaults; it has no API-key field or
+  fallback. A stale Room `apiKeyStored` flag is reconciled against the runtime
+  store before the UI or a connection treats the key as present.
+- Treat any real Hermes key compiled by a pre-SEC-003 build as compromised:
+  rotate/revoke it outside the repository, remove the obsolete local property,
+  and clear stale generated output with `scripts/dev/clean-generated.ps1`.
 - AI coach endpoint policy is enforced at settings save and again before request
   dispatch. Production accepts HTTPS only. Internal HTTP is limited to exact
   `localhost`, literal IPv4 loopback/RFC1918, and literal IPv6 loopback/ULA;
@@ -140,9 +144,19 @@ Install, reset, seed, launch, and capture evidence on the dedicated emulator:
 ```
 
 Use `MusFit_API36` / `emulator-5554` as the normal seeded baseline. UI-visible
-changes require workflow-specific verification plus screenshot or UI-tree
-evidence. Documentation-only changes do not require an emulator; record why the
-device step is not applicable.
+changes require workflow-specific verification plus reviewed screenshot and
+UI-tree evidence. Documentation-only changes do not require an emulator; record
+why the device step is not applicable.
+
+For every PR whose diff can change Android runtime functionality or design,
+read and complete
+[the repository evidence skill](.agents/skills/musfit-pr-emulator-evidence/SKILL.md).
+Completion includes running `publish-pr-evidence.ps1`; local `verification/`
+files do not satisfy this requirement. Before handoff or merge, confirm that the
+marker-based evidence comment and `MusFit emulator evidence` status verify the
+exact current PR head SHA. A new commit invalidates the evidence. Skip only when
+the diff is exclusively documentation, tests, CI, repository metadata, or
+non-runtime tooling, and record the reason in the PR.
 
 ### Physical Device
 
@@ -213,14 +227,17 @@ For each task:
    feature areas.
 5. Run focused checks, the workflow contract when applicable, and the standard
    variant gate.
-6. For runtime/UI changes, verify the exact workflow on the seeded emulator and
-   retain privacy-safe evidence. For non-runtime changes, state why it is N/A.
+6. For runtime functionality/design changes, complete and publish the repository
+   evidence skill for the exact committed PR head. For non-runtime-only changes,
+   record why the workflow is N/A.
 7. Run `git diff --check` and review the final diff for secrets, generated files,
    accidental scope, and stale documentation.
 8. Commit intentionally, push the branch, and open a draft PR with commands,
    evidence, risks, compatibility decisions, and rollback notes.
-9. Do not push directly to `origin/master`. Merge only after required checks and
-   user approval, unless the user explicitly requests an emergency exception.
+9. Do not push directly to `origin/master`. Do not merge a runtime PR until the
+   current-head `MusFit emulator evidence` status passes. Merge only after all
+   required checks and user approval, unless the user explicitly requests an
+   emergency exception.
 
 ## CI And Reference Map
 

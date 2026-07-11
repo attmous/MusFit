@@ -58,10 +58,11 @@ class LocalAiCoachRepositoryTest {
         assertEquals(LocalAgentKind.Custom, settings.localAgentKind)
         assertFalse(settings.hasApiKey)
         assertNull(repository.activeConnection())
+        assertEquals(0, secretStore.getCalls)
     }
 
     @Test
-    fun observeSettings_usesDebugHermesDefaultsWhenAppDataIsEmpty() = runTest {
+    fun observeSettings_exposesOnlyNonSecretInternalHermesDefaultsWhenAppDataIsEmpty() = runTest {
         repository = LocalAiCoachRepository(
             aiCoachDao = database.aiCoachDao(),
             accountRepository = accountRepository,
@@ -69,7 +70,6 @@ class LocalAiCoachRepositoryTest {
             debugDefaults = AiCoachDebugDefaults(
                 hermesBaseUrl = "https://192.168.178.113:8443/v1",
                 hermesModelName = "hermes-agent",
-                hermesApiKey = "debug-key",
             ),
             clock = { clockMillis += 1_000L; clockMillis },
         )
@@ -79,14 +79,10 @@ class LocalAiCoachRepositoryTest {
         assertEquals("https://192.168.178.113:8443/v1/", settings.baseUrl)
         assertEquals("hermes-agent", settings.modelName)
         assertEquals(LocalAgentKind.HermesAgent, settings.localAgentKind)
-        assertTrue(settings.hasApiKey)
+        assertFalse(settings.hasApiKey)
         assertNull(database.aiCoachDao().getSettings("local-default"))
-
-        val connection = repository.activeConnection()
-        assertEquals(AiCoachProviderKind.LocalAgent, connection?.providerKind)
-        assertEquals("https://192.168.178.113:8443/v1/", connection?.baseUrl)
-        assertEquals("hermes-agent", connection?.modelName)
-        assertEquals("debug-key", connection?.apiKey)
+        assertNull(repository.activeConnection())
+        assertEquals(0, secretStore.getCalls)
     }
 
     @Test
@@ -164,7 +160,7 @@ class LocalAiCoachRepositoryTest {
     }
 
     @Test
-    fun saveHermesAgentSettings_canKeepDebugApiServerKeyWhenInputBlank() = runTest {
+    fun saveHermesAgentSettings_doesNotTreatInternalDefaultsAsRuntimeSecret() = runTest {
         repository = LocalAiCoachRepository(
             aiCoachDao = database.aiCoachDao(),
             accountRepository = accountRepository,
@@ -172,25 +168,28 @@ class LocalAiCoachRepositoryTest {
             debugDefaults = AiCoachDebugDefaults(
                 hermesBaseUrl = "https://192.168.178.113:8443/v1",
                 hermesModelName = "hermes-agent",
-                hermesApiKey = "debug-key",
             ),
             clock = { clockMillis += 1_000L; clockMillis },
         )
 
-        repository.saveSettings(
-            AiCoachSettingsInput(
-                providerKind = AiCoachProviderKind.LocalAgent,
-                baseUrl = "https://192.168.178.113:8443/v1",
-                modelName = "hermes-agent",
-                localAgentKind = LocalAgentKind.HermesAgent,
-                apiKey = AiCoachApiKeyUpdate.KeepExisting,
-            ),
-        )
+        try {
+            repository.saveSettings(
+                AiCoachSettingsInput(
+                    providerKind = AiCoachProviderKind.LocalAgent,
+                    baseUrl = "https://192.168.178.113:8443/v1",
+                    modelName = "hermes-agent",
+                    localAgentKind = LocalAgentKind.HermesAgent,
+                    apiKey = AiCoachApiKeyUpdate.KeepExisting,
+                ),
+            )
+            fail("Expected internal metadata defaults without a runtime key to be rejected")
+        } catch (expected: IllegalArgumentException) {
+            assertEquals("Hermes agent requires the API_SERVER_KEY bearer token.", expected.message)
+        }
 
-        val row = database.aiCoachDao().getSettings("local-default")
-        assertEquals(true, row?.apiKeyStored)
+        assertNull(database.aiCoachDao().getSettings("local-default"))
         assertNull(secretStore.apiKeyFor("local-default"))
-        assertEquals("debug-key", repository.activeConnection()?.apiKey)
+        assertNull(repository.activeConnection())
     }
 
     @Test
@@ -288,6 +287,265 @@ class LocalAiCoachRepositoryTest {
     }
 
     @Test
+    fun observeSettings_hidesCredentialStateForInvalidPersistedUrlWithoutReadingOrClearingSecret() = runTest {
+        accountRepository.ensureActiveAccount()
+        secretStore.saveApiKey("local-default", "runtime-key-must-remain-unread")
+        secretStore.resetCounters()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.OpenAiCompatible.name,
+                baseUrl = "http://api.example.com/v1/",
+                modelName = "dummy-model",
+                localAgentKind = LocalAgentKind.Custom.name,
+                apiKeyStored = true,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        val settings = repository.observeSettings().first()
+
+        assertFalse(settings.hasApiKey)
+        assertTrue(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertEquals("runtime-key-must-remain-unread", secretStore.apiKeyFor("local-default"))
+        assertEquals(0, secretStore.getCalls)
+        assertEquals(0, secretStore.clearCalls)
+    }
+
+    @Test
+    fun activeConnection_reconcilesLegacyStoredFlagWhenRuntimeSecretIsMissing() = runTest {
+        accountRepository.ensureActiveAccount()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.LocalAgent.name,
+                baseUrl = "https://192.168.178.113:8443/v1/",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent.name,
+                apiKeyStored = true,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        assertNull(repository.activeConnection())
+        assertFalse(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertEquals(1, secretStore.getCalls)
+        assertEquals(1, secretStore.clearCalls)
+    }
+
+    @Test
+    fun observeSettings_reconcilesLegacyStoredFlagWhenRuntimeSecretIsMissing() = runTest {
+        accountRepository.ensureActiveAccount()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.LocalAgent.name,
+                baseUrl = "https://192.168.178.113:8443/v1/",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent.name,
+                apiKeyStored = true,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        val settings = repository.observeSettings().first()
+
+        assertFalse(settings.hasApiKey)
+        assertFalse(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertEquals(1, secretStore.getCalls)
+        assertEquals(1, secretStore.clearCalls)
+    }
+
+    @Test
+    fun observeSettings_clearsBlankRuntimeSecretAndStoredFlag() = runTest {
+        accountRepository.ensureActiveAccount()
+        secretStore.saveApiKey("local-default", "   ")
+        secretStore.resetCounters()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.LocalAgent.name,
+                baseUrl = "https://192.168.178.113:8443/v1/",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent.name,
+                apiKeyStored = true,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        val settings = repository.observeSettings().first()
+
+        assertFalse(settings.hasApiKey)
+        assertFalse(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertNull(secretStore.apiKeyFor("local-default"))
+        assertEquals(1, secretStore.getCalls)
+        assertEquals(1, secretStore.clearCalls)
+    }
+
+    @Test
+    fun observeSettings_reconcilesMissingStoredFlagWhenRuntimeSecretExists() = runTest {
+        accountRepository.ensureActiveAccount()
+        secretStore.saveApiKey("local-default", "runtime-key")
+        secretStore.resetCounters()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.LocalAgent.name,
+                baseUrl = "https://192.168.178.113:8443/v1/",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent.name,
+                apiKeyStored = false,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        val settings = repository.observeSettings().first()
+
+        assertTrue(settings.hasApiKey)
+        assertTrue(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertEquals(1, secretStore.getCalls)
+    }
+
+    @Test
+    fun activeConnection_reconcilesMissingStoredFlagWhenRuntimeSecretExists() = runTest {
+        accountRepository.ensureActiveAccount()
+        secretStore.saveApiKey("local-default", "runtime-key")
+        secretStore.resetCounters()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.LocalAgent.name,
+                baseUrl = "https://192.168.178.113:8443/v1/",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent.name,
+                apiKeyStored = false,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        assertEquals("runtime-key", repository.activeConnection()?.apiKey)
+        assertTrue(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertEquals(1, secretStore.getCalls)
+    }
+
+    @Test
+    fun saveHermesSettings_keepsRuntimeSecretWhenStoredFlagIsMissing() = runTest {
+        accountRepository.ensureActiveAccount()
+        secretStore.saveApiKey("local-default", "runtime-key")
+        secretStore.resetCounters()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.LocalAgent.name,
+                baseUrl = "https://192.168.178.113:8443/v1/",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent.name,
+                apiKeyStored = false,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        repository.saveSettings(
+            AiCoachSettingsInput(
+                providerKind = AiCoachProviderKind.LocalAgent,
+                baseUrl = "https://192.168.178.113:8443/v1/",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent,
+                apiKey = AiCoachApiKeyUpdate.KeepExisting,
+            ),
+        )
+
+        assertTrue(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertEquals("runtime-key", repository.activeConnection()?.apiKey)
+        assertEquals(2, secretStore.getCalls)
+    }
+
+    @Test
+    fun observeSettings_clearsRuntimeSecretForDisabledStoredRow() = runTest {
+        accountRepository.ensureActiveAccount()
+        secretStore.saveApiKey("local-default", "orphan-runtime-key")
+        secretStore.resetCounters()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.Disabled.name,
+                baseUrl = "",
+                modelName = "",
+                localAgentKind = LocalAgentKind.Custom.name,
+                apiKeyStored = true,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        val settings = repository.observeSettings().first()
+
+        assertFalse(settings.hasApiKey)
+        assertFalse(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertNull(secretStore.apiKeyFor("local-default"))
+        assertEquals(0, secretStore.getCalls)
+        assertEquals(1, secretStore.clearCalls)
+    }
+
+    @Test
+    fun activeConnection_clearsRuntimeSecretAndStoredFlagForDisabledRowWithoutReadingIt() = runTest {
+        accountRepository.ensureActiveAccount()
+        secretStore.saveApiKey("local-default", "orphan-runtime-key")
+        secretStore.resetCounters()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.Disabled.name,
+                baseUrl = "",
+                modelName = "",
+                localAgentKind = LocalAgentKind.Custom.name,
+                apiKeyStored = true,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        assertNull(repository.activeConnection())
+        assertFalse(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertNull(secretStore.apiKeyFor("local-default"))
+        assertEquals(0, secretStore.getCalls)
+        assertEquals(1, secretStore.clearCalls)
+    }
+
+    @Test
+    fun saveHermesSettings_rejectsAndReconcilesLegacyStoredFlagWhenRuntimeSecretIsMissing() = runTest {
+        accountRepository.ensureActiveAccount()
+        database.aiCoachDao().upsertSettings(
+            AiCoachSettingsEntity(
+                accountId = "local-default",
+                providerKind = AiCoachProviderKind.LocalAgent.name,
+                baseUrl = "https://192.168.178.113:8443/v1/",
+                modelName = "hermes-agent",
+                localAgentKind = LocalAgentKind.HermesAgent.name,
+                apiKeyStored = true,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+
+        try {
+            repository.saveSettings(
+                AiCoachSettingsInput(
+                    providerKind = AiCoachProviderKind.LocalAgent,
+                    baseUrl = "https://192.168.178.113:8443/v1/",
+                    modelName = "hermes-agent",
+                    localAgentKind = LocalAgentKind.HermesAgent,
+                    apiKey = AiCoachApiKeyUpdate.KeepExisting,
+                ),
+            )
+            fail("Expected the missing runtime API_SERVER_KEY to be rejected")
+        } catch (expected: IllegalArgumentException) {
+            assertEquals("Hermes agent requires the API_SERVER_KEY bearer token.", expected.message)
+        }
+
+        assertFalse(database.aiCoachDao().getSettings("local-default")!!.apiKeyStored)
+        assertEquals(1, secretStore.getCalls)
+        assertEquals(1, secretStore.clearCalls)
+    }
+
+    @Test
     fun invalidDebugDefaultIsNotExposedAsSettingsOrConnection() = runTest {
         repository = LocalAiCoachRepository(
             aiCoachDao = database.aiCoachDao(),
@@ -296,7 +554,6 @@ class LocalAiCoachRepositoryTest {
             debugDefaults = AiCoachDebugDefaults(
                 hermesBaseUrl = "http://api.example.com/v1/",
                 hermesModelName = "hermes-agent",
-                hermesApiKey = "dummy-invalid-default",
             ),
             clock = { clockMillis += 1_000L; clockMillis },
         )
@@ -345,25 +602,14 @@ class LocalAiCoachRepositoryTest {
     }
 
     @Test
-    fun clearApiKey_disablesPersistedHermesSettingEvenWhenDebugKeyExists() = runTest {
-        repository = LocalAiCoachRepository(
-            aiCoachDao = database.aiCoachDao(),
-            accountRepository = accountRepository,
-            secretStore = secretStore,
-            debugDefaults = AiCoachDebugDefaults(
-                hermesBaseUrl = "https://192.168.178.113:8443/v1",
-                hermesModelName = "hermes-agent",
-                hermesApiKey = "debug-key",
-            ),
-            clock = { clockMillis += 1_000L; clockMillis },
-        )
+    fun clearApiKey_disablesPersistedHermesConnection() = runTest {
         repository.saveSettings(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.LocalAgent,
                 baseUrl = "https://192.168.178.113:8443/v1",
                 modelName = "hermes-agent",
                 localAgentKind = LocalAgentKind.HermesAgent,
-                apiKey = AiCoachApiKeyUpdate.KeepExisting,
+                apiKey = AiCoachApiKeyUpdate.Replace("runtime-key"),
             ),
         )
 
@@ -372,7 +618,7 @@ class LocalAiCoachRepositoryTest {
         val settings = repository.observeSettings().first()
         assertEquals(AiCoachProviderKind.LocalAgent, settings.providerKind)
         assertFalse(settings.hasApiKey)
-        assertNull(repository.activeConnection()?.apiKey)
+        assertNull(repository.activeConnection())
     }
 
     @Test
