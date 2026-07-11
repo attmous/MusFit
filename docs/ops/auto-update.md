@@ -45,9 +45,9 @@ component or action.
 
 Existing `com.musfit` developer installations are signed with the public debug
 certificate. A secure production key cannot update those installs, and the
-public key must never become a production key. W1-REL-02 requires an explicit
-data-preservation versus reset decision and implements the approved install
-migration. W1-SEC-02/03 harden the network and credential boundaries,
+public key must never become a production key. W1-REL-02 uses the approved
+encrypted export/import path documented in
+[`signing-install-migration.md`](signing-install-migration.md). W1-SEC-02/03 harden the network and credential boundaries,
 W1-REL-03 enables shrinking, and W1-REL-04 owns secret-backed signing and exact
 artifact promotion.
 

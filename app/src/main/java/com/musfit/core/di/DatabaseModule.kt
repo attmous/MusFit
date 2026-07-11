@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.MUSFIT_DATABASE_NAME
 import com.musfit.data.local.dao.AccountDao
 import com.musfit.data.local.dao.AiCoachChatDao
 import com.musfit.data.local.dao.AiCoachDao
@@ -28,8 +29,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MusFitDatabase {
-        repairLegacyVersion28Database(context, DATABASE_NAME)
-        return Room.databaseBuilder(context, MusFitDatabase::class.java, DATABASE_NAME)
+        repairLegacyVersion28Database(context, MUSFIT_DATABASE_NAME)
+        return Room.databaseBuilder(context, MusFitDatabase::class.java, MUSFIT_DATABASE_NAME)
             .addMigrations(
                 MIGRATION_1_2,
                 MIGRATION_2_3,
@@ -97,7 +98,7 @@ object DatabaseModule {
     @Provides
     fun provideCoachDao(database: MusFitDatabase): CoachDao = database.coachDao()
 
-    internal fun repairLegacyVersion28Database(context: Context, databaseName: String = DATABASE_NAME) {
+    internal fun repairLegacyVersion28Database(context: Context, databaseName: String = MUSFIT_DATABASE_NAME) {
         val databaseFile = context.getDatabasePath(databaseName)
         if (!databaseFile.exists()) return
 
@@ -198,7 +199,6 @@ object DatabaseModule {
             }
         }
 
-    private const val DATABASE_NAME = "musfit.db"
     internal const val CURRENT_V28_IDENTITY_HASH = "09b1d1975301639eaff70e11601ed13b"
     private const val LEGACY_HEALTH_SYNC_V28_IDENTITY_HASH = "71b5b71f394a9a0bedf45d1a67317f04"
 

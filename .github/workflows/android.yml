@@ -38,8 +38,12 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      - name: Verify internal and production-shaped builds
-        run: ./gradlew verifyReleaseVariantMatrix testInternalDebugUnitTest testProductionReleaseUnitTest lintInternalDebug lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
+      - name: Verify internal, migration bridge, and production-shaped builds
+        run: ./gradlew verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
+
+      - name: Verify migration artifact identities and legacy certificate
+        shell: pwsh
+        run: ./scripts/release/verify-data-migration-artifacts.ps1 -SkipBuild
 
       - name: Retain internal verification APK
         uses: actions/upload-artifact@v4

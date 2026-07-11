@@ -64,8 +64,12 @@ Read the linked audit before broad changes. In particular:
 - Seed/reset tooling is for the named dedicated AVD only and rejects physical or
   mismatched-emulator serials. Never seed, clear, or reset a phone or user-data
   device.
-- CI verifies `internalDebug` and unsigned `productionRelease` outputs and keeps
-  only the internal APK as a short-lived workflow artifact. GitHub Release and
+- CI verifies `internalDebug`, the non-debuggable export-only
+  `legacyMigrationRelease` bridge, and unsigned `productionRelease` outputs,
+  and keeps only the internal APK as a short-lived workflow artifact. The
+  bridge uses the public legacy certificate solely so existing `com.musfit`
+  installs can export a passphrase-encrypted database before uninstall; never
+  publish it as production or add import/internal defaults to it. GitHub Release and
   Obtainium publication are suspended until the remaining Wave 1 release gates
   land; no current artifact is production- or Play-ready.
 - Hermes/API bearer credentials are runtime-only and live in the account-keyed,
@@ -108,9 +112,9 @@ The standard variant gate is:
 .\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
 ```
 
-It runs unit tests, lint, and assembly for `internalDebug` and the non-debuggable
-`productionRelease`, builds the internal instrumentation APK, and builds the
-unsigned production AAB. The installable developer APK is written to
+It runs unit tests, lint, and assembly for `internalDebug`, the non-debuggable
+`legacyMigrationRelease` bridge, and non-debuggable `productionRelease`, builds
+the internal instrumentation APK, and builds the unsigned production AAB. The installable developer APK is written to
 `app/build/outputs/apk/internal/debug/app-internal-debug.apk`; CI retains only
 that target APK briefly, never the instrumentation or production artifacts.
 
@@ -241,8 +245,8 @@ For each task:
 
 ## CI And Reference Map
 
-`.github/workflows/android.yml` runs the workflow contract and internal plus
-production-shaped verification gate for PRs and pushes to `master`/`main`. It
+.github/workflows/android.yml` runs the workflow contract and internal,
+migration-bridge, plus production-shaped verification gate for PRs and pushes to `master`/`main`. It
 retains `musfit-internal-debug-apk` for seven days and publishes no GitHub
 Release. Production signing, install migration, optimization, and publication
 remain separate Wave 1 packages.
