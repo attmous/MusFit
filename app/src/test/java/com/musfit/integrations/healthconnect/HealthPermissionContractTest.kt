@@ -35,7 +35,7 @@ class HealthPermissionContractTest {
         val requestedPermissions =
             manager.requestablePermissions() + manager.foodRequestablePermissions()
 
-        listOf("debug", "release").forEach { variant ->
+        listOf("internalDebug", "productionRelease").forEach { variant ->
             assertEquals(
                 "$variant merged Health permissions must exactly match the requested inventory",
                 requestedPermissions,

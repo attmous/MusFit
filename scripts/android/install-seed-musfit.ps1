@@ -14,8 +14,11 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
 . (Join-Path $repoRoot "scripts\android\android-env.ps1")
 
 $emulator = Join-Path $env:ANDROID_HOME "emulator\emulator.exe"
-$apk = Join-Path $repoRoot "app\build\outputs\apk\debug\app-debug.apk"
-$testApk = Join-Path $repoRoot "app\build\outputs\apk\androidTest\debug\app-debug-androidTest.apk"
+$targetPackage = "com.musfit.internal"
+$testPackage = "com.musfit.internal.test"
+$mainComponent = "com.musfit.internal/com.musfit.MainActivity"
+$apk = Join-Path $repoRoot "app\build\outputs\apk\internal\debug\app-internal-debug.apk"
+$testApk = Join-Path $repoRoot "app\build\outputs\apk\androidTest\internal\debug\app-internal-debug-androidTest.apk"
 
 function Assert-LastExitCode([string] $Action) {
     if ($LASTEXITCODE -ne 0) {
@@ -138,18 +141,18 @@ Write-Host "Using emulator: $DeviceSerial"
 if (-not $SkipBuild) {
     Push-Location $repoRoot
     try {
-        & .\gradlew.bat assembleDebug assembleDebugAndroidTest --no-daemon --console=plain
-        Assert-LastExitCode "assembleDebug and assembleDebugAndroidTest"
+        & .\gradlew.bat assembleInternalDebug assembleInternalDebugAndroidTest --no-daemon --console=plain
+        Assert-LastExitCode "assembleInternalDebug and assembleInternalDebugAndroidTest"
     } finally {
         Pop-Location
     }
 }
 
 if (-not (Test-Path -LiteralPath $apk)) {
-    throw "Debug APK not found: $apk"
+    throw "Internal APK not found: $apk"
 }
 if (-not (Test-Path -LiteralPath $testApk)) {
-    throw "Debug instrumentation APK not found: $testApk"
+    throw "Internal instrumentation APK not found: $testApk"
 }
 
 & adb -s $DeviceSerial install -r $apk
@@ -158,7 +161,7 @@ Assert-LastExitCode "adb install"
 Assert-LastExitCode "adb install instrumentation APK"
 
 if ($Reset) {
-    $clearOutput = & adb -s $DeviceSerial shell pm clear com.musfit 2>&1
+    $clearOutput = & adb -s $DeviceSerial shell pm clear $targetPackage 2>&1
     $clearExitCode = $LASTEXITCODE
     $clearOutput | ForEach-Object { Write-Host $_ }
     if ($clearExitCode -ne 0 -or (($clearOutput -join "`n") -notmatch "Success")) {
@@ -172,19 +175,19 @@ $seedOutput = & adb -s $DeviceSerial shell am instrument `
     -r `
     -e reset $resetValue `
     -e class com.musfit.debug.MusFitDebugSeedInstrumentationTest `
-    com.musfit.test/androidx.test.runner.AndroidJUnitRunner 2>&1
+    $testPackage/androidx.test.runner.AndroidJUnitRunner 2>&1
 $seedExitCode = $LASTEXITCODE
 $seedOutput | ForEach-Object { Write-Host $_ }
 if ($seedExitCode -ne 0) {
-    throw "Debug seed instrumentation failed with exit code $seedExitCode"
+    throw "Internal seed instrumentation failed with exit code $seedExitCode"
 }
 $seedText = $seedOutput -join "`n"
 if ($seedText -match "FAILURES!!!" -or $seedText -notmatch "OK \(1 test\)" -or $seedText -notmatch "INSTRUMENTATION_CODE: -1") {
-    throw "Debug seed instrumentation did not pass. Output: $($seedOutput -join ' ')"
+    throw "Internal seed instrumentation did not pass. Output: $($seedOutput -join ' ')"
 }
 
 if (-not $NoLaunch) {
-    & adb -s $DeviceSerial shell am start -W -n com.musfit/.MainActivity
+    & adb -s $DeviceSerial shell am start -W -n $mainComponent
     Assert-LastExitCode "explicit app launch"
     Start-Sleep -Seconds 2
 }
@@ -225,4 +228,4 @@ if (-not [string]::IsNullOrWhiteSpace($EvidenceDir)) {
     Write-Host "Evidence written to $resolvedEvidenceDir"
 }
 
-Write-Host "MusFit debug APK installed and instrumentation-seeded on $DeviceSerial (reset=$resetValue)."
+Write-Host "MusFit internal APK installed and instrumentation-seeded on $DeviceSerial (reset=$resetValue)."

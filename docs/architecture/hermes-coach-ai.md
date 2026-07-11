@@ -42,11 +42,11 @@ Base URL: http://192.168.178.113:8080/v1/
 Model: hermes-agent
 ```
 
-## Debug Build Defaults
+## Internal Build Defaults
 
-Debug builds can auto-configure Hermes after a fresh install, app-data reset, or
-seeded setup. Keep the secret in ignored `local.properties` or in environment
-variables; never commit the API server key.
+Only `internalDebug` can auto-configure Hermes after a fresh install, app-data
+reset, or seeded setup. Keep the secret in ignored `local.properties` or in
+environment variables; never commit the API server key.
 
 ```properties
 MUSFIT_DEBUG_HERMES_BASE_URL=http://192.168.178.113:8080/v1/
@@ -54,11 +54,11 @@ MUSFIT_DEBUG_HERMES_MODEL_NAME=hermes-agent
 MUSFIT_DEBUG_HERMES_API_KEY=<API_SERVER_KEY from ~/.hermes/.env>
 ```
 
-When `MUSFIT_DEBUG_HERMES_API_KEY` is present, an empty debug install exposes
+When `MUSFIT_DEBUG_HERMES_API_KEY` is present, an empty internal install exposes
 Hermes as the default AI coach connection. If the user saves explicit AI coach
 settings, those settings take precedence. Clearing the key in-app disables the
 persisted connection until the app data is reset or the user configures it again.
-Release builds leave these debug fields blank.
+The non-debuggable `productionRelease` variant leaves these fields blank.
 
 ## MusFit Behavior
 
@@ -69,9 +69,10 @@ The first implementation is read-only:
 - The coach cannot log, edit, or delete MusFit data.
 - Chat history is stored locally in Room per active account and coach provider.
 - API keys stay in the existing local encrypted AI coach secret store.
-- Debug builds allow cleartext HTTP for local development endpoints, including
-  emulator loopback and LAN hosts such as the Radxa Hermes gateway. Release
-  builds keep the default platform network policy.
+- Internal builds own the existing cleartext HTTP/LAN development surface,
+  including emulator loopback and the Radxa Hermes gateway. Production omits
+  that manifest/network surface; W1-SEC-02 will narrow the internal policy and
+  add explicit URL-policy enforcement.
 
 ## Verification
 

@@ -25,7 +25,8 @@ The audit is a dated snapshot. Re-check a finding before implementing it.
 ## Product Boundary
 
 MusFit is an Android-only, single-module (`:app`) fitness and nutrition tracker.
-The application id is `com.musfit`. Top-level destinations are: Today, Food,
+The production application id is `com.musfit`; the side-by-side developer
+variant is `com.musfit.internal`. Top-level destinations are: Today, Food,
 Training, Profile.
 
 - Kotlin, Jetpack Compose Material 3, Hilt, Room, coroutines, and Flow.
@@ -53,20 +54,24 @@ Read the linked audit before broad changes. In particular:
   any retained `REPLACE` must be relationship-free, intentional, and tested.
 - Account/provider UI exists, but most personal-data tables are not yet fully
   account-isolated. Do not assume switching accounts isolates all data.
-- Food nutrition/hydration export code and UI exist, but the main manifest does
-  not yet declare the required write permissions. Treat Health Connect export
-  as blocked until the relevant remediation package lands.
-- The legacy exported seed receiver (SEC-001) has been removed. Debug seeding now
-  runs through a separately installed instrumentation APK that CI must not
-  distribute; keep all target manifests free of seed components and actions.
+- Food nutrition/hydration export permissions and rationale are synchronized by
+  the shared Health permission inventory. Keep manifest, requested access, and
+  rationale changes atomic.
+- The legacy exported seed receiver (SEC-001) has been removed. Internal
+  seeding now runs through a separately installed instrumentation APK that CI
+  must not distribute; keep all target manifests free of seed components and
+  actions.
 - Seed/reset tooling is for the named dedicated AVD only and rejects physical or
   mismatched-emulator serials. Never seed, clear, or reset a phone or user-data
   device.
-- Current CI distributes a debuggable APK. It is a developer build, not a
-  production- or Play-ready release artifact.
-- Debug configuration can currently compile `MUSFIT_DEBUG_HERMES_API_KEY` into
-  `BuildConfig` and the APK. Treat SEC-003 as open: do not put a real or reusable
-  secret there; prefer runtime entry into the local secret store.
+- CI verifies `internalDebug` and unsigned `productionRelease` outputs and keeps
+  only the internal APK as a short-lived workflow artifact. GitHub Release and
+  Obtainium publication are suspended until the remaining Wave 1 release gates
+  land; no current artifact is production- or Play-ready.
+- Internal configuration can currently compile `MUSFIT_DEBUG_HERMES_API_KEY`
+  into `BuildConfig` and the internal APK. Treat SEC-003 as open: do not put a
+  real or reusable secret there; prefer runtime entry into the local secret
+  store. Production fields remain blank.
 - Never commit OAuth client secrets, AI keys, gateway tokens, or other secrets.
   Provider client ids are configuration, not bearer secrets, but keep
   environment-specific values in the existing local configuration path unless a
@@ -87,16 +92,17 @@ Run the executable workflow contract after changing live docs, scripts, or CI:
 .\scripts\dev\test-dev-workflow.ps1 -SelfTest
 ```
 
-The standard debug gate is:
+The standard variant gate is:
 
 ```powershell
 .\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
 ```
 
-It runs `testDebugUnitTest`, `lintDebug`, `assembleDebug`, and
-`assembleDebugAndroidTest`. The target APK is written to
-`app/build/outputs/apk/debug/app-debug.apk`; CI publishes only that target APK,
-not the instrumentation APK.
+It runs unit tests, lint, and assembly for `internalDebug` and the non-debuggable
+`productionRelease`, builds the internal instrumentation APK, and builds the
+unsigned production AAB. The installable developer APK is written to
+`app/build/outputs/apk/internal/debug/app-internal-debug.apk`; CI retains only
+that target APK briefly, never the instrumentation or production artifacts.
 
 Focused Food verification:
 
@@ -139,8 +145,8 @@ qualify adb commands when more than one device may be connected:
 
 ```powershell
 adb devices -l
-adb -s <serial> install -r app\build\outputs\apk\debug\app-debug.apk
-adb -s <serial> shell am start -W -n com.musfit/.MainActivity
+adb -s <serial> install -r app\build\outputs\apk\internal\debug\app-internal-debug.apk
+adb -s <serial> shell am start -W -n com.musfit.internal/com.musfit.MainActivity
 adb -s <serial> shell dumpsys window | Select-String 'mCurrentFocus|mFocusedApp'
 ```
 
@@ -200,7 +206,7 @@ For each task:
 4. Implement the smallest coherent change without widening into unrelated
    feature areas.
 5. Run focused checks, the workflow contract when applicable, and the standard
-   debug gate.
+   variant gate.
 6. For runtime/UI changes, verify the exact workflow on the seeded emulator and
    retain privacy-safe evidence. For non-runtime changes, state why it is N/A.
 7. Run `git diff --check` and review the final diff for secrets, generated files,
@@ -212,10 +218,11 @@ For each task:
 
 ## CI And Reference Map
 
-`.github/workflows/android.yml` runs the workflow contract and debug verification
-gate for PRs and pushes to `master`/`main`, uploads `musfit-debug-apk`, and
-publishes that verified debug APK as a GitHub Release on `master` for the current
-development update flow. It does not produce a production-signed APK/AAB.
+`.github/workflows/android.yml` runs the workflow contract and internal plus
+production-shaped verification gate for PRs and pushes to `master`/`main`. It
+retains `musfit-internal-debug-apk` for seven days and publishes no GitHub
+Release. Production signing, install migration, optimization, and publication
+remain separate Wave 1 packages.
 
 Use these living references instead of duplicating their detail here:
 

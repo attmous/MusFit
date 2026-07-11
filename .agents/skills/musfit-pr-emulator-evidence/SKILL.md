@@ -61,7 +61,7 @@ $evidenceDir = "verification\pr-evidence\$shortHead-$(Get-Date -Format yyyyMMdd-
 The helper must pass all of these before it writes `verification.json`:
 
 1. `scripts/dev/verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue`
-2. Seeded debug install/reset on the emulator
+2. Seeded internal-debug install/reset on the emulator
 3. Explicit `MainActivity` launch and foreground confirmation
 
 When the same PR also changes repository workflow helpers, pass `-IncludeWorkflowContract` to run `scripts/dev/test-dev-workflow.ps1`. Do not make unrelated functionality/design PRs inherit stale documentation-contract failures.
@@ -87,16 +87,16 @@ For a design change, capture the relevant surface in both modes:
 ```powershell
 $serial = (Get-Content "$evidenceDir\verification.json" -Raw | ConvertFrom-Json).device.serial
 adb -s $serial shell cmd uimode night no
-adb -s $serial shell am force-stop com.musfit
-adb -s $serial shell am start -W -n com.musfit/.MainActivity
+adb -s $serial shell am force-stop com.musfit.internal
+adb -s $serial shell am start -W -n com.musfit.internal/com.musfit.MainActivity
 # Navigate to the changed surface, then capture it.
 & "$skillRoot\scripts\capture-emulator-evidence.ps1" `
   -EvidenceDir $evidenceDir -Name "02-food-light" `
   -Caption "Food diary in light mode" -Theme Light -RequireText "Food"
 
 adb -s $serial shell cmd uimode night yes
-adb -s $serial shell am force-stop com.musfit
-adb -s $serial shell am start -W -n com.musfit/.MainActivity
+adb -s $serial shell am force-stop com.musfit.internal
+adb -s $serial shell am start -W -n com.musfit.internal/com.musfit.MainActivity
 # Navigate to the same surface again, then capture it.
 & "$skillRoot\scripts\capture-emulator-evidence.ps1" `
   -EvidenceDir $evidenceDir -Name "03-food-dark" `

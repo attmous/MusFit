@@ -46,6 +46,7 @@ $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
 if ($receipt.schemaVersion -ne 1 -or $receipt.status -ne "passed") {
     throw "Unsupported or unsuccessful verification receipt"
 }
+$targetPackagePattern = [regex]::Escape($receipt.device.packageName)
 
 $headOutput = & git -C $repoRoot rev-parse HEAD 2>&1
 Assert-LastExitCode "Resolve current HEAD"
@@ -100,7 +101,7 @@ if ($Theme -ne "System") {
 
 $initialActivityState = @(& adb -s $DeviceSerial shell dumpsys activity activities 2>&1)
 Assert-LastExitCode "Inspect foreground activity before capture"
-if (($initialActivityState -join "`n") -notmatch '(mResumedActivity|topResumedActivity).*com\.musfit') {
+if (($initialActivityState -join "`n") -notmatch "(mResumedActivity|topResumedActivity).*$targetPackagePattern") {
     throw "MusFit must already be foregrounded on the exact target state before capture"
 }
 
@@ -150,13 +151,13 @@ try {
 
     $activityState = @(& adb -s $DeviceSerial shell dumpsys activity activities 2>&1)
     Assert-LastExitCode "Inspect foreground activity"
-    if (($activityState -join "`n") -notmatch '(mResumedActivity|topResumedActivity).*com\.musfit') {
+    if (($activityState -join "`n") -notmatch "(mResumedActivity|topResumedActivity).*$targetPackagePattern") {
         throw "MusFit is not the resumed foreground activity"
     }
 
     $crashBuffer = @(& adb -s $DeviceSerial logcat -b crash -d 2>&1)
     Assert-LastExitCode "Inspect crash buffer"
-    if (($crashBuffer -join "`n") -match 'Process:\s+com\.musfit|com\.musfit.*FATAL EXCEPTION') {
+    if (($crashBuffer -join "`n") -match "Process:\s+$targetPackagePattern|$targetPackagePattern.*FATAL EXCEPTION") {
         throw "MusFit crash-buffer evidence exists; fix the crash before capturing PR evidence"
     }
 

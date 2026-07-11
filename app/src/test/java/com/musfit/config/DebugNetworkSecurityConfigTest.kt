@@ -6,19 +6,19 @@ import org.junit.Test
 
 class DebugNetworkSecurityConfigTest {
     @Test
-    fun debugNetworkSecurityConfig_allowsLanCleartextForLocalAgents() {
+    fun internalNetworkSecurityConfig_allowsLanCleartextForLocalAgents() {
         val config = resolveDebugNetworkSecurityConfig().readText()
 
         assertTrue(
-            "Debug builds must allow HTTP LAN endpoints such as Radxa Hermes at 192.168.x.x.",
+            "Internal builds retain the existing LAN HTTP policy until W1-SEC-02 narrows it.",
             config.contains("""<base-config cleartextTrafficPermitted="true">"""),
         )
     }
 
     private fun resolveDebugNetworkSecurityConfig(): File {
-        val relativePath = "src/debug/res/xml/debug_network_security_config.xml"
+        val relativePath = "src/internal/res/xml/debug_network_security_config.xml"
         val candidates = listOf(File(relativePath), File("app/$relativePath"), File("../app/$relativePath"))
         return candidates.firstOrNull(File::exists)
-            ?: throw IllegalStateException("Could not find debug network security config.")
+            ?: throw IllegalStateException("Could not find internal network security config.")
     }
 }
