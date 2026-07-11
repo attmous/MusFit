@@ -1,4 +1,4 @@
 interface:
   display_name: "MusFit PR Emulator Evidence"
-  short_description: "Test MusFit PRs and attach emulator screenshots"
-  default_prompt: "Use $musfit-pr-emulator-evidence to verify this MusFit code PR on the emulator and attach screenshot evidence."
+  short_description: "Test MusFit PRs and publish exact-head screenshots"
+  default_prompt: "Use $musfit-pr-emulator-evidence to verify this MusFit PR and publish screenshot evidence for its exact current head."

@@ -36,6 +36,21 @@ function Assert-FileDoesNotContain([string] $RelativePath, [string] $Pattern) {
     }
 }
 
+function Assert-PowerShellParses([string] $RelativePath) {
+    Assert-FileExists $RelativePath
+    $tokens = $null
+    $errors = $null
+    [Management.Automation.Language.Parser]::ParseFile(
+        (Get-RepoPath $RelativePath),
+        [ref] $tokens,
+        [ref] $errors
+    ) | Out-Null
+    if ($errors.Count -gt 0) {
+        $messages = @($errors | ForEach-Object { $_.Message }) -join '; '
+        throw "PowerShell parse errors in ${RelativePath}: $messages"
+    }
+}
+
 function Assert-Equal([string] $Label, $Expected, $Actual) {
     if ($Expected -ne $Actual) {
         throw "$Label mismatch. Expected '$Expected', got '$Actual'."
@@ -406,10 +421,31 @@ Assert-FileContains ".github/workflows/android.yml" "verifyReleaseVariantMatrix 
 Assert-FileContains ".github/workflows/android.yml" "app/build/outputs/apk/internal/debug/app-internal-debug\.apk"
 Assert-FileContains ".github/workflows/android.yml" "if-no-files-found:\s*error"
 Assert-FileDoesNotContain ".github/workflows/android.yml" "app-internal-debug-androidTest\.apk|outputs/apk/androidTest|softprops/action-gh-release|Publish GitHub Release"
+Assert-FileExists ".github/workflows/pr-emulator-evidence.yml"
+Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "pull_request_target:"
+Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "issue_comment:"
+Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "statuses:\s*write"
+Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "github\.event\.repository\.default_branch"
+Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "github\.event\.comment\.user\.login == github\.repository_owner"
+Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "check-pr-emulator-evidence\.ps1"
+Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "persist-credentials:\s*false"
+Assert-FileDoesNotContain ".github/workflows/pr-emulator-evidence.yml" "github\.event\.pull_request\.head\.(?:ref|sha)"
 Assert-FileContains ".github/pull_request_template.md" "Verification"
 Assert-FileContains ".github/pull_request_template.md" '\$musfit-pr-emulator-evidence'
+Assert-FileContains ".github/pull_request_template.md" "current PR head SHA"
+Assert-FileContains ".github/pull_request_template.md" "non-runtime skip reason"
 Assert-FileContains ".gitignore" "verification/"
 Assert-FileContains ".gitignore" '(?m)^/\.kotlin/\r?$'
+
+Assert-FileContains "AGENTS.md" '\.agents[\\/]skills[\\/]musfit-pr-emulator-evidence[\\/]SKILL\.md'
+Assert-FileContains "AGENTS.md" 'publish-pr-evidence\.ps1'
+Assert-FileContains "AGENTS.md" 'local `verification/`\s+files do not satisfy'
+Assert-FileContains "AGENTS.md" 'exact current PR head SHA'
+Assert-FileContains "AGENTS.md" 'MusFit emulator evidence'
+Assert-FileContains "CLAUDE.md" '\.claude[\\/]skills[\\/]musfit-pr-emulator-evidence[\\/]SKILL\.md'
+Assert-FileContains "CLAUDE.md" '/musfit-pr-emulator-evidence'
+Assert-FileContains "CLAUDE.md" 'publish-pr-evidence\.ps1'
+Assert-FileContains "CLAUDE.md" 'exact current PR head SHA'
 
 $prEvidenceSkillRoot = ".agents/skills/musfit-pr-emulator-evidence"
 foreach ($skillFile in @(
@@ -423,8 +459,33 @@ foreach ($skillFile in @(
 }
 Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" '(?m)^name: musfit-pr-emulator-evidence\r?$'
 Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" 'git rev-parse --show-toplevel'
+Assert-FileDoesNotContain "$prEvidenceSkillRoot/SKILL.md" 'Use whenever Codex'
+Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" 'Local captures are not PR evidence'
+Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" 'MusFit emulator evidence'
 Assert-FileContains "$prEvidenceSkillRoot/scripts/invoke-musfit-pr-gate.ps1" 'com\.musfit\.internal'
 Assert-FileContains "$prEvidenceSkillRoot/scripts/capture-emulator-evidence.ps1" 'receipt\.device\.packageName'
+Assert-FileContains "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" 'Assert-NonEvidencePrChecksPassed'
+Assert-FileContains "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" '<!-- musfit-emulator-evidence:v1 -->'
+Assert-FileContains "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" 'Verified PR head'
+Assert-FileContains "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" 'com\.musfit\.internal'
+Assert-FileDoesNotContain "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" '\[string\]\s+\$EvidenceBranch'
+
+$claudePrEvidenceSkillRoot = ".claude/skills/musfit-pr-emulator-evidence"
+Assert-FileExists "$claudePrEvidenceSkillRoot/SKILL.md"
+Assert-FileContains "$claudePrEvidenceSkillRoot/SKILL.md" '(?m)^name: musfit-pr-emulator-evidence\r?$'
+Assert-FileContains "$claudePrEvidenceSkillRoot/SKILL.md" '\.\./\.\./\.\./\.agents/skills/musfit-pr-emulator-evidence/SKILL\.md'
+Assert-FileContains "$claudePrEvidenceSkillRoot/SKILL.md" 'canonical repository workflow'
+Assert-FileContains "$claudePrEvidenceSkillRoot/SKILL.md" 'marker-based PR comment'
+
+Assert-FileExists "scripts/dev/check-pr-emulator-evidence.ps1"
+Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'MusFit emulator evidence'
+Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" '<!-- musfit-emulator-evidence:v1 -->'
+Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'pr-evidence'
+Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'Test-PngArtifact'
+Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'Test-ReceiptArtifact'
+Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'git/blobs/'
+Assert-PowerShellParses "scripts/dev/check-pr-emulator-evidence.ps1"
+Assert-PowerShellParses "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1"
 
 if ($SelfTest) {
     $mismatchDetected = $false
@@ -444,6 +505,8 @@ if ($SelfTest) {
         throw "Workflow self-test failed to detect a deliberate source/schema mismatch."
     }
     Write-Host "Deliberate mismatch self-test passed."
+
+    & (Get-RepoPath "scripts/dev/check-pr-emulator-evidence.ps1") -SelfTest
 }
 
 Write-Host "Development workflow checks passed (Room $databaseVersion; destinations: $destinationSummary; bottom bar: $bottomBarComponent)."
