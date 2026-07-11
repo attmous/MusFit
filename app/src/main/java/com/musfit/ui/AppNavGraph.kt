@@ -193,6 +193,7 @@ fun AppNavGraph() {
                             navController.popBackStack()
                         }
                     },
+                    onClose = { navController.popBackStack() },
                 )
             }
             composable(NUTRITION_LABEL_SCANNER_ROUTE) {

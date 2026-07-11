@@ -49,10 +49,37 @@ val TealInk = Color(0xFF0C4A42)
 val TealBody = Color(0xFF155E52)
 val TealTrack = Color(0xFFC4E2DC)
 
-// Macro trio — distinct from every tab container they sit on.
+// Macro trio — distinct from every tab container they sit on. Protein moved
+// from teal to rose (Turn 8 Delta 2) so it never collides with Profile's teal.
 val MacroCarbs = Color(0xFFB98300)
-val MacroProtein = Color(0xFF177D6E)
+val MacroProtein = Color(0xFFE11D48)
 val MacroFat = Color(0xFF6750A4)
+
+// Macro wavy-progress tracks on white cards (tonal containers use white @75%
+// instead — two-track system per the Turn 8/9 design kit).
+val MacroCarbsTrack = Color(0xFFEDDDB6)
+val MacroProteinTrack = Color(0xFFF6CDD8)
+val MacroFatTrack = Color(0xFFD9D2EC)
+
+// Destructive family — delete pills and rose program badges.
+val DestructiveContainer = Color(0xFFFBDCE3)
+val DestructiveInk = Color(0xFF8F1239)
+
+// Trust/provenance chips ("Open Food Facts", "Edited by you").
+val TrustChipFill = Color(0xFFEDE5D8)
+val TrustChipInk = Color(0xFF4A4238)
+
+// Selected chip pair — the near-black "dark chip" used for selected filter,
+// sort, unit and preset chips on both cream and white grounds.
+val ChipDark = Color(0xFF2A2420)
+val OnChipDark = Color(0xFFFBF7F1)
+
+// Camera chrome (barcode / nutrition-label scanners) — used as-is in both
+// themes; the camera surface is dark by nature.
+val CameraSurface = Color(0xFF1B1813)
+val ViewfinderBracket = Color(0xFF7BC98F)
+// Translucent circles/pills floated over the camera preview (cream @15%).
+val CameraTranslucent = Color(0xFFF8F2E9).copy(alpha = 0.15f)
 
 // Water tracker.
 val Water = Color(0xFF1668A8)
@@ -63,9 +90,9 @@ val LavenderContainer = Color(0xFFE6E0F5)
 val LavenderBody = Color(0xFF453768)
 val LavenderInk = Color(0xFF4F3D8F)
 
-// Semantic warning amber ("goal not met" class) — never a tab accent.
-val AmberContainer = Color(0xFFFBEFDD)
-val AmberInk = Color(0xFF8A4E06)
+// Semantic warning amber ("goal not met", AI honesty banners) — never a tab accent.
+val AmberContainer = Color(0xFFFFE1B3)
+val AmberInk = Color(0xFF7A4A00)
 
 // MusFit dark palette — warm near-black ground with elevated warm cards,
 // containers deepened and accents brightened for AA on dark.
@@ -105,8 +132,20 @@ val TealInkDark = Color(0xFFCFF0E9)
 val TealTrackDark = Color(0xFF23685C)
 
 val MacroCarbsDark = Color(0xFFE0B54A)
-val MacroProteinDark = Color(0xFF52C4B0)
+// Rose lifted for dark cards (≈7.5:1 vs DarkBg — comfortably AA).
+val MacroProteinDark = Color(0xFFF2839D)
 val MacroFatDark = Color(0xFFB4A0E8)
+
+// Muted macro tracks on dark cards (visibly tinted, low emphasis).
+val MacroCarbsTrackDark = Color(0xFF4A3F22)
+val MacroProteinTrackDark = Color(0xFF4A2530)
+val MacroFatTrackDark = Color(0xFF3A3350)
+
+val DestructiveContainerDark = Color(0xFF4A1D29)
+val DestructiveInkDark = Color(0xFFF7CFD9)
+
+// Trust chip in dark reuses DarkTonalFill as its fill (see MusFitColors).
+val TrustChipInkDark = Color(0xFFCFC5B6)
 val WaterDark = Color(0xFF62A8DC)
 val WaterFillDark = Color(0xFF1C3A52)
 val LavenderContainerDark = Color(0xFF352C4E)

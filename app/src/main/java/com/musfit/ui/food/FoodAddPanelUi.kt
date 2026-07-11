@@ -1,103 +1,93 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 
 package com.musfit.ui.food
 
-import com.musfit.data.repository.FoodGoalMode
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EggAlt
+import androidx.compose.material.icons.filled.Flatware
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.DocumentScanner
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.outlined.BakeryDining
-import androidx.compose.material.icons.outlined.Cookie
-import androidx.compose.material.icons.outlined.DinnerDining
-import androidx.compose.material.icons.outlined.DocumentScanner
-import androidx.compose.material.icons.outlined.LunchDining
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.musfit.ui.AppDestination
-import com.musfit.ui.components.MusFitSegmented
-import com.musfit.ui.theme.MusFitTheme
-import com.musfit.ui.theme.tabAccentFor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
-import androidx.health.connect.client.PermissionController
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.ui.unit.sp
+import com.musfit.ui.AppDestination
+import com.musfit.ui.components.ExpressiveBadge
+import com.musfit.ui.components.PillButton
+import com.musfit.ui.components.SectionOverline
+import com.musfit.ui.components.StepperCircleButton
+import com.musfit.ui.components.expressiveBadgeShapeFor
+import com.musfit.ui.components.gridGroupShape
+import com.musfit.ui.theme.BrandCoral
+import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
 
-// Add-food panel and its entry-mode forms (saved picker, manual, barcode,
-// quick calories, AI shell, create-food) plus shared product/nutrition field
-// rows. Dispatched from FoodScreen for FoodSheetMode.AddFood. Extracted
-// verbatim from FoodScreen.kt with no behavior change.
+// Add-food sheet (Turn 9 "9b" chrome) and its entry-mode forms: saved picker,
+// manual, barcode (with the 9d match review), quick calories (9f) and the AI
+// draft flow (9g), plus the shared grouped product/nutrition field cells.
+// Dispatched from FoodScreen for FoodSheetMode.AddFood.
+
+/** ± step for the quick-calories hero stepper. */
+private const val QUICK_KCAL_STEP = 25
+
+/**
+ * Pure stepper math for the quick-calorie hero: parse the current input
+ * (blank/invalid → 0), apply [delta], clamp at zero.
+ */
+internal fun quickStepperNext(current: String, delta: Int): String {
+    val value = current.toDoubleOrNull() ?: 0.0
+    return (value + delta).coerceAtLeast(0.0).formatNutritionDisplay()
+}
 
 @Composable
 internal fun AddFoodPanel(
@@ -138,161 +128,273 @@ internal fun AddFoodPanel(
     onQuickSaveFavoriteClick: () -> Unit,
     onFavoriteQuickLogClick: (String) -> Unit,
     onFavoriteQuickLogFavoriteClick: (String, Boolean) -> Unit,
+    onClose: () -> Unit = {},
+    onMealTargetSelected: (String) -> Unit = {},
 ) {
+    // Shared by the AI draft row's edit affordance and the "Adjust items" pill.
+    var aiAdjustExpanded by rememberSaveable { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 640.dp)
-            .verticalScroll(rememberScrollState())
-            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = if (state.isPlanningMode) {
-                    "Plan for ${state.selectedMealTitle}"
-                } else {
-                    "Add to ${state.selectedMealTitle}"
-                },
-                style = MaterialTheme.typography.headlineSmall,
-            )
-            Text(
-                text = if (state.isPlanningMode) {
-                    "New food will be saved as planned"
-                } else {
-                    "${state.remainingCaloriesKcal.roundToInt()} kcal remaining today"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
-        }
-
-        AddModeTabs(
-            selectedMode = state.addMode,
-            onModeSelected = onModeSelected,
+        FoodSheetHeader(
+            title = if (state.isPlanningMode) "Plan food" else "Add food",
+            onClose = onClose,
+            chip = {
+                MealTargetChip(
+                    label = "to ${state.selectedMealTitle}",
+                    meals = state.visibleMealDefinitions,
+                    onMealSelected = onMealTargetSelected,
+                )
+            },
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Keep adding",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-            )
-            Switch(
-                checked = state.keepAddingFoods,
-                onCheckedChange = onKeepAddingChanged,
-            )
-        }
+        FoodAddModeRow(
+            selected = state.addMode,
+            onSelect = onModeSelected,
+        )
 
         state.message?.let { message ->
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MusFitTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.brand,
             )
         }
 
-        FavoriteAddSection(
-            items = state.favoriteAddItems,
-            isSaving = state.isSaving,
-            actionVerb = state.foodEntryActionVerb,
-            actionProgressLabel = state.foodEntryActionProgressLabel,
-            onFoodClick = onSavedFoodClick,
-            onTemplateClick = onTemplateClick,
-            onRecipeClick = onRecipeClick,
-            onQuickLogClick = onFavoriteQuickLogClick,
-        )
+        // Weighted scrollable middle; the primary action row below stays pinned.
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            when (state.addMode) {
+                FoodAddMode.Saved ->
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        FavoriteAddSection(
+                            items = state.favoriteAddItems,
+                            isSaving = state.isSaving,
+                            actionVerb = state.foodEntryActionVerb,
+                            actionProgressLabel = state.foodEntryActionProgressLabel,
+                            onFoodClick = onSavedFoodClick,
+                            onTemplateClick = onTemplateClick,
+                            onRecipeClick = onRecipeClick,
+                            onQuickLogClick = onFavoriteQuickLogClick,
+                        )
+                        SavedFoodPicker(
+                            state = state,
+                            onQuantityChanged = onSavedQuantityChanged,
+                            onSavedFoodClick = onSavedFoodClick,
+                            onServingSelected = onSavedFoodServingSelected,
+                        )
+                        TemplateQuickList(
+                            templates = state.mealTemplates,
+                            actionVerb = state.foodEntryActionVerb,
+                            onTemplateClick = onTemplateClick,
+                            onFavoriteClick = onTemplateFavoriteClick,
+                        )
+                        RecipeQuickList(
+                            state = state,
+                            onRecipeServingsChanged = onRecipeServingsChanged,
+                            onRecipeClick = onRecipeClick,
+                            onFavoriteClick = onRecipeFavoriteClick,
+                        )
+                    }
 
+                FoodAddMode.Manual ->
+                    ManualFoodForm(
+                        state = state,
+                        onProductNameChanged = onProductNameChanged,
+                        onBrandChanged = onBrandChanged,
+                        onQuantityChanged = onQuantityChanged,
+                        onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+                        onCaloriesChanged = onCaloriesChanged,
+                        onProteinChanged = onProteinChanged,
+                        onCarbsChanged = onCarbsChanged,
+                        onFatChanged = onFatChanged,
+                    )
+
+                FoodAddMode.Barcode ->
+                    BarcodeFoodForm(
+                        state = state,
+                        onBarcodeChanged = onBarcodeChanged,
+                        onLookupClick = onLookupClick,
+                        onScanClick = onScanClick,
+                        onProductNameChanged = onProductNameChanged,
+                        onBrandChanged = onBrandChanged,
+                        onQuantityChanged = onQuantityChanged,
+                        onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+                        onCaloriesChanged = onCaloriesChanged,
+                        onProteinChanged = onProteinChanged,
+                        onCarbsChanged = onCarbsChanged,
+                        onFatChanged = onFatChanged,
+                        onSaveProductClick = onSaveProductClick,
+                    )
+
+                FoodAddMode.Quick ->
+                    QuickCalorieForm(
+                        state = state,
+                        onQuickCaloriesChanged = onQuickCaloriesChanged,
+                        onQuickProteinChanged = onQuickProteinChanged,
+                        onQuickCarbsChanged = onQuickCarbsChanged,
+                        onQuickFatChanged = onQuickFatChanged,
+                        onQuickSaveFavoriteClick = onQuickSaveFavoriteClick,
+                    )
+
+                FoodAddMode.Ai ->
+                    AiLoggingForm(
+                        state = state,
+                        adjustExpanded = aiAdjustExpanded,
+                        onToggleAdjust = { aiAdjustExpanded = !aiAdjustExpanded },
+                        onAiTextChanged = onAiTextChanged,
+                        onAiTextDraftClick = onAiTextDraftClick,
+                        onAiVoiceClick = onAiVoiceClick,
+                        onAiPhotoClick = onAiPhotoClick,
+                        onProductNameChanged = onProductNameChanged,
+                        onBrandChanged = onBrandChanged,
+                        onQuantityChanged = onQuantityChanged,
+                        onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+                        onCaloriesChanged = onCaloriesChanged,
+                        onProteinChanged = onProteinChanged,
+                        onCarbsChanged = onCarbsChanged,
+                        onFatChanged = onFatChanged,
+                    )
+            }
+        }
+
+        // Pinned bottom action row — keep-adding sits beside the final log action.
         when (state.addMode) {
             FoodAddMode.Saved ->
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    SavedFoodPicker(
-                        state = state,
-                        onQuantityChanged = onSavedQuantityChanged,
-                        onSavedFoodClick = onSavedFoodClick,
-                        onServingSelected = onSavedFoodServingSelected,
-                    )
-                    TemplateQuickList(
-                        templates = state.mealTemplates,
-                        actionVerb = state.foodEntryActionVerb,
-                        onTemplateClick = onTemplateClick,
-                        onFavoriteClick = onTemplateFavoriteClick,
-                    )
-                    RecipeQuickList(
-                        state = state,
-                        onRecipeServingsChanged = onRecipeServingsChanged,
-                        onRecipeClick = onRecipeClick,
-                        onFavoriteClick = onRecipeFavoriteClick,
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    KeepAddingPill(
+                        checked = state.keepAddingFoods,
+                        onCheckedChange = onKeepAddingChanged,
                     )
                 }
 
             FoodAddMode.Manual ->
-                ManualFoodForm(
-                    state = state,
-                    onProductNameChanged = onProductNameChanged,
-                    onBrandChanged = onBrandChanged,
-                    onQuantityChanged = onQuantityChanged,
-                    onAmountServingChoiceSelected = onAmountServingChoiceSelected,
-                    onCaloriesChanged = onCaloriesChanged,
-                    onProteinChanged = onProteinChanged,
-                    onCarbsChanged = onCarbsChanged,
-                    onFatChanged = onFatChanged,
-                    onLogFoodClick = onLogFoodClick,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    KeepAddingPill(
+                        checked = state.keepAddingFoods,
+                        onCheckedChange = onKeepAddingChanged,
+                    )
+                    PillButton(
+                        text = if (state.isSaving) {
+                            state.foodEntryActionProgressLabel
+                        } else {
+                            state.foodEntryActionLabel("food")
+                        },
+                        onClick = onLogFoodClick,
+                        icon = Icons.Outlined.Add,
+                        enabled = !state.isSaving,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
 
             FoodAddMode.Barcode ->
-                BarcodeFoodForm(
-                    state = state,
-                    onBarcodeChanged = onBarcodeChanged,
-                    onLookupClick = onLookupClick,
-                    onScanClick = onScanClick,
-                    onProductNameChanged = onProductNameChanged,
-                    onBrandChanged = onBrandChanged,
-                    onQuantityChanged = onQuantityChanged,
-                    onAmountServingChoiceSelected = onAmountServingChoiceSelected,
-                    onCaloriesChanged = onCaloriesChanged,
-                    onProteinChanged = onProteinChanged,
-                    onCarbsChanged = onCarbsChanged,
-                    onFatChanged = onFatChanged,
-                    onLogFoodClick = onLogFoodClick,
-                    onSaveProductClick = onSaveProductClick,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    KeepAddingPill(
+                        checked = state.keepAddingFoods,
+                        onCheckedChange = onKeepAddingChanged,
+                    )
+                    PillButton(
+                        text = state.barcodeLogLabel(),
+                        onClick = onLogFoodClick,
+                        icon = Icons.Outlined.Add,
+                        enabled = !state.isLoading && !state.isSaving,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
 
-            FoodAddMode.Quick ->
-                QuickCalorieForm(
-                    state = state,
-                    onQuickCaloriesChanged = onQuickCaloriesChanged,
-                    onQuickProteinChanged = onQuickProteinChanged,
-                    onQuickCarbsChanged = onQuickCarbsChanged,
-                    onQuickFatChanged = onQuickFatChanged,
-                    onQuickLogClick = onQuickLogClick,
-                    onQuickSaveFavoriteClick = onQuickSaveFavoriteClick,
-                    onFavoriteQuickLogClick = onFavoriteQuickLogClick,
-                    onFavoriteQuickLogFavoriteClick = onFavoriteQuickLogFavoriteClick,
-                )
+            FoodAddMode.Quick -> {
+                val kcal = state.quickCaloriesKcal.toDoubleOrNull()?.roundToInt() ?: 0
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    KeepAddingPill(
+                        checked = state.keepAddingFoods,
+                        onCheckedChange = onKeepAddingChanged,
+                    )
+                    PillButton(
+                        text = if (state.isSaving) {
+                            state.foodEntryActionProgressLabel
+                        } else {
+                            "${state.foodEntryActionVerb} $kcal kcal"
+                        },
+                        onClick = onQuickLogClick,
+                        icon = Icons.Outlined.Bolt,
+                        enabled = !state.isSaving,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
 
             FoodAddMode.Ai ->
-                AiLoggingForm(
-                    state = state,
-                    onAiTextChanged = onAiTextChanged,
-                    onAiTextDraftClick = onAiTextDraftClick,
-                    onAiVoiceClick = onAiVoiceClick,
-                    onAiPhotoClick = onAiPhotoClick,
-                    onProductNameChanged = onProductNameChanged,
-                    onBrandChanged = onBrandChanged,
-                    onQuantityChanged = onQuantityChanged,
-                    onAmountServingChoiceSelected = onAmountServingChoiceSelected,
-                    onCaloriesChanged = onCaloriesChanged,
-                    onProteinChanged = onProteinChanged,
-                    onCarbsChanged = onCarbsChanged,
-                    onFatChanged = onFatChanged,
-                    onLogFoodClick = onLogFoodClick,
-                )
+                if (state.aiLoggingHasDraft) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        PillButton(
+                            text = "Adjust items",
+                            onClick = { aiAdjustExpanded = !aiAdjustExpanded },
+                            icon = Icons.Outlined.Tune,
+                            containerColor = MusFitTheme.colors.surfaceVariant,
+                            contentColor = MusFitTheme.colors.onSurface,
+                            height = 54.dp,
+                            modifier = Modifier.weight(1f),
+                        )
+                        PillButton(
+                            text = if (state.isSaving) state.foodEntryActionProgressLabel else "Log draft",
+                            onClick = onLogFoodClick,
+                            icon = Icons.Outlined.Add,
+                            enabled = !state.isSaving,
+                            height = 54.dp,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                } else {
+                    PillButton(
+                        text = "Review text",
+                        onClick = onAiTextDraftClick,
+                        enabled = !state.isSaving,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
         }
+    }
+}
+
+/** Log-pill label for the barcode mode: match → serving-aware, no match → save-and-log. */
+private fun FoodUiState.barcodeLogLabel(): String {
+    val result = lookupResult
+    return when {
+        isSaving -> foodEntryActionProgressLabel
+        result != null && result.servingQuantityGrams != null -> foodEntryActionLabel("1 serving")
+        result != null -> foodEntryActionLabel("food")
+        barcode.isNotBlank() -> saveAndFoodEntryActionLabel
+        else -> foodEntryActionLabel("food")
     }
 }
 
@@ -354,20 +456,6 @@ private fun FavoriteAddSection(
             }
         }
     }
-}
-
-@Composable
-private fun AddModeTabs(
-    selectedMode: FoodAddMode,
-    onModeSelected: (FoodAddMode) -> Unit,
-) {
-    MusFitSegmented(
-        options = FoodAddMode.entries.filter { it != FoodAddMode.Ai },
-        selected = selectedMode,
-        accent = tabAccentFor(AppDestination.Food),
-        label = { it.label },
-        onSelect = onModeSelected,
-    )
 }
 
 @Composable
@@ -577,9 +665,15 @@ private fun RecipeQuickList(
     }
 }
 
+/**
+ * 9g — AI text logging: honest local estimate, single editable draft. The
+ * primary action ("Review text" / "Log draft") is pinned by [AddFoodPanel].
+ */
 @Composable
 private fun AiLoggingForm(
     state: FoodUiState,
+    adjustExpanded: Boolean,
+    onToggleAdjust: () -> Unit,
     onAiTextChanged: (String) -> Unit,
     onAiTextDraftClick: () -> Unit,
     onAiVoiceClick: () -> Unit,
@@ -592,92 +686,193 @@ private fun AiLoggingForm(
     onProteinChanged: (String) -> Unit,
     onCarbsChanged: (String) -> Unit,
     onFatChanged: (String) -> Unit,
-    onLogFoodClick: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val accent = tabAccentFor(AppDestination.Food)
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Coral squircle badge — the AI flow keeps the brand-coral identity.
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(color = BrandCoral, shape = RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.AutoAwesome,
+                    contentDescription = null,
+                    tint = MusFitTheme.colors.onAccent,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Column {
+                Text(
+                    text = "Describe your meal",
+                    style = MusFitTheme.typography.headlineSmall.copy(fontSize = 22.sp),
+                    color = MusFitTheme.colors.onSurface,
+                )
+                Text(
+                    text = "Local estimate · to ${state.selectedMealTitle}",
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+        }
+
         OutlinedTextField(
             value = state.aiLoggingText,
             onValueChange = onAiTextChanged,
-            label = { Text("Describe meal") },
+            placeholder = {
+                Text(
+                    text = "2 scrambled eggs and a slice of toast…",
+                    color = MusFitTheme.colors.onSurfaceFaint,
+                )
+            },
             minLines = 2,
+            shape = RoundedCornerShape(24.dp),
+            trailingIcon = {
+                IconButton(onClick = onAiVoiceClick) {
+                    Icon(
+                        Icons.Outlined.Mic,
+                        contentDescription = "Voice input",
+                        tint = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MusFitTheme.colors.surface,
+                unfocusedContainerColor = MusFitTheme.colors.surface,
+                focusedBorderColor = MusFitTheme.colors.brand,
+                unfocusedBorderColor = Color.Transparent,
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(
-                onClick = onAiTextDraftClick,
-                enabled = !state.isSaving,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+        // Honesty banner — the AI estimate is local and approximate, always.
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MusFitTheme.colors.warningContainer,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("Review text", maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            MusFitOutlinedButton(
-                onClick = onAiVoiceClick,
-                enabled = !state.isSaving,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Voice", maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            MusFitOutlinedButton(
-                onClick = onAiPhotoClick,
-                enabled = !state.isSaving,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Photo", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.ErrorOutline,
+                        contentDescription = null,
+                        tint = MusFitTheme.colors.warning,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Text(
+                        text = "DRAFT — ESTIMATES, NOT MEASUREMENTS",
+                        style = MusFitTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.W800,
+                            letterSpacing = 0.6.sp,
+                        ),
+                        color = MusFitTheme.colors.warning,
+                    )
+                }
+                Text(
+                    text = "Amounts below are approximate. Adjust anything before logging.",
+                    style = MusFitTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.warning,
+                )
             }
         }
 
         if (state.aiLoggingHasDraft) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MusFitTheme.shapes.small,
-                color = MusFitTheme.colors.positiveContainer,
+            // The description stays editable after a draft exists — keep a
+            // re-estimate path so the field never becomes a dead control.
+            TextButton(
+                onClick = onAiTextDraftClick,
+                enabled = state.aiLoggingText.isNotBlank() && !state.isSaving,
             ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = "${state.aiLoggingDraftSourceLabel ?: "AI"} draft",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MusFitTheme.colors.brandInk,
+                Text(
+                    text = "Re-estimate from text",
+                    color = MusFitTheme.colors.brand,
+                )
+            }
+            FoodListItemRow(
+                index = 0,
+                count = 1,
+                title = state.productName.ifBlank { "AI draft" },
+                subtitle = state.aiLoggingDraftReview
+                    ?: "${state.aiLoggingDraftSourceLabel ?: "AI"} draft",
+                onClick = onToggleAdjust,
+                fallbackIcon = Icons.Filled.EggAlt,
+                badgeSize = 44.dp,
+                trailingContent = {
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = "Adjust draft",
+                        tint = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.size(19.dp),
                     )
-                    state.aiLoggingDraftReview?.let { review ->
+                },
+            )
+            state.amountNutritionPreview?.let { preview ->
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = accent.container,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
-                            text = review,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MusFitTheme.colors.onSurfaceVariant,
+                            text = "Draft total",
+                            style = MusFitTheme.typography.bodyMedium.copy(
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.W800,
+                            ),
+                            color = accent.onContainer,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = "${preview.caloriesKcal.roundToInt()} kcal",
+                            style = MusFitTheme.typography.titleLarge.copy(fontSize = 18.sp),
+                            color = accent.onContainer,
+                        )
+                        Text(
+                            text = " · C ${preview.carbsGrams.roundToInt()} · P ${preview.proteinGrams.roundToInt()} · F ${preview.fatGrams.roundToInt()}",
+                            style = MusFitTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                            color = accent.onContainerVariant,
+                            maxLines = 1,
                         )
                     }
                 }
             }
-            ProductFields(
-                state = state,
-                onProductNameChanged = onProductNameChanged,
-                onBrandChanged = onBrandChanged,
-                onQuantityChanged = onQuantityChanged,
-                onAmountServingChoiceSelected = onAmountServingChoiceSelected,
-            )
-            NutritionFields(
-                state = state,
-                onCaloriesChanged = onCaloriesChanged,
-                onProteinChanged = onProteinChanged,
-                onCarbsChanged = onCarbsChanged,
-                onFatChanged = onFatChanged,
-            )
-            Button(
-                onClick = onLogFoodClick,
-                enabled = !state.isSaving,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-            ) {
+            if (adjustExpanded) {
+                ProductFields(
+                    state = state,
+                    onProductNameChanged = onProductNameChanged,
+                    onBrandChanged = onBrandChanged,
+                    onQuantityChanged = onQuantityChanged,
+                    onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+                )
+                NutritionFields(
+                    state = state,
+                    onCaloriesChanged = onCaloriesChanged,
+                    onProteinChanged = onProteinChanged,
+                    onCarbsChanged = onCarbsChanged,
+                    onFatChanged = onFatChanged,
+                )
+            }
+        } else {
+            // Photo capture is still a placeholder — keep it quiet.
+            TextButton(onClick = onAiPhotoClick) {
                 Text(
-                    if (state.isSaving) {
-                        state.foodEntryActionProgressLabel
-                    } else {
-                        state.foodEntryActionLabel("reviewed food")
-                    },
+                    text = "Photo · placeholder",
+                    color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
         }
@@ -695,7 +890,6 @@ private fun ManualFoodForm(
     onProteinChanged: (String) -> Unit,
     onCarbsChanged: (String) -> Unit,
     onFatChanged: (String) -> Unit,
-    onLogFoodClick: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ProductFields(
@@ -705,6 +899,9 @@ private fun ManualFoodForm(
             onQuantityChanged = onQuantityChanged,
             onAmountServingChoiceSelected = onAmountServingChoiceSelected,
         )
+        state.amountNutritionPreview?.let { preview ->
+            AmountNutritionPreview(preview = preview)
+        }
         NutritionFields(
             state = state,
             onCaloriesChanged = onCaloriesChanged,
@@ -712,17 +909,13 @@ private fun ManualFoodForm(
             onCarbsChanged = onCarbsChanged,
             onFatChanged = onFatChanged,
         )
-        Button(
-            onClick = onLogFoodClick,
-            enabled = !state.isSaving,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-        ) {
-            Text(if (state.isSaving) state.foodEntryActionProgressLabel else state.foodEntryActionLabel("food"))
-        }
     }
 }
 
+/**
+ * Barcode entry + 9d match review. The log pill is pinned by [AddFoodPanel];
+ * fields default hidden behind "Edit details" when a lookup match landed.
+ */
 @Composable
 private fun BarcodeFoodForm(
     state: FoodUiState,
@@ -737,39 +930,45 @@ private fun BarcodeFoodForm(
     onProteinChanged: (String) -> Unit,
     onCarbsChanged: (String) -> Unit,
     onFatChanged: (String) -> Unit,
-    onLogFoodClick: () -> Unit,
     onSaveProductClick: () -> Unit,
 ) {
+    val accent = tabAccentFor(AppDestination.Food)
+    var editDetails by rememberSaveable(state.lookupResult == null) {
+        mutableStateOf(state.lookupResult == null)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
+            GroupedFieldCell(
+                label = "Barcode",
                 value = state.barcode,
                 onValueChange = onBarcodeChanged,
-                label = { Text("Barcode") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(20.dp),
+                keyboardType = KeyboardType.Number,
                 modifier = Modifier.weight(1f),
             )
-            Button(
+            PillButton(
+                text = if (state.isLoading) "Loading" else "Lookup",
                 onClick = onLookupClick,
                 enabled = !state.isLoading && !state.isSaving,
-                modifier = Modifier.width(108.dp),
-            ) {
-                Text(if (state.isLoading) "Loading" else "Lookup")
-            }
+                containerColor = MusFitTheme.colors.surfaceVariant,
+                contentColor = MusFitTheme.colors.onSurface,
+            )
         }
 
-        MusFitOutlinedButton(
+        PillButton(
+            text = "Scan barcode",
             onClick = onScanClick,
+            icon = Icons.Outlined.QrCodeScanner,
             enabled = !state.isLoading && !state.isSaving,
+            containerColor = MusFitTheme.colors.surfaceVariant,
+            contentColor = MusFitTheme.colors.onSurface,
+            height = 52.dp,
             modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Scan barcode")
-        }
+        )
 
         if (state.lookupResult != null) {
             BarcodeLookupSummary(state = state)
@@ -777,94 +976,170 @@ private fun BarcodeFoodForm(
 
         NutritionLabelScanReview(state = state)
 
-        ProductFields(
-            state = state,
-            onProductNameChanged = onProductNameChanged,
-            onBrandChanged = onBrandChanged,
-            onQuantityChanged = onQuantityChanged,
-            onAmountServingChoiceSelected = onAmountServingChoiceSelected,
-        )
-        NutritionFields(
-            state = state,
-            onCaloriesChanged = onCaloriesChanged,
-            onProteinChanged = onProteinChanged,
-            onCarbsChanged = onCarbsChanged,
-            onFatChanged = onFatChanged,
-        )
-        if (state.lookupResult != null || state.barcode.isNotBlank()) {
-            Row(
+        if (state.lookupResult != null && !editDetails) {
+            PillButton(
+                text = "Edit details",
+                onClick = { editDetails = true },
+                icon = Icons.Outlined.Edit,
+                containerColor = accent.container,
+                contentColor = accent.onContainer,
+                height = 54.dp,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                MusFitOutlinedButton(
-                    onClick = onSaveProductClick,
-                    enabled = !state.isLoading && !state.isSaving,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(if (state.isSaving) "Saving" else "Save product")
-                }
-                Button(
-                    onClick = onLogFoodClick,
-                    enabled = !state.isLoading && !state.isSaving,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-                ) {
-                    Text(
-                        if (state.isSaving) {
-                            state.foodEntryActionProgressLabel
-                        } else if (state.lookupResult == null) {
-                            state.saveAndFoodEntryActionLabel
-                        } else {
-                            state.foodEntryActionLabel("food")
-                        },
-                    )
-                }
-            }
+            )
         } else {
-            Button(
-                onClick = onLogFoodClick,
+            ProductFields(
+                state = state,
+                onProductNameChanged = onProductNameChanged,
+                onBrandChanged = onBrandChanged,
+                onQuantityChanged = onQuantityChanged,
+                onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+            )
+            state.amountNutritionPreview?.let { preview ->
+                AmountNutritionPreview(preview = preview)
+            }
+            NutritionFields(
+                state = state,
+                onCaloriesChanged = onCaloriesChanged,
+                onProteinChanged = onProteinChanged,
+                onCarbsChanged = onCarbsChanged,
+                onFatChanged = onFatChanged,
+            )
+        }
+
+        if (state.lookupResult != null || state.barcode.isNotBlank()) {
+            MusFitOutlinedButton(
+                onClick = onSaveProductClick,
                 enabled = !state.isLoading && !state.isSaving,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text(if (state.isSaving) state.foodEntryActionProgressLabel else state.foodEntryActionLabel("barcode food"))
+                Text(if (state.isSaving) "Saving" else "Save to database")
             }
         }
     }
 }
 
+/**
+ * 9d match review: match-confidence chip, product row, per-100g stat tiles
+ * and the honesty line. Rendered whenever an Open Food Facts lookup landed.
+ */
 @Composable
 private fun BarcodeLookupSummary(
     state: FoodUiState,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MusFitTheme.shapes.small,
-        color = MusFitTheme.colors.positiveContainer,
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+    val accent = tabAccentFor(AppDestination.Food)
+    val servingGrams = state.lookupResult?.servingQuantityGrams
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(
+            shape = RoundedCornerShape(99.dp),
+            color = accent.container,
+            contentColor = accent.onContainer,
         ) {
-            Text(
-                text = "Product loaded",
-                style = MaterialTheme.typography.titleSmall,
-                color = MusFitTheme.colors.brandInk,
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    contentDescription = null,
+                    tint = MusFitTheme.colors.brand,
+                    modifier = Modifier.size(15.dp),
+                )
+                Text(
+                    text = "Match found · Open Food Facts",
+                    style = MusFitTheme.typography.labelMedium.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.W800,
+                    ),
+                    maxLines = 1,
+                )
+            }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ExpressiveBadge(
+                icon = Icons.Filled.Flatware,
+                shape = expressiveBadgeShapeFor(0),
+                containerColor = accent.container,
+                contentColor = accent.onContainerVariant,
+                size = 52.dp,
+                iconSize = 24.dp,
             )
-            Text(
-                text = listOfNotNull(
-                    state.productName.takeIf { it.isNotBlank() },
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = state.productName.ifBlank { "Scanned product" },
+                    style = MusFitTheme.typography.headlineSmall.copy(fontSize = 19.sp),
+                    color = MusFitTheme.colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val subtitle = listOfNotNull(
                     state.brand.takeIf { it.isNotBlank() },
-                    state.barcode.takeIf { it.isNotBlank() },
-                ).joinToString(" - "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                    servingGrams?.let { "1 serving = ${it.formatNutritionDisplay()} g" },
+                ).joinToString(" · ")
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        text = subtitle,
+                        style = MusFitTheme.typography.bodySmall,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            FoodStatTile(
+                label = "KCAL",
+                labelColor = MusFitTheme.colors.onSurfaceVariant,
+                value = state.caloriesPer100g.ifBlank { "—" },
+                index = 0,
+                count = 4,
+                modifier = Modifier.weight(1f),
+            )
+            FoodStatTile(
+                label = "CARBS",
+                labelColor = MusFitTheme.colors.macroCarbs,
+                value = statTileGrams(state.carbsPer100g),
+                index = 1,
+                count = 4,
+                modifier = Modifier.weight(1f),
+            )
+            FoodStatTile(
+                label = "PROTEIN",
+                labelColor = MusFitTheme.colors.macroProtein,
+                value = statTileGrams(state.proteinPer100g),
+                index = 2,
+                count = 4,
+                modifier = Modifier.weight(1f),
+            )
+            FoodStatTile(
+                label = "FAT",
+                labelColor = MusFitTheme.colors.macroFat,
+                value = statTileGrams(state.fatPer100g),
+                index = 3,
+                count = 4,
+                modifier = Modifier.weight(1f),
             )
         }
+
+        Text(
+            text = "Per 100 g, imported values. Review and edit before saving — imports aren't always exact.",
+            style = MusFitTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
     }
 }
+
+private fun statTileGrams(raw: String): String =
+    raw.takeIf { it.isNotBlank() }?.let { "$it g" } ?: "—"
 
 @Composable
 private fun NutritionLabelScanReview(
@@ -879,11 +1154,11 @@ private fun NutritionLabelScanReview(
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MusFitTheme.shapes.small,
+        shape = RoundedCornerShape(24.dp),
         color = MusFitTheme.colors.positiveContainer,
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
@@ -926,76 +1201,97 @@ internal fun CreateFoodForm(
     onLogFood: () -> Unit,
     onCreateRecipe: () -> Unit,
 ) {
-    // Outer = section rhythm (10dp); inner field-group gaps (ProductFields/NutritionFields)
-    // are tighter (8dp) so grouping reads as inner < outer, per M3 spacing hierarchy.
+    val accent = tabAccentFor(AppDestination.Food)
+    var editDetails by rememberSaveable(state.lookupResult == null) {
+        mutableStateOf(state.lookupResult == null)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            MusFitOutlinedButton(
+            PillButton(
+                text = "Scan barcode",
                 onClick = onScanBarcode,
+                icon = Icons.Outlined.QrCodeScanner,
                 enabled = !state.isLoading && !state.isSaving,
+                containerColor = MusFitTheme.colors.surfaceVariant,
+                contentColor = MusFitTheme.colors.onSurface,
+                height = 52.dp,
                 modifier = Modifier.weight(1f),
-            ) {
-                Icon(Icons.Outlined.QrCodeScanner, contentDescription = null)
-                Spacer(Modifier.width(6.dp))
-                Text("Scan barcode")
-            }
-            MusFitOutlinedButton(
+            )
+            PillButton(
+                text = "Scan label",
                 onClick = onScanLabel,
+                icon = Icons.Outlined.DocumentScanner,
                 enabled = !state.isLoading && !state.isSaving,
+                containerColor = MusFitTheme.colors.surfaceVariant,
+                contentColor = MusFitTheme.colors.onSurface,
+                height = 52.dp,
                 modifier = Modifier.weight(1f),
-            ) {
-                Icon(Icons.Outlined.DocumentScanner, contentDescription = null)
-                Spacer(Modifier.width(6.dp))
-                Text("Scan label")
-            }
+            )
         }
 
         if (state.lookupResult != null) {
             BarcodeLookupSummary(state = state)
         }
 
-        ProductFields(
-            state = state,
-            onProductNameChanged = onProductNameChanged,
-            onBrandChanged = onBrandChanged,
-            onQuantityChanged = onQuantityChanged,
-            onAmountServingChoiceSelected = onAmountServingChoiceSelected,
-        )
-        // Live total for the chosen serving, directly under the amount so it visibly updates as you type.
-        state.amountNutritionPreview?.let { preview ->
-            AmountNutritionPreview(preview = preview)
+        if (state.lookupResult != null && !editDetails) {
+            PillButton(
+                text = "Edit details",
+                onClick = { editDetails = true },
+                icon = Icons.Outlined.Edit,
+                containerColor = accent.container,
+                contentColor = accent.onContainer,
+                height = 54.dp,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            ProductFields(
+                state = state,
+                onProductNameChanged = onProductNameChanged,
+                onBrandChanged = onBrandChanged,
+                onQuantityChanged = onQuantityChanged,
+                onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+            )
+            // Live total for the chosen serving, directly under the amount.
+            state.amountNutritionPreview?.let { preview ->
+                AmountNutritionPreview(preview = preview)
+            }
+            NutritionFields(
+                state = state,
+                onCaloriesChanged = onCaloriesChanged,
+                onProteinChanged = onProteinChanged,
+                onCarbsChanged = onCarbsChanged,
+                onFatChanged = onFatChanged,
+            )
         }
-        NutritionFields(
-            state = state,
-            onCaloriesChanged = onCaloriesChanged,
-            onProteinChanged = onProteinChanged,
-            onCarbsChanged = onCarbsChanged,
-            onFatChanged = onFatChanged,
-            showAmountPreview = false,
-        )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            MusFitOutlinedButton(
+            PillButton(
+                text = if (state.isSaving) "Saving" else "Save to database",
                 onClick = onSaveProduct,
                 enabled = !state.isLoading && !state.isSaving,
+                containerColor = MusFitTheme.colors.surfaceVariant,
+                contentColor = MusFitTheme.colors.onSurface,
+                height = 54.dp,
                 modifier = Modifier.weight(1f),
-            ) {
-                Text(if (state.isSaving) "Saving" else "Save to database")
-            }
-            Button(
+            )
+            PillButton(
+                text = when {
+                    state.isSaving -> state.foodEntryActionProgressLabel
+                    state.lookupResult?.servingQuantityGrams != null -> state.foodEntryActionLabel("1 serving")
+                    else -> state.foodEntryActionLabel("food")
+                },
                 onClick = onLogFood,
+                icon = Icons.Outlined.Add,
                 enabled = !state.isLoading && !state.isSaving,
+                height = 54.dp,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-            ) {
-                Text(if (state.isSaving) state.foodEntryActionProgressLabel else state.foodEntryActionLabel("food"))
-            }
+            )
         }
 
         HorizontalDivider(color = MusFitTheme.colors.outline)
@@ -1003,6 +1299,34 @@ internal fun CreateFoodForm(
             Text("Create a meal or recipe instead")
         }
     }
+}
+
+/** White grouped field cell — the kit's label-over-value form cell. */
+@Composable
+private fun GroupedFieldCell(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    shape: RoundedCornerShape,
+    modifier: Modifier = Modifier,
+    labelColor: Color? = null,
+    keyboardType: KeyboardType = KeyboardType.Text,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, color = labelColor ?: MusFitTheme.colors.onSurfaceFaint) },
+        singleLine = true,
+        shape = shape,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MusFitTheme.colors.surface,
+            unfocusedContainerColor = MusFitTheme.colors.surface,
+            focusedBorderColor = MusFitTheme.colors.brand,
+            unfocusedBorderColor = Color.Transparent,
+        ),
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -1013,45 +1337,48 @@ private fun ProductFields(
     onQuantityChanged: (String) -> Unit,
     onAmountServingChoiceSelected: (String) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        GroupedFieldCell(
+            label = "Food name",
             value = state.productName,
             onValueChange = onProductNameChanged,
-            label = { Text("Food name") },
-            singleLine = true,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 8.dp, bottomEnd = 8.dp),
             modifier = Modifier.fillMaxWidth(),
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            OutlinedTextField(
+            GroupedFieldCell(
+                label = "Brand",
                 value = state.brand,
                 onValueChange = onBrandChanged,
-                label = { Text("Brand") },
-                singleLine = true,
+                shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 20.dp, bottomEnd = 8.dp),
                 modifier = Modifier.weight(1f),
             )
-            OutlinedTextField(
+            GroupedFieldCell(
+                label = "Amount (g)",
                 value = state.quantityGrams,
                 onValueChange = onQuantityChanged,
-                label = { Text("Amount (g)") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 20.dp),
+                keyboardType = KeyboardType.Decimal,
                 modifier = Modifier.weight(1f),
             )
         }
         if (state.amountServingChoices.isNotEmpty()) {
             val selectedAmount = state.quantityGrams.toDoubleOrNull()
             Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 state.amountServingChoices.forEach { choice ->
-                    FilterChip(
+                    SelectableChip(
+                        text = choice.label,
                         selected = selectedAmount == choice.grams,
                         onClick = { onAmountServingChoiceSelected(choice.id) },
-                        label = { Text(choice.label) },
+                        unselectedContainer = MusFitTheme.colors.surfaceVariant,
                     )
                 }
             }
@@ -1066,134 +1393,112 @@ private fun NutritionFields(
     onProteinChanged: (String) -> Unit,
     onCarbsChanged: (String) -> Unit,
     onFatChanged: (String) -> Unit,
-    showAmountPreview: Boolean = true,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "Per 100 g",
-            style = MaterialTheme.typography.titleSmall,
-            color = MusFitTheme.colors.onSurface,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SmallNumberField(
-                label = "Calories",
-                value = state.caloriesPer100g,
-                onValueChange = onCaloriesChanged,
-                modifier = Modifier.weight(1f),
-            )
-            SmallNumberField(
-                label = "Protein",
-                value = state.proteinPer100g,
-                onValueChange = onProteinChanged,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SmallNumberField(
-                label = "Carbs",
-                value = state.carbsPer100g,
-                onValueChange = onCarbsChanged,
-                modifier = Modifier.weight(1f),
-            )
-            SmallNumberField(
-                label = "Fat",
-                value = state.fatPer100g,
-                onValueChange = onFatChanged,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        if (showAmountPreview) {
-            state.amountNutritionPreview?.let { preview ->
-                AmountNutritionPreview(preview = preview)
+        SectionOverline("NUTRITION PER 100 G")
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                GroupedFieldCell(
+                    label = "Calories",
+                    value = state.caloriesPer100g,
+                    onValueChange = onCaloriesChanged,
+                    shape = gridGroupShape(row = 0, rowCount = 2, column = 0, columnCount = 2, outer = 20.dp),
+                    keyboardType = KeyboardType.Decimal,
+                    modifier = Modifier.weight(1f),
+                )
+                GroupedFieldCell(
+                    label = "Carbs",
+                    value = state.carbsPer100g,
+                    onValueChange = onCarbsChanged,
+                    shape = gridGroupShape(row = 0, rowCount = 2, column = 1, columnCount = 2, outer = 20.dp),
+                    labelColor = MusFitTheme.colors.macroCarbs,
+                    keyboardType = KeyboardType.Decimal,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                GroupedFieldCell(
+                    label = "Protein",
+                    value = state.proteinPer100g,
+                    onValueChange = onProteinChanged,
+                    shape = gridGroupShape(row = 1, rowCount = 2, column = 0, columnCount = 2, outer = 20.dp),
+                    labelColor = MusFitTheme.colors.macroProtein,
+                    keyboardType = KeyboardType.Decimal,
+                    modifier = Modifier.weight(1f),
+                )
+                GroupedFieldCell(
+                    label = "Fat",
+                    value = state.fatPer100g,
+                    onValueChange = onFatChanged,
+                    shape = gridGroupShape(row = 1, rowCount = 2, column = 1, columnCount = 2, outer = 20.dp),
+                    labelColor = MusFitTheme.colors.macroFat,
+                    keyboardType = KeyboardType.Decimal,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
 }
 
+/** Live-preview hero (9c grammar): big kcal on the green container. */
 @Composable
 private fun AmountNutritionPreview(
     preview: FoodAmountNutritionPreviewUiState,
 ) {
-    // The one tonal summary chip in the add forms — live totals for the chosen amount.
+    val accent = tabAccentFor(AppDestination.Food)
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MusFitTheme.shapes.medium,
-        color = MusFitTheme.colors.positiveContainer,
+        shape = RoundedCornerShape(28.dp),
+        color = accent.container,
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = "${preview.caloriesKcal.roundToInt()}",
+                    style = MusFitTheme.typography.headlineMedium,
+                    color = accent.onContainer,
+                    maxLines = 1,
+                )
+                Text(
+                    text = "kcal",
+                    style = MusFitTheme.typography.bodySmall.copy(fontWeight = FontWeight.W600),
+                    color = accent.onContainerVariant,
+                    modifier = Modifier.padding(start = 5.dp, bottom = 5.dp),
+                )
+            }
             Text(
-                text = "For ${preview.quantityGrams.formatNutritionDisplay()} g",
-                style = MaterialTheme.typography.titleSmall,
-                color = MusFitTheme.colors.brandInk,
+                text = "for ${preview.quantityGrams.formatNutritionDisplay()} g · " +
+                    "C ${preview.carbsGrams.formatNutritionDisplay()} · " +
+                    "P ${preview.proteinGrams.formatNutritionDisplay()} · " +
+                    "F ${preview.fatGrams.formatNutritionDisplay()}",
+                style = MusFitTheme.typography.bodySmall,
+                color = accent.onContainerVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                AmountNutritionMetric(
-                    label = "Calories",
-                    value = "${preview.caloriesKcal.roundToInt()} kcal",
-                    modifier = Modifier.weight(1f),
-                )
-                AmountNutritionMetric(
-                    label = "Protein",
-                    value = "${preview.proteinGrams.formatNutritionDisplay()} g",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                AmountNutritionMetric(
-                    label = "Carbs",
-                    value = "${preview.carbsGrams.formatNutritionDisplay()} g",
-                    modifier = Modifier.weight(1f),
-                )
-                AmountNutritionMetric(
-                    label = "Fat",
-                    value = "${preview.fatGrams.formatNutritionDisplay()} g",
-                    modifier = Modifier.weight(1f),
-                )
-            }
         }
     }
 }
 
-@Composable
-private fun AmountNutritionMetric(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MusFitTheme.colors.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MusFitTheme.colors.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
+private fun quickInputsMatchPreset(state: FoodUiState, preset: QuickCaloriePresetUiState): Boolean =
+    state.quickCaloriesKcal.toDoubleOrNull() == preset.caloriesKcal &&
+        state.quickProteinGrams.toDoubleOrNull() == preset.proteinGrams &&
+        state.quickCarbsGrams.toDoubleOrNull() == preset.carbsGrams &&
+        state.quickFatGrams.toDoubleOrNull() == preset.fatGrams
 
+/**
+ * 9f — Quick calories: big ±25 stepper hero, favorite preset chips (tap fills
+ * all four inputs), compact macro fields. Log pill pinned by [AddFoodPanel].
+ */
 @Composable
 private fun QuickCalorieForm(
     state: FoodUiState,
@@ -1201,60 +1506,78 @@ private fun QuickCalorieForm(
     onQuickProteinChanged: (String) -> Unit,
     onQuickCarbsChanged: (String) -> Unit,
     onQuickFatChanged: (String) -> Unit,
-    onQuickLogClick: () -> Unit,
     onQuickSaveFavoriteClick: () -> Unit,
-    onFavoriteQuickLogClick: (String) -> Unit,
-    onFavoriteQuickLogFavoriteClick: (String, Boolean) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (state.quickCaloriePresets.isNotEmpty()) {
-            SectionTitle("Favorite quick logs")
-            Column(modifier = Modifier.fillMaxWidth()) {
-                state.quickCaloriePresets.forEach { preset ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(preset.name, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                listOf(
-                                    "${preset.caloriesKcal.roundToInt()} kcal",
-                                    "P ${preset.proteinGrams.roundToInt()}",
-                                    "C ${preset.carbsGrams.roundToInt()}",
-                                    "F ${preset.fatGrams.roundToInt()}",
-                                    if (preset.isFavorite) "Favorite" else "Saved",
-                                ).joinToString(" - "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MusFitTheme.colors.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            MusFitOutlinedButton(onClick = { onFavoriteQuickLogFavoriteClick(preset.id, !preset.isFavorite) }) {
-                                Text(if (preset.isFavorite) "Starred" else "Star")
-                            }
-                            MusFitOutlinedButton(onClick = { onFavoriteQuickLogClick(preset.id) }) {
-                                Text(state.foodEntryActionVerb)
-                            }
-                        }
-                    }
-                    HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MusFitTheme.colors.surface,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
+            ) {
+                StepperCircleButton(
+                    icon = Icons.Outlined.Remove,
+                    contentDescription = "Decrease calories",
+                    onClick = { onQuickCaloriesChanged(quickStepperNext(state.quickCaloriesKcal, -QUICK_KCAL_STEP)) },
+                    size = 56.dp,
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(
+                        text = state.quickCaloriesKcal.ifBlank { "0" },
+                        style = MusFitTheme.typography.displayLarge,
+                        color = MusFitTheme.colors.onSurface,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "kcal · steps of $QUICK_KCAL_STEP",
+                        style = MusFitTheme.typography.bodySmall.copy(fontWeight = FontWeight.W600),
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
                 }
+                StepperCircleButton(
+                    icon = Icons.Outlined.Add,
+                    contentDescription = "Increase calories",
+                    onClick = { onQuickCaloriesChanged(quickStepperNext(state.quickCaloriesKcal, QUICK_KCAL_STEP)) },
+                    size = 56.dp,
+                    filled = true,
+                )
             }
         }
-        OutlinedTextField(
-            value = state.quickCaloriesKcal,
-            onValueChange = onQuickCaloriesChanged,
-            label = { Text("Calories") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth(),
-        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionOverline("FAVORITE PRESETS")
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                state.quickCaloriePresets.forEach { preset ->
+                    SelectableChip(
+                        text = "${preset.name} · ${preset.caloriesKcal.roundToInt()}",
+                        selected = quickInputsMatchPreset(state, preset),
+                        onClick = {
+                            onQuickCaloriesChanged(preset.caloriesKcal.formatNutritionDisplay())
+                            onQuickProteinChanged(preset.proteinGrams.formatNutritionDisplay())
+                            onQuickCarbsChanged(preset.carbsGrams.formatNutritionDisplay())
+                            onQuickFatChanged(preset.fatGrams.formatNutritionDisplay())
+                        },
+                    )
+                }
+                SelectableChip(
+                    text = "Save preset",
+                    selected = false,
+                    onClick = onQuickSaveFavoriteClick,
+                    unselectedContent = MusFitTheme.colors.brand,
+                    leadingIcon = Icons.Outlined.Add,
+                )
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1277,23 +1600,6 @@ private fun QuickCalorieForm(
                 onValueChange = onQuickFatChanged,
                 modifier = Modifier.weight(1f),
             )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            MusFitOutlinedButton(
-                onClick = onQuickSaveFavoriteClick,
-                enabled = !state.isSaving,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Save favorite")
-            }
-            Button(
-                onClick = onQuickLogClick,
-                enabled = !state.isSaving,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-            ) {
-                Text(if (state.isSaving) state.foodEntryActionProgressLabel else state.foodEntryActionVerb)
-            }
         }
     }
 }

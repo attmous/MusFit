@@ -1797,6 +1797,61 @@ class FoodViewModelTest {
     }
 
     @Test
+    fun onMealTypeChanged_refreshesSameAsYesterdayForNewMeal() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openAddFood("breakfast")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onMealTypeChanged("lunch")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("breakfast", "lunch"), repository.sameAsYesterdayRequests)
+        assertEquals("lunch", viewModel.state.value.mealType)
+        assertEquals("Lunch", viewModel.state.value.selectedMealTitle)
+    }
+
+    @Test
+    fun logSameAsYesterday_logsEveryItemIntoSelectedMeal() = runTest {
+        val repository = FakeFoodRepository()
+        repository.sameAsYesterdayItems = listOf(
+            SavedFoodItem(
+                id = "food-1",
+                name = "Greek yogurt",
+                brand = "Kitchen",
+                defaultServingGrams = 200.0,
+                nutritionPer100g = FoodNutrition(60.0, 10.0, 4.0, 1.0),
+            ),
+            SavedFoodItem(
+                id = "food-3",
+                name = "Oats",
+                brand = "Pantry",
+                defaultServingGrams = 40.0,
+                nutritionPer100g = FoodNutrition(389.0, 17.0, 66.0, 7.0),
+            ),
+        )
+        val viewModel = FoodViewModel(
+            provider = FakeProductProvider(),
+            repository = repository,
+        )
+
+        viewModel.openAddFood("lunch")
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.logSameAsYesterday()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("food-1", "food-3"), repository.savedFoodLogs.map { it.foodId })
+        assertEquals(listOf("lunch", "lunch"), repository.savedFoodLogs.map { it.mealType })
+        assertEquals(200.0, repository.savedFoodLogs[0].quantityGrams, 0.01)
+        assertEquals(40.0, repository.savedFoodLogs[1].quantityGrams, 0.01)
+        assertEquals("Logged 2 foods", viewModel.state.value.message)
+        assertFalse(viewModel.state.value.isAddPanelVisible)
+    }
+
+    @Test
     fun quickLog_logsCaloriesIntoSelectedMeal() = runTest {
         val repository = FakeFoodRepository()
         val viewModel = FoodViewModel(
@@ -4664,6 +4719,9 @@ class FoodViewModelTest {
         private val foodGoalFlow = MutableStateFlow(foodGoal)
         var savedLog: FoodLogInput? = null
         var savedFoodLog: SavedFoodLogInput? = null
+        val savedFoodLogs = mutableListOf<SavedFoodLogInput>()
+        var sameAsYesterdayItems: List<SavedFoodItem> = emptyList()
+        val sameAsYesterdayRequests = mutableListOf<String>()
         var plannedFoodLog: SavedFoodLogInput? = null
         var quickLog: QuickCalorieLogInput? = null
         var favoriteQuickLogSave: QuickCaloriePresetInput? = null
@@ -4739,14 +4797,17 @@ class FoodViewModelTest {
         override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
             flowOf(emptyList())
 
-        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> =
-            flowOf(emptyList())
+        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> {
+            sameAsYesterdayRequests += mealType
+            return flowOf(sameAsYesterdayItems)
+        }
 
         override suspend fun getFoodDetail(foodId: String): SavedFoodItem? =
             savedFoodsFlow.value.firstOrNull { it.id == foodId }
 
         override suspend fun logSavedFood(input: SavedFoodLogInput): String {
             savedFoodLog = input
+            savedFoodLogs += input
             return "meal-item-1"
         }
 

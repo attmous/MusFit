@@ -3161,6 +3161,12 @@ class FoodViewModel @Inject constructor(
                 message = null,
             )
         }
+        // Keep the same-as-yesterday suggestions in sync with the new target
+        // meal; the snapshot from openAddFood belongs to the previous meal.
+        viewModelScope.launch {
+            val items = repository.observeSameAsYesterday(value, state.value.selectedDate).first()
+            mutableState.update { it.copy(sameAsYesterday = items.map { food -> food.toUiState() }) }
+        }
     }
 
     fun onQuantityChanged(value: String) {
@@ -3465,6 +3471,60 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         message = error.message ?: "Failed to log food",
+                    )
+                }
+            }
+        }
+    }
+
+    fun logSameAsYesterday() {
+        val currentState = state.value
+        if (currentState.isSaving) {
+            return
+        }
+        if (currentState.isPlanningMode && !currentState.selectedDate.isWithinFoodPlanningHorizon()) {
+            mutableState.update { it.copy(message = FOOD_PLANNING_LIMIT_MESSAGE) }
+            return
+        }
+        val items = currentState.sameAsYesterday
+        if (items.isEmpty()) {
+            return
+        }
+        if (!markSaving()) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                items.forEach { food ->
+                    val input = SavedFoodLogInput(
+                        foodId = food.id,
+                        mealType = currentState.mealType,
+                        quantityGrams = food.defaultServingGrams,
+                        date = currentState.selectedDate,
+                    )
+                    if (currentState.isPlanningMode) {
+                        repository.planSavedFood(input)
+                    } else {
+                        repository.logSavedFood(input)
+                    }
+                }
+                val noun = if (items.size == 1) "food" else "${items.size} foods"
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        isAddPanelVisible = currentState.keepAddingFoods,
+                        message = if (currentState.isPlanningMode) "Planned $noun" else "Logged $noun",
+                    )
+                }
+            } catch (error: CancellationException) {
+                mutableState.update { it.copy(isSaving = false) }
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        isSaving = false,
+                        message = error.message ?: "Failed to log foods",
                     )
                 }
             }
