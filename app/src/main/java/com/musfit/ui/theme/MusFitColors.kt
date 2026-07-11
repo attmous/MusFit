@@ -32,9 +32,21 @@ data class MusFitColors(
     val warningContainer: Color,
     val water: Color,
     val waterFill: Color,
+    val macroCarbsTrack: Color,
+    val macroProteinTrack: Color,
+    val macroFatTrack: Color,
+    val destructiveContainer: Color,
+    val onDestructiveContainer: Color,
+    val trustChip: Color,
+    val onTrustChip: Color,
+    val chipSelected: Color,
+    val onChipSelected: Color,
 ) {
     /** Index order preserved from the legacy `MacroColors` list: [carbs, protein, fat]. */
     val macroColors: List<Color> get() = listOf(macroCarbs, macroProtein, macroFat)
+
+    /** Wavy-progress track tints on white cards, same [carbs, protein, fat] order. */
+    val macroTracks: List<Color> get() = listOf(macroCarbsTrack, macroProteinTrack, macroFatTrack)
 }
 
 val lightMusFitColors = MusFitColors(
@@ -67,6 +79,16 @@ val lightMusFitColors = MusFitColors(
     warningContainer = AmberContainer,
     water = Water,
     waterFill = WaterFill,
+    macroCarbsTrack = MacroCarbsTrack,
+    macroProteinTrack = MacroProteinTrack,
+    macroFatTrack = MacroFatTrack,
+    destructiveContainer = DestructiveContainer,
+    onDestructiveContainer = DestructiveInk,
+    trustChip = TrustChipFill,
+    onTrustChip = TrustChipInk,
+    // Near-black "dark chip" for selected filter/sort/unit chips.
+    chipSelected = ChipDark,
+    onChipSelected = OnChipDark,
 )
 
 val darkMusFitColors = MusFitColors(
@@ -96,6 +118,16 @@ val darkMusFitColors = MusFitColors(
     warningContainer = AmberContainerDark,
     water = WaterDark,
     waterFill = WaterFillDark,
+    macroCarbsTrack = MacroCarbsTrackDark,
+    macroProteinTrack = MacroProteinTrackDark,
+    macroFatTrack = MacroFatTrackDark,
+    destructiveContainer = DestructiveContainerDark,
+    onDestructiveContainer = DestructiveInkDark,
+    trustChip = DarkTonalFill,
+    onTrustChip = TrustChipInkDark,
+    // Dark theme inverts the chip: light fill, near-black text.
+    chipSelected = DarkOnSurface,
+    onChipSelected = DarkBg,
 )
 
 val LocalMusFitColors = staticCompositionLocalOf<MusFitColors> {
