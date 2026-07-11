@@ -409,6 +409,7 @@ Assert-FileDoesNotContain ".github/workflows/android.yml" "app-internal-debug-an
 Assert-FileContains ".github/pull_request_template.md" "Verification"
 Assert-FileContains ".github/pull_request_template.md" '\$musfit-pr-emulator-evidence'
 Assert-FileContains ".gitignore" "verification/"
+Assert-FileContains ".gitignore" '(?m)^/\.kotlin/\r?$'
 
 $prEvidenceSkillRoot = ".agents/skills/musfit-pr-emulator-evidence"
 foreach ($skillFile in @(
