@@ -397,7 +397,21 @@ Assert-FileContains ".github/workflows/android.yml" "test-dev-workflow\.ps1"
 Assert-FileContains ".github/workflows/android.yml" "testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest"
 Assert-FileDoesNotContain ".github/workflows/android.yml" "app-debug-androidTest\.apk|outputs/apk/androidTest|Installed automatically via Obtainium"
 Assert-FileContains ".github/pull_request_template.md" "Verification"
+Assert-FileContains ".github/pull_request_template.md" '\$musfit-pr-emulator-evidence'
 Assert-FileContains ".gitignore" "verification/"
+
+$prEvidenceSkillRoot = ".agents/skills/musfit-pr-emulator-evidence"
+foreach ($skillFile in @(
+    "SKILL.md",
+    "agents/openai.yaml",
+    "scripts/invoke-musfit-pr-gate.ps1",
+    "scripts/capture-emulator-evidence.ps1",
+    "scripts/publish-pr-evidence.ps1"
+)) {
+    Assert-FileExists "$prEvidenceSkillRoot/$skillFile"
+}
+Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" '(?m)^name: musfit-pr-emulator-evidence\r?$'
+Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" 'git rev-parse --show-toplevel'
 
 if ($SelfTest) {
     $mismatchDetected = $false
