@@ -3,10 +3,10 @@
 package com.musfit.ui.permissions
 
 import android.content.Context
-import com.musfit.data.repository.AiCoachProviderKind
 
 const val LOCAL_NETWORK_PERMISSION = ""
+const val LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE = "Use an HTTPS AI coach endpoint."
 
-fun requiresLocalNetworkPermission(providerKind: AiCoachProviderKind): Boolean = false
+fun requiresLocalNetworkPermission(baseUrl: String): Boolean = false
 
 fun hasLocalNetworkPermission(context: Context): Boolean = true

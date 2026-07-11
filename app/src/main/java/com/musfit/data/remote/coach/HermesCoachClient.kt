@@ -2,15 +2,14 @@ package com.musfit.data.remote.coach
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import com.musfit.data.repository.AiCoachConnection
-import com.musfit.data.repository.AiCoachProviderKind
 import com.squareup.moshi.Json
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import java.net.InetAddress
-import java.net.URI
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -50,20 +49,32 @@ class HermesCoachClient @Inject constructor(
     @ApplicationContext context: Context,
 ) : CoachCompletionClient {
     private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
-    private val client = okHttpClient.newBuilder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(90, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private var localNetworkProvider: () -> Network? = {
+        connectivityManager.allNetworks.firstOrNull { network ->
+            connectivityManager.getNetworkCapabilities(network)?.isLocalTransport == true
+        }
+    }
+    private val client = hermesRequestClient(okHttpClient)
     private val requestAdapter = moshi.adapter(OpenAiChatCompletionRequest::class.java)
     private val responseAdapter = moshi.adapter(OpenAiChatCompletionResponse::class.java)
     private val errorAdapter = moshi.adapter(OpenAiErrorResponse::class.java)
 
+    internal constructor(
+        okHttpClient: OkHttpClient,
+        moshi: Moshi,
+        context: Context,
+        localNetworkProvider: () -> Network?,
+    ) : this(okHttpClient, moshi, context) {
+        this.localNetworkProvider = localNetworkProvider
+    }
+
     override suspend fun testConnection(connection: AiCoachConnection) {
-        executeJsonRequest(connection, "models")
+        val endpoint = AiCoachEndpointPolicy.requireAllowed(connection.baseUrl)
+        executeJsonRequest(connection, endpoint, "models")
     }
 
     override suspend fun chat(request: HermesChatRequest): HermesChatResponse {
+        val endpoint = AiCoachEndpointPolicy.requireAllowed(request.connection.baseUrl)
         val body = OpenAiChatCompletionRequest(
             model = request.connection.modelName.ifBlank { DEFAULT_HERMES_MODEL },
             messages = buildList {
@@ -75,6 +86,7 @@ class HermesCoachClient @Inject constructor(
         val rawJson = requestAdapter.toJson(body)
         val response = executeJsonRequest(
             connection = request.connection,
+            endpoint = endpoint,
             relativePath = "chat/completions",
             method = "POST",
             bodyJson = rawJson,
@@ -93,6 +105,7 @@ class HermesCoachClient @Inject constructor(
 
     private suspend fun executeJsonRequest(
         connection: AiCoachConnection,
+        endpoint: ValidatedAiCoachEndpoint,
         relativePath: String,
         method: String = "GET",
         bodyJson: String? = null,
@@ -100,7 +113,7 @@ class HermesCoachClient @Inject constructor(
         remoteSessionId: String? = null,
     ): RawHermesResponse = withContext(Dispatchers.IO) {
         val builder = Request.Builder()
-            .url(connection.baseUrl.normalizedEndpoint(relativePath))
+            .url(endpoint.resolve(relativePath))
             .header("Accept", "application/json")
         connection.apiKey?.takeIf { it.isNotBlank() }?.let { builder.header("Authorization", "Bearer $it") }
         idempotencyKey?.let { builder.header("Idempotency-Key", it) }
@@ -113,7 +126,7 @@ class HermesCoachClient @Inject constructor(
                 .header("Content-Type", JSON_MEDIA_TYPE.toString())
         }
 
-        clientFor(connection).newCall(builder.build()).execute().use { response ->
+        clientFor(endpoint).newCall(builder.build()).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 val message = errorAdapter.fromJsonOrNull(body)?.error?.message
@@ -127,11 +140,15 @@ class HermesCoachClient @Inject constructor(
         }
     }
 
-    private fun clientFor(connection: AiCoachConnection): OkHttpClient {
-        if (!connection.shouldPreferLocalNetwork()) return client
-        val localNetwork = connectivityManager.allNetworks.firstOrNull { network ->
-            connectivityManager.getNetworkCapabilities(network)?.isLocalTransport == true
-        } ?: return client
+    private fun clientFor(endpoint: ValidatedAiCoachEndpoint): OkHttpClient {
+        if (
+            !AI_COACH_PRIVATE_ENDPOINT_ROUTING_ENABLED ||
+            endpoint.route != AiCoachEndpointRoute.PrivateLan
+        ) {
+            return client
+        }
+        val localNetwork = localNetworkProvider()
+            ?: throw IOException("A private AI coach endpoint requires an active Wi-Fi or Ethernet network.")
 
         return client.newBuilder()
             .socketFactory(localNetwork.socketFactory)
@@ -141,9 +158,6 @@ class HermesCoachClient @Inject constructor(
             })
             .build()
     }
-
-    private fun String.normalizedEndpoint(relativePath: String): String =
-        trimEnd('/') + "/" + relativePath.trimStart('/')
 
     private fun <T> com.squareup.moshi.JsonAdapter<T>.fromJsonOrNull(raw: String): T? =
         runCatching { fromJson(raw) }.getOrNull()
@@ -159,32 +173,21 @@ class HermesCoachClient @Inject constructor(
     }
 }
 
-internal fun AiCoachConnection.shouldPreferLocalNetwork(): Boolean {
-    if (providerKind != AiCoachProviderKind.LocalAgent) return false
-    val host = runCatching { URI(baseUrl).host }.getOrNull()?.trim()?.trim('[', ']') ?: return false
-    return host.isLocalNetworkHost()
-}
+internal fun AiCoachConnection.shouldPreferLocalNetwork(): Boolean =
+    AiCoachEndpointPolicy.requiresPrivateLanRouting(baseUrl)
+
+internal fun hermesRequestClient(okHttpClient: OkHttpClient): OkHttpClient =
+    okHttpClient.newBuilder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .build()
 
 private val NetworkCapabilities.isLocalTransport: Boolean
     get() = hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
         hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-
-private fun String.isLocalNetworkHost(): Boolean {
-    val host = lowercase()
-    if (host == "localhost" || host == "127.0.0.1" || host == "::1") return false
-    if (host.endsWith(".local") || host.endsWith(".lan") || host.endsWith(".home") || host.endsWith(".fritz.box")) {
-        return true
-    }
-    if (!host.contains('.')) return true
-    if (host.contains(':')) return host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80")
-
-    val octets = host.split('.').map { it.toIntOrNull() ?: return false }
-    if (octets.size != 4 || octets.any { it !in 0..255 }) return false
-    return octets[0] == 10 ||
-        (octets[0] == 172 && octets[1] in 16..31) ||
-        (octets[0] == 192 && octets[1] == 168) ||
-        (octets[0] == 169 && octets[1] == 254)
-}
 
 private data class OpenAiChatCompletionRequest(
     val model: String,

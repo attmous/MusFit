@@ -174,7 +174,7 @@ fun AiCoachSettingsDialog(
                         value = baseUrl,
                         onValueChange = onBaseUrlChange,
                         label = { Text("Base URL") },
-                        placeholder = { Text("http://10.0.2.2:8080/v1/") },
+                        placeholder = { Text(AI_COACH_BASE_URL_PLACEHOLDER) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -272,7 +272,7 @@ private fun AiCoachStatusPill(label: String, container: Color, contentColor: Col
 private fun AiCoachSettingsUiState.aiCoachSummary(): String = when (providerKind) {
     AiCoachProviderKind.Disabled -> "Coach features stay off until you choose a local agent or API endpoint."
     AiCoachProviderKind.OpenAiCompatible -> "Uses your configured API-compatible endpoint. The key stays on this device."
-    AiCoachProviderKind.LocalAgent -> "Connects to a local agent running on this device or your network."
+    AiCoachProviderKind.LocalAgent -> AI_COACH_LOCAL_AGENT_SUMMARY
 }
 
 private fun AiCoachProviderKind.shortLabel(): String = when (this) {
@@ -310,7 +310,7 @@ private fun apiKeySupportingText(
 
 private fun aiCoachSecurityNote(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String =
     if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
-        "MusFit keeps this local. Hermes requires the API_SERVER_KEY bearer token from ~/.hermes/.env."
+        "Hermes requires the API_SERVER_KEY bearer token from ~/.hermes/.env. $AI_COACH_ENDPOINT_POLICY_NOTE"
     } else {
-        "MusFit keeps this local. Local agents can run without a key; hosted endpoints usually need one."
+        "Keys stay encrypted on this device. $AI_COACH_ENDPOINT_POLICY_NOTE"
     }

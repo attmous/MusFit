@@ -7,7 +7,9 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.remote.coach.CoachCompletionClient
 import com.musfit.data.remote.coach.HermesChatRequest
 import com.musfit.data.remote.coach.HermesChatResponse
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -21,7 +23,7 @@ import org.robolectric.RobolectricTestRunner
 class LocalAiCoachChatRepositoryTest {
     private lateinit var database: MusFitDatabase
     private lateinit var accountRepository: LocalAccountRepository
-    private lateinit var aiCoachRepository: LocalAiCoachRepository
+    private lateinit var aiCoachRepository: AiCoachRepository
     private lateinit var secretStore: FakeAiCoachSecretStore
     private lateinit var completionClient: FakeCoachCompletionClient
     private lateinit var repository: LocalAiCoachChatRepository
@@ -72,7 +74,7 @@ class LocalAiCoachChatRepositoryTest {
         assertEquals(AiCoachChatMessageStatus.Sent, messages[1].status)
 
         val request = completionClient.requests.single()
-        assertEquals("http://192.168.178.113:8080/v1/", request.connection.baseUrl)
+        assertEquals("https://192.168.178.113:8443/v1/", request.connection.baseUrl)
         assertEquals("hermes-agent", request.connection.modelName)
         assertEquals("radxa-key", request.connection.apiKey)
         assertEquals("read-only context", request.systemPrompt)
@@ -101,11 +103,47 @@ class LocalAiCoachChatRepositoryTest {
         assertEquals(listOf("Second question"), followUp.messages.map { it.content })
     }
 
+    @Test
+    fun sendMessage_rejectsStalePublicHttpBeforeThreadOrMessageSideEffects() = runTest {
+        aiCoachRepository = StaleConnectionAiCoachRepository(
+            AiCoachConnection(
+                providerKind = AiCoachProviderKind.OpenAiCompatible,
+                baseUrl = "http://api.example.com/v1/",
+                modelName = "dummy-model",
+                localAgentKind = LocalAgentKind.Custom,
+                apiKey = "dummy-never-dispatch",
+            ),
+        )
+        repository = LocalAiCoachChatRepository(
+            chatDao = database.aiCoachChatDao(),
+            accountRepository = accountRepository,
+            aiCoachRepository = aiCoachRepository,
+            coachCompletionClient = completionClient,
+            clock = { clockMillis += 1_000L; clockMillis },
+        )
+
+        try {
+            repository.sendMessage("dummy-chat-never-persist", "dummy-system-never-persist")
+            org.junit.Assert.fail("Expected stale public HTTP connection to be rejected")
+        } catch (_: IllegalArgumentException) {
+            assertEquals(0, completionClient.requests.size)
+            assertEquals(null, database.accountDao().getActiveAccount())
+            assertEquals(
+                null,
+                database.aiCoachChatDao().getThread(
+                    accountId = "local-default",
+                    providerKind = AiCoachProviderKind.OpenAiCompatible.name,
+                    localAgentKind = LocalAgentKind.Custom.name,
+                ),
+            )
+        }
+    }
+
     private suspend fun saveHermesConnection() {
         aiCoachRepository.saveSettings(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.LocalAgent,
-                baseUrl = "http://192.168.178.113:8080/v1",
+                baseUrl = "https://192.168.178.113:8443/v1",
                 modelName = "hermes-agent",
                 localAgentKind = LocalAgentKind.HermesAgent,
                 apiKey = AiCoachApiKeyUpdate.Replace("radxa-key"),
@@ -123,6 +161,26 @@ class LocalAiCoachChatRepositoryTest {
             requests += request
             return reply
         }
+    }
+
+    private class StaleConnectionAiCoachRepository(
+        private val connection: AiCoachConnection,
+    ) : AiCoachRepository {
+        override fun observeSettings(): Flow<AiCoachSettings> = flowOf(
+            AiCoachSettings(
+                providerKind = connection.providerKind,
+                baseUrl = connection.baseUrl,
+                modelName = connection.modelName,
+                localAgentKind = connection.localAgentKind,
+                hasApiKey = connection.apiKey != null,
+            ),
+        )
+
+        override suspend fun saveSettings(input: AiCoachSettingsInput) = Unit
+
+        override suspend fun clearApiKey() = Unit
+
+        override suspend fun activeConnection(): AiCoachConnection = connection
     }
 
     private class FakeAiCoachSecretStore : AiCoachSecretStore {
