@@ -29,8 +29,8 @@ import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.ReadinessCalculator
 import com.musfit.domain.today.TodayMetric
 import com.musfit.domain.today.WeeklyGoalsCalculator
-import com.musfit.domain.today.buildCarouselPages
 import com.musfit.domain.today.countSessionsInWeek
+import com.musfit.domain.today.vitalsTileMetrics
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -62,13 +62,6 @@ data class MetricCardUiState(
     val value: MetricValue,
 )
 
-data class CarouselPageUiState(
-    val hero: MetricCardUiState?,
-    val chips: List<MetricCardUiState>,
-)
-
-data class CarouselUiState(val pages: List<CarouselPageUiState> = emptyList())
-
 data class TodayReadinessUiState(
     val score: Int,
     val levelLabel: String,
@@ -77,7 +70,7 @@ data class TodayReadinessUiState(
 
 data class TodayUiState(
     val dateLabel: String = "",
-    val carousel: CarouselUiState = CarouselUiState(),
+    val vitals: List<MetricCardUiState> = emptyList(),
     val readiness: TodayReadinessUiState? = null,
     val isRefreshing: Boolean = false,
     val isDashboardEditorVisible: Boolean = false,
@@ -117,7 +110,7 @@ class TodayViewModel internal constructor(
         }
         observeFeed()
         observeCoach()
-        observeCarousel()
+        observeVitals()
     }
 
     @Inject
@@ -139,18 +132,18 @@ class TodayViewModel internal constructor(
     )
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun observeCarousel() {
+    private fun observeVitals() {
         viewModelScope.launch {
-            activeDate.flatMapLatest { carouselFlow(it) }
+            activeDate.flatMapLatest { vitalsFlow(it) }
                 .collect { dashboard ->
                     mutableState.update {
-                        it.copy(carousel = dashboard.carousel, readiness = dashboard.readiness)
+                        it.copy(vitals = dashboard.vitals, readiness = dashboard.readiness)
                     }
                 }
         }
     }
 
-    private fun carouselFlow(date: LocalDate): Flow<TodayDashboardUiState> {
+    private fun vitalsFlow(date: LocalDate): Flow<TodayDashboardUiState> {
         val weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val weekStartMillis = weekStart.toEpochDay() * DAY_MILLIS
         val weightFromMillis = (date.toEpochDay() - 30L) * DAY_MILLIS
@@ -184,7 +177,7 @@ class TodayViewModel internal constructor(
             currentPins = pins
             currentUserGoals = h.userGoals
             TodayDashboardUiState(
-                carousel = buildCarousel(
+                vitals = buildVitals(
                     f,
                     h.summary,
                     h.userGoals,
@@ -464,7 +457,7 @@ private data class HealthSnapshot(
 )
 
 private data class TodayDashboardUiState(
-    val carousel: CarouselUiState,
+    val vitals: List<MetricCardUiState>,
     val readiness: TodayReadinessUiState?,
 )
 
@@ -475,7 +468,7 @@ private data class TrainingGoalsProfile(
     val profileGoalWeightKg: Double?,
 )
 
-private fun buildCarousel(
+private fun buildVitals(
     food: FoodSnapshot,
     health: DailyHealthSummaryEntity?,
     userGoals: UserGoals,
@@ -485,7 +478,7 @@ private fun buildCarousel(
     pins: List<TodayMetric>,
     date: LocalDate,
     weekStartMillis: Long,
-): CarouselUiState {
+): List<MetricCardUiState> {
     val (_, weightDelta) = WeeklyGoalsCalculator.weightTrend(
         weights.map { it.measuredAtEpochMillis to it.value },
         (date.toEpochDay() - 7L) * DAY_MILLIS,
@@ -517,14 +510,9 @@ private fun buildCarousel(
         restingHeartRateBpm = health?.restingHeartRateBpm,
         loggingStreakDays = LoggingStreakCalculator.streakDays(food.loggedDays, date.toEpochDay()),
     )
-    return CarouselUiState(
-        pages = buildCarouselPages(pins).map { page ->
-            CarouselPageUiState(
-                hero = page.hero?.let { MetricCardUiState(it, it.label, MetricResolver.resolve(it, snapshot)) },
-                chips = page.chips.map { MetricCardUiState(it, it.label, MetricResolver.resolve(it, snapshot)) },
-            )
-        },
-    )
+    return vitalsTileMetrics(pins).map { metric ->
+        MetricCardUiState(metric, metric.label, MetricResolver.resolve(metric, snapshot))
+    }
 }
 
 private fun buildReadinessUiState(

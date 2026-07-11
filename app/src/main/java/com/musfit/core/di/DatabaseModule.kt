@@ -65,6 +65,7 @@ object DatabaseModule {
                 MIGRATION_32_33,
                 MIGRATION_33_34,
                 MIGRATION_34_35,
+                MIGRATION_35_36,
             )
             .build()
     }
@@ -969,6 +970,25 @@ object DatabaseModule {
                     """
                     CREATE INDEX IF NOT EXISTS index_ai_coach_chat_messages_threadId_createdAtEpochMillis
                     ON ai_coach_chat_messages(threadId, createdAtEpochMillis)
+                    """.trimIndent(),
+                )
+            }
+        }
+
+    // Data-only: the Turn 8 vitals grid defaults to four tiles. Appends the water
+    // pin only for users still on the untouched 25→26 three-pin default — any
+    // customized pin set (different metrics, order, or count) is left alone.
+    internal val MIGRATION_35_36 =
+        object : Migration(35, 36) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO dashboard_pins (metricId, position)
+                    SELECT 'water', 3
+                    WHERE (SELECT COUNT(*) FROM dashboard_pins) = 3
+                        AND EXISTS(SELECT 1 FROM dashboard_pins WHERE metricId = 'calories' AND position = 0)
+                        AND EXISTS(SELECT 1 FROM dashboard_pins WHERE metricId = 'steps' AND position = 1)
+                        AND EXISTS(SELECT 1 FROM dashboard_pins WHERE metricId = 'protein' AND position = 2)
                     """.trimIndent(),
                 )
             }

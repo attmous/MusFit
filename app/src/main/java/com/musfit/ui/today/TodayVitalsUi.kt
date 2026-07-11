@@ -1,30 +1,27 @@
 package com.musfit.ui.today
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Balance
 import androidx.compose.material.icons.filled.BakeryDining
 import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Egg
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -51,221 +48,256 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
 import com.musfit.ui.AppDestination
-import com.musfit.ui.components.ExpressiveBadge
-import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.WavyProgressBar
+import com.musfit.ui.components.gridGroupShape
+import com.musfit.ui.theme.AmberBright
+import com.musfit.ui.theme.AmberContainerDark
+import com.musfit.ui.theme.AmberInkDark
+import com.musfit.ui.theme.Indigo
+import com.musfit.ui.theme.IndigoBright
+import com.musfit.ui.theme.IndigoContainer
+import com.musfit.ui.theme.IndigoContainerDark
+import com.musfit.ui.theme.IndigoInk
+import com.musfit.ui.theme.IndigoInkDark
+import com.musfit.ui.theme.MacroProtein
+import com.musfit.ui.theme.MacroProteinDark
 import com.musfit.ui.theme.MusFitTheme
-import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.VitalsAmber
+import com.musfit.ui.theme.VitalsAmberContainer
+import com.musfit.ui.theme.VitalsAmberDisplay
+import com.musfit.ui.theme.VitalsAmberDisplayDark
+import com.musfit.ui.theme.VitalsAmberOn
+import com.musfit.ui.theme.VitalsIndigoDisplay
+import com.musfit.ui.theme.VitalsIndigoDisplayDark
+import com.musfit.ui.theme.VitalsRoseContainer
+import com.musfit.ui.theme.VitalsRoseContainerDark
+import com.musfit.ui.theme.VitalsRoseDisplay
+import com.musfit.ui.theme.VitalsRoseDisplayDark
+import com.musfit.ui.theme.VitalsRoseOn
+import com.musfit.ui.theme.VitalsRoseOnDark
+import com.musfit.ui.theme.VitalsWaterDisplay
+import com.musfit.ui.theme.VitalsWaterDisplayDark
+import com.musfit.ui.theme.VitalsWaterOn
+import com.musfit.ui.theme.VitalsWaterOnDark
+import com.musfit.ui.theme.Water
+import com.musfit.ui.theme.WaterDark
+import com.musfit.ui.theme.WaterFill
+import com.musfit.ui.theme.WaterFillDark
 import com.musfit.ui.theme.tabAccentFor
 
 /**
- * Today's hero: a swipeable pager of configurable metrics inside the coral
- * M3 Expressive tonal container — emphasized display numerals, a sunny badge,
- * a live wavy day-progress wave, and pill stat chips.
+ * Today's hero (Turn 8 §8a): a color-coded vitals grid — every pinned metric is
+ * one tile, two per row, in grouped containment (4dp gaps, 28dp grid-outer /
+ * 8dp inner corners). Each tile carries its metric-scoped color family (amber
+ * kcal, indigo steps, rose protein, blue water), never the tab accent.
  */
 @Composable
-fun MetricCarouselCard(
-    carousel: CarouselUiState,
+fun TodayVitalsGrid(
+    vitals: List<MetricCardUiState>,
     onMetricClick: (TodayMetric) -> Unit,
 ) {
-    if (carousel.pages.isEmpty()) return
-    val accent = tabAccentFor(AppDestination.Today)
-    val pagerState = rememberPagerState(pageCount = { carousel.pages.size })
-
-    Surface(
-        color = accent.container,
-        shape = MusFitTheme.shapes.extraLarge,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(22.dp)) {
-            HorizontalPager(state = pagerState) { pageIndex ->
-                val page = carousel.pages[pageIndex]
-                if (page.hero != null) {
-                    HeroPage(page = page, accent = accent, onMetricClick = onMetricClick)
-                } else {
-                    ChipGridPage(chips = page.chips, accent = accent, onMetricClick = onMetricClick)
+    if (vitals.isEmpty()) return
+    val columns = 2
+    val rows = vitals.chunked(columns)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        rows.forEachIndexed { rowIndex, rowTiles ->
+            Row(
+                modifier = Modifier.height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                rowTiles.forEachIndexed { columnIndex, tile ->
+                    VitalsTile(
+                        card = tile,
+                        shape = gridGroupShape(rowIndex, rows.size, columnIndex, columns, outer = 28.dp),
+                        onClick = { onMetricClick(tile.metric) },
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    )
                 }
-            }
-            if (carousel.pages.size > 1) {
-                Spacer(Modifier.height(MusFitTheme.spacing.md))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    repeat(carousel.pages.size) { index ->
-                        val selected = pagerState.currentPage == index
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 3.dp)
-                                .size(width = if (selected) 16.dp else 6.dp, height = 6.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (selected) accent.color else accent.onContainer.copy(alpha = 0.2f),
-                                ),
-                        )
-                    }
-                }
+                if (rowTiles.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/**
+ * One reusable vitals tile: overline (icon + label), display value, "of {goal}
+ * · {pct}%" sub, and a mini wavy progress whose remaining track is translucent
+ * white rather than a color tint. Goal-less metrics show value + caption only.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HeroPage(
-    page: CarouselPageUiState,
-    accent: TabAccent,
-    onMetricClick: (TodayMetric) -> Unit,
+private fun VitalsTile(
+    card: MetricCardUiState,
+    shape: RoundedCornerShape,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val hero = page.hero ?: return
-    val heroFigure = when (val value = hero.value) {
+    val family = vitalsFamilyFor(card.metric)
+    val figure = when (val value = card.value) {
         is MetricValue.WithGoal -> value.figure
         is MetricValue.Plain -> value.figure
         is MetricValue.NoData -> "—"
     }
-    val heroCaption = when (val value = hero.value) {
+    val caption = when (val value = card.value) {
         is MetricValue.WithGoal -> value.caption
         is MetricValue.Plain -> value.caption
         is MetricValue.NoData -> value.caption
     }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Surface(
-            onClick = { onMetricClick(hero.metric) },
-            color = Color.Transparent,
-            contentColor = accent.onContainer,
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics { contentDescription = "${hero.label}: $heroFigure $heroCaption" },
-        ) {
+    val label = vitalsTileLabel(card.metric)
+    Surface(
+        onClick = onClick,
+        color = family.container,
+        shape = shape,
+        modifier = modifier.semantics { contentDescription = "$label: $figure $caption" },
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = heroFigure,
-                        style = MusFitTheme.typography.displayLarge,
-                        color = accent.onContainer,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = heroCaption,
-                        style = MusFitTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = accent.onContainerVariant,
-                    )
-                }
-                ExpressiveBadge(
-                    icon = metricIcon(hero.metric),
-                    shape = ExpressiveBadgeShape.Sunny,
-                    containerColor = accent.badge,
-                    contentColor = accent.onContainerVariant,
-                    size = 84.dp,
-                    iconSize = 34.dp,
+                Icon(
+                    imageVector = vitalsTileIcon(card.metric),
+                    contentDescription = null,
+                    tint = family.onContainer,
+                    modifier = Modifier.size(15.dp),
+                )
+                Text(
+                    text = label.uppercase(),
+                    style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp),
+                    fontWeight = FontWeight.ExtraBold,
+                    color = family.onContainer,
+                    maxLines = 1,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = figure,
+                style = MusFitTheme.typography.headlineMedium.copy(fontSize = 28.sp, letterSpacing = (-0.8).sp),
+                fontWeight = FontWeight.ExtraBold,
+                color = family.display,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = caption,
+                style = MusFitTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                color = family.onContainer,
+                maxLines = 1,
+            )
+            (card.value as? MetricValue.WithGoal)?.let { value ->
+                Spacer(Modifier.height(8.dp))
+                WavyProgressBar(
+                    progress = value.progress,
+                    color = family.primary,
+                    trackColor = family.track,
+                    strokeWidth = 4.dp,
+                    amplitude = 2.5.dp,
+                    wavelength = 16.dp,
+                    live = true,
                 )
             }
         }
-        (hero.value as? MetricValue.WithGoal)?.let { value ->
-            Spacer(Modifier.height(14.dp))
-            WavyProgressBar(
-                progress = value.progress,
-                color = accent.color,
-                trackColor = accent.track,
-                live = true,
-            )
-        }
-        if (page.chips.isNotEmpty()) {
-            Spacer(Modifier.height(MusFitTheme.spacing.lg))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm),
-            ) {
-                page.chips.forEach { chip ->
-                    MetricChip(chip = chip, accent = accent, onClick = { onMetricClick(chip.metric) })
-                }
-            }
-        }
     }
+}
+
+/**
+ * A vitals tile's metric-scoped color family (Turn 8 Delta 1): container,
+ * on-container ink, deeper display ink, and the wave/dot primary. The remaining
+ * wave track is translucent white in every family — light neutral, not a tint.
+ */
+internal data class VitalsTileFamily(
+    val container: Color,
+    val onContainer: Color,
+    val display: Color,
+    val primary: Color,
+    val track: Color,
+)
+
+private enum class VitalsPalette { Amber, Indigo, Rose, Water }
+
+/**
+ * Best-fit family per metric. The spec fixes the default four (kcal amber,
+ * steps indigo, protein rose, water blue); the rest reuse the nearest family —
+ * energy metrics go amber, activity indigo, body metrics rose, recovery blue.
+ */
+private fun vitalsPaletteFor(metric: TodayMetric): VitalsPalette = when (metric) {
+    TodayMetric.Calories, TodayMetric.Carbs, TodayMetric.Fat,
+    TodayMetric.ActiveCalories, TodayMetric.CalorieBalance, TodayMetric.LoggingStreak,
+    -> VitalsPalette.Amber
+    TodayMetric.Steps, TodayMetric.Sessions, TodayMetric.Exercise -> VitalsPalette.Indigo
+    TodayMetric.Protein, TodayMetric.Weight, TodayMetric.BodyFat, TodayMetric.RestingHeartRate,
+    -> VitalsPalette.Rose
+    TodayMetric.Water, TodayMetric.Sleep -> VitalsPalette.Water
 }
 
 @Composable
-private fun ChipGridPage(
-    chips: List<MetricCardUiState>,
-    accent: TabAccent,
-    onMetricClick: (TodayMetric) -> Unit,
-) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm),
-    ) {
-        chips.forEach { chip ->
-            MetricChip(chip = chip, accent = accent, onClick = { onMetricClick(chip.metric) })
+internal fun vitalsFamilyFor(metric: TodayMetric): VitalsTileFamily {
+    val dark = isSystemInDarkTheme()
+    val track = Color.White.copy(alpha = if (dark) 0.25f else 0.75f)
+    return when (vitalsPaletteFor(metric)) {
+        VitalsPalette.Amber -> if (dark) {
+            VitalsTileFamily(AmberContainerDark, AmberInkDark, VitalsAmberDisplayDark, AmberBright, track)
+        } else {
+            VitalsTileFamily(VitalsAmberContainer, VitalsAmberOn, VitalsAmberDisplay, VitalsAmber, track)
+        }
+        VitalsPalette.Indigo -> if (dark) {
+            VitalsTileFamily(IndigoContainerDark, IndigoInkDark, VitalsIndigoDisplayDark, IndigoBright, track)
+        } else {
+            VitalsTileFamily(IndigoContainer, IndigoInk, VitalsIndigoDisplay, Indigo, track)
+        }
+        VitalsPalette.Rose -> if (dark) {
+            VitalsTileFamily(VitalsRoseContainerDark, VitalsRoseOnDark, VitalsRoseDisplayDark, MacroProteinDark, track)
+        } else {
+            VitalsTileFamily(VitalsRoseContainer, VitalsRoseOn, VitalsRoseDisplay, MacroProtein, track)
+        }
+        VitalsPalette.Water -> if (dark) {
+            VitalsTileFamily(WaterFillDark, VitalsWaterOnDark, VitalsWaterDisplayDark, WaterDark, track)
+        } else {
+            VitalsTileFamily(WaterFill, VitalsWaterOn, VitalsWaterDisplay, Water, track)
         }
     }
 }
 
-/** A light pill stat chip inside the hero: emphasized figure, quiet caption. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MetricChip(chip: MetricCardUiState, accent: TabAccent, onClick: () -> Unit) {
-    val figure = when (val value = chip.value) {
-        is MetricValue.WithGoal -> value.figure
-        is MetricValue.Plain -> value.figure
-        is MetricValue.NoData -> "—"
-    }
-    val caption = when (val value = chip.value) {
-        is MetricValue.WithGoal -> value.caption
-        is MetricValue.Plain -> value.caption
-        is MetricValue.NoData -> value.caption
-    }
-    Surface(
-        onClick = onClick,
-        color = accent.chip,
-        shape = CircleShape,
-    ) {
-        Text(
-            text = buildAnnotatedString {
-                withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold)) { append(figure) }
-                append(" ${chip.label.lowercase()} · $caption")
-            },
-            style = MusFitTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
-            color = accent.onContainerVariant,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-        )
-    }
+/** Tile overline: the mock says EATEN, not CALORIES; everything else keeps its pool label. */
+internal fun vitalsTileLabel(metric: TodayMetric): String = when (metric) {
+    TodayMetric.Calories -> "Eaten"
+    else -> metric.label
 }
 
-/** Emphasis glyph for a metric's hero badge. */
+/** Tile overline glyphs from the 8a mock (restaurant / steps / exercise / water_drop). */
+internal fun vitalsTileIcon(metric: TodayMetric): ImageVector = when (metric) {
+    TodayMetric.Calories -> Icons.Filled.Restaurant
+    TodayMetric.Steps -> Icons.AutoMirrored.Filled.DirectionsWalk
+    TodayMetric.Protein -> Icons.Filled.FitnessCenter
+    TodayMetric.Water -> Icons.Filled.WaterDrop
+    else -> metricIcon(metric)
+}
+
+/** Emphasis glyph for the remaining metric pool (editor rows, non-default tiles). */
 internal fun metricIcon(metric: TodayMetric): ImageVector = when (metric) {
     TodayMetric.Calories -> Icons.Filled.LocalFireDepartment
     TodayMetric.Protein -> Icons.Filled.Egg
     TodayMetric.Carbs -> Icons.Filled.BakeryDining
     TodayMetric.Fat -> Icons.Filled.Restaurant
     TodayMetric.Water -> Icons.Filled.WaterDrop
-    TodayMetric.Steps -> Icons.Filled.DirectionsWalk
+    TodayMetric.Steps -> Icons.AutoMirrored.Filled.DirectionsWalk
     TodayMetric.Weight -> Icons.Filled.MonitorWeight
     TodayMetric.BodyFat -> Icons.Filled.Percent
     TodayMetric.Sessions -> Icons.Filled.FitnessCenter
     TodayMetric.Sleep -> Icons.Filled.Bedtime
-    TodayMetric.Exercise -> Icons.Filled.DirectionsRun
+    TodayMetric.Exercise -> Icons.AutoMirrored.Filled.DirectionsRun
     TodayMetric.ActiveCalories -> Icons.Filled.Whatshot
     TodayMetric.RestingHeartRate -> Icons.Filled.MonitorHeart
     TodayMetric.CalorieBalance -> Icons.Filled.Balance
@@ -283,7 +315,7 @@ internal fun metricDestination(metric: TodayMetric): AppDestination = when (metr
     -> AppDestination.Profile
 }
 
-/** Edit sheet: pin/order metrics + the Goals section (step/session). */
+/** Edit sheet — the vitals-grid tile library: pin/order metrics + the Goals section. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardEditSheet(
@@ -310,7 +342,7 @@ fun DashboardEditSheet(
                 color = MusFitTheme.colors.onSurface,
             )
             Text(
-                text = "Pin the metrics you're focused on. The first one is your hero.",
+                text = "Pin the metrics you're focused on. Each pin is one tile on the grid.",
                 style = MusFitTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )

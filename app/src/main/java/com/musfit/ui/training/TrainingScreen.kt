@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.PlayArrow
@@ -45,8 +46,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -58,13 +65,13 @@ import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
+import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
-import com.musfit.ui.components.rowGroupShape
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
@@ -73,9 +80,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-/** Default weekly training-session target the "This week" strip measures progress against. */
-private const val WEEKLY_SESSION_GOAL = 3
 
 @Composable
 fun TrainingScreen(
@@ -369,7 +373,16 @@ private fun TrainingDashboard(
             )
         }
 
-        TrainingStatsRow(overview = state.historyOverview)
+        TrainingWeekCard(
+            overview = state.historyOverview,
+            days = trainingWeekDays(
+                history = state.workoutHistory,
+                today = LocalDate.now(),
+                weeklyTarget = state.weeklySessionTarget,
+            ),
+            weeklyTarget = state.weeklySessionTarget,
+            accent = accent,
+        )
 
         MusFitSegmented(
             options = TrainingDashboardSegment.entries,
@@ -424,6 +437,7 @@ private fun TrainingDashboard(
             cue = trainingCoachCue(
                 overview = state.historyOverview,
                 nextRoutineName = (state.dashboard.nextSuggestedRoutine ?: state.visibleRoutines.firstOrNull())?.name,
+                weeklyTarget = state.weeklySessionTarget,
             ),
             onView = onOpenCoach,
         )
@@ -524,51 +538,133 @@ private fun TrainingResumeSplitButton(
     }
 }
 
-/** Three white stat cells with grouped corners: workouts · volume · streak. */
+/**
+ * The Turn 8 "This week" card (Delta 3): a sessions/volume header over seven
+ * day circles — completed sessions as indigo sunny checks, the next planned
+ * session as a dashed indigo circle, rest days as quiet tonal dots. Replaces
+ * the stat cells; a day streak is not a meaningful strength metric.
+ */
 @Composable
-private fun TrainingStatsRow(overview: TrainingHistoryOverview) {
-    Row(
+private fun TrainingWeekCard(
+    overview: TrainingHistoryOverview,
+    days: List<TrainingWeekDay>,
+    weeklyTarget: Int,
+    accent: TabAccent,
+) {
+    Surface(
+        color = MusFitTheme.colors.surface,
+        shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        val volume = overview.currentWeekVolumeKg
-        val volumeFigure = if (volume >= 1000.0) {
-            String.format(Locale.US, "%.1f t", volume / 1000.0)
-        } else {
-            "${volume.formatKg()} kg"
-        }
-        val cells = listOf(
-            "${overview.currentWeekWorkoutCount}" to
-                (if (overview.currentWeekWorkoutCount == 1) "workout" else "workouts"),
-            volumeFigure to "volume",
-            "${overview.currentStreakDays}" to
-                (if (overview.currentStreakDays == 1) "day streak" else "days streak"),
-        )
-        cells.forEachIndexed { index, (figure, label) ->
-            Surface(
-                color = MusFitTheme.colors.surface,
-                shape = rowGroupShape(index, cells.size),
-                modifier = Modifier.weight(1f),
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(
-                    modifier = Modifier.padding(vertical = 14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = figure,
-                        style = MaterialTheme.typography.displaySmall,
-                        color = MusFitTheme.colors.onSurface,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
+                Text(
+                    text = "This week",
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MusFitTheme.colors.onSurface,
+                )
+                Text(
+                    text = trainingWeekHeaderMeta(overview, weeklyTarget),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                days.forEach { day -> TrainingWeekDayCircle(day = day, accent = accent) }
             }
         }
+    }
+}
+
+/** "2 of 3 sessions · 3.8 t volume" with the numbers in emphasized ink. */
+@Composable
+private fun trainingWeekHeaderMeta(overview: TrainingHistoryOverview, weeklyTarget: Int) =
+    buildAnnotatedString {
+        val emphasized = SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface)
+        withStyle(emphasized) {
+            append(
+                if (weeklyTarget > 0) {
+                    "${overview.currentWeekWorkoutCount} of $weeklyTarget"
+                } else {
+                    "${overview.currentWeekWorkoutCount}"
+                },
+            )
+        }
+        append(if (overview.currentWeekWorkoutCount == 1 && weeklyTarget <= 0) " session · " else " sessions · ")
+        withStyle(emphasized) { append(trainingWeekVolumeFigure(overview.currentWeekVolumeKg)) }
+        append(" volume")
+    }
+
+internal fun trainingWeekVolumeFigure(volumeKg: Double): String =
+    if (volumeKg >= 1000.0) {
+        String.format(Locale.US, "%.1f t", volumeKg / 1000.0)
+    } else {
+        "${volumeKg.formatKg()} kg"
+    }
+
+@Composable
+private fun TrainingWeekDayCircle(day: TrainingWeekDay, accent: TabAccent) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        when {
+            day.isDone -> ExpressiveBadge(
+                icon = Icons.Filled.Check,
+                shape = ExpressiveBadgeShape.Sunny,
+                containerColor = accent.color,
+                contentColor = accent.onColor,
+                size = 36.dp,
+                iconSize = 16.dp,
+            )
+            day.isPlanned -> {
+                val dashColor = accent.color
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .drawBehind {
+                            val stroke = 2.dp.toPx()
+                            val dash = 5.dp.toPx()
+                            drawCircle(
+                                color = dashColor,
+                                radius = (size.minDimension - stroke) / 2f,
+                                style = Stroke(
+                                    width = stroke,
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash)),
+                                ),
+                            )
+                        },
+                )
+            }
+            else -> Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(MusFitTheme.colors.surfaceVariant, CircleShape),
+            )
+        }
+        Text(
+            text = day.label,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+            fontWeight = if (day.isPlanned) FontWeight.ExtraBold else FontWeight.Normal,
+            color = when {
+                day.isPlanned -> accent.onContainer
+                day.isDone -> MusFitTheme.colors.onSurfaceVariant
+                else -> MusFitTheme.colors.onSurfaceFaint
+            },
+            maxLines = 1,
+        )
     }
 }
 
@@ -1037,25 +1133,51 @@ internal data class TrainingWeekDay(
     val label: String,
     val isDone: Boolean,
     val isToday: Boolean,
+    val isPlanned: Boolean = false,
 )
 
-/** Mon-Sun dots for the current week: a day is done when any workout was started on it. */
+/**
+ * Mon-Sun circles for the current week: a day is done when any workout was
+ * started on it; at most one future-facing day is planned (dashed circle).
+ */
 internal fun trainingWeekDays(
     history: List<WorkoutHistorySummary>,
     today: LocalDate,
+    weeklyTarget: Int = 0,
 ): List<TrainingWeekDay> {
     val startOfWeek = today.minusDays((today.dayOfWeek.value - 1).toLong())
     val trainedDays = history
         .map { Instant.ofEpochMilli(it.startedAtEpochMillis).atZone(ZoneId.systemDefault()).toLocalDate() }
         .toSet()
-    return (0..6).map { offset ->
-        val date = startOfWeek.plusDays(offset.toLong())
+    val weekDates = (0..6).map { offset -> startOfWeek.plusDays(offset.toLong()) }
+    val plannedDay = nextPlannedSessionDay(trainedDays, weekDates, today, weeklyTarget)
+    return weekDates.map { date ->
         TrainingWeekDay(
             label = date.format(DateTimeFormatter.ofPattern("EEE", Locale.US)),
             isDone = date in trainedDays,
             isToday = date == today,
+            isPlanned = date == plannedDay,
         )
     }
+}
+
+/**
+ * The dashed "next planned session" day: one rest day after the week's latest
+ * session (falling forward to today, or today when nothing is logged yet).
+ * Only shown while the weekly target still has sessions left and the candidate
+ * fits inside this week.
+ */
+internal fun nextPlannedSessionDay(
+    trainedDays: Set<LocalDate>,
+    weekDates: List<LocalDate>,
+    today: LocalDate,
+    weeklyTarget: Int,
+): LocalDate? {
+    if (weeklyTarget <= 0) return null
+    if (weekDates.count { it in trainedDays } >= weeklyTarget) return null
+    val lastTrained = weekDates.filter { it in trainedDays && !it.isAfter(today) }.maxOrNull()
+    val candidate = maxOf(today, lastTrained?.plusDays(2) ?: today)
+    return candidate.takeIf { !it.isAfter(weekDates.last()) && it !in trainedDays }
 }
 
 /** Hero overline: "TODAY · QUADS DAY" from the routine's lead muscle group, else just "TODAY". */
@@ -1102,11 +1224,13 @@ private fun LocalDate.recencyLabel(today: LocalDate): String = when {
 internal fun trainingCoachCue(
     overview: TrainingHistoryOverview,
     nextRoutineName: String?,
+    weeklyTarget: Int = DEFAULT_WEEKLY_SESSION_TARGET,
 ): String {
+    val goal = if (weeklyTarget > 0) weeklyTarget else DEFAULT_WEEKLY_SESSION_TARGET
     val done = overview.currentWeekWorkoutCount
     return when {
-        done >= WEEKLY_SESSION_GOAL ->
-            "Weekly goal done — $done of $WEEKLY_SESSION_GOAL sessions. Recovery counts too."
+        done >= goal ->
+            "Weekly goal done — $done of $goal sessions. Recovery counts too."
         done == 0 ->
             if (nextRoutineName != null) {
                 "No sessions yet this week — $nextRoutineName would be a good start."
@@ -1115,9 +1239,9 @@ internal fun trainingCoachCue(
             }
         else ->
             if (nextRoutineName != null) {
-                "$done of $WEEKLY_SESSION_GOAL sessions this week — $nextRoutineName is up next."
+                "$done of $goal sessions this week — $nextRoutineName is up next."
             } else {
-                "$done of $WEEKLY_SESSION_GOAL sessions this week — one more keeps the plan on track."
+                "$done of $goal sessions this week — one more keeps the plan on track."
             }
     }
 }

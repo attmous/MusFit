@@ -2,7 +2,6 @@ package com.musfit.integrations.healthconnect
 
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.BodyFatRecord
 import androidx.health.connect.client.records.DistanceRecord
@@ -49,23 +48,8 @@ class HealthConnectManager @Inject constructor(
         this.clientFactory = clientFactory
     }
 
-    private val permissions = setOf(
-        READ_STEPS_PERMISSION,
-        READ_ACTIVE_CALORIES_PERMISSION,
-        READ_TOTAL_CALORIES_PERMISSION,
-        READ_DISTANCE_PERMISSION,
-        READ_SLEEP_PERMISSION,
-        READ_EXERCISE_PERMISSION,
-        READ_WEIGHT_PERMISSION,
-        READ_BODY_FAT_PERMISSION,
-        READ_RESTING_HEART_RATE_PERMISSION,
-        READ_HEART_RATE_VARIABILITY_PERMISSION,
-        WRITE_EXERCISE_PERMISSION,
-    )
-    private val foodPermissions = setOf(
-        WRITE_NUTRITION_PERMISSION,
-        WRITE_HYDRATION_PERMISSION,
-    )
+    private val permissions = HealthPermissionInventory.healthAndWorkoutPermissions
+    private val foodPermissions = HealthPermissionInventory.foodPermissions
 
     override suspend fun status(): HealthConnectStatus = statusReader()
 
@@ -306,26 +290,20 @@ class HealthConnectManager @Inject constructor(
         // June 2026 Health Connect update onwards (e.g. "com.android.healthconnect.phone.<hash>").
         const val ON_DEVICE_STEPS_PACKAGE = "android"
         const val ON_DEVICE_SPN_PREFIX = "com.android.healthconnect.phone."
-        val READ_STEPS_PERMISSION = HealthPermission.getReadPermission(StepsRecord::class)
-        val READ_WEIGHT_PERMISSION = HealthPermission.getReadPermission(WeightRecord::class)
-        val READ_BODY_FAT_PERMISSION = HealthPermission.getReadPermission(BodyFatRecord::class)
-        val READ_ACTIVE_CALORIES_PERMISSION =
-            HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
-        val READ_TOTAL_CALORIES_PERMISSION =
-            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
-        val READ_DISTANCE_PERMISSION = HealthPermission.getReadPermission(DistanceRecord::class)
-        val READ_SLEEP_PERMISSION = HealthPermission.getReadPermission(SleepSessionRecord::class)
-        val READ_EXERCISE_PERMISSION = HealthPermission.getReadPermission(ExerciseSessionRecord::class)
-        val READ_RESTING_HEART_RATE_PERMISSION =
-            HealthPermission.getReadPermission(RestingHeartRateRecord::class)
+        val READ_STEPS_PERMISSION = HealthPermissionInventory.readStepsPermission
+        val READ_WEIGHT_PERMISSION = HealthPermissionInventory.readWeightPermission
+        val READ_BODY_FAT_PERMISSION = HealthPermissionInventory.readBodyFatPermission
+        val READ_ACTIVE_CALORIES_PERMISSION = HealthPermissionInventory.readActiveCaloriesPermission
+        val READ_TOTAL_CALORIES_PERMISSION = HealthPermissionInventory.readTotalCaloriesPermission
+        val READ_DISTANCE_PERMISSION = HealthPermissionInventory.readDistancePermission
+        val READ_SLEEP_PERMISSION = HealthPermissionInventory.readSleepPermission
+        val READ_EXERCISE_PERMISSION = HealthPermissionInventory.readExercisePermission
+        val READ_RESTING_HEART_RATE_PERMISSION = HealthPermissionInventory.readRestingHeartRatePermission
         val READ_HEART_RATE_VARIABILITY_PERMISSION =
-            HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
-        val WRITE_EXERCISE_PERMISSION =
-            HealthPermission.getWritePermission(ExerciseSessionRecord::class)
-        val WRITE_NUTRITION_PERMISSION =
-            HealthPermission.getWritePermission(NutritionRecord::class)
-        val WRITE_HYDRATION_PERMISSION =
-            HealthPermission.getWritePermission(HydrationRecord::class)
+            HealthPermissionInventory.readHeartRateVariabilityPermission
+        val WRITE_EXERCISE_PERMISSION = HealthPermissionInventory.writeExercisePermission
+        val WRITE_NUTRITION_PERMISSION = HealthPermissionInventory.writeNutritionPermission
+        val WRITE_HYDRATION_PERMISSION = HealthPermissionInventory.writeHydrationPermission
         val EMPTY_SUMMARY = ImportedDailyHealthSummary(
             steps = null,
             activeCaloriesKcal = null,

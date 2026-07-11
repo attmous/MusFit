@@ -26,8 +26,10 @@ enum class TodayMetric(val id: String, val label: String) {
     companion object {
         fun fromId(id: String): TodayMetric? = entries.firstOrNull { it.id == id }
 
-        /** Fresh-install / defensive-fallback pins; also seeded by migration 25→26. */
-        val DEFAULT_PINS = listOf(Calories, Steps, Protein)
+        /** Fresh-install / defensive-fallback pins — the Turn 8 vitals-grid four.
+         *  Seeded by migration 25→26; migration 35→36 appends water for users
+         *  still on the untouched three-pin default. */
+        val DEFAULT_PINS = listOf(Calories, Steps, Protein, Water)
     }
 }
 
@@ -87,11 +89,11 @@ object MetricResolver {
     fun resolve(metric: TodayMetric, s: MetricSnapshot): MetricValue = when (metric) {
         TodayMetric.Calories ->
             if (s.calorieGoalKcal > 0.0) {
-                val remaining = s.calorieGoalKcal - s.caloriesKcal
+                // Turn 8 vitals tile: the EATEN figure with the full goal spelled
+                // out ("of 2,450 kcal", never "2.5k") and the unclamped percent.
                 MetricValue.WithGoal(
-                    // Grouped figure ("1,450"); over-goal shows the overage instead of clamping to 0.
-                    figure = formatGrouped(abs(remaining).roundToInt()),
-                    caption = if (remaining >= 0.0) "kcal left" else "kcal over",
+                    figure = formatGrouped(s.caloriesKcal.roundToInt()),
+                    caption = "of ${formatGrouped(s.calorieGoalKcal.roundToInt())} kcal · ${percent(s.caloriesKcal, s.calorieGoalKcal)}%",
                     progress = ratio(s.caloriesKcal, s.calorieGoalKcal),
                 )
             } else {
@@ -103,19 +105,19 @@ object MetricResolver {
         TodayMetric.Water ->
             if (s.waterGoalMl > 0.0) {
                 MetricValue.WithGoal(
-                    figure = "${s.waterMl.roundToInt()} ml",
-                    caption = "of ${s.waterGoalMl.roundToInt()} ml",
+                    figure = formatLiters(s.waterMl),
+                    caption = "of ${formatLiters(s.waterGoalMl)} · ${percent(s.waterMl, s.waterGoalMl)}%",
                     progress = ratio(s.waterMl, s.waterGoalMl),
                 )
             } else {
-                MetricValue.Plain("${s.waterMl.roundToInt()} ml", "today")
+                MetricValue.Plain(formatLiters(s.waterMl), "today")
             }
         TodayMetric.Steps -> {
             val steps = s.steps ?: return MetricValue.NoData("Not connected")
             if (s.stepGoal > 0L) {
                 MetricValue.WithGoal(
                     figure = formatCount(steps),
-                    caption = "of ${formatCount(s.stepGoal)}",
+                    caption = "of ${formatCount(s.stepGoal)} · ${percent(steps.toDouble(), s.stepGoal.toDouble())}%",
                     progress = ratio(steps.toDouble(), s.stepGoal.toDouble()),
                 )
             } else {
@@ -181,7 +183,7 @@ object MetricResolver {
         if (goalGrams > 0.0) {
             MetricValue.WithGoal(
                 figure = "${grams.roundToInt()} g",
-                caption = "of ${goalGrams.roundToInt()} g",
+                caption = "of ${goalGrams.roundToInt()} g · ${percent(grams, goalGrams)}%",
                 progress = ratio(grams, goalGrams),
             )
         } else {
@@ -191,10 +193,20 @@ object MetricResolver {
     private fun ratio(value: Double, goal: Double): Float =
         if (goal <= 0.0) 0f else (value / goal).coerceIn(0.0, 1.0).toFloat()
 
+    /** Unclamped display percent — over-goal reads "112%", the wave still caps at full. */
+    private fun percent(value: Double, goal: Double): Int = (value / goal * 100.0).roundToInt()
+
     private fun formatGrouped(value: Int): String = String.format(Locale.US, "%,d", value)
 
     private fun formatCount(value: Long): String =
         String.format(Locale.US, "%,d", value).replace(',', '.')
+
+    /** Water reads in liters on the vitals tile ("1.5 L"); whole liters drop the decimal. */
+    private fun formatLiters(milliliters: Double): String {
+        val liters = milliliters / 1000.0
+        val text = if (liters % 1.0 == 0.0) liters.toInt().toString() else String.format(Locale.US, "%.1f", liters)
+        return "$text L"
+    }
 
     private fun formatDuration(minutes: Long): String {
         val safeMinutes = minutes.coerceAtLeast(0L)
@@ -211,19 +223,13 @@ object MetricResolver {
         if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)
 }
 
-/** One derived carousel page: page 1 carries the hero, overflow pages are chip grids. */
-data class CarouselPage(val hero: TodayMetric?, val chips: List<TodayMetric>)
-
 /**
- * Pure page derivation (spec §1): page 1 = pins[0] hero + pins[1..2] chips;
- * pages 2+ = remaining pins in chunks of four. Empty pins fall back to defaults.
+ * The Turn 8 vitals grid replaces the hero carousel: every pinned metric is one
+ * tile, rendered two per row in pin order. Empty pins fall back to the default
+ * four (eaten kcal, steps, protein, water).
  */
-fun buildCarouselPages(pins: List<TodayMetric>): List<CarouselPage> {
-    val effective = pins.ifEmpty { TodayMetric.DEFAULT_PINS }
-    val heroPage = CarouselPage(hero = effective[0], chips = effective.drop(1).take(2))
-    val overflow = effective.drop(3).chunked(4).map { CarouselPage(hero = null, chips = it) }
-    return listOf(heroPage) + overflow
-}
+fun vitalsTileMetrics(pins: List<TodayMetric>): List<TodayMetric> =
+    pins.ifEmpty { TodayMetric.DEFAULT_PINS }
 
 /**
  * Sessions-metric week: Monday-start, [weekStartMillis, weekStartMillis + 7 days) —
