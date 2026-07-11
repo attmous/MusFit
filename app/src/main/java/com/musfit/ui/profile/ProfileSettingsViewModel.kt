@@ -22,6 +22,7 @@ import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.UserProfile
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.StepSource
+import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +50,11 @@ private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSo
         sources.firstOrNull { it.packageName == preferredStepsPackage }?.label ?: preferredStepsPackage
     }
 
+/** Lifecycle of the coach connection test — drives the 11c hero status line. */
+enum class AiCoachTestState { Idle, Testing, Success, Failure }
+
+enum class TargetApplyState { Idle, Applying, Success, Failure }
+
 data class ProfileSettingsUiState(
     val availabilityLabel: String = "Unknown",
     val grantedPermissionCount: Int = 0,
@@ -60,7 +66,6 @@ data class ProfileSettingsUiState(
     val preferredStepsPackage: String? = null,
     val stepSourceLabel: String = ALL_STEP_SOURCES_LABEL,
     val stepSources: List<StepSource> = emptyList(),
-    val stepSourcePickerOpen: Boolean = false,
     val account: AccountUiState = AccountUiState(),
     val accountEditorOpen: Boolean = false,
     val accountNameInput: String = "",
@@ -81,7 +86,10 @@ data class ProfileSettingsUiState(
     val aiCoachErrorMessage: String? = null,
     val aiCoachMessage: String? = null,
     val isAiCoachTesting: Boolean = false,
+    val aiCoachTestState: AiCoachTestState = AiCoachTestState.Idle,
     val includeBurnedCalories: Boolean = false,
+    val targetApplyState: TargetApplyState = TargetApplyState.Idle,
+    val targetApplyTargets: RecommendedTargets? = null,
 )
 
 data class AiCoachSettingsUiState(
@@ -164,13 +172,15 @@ private data class HealthConnectState(
     val message: String = DEFAULT_STATUS_MESSAGE,
     val preferredStepsPackage: String? = null,
     val stepSources: List<StepSource> = emptyList(),
-    val stepSourcePickerOpen: Boolean = false,
     val githubDeviceCode: GitHubDeviceAuthorization? = null,
     val githubSignInInProgress: Boolean = false,
     val isGitHubSignInConfigured: Boolean = false,
     val aiCoachMessage: String? = null,
     val isAiCoachTesting: Boolean = false,
+    val aiCoachTestState: AiCoachTestState = AiCoachTestState.Idle,
     val includeBurnedCalories: Boolean = false,
+    val targetApplyState: TargetApplyState = TargetApplyState.Idle,
+    val targetApplyTargets: RecommendedTargets? = null,
 )
 
 private data class AccountEditorState(
@@ -259,7 +269,6 @@ class ProfileSettingsViewModel @Inject constructor(
             preferredStepsPackage = base.preferredStepsPackage,
             stepSourceLabel = stepSourceLabel(base.preferredStepsPackage, base.stepSources),
             stepSources = base.stepSources,
-            stepSourcePickerOpen = base.stepSourcePickerOpen,
             account = account.toUiState(),
             accountEditorOpen = editor.open,
             accountNameInput = editor.nameInput,
@@ -280,7 +289,10 @@ class ProfileSettingsViewModel @Inject constructor(
             aiCoachErrorMessage = aiCoachEditor.errorMessage,
             aiCoachMessage = base.aiCoachMessage,
             isAiCoachTesting = base.isAiCoachTesting,
+            aiCoachTestState = base.aiCoachTestState,
             includeBurnedCalories = base.includeBurnedCalories,
+            targetApplyState = base.targetApplyState,
+            targetApplyTargets = base.targetApplyTargets,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileSettingsUiState())
 
@@ -382,18 +394,10 @@ class ProfileSettingsViewModel @Inject constructor(
         }
     }
 
-    fun openStepSourcePicker() {
-        loadStepSources()
-        mutableState.update { it.copy(stepSourcePickerOpen = true) }
-    }
-
-    fun dismissStepSourcePicker() {
-        mutableState.update { it.copy(stepSourcePickerOpen = false) }
-    }
-
     fun selectStepSource(packageName: String?) {
+        if (mutableState.value.isHealthConnectSyncing) return
+        mutableState.update { it.copy(isHealthConnectSyncing = true) }
         viewModelScope.launch {
-            mutableState.update { it.copy(stepSourcePickerOpen = false, isHealthConnectSyncing = true) }
             runCatching {
                 healthRepository.setPreferredStepsPackage(packageName)
                 healthRepository.refreshRecentData(LocalDate.now())
@@ -662,7 +666,10 @@ class ProfileSettingsViewModel @Inject constructor(
                 )
             }.onSuccess {
                 aiCoachEditorFlow.value = AiCoachEditorState()
-                mutableState.update { it.copy(aiCoachMessage = "AI coach setup saved.") }
+                // A previous test result no longer describes the new settings.
+                mutableState.update {
+                    it.copy(aiCoachMessage = "AI coach setup saved.", aiCoachTestState = AiCoachTestState.Idle)
+                }
             }.onFailure { error ->
                 aiCoachEditorFlow.update {
                     it.copy(errorMessage = error.message ?: "Could not save AI coach setup.")
@@ -675,7 +682,9 @@ class ProfileSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { aiCoachRepository.clearApiKey() }
                 .onSuccess {
-                    mutableState.update { it.copy(aiCoachMessage = "AI coach API key cleared.") }
+                    mutableState.update {
+                        it.copy(aiCoachMessage = "AI coach API key cleared.", aiCoachTestState = AiCoachTestState.Idle)
+                    }
                 }
                 .onFailure { error ->
                     mutableState.update {
@@ -694,22 +703,75 @@ class ProfileSettingsViewModel @Inject constructor(
     fun testAiCoachConnection() {
         viewModelScope.launch {
             mutableState.update {
-                it.copy(isAiCoachTesting = true, aiCoachMessage = "Testing AI coach connection...")
+                it.copy(
+                    isAiCoachTesting = true,
+                    aiCoachTestState = AiCoachTestState.Testing,
+                    aiCoachMessage = "Testing AI coach connection...",
+                )
             }
             runCatching { aiCoachChatRepository.testConnection() }
                 .onSuccess {
                     mutableState.update {
-                        it.copy(isAiCoachTesting = false, aiCoachMessage = "AI coach connection is reachable.")
+                        it.copy(
+                            isAiCoachTesting = false,
+                            aiCoachTestState = AiCoachTestState.Success,
+                            aiCoachMessage = "AI coach connection is reachable.",
+                        )
                     }
                 }
                 .onFailure { error ->
                     mutableState.update {
                         it.copy(
                             isAiCoachTesting = false,
+                            aiCoachTestState = AiCoachTestState.Failure,
                             aiCoachMessage = error.message ?: "AI coach connection is not reachable.",
                         )
                     }
                 }
+        }
+    }
+
+    /**
+     * Applies the 11e sheet's live-draft targets to the Food goal, preserving the
+     * goal's other fields — the settings-hosted counterpart of the old Profile-tab
+     * "Apply to Food goals" action.
+     */
+    fun applyRecommendedTargetsToFood(targets: RecommendedTargets) {
+        if (mutableState.value.targetApplyState == TargetApplyState.Applying) return
+        mutableState.update {
+            it.copy(
+                targetApplyState = TargetApplyState.Applying,
+                targetApplyTargets = targets,
+            )
+        }
+        viewModelScope.launch {
+            runCatching {
+                val current = foodRepository.observeFoodGoal().first()
+                foodRepository.updateFoodGoal(
+                    current.copy(
+                        dailyCaloriesKcal = targets.caloriesKcal,
+                        proteinGrams = targets.proteinGrams,
+                        carbsGrams = targets.carbsGrams,
+                        fatGrams = targets.fatGrams,
+                    ),
+                )
+            }.onSuccess {
+                mutableState.update {
+                    it.copy(
+                        message = "Applied your targets to Food goals.",
+                        targetApplyState = TargetApplyState.Success,
+                        targetApplyTargets = targets,
+                    )
+                }
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(
+                        message = error.message ?: "Could not apply targets to Food.",
+                        targetApplyState = TargetApplyState.Failure,
+                        targetApplyTargets = targets,
+                    )
+                }
+            }
         }
     }
 }

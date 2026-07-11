@@ -1,17 +1,18 @@
 package com.musfit.ui.profile
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -19,16 +20,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.TrendingDown
 import androidx.compose.material.icons.automirrored.outlined.TrendingFlat
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +37,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,13 +52,12 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.ui.AppDestination
+import com.musfit.ui.components.ExpressiveBadge
+import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.TonalHeaderIconButton
-import com.musfit.ui.components.WavyProgressBar
-import com.musfit.ui.components.charts.TrendLineChart
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.components.groupedShape
 import com.musfit.ui.theme.LavenderBody
@@ -72,11 +73,13 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** History-surface key for the body-weight series (measurements use their type key). */
+private const val WEIGHT_HISTORY_KEY = "weight"
+
 @Composable
 fun ProfileScreen(
     onSettingsClick: () -> Unit,
     onOpenFood: () -> Unit = {},
-    onOpenTraining: () -> Unit = {},
     onOpenTrainingProgress: () -> Unit = {},
     onOpenNutritionTrends: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
@@ -96,12 +99,14 @@ fun ProfileScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    var showEditor by remember { mutableStateOf(false) }
     var showLogWeight by remember { mutableStateOf(false) }
     var showLogMeasurement by remember { mutableStateOf(false) }
     var logMeasurementInitialType by remember { mutableStateOf<String?>(null) }
-    var showWeightSheet by remember { mutableStateOf(false) }
-    var measurementSheetType by remember { mutableStateOf<String?>(null) }
+    // Turn 11: weight and measurement histories are full inner surfaces (11f),
+    // hosted with the same takeover pattern Food/Training inner screens use.
+    var historyKey by rememberSaveable { mutableStateOf<String?>(null) }
+
+    BackHandler(enabled = historyKey != null) { historyKey = null }
 
     LaunchedEffect(state.message) {
         val message = state.message
@@ -118,95 +123,83 @@ fun ProfileScreen(
         // doubles into a gap above the header.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 88.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            MusFitScreenHeader(
-                title = "Profile",
-                actions = {
-                    TonalHeaderIconButton(
-                        icon = Icons.Outlined.Settings,
-                        contentDescription = "Settings",
-                        onClick = onSettingsClick,
-                    )
-                },
-            )
-            if (state.isHealthConnectNudgeVisible) {
-                HealthConnectNudge(onOpen = onSettingsClick)
-            }
-            WeightCard(
-                state = state,
-                accent = accent,
-                onOpenEntries = { showWeightSheet = true },
-                onLogWeight = { showLogWeight = true },
-            )
-            SectionHeader(
-                title = "Measurements",
-                trailingActionLabel = "+ Log",
-                trailingActionColor = accent.color,
-                onTrailingAction = { showLogMeasurement = true },
-            )
-            MeasurementsGrid(
-                state = state,
-                accent = accent,
-                onOpenType = { type ->
-                    state.tiles.firstOrNull { it.type == type }?.let { tile ->
-                        if (tile.entryCount == 0) logMeasurementInitialType = type else measurementSheetType = type
-                    }
-                },
-            )
-            SectionHeader(
-                title = "Goal",
-                trailingActionLabel = "Edit",
-                trailingActionColor = accent.color,
-                onTrailingAction = { showEditor = true },
-            )
-            GoalCard(state = state, accent = accent, onApply = viewModel::applyTargetsToFood, onComplete = { showEditor = true })
-            SectionHeader(title = "Plans")
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                state.planCards.forEachIndexed { index, card ->
-                    PlanCardRow(
-                        card = card,
-                        shape = groupedShape(index, state.planCards.size),
-                        onClick = { if (card.id == "diet") onOpenFood() else onOpenTraining() },
-                    )
+        val openHistoryKey = historyKey
+        if (openHistoryKey != null) {
+            val isWeight = openHistoryKey == WEIGHT_HISTORY_KEY
+            val entries = if (isWeight) {
+                state.weightEntries.map { HistoryEntry(it.id, it.measuredAtEpochMillis, it.weightKg, "kg") }
+            } else {
+                state.measurementEntries[openHistoryKey].orEmpty().map {
+                    HistoryEntry(it.id, it.measuredAtEpochMillis, it.value, it.unit)
                 }
             }
-            SectionHeader(title = "Progress & trends")
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                ProfileNavRow(
-                    title = "Training progress",
-                    subtitle = "PRs, trends, and volume analytics per exercise.",
-                    shape = groupedShape(0, 2),
-                    onClick = onOpenTrainingProgress,
+            MeasurementHistoryScreen(
+                title = if (isWeight) "Weight history" else "${MEASUREMENT_SHEET_LABELS[openHistoryKey] ?: openHistoryKey} history",
+                entries = entries,
+                accent = accent,
+                onBack = { historyKey = null },
+                onAdd = {
+                    if (isWeight) showLogWeight = true else logMeasurementInitialType = openHistoryKey
+                },
+                onEdit = viewModel::editEntry,
+                onDelete = viewModel::deleteEntry,
+                goalValue = if (isWeight) state.hero.goalWeightKg else null,
+                modifier = Modifier.padding(padding),
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 88.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                MusFitScreenHeader(
+                    title = "Profile",
+                    actions = {
+                        TonalHeaderIconButton(
+                            icon = Icons.Outlined.Settings,
+                            contentDescription = "Settings",
+                            onClick = onSettingsClick,
+                        )
+                    },
                 )
-                ProfileNavRow(
-                    title = "Nutrition trends",
-                    subtitle = "Weekly MusFit score and 7/28-day progress.",
-                    shape = groupedShape(1, 2),
-                    onClick = onOpenNutritionTrends,
+                if (state.isHealthConnectNudgeVisible) {
+                    HealthConnectNudge(onOpen = onSettingsClick)
+                }
+                WeightHeroCard(
+                    state = state,
+                    accent = accent,
+                    onOpenEntries = { historyKey = WEIGHT_HISTORY_KEY },
+                    onLogWeight = { showLogWeight = true },
+                )
+                SectionHeader(
+                    title = "Measurements",
+                    trailingActionLabel = "+ Log",
+                    trailingActionColor = accent.color,
+                    onTrailingAction = { showLogMeasurement = true },
+                )
+                MeasurementsGrid(
+                    state = state,
+                    accent = accent,
+                    onOpenType = { type ->
+                        state.tiles.firstOrNull { it.type == type }?.let { tile ->
+                            if (tile.entryCount == 0) logMeasurementInitialType = type else historyKey = type
+                        }
+                    },
+                )
+                SectionHeader(title = "Plans & progress")
+                PlansAndProgressList(
+                    plansSummary = state.plansSummary,
+                    onOpenFood = onOpenFood,
+                    onOpenTrainingProgress = onOpenTrainingProgress,
+                    onOpenNutritionTrends = onOpenNutritionTrends,
                 )
             }
         }
     }
 
-    if (showEditor) {
-        ProfileEditDialog(
-            initial = state.profile ?: DEFAULT_USER_PROFILE,
-            initialWeightKg = state.hero.latestWeightKg,
-            onDismiss = { showEditor = false },
-            onSave = { profile, weightKg ->
-                viewModel.saveProfile(profile)
-                if (weightKg != null) viewModel.logWeight(weightKg)
-                showEditor = false
-            },
-        )
-    }
     if (showLogWeight) {
         LogWeightDialog(
             prefillKg = state.hero.latestWeightKg,
@@ -234,30 +227,6 @@ fun ProfileScreen(
                 viewModel.logMeasurement(type, value, unit)
                 logMeasurementInitialType = null
             },
-        )
-    }
-    if (showWeightSheet) {
-        EntriesSheet(
-            title = "Weight history",
-            items = state.weightEntries.map {
-                EntrySheetItem(it.id, formatEntryDate(it.measuredAtEpochMillis), it.weightKg, "kg")
-            },
-            onDismiss = { showWeightSheet = false },
-            onEdit = viewModel::editEntry,
-            onDelete = viewModel::deleteEntry,
-            // Full all-time series — the sheet's chart is deliberately unwindowed.
-            chartSeries = remember(state.weightEntries) { state.weightEntries.map { it.weightKg }.asReversed() },
-        )
-    }
-    measurementSheetType?.let { type ->
-        val rows = state.measurementEntries[type].orEmpty()
-        EntriesSheet(
-            title = "${MEASUREMENT_SHEET_LABELS[type] ?: type} history",
-            items = rows.map { EntrySheetItem(it.id, formatEntryDate(it.measuredAtEpochMillis), it.value, it.unit) },
-            onDismiss = { measurementSheetType = null },
-            onEdit = viewModel::editEntry,
-            onDelete = viewModel::deleteEntry,
-            chartSeries = remember(rows) { rows.map { it.value }.asReversed() },
         )
     }
 }
@@ -300,145 +269,22 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
     }
 }
 
-/** A grouped white list row: emphasized title over one quiet meta line. */
-@Composable
-private fun ProfileNavRow(title: String, subtitle: String, shape: RoundedCornerShape, onClick: () -> Unit) {
-    Surface(
-        color = MusFitTheme.colors.surface,
-        shape = shape,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .clickable(onClickLabel = title, onClick = onClick),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(title, style = MusFitTheme.typography.titleSmall)
-            Text(subtitle, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun PlanCardRow(card: PlanCard, shape: RoundedCornerShape, onClick: () -> Unit) {
-    Surface(
-        color = MusFitTheme.colors.surface,
-        shape = shape,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .clickable(
-                onClickLabel = if (card.id == "diet") "Manage diet in Food" else "Manage program in Training",
-                onClick = onClick,
-            ),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(card.title, style = MusFitTheme.typography.titleSmall)
-            Text(card.subtitle, style = MusFitTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun GoalCard(state: ProfileUiState, accent: TabAccent, onApply: () -> Unit, onComplete: () -> Unit) {
-    Surface(
-        color = MusFitTheme.colors.surface,
-        shape = MusFitTheme.shapes.large,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            val profile = state.profile
-            if (profile != null) {
-                val goalText = buildString {
-                    append(profile.goalType.label())
-                    if (profile.goalType != com.musfit.domain.profile.GoalType.Maintain) {
-                        append(" · ${profile.goalPaceKgPerWeek.format1()} kg/wk")
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        goalText,
-                        style = MusFitTheme.typography.titleSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                    val currentWeight = state.hero.latestWeightKg
-                    if (currentWeight != null && profile.goalWeightKg != null) {
-                        Text(
-                            "${currentWeight.format1()} → ${profile.goalWeightKg.format1()} kg",
-                            style = MusFitTheme.typography.bodySmall,
-                            color = MusFitTheme.colors.onSurfaceVariant,
-                        )
-                    }
-                }
-                val progress = state.hero.goalProgressFraction
-                if (progress != null) {
-                    WavyProgressBar(
-                        progress = progress.toFloat().coerceIn(0f, 1f),
-                        color = accent.color,
-                        trackColor = accent.track,
-                    )
-                }
-            }
-            val targets = state.recommendedTargets
-            if (targets != null) {
-                Text(
-                    "${targets.caloriesKcal.format1()} kcal · recommended",
-                    style = MusFitTheme.typography.titleLarge,
-                )
-                Text(
-                    "P ${targets.proteinGrams.format1()} g · C ${targets.carbsGrams.format1()} g · F ${targets.fatGrams.format1()} g",
-                    style = MusFitTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-                Button(
-                    onClick = onApply,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-                ) {
-                    Text("Apply to Food goals")
-                }
-            } else {
-                Text(
-                    "Complete your profile to see recommended calories and macros.",
-                    style = MusFitTheme.typography.bodyMedium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-                Button(
-                    onClick = onComplete,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
-                ) {
-                    Text("Complete your profile")
-                }
-            }
-        }
-    }
-}
-
 /**
- * The mock-6d weight hero: a teal tonal container with the display weight and
- * inline unit, an emphasized delta/BMI line, a white goal chip top-right, the
- * 30-day sparkline, and a filled "+ Log weight" button. Tapping the container
- * opens the weight history.
+ * The Turn 11 weight hero: the one tonal container on the tab. Display weight
+ * with inline unit, delta/BMI meta line, a white goal chip that now carries the
+ * pace ("goal 82 kg · gain 0.3/wk"), the 30-day sparkline, and a footer with
+ * "30 days · 50% to goal" plus the filled "＋ Log weight" pill. Tapping the
+ * container opens the 11f weight history.
  */
 @Composable
-private fun WeightCard(
+private fun WeightHeroCard(
     state: ProfileUiState,
     accent: TabAccent,
     onOpenEntries: () -> Unit,
     onLogWeight: () -> Unit,
 ) {
     val hero = state.hero
-    val shape = MusFitTheme.shapes.extraLarge
+    val shape = RoundedCornerShape(28.dp)
     Surface(
         color = accent.container,
         shape = shape,
@@ -448,112 +294,141 @@ private fun WeightCard(
             .clickable(onClickLabel = "Open weight history") { onOpenEntries() },
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (hero.hasAnyEntry) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.weight(1f)) {
-                        // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
-                        Text(
-                            hero.latestWeightKg!!.format1(),
-                            style = MusFitTheme.typography.displayLarge.copy(fontSize = 52.sp),
-                            color = accent.onContainer,
-                            maxLines = 1,
-                        )
-                        Text(
-                            "kg",
-                            style = MusFitTheme.typography.titleLarge.copy(fontSize = 19.sp),
-                            fontWeight = FontWeight.Medium,
-                            color = accent.onContainerVariant,
-                            maxLines = 1,
-                            modifier = Modifier.padding(start = 5.dp, bottom = 7.dp),
-                        )
-                    }
-                    if (hero.goalWeightKg != null) {
-                        Surface(color = MusFitTheme.colors.surface, shape = RoundedCornerShape(999.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
                             Text(
-                                text = buildString {
-                                    append("goal ${hero.goalWeightKg.format1()} kg")
-                                    hero.goalProgressFraction?.let { append(" · ${(it * 100).roundToInt()}%") }
-                                },
-                                style = MusFitTheme.typography.labelMedium.copy(fontSize = 12.sp),
-                                fontWeight = FontWeight.ExtraBold,
+                                hero.latestWeightKg!!.format1(),
+                                style = MusFitTheme.typography.displayLarge.copy(fontSize = 52.sp, lineHeight = 52.sp),
                                 color = accent.onContainer,
                                 maxLines = 1,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                            Text(
+                                "kg",
+                                style = MusFitTheme.typography.titleLarge.copy(fontSize = 19.sp),
+                                fontWeight = FontWeight.Medium,
+                                color = accent.onContainer,
+                                maxLines = 1,
+                                modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
                             )
                         }
+                        WeightMetaLine(hero = hero, accent = accent)
                     }
-                }
-                val delta = hero.deltaKg
-                val sub = buildAnnotatedString {
-                    if (delta != null) {
-                        withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, color = accent.onContainer)) {
-                            append("${if (delta < 0) "−" else "+"}${abs(delta).format1()} kg")
-                        }
-                        append(" · 7 days")
+                    if (hero.goalWeightKg != null) {
+                        HeroChip(text = goalChipText(state), accent = accent)
                     }
-                    hero.bmi?.let {
-                        if (length > 0) append(" · ")
-                        append("BMI ${it.format1()}")
-                    }
-                }
-                if (sub.isNotEmpty()) {
-                    Text(sub, style = MusFitTheme.typography.bodySmall, color = accent.onContainerVariant)
                 }
                 when {
                     hero.chartSeries.size >= 2 ->
-                        TrendLineChart(
+                        ProfileTrendChart(
                             values = hero.chartSeries,
-                            accent = accent.color,
-                            modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 4.dp),
+                            color = accent.color,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
                         )
                     hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
-                        Text("No entries in the last 30 days.", style = MusFitTheme.typography.bodySmall, color = accent.onContainerVariant)
+                        Text(
+                            "No entries in the last 30 days.",
+                            style = MusFitTheme.typography.bodySmall,
+                            color = accent.onContainerVariant,
+                        )
                     else -> // exactly one point in the window — a chart or "no entries" text would both mislead
-                        Text("Log again to see a trend.", style = MusFitTheme.typography.bodySmall, color = accent.onContainerVariant)
+                        Text(
+                            "Log again to see a trend.",
+                            style = MusFitTheme.typography.bodySmall,
+                            color = accent.onContainerVariant,
+                        )
                 }
             } else {
                 Text("No weight logged yet.", style = MusFitTheme.typography.bodyMedium, color = accent.onContainerVariant)
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (hero.hasAnyEntry) "30 days" else "",
-                    style = MusFitTheme.typography.bodySmall,
+                    text = if (hero.hasAnyEntry) {
+                        buildAnnotatedString {
+                            append("30 days")
+                            hero.goalProgressFraction?.let {
+                                append(" · ")
+                                withStyle(SpanStyle(fontWeight = FontWeight.W800)) {
+                                    append("${(it * 100).roundToInt()}%")
+                                }
+                                append(" to goal")
+                            }
+                        }
+                    } else {
+                        buildAnnotatedString {}
+                    },
+                    style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = accent.onContainerVariant,
                     modifier = Modifier.weight(1f),
                 )
-                Surface(
+                HeroActionPill(
+                    text = "Log weight",
+                    icon = Icons.Outlined.Add,
+                    accent = accent,
                     onClick = onLogWeight,
-                    color = accent.color,
-                    contentColor = accent.onColor,
-                    shape = RoundedCornerShape(999.dp),
-                ) {
-                    Text(
-                        "+ Log weight",
-                        style = MusFitTheme.typography.labelMedium.copy(fontSize = 13.sp),
-                        maxLines = 1,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    )
-                }
+                )
             }
         }
     }
 }
 
+/** "+0.5 kg · 7 days · BMI 25" — the delta emphasized, the rest quiet. */
+@Composable
+private fun WeightMetaLine(hero: WeightHeroState, accent: TabAccent) {
+    val delta = hero.deltaKg
+    val meta = buildAnnotatedString {
+        if (delta != null) {
+            withStyle(SpanStyle(fontWeight = FontWeight.W800)) {
+                append("${if (delta < 0) "−" else "+"}${abs(delta).format1()} kg")
+            }
+            append(" · 7 days")
+        }
+        hero.bmi?.let {
+            if (length > 0) append(" · ")
+            append("BMI ${it.format1()}")
+        }
+    }
+    if (meta.isNotEmpty()) {
+        Text(
+            meta,
+            style = MusFitTheme.typography.bodySmall,
+            color = accent.onContainerVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+/** "goal 82 kg · gain 0.3/wk" — the goal chip carries the pace since Turn 11. */
+private fun goalChipText(state: ProfileUiState): String {
+    val goalWeight = state.hero.goalWeightKg ?: return ""
+    val profile = state.profile
+    val paceText = profile?.let {
+        when (it.goalType) {
+            com.musfit.domain.profile.GoalType.Maintain -> "maintain"
+            com.musfit.domain.profile.GoalType.Lose -> "lose ${it.goalPaceKgPerWeek.format1()}/wk"
+            com.musfit.domain.profile.GoalType.Gain -> "gain ${it.goalPaceKgPerWeek.format1()}/wk"
+        }
+    }
+    return buildString {
+        append("goal ${goalWeight.format1()} kg")
+        paceText?.let { append(" · $it") }
+    }
+}
+
 /**
- * Measurements as the Turn 8 (8d) two-column grid: white cells with grouped
+ * Measurements as the Turn 11 (11a) three-column grid: white cells with grouped
  * corners (24dp on the grid's outside, 8dp inside), quiet label, emphasized
- * value with its unit at the baseline, and a 30-day trend row — or a faint
+ * value with its unit at the baseline, and an icon+delta trend row — or a faint
  * "Tap to log" placeholder for genuinely empty cells.
  */
 @Composable
 private fun MeasurementsGrid(state: ProfileUiState, accent: TabAccent, onOpenType: (String) -> Unit) {
-    val columns = 2
+    val columns = 3
     val rows = state.tiles.chunked(columns)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         rows.forEachIndexed { rowIndex, rowTiles ->
@@ -567,7 +442,7 @@ private fun MeasurementsGrid(state: ProfileUiState, accent: TabAccent, onOpenTyp
                         modifier = Modifier.weight(1f),
                     )
                 }
-                if (rowTiles.size == 1) Spacer(Modifier.weight(1f))
+                repeat(columns - rowTiles.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -594,11 +469,11 @@ private fun MeasurementCell(
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
                 tile.label,
-                style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.5.sp),
+                style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.sp),
                 fontWeight = FontWeight.SemiBold,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -615,7 +490,7 @@ private fun MeasurementCell(
                 Row {
                     Text(
                         tile.value!!.format1(),
-                        style = MusFitTheme.typography.titleLarge.copy(fontSize = 20.sp, letterSpacing = (-0.4).sp),
+                        style = MusFitTheme.typography.titleLarge.copy(fontSize = 18.sp, letterSpacing = (-0.4).sp),
                         fontWeight = FontWeight.ExtraBold,
                         color = MusFitTheme.colors.onSurface,
                         maxLines = 1,
@@ -623,11 +498,11 @@ private fun MeasurementCell(
                     )
                     Text(
                         tile.unit,
-                        style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        style = MusFitTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         fontWeight = FontWeight.Medium,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         maxLines = 1,
-                        modifier = Modifier.alignByBaseline().padding(start = 3.dp),
+                        modifier = Modifier.alignByBaseline().padding(start = 2.dp),
                     )
                 }
                 MeasurementTrendRow(delta = tile.delta30d, accent = accent)
@@ -637,8 +512,8 @@ private fun MeasurementCell(
 }
 
 /**
- * The 30-day trend line: direction icon + delta in the Profile teal for a
- * meaningful change, gray trending_flat with "no change" when the value is
+ * The 30-day trend row: direction icon + delta in the Profile teal for a
+ * meaningful change, gray trending_flat with "flat" when the value is
  * effectively unchanged. Hidden until a 30-day baseline exists.
  */
 @Composable
@@ -654,16 +529,12 @@ private fun MeasurementTrendRow(delta: Double?, accent: TabAccent) {
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
         Text(
-            text = if (flat) {
-                "no change · 30 days"
-            } else {
-                "${if (delta < 0) "−" else "+"}${abs(delta).format1()} · 30 days"
-            },
-            style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.5.sp),
+            text = if (flat) "flat" else "${if (delta < 0) "−" else "+"}${abs(delta).format1()}",
+            style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.sp),
             fontWeight = FontWeight.Bold,
             color = color,
             maxLines = 1,
@@ -671,7 +542,76 @@ private fun MeasurementTrendRow(delta: Double?, accent: TabAccent) {
     }
 }
 
-private val MEASUREMENT_SHEET_LABELS = mapOf(
+/**
+ * Turn 11 "Plans & progress": one grouped list of three launcher rows with
+ * alternating expressive badges — goals & programs (Profile teal sunny),
+ * training progress (Training indigo circle), nutrition trends (Food green
+ * squircle). Cross-tab rows keep their own tab families.
+ */
+@Composable
+private fun PlansAndProgressList(
+    plansSummary: String,
+    onOpenFood: () -> Unit,
+    onOpenTrainingProgress: () -> Unit,
+    onOpenNutritionTrends: () -> Unit,
+) {
+    val profileAccent = tabAccentFor(AppDestination.Profile)
+    val trainingAccent = tabAccentFor(AppDestination.Training)
+    val foodAccent = tabAccentFor(AppDestination.Food)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        ProfileHubRow(
+            title = "Goals & programs",
+            subtitle = plansSummary.ifBlank { "Set your goal, diet, and program" },
+            shape = groupedShape(0, 3),
+            onClick = onOpenFood,
+            onClickLabel = "Open goals and programs in Food",
+            leading = {
+                ExpressiveBadge(
+                    icon = Icons.Outlined.Flag,
+                    shape = ExpressiveBadgeShape.Sunny,
+                    containerColor = profileAccent.container,
+                    contentColor = profileAccent.onContainer,
+                    size = 40.dp,
+                    iconSize = 19.dp,
+                )
+            },
+        )
+        ProfileHubRow(
+            title = "Training progress",
+            subtitle = "PRs, trends and volume per exercise",
+            shape = groupedShape(1, 3),
+            onClick = onOpenTrainingProgress,
+            leading = {
+                ExpressiveBadge(
+                    icon = Icons.AutoMirrored.Outlined.TrendingUp,
+                    shape = ExpressiveBadgeShape.Circle,
+                    containerColor = trainingAccent.container,
+                    contentColor = trainingAccent.onContainer,
+                    size = 40.dp,
+                    iconSize = 19.dp,
+                )
+            },
+        )
+        ProfileHubRow(
+            title = "Nutrition trends",
+            subtitle = "Weekly score · 7 and 28-day progress",
+            shape = groupedShape(2, 3),
+            onClick = onOpenNutritionTrends,
+            leading = {
+                ExpressiveBadge(
+                    icon = Icons.Outlined.QueryStats,
+                    shape = ExpressiveBadgeShape.Squircle,
+                    containerColor = foodAccent.container,
+                    contentColor = foodAccent.onContainerVariant,
+                    size = 40.dp,
+                    iconSize = 19.dp,
+                )
+            },
+        )
+    }
+}
+
+internal val MEASUREMENT_SHEET_LABELS = mapOf(
     "waist" to "Waist", "chest" to "Chest", "arms" to "Arms",
     "thighs" to "Thighs", "hips" to "Hips", "body_fat" to "Body fat",
 )

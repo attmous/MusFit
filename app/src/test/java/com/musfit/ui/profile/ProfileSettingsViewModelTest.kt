@@ -46,6 +46,8 @@ import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
 import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
+import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -61,7 +63,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileSettingsViewModelTest {
@@ -598,6 +599,138 @@ class ProfileSettingsViewModelTest {
         assertEquals(1, chatRepository.testCalls)
         assertEquals("AI coach connection is reachable.", viewModel.state.value.aiCoachMessage)
         assertFalse(viewModel.state.value.isAiCoachTesting)
+        assertEquals(AiCoachTestState.Success, viewModel.state.value.aiCoachTestState)
+    }
+
+    @Test
+    fun testAiCoachConnection_failureSetsFailureStateAndMessage() = runTest {
+        val chatRepository = FakeAiCoachChatRepository()
+        chatRepository.testError = IllegalStateException("Connection refused")
+        val viewModel = settingsViewModel(aiCoachChatRepository = chatRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.testAiCoachConnection()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Connection refused", viewModel.state.value.aiCoachMessage)
+        assertFalse(viewModel.state.value.isAiCoachTesting)
+        assertEquals(AiCoachTestState.Failure, viewModel.state.value.aiCoachTestState)
+    }
+
+    @Test
+    fun saveAiCoachSettings_resetsStaleTestResult() = runTest {
+        val chatRepository = FakeAiCoachChatRepository()
+        val viewModel = settingsViewModel(aiCoachChatRepository = chatRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.testAiCoachConnection()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(AiCoachTestState.Success, viewModel.state.value.aiCoachTestState)
+
+        // New settings invalidate the old result: the 11c hero must fall back to
+        // "not tested" instead of claiming the fresh endpoint is connected.
+        viewModel.openAiCoachEditor()
+        viewModel.saveAiCoachSettings()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AiCoachTestState.Idle, viewModel.state.value.aiCoachTestState)
+    }
+
+    @Test
+    fun applyRecommendedTargetsToFood_writesGoalPreservingOtherFields() = runTest {
+        val foodRepository = FakeFoodRepository(
+            goal = DEFAULT_REPOSITORY_FOOD_GOAL.copy(includeTrainingCalories = true, useNetCarbs = true),
+        )
+        val viewModel = settingsViewModel(foodRepository = foodRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.applyRecommendedTargetsToFood(RecommendedTargets(2759.0, 144.0, 270.0, 77.0))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val saved = foodRepository.updatedGoal!!
+        assertEquals(2759.0, saved.dailyCaloriesKcal, 0.001)
+        assertEquals(144.0, saved.proteinGrams, 0.001)
+        assertEquals(270.0, saved.carbsGrams, 0.001)
+        assertEquals(77.0, saved.fatGrams, 0.001)
+        assertEquals(true, saved.includeTrainingCalories)
+        assertEquals(true, saved.useNetCarbs)
+        assertEquals("Applied your targets to Food goals.", viewModel.state.value.message)
+        assertEquals(TargetApplyState.Success, viewModel.state.value.targetApplyState)
+        assertEquals(
+            RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
+            viewModel.state.value.targetApplyTargets,
+        )
+
+    }
+
+    @Test
+    fun applyRecommendedTargetsToFood_failureSurfacesMessage() = runTest {
+        val foodRepository = FakeFoodRepository()
+        foodRepository.updateError = IllegalStateException("disk full")
+        val viewModel = settingsViewModel(foodRepository = foodRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.applyRecommendedTargetsToFood(RecommendedTargets(2759.0, 144.0, 270.0, 77.0))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("disk full", viewModel.state.value.message)
+        assertEquals(TargetApplyState.Failure, viewModel.state.value.targetApplyState)
+        assertEquals(
+            RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
+            viewModel.state.value.targetApplyTargets,
+        )
+
+        foodRepository.updateError = null
+        viewModel.applyRecommendedTargetsToFood(RecommendedTargets(2759.0, 144.0, 270.0, 77.0))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(TargetApplyState.Success, viewModel.state.value.targetApplyState)
+        assertTrue(foodRepository.updatedGoal != null)
+    }
+
+    @Test
+    fun applyRecommendedTargetsToFood_reportsApplyingUntilWriteCompletes() = runTest {
+        val foodRepository = FakeFoodRepository()
+        val gate = CompletableDeferred<Unit>()
+        foodRepository.updateGate = gate
+        val targets = RecommendedTargets(2759.0, 144.0, 270.0, 77.0)
+        val viewModel = settingsViewModel(foodRepository = foodRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.applyRecommendedTargetsToFood(targets)
+        dispatcher.scheduler.runCurrent()
+
+        assertEquals(TargetApplyState.Applying, viewModel.state.value.targetApplyState)
+        assertEquals(targets, viewModel.state.value.targetApplyTargets)
+
+        gate.complete(Unit)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(TargetApplyState.Success, viewModel.state.value.targetApplyState)
+    }
+
+    @Test
+    fun selectStepSource_ignoresSecondSelectionWhileFirstWriteIsPending() = runTest {
+        val healthRepository = FakeHealthRepository()
+        val gate = CompletableDeferred<Unit>()
+        healthRepository.preferredStepsWriteGate = gate
+        val viewModel = settingsViewModel(healthRepository = healthRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.selectStepSource("com.example.first")
+        dispatcher.scheduler.runCurrent()
+        viewModel.selectStepSource("com.example.second")
+        dispatcher.scheduler.runCurrent()
+
+        assertTrue(viewModel.state.value.isHealthConnectSyncing)
+        assertEquals(listOf("com.example.first"), healthRepository.preferredStepsWrites)
+
+        gate.complete(Unit)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.isHealthConnectSyncing)
+        assertEquals("com.example.first", viewModel.state.value.preferredStepsPackage)
+        assertEquals(listOf("com.example.first"), healthRepository.preferredStepsWrites)
     }
 
     @Test
@@ -689,6 +822,8 @@ class ProfileSettingsViewModelTest {
         var importedDate: LocalDate? = null
         var refreshDate: LocalDate? = null
         var exportCalls = 0
+        val preferredStepsWrites = mutableListOf<String?>()
+        var preferredStepsWriteGate: CompletableDeferred<Unit>? = null
 
         override suspend fun status(): HealthConnectStatus {
             statusException?.let { throw it }
@@ -724,6 +859,11 @@ class ProfileSettingsViewModelTest {
         override suspend fun exportLatestWorkout(): String? {
             exportCalls += 1
             return exportedRecordId
+        }
+
+        override suspend fun setPreferredStepsPackage(packageName: String?) {
+            preferredStepsWrites += packageName
+            preferredStepsWriteGate?.await()
         }
     }
 
@@ -802,10 +942,12 @@ class ProfileSettingsViewModelTest {
         private val goalFlow = MutableStateFlow(goal)
         var updatedGoal: FoodGoal? = null
         var updateError: Throwable? = null
+        var updateGate: CompletableDeferred<Unit>? = null
 
         override fun observeFoodGoal(): Flow<FoodGoal> = goalFlow
 
         override suspend fun updateFoodGoal(goal: FoodGoal) {
+            updateGate?.await()
             updateError?.let { throw it }
             updatedGoal = goal
             goalFlow.value = goal

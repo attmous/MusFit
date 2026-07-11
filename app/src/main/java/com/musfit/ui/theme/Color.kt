@@ -39,6 +39,10 @@ val IndigoTrack = Color(0xFFC2C8F9)
 // Resting outline for selection circles and drag handles (Training pickers/editor).
 val NeutralOutline = Color(0xFFCBC3B4)
 val NeutralOutlineDark = Color(0xFF4A443A)
+// Unselected radio ring (Turn 11 grouped radio rows) — darker than NeutralOutline
+// so the empty ring reads as an affordance on white rows.
+val RadioOutline = Color(0xFFA79C8E)
+val RadioOutlineDark = Color(0xFF6E6558)
 
 // Profile (teal).
 val Teal = Color(0xFF177D6E)

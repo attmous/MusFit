@@ -171,7 +171,6 @@ fun AppNavGraph() {
                 ProfileScreen(
                     onSettingsClick = { navController.navigate(PROFILE_SETTINGS_ROUTE) },
                     onOpenFood = { go(AppDestination.Food) },
-                    onOpenTraining = { go(AppDestination.Training) },
                     onOpenTrainingProgress = { navController.navigate(PROFILE_TRAINING_PROGRESS_ROUTE) },
                     onOpenNutritionTrends = { navController.navigate(PROFILE_NUTRITION_TRENDS_ROUTE) },
                 )
