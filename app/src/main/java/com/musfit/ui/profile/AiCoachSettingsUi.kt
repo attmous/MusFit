@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,6 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.password
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -204,15 +209,23 @@ private fun ApiKeyRow(
                 )
             }
             if (hasApiKey) {
-                Text(
-                    "Clear",
-                    style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
-                    color = accent.color,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(99.dp))
-                        .clickable(onClickLabel = "Clear API key", onClick = onClear)
-                        .padding(horizontal = 4.dp, vertical = 4.dp),
-                )
+                Surface(
+                    onClick = onClear,
+                    color = androidx.compose.ui.graphics.Color.Transparent,
+                    shape = RoundedCornerShape(99.dp),
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Text(
+                            "Clear",
+                            style = MusFitTheme.typography.labelLarge.copy(
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.W800,
+                            ),
+                            color = accent.color,
+                        )
+                    }
+                }
             }
         }
     }
@@ -388,6 +401,7 @@ private fun EditorTextTile(
                     ),
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
+                    modifier = Modifier.clearAndSetSemantics { },
                 )
                 Box {
                     if (value.isEmpty() && placeholder != null) {
@@ -416,7 +430,13 @@ private fun EditorTextTile(
                         } else {
                             androidx.compose.ui.text.input.VisualTransformation.None
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .semantics {
+                                contentDescription = label
+                                if (masked) password()
+                            },
                     )
                 }
             }

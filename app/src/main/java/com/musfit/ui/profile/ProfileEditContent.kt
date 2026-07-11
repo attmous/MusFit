@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -95,6 +96,8 @@ private const val PACE_MAX = 1.0
 fun ProfileEditSheet(
     initial: UserProfile,
     initialWeightKg: Double?,
+    targetApplyState: TargetApplyState = TargetApplyState.Idle,
+    targetApplyTargets: RecommendedTargets? = null,
     onDismiss: () -> Unit,
     onSave: (UserProfile, Double?) -> Unit,
     onApplyTargets: ((RecommendedTargets) -> Unit)? = null,
@@ -256,7 +259,12 @@ fun ProfileEditSheet(
             }
 
             if (liveTargets != null && onApplyTargets != null) {
-                ApplyTargetsBanner(targets = liveTargets, onApply = onApplyTargets)
+                ApplyTargetsBanner(
+                    targets = liveTargets,
+                    applyState = targetApplyState,
+                    requestedTargets = targetApplyTargets,
+                    onApply = onApplyTargets,
+                )
             }
 
             PillButton(
@@ -385,16 +393,27 @@ private fun PaceStepperCircle(
 
 /**
  * The lilac apply banner: live-recomputed targets with an "Apply to Food"
- * action. The label acknowledges the tap locally and re-arms whenever the
- * computed targets change.
+ * action. Only repository-confirmed success is acknowledged as applied.
  */
 @Composable
-private fun ApplyTargetsBanner(targets: RecommendedTargets, onApply: (RecommendedTargets) -> Unit) {
+private fun ApplyTargetsBanner(
+    targets: RecommendedTargets,
+    applyState: TargetApplyState,
+    requestedTargets: RecommendedTargets?,
+    onApply: (RecommendedTargets) -> Unit,
+) {
     val dark = isSystemInDarkTheme()
     val container = if (dark) LavenderContainerDark else LavenderContainer
     val body = if (dark) LavenderBodyDark else LavenderBody
     val action = if (dark) LavenderInkDark else LavenderInk
-    var applied by remember(targets) { mutableStateOf(false) }
+    val stateForTargets = targetApplyStateForTargets(applyState, requestedTargets, targets)
+    val actionLabel = when (stateForTargets) {
+        TargetApplyState.Idle -> "Apply to Food"
+        TargetApplyState.Applying -> "Applying…"
+        TargetApplyState.Success -> "Applied"
+        TargetApplyState.Failure -> "Retry"
+    }
+    val actionEnabled = applyState != TargetApplyState.Applying && stateForTargets != TargetApplyState.Success
     Surface(color = container, shape = RoundedCornerShape(99.dp), modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 11.dp),
@@ -408,25 +427,44 @@ private fun ApplyTargetsBanner(targets: RecommendedTargets, onApply: (Recommende
                         append(String.format(Locale.US, "%,d kcal", targets.caloriesKcal.toInt()))
                     }
                     append(" · ${targets.proteinGrams.toInt()} g protein")
+                    if (stateForTargets == TargetApplyState.Failure) {
+                        append("\nCouldn't apply targets. Try again.")
+                    }
                 },
                 style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = body,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                if (applied) "Applied" else "Apply to Food",
-                style = MusFitTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.W800),
-                color = action,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(99.dp))
-                    .clickable(enabled = !applied, onClickLabel = "Apply targets to Food goals") {
-                        applied = true
-                        onApply(targets)
-                    }
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-            )
+            Surface(
+                onClick = { onApply(targets) },
+                enabled = actionEnabled,
+                color = androidx.compose.ui.graphics.Color.Transparent,
+                shape = RoundedCornerShape(99.dp),
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                    Text(
+                        actionLabel,
+                        style = MusFitTheme.typography.labelMedium.copy(
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.W800,
+                        ),
+                        color = action,
+                    )
+                }
+            }
         }
     }
+}
+
+internal fun targetApplyStateForTargets(
+    applyState: TargetApplyState,
+    requestedTargets: RecommendedTargets?,
+    currentTargets: RecommendedTargets,
+): TargetApplyState = when {
+    applyState == TargetApplyState.Applying -> TargetApplyState.Applying
+    requestedTargets == currentTargets -> applyState
+    else -> TargetApplyState.Idle
 }
 
 /** Live targets from the draft fields — null until every input parses. */

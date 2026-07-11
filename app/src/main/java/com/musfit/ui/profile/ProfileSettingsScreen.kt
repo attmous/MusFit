@@ -157,6 +157,8 @@ fun ProfileSettingsScreen(
         ProfileEditSheet(
             initial = state.profile,
             initialWeightKg = state.latestWeightKg,
+            targetApplyState = state.targetApplyState,
+            targetApplyTargets = state.targetApplyTargets,
             onDismiss = { showProfileSheet = false },
             onSave = { profile, weightKg ->
                 viewModel.saveProfile(profile)

@@ -53,6 +53,8 @@ private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSo
 /** Lifecycle of the coach connection test — drives the 11c hero status line. */
 enum class AiCoachTestState { Idle, Testing, Success, Failure }
 
+enum class TargetApplyState { Idle, Applying, Success, Failure }
+
 data class ProfileSettingsUiState(
     val availabilityLabel: String = "Unknown",
     val grantedPermissionCount: Int = 0,
@@ -86,6 +88,8 @@ data class ProfileSettingsUiState(
     val isAiCoachTesting: Boolean = false,
     val aiCoachTestState: AiCoachTestState = AiCoachTestState.Idle,
     val includeBurnedCalories: Boolean = false,
+    val targetApplyState: TargetApplyState = TargetApplyState.Idle,
+    val targetApplyTargets: RecommendedTargets? = null,
 )
 
 data class AiCoachSettingsUiState(
@@ -175,6 +179,8 @@ private data class HealthConnectState(
     val isAiCoachTesting: Boolean = false,
     val aiCoachTestState: AiCoachTestState = AiCoachTestState.Idle,
     val includeBurnedCalories: Boolean = false,
+    val targetApplyState: TargetApplyState = TargetApplyState.Idle,
+    val targetApplyTargets: RecommendedTargets? = null,
 )
 
 private data class AccountEditorState(
@@ -285,6 +291,8 @@ class ProfileSettingsViewModel @Inject constructor(
             isAiCoachTesting = base.isAiCoachTesting,
             aiCoachTestState = base.aiCoachTestState,
             includeBurnedCalories = base.includeBurnedCalories,
+            targetApplyState = base.targetApplyState,
+            targetApplyTargets = base.targetApplyTargets,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileSettingsUiState())
 
@@ -387,8 +395,9 @@ class ProfileSettingsViewModel @Inject constructor(
     }
 
     fun selectStepSource(packageName: String?) {
+        if (mutableState.value.isHealthConnectSyncing) return
+        mutableState.update { it.copy(isHealthConnectSyncing = true) }
         viewModelScope.launch {
-            mutableState.update { it.copy(isHealthConnectSyncing = true) }
             runCatching {
                 healthRepository.setPreferredStepsPackage(packageName)
                 healthRepository.refreshRecentData(LocalDate.now())
@@ -728,6 +737,13 @@ class ProfileSettingsViewModel @Inject constructor(
      * "Apply to Food goals" action.
      */
     fun applyRecommendedTargetsToFood(targets: RecommendedTargets) {
+        if (mutableState.value.targetApplyState == TargetApplyState.Applying) return
+        mutableState.update {
+            it.copy(
+                targetApplyState = TargetApplyState.Applying,
+                targetApplyTargets = targets,
+            )
+        }
         viewModelScope.launch {
             runCatching {
                 val current = foodRepository.observeFoodGoal().first()
@@ -740,10 +756,20 @@ class ProfileSettingsViewModel @Inject constructor(
                     ),
                 )
             }.onSuccess {
-                mutableState.update { it.copy(message = "Applied your targets to Food goals.") }
+                mutableState.update {
+                    it.copy(
+                        message = "Applied your targets to Food goals.",
+                        targetApplyState = TargetApplyState.Success,
+                        targetApplyTargets = targets,
+                    )
+                }
             }.onFailure { error ->
                 mutableState.update {
-                    it.copy(message = error.message ?: "Could not apply targets to Food.")
+                    it.copy(
+                        message = error.message ?: "Could not apply targets to Food.",
+                        targetApplyState = TargetApplyState.Failure,
+                        targetApplyTargets = targets,
+                    )
                 }
             }
         }

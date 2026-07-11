@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +57,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
@@ -90,15 +97,20 @@ internal fun GroupLabel(
             color = MusFitTheme.colors.onSurface,
         )
         if (actionLabel != null && onAction != null) {
-            Text(
-                text = actionLabel,
-                style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
-                color = actionColor,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(99.dp))
-                    .clickable(onClickLabel = actionLabel, onClick = onAction)
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-            )
+            Surface(
+                onClick = onAction,
+                color = Color.Transparent,
+                shape = RoundedCornerShape(99.dp),
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                    Text(
+                        text = actionLabel,
+                        style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
+                        color = actionColor,
+                    )
+                }
+            }
         }
     }
 }
@@ -345,7 +357,10 @@ internal fun <T> ConnectedSegmentRow(
     optionIcon: ((T) -> ImageVector?)? = null,
     equalWidths: Boolean = false,
 ) {
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    Row(
+        modifier = modifier.fillMaxWidth().selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
         options.forEachIndexed { index, option ->
             val active = option == selected
             val weight by animateFloatAsState(
@@ -376,17 +391,25 @@ internal fun <T> ConnectedSegmentRow(
                 animationSpec = MusFitMotion.effects(),
                 label = "segmentContent",
             )
+            val shape = RoundedCornerShape(
+                topStart = startRadius,
+                bottomStart = startRadius,
+                topEnd = endRadius,
+                bottomEnd = endRadius,
+            )
             Surface(
-                onClick = { onSelect(option) },
                 color = fill,
                 contentColor = content,
-                shape = RoundedCornerShape(
-                    topStart = startRadius,
-                    bottomStart = startRadius,
-                    topEnd = endRadius,
-                    bottomEnd = endRadius,
-                ),
-                modifier = Modifier.weight(weight),
+                shape = shape,
+                modifier = Modifier
+                    .weight(weight)
+                    .heightIn(min = 48.dp)
+                    .clip(shape)
+                    .selectable(
+                        selected = active,
+                        role = Role.RadioButton,
+                        onClick = { onSelect(option) },
+                    ),
             ) {
                 Row(
                     horizontalArrangement = Arrangement.Center,
@@ -532,6 +555,7 @@ internal fun ProfileFieldTile(
                 ),
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
+                modifier = Modifier.clearAndSetSemantics { },
             )
             Row(verticalAlignment = Alignment.Bottom) {
                 BasicTextField(
@@ -546,7 +570,12 @@ internal fun ProfileFieldTile(
                     ),
                     cursorBrush = SolidColor(MusFitTheme.colors.brand),
                     keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .semantics {
+                            contentDescription = if (unit.isBlank()) label else "$label, $unit"
+                        },
                 )
                 Text(
                     unit,
@@ -554,7 +583,9 @@ internal fun ProfileFieldTile(
                     fontWeight = FontWeight.Medium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 1.dp),
+                    modifier = Modifier
+                        .padding(start = 4.dp, bottom = 1.dp)
+                        .clearAndSetSemantics { },
                 )
             }
         }

@@ -78,6 +78,24 @@ private fun formatEntryTimestamp(epochMillis: Long): String =
 private fun formatAxisDate(epochMillis: Long): String =
     Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(AXIS_DATE_FORMAT)
 
+internal fun historyRangeStartEpochMillis(
+    range: HistoryRange,
+    today: LocalDate,
+    zone: ZoneId,
+): Long? = range.days?.let { days ->
+    today.minusDays(days - 1L).atStartOfDay(zone).toInstant().toEpochMilli()
+}
+
+internal fun historyEntriesInRange(
+    entries: List<HistoryEntry>,
+    range: HistoryRange,
+    today: LocalDate,
+    zone: ZoneId,
+): List<HistoryEntry> {
+    val fromMillis = historyRangeStartEpochMillis(range, today, zone) ?: return entries
+    return entries.filter { it.measuredAtEpochMillis >= fromMillis }
+}
+
 /**
  * The Turn 11 history surface (11f): back header with a filled add-squircle,
  * connected range selector, naked trend chart with an optional dashed goal
@@ -101,14 +119,8 @@ fun MeasurementHistoryScreen(
     var deleting by remember { mutableStateOf<HistoryEntry?>(null) }
 
     val zone = ZoneId.systemDefault()
-    val inRange = remember(entries, range) {
-        val days = range.days
-        if (days == null) {
-            entries
-        } else {
-            val fromMillis = LocalDate.now(zone).minusDays(days).atStartOfDay(zone).toInstant().toEpochMilli()
-            entries.filter { it.measuredAtEpochMillis >= fromMillis }
-        }
+    val inRange = remember(entries, range, zone) {
+        historyEntriesInRange(entries, range, LocalDate.now(zone), zone)
     }
     val unit = entries.firstOrNull()?.unit.orEmpty()
 
