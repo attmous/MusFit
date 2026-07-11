@@ -17,6 +17,5 @@ object AiCoachConfigModule {
         AiCoachDebugDefaults(
             hermesBaseUrl = BuildConfig.DEBUG_HERMES_BASE_URL,
             hermesModelName = BuildConfig.DEBUG_HERMES_MODEL_NAME,
-            hermesApiKey = BuildConfig.DEBUG_HERMES_API_KEY,
         )
 }

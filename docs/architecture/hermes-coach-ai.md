@@ -50,21 +50,31 @@ Model: hermes-agent
 
 ## Internal Build Defaults
 
-Only `internalDebug` can auto-configure Hermes after a fresh install, app-data
-reset, or seeded setup. Keep the secret in ignored `local.properties` or in
-environment variables; never commit the API server key.
+Only `internalDebug` can supply nonsecret Hermes endpoint/model defaults after
+a fresh install, app-data reset, or seeded setup. Build configuration never
+accepts or compiles the API server key.
 
 ```properties
 MUSFIT_DEBUG_HERMES_BASE_URL=http://192.168.178.113:8080/v1/
 MUSFIT_DEBUG_HERMES_MODEL_NAME=hermes-agent
-MUSFIT_DEBUG_HERMES_API_KEY=<API_SERVER_KEY from ~/.hermes/.env>
 ```
 
-When `MUSFIT_DEBUG_HERMES_API_KEY` is present, an empty internal install exposes
-Hermes as the default AI coach connection. If the user saves explicit AI coach
-settings, those settings take precedence. Clearing the key in-app disables the
-persisted connection until the app data is reset or the user configures it again.
-The non-debuggable `productionRelease` variant leaves these fields blank.
+An empty internal install may show those endpoint/model defaults, but it has no
+active Hermes connection until the user enters `API_SERVER_KEY` at runtime in
+Profile settings. The key is encrypted by the Android-Keystore-backed local
+secret store and is never written to Room or BuildConfig. Clearing it disables
+the persisted Hermes connection until a key is entered again. The
+non-debuggable `productionRelease` variant leaves the developer defaults blank.
+
+### Pre-SEC-003 credential cleanup
+
+Any real API server key previously supplied to a build must be treated as
+compromised because older internal APKs and generated BuildConfig output could
+contain it. Rotate or revoke that key at the gateway, delete the obsolete
+`MUSFIT_DEBUG_HERMES_API_KEY` entry from local configuration, and run
+`scripts/dev/clean-generated.ps1` before building again. Rotation material and
+replacement credentials stay outside the repository and are entered only at
+runtime.
 
 ## MusFit Behavior
 
@@ -74,7 +84,9 @@ The first implementation is read-only:
   hydration, health, training, profile, and goals context.
 - The coach cannot log, edit, or delete MusFit data.
 - Chat history is stored locally in Room per active account and coach provider.
-- API keys stay in the existing local encrypted AI coach secret store.
+- API keys are accepted only at runtime and stay in the account-keyed,
+  Android-Keystore-backed AI coach secret store. Room stores only a presence
+  flag, which is reconciled against the runtime store before display or use.
 - Endpoint validation occurs before settings can create account/DAO/secret side
   effects and is repeated for stored/default connections and immediately before
   request construction. Invalid chat endpoints therefore dispatch no bearer,

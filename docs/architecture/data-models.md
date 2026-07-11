@@ -31,7 +31,7 @@ For exact truth, read:
 | Domain | `domain` | Android-free models, calculators, parsers, and deterministic rules. Domain code must not depend on Compose, Room, Retrofit, or Android integration types. |
 | Remote | `data/remote` | Wire DTOs, API interfaces, transport results, and provider/client implementations for Food, identity, and coach endpoints. Wire models should not leak into UI contracts. |
 | Integration | `integrations/healthconnect` | Health Connect gateway, platform record mapping, and import/export boundary models. Repositories decide how those results affect local state. |
-| Secrets | `AiCoachSecretStore` implementation | Account-keyed, runtime-entered AI credentials live outside Room. Room stores connection metadata and whether a key is present. The debug `BuildConfig` default is a known SEC-003 exception, not the target contract. |
+| Secrets | `AiCoachSecretStore` implementation | Account-keyed, runtime-entered AI credentials live outside Room in an Android-Keystore-backed store. Room stores connection metadata and a presence flag that is reconciled against the runtime store before display or use. No variant compiles an API-key field or fallback. |
 
 The intended conversion paths are:
 

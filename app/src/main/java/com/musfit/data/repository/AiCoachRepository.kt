@@ -66,7 +66,6 @@ data class AiCoachConnection(
 data class AiCoachDebugDefaults(
     val hermesBaseUrl: String = "",
     val hermesModelName: String = "",
-    val hermesApiKey: String = "",
 )
 
 interface AiCoachSecretStore {
@@ -104,7 +103,11 @@ class LocalAiCoachRepository @Inject constructor(
     override fun observeSettings(): Flow<AiCoachSettings> =
         accountRepository.observeActiveAccount().flatMapLatest { account ->
             aiCoachDao.observeSettings(account.id).map { row ->
-                row?.toSettings() ?: debugDefaults.toHermesSettings() ?: AiCoachSettings()
+                if (row == null) {
+                    debugDefaults.toHermesSettings() ?: AiCoachSettings()
+                } else {
+                    settingsWithRuntimeCredential(account.id, row)
+                }
             }
         }
 
@@ -120,14 +123,21 @@ class LocalAiCoachRepository @Inject constructor(
 
         val existing = aiCoachDao.getSettings(account.id)
         val existingApiKeyStored = existing?.apiKeyStored ?: false
+        val existingRuntimeApiKey = if (input.apiKey == AiCoachApiKeyUpdate.KeepExisting) {
+            readUsableRuntimeCredential(account.id, claimedPresent = existingApiKeyStored)
+        } else {
+            null
+        }
         val replacementApiKey = (input.apiKey as? AiCoachApiKeyUpdate.Replace)?.value?.trim()
-        val debugApiKey = debugDefaults.apiKeyFor(normalized)
         val apiKeyStored = when (input.apiKey) {
-            AiCoachApiKeyUpdate.KeepExisting -> existingApiKeyStored || debugApiKey != null
+            AiCoachApiKeyUpdate.KeepExisting -> existingRuntimeApiKey != null
             AiCoachApiKeyUpdate.Clear -> false
             is AiCoachApiKeyUpdate.Replace -> replacementApiKey?.isNotBlank() == true
         }
         if (normalized.requiresApiServerKey() && !apiKeyStored) {
+            if (existing != null && existingApiKeyStored && existingRuntimeApiKey == null) {
+                reconcileRuntimeCredentialFlag(existing, isPresent = false)
+            }
             throw IllegalArgumentException("Hermes agent requires the API_SERVER_KEY bearer token.")
         }
 
@@ -158,22 +168,80 @@ class LocalAiCoachRepository @Inject constructor(
 
     override suspend fun activeConnection(): AiCoachConnection? {
         val account = accountRepository.ensureActiveAccount()
-        val row = aiCoachDao.getSettings(account.id) ?: return debugDefaults.toHermesConnection()
+        val row = aiCoachDao.getSettings(account.id) ?: return null
         val settings = row.toSettings()
-        if (settings.providerKind == AiCoachProviderKind.Disabled) return null
+        if (settings.providerKind == AiCoachProviderKind.Disabled) {
+            secretStore.clearApiKey(account.id)
+            if (row.apiKeyStored) {
+                reconcileRuntimeCredentialFlag(row, isPresent = false)
+            }
+            return null
+        }
         val validatedEndpoint = AiCoachEndpointPolicy.requireAllowed(settings.baseUrl)
-        val debugApiKey = debugDefaults.apiKeyFor(settings)
+        val runtimeApiKey = readUsableRuntimeCredential(account.id, claimedPresent = row.apiKeyStored)
+        if (row.apiKeyStored != (runtimeApiKey != null)) {
+            reconcileRuntimeCredentialFlag(row, isPresent = runtimeApiKey != null)
+        }
+        if (settings.requiresApiServerKey() && runtimeApiKey == null) return null
         return AiCoachConnection(
             providerKind = settings.providerKind,
             baseUrl = validatedEndpoint.normalizedBaseUrl,
             modelName = settings.modelName,
             localAgentKind = settings.localAgentKind,
-            apiKey = if (settings.hasApiKey) {
-                secretStore.getApiKey(account.id) ?: debugApiKey
-            } else {
-                null
-            },
+            apiKey = runtimeApiKey,
         )
+    }
+
+    private suspend fun settingsWithRuntimeCredential(
+        accountId: String,
+        row: AiCoachSettingsEntity,
+    ): AiCoachSettings {
+        val settings = row.toSettings()
+        if (settings.providerKind == AiCoachProviderKind.Disabled) {
+            secretStore.clearApiKey(accountId)
+            return if (row.apiKeyStored) {
+                reconcileRuntimeCredentialFlag(row, isPresent = false).toSettings()
+            } else {
+                settings.copy(hasApiKey = false)
+            }
+        }
+
+        // Preserve the SEC-002 ordering: do not read a credential until the
+        // persisted endpoint passes the active variant's URL policy.
+        if (AiCoachEndpointPolicy.normalizedBaseUrlOrNull(settings.baseUrl) == null) {
+            return settings.copy(hasApiKey = false)
+        }
+        val runtimeApiKey = readUsableRuntimeCredential(accountId, claimedPresent = row.apiKeyStored)
+        val isPresent = runtimeApiKey != null
+        return if (row.apiKeyStored != isPresent) {
+            reconcileRuntimeCredentialFlag(row, isPresent).toSettings()
+        } else {
+            settings.copy(hasApiKey = isPresent)
+        }
+    }
+
+    private suspend fun readUsableRuntimeCredential(
+        accountId: String,
+        claimedPresent: Boolean,
+    ): String? {
+        val stored = secretStore.getApiKey(accountId)
+        val usable = stored?.takeUnless(String::isBlank)
+        if ((claimedPresent && usable == null) || (stored != null && usable == null)) {
+            secretStore.clearApiKey(accountId)
+        }
+        return usable
+    }
+
+    private suspend fun reconcileRuntimeCredentialFlag(
+        row: AiCoachSettingsEntity,
+        isPresent: Boolean,
+    ): AiCoachSettingsEntity {
+        val reconciled = row.copy(
+            apiKeyStored = isPresent,
+            updatedAtEpochMillis = clock(),
+        )
+        aiCoachDao.upsertSettings(reconciled)
+        return reconciled
     }
 }
 
@@ -194,18 +262,28 @@ class AndroidKeyStoreAiCoachSecretStore @Inject constructor(
     }
 
     override suspend fun getApiKey(accountId: String): String? {
-        val encoded = preferences.getString(accountId.preferenceKey(), null) ?: return null
+        val preferenceKey = accountId.preferenceKey()
+        val encoded = preferences.getString(preferenceKey, null) ?: return null
         val parts = encoded.split(":", limit = 2)
-        if (parts.size != 2) return null
+        if (parts.size != 2) {
+            preferences.edit().remove(preferenceKey).apply()
+            return null
+        }
         return try {
             val iv = parts[0].decodeBase64()
             val ciphertext = parts[1].decodeBase64()
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
-            String(cipher.doFinal(ciphertext), Charsets.UTF_8)
+            String(cipher.doFinal(ciphertext), Charsets.UTF_8).takeUnless(String::isBlank)
+                ?: run {
+                    preferences.edit().remove(preferenceKey).apply()
+                    null
+                }
         } catch (_: GeneralSecurityException) {
+            preferences.edit().remove(preferenceKey).apply()
             null
         } catch (_: IllegalArgumentException) {
+            preferences.edit().remove(preferenceKey).apply()
             null
         }
     }
@@ -295,47 +373,20 @@ private fun NormalizedAiCoachSettings.toEntity(
 private fun NormalizedAiCoachSettings.requiresApiServerKey(): Boolean =
     providerKind == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
 
+private fun AiCoachSettings.requiresApiServerKey(): Boolean =
+    providerKind == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
+
 private fun AiCoachDebugDefaults.toHermesSettings(): AiCoachSettings? {
     val normalizedBaseUrl = AiCoachEndpointPolicy.normalizedBaseUrlOrNull(hermesBaseUrl) ?: return null
     val model = hermesModelName.trim().takeIf { it.isNotBlank() } ?: return null
-    val apiKey = hermesApiKey.trim().takeIf { it.isNotBlank() } ?: return null
     return AiCoachSettings(
         providerKind = AiCoachProviderKind.LocalAgent,
         baseUrl = normalizedBaseUrl,
         modelName = model,
         localAgentKind = LocalAgentKind.HermesAgent,
-        hasApiKey = apiKey.isNotBlank(),
+        hasApiKey = false,
     )
 }
-
-private fun AiCoachDebugDefaults.toHermesConnection(): AiCoachConnection? {
-    val settings = toHermesSettings() ?: return null
-    return AiCoachConnection(
-        providerKind = settings.providerKind,
-        baseUrl = settings.baseUrl,
-        modelName = settings.modelName,
-        localAgentKind = settings.localAgentKind,
-        apiKey = hermesApiKey.trim().takeIf { it.isNotBlank() },
-    )
-}
-
-private fun AiCoachDebugDefaults.apiKeyFor(settings: AiCoachSettings): String? =
-    if (settings.providerKind == AiCoachProviderKind.LocalAgent &&
-        settings.localAgentKind == LocalAgentKind.HermesAgent
-    ) {
-        hermesApiKey.trim().takeIf { it.isNotBlank() }
-    } else {
-        null
-    }
-
-private fun AiCoachDebugDefaults.apiKeyFor(settings: NormalizedAiCoachSettings): String? =
-    if (settings.providerKind == AiCoachProviderKind.LocalAgent &&
-        settings.localAgentKind == LocalAgentKind.HermesAgent
-    ) {
-        hermesApiKey.trim().takeIf { it.isNotBlank() }
-    } else {
-        null
-    }
 
 private fun AiCoachSettingsEntity.toSettings(): AiCoachSettings =
     AiCoachSettings(
