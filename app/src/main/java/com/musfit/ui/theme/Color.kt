@@ -49,14 +49,30 @@ val TealInk = Color(0xFF0C4A42)
 val TealBody = Color(0xFF155E52)
 val TealTrack = Color(0xFFC4E2DC)
 
-// Macro trio — distinct from every tab container they sit on.
+// Macro trio — distinct from every tab container they sit on. Protein is rose
+// (Turn 8): the old teal collided with the Food green and Profile teal.
 val MacroCarbs = Color(0xFFB98300)
-val MacroProtein = Color(0xFF177D6E)
+val MacroProtein = Color(0xFFE11D48)
 val MacroFat = Color(0xFF6750A4)
 
 // Water tracker.
 val Water = Color(0xFF1668A8)
 val WaterFill = Color(0xFFDDEBF7) // empty tracker cells, tonal water buttons
+
+// Vitals tile families (Turn 8 §8a) — metric-scoped data colors for the Today
+// grid, independent of tab accents: amber kcal, indigo steps, rose protein,
+// blue water. Indigo and water reuse the shared accents above; each family
+// adds an on-container ink and a deeper display ink.
+val VitalsAmber = Color(0xFFE08A00)
+val VitalsAmberContainer = Color(0xFFFFE1B3)
+val VitalsAmberOn = Color(0xFF7A4A00)
+val VitalsAmberDisplay = Color(0xFF4A2C00)
+val VitalsIndigoDisplay = Color(0xFF10195C)
+val VitalsRoseContainer = Color(0xFFFBDCE3)
+val VitalsRoseOn = Color(0xFF8F1239)
+val VitalsRoseDisplay = Color(0xFF5C0D24)
+val VitalsWaterOn = Color(0xFF0D4A7A)
+val VitalsWaterDisplay = Color(0xFF0A3D66)
 
 // Health Connect banner (lavender).
 val LavenderContainer = Color(0xFFE6E0F5)
@@ -105,10 +121,20 @@ val TealInkDark = Color(0xFFCFF0E9)
 val TealTrackDark = Color(0xFF23685C)
 
 val MacroCarbsDark = Color(0xFFE0B54A)
-val MacroProteinDark = Color(0xFF52C4B0)
+val MacroProteinDark = Color(0xFFFF8FA9)
 val MacroFatDark = Color(0xFFB4A0E8)
 val WaterDark = Color(0xFF62A8DC)
 val WaterFillDark = Color(0xFF1C3A52)
+
+// Vitals tile families on dark: containers deepened one warm step, display inks
+// brightened past the on-container ink (mirroring the light display rule).
+val VitalsAmberDisplayDark = Color(0xFFFFEFD3)
+val VitalsIndigoDisplayDark = Color(0xFFF0F1FF)
+val VitalsRoseContainerDark = Color(0xFF4C1A2B)
+val VitalsRoseOnDark = Color(0xFFFFD9E1)
+val VitalsRoseDisplayDark = Color(0xFFFFEDF1)
+val VitalsWaterOnDark = Color(0xFFC9E3F7)
+val VitalsWaterDisplayDark = Color(0xFFE4F2FE)
 val LavenderContainerDark = Color(0xFF352C4E)
 val LavenderBodyDark = Color(0xFFCFC3EF)
 val LavenderInkDark = Color(0xFFD8CCFA)

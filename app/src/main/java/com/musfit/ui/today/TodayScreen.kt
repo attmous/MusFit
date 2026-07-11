@@ -117,8 +117,8 @@ fun TodayScreen(
                 )
             },
         ) {
-            MetricCarouselCard(
-                carousel = state.carousel,
+            TodayVitalsGrid(
+                vitals = state.vitals,
                 onMetricClick = { metric -> navigateTo(metricDestination(metric)) },
             )
 

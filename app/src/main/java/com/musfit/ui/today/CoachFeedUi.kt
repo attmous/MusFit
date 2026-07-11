@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -289,12 +291,25 @@ fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
             ),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(
-                Icons.Outlined.Forum,
-                contentDescription = "Ask coach",
-                tint = Color.White,
-                modifier = Modifier.size(26.dp),
-            )
+            // Turn 8 composite mark: a filled chat bubble with an auto_awesome
+            // sparkle knocked out in the FAB's own fill near the bubble top.
+            Box(modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Filled.ChatBubble,
+                    contentDescription = "Ask coach",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp),
+                )
+                Icon(
+                    Icons.Filled.AutoAwesome,
+                    contentDescription = null,
+                    tint = BrandCoral,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 6.dp)
+                        .size(13.dp),
+                )
+            }
         }
     }
 }

@@ -288,21 +288,22 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun carousel_derivesPagesFromPinsAndLiveData() = runTest {
+    fun vitals_deriveTilesFromPinsAndLiveData() = runTest {
         val coachRepository = FakeCoachRepository()
         coachRepository.pins.value = listOf(TodayMetric.Calories, TodayMetric.Steps, TodayMetric.Protein)
         val viewModel = todayViewModel(coachRepository = coachRepository)
         dispatcher.scheduler.advanceUntilIdle()
 
-        val carousel = viewModel.state.value.carousel
-        assertEquals(1, carousel.pages.size)
-        val hero = carousel.pages[0].hero!!
-        assertEquals(TodayMetric.Calories, hero.metric)
-        // FakeFoodRepository: 600 eaten of 2000 goal → 1400 left, 30% progress
-        val heroValue = hero.value as MetricValue.WithGoal
-        assertEquals("1,400", heroValue.figure)
-        assertEquals(0.3f, heroValue.progress, 0.001f)
-        assertEquals(listOf(TodayMetric.Steps, TodayMetric.Protein), carousel.pages[0].chips.map { it.metric })
+        val vitals = viewModel.state.value.vitals
+        assertEquals(
+            listOf(TodayMetric.Calories, TodayMetric.Steps, TodayMetric.Protein),
+            vitals.map { it.metric },
+        )
+        // FakeFoodRepository: 600 eaten of 2000 goal → the tile shows EATEN with percent.
+        val calories = vitals[0].value as MetricValue.WithGoal
+        assertEquals("600", calories.figure)
+        assertEquals("of 2,000 kcal · 30%", calories.caption)
+        assertEquals(0.3f, calories.progress, 0.001f)
     }
 
     @Test
@@ -394,6 +395,7 @@ class TodayViewModelTest {
 
         viewModel.togglePin(TodayMetric.Steps)
         viewModel.togglePin(TodayMetric.Protein)
+        viewModel.togglePin(TodayMetric.Water)
         viewModel.togglePin(TodayMetric.Calories) // last pin — must be ignored
 
         assertEquals(listOf(TodayMetric.Calories), viewModel.state.value.editPins)
@@ -407,12 +409,12 @@ class TodayViewModelTest {
         viewModel.openDashboardEditor()
 
         viewModel.togglePin(TodayMetric.Weight) // append
-        viewModel.movePin(TodayMetric.Weight, up = true) // → before Protein
+        viewModel.movePin(TodayMetric.Weight, up = true) // → before Water
         viewModel.saveDashboard()
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(
-            listOf(TodayMetric.Calories, TodayMetric.Steps, TodayMetric.Weight, TodayMetric.Protein),
+            listOf(TodayMetric.Calories, TodayMetric.Steps, TodayMetric.Protein, TodayMetric.Weight, TodayMetric.Water),
             coachRepository.savedPins,
         )
         assertEquals(false, viewModel.state.value.isDashboardEditorVisible)
@@ -422,10 +424,10 @@ class TodayViewModelTest {
     fun movePin_boundsAreNoOps() = runTest {
         val viewModel = todayViewModel(coachRepository = FakeCoachRepository())
         dispatcher.scheduler.advanceUntilIdle()
-        viewModel.openDashboardEditor() // [Calories, Steps, Protein]
+        viewModel.openDashboardEditor() // [Calories, Steps, Protein, Water]
 
-        viewModel.movePin(TodayMetric.Calories, up = true) // hero up — no-op
-        viewModel.movePin(TodayMetric.Protein, up = false) // last down — no-op
+        viewModel.movePin(TodayMetric.Calories, up = true) // first up — no-op
+        viewModel.movePin(TodayMetric.Water, up = false) // last down — no-op
 
         assertEquals(TodayMetric.DEFAULT_PINS, viewModel.state.value.editPins)
     }

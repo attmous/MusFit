@@ -12,11 +12,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BakeryDining
-import androidx.compose.material.icons.outlined.Cookie
-import androidx.compose.material.icons.outlined.LunchDining
-import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.RestaurantMenu
+import androidx.compose.material.icons.filled.BakeryDining
+import androidx.compose.material.icons.filled.Cookie
+import androidx.compose.material.icons.filled.DinnerDining
+import androidx.compose.material.icons.filled.LunchDining
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -76,14 +76,15 @@ internal fun SectionTitle(text: String) {
     )
 }
 
+// Filled glyphs per the Turn 8 (8b) diary badges: bakery / lunch / dinner dining.
 internal fun mealTypeIcon(id: String, title: String): ImageVector {
     val key = "$id $title".lowercase()
     return when {
-        "breakfast" in key -> Icons.Outlined.BakeryDining
-        "lunch" in key -> Icons.Outlined.LunchDining
-        "dinner" in key -> Icons.Outlined.RestaurantMenu
-        "snack" in key -> Icons.Outlined.Cookie
-        else -> Icons.Outlined.Restaurant
+        "breakfast" in key -> Icons.Filled.BakeryDining
+        "lunch" in key -> Icons.Filled.LunchDining
+        "dinner" in key -> Icons.Filled.DinnerDining
+        "snack" in key -> Icons.Filled.Cookie
+        else -> Icons.Filled.Restaurant
     }
 }
 
@@ -235,18 +236,33 @@ internal fun Double.formatMicronutrientDisplay(): String =
         roundToInt().toString()
     }
 
-internal fun FoodMealSectionUiState.compactDiarySummaryLabel(): String {
+/**
+ * The summarized diary row's sub line (Turn 8 8b), split so the UI can render
+ * the kcal segment in emphasized green ink: "3 items · **545 kcal** · great".
+ */
+internal data class MealDiarySummary(
+    val prefix: String,
+    val kcal: String,
+    val qualifier: String,
+)
+
+internal fun FoodMealSectionUiState.mealDiarySummary(): MealDiarySummary {
+    val loggedCount = entries.count { !it.isPlanned }
     val loggedCalories = caloriesKcal.roundToInt()
     val plannedCalories = plannedCaloriesKcal.roundToInt()
     return when {
-        loggedCalories > 0 && plannedCalories > 0 -> "$loggedCalories kcal + $plannedCalories planned"
-        loggedCalories > 0 -> "$loggedCalories kcal"
-        plannedCalories > 0 -> "$plannedCalories kcal planned"
-        else -> "No items yet"
+        loggedCount > 0 -> MealDiarySummary(
+            prefix = "$loggedCount ${if (loggedCount == 1) "item" else "items"} · ",
+            kcal = "$loggedCalories kcal",
+            qualifier = when {
+                // Pending planned items outrank the rating: the meal is still open.
+                plannedCalories > 0 -> " · so far"
+                rating != null -> " · ${rating.label.lowercase()}"
+                else -> ""
+            },
+        )
+        plannedCalories > 0 -> MealDiarySummary(prefix = "", kcal = "$plannedCalories kcal", qualifier = " planned")
+        else -> MealDiarySummary(prefix = "No items yet", kcal = "", qualifier = "")
     }
 }
 
-internal fun List<FoodMealEntryUiState>.compactDiaryEntriesLabel(): String =
-    joinToString(separator = ", ") { entry ->
-        "${entry.name} (${entry.caloriesKcal.roundToInt()} kcal)"
-    }

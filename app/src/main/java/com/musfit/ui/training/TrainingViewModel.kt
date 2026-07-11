@@ -8,6 +8,7 @@ import com.musfit.data.repository.ExerciseDetail
 import com.musfit.data.repository.ExerciseGrouping
 import com.musfit.data.repository.ExerciseInput
 import com.musfit.data.repository.ExerciseSummary
+import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.WorkoutSetInputData
@@ -46,6 +47,9 @@ enum class TrainingSection {
     Exercises,
     History,
 }
+
+/** Fallback weekly session target until the stored user goal streams in. */
+internal const val DEFAULT_WEEKLY_SESSION_TARGET = 3
 
 data class RoutineEditorState(
     val routineId: String? = null,
@@ -154,6 +158,7 @@ data class TrainingUiState(
     val activeWorkout: ActiveWorkoutDetail? = null,
     val workoutHistory: List<WorkoutHistorySummary> = emptyList(),
     val historyOverview: TrainingHistoryOverview = TrainingHistoryOverview(),
+    val weeklySessionTarget: Int = DEFAULT_WEEKLY_SESSION_TARGET,
     val dashboard: TrainingDashboardState = TrainingDashboardState(),
     val selectedWorkoutDetail: WorkoutHistoryDetail? = null,
     val exerciseSearchQuery: String = "",
@@ -215,6 +220,7 @@ private data class TrainingInitialStreams(
 @HiltViewModel
 class TrainingViewModel @Inject constructor(
     private val repository: TrainingRepository,
+    goalsRepository: GoalsRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(TrainingUiState())
     val state: StateFlow<TrainingUiState> = mutableState.asStateFlow()
@@ -222,6 +228,13 @@ class TrainingViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.seedStarterTrainingData()
+        }
+        viewModelScope.launch {
+            // The "This week" card measures against the same weekly session target
+            // the Today dashboard editor writes.
+            goalsRepository.observeUserGoals().collect { goals ->
+                mutableState.update { it.copy(weeklySessionTarget = goals.weeklySessionTarget) }
+            }
         }
         viewModelScope.launch {
             combine(
