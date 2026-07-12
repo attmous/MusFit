@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,13 +87,17 @@ internal object MusFitBottomNavMetrics {
 }
 
 @Composable
+internal fun rememberAppBackStackEntries(): MutableState<List<AppDestination>> =
+    rememberSaveable { mutableStateOf(listOf(AppDestination.Today)) }
+
+@Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
     val destinations = AppDestination.entries
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: AppDestination.Today.route
     val currentBottomRoute = bottomDestinationForRoute(currentRoute).route
-    var appBackStackEntries by rememberSaveable { mutableStateOf(listOf(AppDestination.Today)) }
+    var appBackStackEntries by rememberAppBackStackEntries()
     val appBackStack = remember(appBackStackEntries) { AppNavigationStack(appBackStackEntries) }
     var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
     var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
@@ -232,7 +237,7 @@ private fun BottomDestinationBackHandler(
  * tab accent and swaps its icon to the filled variant; inactive items are quiet.
  */
 @Composable
-private fun MusFitBottomNav(
+internal fun MusFitBottomNav(
     destinations: List<AppDestination>,
     currentRoute: String,
     onSelect: (AppDestination) -> Unit,
@@ -317,6 +322,7 @@ private fun RowScope.NavBarItem(
         label = "navContentColor",
     )
     Surface(
+        selected = selected,
         onClick = onClick,
         color = pillColor,
         contentColor = contentColor,
