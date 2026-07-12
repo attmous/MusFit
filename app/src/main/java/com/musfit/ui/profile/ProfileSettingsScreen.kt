@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,6 +55,7 @@ import com.musfit.ui.permissions.requiresLocalNetworkPermission
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
+import com.musfit.ui.transfer.DataTransferActivity
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.UserProfile
 import java.time.LocalDate
@@ -149,6 +151,9 @@ fun ProfileSettingsScreen(
             onGitHubSignIn = viewModel::signInWithGitHub,
             onOpenAiCoach = { subPage = SettingsSubPage.AiCoach },
             onOpenHealthConnect = { subPage = SettingsSubPage.HealthConnect },
+            onOpenDataTransfer = {
+                context.startActivity(Intent(context, DataTransferActivity::class.java))
+            },
             onIncludeBurnedCaloriesChange = viewModel::setIncludeBurnedCalories,
         )
     }
@@ -232,6 +237,7 @@ private fun SettingsHub(
     onGitHubSignIn: () -> Unit,
     onOpenAiCoach: () -> Unit,
     onOpenHealthConnect: () -> Unit,
+    onOpenDataTransfer: () -> Unit,
     onIncludeBurnedCaloriesChange: (Boolean) -> Unit,
 ) {
     val signInActions = providerSignInActions(
@@ -344,7 +350,7 @@ private fun SettingsHub(
             ProfileHubRow(
                 title = "Add burned calories to budget",
                 subtitle = "kcal left = goal − eaten + burned",
-                shape = groupedShape(0, 4),
+                shape = groupedShape(0, 5),
                 onClick = null,
                 leading = null,
                 trailing = {
@@ -358,10 +364,26 @@ private fun SettingsHub(
             CompactValueRow(
                 title = "Units",
                 value = "Metric · kg, cm",
-                shape = groupedShape(1, 4),
+                shape = groupedShape(1, 5),
             )
-            CompactValueRow(title = "Theme", value = "System", shape = groupedShape(2, 4))
-            CompactValueRow(title = "Data", value = "Local first", shape = groupedShape(3, 4))
+            CompactValueRow(title = "Theme", value = "System", shape = groupedShape(2, 5))
+            ProfileHubRow(
+                title = "Data transfer",
+                subtitle = "Encrypted export and restore",
+                shape = groupedShape(3, 5),
+                onClick = onOpenDataTransfer,
+                leading = {
+                    ExpressiveBadge(
+                        icon = Icons.Outlined.SwapHoriz,
+                        shape = ExpressiveBadgeShape.Squircle,
+                        containerColor = accent.container,
+                        contentColor = accent.onContainer,
+                        size = 40.dp,
+                        iconSize = 19.dp,
+                    )
+                },
+            )
+            CompactValueRow(title = "Data", value = "Local first", shape = groupedShape(4, 5))
         }
 
         GroupLabel("About")

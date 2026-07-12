@@ -67,15 +67,18 @@ if ($Tests.Count -gt 0) {
                 "verifyReleaseVariantMatrix",
                 "testInternalDebugUnitTest",
                 "testProductionReleaseUnitTest",
+                "testLegacyMigrationReleaseUnitTest",
                 "lintInternalDebug",
                 "lintProductionRelease",
+                "lintLegacyMigrationRelease",
                 "assembleInternalDebug",
                 "assembleInternalDebugAndroidTest",
                 "assembleProductionRelease",
+                "assembleLegacyMigrationRelease",
                 "bundleProductionRelease"
             )
         }
-        "Unit" { $gradleArgs = @("testInternalDebugUnitTest", "testProductionReleaseUnitTest") }
+        "Unit" { $gradleArgs = @("testInternalDebugUnitTest", "testProductionReleaseUnitTest", "testLegacyMigrationReleaseUnitTest") }
         "Food" {
             $gradleArgs = @(
                 "testInternalDebugUnitTest",
@@ -87,6 +90,7 @@ if ($Tests.Count -gt 0) {
             $gradleArgs = @(
                 "assembleInternalDebug",
                 "assembleProductionRelease",
+                "assembleLegacyMigrationRelease",
                 "bundleProductionRelease"
             )
         }

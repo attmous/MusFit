@@ -21,17 +21,19 @@ class VariantContractTest {
     }
 
     @Test
-    fun currentVariantHasOneOfTheTwoApprovedInstallIdentities() {
+    fun currentVariantHasAnApprovedInstallIdentityAndTransferMode() {
         assertTrue(
-            "Only the side-by-side internal identity and production identity are supported",
+            "Only the side-by-side internal identity and com.musfit migration/production identity are supported",
             BuildConfig.APPLICATION_ID == INTERNAL_APPLICATION_ID ||
                 BuildConfig.APPLICATION_ID == PRODUCTION_APPLICATION_ID,
         )
 
         if (BuildConfig.APPLICATION_ID == INTERNAL_APPLICATION_ID) {
             assertTrue("The internal variant must remain debuggable", BuildConfig.DEBUG)
+            assertEquals("full", BuildConfig.DATA_TRANSFER_MODE)
         } else {
-            assertFalse("The production-shaped variant must be non-debuggable", BuildConfig.DEBUG)
+            assertFalse("Production and the migration bridge must be non-debuggable", BuildConfig.DEBUG)
+            assertTrue(BuildConfig.DATA_TRANSFER_MODE == "full" || BuildConfig.DATA_TRANSFER_MODE == "legacy-export")
             assertTrue(
                 "The production-shaped variant must not compile a developer Hermes base URL",
                 BuildConfig.DEBUG_HERMES_BASE_URL.isBlank(),
@@ -44,8 +46,9 @@ class VariantContractTest {
     }
 
     @Test
-    fun mergedManifestsSeparateInternalAndProductionSurfaces() {
+    fun mergedManifestsSeparateInternalMigrationAndProductionSurfaces() {
         val internal = manifestContract("internalDebug")
+        val migration = manifestContract("legacyMigrationRelease")
         val production = manifestContract("productionRelease")
 
         assertEquals(INTERNAL_APPLICATION_ID, internal.applicationId)
@@ -54,6 +57,19 @@ class VariantContractTest {
         assertEquals(DEBUG_NETWORK_CONFIG, internal.networkSecurityConfig)
         assertTrue(internal.hasUsesCleartextTrafficAttribute)
         assertTrue(internal.usesCleartextTraffic)
+        assertTrue(internal.mainLauncherEnabled)
+        assertFalse(internal.migrationLauncherEnabled)
+        assertFalse(internal.dataTransferActivityExported)
+
+        assertEquals(PRODUCTION_APPLICATION_ID, migration.applicationId)
+        assertFalse(migration.debuggable)
+        assertFalse(migration.permissions.contains(LOCAL_NETWORK_PERMISSION))
+        assertTrue(migration.networkSecurityConfig.isBlank())
+        assertTrue(migration.hasUsesCleartextTrafficAttribute)
+        assertFalse(migration.usesCleartextTraffic)
+        assertFalse(migration.mainLauncherEnabled)
+        assertTrue(migration.migrationLauncherEnabled)
+        assertTrue(migration.dataTransferActivityExported)
 
         assertEquals(PRODUCTION_APPLICATION_ID, production.applicationId)
         assertFalse(production.debuggable)
@@ -61,6 +77,9 @@ class VariantContractTest {
         assertTrue(production.networkSecurityConfig.isBlank())
         assertTrue("Production must explicitly disable platform cleartext", production.hasUsesCleartextTrafficAttribute)
         assertFalse(production.usesCleartextTraffic)
+        assertTrue(production.mainLauncherEnabled)
+        assertFalse(production.migrationLauncherEnabled)
+        assertFalse(production.dataTransferActivityExported)
     }
 
     @Test
@@ -87,6 +106,8 @@ class VariantContractTest {
         val root = document.documentElement
         val application = document.getElementsByTagName("application").item(0) as Element
         val permissionNodes = document.getElementsByTagName("uses-permission")
+        val aliases = document.getElementsByTagName("activity-alias")
+        val activities = document.getElementsByTagName("activity")
 
         return ManifestContract(
             applicationId = root.getAttribute("package"),
@@ -104,8 +125,25 @@ class VariantContractTest {
                         ?.takeIf(String::isNotBlank)
                 }
                 .toSet(),
+            mainLauncherEnabled = aliases.aliasEnabled(".MainLauncher"),
+            migrationLauncherEnabled = aliases.aliasEnabled(".LegacyMigrationLauncher"),
+            dataTransferActivityExported = activities.componentExported(".ui.transfer.DataTransferActivity"),
         )
     }
+
+    private fun org.w3c.dom.NodeList.aliasEnabled(suffix: String): Boolean =
+        (0 until length)
+            .mapNotNull { item(it) as? Element }
+            .first { it.androidAttribute("name").endsWith(suffix) }
+            .androidAttribute("enabled")
+            .toBoolean()
+
+    private fun org.w3c.dom.NodeList.componentExported(suffix: String): Boolean =
+        (0 until length)
+            .mapNotNull { item(it) as? Element }
+            .first { it.androidAttribute("name").endsWith(suffix) }
+            .androidAttribute("exported")
+            .toBoolean()
 
     private fun resolveMergedManifest(variant: String): File {
         val taskVariant = variant.replaceFirstChar(Char::uppercaseChar)
@@ -135,6 +173,9 @@ class VariantContractTest {
         val hasUsesCleartextTrafficAttribute: Boolean,
         val usesCleartextTraffic: Boolean,
         val permissions: Set<String>,
+        val mainLauncherEnabled: Boolean,
+        val migrationLauncherEnabled: Boolean,
+        val dataTransferActivityExported: Boolean,
     )
 
     private companion object {

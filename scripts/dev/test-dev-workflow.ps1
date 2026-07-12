@@ -334,6 +334,7 @@ Assert-FileContains "docs/architecture/README.md" "app/src/androidTest/java/com/
 Assert-FileDoesNotContain "AGENTS.md" '(?m)^\.\\scripts\\dev\\verify-musfit\.ps1[^\r\n]*-InstallSeed[^\r\n]*-DeviceSerial'
 
 $databaseVersion = Get-DatabaseVersion
+Assert-FileContains "app/src/main/java/com/musfit/data/local/MusFitDatabase.kt" "MUSFIT_DATABASE_VERSION\s*=\s*$databaseVersion"
 $schemaDirectory = Get-RepoPath "app/schemas/com.musfit.data.local.MusFitDatabase"
 if (-not (Test-Path -LiteralPath $schemaDirectory -PathType Container)) {
     throw "Expected exported Room schema directory: $schemaDirectory"
@@ -401,15 +402,35 @@ Assert-FileExists "app/src/androidTest/java/com/musfit/debug/MusFitDebugSeedInst
 Assert-FileContains "app/build.gradle.kts" 'create\("internal"\)'
 Assert-FileContains "app/build.gradle.kts" 'applicationIdSuffix\s*=\s*"\.internal"'
 Assert-FileContains "app/build.gradle.kts" 'create\("production"\)'
+Assert-FileContains "app/build.gradle.kts" 'create\("legacyMigration"\)'
+Assert-FileContains "app/build.gradle.kts" '(?s)create\("legacyMigration"\).{0,500}signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)'
+Assert-FileContains "app/build.gradle.kts" 'DATA_TRANSFER_MODE.*legacy-export'
 Assert-FileContains "app/build.gradle.kts" 'verifyReleaseVariantMatrix'
 Assert-FileDoesNotContain "app/src/main/AndroidManifest.xml" "android\.permission\.ACCESS_LOCAL_NETWORK"
 Assert-FileContains "app/src/internal/AndroidManifest.xml" "android\.permission\.ACCESS_LOCAL_NETWORK"
 Assert-FileContains "app/src/internal/java/com/musfit/ui/permissions/LocalNetworkPermission.kt" "android\.permission\.ACCESS_LOCAL_NETWORK"
 Assert-FileDoesNotContain "app/src/production/java/com/musfit/ui/permissions/LocalNetworkPermission.kt" "android\.permission\.ACCESS_LOCAL_NETWORK"
+Assert-FileDoesNotContain "app/src/legacyMigration/java/com/musfit/ui/permissions/LocalNetworkPermission.kt" "android\.permission\.ACCESS_LOCAL_NETWORK"
+foreach ($relativeVariantFile in @(
+    "data/remote/coach/AiCoachEndpointPolicyConfig.kt",
+    "ui/permissions/LocalNetworkPermission.kt",
+    "ui/profile/AiCoachVariantCopy.kt"
+)) {
+    $productionVariantFile = "app/src/production/java/com/musfit/$relativeVariantFile"
+    $migrationVariantFile = "app/src/legacyMigration/java/com/musfit/$relativeVariantFile"
+    Assert-FileExists $migrationVariantFile
+    $productionVariantText = (Get-FileText $productionVariantFile) -replace "`r`n", "`n"
+    $migrationVariantText = (Get-FileText $migrationVariantFile) -replace "`r`n", "`n"
+    if ($productionVariantText -cne $migrationVariantText) {
+        throw "Legacy migration policy must exactly match production: $relativeVariantFile"
+    }
+}
+Assert-FileContains "app/src/main/AndroidManifest.xml" 'android:enabled="\$\{mainLauncherEnabled\}"'
+Assert-FileContains "app/src/main/AndroidManifest.xml" 'android:enabled="\$\{legacyMigrationLauncherEnabled\}"'
 
 Assert-FileContains "scripts/dev/clean-generated.ps1" "Remove-Item"
 Assert-FileContains "scripts/dev/verify-musfit.ps1" "RetryOnGeneratedOutputIssue"
-Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)"Full"\s*\{.{0,300}"verifyReleaseVariantMatrix".{0,300}"testInternalDebugUnitTest".{0,200}"testProductionReleaseUnitTest".{0,500}"assembleInternalDebugAndroidTest".{0,300}"bundleProductionRelease"'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)"Full"\s*\{.{0,300}"verifyReleaseVariantMatrix".{0,300}"testInternalDebugUnitTest".{0,200}"testProductionReleaseUnitTest".{0,300}"testLegacyMigrationReleaseUnitTest".{0,500}"assembleInternalDebugAndroidTest".{0,300}"assembleLegacyMigrationRelease".{0,300}"bundleProductionRelease"'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$InstallSeed\)\s*\{.{0,500}"assembleInternalDebug".{0,200}"assembleInternalDebugAndroidTest"'
 Assert-FileContains "scripts/dev/new-task-branch.ps1" "origin/master"
 Assert-FileContains "scripts/dev/new-task-branch.ps1" "DryRun"
@@ -417,10 +438,15 @@ Assert-FileContains "scripts/dev/new-task-branch.ps1" "DryRun"
 Assert-FileContains ".github/workflows/android.yml" "concurrency:"
 Assert-FileContains ".github/workflows/android.yml" "permissions:"
 Assert-FileContains ".github/workflows/android.yml" "test-dev-workflow\.ps1"
-Assert-FileContains ".github/workflows/android.yml" "verifyReleaseVariantMatrix testInternalDebugUnitTest testProductionReleaseUnitTest lintInternalDebug lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleProductionRelease bundleProductionRelease"
+Assert-FileContains ".github/workflows/android.yml" "verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease"
 Assert-FileContains ".github/workflows/android.yml" "app/build/outputs/apk/internal/debug/app-internal-debug\.apk"
+Assert-FileContains ".github/workflows/android.yml" "verify-data-migration-artifacts\.ps1 -SkipBuild"
+Assert-FileExists "scripts/release/verify-data-migration-artifacts.ps1"
+Assert-PowerShellParses "scripts/release/verify-data-migration-artifacts.ps1"
+Assert-FileContains "scripts/release/verify-data-migration-artifacts.ps1" '(?s)if\s*\(\$windows\)\s*\{.{0,300}android-env\.ps1.{0,300}\}\s*elseif\s*\(-not\s+\$env:ANDROID_SDK_ROOT\s+-and\s+\$env:ANDROID_HOME\)'
+Assert-FileContains "scripts/release/verify-data-migration-artifacts.ps1" '\$gradle\s*=\s*if\s*\(\$windows\)\s*\{\s*"\.\\gradlew\.bat"\s*\}\s*else\s*\{\s*"\./gradlew"\s*\}'
 Assert-FileContains ".github/workflows/android.yml" "if-no-files-found:\s*error"
-Assert-FileDoesNotContain ".github/workflows/android.yml" "app-internal-debug-androidTest\.apk|outputs/apk/androidTest|softprops/action-gh-release|Publish GitHub Release"
+Assert-FileDoesNotContain ".github/workflows/android.yml" "app-internal-debug-androidTest\.apk|outputs/apk/androidTest|app-legacyMigration-release\.apk|softprops/action-gh-release|Publish GitHub Release"
 Assert-FileExists ".github/workflows/pr-emulator-evidence.yml"
 Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "pull_request_target:"
 Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "issue_comment:"

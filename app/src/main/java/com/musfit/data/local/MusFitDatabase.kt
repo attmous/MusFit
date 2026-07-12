@@ -48,6 +48,9 @@ import com.musfit.data.local.entity.WaterEntryEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 
+const val MUSFIT_DATABASE_NAME = "musfit.db"
+const val MUSFIT_DATABASE_VERSION = 36
+
 @Database(
     entities = [
         AccountEntity::class,

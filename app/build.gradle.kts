@@ -84,6 +84,7 @@ android {
         buildConfigField("String", "GITHUB_OAUTH_CLIENT_ID", musfitGitHubOAuthClientId.asBuildConfigString())
         buildConfigField("String", "DEBUG_HERMES_BASE_URL", "".asBuildConfigString())
         buildConfigField("String", "DEBUG_HERMES_MODEL_NAME", "".asBuildConfigString())
+        buildConfigField("String", "DATA_TRANSFER_MODE", "full".asBuildConfigString())
     }
 
     flavorDimensions += "distribution"
@@ -92,6 +93,8 @@ android {
             dimension = "distribution"
             applicationIdSuffix = ".internal"
             versionNameSuffix = "-internal"
+            manifestPlaceholders["mainLauncherEnabled"] = true
+            manifestPlaceholders["legacyMigrationLauncherEnabled"] = false
             buildConfigField(
                 "String",
                 "DEBUG_HERMES_BASE_URL",
@@ -106,6 +109,17 @@ android {
         create("production") {
             dimension = "distribution"
             applicationId = "com.musfit"
+            manifestPlaceholders["mainLauncherEnabled"] = true
+            manifestPlaceholders["legacyMigrationLauncherEnabled"] = false
+        }
+        create("legacyMigration") {
+            dimension = "distribution"
+            applicationId = "com.musfit"
+            versionNameSuffix = "-data-migration"
+            signingConfig = signingConfigs.getByName("debug")
+            buildConfigField("String", "DATA_TRANSFER_MODE", "legacy-export".asBuildConfigString())
+            manifestPlaceholders["mainLauncherEnabled"] = false
+            manifestPlaceholders["legacyMigrationLauncherEnabled"] = true
         }
     }
 
@@ -143,7 +157,8 @@ androidComponents {
             ?.second
         val enabled =
             (distribution == "internal" && variantBuilder.buildType == "debug") ||
-            (distribution == "production" && variantBuilder.buildType == "release")
+            (distribution == "production" && variantBuilder.buildType == "release") ||
+            (distribution == "legacyMigration" && variantBuilder.buildType == "release")
         variantBuilder.enable = enabled
         if (enabled) {
             val applicationVariantBuilder = variantBuilder as ApplicationVariantBuilder
@@ -164,7 +179,7 @@ tasks.register("verifyReleaseVariantMatrix") {
     group = "verification"
     description = "Verifies the only enabled installable variants and their canonical task families."
     doLast {
-        val expectedVariants = setOf("internalDebug", "productionRelease")
+        val expectedVariants = setOf("internalDebug", "productionRelease", "legacyMigrationRelease")
         check(enabledApplicationVariants == expectedVariants) {
             "Enabled application variants must be $expectedVariants, got $enabledApplicationVariants"
         }
@@ -178,6 +193,9 @@ tasks.register("verifyReleaseVariantMatrix") {
             "bundleProductionRelease",
             "testProductionReleaseUnitTest",
             "lintProductionRelease",
+            "assembleLegacyMigrationRelease",
+            "testLegacyMigrationReleaseUnitTest",
+            "lintLegacyMigrationRelease",
         )
         val missingTasks = requiredTasks - project.tasks.names
         check(missingTasks.isEmpty()) { "Missing required variant tasks: $missingTasks" }
@@ -191,6 +209,9 @@ tasks.register("verifyReleaseVariantMatrix") {
             "bundleInternalRelease",
             "testInternalReleaseUnitTest",
             "lintInternalRelease",
+            "assembleLegacyMigrationDebug",
+            "testLegacyMigrationDebugUnitTest",
+            "lintLegacyMigrationDebug",
         )
         val presentForbiddenTasks = forbiddenTasks.intersect(project.tasks.names)
         check(presentForbiddenTasks.isEmpty()) {
