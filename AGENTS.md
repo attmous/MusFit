@@ -64,14 +64,17 @@ Read the linked audit before broad changes. In particular:
 - Seed/reset tooling is for the named dedicated AVD only and rejects physical or
   mismatched-emulator serials. Never seed, clear, or reset a phone or user-data
   device.
-- CI verifies `internalDebug`, the non-debuggable export-only
+- Normal CI verifies `internalDebug`, the non-debuggable export-only
   `legacyMigrationRelease` bridge, and unsigned `productionRelease` outputs,
   and keeps only the internal APK as a short-lived workflow artifact. The
   bridge uses the public legacy certificate solely so existing `com.musfit`
   installs can export a passphrase-encrypted database before uninstall; never
-  publish it as production or add import/internal defaults to it. GitHub Release and
-  Obtainium publication are suspended until the remaining Wave 1 release gates
-  land; no current artifact is production- or Play-ready.
+  publish it as production or add import/internal defaults to it. GitHub Release
+  and Obtainium publication run only through the manually dispatched,
+  `production-release` environment-protected Option A workflow. Google holds
+  the permanent app-signing key; CI may sign only the upload AAB and may publish
+  only the Google-generated universal APK after exact certificate/checksum
+  verification.
 - Hermes/API bearer credentials are runtime-only and live in the account-keyed,
   Android-Keystore-backed AI secret store. Build configuration may provide only
   nonsecret internal endpoint/model defaults; it has no API-key field or
@@ -245,11 +248,13 @@ For each task:
 
 ## CI And Reference Map
 
-.github/workflows/android.yml` runs the workflow contract and internal,
+`.github/workflows/android.yml` runs the workflow contract and internal,
 migration-bridge, plus production-shaped verification gate for PRs and pushes to `master`/`main`. It
 retains `musfit-internal-debug-apk` for seven days and publishes no GitHub
-Release. Production signing, install migration, optimization, and publication
-remain separate Wave 1 packages.
+Release. `.github/workflows/release.yml` is manual and environment-protected; it
+accepts only a verified master commit, uploads to Play internal, downloads the
+Google-signed universal APK, and promotes that exact candidate without
+rebuilding. See `docs/ops/production-release.md`.
 
 Use these living references instead of duplicating their detail here:
 

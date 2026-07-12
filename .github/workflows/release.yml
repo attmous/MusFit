@@ -1,0 +1,225 @@
+name: Production release
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full verified commit SHA contained in master
+        required: true
+        type: string
+      release_tag:
+        description: Immutable GitHub release tag, for example v0.1.0.520
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    environment: production-release
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      verified_commit: ${{ steps.verified.outputs.verified_commit }}
+      verification_run_id: ${{ steps.verified.outputs.verification_run_id }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require successful exact-commit Android verification
+        id: verified
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ inputs.commit_sha }}
+        run: ./scripts/release/assert-verified-release-commit.ps1 -CommitSha $env:RELEASE_COMMIT
+
+  play-candidate:
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: production-release
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      version_code: ${{ steps.play.outputs.version_code }}
+    steps:
+      - name: Checkout verified commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.verified_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Re-run full release gate on publication runner
+        shell: pwsh
+        run: ./scripts/dev/verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
+
+      - name: Decode protected upload keystore
+        shell: pwsh
+        env:
+          MUSFIT_UPLOAD_KEYSTORE_B64: ${{ secrets.MUSFIT_UPLOAD_KEYSTORE_B64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:MUSFIT_UPLOAD_KEYSTORE_B64)) { throw "Missing upload keystore secret." }
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP/musfit-upload.p12", [Convert]::FromBase64String($env:MUSFIT_UPLOAD_KEYSTORE_B64))
+
+      - name: Sign exact Play upload bundle
+        shell: pwsh
+        env:
+          MUSFIT_UPLOAD_STORE_PASSWORD: ${{ secrets.MUSFIT_UPLOAD_STORE_PASSWORD }}
+          MUSFIT_UPLOAD_KEY_PASSWORD: ${{ secrets.MUSFIT_UPLOAD_KEY_PASSWORD }}
+          MUSFIT_UPLOAD_KEY_ALIAS: ${{ vars.MUSFIT_UPLOAD_KEY_ALIAS }}
+          MUSFIT_UPLOAD_CERT_SHA256: ${{ vars.MUSFIT_UPLOAD_CERT_SHA256 }}
+        run: |
+          ./scripts/release/prepare-play-upload-bundle.ps1 `
+            -InputAab app/build/outputs/bundle/productionRelease/app-production-release.aab `
+            -OutputAab "$env:RUNNER_TEMP/musfit-play-upload.aab" `
+            -Keystore "$env:RUNNER_TEMP/musfit-upload.p12" `
+            -KeyAlias $env:MUSFIT_UPLOAD_KEY_ALIAS `
+            -ExpectedUploadCertificateSha256 $env:MUSFIT_UPLOAD_CERT_SHA256
+
+      - name: Authenticate to Google with short-lived workload identity
+        id: google-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.PLAY_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Upload AAB and retrieve Google-signed universal APK
+        id: play
+        shell: pwsh
+        env:
+          MUSFIT_PLAY_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+          RELEASE_COMMIT: ${{ needs.preflight.outputs.verified_commit }}
+          MUSFIT_PLAY_APP_SIGNING_CERT_SHA256: ${{ vars.MUSFIT_PLAY_APP_SIGNING_CERT_SHA256 }}
+        run: |
+          ./scripts/release/invoke-play-option-a.ps1 `
+            -SignedBundle "$env:RUNNER_TEMP/musfit-play-upload.aab" `
+            -OutputDirectory "$env:RUNNER_TEMP/musfit-production-candidate" `
+            -CommitSha $env:RELEASE_COMMIT `
+            -ExpectedAppSigningCertificateSha256 $env:MUSFIT_PLAY_APP_SIGNING_CERT_SHA256 `
+            -Track internal
+
+      - name: Verify signed exact candidate
+        shell: pwsh
+        env:
+          RELEASE_COMMIT: ${{ needs.preflight.outputs.verified_commit }}
+          MUSFIT_PLAY_APP_SIGNING_CERT_SHA256: ${{ vars.MUSFIT_PLAY_APP_SIGNING_CERT_SHA256 }}
+          MUSFIT_UPLOAD_CERT_SHA256: ${{ vars.MUSFIT_UPLOAD_CERT_SHA256 }}
+        run: |
+          ./scripts/release/verify-release-candidate.ps1 `
+            -CandidateDirectory "$env:RUNNER_TEMP/musfit-production-candidate" `
+            -ExpectedCommitSha $env:RELEASE_COMMIT `
+            -ExpectedAppSigningCertificateSha256 $env:MUSFIT_PLAY_APP_SIGNING_CERT_SHA256 `
+            -ExpectedUploadCertificateSha256 $env:MUSFIT_UPLOAD_CERT_SHA256
+
+      - name: Retain immutable production candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: musfit-production-candidate-${{ needs.preflight.outputs.verified_commit }}
+          path: |
+            ${{ runner.temp }}/musfit-production-candidate/musfit-universal.apk
+            ${{ runner.temp }}/musfit-production-candidate/musfit-play-upload.aab
+            ${{ runner.temp }}/musfit-production-candidate/SHA256SUMS
+            ${{ runner.temp }}/musfit-production-candidate/release-metadata.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Complete internal release only after candidate verification
+        shell: pwsh
+        env:
+          MUSFIT_PLAY_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+          RELEASE_VERSION_CODE: ${{ steps.play.outputs.version_code }}
+        run: ./scripts/release/complete-play-internal-release.ps1 -VersionCode $env:RELEASE_VERSION_CODE
+
+  promote:
+    needs: [preflight, play-candidate]
+    runs-on: ubuntu-latest
+    environment: production-release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout verification scripts from exact commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.verified_commit }}
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Download exact candidate without rebuilding
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: musfit-production-candidate-${{ needs.preflight.outputs.verified_commit }}
+          path: release-candidate
+
+      - name: Reverify promotion inputs
+        shell: pwsh
+        env:
+          RELEASE_COMMIT: ${{ needs.preflight.outputs.verified_commit }}
+          MUSFIT_PLAY_APP_SIGNING_CERT_SHA256: ${{ vars.MUSFIT_PLAY_APP_SIGNING_CERT_SHA256 }}
+          MUSFIT_UPLOAD_CERT_SHA256: ${{ vars.MUSFIT_UPLOAD_CERT_SHA256 }}
+        run: |
+          ./scripts/release/verify-release-candidate.ps1 `
+            -CandidateDirectory release-candidate `
+            -ExpectedCommitSha $env:RELEASE_COMMIT `
+            -ExpectedAppSigningCertificateSha256 $env:MUSFIT_PLAY_APP_SIGNING_CERT_SHA256 `
+            -ExpectedUploadCertificateSha256 $env:MUSFIT_UPLOAD_CERT_SHA256
+
+      - name: Validate immutable release tag
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_VERSION_CODE: ${{ needs.play-candidate.outputs.version_code }}
+        run: |
+          $expected = "v0.1.0.$env:RELEASE_VERSION_CODE"
+          if ($env:RELEASE_TAG -cne $expected) { throw "Release tag must be $expected." }
+          if (git ls-remote --exit-code --tags origin "refs/tags/$expected") { throw "Release tag already exists: $expected" }
+
+      - name: Publish exact APK/AAB and checksums for Obtainium
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_COMMIT: ${{ needs.preflight.outputs.verified_commit }}
+          VERIFICATION_RUN_ID: ${{ needs.preflight.outputs.verification_run_id }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_COMMIT" \
+            --title "MusFit $RELEASE_TAG" \
+            --notes "Verified commit: $RELEASE_COMMIT
+          Android verification run: $VERIFICATION_RUN_ID
+          Play track: internal
+          SHA-256 checksums are attached in SHA256SUMS." \
+            release-candidate/musfit-universal.apk \
+            release-candidate/musfit-play-upload.aab \
+            release-candidate/SHA256SUMS \
+            release-candidate/release-metadata.json

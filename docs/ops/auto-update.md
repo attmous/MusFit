@@ -1,9 +1,9 @@
 # Development Update And Publication Status
 
-MusFit currently has no automatic GitHub Release, Obtainium, or Play
-publication lane. W1-REL-01 separates the side-by-side internal developer app
-from the production-shaped app, but it does not sign or publish production
-artifacts.
+Normal CI publishes no production artifact. The separate, manually dispatched,
+protected `Production release` workflow implements the W1-REL-04 Option A lane:
+Google owns the permanent app-signing key, CI signs only the Play upload AAB,
+and Obtainium receives only the universal APK returned by Google Play.
 
 ## Current CI Flow
 
@@ -16,6 +16,15 @@ pull request or push to master/main
        -> productionRelease unit + lint + unsigned APK/AAB
        -> musfit-internal-debug-apk workflow artifact (7-day retention)
   -> no GitHub Release or Obtainium publication
+
+manual Production release dispatch for an exact verified master commit
+  -> production-release environment approval
+  -> full gate and one optimized AAB build
+  -> upload-key signature and unserved Play internal draft
+  -> Google-signed universal APK download and certificate verification
+  -> immutable APK/AAB/checksum/metadata candidate
+  -> exact verified Play version completed for internal testers
+  -> promotion without rebuilding to GitHub Release / Obtainium
 ```
 
 Relevant source:
@@ -32,8 +41,9 @@ bounded verification and is not a production release.
 
 The `productionRelease` variant uses application id `com.musfit`, is
 non-debuggable, leaves developer Hermes fields blank, omits internal LAN/debug
-network resources, and produces unsigned APK/AAB outputs. CI does not retain or
-publish those outputs in this package.
+network resources, and produces unsigned APK/AAB outputs during normal CI. The
+release workflow signs an exact AAB copy with the replaceable upload key; the
+locally built APK is never promoted.
 
 The legacy exported seed receiver tracked as SEC-001 has been removed.
 Deterministic development seeding installs the separate
@@ -41,7 +51,7 @@ Deterministic development seeding installs the separate
 emulator and targets `com.musfit.internal`; the target APK exposes no seed
 component or action.
 
-## Why Publication Is Suspended
+## Publication boundary
 
 Existing `com.musfit` developer installations are signed with the public debug
 certificate. A secure production key cannot update those installs, and the
@@ -51,7 +61,7 @@ encrypted export/import path documented in
 W1-REL-03 enables shrinking, and W1-REL-04 owns secret-backed signing and exact
 artifact promotion.
 
-Until those packages pass:
+Outside the protected release workflow:
 
 - do not create a GitHub Release from `internalDebug` or unsigned production
   outputs;
@@ -59,8 +69,11 @@ Until those packages pass:
 - do not reuse `app/keystore/musfit.debug.keystore` for production;
 - do not install an ephemeral verification-signed production APK over an
   existing `com.musfit` user-data install;
-- keep production signing keys, upload keys, store credentials, and API secrets
-  outside the repository.
+- keep upload keys and store credentials outside the repository; the Google-managed
+  production app-signing private key never enters MusFit CI.
+
+See [`production-release.md`](production-release.md) for protected environment,
+certificate, Play API, exact-artifact, and rollback procedures.
 
 ## Local Verification Only
 

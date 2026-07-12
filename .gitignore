@@ -7,6 +7,7 @@ build/
 app/build/
 captures/
 verification/
+gha-creds-*.json
 .DS_Store
 .superpowers/
 .worktrees/
