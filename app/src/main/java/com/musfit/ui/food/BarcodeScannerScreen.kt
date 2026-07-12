@@ -175,25 +175,9 @@ fun BarcodeScannerScreen(
     }
 
     if (!hasCameraPermission) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(CameraSurface)
-                .statusBarsPadding()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = "Camera permission is required to scan barcodes.",
-                style = MusFitTheme.typography.bodyLarge,
-                color = Cream,
-            )
-            PillButton(
-                text = "Grant camera access",
-                onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        BarcodeScannerPermissionDeniedContent(
+            onGrantCameraAccess = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+        )
         return
     }
 
@@ -261,6 +245,31 @@ fun BarcodeScannerScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
+    }
+}
+
+@Composable
+internal fun BarcodeScannerPermissionDeniedContent(
+    onGrantCameraAccess: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CameraSurface)
+            .statusBarsPadding()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = "Camera permission is required to scan barcodes.",
+            style = MusFitTheme.typography.bodyLarge,
+            color = Cream,
+        )
+        PillButton(
+            text = "Grant camera access",
+            onClick = onGrantCameraAccess,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

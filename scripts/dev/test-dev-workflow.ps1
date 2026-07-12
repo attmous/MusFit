@@ -566,6 +566,22 @@ Assert-FileContains ".github/workflows/android.yml" 'managed_device_android_test
 Assert-FileContains ".github/workflows/android.yml" 'Enable KVM for managed devices'
 Assert-FileContains ".github/workflows/android.yml" 'sdkmanager" --licenses'
 Assert-FileContains ".github/workflows/android.yml" 'system-images;android-28;google_apis;x86_64'
+Assert-FileExists "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt"
+Assert-FileExists "docs/testing/screenshot-regression.md"
+Assert-FileContains "gradle/libs.versions.toml" 'roborazzi\s*=\s*"1\.62\.0"'
+Assert-FileContains "app/build.gradle.kts" 'outputDir\.set\(file\("src/testInternalDebug/screenshots"\)\)'
+Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" 'w400dp-h800dp-mdpi'
+Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" 'w610dp-h900dp-mdpi'
+Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" 'w900dp-h700dp-mdpi'
+Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" 'fontScale\s*=\s*1\.5f'
+Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" 'LayoutDirection\.Rtl'
+Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" '48\.dp\.toPx'
+Assert-FileContains ".github/workflows/android.yml" 'verifyRoborazziInternalDebug'
+Assert-FileContains ".github/workflows/android.yml" 'musfit-screenshot-regression'
+Assert-FileDoesNotContain ".github/workflows/android.yml" 'recordRoborazzi'
+
+$goldenCount = @(Get-ChildItem -LiteralPath (Get-RepoPath "app/src/testInternalDebug/screenshots") -Filter "*.png" -File).Count
+Assert-Equal "Reviewed screenshot golden count" 7 $goldenCount
 
 if ($SelfTest) {
     $mismatchDetected = $false
