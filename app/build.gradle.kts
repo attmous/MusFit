@@ -1,6 +1,7 @@
 import com.android.build.api.variant.ApplicationVariantBuilder
 import com.android.build.api.variant.DeviceTestBuilder
 import com.android.build.api.variant.HostTestBuilder
+import com.android.build.api.dsl.ManagedVirtualDevice
 import java.util.Properties
 
 plugins {
@@ -141,7 +142,7 @@ android {
     }
 
     sourceSets {
-        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+        getByName("androidTest").assets.directories.add("$projectDir/schemas")
     }
 
     buildFeatures {
@@ -152,6 +153,32 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        managedDevices {
+            localDevices {
+                create("musFitApi28") {
+                    device = "Pixel 2"
+                    apiLevel = 28
+                    systemImageSource = "aosp"
+                    testedAbi = "x86"
+                }
+                create("musFitApi37") {
+                    device = "Pixel 2"
+                    apiLevel = 37
+                    systemImageSource = "google"
+                    pageAlignment = ManagedVirtualDevice.PageAlignment.FORCE_16KB_PAGES
+                    testedAbi = "x86_64"
+                }
+            }
+            groups {
+                create("migrationApi28And37") {
+                    targetDevices.add(localDevices["musFitApi28"])
+                    targetDevices.add(localDevices["musFitApi37"])
+                }
+            }
+        }
     }
 
 }
@@ -252,6 +279,10 @@ kapt {
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
+    // Room's schema parser uses serialization 1.8.1. Align the app and
+    // instrumentation classloaders so MigrationTestHelper cannot resolve the
+    // older Lifecycle transitive runtime against Room's generated serializers.
+    implementation(platform(libs.kotlinx.serialization.bom))
     implementation(libs.androidx.core)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -294,6 +325,7 @@ dependencies {
 
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.room.testing)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.test.core)
