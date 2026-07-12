@@ -14,12 +14,14 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
+$windows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+$gradleWrapper = Join-Path $repoRoot $(if ($windows) { "gradlew.bat" } else { "gradlew" })
 
 function Invoke-Gradle([string[]] $Arguments) {
     Push-Location $repoRoot
     try {
-        Write-Host "Running: .\gradlew.bat $($Arguments -join ' ')"
-        $output = & .\gradlew.bat @Arguments 2>&1
+        Write-Host "Running: $gradleWrapper $($Arguments -join ' ')"
+        $output = & $gradleWrapper @Arguments 2>&1
         $exitCode = $LASTEXITCODE
         $output | ForEach-Object { Write-Host $_ }
 
@@ -39,7 +41,7 @@ function Invoke-Gradle([string[]] $Arguments) {
                 throw "Generated-output cleanup failed with exit code $LASTEXITCODE"
             }
 
-            $output = & .\gradlew.bat @Arguments 2>&1
+            $output = & $gradleWrapper @Arguments 2>&1
             $exitCode = $LASTEXITCODE
             $output | ForEach-Object { Write-Host $_ }
         }
