@@ -15,6 +15,7 @@ plugins {
     alias(libs.plugins.android.legacy.kapt)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.roborazzi)
 }
 
 fun String.asBuildConfigString(): String =
@@ -385,8 +386,14 @@ dependencies {
     testImplementation(libs.androidx.room.testing)
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi.compose)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
+}
+
+roborazzi {
+    outputDir.set(file("src/testInternalDebug/screenshots"))
+    compare.outputDir.set(layout.buildDirectory.dir("outputs/roborazzi-comparison"))
 }
 
 // The seed-surface contract reads both installable merged manifests. Keep the

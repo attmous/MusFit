@@ -2,6 +2,10 @@
 
 MusFit uses two deliberately small UI-test layers.
 
+Screenshot, adaptive, and accessibility regression coverage is documented in
+[`screenshot-regression.md`](screenshot-regression.md). It reuses this local
+fixture boundary but runs as a separate deterministic CI lane.
+
 ## Local semantics layer
 
 `app/src/testInternalDebug` hosts Robolectric-backed Compose tests. These tests
