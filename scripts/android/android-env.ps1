@@ -24,9 +24,12 @@ function Test-Java17Home([string] $Path) {
 
 $jdkCandidates = @(
     $env:JAVA_HOME,
-    $env:MUSFIT_JAVA_HOME,
-    (Join-Path $env:LOCALAPPDATA "MusFitToolchain\jdk-17")
-) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+    $env:MUSFIT_JAVA_HOME
+)
+if ($env:LOCALAPPDATA) {
+    $jdkCandidates += Join-Path $env:LOCALAPPDATA "MusFitToolchain\jdk-17"
+}
+$jdkCandidates = $jdkCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 
 $programFilesCandidates = @()
 if ($env:ProgramFiles) {
@@ -66,9 +69,12 @@ if ($jdk) {
 
 $sdkCandidates = @(
     $env:ANDROID_HOME,
-    $env:ANDROID_SDK_ROOT,
-    (Join-Path $env:LOCALAPPDATA "Android\Sdk")
-) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+    $env:ANDROID_SDK_ROOT
+)
+if ($env:LOCALAPPDATA) {
+    $sdkCandidates += Join-Path $env:LOCALAPPDATA "Android\Sdk"
+}
+$sdkCandidates = $sdkCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 
 if (-not $sdkCandidates) {
     throw "Android SDK not found. Install Android Studio or set ANDROID_HOME to the SDK path."
