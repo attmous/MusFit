@@ -201,7 +201,9 @@ jobs:
         run: |
           $expected = "v0.1.0.$env:RELEASE_VERSION_CODE"
           if ($env:RELEASE_TAG -cne $expected) { throw "Release tag must be $expected." }
-          if (git ls-remote --exit-code --tags origin "refs/tags/$expected") { throw "Release tag already exists: $expected" }
+          $existingTag = @(git ls-remote --tags origin "refs/tags/$expected")
+          if ($LASTEXITCODE -ne 0) { throw "Could not inspect remote release tags." }
+          if ($existingTag.Count -ne 0) { throw "Release tag already exists: $expected" }
 
       - name: Publish exact APK/AAB and checksums for Obtainium
         shell: bash
