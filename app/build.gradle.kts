@@ -156,6 +156,7 @@ android {
     }
 
     testOptions {
+        unitTests.isIncludeAndroidResources = true
         managedDevices {
             localDevices {
                 create("musFitApi28") {
@@ -322,6 +323,7 @@ dependencies {
     kapt(libs.androidx.room.compiler)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
@@ -334,6 +336,8 @@ dependencies {
     testImplementation(libs.androidx.room.testing)
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.robolectric)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
 }
 
 // The seed-surface contract reads both installable merged manifests. Keep the
@@ -345,6 +349,7 @@ tasks.matching {
         dependsOn(
             "processInternalDebugMainManifest",
             "processProductionReleaseMainManifest",
+            "processLegacyMigrationReleaseMainManifest",
             "processInternalDebugAndroidTestManifest",
         )
     }

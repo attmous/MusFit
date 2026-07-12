@@ -594,6 +594,19 @@ Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'git/blobs/'
 Assert-PowerShellParses "scripts/dev/check-pr-emulator-evidence.ps1"
 Assert-PowerShellParses "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1"
 
+Assert-FileExists "app/src/testInternalDebug/java/com/musfit/ui/MusFitComposeSemanticsTest.kt"
+Assert-FileExists "app/src/test/resources/robolectric.properties"
+Assert-FileExists "docs/testing/compose-testing.md"
+Assert-FileContains "gradle/libs.versions.toml" 'androidx-compose-ui-test-junit4'
+Assert-FileContains "gradle/libs.versions.toml" 'androidx-compose-ui-test-manifest'
+Assert-FileContains "app/build.gradle.kts" 'debugImplementation\(libs\.androidx\.compose\.ui\.test\.manifest\)'
+Assert-FileContains "app/build.gradle.kts" 'testImplementation\(libs\.androidx\.compose\.ui\.test\.junit4\)'
+Assert-FileContains "app/build.gradle.kts" 'processLegacyMigrationReleaseMainManifest'
+Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitComposeSemanticsTest.kt" 'junit4\.v2\.createComposeRule'
+Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitComposeSemanticsTest.kt" 'StateRestorationTester'
+Assert-FileContains "app/src/test/resources/robolectric.properties" '(?m)^sdk=35\r?$'
+Assert-FileContains "docs/testing/compose-testing.md" 'Managed-device journey layer'
+
 if ($SelfTest) {
     $mismatchDetected = $false
     $expectedMismatchMessage =
