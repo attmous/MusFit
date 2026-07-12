@@ -385,6 +385,8 @@ foreach ($fontDoc in @(
 }
 
 Assert-FileContains "scripts/android/android-env.ps1" "JAVA_HOME"
+Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPPDATA\)\s*\{[^}]*MusFitToolchain[\\/]jdk-17'
+Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPPDATA\)\s*\{[^}]*Android[\\/]Sdk'
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "EvidenceDir"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "Assert-LastExitCode"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "pm clear"
