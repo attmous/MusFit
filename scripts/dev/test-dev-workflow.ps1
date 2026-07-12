@@ -475,6 +475,20 @@ Assert-FileContains "scripts/release/verify-data-migration-artifacts.ps1" '\$gra
 Assert-FileContains ".github/workflows/android.yml" "if-no-files-found:\s*error"
 Assert-FileDoesNotContain ".github/workflows/android.yml" "app-internal-debug-androidTest\.apk|outputs/apk/androidTest|app-legacyMigration-release\.apk|softprops/action-gh-release|Publish GitHub Release"
 
+# Gradle build cache is enabled repo-wide and CI restores it via SHA-pinned
+# setup-gradle (not setup-java's bundled cache), read-only off master, keeping
+# --no-daemon. versionCode uses a configuration-cache-safe ValueSource, not a
+# configuration-time ProcessBuilder. The configuration cache itself is deferred
+# (verifyReleaseVariantMatrix is not yet compatible), so only the build-cache
+# flag is asserted here.
+Assert-FileContains "gradle.properties" 'org\.gradle\.caching\s*=\s*true'
+Assert-FileContains "app/build.gradle.kts" 'ValueSource<Int'
+Assert-FileDoesNotContain "app/build.gradle.kts" 'ProcessBuilder\('
+Assert-FileContains ".github/workflows/android.yml" 'gradle/actions/setup-gradle@[0-9a-f]{40}\s+# v'
+Assert-FileContains ".github/workflows/android.yml" 'cache-read-only:\s*\$\{\{\s*github\.ref\s*!=\s*''refs/heads/master''\s*\}\}'
+Assert-FileContains ".github/workflows/android.yml" '--no-daemon'
+Assert-FileDoesNotContain ".github/workflows/android.yml" 'cache:\s*gradle'
+
 # W1-REL-04: production publication is manual, environment-protected, and
 # promotes the Google-signed universal APK without rebuilding the candidate.
 Assert-FileExists ".github/workflows/release.yml"

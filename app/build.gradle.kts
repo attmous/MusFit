@@ -2,7 +2,13 @@ import com.android.build.api.variant.ApplicationVariantBuilder
 import com.android.build.api.variant.DeviceTestBuilder
 import com.android.build.api.variant.HostTestBuilder
 import com.android.build.api.dsl.ManagedVirtualDevice
+import java.io.ByteArrayOutputStream
 import java.util.Properties
+import javax.inject.Inject
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.ValueSource
+import org.gradle.api.provider.ValueSourceParameters
+import org.gradle.process.ExecOperations
 
 plugins {
     alias(libs.plugins.android.application)
@@ -31,17 +37,48 @@ fun localConfigValue(name: String, defaultValue: String = ""): String =
 // version sequence while release publication is suspended. Falls back to 1 when
 // git is unavailable (e.g. a source-only checkout). CI must checkout with full
 // history (fetch-depth: 0) or this collapses to 1. See docs/ops/auto-update.md.
-fun gitCommitCount(): Int =
-    try {
-        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
-            .directory(rootDir)
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText().trim()
-        process.waitFor()
-        output.toIntOrNull() ?: 1
-    } catch (e: Exception) {
-        1
+//
+// This is a ValueSource rather than a configuration-time ProcessBuilder so the
+// commit count is a tracked configuration-cache input: Gradle re-runs it on
+// every build and invalidates a stale entry when a new commit changes the count,
+// instead of freezing the OTA versionCode at a cached value. The configuration
+// cache is not enabled yet (see gradle.properties for why); keeping this
+// config-cache-safe makes enabling it later a one-line change.
+abstract class GitCommitCountValueSource :
+    ValueSource<Int, GitCommitCountValueSource.Parameters> {
+
+    interface Parameters : ValueSourceParameters {
+        val repositoryRoot: DirectoryProperty
+    }
+
+    @get:Inject
+    abstract val execOperations: ExecOperations
+
+    override fun obtain(): Int =
+        try {
+            val stdout = ByteArrayOutputStream()
+            val result = execOperations.exec {
+                commandLine("git", "rev-list", "--count", "HEAD")
+                workingDir(parameters.repositoryRoot.get().asFile)
+                standardOutput = stdout
+                errorOutput = ByteArrayOutputStream()
+                isIgnoreExitValue = true
+            }
+            if (result.exitValue == 0) {
+                stdout.toString().trim().toIntOrNull() ?: 1
+            } else {
+                1
+            }
+        } catch (e: Exception) {
+            1
+        }
+}
+
+val gitCommitCount =
+    providers.of(GitCommitCountValueSource::class) {
+        parameters {
+            repositoryRoot.set(rootDir)
+        }
     }
 
 val musfitGoogleWebClientId =
@@ -60,7 +97,7 @@ android {
     namespace = "com.musfit"
     compileSdk = 37
 
-    val buildNumber = gitCommitCount()
+    val buildNumber = gitCommitCount.get()
 
     signingConfigs {
         // Stable public development key for internalDebug only. Never use this
