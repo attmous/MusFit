@@ -165,7 +165,8 @@ android {
                     device = "Pixel 2"
                     apiLevel = 28
                     systemImageSource = "aosp"
-                    testedAbi = "x86"
+                    require64Bit = true
+                    testedAbi = "x86_64"
                 }
                 create("musFitApi37") {
                     device = "Pixel 2"
