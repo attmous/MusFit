@@ -1,0 +1,40 @@
+{
+    "schemaVersion":  1,
+    "status":  "passed",
+    "headSha":  "ffc2f40ebb60ed88ce35b499df476e704a62c944",
+    "startedAtUtc":  "2026-07-12T16:38:17.8091739Z",
+    "completedAtUtc":  "2026-07-12T16:43:21.9219267Z",
+    "checks":  [
+                   {
+                       "name":  "Development workflow contract",
+                       "command":  ".\\scripts\\dev\\test-dev-workflow.ps1 -SelfTest",
+                       "status":  "passed",
+                       "localLog":  "workflow-contract.log"
+                   },
+                   {
+                       "name":  "Full Gradle gate",
+                       "command":  ".\\scripts\\dev\\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue",
+                       "status":  "passed",
+                       "localLog":  "full-verification.log"
+                   },
+                   {
+                       "name":  "Seeded emulator install",
+                       "command":  ".\\scripts\\android\\install-seed-musfit.ps1 -Reset -SkipBuild -EvidenceDir \u003cbootstrap\u003e",
+                       "status":  "passed",
+                       "localLog":  "emulator-install.log"
+                   },
+                   {
+                       "name":  "Foreground launch",
+                       "command":  "adb -s emulator-5554 shell am start -W -n com.musfit.internal/com.musfit.MainActivity",
+                       "status":  "passed",
+                       "localLog":  null
+                   }
+               ],
+    "device":  {
+                   "serial":  "emulator-5554",
+                   "avdName":  "MusFit_API36",
+                   "packageName":  "com.musfit.internal",
+                   "activity":  "com.musfit.MainActivity",
+                   "seeded":  true
+               }
+}
