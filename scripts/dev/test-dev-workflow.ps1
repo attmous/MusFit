@@ -443,6 +443,8 @@ Assert-FileContains ".github/workflows/android.yml" "app/build/outputs/apk/inter
 Assert-FileContains ".github/workflows/android.yml" "verify-data-migration-artifacts\.ps1 -SkipBuild"
 Assert-FileExists "scripts/release/verify-data-migration-artifacts.ps1"
 Assert-PowerShellParses "scripts/release/verify-data-migration-artifacts.ps1"
+Assert-FileContains "scripts/release/verify-data-migration-artifacts.ps1" '(?s)if\s*\(\$windows\)\s*\{.{0,300}android-env\.ps1.{0,300}\}\s*elseif\s*\(-not\s+\$env:ANDROID_SDK_ROOT\s+-and\s+\$env:ANDROID_HOME\)'
+Assert-FileContains "scripts/release/verify-data-migration-artifacts.ps1" '\$gradle\s*=\s*if\s*\(\$windows\)\s*\{\s*"\.\\gradlew\.bat"\s*\}\s*else\s*\{\s*"\./gradlew"\s*\}'
 Assert-FileContains ".github/workflows/android.yml" "if-no-files-found:\s*error"
 Assert-FileDoesNotContain ".github/workflows/android.yml" "app-internal-debug-androidTest\.apk|outputs/apk/androidTest|app-legacyMigration-release\.apk|softprops/action-gh-release|Publish GitHub Release"
 Assert-FileExists ".github/workflows/pr-emulator-evidence.yml"

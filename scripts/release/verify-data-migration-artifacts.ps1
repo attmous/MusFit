@@ -4,12 +4,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
-. (Join-Path $repoRoot "scripts\android\android-env.ps1")
+$windows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+if ($windows) {
+    . (Join-Path $repoRoot "scripts\android\android-env.ps1")
+} elseif (-not $env:ANDROID_SDK_ROOT -and $env:ANDROID_HOME) {
+    $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+}
+if (-not $env:ANDROID_SDK_ROOT) {
+    throw "ANDROID_SDK_ROOT or ANDROID_HOME must identify the Android SDK."
+}
 
 if (-not $SkipBuild) {
     Push-Location $repoRoot
     try {
-        & .\gradlew.bat assembleLegacyMigrationRelease assembleProductionRelease --no-daemon --console=plain
+        $gradle = if ($windows) { ".\gradlew.bat" } else { "./gradlew" }
+        & $gradle assembleLegacyMigrationRelease assembleProductionRelease --no-daemon --console=plain
         if ($LASTEXITCODE -ne 0) { throw "Migration artifact build failed with exit code $LASTEXITCODE" }
     } finally {
         Pop-Location
@@ -26,7 +35,6 @@ $buildTools = Get-ChildItem -LiteralPath (Join-Path $env:ANDROID_SDK_ROOT "build
     Sort-Object Name -Descending |
     Select-Object -First 1
 if (-not $buildTools) { throw "Android build-tools are not installed." }
-$windows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
 $apksigner = Join-Path $buildTools.FullName $(if ($windows) { "apksigner.bat" } else { "apksigner" })
 $aapt2 = Join-Path $buildTools.FullName $(if ($windows) { "aapt2.exe" } else { "aapt2" })
 
