@@ -615,7 +615,6 @@ Assert-FileContains ".github/workflows/android.yml" 'managed_device_android_test
 Assert-FileContains ".github/workflows/android.yml" 'Enable KVM for managed devices'
 Assert-FileContains ".github/workflows/android.yml" 'sdkmanager" --licenses'
 Assert-FileContains ".github/workflows/android.yml" 'system-images;android-28;default;x86'
-Assert-FileContains ".github/workflows/android.yml" 'system-images;android-37;google_apis;x86_64'
 
 if ($SelfTest) {
     $mismatchDetected = $false

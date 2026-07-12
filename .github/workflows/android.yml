@@ -97,8 +97,7 @@ jobs:
         run: |
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
           "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            "system-images;android-28;default;x86" \
-            "system-images;android-37;google_apis;x86_64"
+            "system-images;android-28;default;x86"
 
       - name: Make Gradle executable
         run: chmod +x ./gradlew
