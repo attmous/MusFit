@@ -387,6 +387,8 @@ foreach ($fontDoc in @(
 Assert-FileContains "scripts/android/android-env.ps1" "JAVA_HOME"
 Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPPDATA\)\s*\{[^}]*MusFitToolchain[\\/]jdk-17'
 Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPPDATA\)\s*\{[^}]*Android[\\/]Sdk'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$windows\)\s*\{\s*"gradlew\.bat"\s*\}\s*else\s*\{\s*"gradlew"\s*\}'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" '&\s*\$gradleWrapper\s+@Arguments'
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "EvidenceDir"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "Assert-LastExitCode"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "pm clear"
