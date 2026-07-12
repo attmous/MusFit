@@ -501,6 +501,8 @@ Assert-FileContains ".github/workflows/release.yml" "assert-verified-release-com
 Assert-FileContains ".github/workflows/release.yml" "verify-musfit\.ps1 -Preset Full"
 Assert-FileContains ".github/workflows/release.yml" "prepare-play-upload-bundle\.ps1"
 Assert-FileContains ".github/workflows/release.yml" "invoke-play-option-a\.ps1"
+Assert-FileDoesNotContain ".github/workflows/release.yml" 'git\s+ls-remote\s+--exit-code\s+--tags'
+Assert-FileContains ".github/workflows/release.yml" '(?s)\$existingTag\s*=\s*@\(git\s+ls-remote\s+--tags.{0,300}\$existingTag\.Count\s+-ne\s+0'
 Assert-FileContains ".github/workflows/release.yml" "complete-play-internal-release\.ps1"
 Assert-FileContains ".github/workflows/release.yml" "verify-release-candidate\.ps1"
 Assert-FileContains ".github/workflows/release.yml" "google-github-actions/auth@[0-9a-f]{40}\s+# v3"
