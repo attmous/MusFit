@@ -1,0 +1,89 @@
+name: Android performance
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "benchmark/**"
+      - "baselineprofile/**"
+      - "scripts/performance/**"
+      - "gradle/libs.versions.toml"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - ".github/workflows/performance.yml"
+  push:
+    branches: [ "master", "main" ]
+    paths:
+      - "app/**"
+      - "benchmark/**"
+      - "baselineprofile/**"
+      - "scripts/performance/**"
+      - "gradle/libs.versions.toml"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - ".github/workflows/performance.yml"
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macrobenchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle build cache
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+
+      - name: Enable KVM for managed devices
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Provision API 28 and API 37 system images
+        run: |
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            "system-images;android-28;google_apis;x86_64" \
+            "system-images;android-37;google_apis;x86_64"
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Run production-shaped API 28 and API 37 benchmarks
+        run: ./gradlew :benchmark:benchmarkApi28And37GroupBenchmarkAndroidTest --no-daemon --console=plain
+
+      - name: Enforce approved API 37 regression baseline
+        shell: pwsh
+        run: ./scripts/performance/verify-benchmark-regression.ps1 -ResultsPath benchmark/build/intermediates/managed_device_android_test_additional_output -SelfTest
+
+      - name: Retain benchmark JSON, reports, and Perfetto traces
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: musfit-macrobenchmark-${{ github.run_attempt }}
+          path: |
+            benchmark/build/intermediates/managed_device_android_test_additional_output/
+            benchmark/build/outputs/androidTest-results/managedDevice/
+            benchmark/build/reports/androidTests/managedDevice/
+            build/reports/performance/
+          if-no-files-found: warn
+          retention-days: 30

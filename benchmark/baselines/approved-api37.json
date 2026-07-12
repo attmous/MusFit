@@ -1,0 +1,86 @@
+﻿{
+    "schemaVersion":  1,
+    "thresholdPercent":  10,
+    "devices":  [
+                    {
+                        "key":  "api37-sdk_gphone16k_x86_64",
+                        "sdk":  37,
+                        "model":  "sdk_gphone16k_x86_64",
+                        "fingerprint":  "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.019/15611780:userdebug/dev-keys",
+                        "cpuLocked":  false,
+                        "source":  "com.musfit.benchmark-benchmarkData.json"
+                    }
+                ],
+    "measurements":  [
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.foodJourney|frameDurationCpuMs",
+                             "statistic":  "p90",
+                             "approvedValue":  104.6214
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.foodJourney|frameOverrunMs",
+                             "statistic":  "p90",
+                             "approvedValue":  130.077
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.foodJourney|memoryHeapSizeMaxKb",
+                             "statistic":  "maximum",
+                             "approvedValue":  22664
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.foodJourney|memoryRssAnonMaxKb",
+                             "statistic":  "maximum",
+                             "approvedValue":  108560
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.profileJourney|frameDurationCpuMs",
+                             "statistic":  "p90",
+                             "approvedValue":  47.8149
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.profileJourney|frameOverrunMs",
+                             "statistic":  "p90",
+                             "approvedValue":  49.7052
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.profileJourney|memoryHeapSizeMaxKb",
+                             "statistic":  "maximum",
+                             "approvedValue":  13136
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.profileJourney|memoryRssAnonMaxKb",
+                             "statistic":  "maximum",
+                             "approvedValue":  84140
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|frameDurationCpuMs",
+                             "statistic":  "p90",
+                             "approvedValue":  80.7459
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|frameOverrunMs",
+                             "statistic":  "p90",
+                             "approvedValue":  111.0156
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|memoryHeapSizeMaxKb",
+                             "statistic":  "maximum",
+                             "approvedValue":  22672
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|memoryRssAnonMaxKb",
+                             "statistic":  "maximum",
+                             "approvedValue":  99844
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitStartupBenchmark.coldStartup|timeToInitialDisplayMs",
+                             "statistic":  "p90",
+                             "approvedValue":  1976.9431
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitStartupBenchmark.warmStartup|timeToInitialDisplayMs",
+                             "statistic":  "p90",
+                             "approvedValue":  953.0521
+                         }
+                     ]
+}
