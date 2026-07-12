@@ -509,6 +509,8 @@ Assert-FileDoesNotContain ".github/workflows/release.yml" '(?m)^\s*run:\s+.*\$\{
 Assert-FileExists "scripts/release/assert-verified-release-commit.ps1"
 Assert-FileExists "scripts/release/prepare-play-upload-bundle.ps1"
 Assert-FileExists "scripts/release/invoke-play-option-a.ps1"
+Assert-FileContains "scripts/release/invoke-play-option-a.ps1" ':download\?alt=media'
+Assert-FileContains "scripts/release/invoke-play-option-a.ps1" 'Invoke-WebRequest.{0,300}-OutFile\s+\$apk\s+-PassThru'
 Assert-FileExists "scripts/release/complete-play-internal-release.ps1"
 Assert-FileExists "scripts/release/verify-release-candidate.ps1"
 Assert-FileExists "scripts/release/write-release-candidate-metadata.ps1"
