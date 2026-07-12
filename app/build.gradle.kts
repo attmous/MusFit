@@ -81,6 +81,7 @@ android {
         versionName = "0.1.0.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", musfitGoogleWebClientId.asBuildConfigString())
         buildConfigField("String", "GITHUB_OAUTH_CLIENT_ID", musfitGitHubOAuthClientId.asBuildConfigString())
         buildConfigField("String", "DEBUG_HERMES_BASE_URL", "".asBuildConfigString())
@@ -156,6 +157,7 @@ android {
     }
 
     testOptions {
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
         unitTests.isIncludeAndroidResources = true
         managedDevices {
             localDevices {
@@ -175,6 +177,10 @@ android {
             }
             groups {
                 create("migrationApi28And37") {
+                    targetDevices.add(localDevices["musFitApi28"])
+                    targetDevices.add(localDevices["musFitApi37"])
+                }
+                create("criticalJourneysApi28And37") {
                     targetDevices.add(localDevices["musFitApi28"])
                     targetDevices.add(localDevices["musFitApi37"])
                 }
@@ -327,7 +333,12 @@ dependencies {
 
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.androidx.test.uiautomator)
     androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestUtil(libs.androidx.test.orchestrator)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.test.core)
