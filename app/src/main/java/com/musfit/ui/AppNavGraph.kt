@@ -91,7 +91,17 @@ internal fun rememberAppBackStackEntries(): MutableState<List<AppDestination>> =
     rememberSaveable { mutableStateOf(listOf(AppDestination.Today)) }
 
 @Composable
-fun AppNavGraph() {
+fun AppNavGraph(
+    barcodeScannerContent: @Composable (
+        onBarcodeDetected: (String) -> Unit,
+        onClose: () -> Unit,
+    ) -> Unit = { onBarcodeDetected, onClose ->
+        BarcodeScannerScreen(
+            onBarcodeDetected = onBarcodeDetected,
+            onClose = onClose,
+        )
+    },
+) {
     val navController = rememberNavController()
     val destinations = AppDestination.entries
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -190,14 +200,14 @@ fun AppNavGraph() {
                 NutritionTrendsScreen(onBack = { navController.popBackStack() })
             }
             composable(BARCODE_SCANNER_ROUTE) {
-                BarcodeScannerScreen(
-                    onBarcodeDetected = { barcode ->
+                barcodeScannerContent(
+                    { barcode ->
                         if (barcode.isNotBlank()) {
                             scannedBarcode = barcode
                             navController.popBackStack()
                         }
                     },
-                    onClose = { navController.popBackStack() },
+                    { navController.popBackStack() },
                 )
             }
             composable(NUTRITION_LABEL_SCANNER_ROUTE) {

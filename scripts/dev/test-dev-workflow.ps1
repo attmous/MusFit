@@ -557,6 +557,15 @@ Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitComposeS
 Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitComposeSemanticsTest.kt" 'StateRestorationTester'
 Assert-FileContains "app/src/test/resources/robolectric.properties" '(?m)^sdk=35\r?$'
 Assert-FileContains "docs/testing/compose-testing.md" 'Managed-device journey layer'
+Assert-FileExists "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt"
+Assert-FileContains "app/build.gradle.kts" 'execution\s*=\s*"ANDROIDX_TEST_ORCHESTRATOR"'
+Assert-FileContains "app/build.gradle.kts" 'create\("criticalJourneysApi28And37"\)'
+Assert-FileContains ".github/workflows/android.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
+Assert-FileContains ".github/workflows/android.yml" 'MusFitCriticalJourneyInstrumentationTest'
+Assert-FileContains ".github/workflows/android.yml" 'managed_device_android_test_additional_output'
+Assert-FileContains ".github/workflows/android.yml" 'Enable KVM for managed devices'
+Assert-FileContains ".github/workflows/android.yml" 'sdkmanager" --licenses'
+Assert-FileContains ".github/workflows/android.yml" 'system-images;android-28;google_apis;x86_64'
 
 if ($SelfTest) {
     $mismatchDetected = $false

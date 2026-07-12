@@ -47,3 +47,34 @@ The critical journey matrix is:
 
 Every UI test must name the user contract it protects. Add a new high-level
 journey only when a lower layer cannot provide equivalent confidence.
+
+`MusFitCriticalJourneyInstrumentationTest` is the managed-device layer. Its
+four orchestrated cases cover:
+
+- a real Hilt/Room Food quick log and persistence after Activity recreation;
+- the Room-owned active-workout set/rest lifecycle and leaving/re-entering the
+  Training destination;
+- Profile preference persistence plus restored visit-order back navigation;
+- a deterministic scanner-result return on both devices, with fixed
+  camera-permission denial and offline transport additionally exercised on API
+  37 (the Android 9 legacy permission dialog is intentionally not automated).
+
+The instrumentation-only seeder resets each isolated test process. External
+services and camera hardware are never required. Every wait is bounded to 15
+seconds. A failing case writes a UI hierarchy and screenshot to Gradle's
+additional-test-output directory on API 29+; Gradle does not support additional
+test output on API 28, where the managed-device runner still retains JUnit and
+logcat output.
+
+Run the API 28/37 lane with:
+
+```powershell
+. .\scripts\android\android-env.ps1
+.\gradlew.bat criticalJourneysApi28And37GroupInternalDebugAndroidTest `
+  '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' `
+  --no-daemon --console=plain
+```
+
+The suite has no automatic retry: any failure is treated as real and its
+artifacts are reviewed. The CI budget is 12 minutes per device (24 minutes for
+the two-device lane); the local API 36 baseline is recorded in the PR evidence.
