@@ -23,6 +23,15 @@ function Select-UniversalApk([object[]] $GeneratedApks, [string] $ExpectedCertif
     })
 }
 
+function Get-GeneratedApkMediaUri(
+    [string] $Api,
+    [long] $VersionCode,
+    [string] $DownloadId
+) {
+    $encodedDownloadId = [uri]::EscapeDataString($DownloadId)
+    "$Api/generatedApks/$VersionCode/downloads/${encodedDownloadId}:download?alt=media"
+}
+
 function Add-ExactDraftRelease([object[]] $ExistingReleases, [long] $VersionCode, [string] $Name) {
     if (@($ExistingReleases | Where-Object { $_.status -ceq "draft" }).Count -ne 0) {
         throw "Internal track already contains a draft; resolve it before creating another candidate."
@@ -50,6 +59,10 @@ if ($SelfTest) {
         throw "Google-signed universal APK selection self-test failed."
     }
     if (@(Select-UniversalApk $fixture ("ef" * 32)).Count -ne 0) { throw "Certificate mismatch self-test failed." }
+    $mediaUri = Get-GeneratedApkMediaUri "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.musfit" 10 "id/with+symbols"
+    if ($mediaUri -cne "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.musfit/generatedApks/10/downloads/id%2Fwith%2Bsymbols:download?alt=media") {
+        throw "Google Play media-download URI self-test failed."
+    }
     $existing = @([pscustomobject]@{ name = "old"; status = "completed"; versionCodes = @("9") })
     $merged = @(Add-ExactDraftRelease $existing 10 "new")
     if ($merged.Count -ne 2 -or $merged[0].status -cne "completed" -or $merged[1].status -cne "draft") {
@@ -113,13 +126,15 @@ for ($attempt = 1; $attempt -le 30 -and $selected.Count -eq 0; $attempt++) {
 }
 if ($selected.Count -ne 1) { throw "Google Play did not expose exactly one universal APK with the approved app-signing certificate." }
 
-$downloadId = [uri]::EscapeDataString($selected[0].generatedUniversalApk.downloadId)
 $apk = Join-Path $output "musfit-universal.apk"
-Invoke-WebRequest -Method Get -Uri "$api/generatedApks/$versionCode/downloads/${downloadId}:download" `
-    -Headers $headers -OutFile $apk
+$downloadUri = Get-GeneratedApkMediaUri $api $versionCode $selected[0].generatedUniversalApk.downloadId
+$downloadResponse = Invoke-WebRequest -Method Get -Uri $downloadUri -Headers $headers -OutFile $apk -PassThru
 if (-not (Test-Path -LiteralPath $apk -PathType Leaf) -or (Get-Item -LiteralPath $apk).Length -le 0) {
     throw "Google Play universal APK download is missing or empty."
 }
+$downloadedBytes = (Get-Item -LiteralPath $apk).Length
+$contentType = @($downloadResponse.Headers["Content-Type"])[0]
+Write-Host "Downloaded Google Play universal APK: HTTP $([int]$downloadResponse.StatusCode), $contentType, $downloadedBytes bytes."
 
 $aab = Join-Path $output "musfit-play-upload.aab"
 Copy-Item -LiteralPath $bundle -Destination $aab -Force
