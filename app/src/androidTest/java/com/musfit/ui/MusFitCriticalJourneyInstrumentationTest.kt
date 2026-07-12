@@ -146,6 +146,13 @@ class MusFitCriticalJourneyInstrumentationTest {
         val toggle = compose.onAllNodes(isToggleable()).onFirst()
         val initiallyOn = runCatching { toggle.assertIsOn(); true }.getOrDefault(false)
         toggle.performScrollTo().performClick()
+        compose.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                val updated = compose.onAllNodes(isToggleable()).onFirst()
+                if (initiallyOn) updated.assertIsOff() else updated.assertIsOn()
+                true
+            }.getOrDefault(false)
+        }
         compose.activityRule.scenario.recreate()
         compose.waitForText("Add burned calories to budget")
         if (initiallyOn) {
