@@ -406,6 +406,20 @@ Assert-FileContains "app/build.gradle.kts" 'create\("legacyMigration"\)'
 Assert-FileContains "app/build.gradle.kts" '(?s)create\("legacyMigration"\).{0,500}signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)'
 Assert-FileContains "app/build.gradle.kts" 'DATA_TRANSFER_MODE.*legacy-export'
 Assert-FileContains "app/build.gradle.kts" 'verifyReleaseVariantMatrix'
+Assert-FileContains "app/build.gradle.kts" '(?s)release\s*\{.{0,300}isMinifyEnabled\s*=\s*true.{0,200}isShrinkResources\s*=\s*true.{0,300}proguard-android-optimize\.txt.{0,200}proguard-rules\.pro'
+Assert-FileExists "app/proguard-rules.pro"
+Assert-FileExists "app/proguard-production-reports.pro"
+Assert-FileExists "app/proguard-legacy-migration-reports.pro"
+Assert-FileContains "app/build.gradle.kts" '(?s)create\("production"\).{0,300}proguardFiles\("proguard-production-reports\.pro"\)'
+Assert-FileContains "app/proguard-production-reports.pro" '-printusage\s+build/outputs/r8Reports/productionRelease/usage\.txt'
+Assert-FileContains "app/proguard-production-reports.pro" '-printseeds\s+build/outputs/r8Reports/productionRelease/seeds\.txt'
+Assert-FileContains "app/proguard-production-reports.pro" '-printconfiguration\s+build/outputs/r8Reports/productionRelease/configuration\.txt'
+Assert-FileContains "app/build.gradle.kts" '(?s)create\("legacyMigration"\).{0,500}proguardFiles\("proguard-legacy-migration-reports\.pro"\)'
+Assert-FileContains "app/proguard-legacy-migration-reports.pro" '-printusage\s+build/outputs/r8Reports/legacyMigrationRelease/usage\.txt'
+Assert-FileContains "app/proguard-legacy-migration-reports.pro" '-printseeds\s+build/outputs/r8Reports/legacyMigrationRelease/seeds\.txt'
+Assert-FileContains "app/proguard-legacy-migration-reports.pro" '-printconfiguration\s+build/outputs/r8Reports/legacyMigrationRelease/configuration\.txt'
+Assert-FileContains "app/build.gradle.kts" '(?s)minifyProductionReleaseWithR8.{0,200}productionRelease.{0,500}minifyLegacyMigrationReleaseWithR8.{0,200}legacyMigrationRelease.{0,600}doFirst.{0,500}outputs/r8Reports/\$variantName.{0,300}mkdirs\(\)'
+Assert-FileDoesNotContain "gradle.properties" 'android\.enableR8\.fullMode\s*=\s*false'
 Assert-FileDoesNotContain "app/src/main/AndroidManifest.xml" "android\.permission\.ACCESS_LOCAL_NETWORK"
 Assert-FileContains "app/src/internal/AndroidManifest.xml" "android\.permission\.ACCESS_LOCAL_NETWORK"
 Assert-FileContains "app/src/internal/java/com/musfit/ui/permissions/LocalNetworkPermission.kt" "android\.permission\.ACCESS_LOCAL_NETWORK"
@@ -440,6 +454,15 @@ Assert-FileContains ".github/workflows/android.yml" "permissions:"
 Assert-FileContains ".github/workflows/android.yml" "test-dev-workflow\.ps1"
 Assert-FileContains ".github/workflows/android.yml" "verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease"
 Assert-FileContains ".github/workflows/android.yml" "app/build/outputs/apk/internal/debug/app-internal-debug\.apk"
+Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/mapping/productionRelease/mapping\.txt'
+Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/r8Reports/productionRelease/usage\.txt'
+Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/r8Reports/productionRelease/seeds\.txt'
+Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/r8Reports/productionRelease/configuration\.txt'
+Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/mapping/legacyMigrationRelease/mapping\.txt'
+Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/r8Reports/legacyMigrationRelease/usage\.txt'
+Assert-FileContains ".github/workflows/android.yml" 'verify-r8-artifacts\.ps1'
+Assert-FileExists "scripts/release/verify-r8-artifacts.ps1"
+Assert-PowerShellParses "scripts/release/verify-r8-artifacts.ps1"
 Assert-FileContains ".github/workflows/android.yml" "verify-data-migration-artifacts\.ps1 -SkipBuild"
 Assert-FileExists "scripts/release/verify-data-migration-artifacts.ps1"
 Assert-PowerShellParses "scripts/release/verify-data-migration-artifacts.ps1"

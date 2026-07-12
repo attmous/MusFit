@@ -45,6 +45,10 @@ jobs:
         shell: pwsh
         run: ./scripts/release/verify-data-migration-artifacts.ps1 -SkipBuild
 
+      - name: Verify R8 reports and production size budget
+        shell: pwsh
+        run: ./scripts/release/verify-r8-artifacts.ps1
+
       - name: Retain internal verification APK
         uses: actions/upload-artifact@v4
         with:
@@ -52,3 +56,19 @@ jobs:
           path: app/build/outputs/apk/internal/debug/app-internal-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+      - name: Retain production R8 reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: musfit-production-r8-reports
+          path: |
+            app/build/outputs/mapping/productionRelease/mapping.txt
+            app/build/outputs/r8Reports/productionRelease/usage.txt
+            app/build/outputs/r8Reports/productionRelease/seeds.txt
+            app/build/outputs/r8Reports/productionRelease/configuration.txt
+            app/build/outputs/mapping/legacyMigrationRelease/mapping.txt
+            app/build/outputs/r8Reports/legacyMigrationRelease/usage.txt
+            app/build/outputs/r8Reports/legacyMigrationRelease/seeds.txt
+            app/build/outputs/r8Reports/legacyMigrationRelease/configuration.txt
+          if-no-files-found: error
+          retention-days: 30
