@@ -109,6 +109,7 @@ android {
         create("production") {
             dimension = "distribution"
             applicationId = "com.musfit"
+            proguardFiles("proguard-production-reports.pro")
             manifestPlaceholders["mainLauncherEnabled"] = true
             manifestPlaceholders["legacyMigrationLauncherEnabled"] = false
         }
@@ -117,6 +118,7 @@ android {
             applicationId = "com.musfit"
             versionNameSuffix = "-data-migration"
             signingConfig = signingConfigs.getByName("debug")
+            proguardFiles("proguard-legacy-migration-reports.pro")
             buildConfigField("String", "DATA_TRANSFER_MODE", "legacy-export".asBuildConfigString())
             manifestPlaceholders["mainLauncherEnabled"] = false
             manifestPlaceholders["legacyMigrationLauncherEnabled"] = true
@@ -129,6 +131,12 @@ android {
         }
         release {
             isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 
@@ -216,6 +224,21 @@ tasks.register("verifyReleaseVariantMatrix") {
         val presentForbiddenTasks = forbiddenTasks.intersect(project.tasks.names)
         check(presentForbiddenTasks.isEmpty()) {
             "Unsupported variant tasks must remain absent: $presentForbiddenTasks"
+        }
+    }
+}
+
+mapOf(
+    "minifyProductionReleaseWithR8" to "productionRelease",
+    "minifyLegacyMigrationReleaseWithR8" to "legacyMigrationRelease",
+).forEach { (taskName, variantName) ->
+    tasks.matching { it.name == taskName }.configureEach {
+        doFirst {
+            layout.buildDirectory
+                .dir("outputs/r8Reports/$variantName")
+                .get()
+                .asFile
+                .mkdirs()
         }
     }
 }
