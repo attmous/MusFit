@@ -93,6 +93,13 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Provision managed-device system images
+        run: |
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            "system-images;android-28;default;x86" \
+            "system-images;android-37;google_apis;x86_64"
+
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
