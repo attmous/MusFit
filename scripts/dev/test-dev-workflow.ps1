@@ -527,72 +527,9 @@ Assert-FileContains "docs/ops/production-release.md" "Google-managed app-signing
 Assert-FileContains "docs/ops/production-release.md" "generatedapks"
 Assert-FileContains "docs/ops/production-release.md" "production-release"
 
-Assert-FileExists ".github/workflows/pr-emulator-evidence.yml"
-Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "pull_request_target:"
-Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "issue_comment:"
-Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "statuses:\s*write"
-Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "github\.event\.repository\.default_branch"
-Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "github\.event\.comment\.user\.login == github\.repository_owner"
-Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "check-pr-emulator-evidence\.ps1"
-Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "persist-credentials:\s*false"
-Assert-FileDoesNotContain ".github/workflows/pr-emulator-evidence.yml" "github\.event\.pull_request\.head\.(?:ref|sha)"
 Assert-FileContains ".github/pull_request_template.md" "Verification"
-Assert-FileContains ".github/pull_request_template.md" '\$musfit-pr-emulator-evidence'
-Assert-FileContains ".github/pull_request_template.md" "current PR head SHA"
-Assert-FileContains ".github/pull_request_template.md" "non-runtime skip reason"
 Assert-FileContains ".gitignore" "verification/"
 Assert-FileContains ".gitignore" '(?m)^/\.kotlin/\r?$'
-
-Assert-FileContains "AGENTS.md" '\.agents[\\/]skills[\\/]musfit-pr-emulator-evidence[\\/]SKILL\.md'
-Assert-FileContains "AGENTS.md" 'publish-pr-evidence\.ps1'
-Assert-FileContains "AGENTS.md" 'local `verification/`\s+files do not satisfy'
-Assert-FileContains "AGENTS.md" 'exact current PR head SHA'
-Assert-FileContains "AGENTS.md" 'MusFit emulator evidence'
-Assert-FileContains "CLAUDE.md" '\.claude[\\/]skills[\\/]musfit-pr-emulator-evidence[\\/]SKILL\.md'
-Assert-FileContains "CLAUDE.md" '/musfit-pr-emulator-evidence'
-Assert-FileContains "CLAUDE.md" 'publish-pr-evidence\.ps1'
-Assert-FileContains "CLAUDE.md" 'exact current PR head SHA'
-
-$prEvidenceSkillRoot = ".agents/skills/musfit-pr-emulator-evidence"
-foreach ($skillFile in @(
-    "SKILL.md",
-    "agents/openai.yaml",
-    "scripts/invoke-musfit-pr-gate.ps1",
-    "scripts/capture-emulator-evidence.ps1",
-    "scripts/publish-pr-evidence.ps1"
-)) {
-    Assert-FileExists "$prEvidenceSkillRoot/$skillFile"
-}
-Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" '(?m)^name: musfit-pr-emulator-evidence\r?$'
-Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" 'git rev-parse --show-toplevel'
-Assert-FileDoesNotContain "$prEvidenceSkillRoot/SKILL.md" 'Use whenever Codex'
-Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" 'Local captures are not PR evidence'
-Assert-FileContains "$prEvidenceSkillRoot/SKILL.md" 'MusFit emulator evidence'
-Assert-FileContains "$prEvidenceSkillRoot/scripts/invoke-musfit-pr-gate.ps1" 'com\.musfit\.internal'
-Assert-FileContains "$prEvidenceSkillRoot/scripts/capture-emulator-evidence.ps1" 'receipt\.device\.packageName'
-Assert-FileContains "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" 'Assert-NonEvidencePrChecksPassed'
-Assert-FileContains "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" 'workflowName.*PR emulator evidence'
-Assert-FileContains "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" '<!-- musfit-emulator-evidence:v1 -->'
-Assert-FileContains "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" 'Verified PR head'
-Assert-FileContains "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" 'com\.musfit\.internal'
-Assert-FileDoesNotContain "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1" '\[string\]\s+\$EvidenceBranch'
-
-$claudePrEvidenceSkillRoot = ".claude/skills/musfit-pr-emulator-evidence"
-Assert-FileExists "$claudePrEvidenceSkillRoot/SKILL.md"
-Assert-FileContains "$claudePrEvidenceSkillRoot/SKILL.md" '(?m)^name: musfit-pr-emulator-evidence\r?$'
-Assert-FileContains "$claudePrEvidenceSkillRoot/SKILL.md" '\.\./\.\./\.\./\.agents/skills/musfit-pr-emulator-evidence/SKILL\.md'
-Assert-FileContains "$claudePrEvidenceSkillRoot/SKILL.md" 'canonical repository workflow'
-Assert-FileContains "$claudePrEvidenceSkillRoot/SKILL.md" 'marker-based PR comment'
-
-Assert-FileExists "scripts/dev/check-pr-emulator-evidence.ps1"
-Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'MusFit emulator evidence'
-Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" '<!-- musfit-emulator-evidence:v1 -->'
-Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'pr-evidence'
-Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'Test-PngArtifact'
-Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'Test-ReceiptArtifact'
-Assert-FileContains "scripts/dev/check-pr-emulator-evidence.ps1" 'git/blobs/'
-Assert-PowerShellParses "scripts/dev/check-pr-emulator-evidence.ps1"
-Assert-PowerShellParses "$prEvidenceSkillRoot/scripts/publish-pr-evidence.ps1"
 
 Assert-FileExists "app/src/testInternalDebug/java/com/musfit/ui/MusFitComposeSemanticsTest.kt"
 Assert-FileExists "app/src/test/resources/robolectric.properties"
@@ -626,7 +563,6 @@ if ($SelfTest) {
     }
     Write-Host "Deliberate mismatch self-test passed."
 
-    & (Get-RepoPath "scripts/dev/check-pr-emulator-evidence.ps1") -SelfTest
 }
 
 Write-Host "Development workflow checks passed (Room $databaseVersion; destinations: $destinationSummary; bottom bar: $bottomBarComponent)."

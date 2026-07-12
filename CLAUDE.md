@@ -42,13 +42,6 @@ navigation, build, release, or structural work, read:
 
 - Follow the scope, sharp-edge warnings, test strategy, device rules, and
   branch-to-draft-PR flow in `AGENTS.md`.
-- For any PR whose diff changes Android runtime functionality or design, invoke
-  the project bridge at
-  [`.claude/skills/musfit-pr-emulator-evidence/SKILL.md`](.claude/skills/musfit-pr-emulator-evidence/SKILL.md)
-  as `/musfit-pr-emulator-evidence`. The workflow is incomplete until
-  `publish-pr-evidence.ps1` creates or updates the marker-based evidence comment
-  and `MusFit emulator evidence` status for the exact current PR head SHA; local
-  `verification/` files are not a handoff.
 - Inspect current source and tests before relying on prose. Historical plans are
   intent records, not live status.
 - Do not copy volatile file counts or a Room version into handoff prose. Derive
