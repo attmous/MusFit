@@ -470,6 +470,55 @@ Assert-FileContains "scripts/release/verify-data-migration-artifacts.ps1" '(?s)i
 Assert-FileContains "scripts/release/verify-data-migration-artifacts.ps1" '\$gradle\s*=\s*if\s*\(\$windows\)\s*\{\s*"\.\\gradlew\.bat"\s*\}\s*else\s*\{\s*"\./gradlew"\s*\}'
 Assert-FileContains ".github/workflows/android.yml" "if-no-files-found:\s*error"
 Assert-FileDoesNotContain ".github/workflows/android.yml" "app-internal-debug-androidTest\.apk|outputs/apk/androidTest|app-legacyMigration-release\.apk|softprops/action-gh-release|Publish GitHub Release"
+
+# W1-REL-04: production publication is manual, environment-protected, and
+# promotes the Google-signed universal APK without rebuilding the candidate.
+Assert-FileExists ".github/workflows/release.yml"
+Assert-FileContains ".github/workflows/release.yml" "workflow_dispatch:"
+Assert-FileDoesNotContain ".github/workflows/release.yml" '(?m)^\s*(push|pull_request|release):'
+Assert-FileContains ".github/workflows/release.yml" "environment:\s*production-release"
+Assert-FileContains ".github/workflows/release.yml" "contents:\s*write"
+Assert-FileContains ".github/workflows/release.yml" "id-token:\s*write"
+Assert-FileContains ".github/workflows/release.yml" "assert-verified-release-commit\.ps1"
+Assert-FileContains ".github/workflows/release.yml" "verify-musfit\.ps1 -Preset Full"
+Assert-FileContains ".github/workflows/release.yml" "prepare-play-upload-bundle\.ps1"
+Assert-FileContains ".github/workflows/release.yml" "invoke-play-option-a\.ps1"
+Assert-FileContains ".github/workflows/release.yml" "complete-play-internal-release\.ps1"
+Assert-FileContains ".github/workflows/release.yml" "verify-release-candidate\.ps1"
+Assert-FileContains ".github/workflows/release.yml" "google-github-actions/auth@[0-9a-f]{40}\s+# v3"
+Assert-FileDoesNotContain ".github/workflows/release.yml" 'uses:\s+[^\s]+@v[0-9]'
+Assert-FileContains ".github/workflows/release.yml" '(?s)preflight:.{0,300}permissions:.{0,150}contents:\s*read.{0,150}actions:\s*read'
+Assert-FileContains ".github/workflows/release.yml" '(?s)play-candidate:.{0,400}permissions:.{0,150}contents:\s*read.{0,150}id-token:\s*write'
+Assert-FileContains ".github/workflows/release.yml" '(?s)promote:.{0,400}permissions:.{0,150}contents:\s*write'
+Assert-FileContains ".github/workflows/release.yml" "workload_identity_provider"
+Assert-FileDoesNotContain ".github/workflows/release.yml" "credentials_json|PLAY_SERVICE_ACCOUNT_JSON|musfit\.debug\.keystore|legacyMigration|internalDebug"
+Assert-FileContains ".github/workflows/release.yml" "musfit-production-candidate"
+Assert-FileContains ".github/workflows/release.yml" "musfit-universal\.apk"
+Assert-FileContains ".github/workflows/release.yml" "musfit-play-upload\.aab"
+Assert-FileContains ".github/workflows/release.yml" "SHA256SUMS"
+Assert-FileContains ".github/workflows/release.yml" "release-metadata\.json"
+Assert-FileContains ".github/workflows/release.yml" '(?s)invoke-play-option-a\.ps1.{0,3000}verify-release-candidate\.ps1.{0,3000}upload-artifact@[0-9a-f]{40}.{0,3000}complete-play-internal-release\.ps1'
+Assert-FileContains ".github/workflows/release.yml" '(?s)promote:.{0,300}needs:.{0,100}play-candidate.{0,3000}download-artifact@[0-9a-f]{40}.{0,3000}verify-release-candidate\.ps1.{0,3000}gh release create'
+Assert-FileContains ".github/workflows/release.yml" 'MUSFIT_PLAY_APP_SIGNING_CERT_SHA256'
+Assert-FileContains ".github/workflows/release.yml" 'MUSFIT_UPLOAD_CERT_SHA256'
+Assert-FileDoesNotContain ".github/workflows/release.yml" '(?m)^\s*run:\s+.*\$\{\{\s*inputs\.'
+Assert-FileExists "scripts/release/assert-verified-release-commit.ps1"
+Assert-FileExists "scripts/release/prepare-play-upload-bundle.ps1"
+Assert-FileExists "scripts/release/invoke-play-option-a.ps1"
+Assert-FileExists "scripts/release/complete-play-internal-release.ps1"
+Assert-FileExists "scripts/release/verify-release-candidate.ps1"
+Assert-FileExists "scripts/release/write-release-candidate-metadata.ps1"
+Assert-PowerShellParses "scripts/release/assert-verified-release-commit.ps1"
+Assert-PowerShellParses "scripts/release/prepare-play-upload-bundle.ps1"
+Assert-PowerShellParses "scripts/release/invoke-play-option-a.ps1"
+Assert-PowerShellParses "scripts/release/complete-play-internal-release.ps1"
+Assert-PowerShellParses "scripts/release/verify-release-candidate.ps1"
+Assert-PowerShellParses "scripts/release/write-release-candidate-metadata.ps1"
+Assert-FileContains ".gitignore" 'gha-creds-\*\.json'
+Assert-FileContains "docs/ops/production-release.md" "Google-managed app-signing key"
+Assert-FileContains "docs/ops/production-release.md" "generatedapks"
+Assert-FileContains "docs/ops/production-release.md" "production-release"
+
 Assert-FileExists ".github/workflows/pr-emulator-evidence.yml"
 Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "pull_request_target:"
 Assert-FileContains ".github/workflows/pr-emulator-evidence.yml" "issue_comment:"
