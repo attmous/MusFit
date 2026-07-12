@@ -227,7 +227,7 @@ fun ProfileSettingsScreen(
  * rows into their own inner pages.
  */
 @Composable
-private fun SettingsHub(
+internal fun SettingsHub(
     state: ProfileSettingsUiState,
     accent: TabAccent,
     onBack: () -> Unit,
