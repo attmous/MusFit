@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -103,8 +104,10 @@ class MusFitDatabaseTest {
 
     @Test
     fun daoRoundTrip_readsBackTask3PersistenceSurface() = runTest {
+        ensureFoodAccount()
         val food =
             FoodEntity(
+                accountId = FOOD_ACCOUNT_ID,
                 id = "food-1",
                 name = "Oats",
                 brand = "MusFit",
@@ -118,6 +121,7 @@ class MusFitDatabaseTest {
             )
         val serving =
             FoodServingEntity(
+                accountId = FOOD_ACCOUNT_ID,
                 id = "serving-1",
                 foodId = food.id,
                 label = "Bowl",
@@ -125,6 +129,7 @@ class MusFitDatabaseTest {
             )
         val barcodeProduct =
             BarcodeProductEntity(
+                accountId = FOOD_ACCOUNT_ID,
                 id = "barcode-1",
                 barcode = "1234567890123",
                 provider = "openfoodfacts",
@@ -181,9 +186,9 @@ class MusFitDatabaseTest {
         trainingDao.upsertRoutineExercise(routineExercise)
         healthDao.upsertBodyMetric(bodyMetric)
 
-        assertEquals(listOf(serving), foodDao.observeServings(food.id).first())
-        assertEquals(barcodeProduct, foodDao.getBarcodeProduct(barcodeProduct.barcode))
-        assertEquals(listOf(barcodeProduct), foodDao.observeBarcodeProducts(food.id).first())
+        assertEquals(listOf(serving), foodDao.observeServings(FOOD_ACCOUNT_ID, food.id).first())
+        assertEquals(barcodeProduct, foodDao.getBarcodeProduct(FOOD_ACCOUNT_ID, barcodeProduct.barcode))
+        assertEquals(listOf(barcodeProduct), foodDao.observeBarcodeProducts(FOOD_ACCOUNT_ID, food.id).first())
         assertEquals(listOf(routineExercise), trainingDao.observeRoutineExercises(routine.id).first())
         assertEquals(
             listOf(bodyMetric),
@@ -192,9 +197,11 @@ class MusFitDatabaseTest {
     }
 
     @Test
-    fun deletingLinkedFood_setsBarcodeProductLinkToNull() = runTest {
+    fun deletingLinkedFood_preservesOwnedBarcodeSnapshotAndClearsLink() = runTest {
+        ensureFoodAccount()
         val food =
             FoodEntity(
+                accountId = FOOD_ACCOUNT_ID,
                 id = "food-2",
                 name = "Yogurt",
                 brand = null,
@@ -208,6 +215,7 @@ class MusFitDatabaseTest {
             )
         val barcodeProduct =
             BarcodeProductEntity(
+                accountId = FOOD_ACCOUNT_ID,
                 id = "barcode-2",
                 barcode = "9876543210987",
                 provider = "manual",
@@ -224,7 +232,10 @@ class MusFitDatabaseTest {
 
         foodDao.deleteFood(food)
 
-        assertNull(foodDao.getBarcodeProduct(barcodeProduct.barcode)?.linkedFoodId)
+        val cached = foodDao.getBarcodeProduct(FOOD_ACCOUNT_ID, barcodeProduct.barcode)
+        assertNotNull(cached)
+        assertNull(cached?.linkedFoodAccountId)
+        assertNull(cached?.linkedFoodId)
     }
 
     @Test
@@ -378,5 +389,15 @@ class MusFitDatabaseTest {
         assertEquals(8_000L, loaded?.stepGoal)
         assertEquals(5, loaded?.weeklySessionTarget)
         assertEquals(78.0, loaded?.targetWeightKg ?: 0.0, 0.001)
+    }
+
+    private suspend fun ensureFoodAccount() {
+        accountDao.upsertAccount(
+            AccountEntity(FOOD_ACCOUNT_ID, "Food test", null, null, "local", null, 1L, 1L),
+        )
+    }
+
+    private companion object {
+        const val FOOD_ACCOUNT_ID = "food-database-account"
     }
 }

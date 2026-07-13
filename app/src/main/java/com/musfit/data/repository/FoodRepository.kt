@@ -36,10 +36,12 @@ import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectFoodMealExport
 import com.musfit.integrations.healthconnect.HealthConnectGateway
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
@@ -484,8 +486,7 @@ interface FoodRepository {
 
     suspend fun toggleShoppingListItem(itemId: String, isChecked: Boolean) = Unit
 
-    fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
-        flowOf(FoodWaterSummary(date, 0.0, DEFAULT_WATER_GOAL_MILLILITERS))
+    fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> = flowOf(FoodWaterSummary(date, 0.0, DEFAULT_WATER_GOAL_MILLILITERS))
 
     /**
      * Active calories burned on [date], sourced from the imported daily Health
@@ -494,11 +495,9 @@ interface FoodRepository {
      */
     fun observeBurnedCalories(date: LocalDate): Flow<Double> = flowOf(0.0)
 
-    fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> =
-        flowOf(FoodWeeklySummary(startDate = startDate, days = emptyList(), goal = DEFAULT_REPOSITORY_FOOD_GOAL))
+    fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> = flowOf(FoodWeeklySummary(startDate = startDate, days = emptyList(), goal = DEFAULT_REPOSITORY_FOOD_GOAL))
 
-    fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> =
-        flowOf(FoodProgressSummary(startDate = startDate, dayCount = dayCount, days = emptyList(), goal = DEFAULT_REPOSITORY_FOOD_GOAL))
+    fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> = flowOf(FoodProgressSummary(startDate = startDate, dayCount = dayCount, days = emptyList(), goal = DEFAULT_REPOSITORY_FOOD_GOAL))
 
     suspend fun logWater(input: WaterLogInput): String = ""
 
@@ -511,16 +510,13 @@ interface FoodRepository {
 
     suspend fun updateWaterGoal(goalMilliliters: Double) = Unit
 
-    fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> =
-        flowOf(FoodHealthConnectSyncState())
+    fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> = flowOf(FoodHealthConnectSyncState())
 
-    suspend fun refreshFoodHealthConnectSyncState(): FoodHealthConnectSyncState =
-        FoodHealthConnectSyncState()
+    suspend fun refreshFoodHealthConnectSyncState(): FoodHealthConnectSyncState = FoodHealthConnectSyncState()
 
     suspend fun setFoodHealthConnectSyncEnabled(isEnabled: Boolean) = Unit
 
-    suspend fun syncFoodToHealthConnect(date: LocalDate): FoodHealthConnectSyncResult =
-        FoodHealthConnectSyncResult(nutritionRecordCount = 0, hydrationRecordCount = 0)
+    suspend fun syncFoodToHealthConnect(date: LocalDate): FoodHealthConnectSyncResult = FoodHealthConnectSyncResult(nutritionRecordCount = 0, hydrationRecordCount = 0)
 
     fun observeRecipes(): Flow<List<Recipe>> = flowOf(emptyList())
 
@@ -555,176 +551,197 @@ val DEFAULT_REPOSITORY_FOOD_GOAL =
         waterGoalMilliliters = DEFAULT_WATER_GOAL_MILLILITERS,
     )
 
+private data class MealItemWriteContext(
+    val accountId: String,
+    val now: Long,
+    val status: FoodDiaryEntryStatus = FoodDiaryEntryStatus.Logged,
+)
+
+private data class ConfirmedFoodEdit(
+    val name: String,
+    val brand: String?,
+    val nutrition: FoodNutrition,
+    val nutritionDetails: NutritionDetails,
+    val servingGrams: Double,
+    val category: String?,
+)
+
 class LocalFoodRepository @Inject constructor(
     private val database: MusFitDatabase,
     private val foodDao: FoodDao,
+    private val accountRepository: AccountRepository,
     private val healthConnectGateway: HealthConnectGateway = NoopHealthConnectGateway,
 ) : FoodRepository {
     private val foodHealthConnectStatusFlow = MutableStateFlow(DEFAULT_HEALTH_CONNECT_STATUS)
     private val foodHealthConnectPermissionsFlow = MutableStateFlow(emptySet<String>())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun <T> activeAccountFlow(block: (String) -> Flow<T>): Flow<T> = accountRepository.observeActiveAccount().flatMapLatest { account -> block(account.id) }
+
+    private suspend fun activeAccountId(): String = accountRepository.ensureActiveAccount().id
 
     override suspend fun saveConfirmedProduct(
         result: ProductLookupResult.Found,
         editedName: String,
         editedBrand: String?,
         editedNutrition: FoodNutrition,
-    ): String =
-        database.withTransaction {
+    ): String {
+        val accountId = activeAccountId()
+        return database.withTransaction {
             upsertConfirmedFood(
+                accountId = accountId,
                 result = result,
-                editedName = editedName,
-                editedBrand = editedBrand,
-                editedNutrition = editedNutrition,
-                editedNutritionDetails = result.nutritionDetailsPer100g,
-                servingGrams = result.servingQuantityGrams ?: 100.0,
-                category = result.category,
+                edit = ConfirmedFoodEdit(
+                    name = editedName,
+                    brand = editedBrand,
+                    nutrition = editedNutrition,
+                    nutritionDetails = result.nutritionDetailsPer100g,
+                    servingGrams = result.servingQuantityGrams ?: 100.0,
+                    category = result.category,
+                ),
                 now = System.currentTimeMillis(),
             )
         }
+    }
 
     override suspend fun logFood(input: FoodLogInput): String {
         input.requireValid()
-        return database.withTransaction {
-            val now = System.currentTimeMillis()
-            val foodId = input.lookupResult?.let { result ->
-                upsertConfirmedFood(
-                    result = result,
-                    editedName = input.name,
-                    editedBrand = input.brand,
-                    editedNutrition = input.nutritionPer100g,
-                    editedNutritionDetails = result.nutritionDetailsPer100g,
+        return logFood(activeAccountId(), input)
+    }
+
+    private suspend fun logFood(accountId: String, input: FoodLogInput): String = database.withTransaction {
+        val now = System.currentTimeMillis()
+        val foodId = input.lookupResult?.let { result ->
+            upsertConfirmedFood(
+                accountId = accountId,
+                result = result,
+                edit = ConfirmedFoodEdit(
+                    name = input.name,
+                    brand = input.brand,
+                    nutrition = input.nutritionPer100g,
+                    nutritionDetails = result.nutritionDetailsPer100g,
                     servingGrams = input.servingGrams ?: result.servingQuantityGrams ?: 100.0,
                     category = result.category,
-                    now = now,
-                )
-            } ?: upsertManualFood(input, now)
-
-            insertMealItem(
-                foodId = foodId,
-                mealType = input.mealType,
-                quantityGrams = input.quantityGrams,
-                date = input.date,
+                ),
                 now = now,
             )
+        } ?: upsertManualFood(accountId, input, now)
+
+        insertMealItem(
+            context = MealItemWriteContext(accountId, now),
+            foodId = foodId,
+            mealType = input.mealType,
+            quantityGrams = input.quantityGrams,
+            date = input.date,
+        )
+    }
+
+    override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> = activeAccountFlow { accountId ->
+        foodDao.observeMealNutritionRowsForDate(accountId, date.toEpochDay()).map { rows ->
+            NutritionCalculator.calculateMealTotals(rows.map { row -> row.toMealItemInput() })
         }
     }
 
-    override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
-        foodDao.observeMealNutritionRowsForDate(date.toEpochDay()).map { rows ->
-            NutritionCalculator.calculateMealTotals(rows.map { row -> row.toMealItemInput() })
-        }
-
-    override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
-        foodDao.observeFoodDiaryEntryRowsForDate(date.toEpochDay()).map { rows ->
-            rows.toFoodDiary()
-        }
+    override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> = activeAccountFlow { accountId ->
+        foodDao.observeFoodDiaryEntryRowsForDate(accountId, date.toEpochDay()).map { rows -> rows.toFoodDiary() }
+    }
 
     override fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> {
         val endDate = startDate.plusDays(6)
-        return foodDao.observeFoodDiaryEntryRowsForDateRange(
-            startEpochDay = startDate.toEpochDay(),
-            endEpochDay = endDate.toEpochDay(),
-        ).map { rows ->
-            rows.toFoodPlanDays(startDate)
+        return activeAccountFlow { accountId ->
+            foodDao.observeFoodDiaryEntryRowsForDateRange(
+                accountId = accountId,
+                startEpochDay = startDate.toEpochDay(),
+                endEpochDay = endDate.toEpochDay(),
+            ).map { rows -> rows.toFoodPlanDays(startDate) }
         }
     }
 
-    override fun observeLoggedDayEpochDays(fromEpochDay: Long): Flow<List<Long>> =
-        foodDao.observeLoggedDayEpochDays(fromEpochDay)
+    override fun observeLoggedDayEpochDays(fromEpochDay: Long): Flow<List<Long>> = activeAccountFlow { accountId -> foodDao.observeLoggedDayEpochDays(accountId, fromEpochDay) }
 
     override fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> {
         val endDate = startDate.plusDays(6)
-        return combine(
-            foodDao.observeFoodDiaryEntryRowsForDateRange(
-                startEpochDay = startDate.toEpochDay(),
-                endEpochDay = endDate.toEpochDay(),
-            ),
-            foodDao.observeWaterTotalsForDateRange(
-                startEpochDay = startDate.toEpochDay(),
-                endEpochDay = endDate.toEpochDay(),
-            ),
-            observeFoodGoal(),
-        ) { rows, waterRows, goal ->
-            rows.toFoodWeeklySummary(
-                startDate = startDate,
-                waterRows = waterRows,
-                goal = goal,
-            )
+        return activeAccountFlow { accountId ->
+            combine(
+                foodDao.observeFoodDiaryEntryRowsForDateRange(accountId, startDate.toEpochDay(), endDate.toEpochDay()),
+                foodDao.observeWaterTotalsForDateRange(accountId, startDate.toEpochDay(), endDate.toEpochDay()),
+                foodDao.observeFoodGoal(accountId, DEFAULT_GOAL_ID).map { it?.toFoodGoal() ?: DEFAULT_FOOD_GOAL },
+            ) { rows, waterRows, goal ->
+                rows.toFoodWeeklySummary(startDate = startDate, waterRows = waterRows, goal = goal)
+            }
         }
     }
 
     override fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> {
         val safeDayCount = dayCount.coerceAtLeast(1)
         val endDate = startDate.plusDays((safeDayCount - 1).toLong())
-        return combine(
-            foodDao.observeFoodDiaryEntryRowsForDateRange(
-                startEpochDay = startDate.toEpochDay(),
-                endEpochDay = endDate.toEpochDay(),
-            ),
-            foodDao.observeWaterTotalsForDateRange(
-                startEpochDay = startDate.toEpochDay(),
-                endEpochDay = endDate.toEpochDay(),
-            ),
-            observeFoodGoal(),
-        ) { rows, waterRows, goal ->
-            rows.toFoodProgressSummary(
-                startDate = startDate,
-                dayCount = safeDayCount,
-                waterRows = waterRows,
-                goal = goal,
-            )
+        return activeAccountFlow { accountId ->
+            combine(
+                foodDao.observeFoodDiaryEntryRowsForDateRange(accountId, startDate.toEpochDay(), endDate.toEpochDay()),
+                foodDao.observeWaterTotalsForDateRange(accountId, startDate.toEpochDay(), endDate.toEpochDay()),
+                foodDao.observeFoodGoal(accountId, DEFAULT_GOAL_ID).map { it?.toFoodGoal() ?: DEFAULT_FOOD_GOAL },
+            ) { rows, waterRows, goal ->
+                rows.toFoodProgressSummary(startDate, safeDayCount, waterRows, goal)
+            }
         }
     }
 
-    override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
-        foodDao.observeFoods().map { foods ->
-            foods
-                .filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
-                .map { food -> food.toSavedFoodItem(foodDao.getServings(food.id)) }
+    override fun observeSavedFoods(): Flow<List<SavedFoodItem>> = activeAccountFlow { accountId ->
+        foodDao.observeFoods(accountId).map { foods ->
+            foods.filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
+                .map { food -> food.toSavedFoodItem(foodDao.getServings(accountId, food.id)) }
         }
+    }
 
-    override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
-        foodDao.observeRecentFoods(limit).map { foods ->
-            foods
-                .filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
+    override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> = activeAccountFlow { accountId ->
+        foodDao.observeRecentFoods(accountId, limit).map { foods ->
+            foods.filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
                 .map { food -> food.toSavedFoodItem(emptyList()) }
         }
+    }
 
-    override fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>> =
-        foodDao.observeSameAsYesterday(date.minusDays(1).toEpochDay(), mealType).map { foods ->
-            foods
-                .filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
+    override fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>> = activeAccountFlow { accountId ->
+        foodDao.observeSameAsYesterday(accountId, date.minusDays(1).toEpochDay(), mealType).map { foods ->
+            foods.filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
                 .map { food -> food.toSavedFoodItem(emptyList()) }
         }
+    }
 
-    override suspend fun getFoodDetail(foodId: String): SavedFoodItem? =
-        foodDao.getFood(foodId)?.toSavedFoodItem(foodDao.getServings(foodId))
+    override suspend fun getFoodDetail(foodId: String): SavedFoodItem? {
+        val accountId = activeAccountId()
+        return foodDao.getFood(accountId, foodId)?.toSavedFoodItem(foodDao.getServings(accountId, foodId))
+    }
 
     override suspend fun logSavedFood(input: SavedFoodLogInput): String {
         input.requireValid()
+        val accountId = activeAccountId()
         return database.withTransaction {
-            foodDao.getFood(input.foodId) ?: error("Saved food not found")
+            foodDao.getFood(accountId, input.foodId) ?: error("Saved food not found")
             insertMealItem(
+                context = MealItemWriteContext(accountId, System.currentTimeMillis()),
                 foodId = input.foodId,
                 mealType = input.mealType,
                 quantityGrams = input.quantityGrams,
                 date = input.date,
-                now = System.currentTimeMillis(),
             )
         }
     }
 
     override suspend fun planSavedFood(input: SavedFoodLogInput): String {
         input.requireValid()
+        val accountId = activeAccountId()
         return database.withTransaction {
-            foodDao.getFood(input.foodId) ?: error("Saved food not found")
+            foodDao.getFood(accountId, input.foodId) ?: error("Saved food not found")
             insertMealItem(
+                context = MealItemWriteContext(
+                    accountId,
+                    System.currentTimeMillis(),
+                    FoodDiaryEntryStatus.Planned,
+                ),
                 foodId = input.foodId,
                 mealType = input.mealType,
                 quantityGrams = input.quantityGrams,
                 date = input.date,
-                now = System.currentTimeMillis(),
-                status = FoodDiaryEntryStatus.Planned,
             )
         }
     }
@@ -732,6 +749,7 @@ class LocalFoodRepository @Inject constructor(
     override suspend fun quickLog(input: QuickCalorieLogInput): String {
         input.requireValid()
         return logFood(
+            activeAccountId(),
             FoodLogInput(
                 lookupResult = null,
                 barcode = null,
@@ -751,18 +769,19 @@ class LocalFoodRepository @Inject constructor(
         )
     }
 
-    override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> =
-        foodDao.observeQuickCaloriePresets().map { presets ->
-            presets.map { it.toQuickCaloriePreset() }
-        }
+    override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> = activeAccountFlow { accountId ->
+        foodDao.observeQuickCaloriePresets(accountId).map { presets -> presets.map { it.toQuickCaloriePreset() } }
+    }
 
     override suspend fun saveFavoriteQuickLog(input: QuickCaloriePresetInput): String {
         input.requireValid()
+        val accountId = activeAccountId()
         return database.withTransaction {
             val now = System.currentTimeMillis()
             val presetId = UUID.randomUUID().toString()
             foodDao.upsertQuickCaloriePreset(
                 QuickCaloriePresetEntity(
+                    accountId = accountId,
                     id = presetId,
                     name = input.name.trim(),
                     caloriesKcal = input.caloriesKcal,
@@ -780,8 +799,10 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun toggleFavoriteQuickLog(presetId: String, isFavorite: Boolean) {
         require(presetId.isNotBlank()) { "Quick log id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
             val updatedCount = foodDao.updateQuickCaloriePresetFavorite(
+                accountId = accountId,
                 presetId = presetId,
                 isFavorite = isFavorite,
                 updatedAtEpochMillis = System.currentTimeMillis(),
@@ -792,14 +813,24 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun logFavoriteQuickLog(presetId: String, mealType: String, date: LocalDate): String {
         require(presetId.isNotBlank()) { "Quick log id is required" }
-        val preset = foodDao.getQuickCaloriePreset(presetId) ?: error("Quick log not found")
-        return quickLog(
-            QuickCalorieLogInput(
+        val accountId = activeAccountId()
+        val preset = foodDao.getQuickCaloriePreset(accountId, presetId) ?: error("Quick log not found")
+        return logFood(
+            accountId,
+            FoodLogInput(
+                lookupResult = null,
+                barcode = null,
+                name = QUICK_CALORIES_NAME,
+                brand = null,
+                nutritionPer100g = FoodNutrition(
+                    caloriesKcal = preset.caloriesKcal,
+                    proteinGrams = preset.proteinGrams,
+                    carbsGrams = preset.carbsGrams,
+                    fatGrams = preset.fatGrams,
+                ),
+                servingGrams = 100.0,
                 mealType = mealType,
-                caloriesKcal = preset.caloriesKcal,
-                proteinGrams = preset.proteinGrams,
-                carbsGrams = preset.carbsGrams,
-                fatGrams = preset.fatGrams,
+                quantityGrams = 100.0,
                 date = date,
             ),
         )
@@ -807,9 +838,10 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun updateDiaryEntry(input: DiaryEntryUpdateInput) {
         input.requireValid()
+        val accountId = activeAccountId()
         database.withTransaction {
-            val existingItem = foodDao.getMealItem(input.mealItemId) ?: error("Diary item not found")
-            val existingMeal = foodDao.getMeal(existingItem.mealId)
+            val existingItem = foodDao.getMealItem(accountId, input.mealItemId) ?: error("Diary item not found")
+            val existingMeal = foodDao.getMeal(accountId, existingItem.mealId)
             val normalizedMealType = input.mealType.trim().ifBlank { DEFAULT_MEAL_TYPE }
             val dateEpochDay = input.date.toEpochDay()
             val targetMealId =
@@ -820,6 +852,7 @@ class LocalFoodRepository @Inject constructor(
                     UUID.randomUUID().toString().also { newMealId ->
                         foodDao.upsertMeal(
                             MealEntity(
+                                accountId = accountId,
                                 id = newMealId,
                                 dateEpochDay = dateEpochDay,
                                 type = normalizedMealType,
@@ -837,71 +870,76 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun deleteDiaryEntry(mealItemId: String) {
         require(mealItemId.isNotBlank()) { "Diary item id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
-            val deletedCount = foodDao.deleteMealItemById(mealItemId)
+            val deletedCount = foodDao.deleteMealItemById(accountId, mealItemId)
             check(deletedCount > 0) { "Diary item not found" }
         }
     }
 
     override suspend fun upsertSavedFood(input: SavedFoodUpsertInput): String {
         input.requireValid()
-        return database.withTransaction {
-            val now = System.currentTimeMillis()
-            val normalizedBarcode = input.barcode?.trim()?.takeIf { it.isNotEmpty() }
-            val resolvedBrand = input.brand?.trim()?.takeIf { it.isNotEmpty() }
-            val existingByBarcode = normalizedBarcode?.let { foodDao.getFoodByBarcode(it) }
-            val existingByName = foodDao.getFoodByNameAndBrand(input.name.trim(), resolvedBrand)
-            val foodId =
-                input.foodId?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: existingByBarcode?.id
-                    ?: existingByName?.id
-                    ?: UUID.randomUUID().toString()
-            val existingFood = foodDao.getFood(foodId)
+        return upsertSavedFood(activeAccountId(), input)
+    }
 
-            foodDao.upsertFood(
-                FoodEntity(
-                    id = foodId,
-                    name = input.name.trim(),
-                    brand = resolvedBrand,
-                    defaultServingGrams = input.defaultServingGrams,
-                    caloriesPer100g = input.nutritionPer100g.caloriesKcal,
-                    proteinPer100g = input.nutritionPer100g.proteinGrams,
-                    carbsPer100g = input.nutritionPer100g.carbsGrams,
-                    fatPer100g = input.nutritionPer100g.fatGrams,
-                    createdAtEpochMillis = existingFood?.createdAtEpochMillis ?: now,
-                    updatedAtEpochMillis = now,
-                    servingName = input.servingName?.trim()?.takeIf { it.isNotEmpty() },
-                    barcode = normalizedBarcode,
-                    category = input.category?.trim()?.takeIf { it.isNotEmpty() },
-                    isFavorite = input.isFavorite,
-                    imageUrl = input.imageUrl ?: existingFood?.imageUrl,
-                    fiberPer100g = input.nutritionDetailsPer100g.fiberGrams,
-                    sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
-                    saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,
-                    sodiumMgPer100g = input.nutritionDetailsPer100g.sodiumMilligrams,
-                    potassiumMgPer100g = input.nutritionDetailsPer100g.potassiumMilligrams,
-                    calciumMgPer100g = input.nutritionDetailsPer100g.calciumMilligrams,
-                    ironMgPer100g = input.nutritionDetailsPer100g.ironMilligrams,
-                    vitaminDMcgPer100g = input.nutritionDetailsPer100g.vitaminDMicrograms,
-                    vitaminCMgPer100g = input.nutritionDetailsPer100g.vitaminCMilligrams,
-                    magnesiumMgPer100g = input.nutritionDetailsPer100g.magnesiumMilligrams,
-                ),
-            )
-            replaceServings(foodId, input.resolvedServings())
+    private suspend fun upsertSavedFood(accountId: String, input: SavedFoodUpsertInput): String = database.withTransaction {
+        val now = System.currentTimeMillis()
+        val normalizedBarcode = input.barcode?.trim()?.takeIf { it.isNotEmpty() }
+        val resolvedBrand = input.brand?.trim()?.takeIf { it.isNotEmpty() }
+        val existingByBarcode = normalizedBarcode?.let { foodDao.getFoodByBarcode(accountId, it) }
+        val existingByName = foodDao.getFoodByNameAndBrand(accountId, input.name.trim(), resolvedBrand)
+        val foodId =
+            input.foodId?.trim()?.takeIf { it.isNotEmpty() }
+                ?: existingByBarcode?.id
+                ?: existingByName?.id
+                ?: UUID.randomUUID().toString()
+        val existingFood = foodDao.getFood(accountId, foodId)
 
-            foodId
-        }
+        foodDao.upsertFood(
+            FoodEntity(
+                accountId = accountId,
+                id = foodId,
+                name = input.name.trim(),
+                brand = resolvedBrand,
+                defaultServingGrams = input.defaultServingGrams,
+                caloriesPer100g = input.nutritionPer100g.caloriesKcal,
+                proteinPer100g = input.nutritionPer100g.proteinGrams,
+                carbsPer100g = input.nutritionPer100g.carbsGrams,
+                fatPer100g = input.nutritionPer100g.fatGrams,
+                createdAtEpochMillis = existingFood?.createdAtEpochMillis ?: now,
+                updatedAtEpochMillis = now,
+                servingName = input.servingName?.trim()?.takeIf { it.isNotEmpty() },
+                barcode = normalizedBarcode,
+                category = input.category?.trim()?.takeIf { it.isNotEmpty() },
+                isFavorite = input.isFavorite,
+                imageUrl = input.imageUrl ?: existingFood?.imageUrl,
+                fiberPer100g = input.nutritionDetailsPer100g.fiberGrams,
+                sugarPer100g = input.nutritionDetailsPer100g.sugarGrams,
+                saturatedFatPer100g = input.nutritionDetailsPer100g.saturatedFatGrams,
+                sodiumMgPer100g = input.nutritionDetailsPer100g.sodiumMilligrams,
+                potassiumMgPer100g = input.nutritionDetailsPer100g.potassiumMilligrams,
+                calciumMgPer100g = input.nutritionDetailsPer100g.calciumMilligrams,
+                ironMgPer100g = input.nutritionDetailsPer100g.ironMilligrams,
+                vitaminDMcgPer100g = input.nutritionDetailsPer100g.vitaminDMicrograms,
+                vitaminCMgPer100g = input.nutritionDetailsPer100g.vitaminCMilligrams,
+                magnesiumMgPer100g = input.nutritionDetailsPer100g.magnesiumMilligrams,
+            ),
+        )
+        replaceServings(accountId, foodId, input.resolvedServings())
+
+        foodId
     }
 
     override suspend fun deleteSavedFood(foodId: String) {
         val trimmedFoodId = foodId.trim()
         require(trimmedFoodId.isNotBlank()) { "Food id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
-            val food = foodDao.getFood(trimmedFoodId) ?: error("Saved food not found")
+            val food = foodDao.getFood(accountId, trimmedFoodId) ?: error("Saved food not found")
             if (food.name == QUICK_CALORIES_NAME && food.brand == null) {
                 error("Quick calories cannot be deleted from database")
             }
-            if (foodDao.countMealItemsForFood(trimmedFoodId) > 0) {
+            if (foodDao.countMealItemsForFood(accountId, trimmedFoodId) > 0) {
                 error("Food is used in diary entries")
             }
 
@@ -911,9 +949,11 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun toggleFavoriteFood(foodId: String, isFavorite: Boolean) {
         require(foodId.isNotBlank()) { "Food id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
             val updatedCount =
                 foodDao.updateFoodFavorite(
+                    accountId = accountId,
                     foodId = foodId,
                     isFavorite = isFavorite,
                     updatedAtEpochMillis = System.currentTimeMillis(),
@@ -929,62 +969,60 @@ class LocalFoodRepository @Inject constructor(
         require(trimmedDuplicateIds.isNotEmpty()) { "Choose duplicate foods to merge" }
         require(trimmedPrimaryId !in trimmedDuplicateIds) { "Primary food cannot be merged into itself" }
 
+        val accountId = activeAccountId()
         database.withTransaction {
-            val primaryFood = foodDao.getFood(trimmedPrimaryId) ?: error("Primary food not found")
+            val primaryFood = foodDao.getFood(accountId, trimmedPrimaryId) ?: error("Primary food not found")
             val duplicates = trimmedDuplicateIds.map { duplicateId ->
-                foodDao.getFood(duplicateId) ?: error("Duplicate food not found")
+                foodDao.getFood(accountId, duplicateId) ?: error("Duplicate food not found")
             }
             if (duplicates.isEmpty()) {
                 return@withTransaction
             }
 
-            foodDao.reassignMealItemsToFood(primaryFood.id, trimmedDuplicateIds)
-            foodDao.reassignMealTemplateItemsToFood(primaryFood.id, trimmedDuplicateIds)
-            foodDao.reassignRecipeIngredientsToFood(primaryFood.id, trimmedDuplicateIds)
-            foodDao.reassignBarcodeProductsToFood(primaryFood.id, trimmedDuplicateIds)
+            foodDao.reassignMealItemsToFood(accountId, primaryFood.id, trimmedDuplicateIds)
+            foodDao.reassignMealTemplateItemsToFood(accountId, primaryFood.id, trimmedDuplicateIds)
+            foodDao.reassignRecipeIngredientsToFood(accountId, primaryFood.id, trimmedDuplicateIds)
+            foodDao.reassignBarcodeProductsToFood(accountId, primaryFood.id, trimmedDuplicateIds)
             duplicates.forEach { duplicateFood ->
                 foodDao.deleteFood(duplicateFood)
             }
         }
     }
 
-    override fun observeFoodGoal(): Flow<FoodGoal> =
-        foodDao.observeFoodGoal(DEFAULT_GOAL_ID).map { entity ->
-            entity?.toFoodGoal() ?: DEFAULT_FOOD_GOAL
-        }
+    override fun observeFoodGoal(): Flow<FoodGoal> = activeAccountFlow { accountId ->
+        foodDao.observeFoodGoal(accountId, DEFAULT_GOAL_ID).map { entity -> entity?.toFoodGoal() ?: DEFAULT_FOOD_GOAL }
+    }
 
     override suspend fun updateFoodGoal(goal: FoodGoal) {
         goal.requireValid()
-        foodDao.upsertFoodGoal(goal.toEntity(System.currentTimeMillis()))
+        foodDao.upsertFoodGoal(goal.toEntity(activeAccountId(), System.currentTimeMillis()))
     }
 
-    override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
+    override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> = activeAccountFlow { accountId ->
         combine(
-            foodDao.observeWaterTotalForDate(date.toEpochDay()),
-            observeFoodGoal(),
+            foodDao.observeWaterTotalForDate(accountId, date.toEpochDay()),
+            foodDao.observeFoodGoal(accountId, DEFAULT_GOAL_ID).map { it?.toFoodGoal() ?: DEFAULT_FOOD_GOAL },
         ) { consumedMilliliters, goal ->
-            FoodWaterSummary(
-                date = date,
-                consumedMilliliters = consumedMilliliters,
-                goalMilliliters = goal.waterGoalMilliliters,
-            )
+            FoodWaterSummary(date, consumedMilliliters, goal.waterGoalMilliliters)
         }
+    }
 
     // "Burned" mirrors the total-energy figure the Health Connect / Google Health
     // app shows (activity + resting metabolism), so it reads TotalCaloriesBurned
     // rather than ActiveCaloriesBurned. Many phones only record total calories, so
     // sourcing from active left this stuck at 0. Display-only: it does not change the
     // remaining-calorie math (remaining = goal - eaten).
-    override fun observeBurnedCalories(date: LocalDate): Flow<Double> =
-        database.healthDao().observeDailySummary(date.toEpochDay())
-            .map { summary -> summary?.totalCaloriesKcal ?: 0.0 }
+    override fun observeBurnedCalories(date: LocalDate): Flow<Double> = database.healthDao().observeDailySummary(date.toEpochDay())
+        .map { summary -> summary?.totalCaloriesKcal ?: 0.0 }
 
     override suspend fun logWater(input: WaterLogInput): String {
         input.requireValid()
+        val accountId = activeAccountId()
         return database.withTransaction {
             val entryId = UUID.randomUUID().toString()
             foodDao.insertWaterEntry(
                 WaterEntryEntity(
+                    accountId = accountId,
                     id = entryId,
                     dateEpochDay = input.date.toEpochDay(),
                     amountMilliliters = input.amountMilliliters,
@@ -997,15 +1035,17 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun removeWater(input: WaterLogInput): Double {
         input.requireValid()
+        val accountId = activeAccountId()
         return database.withTransaction {
             val dateEpochDay = input.date.toEpochDay()
-            val currentTotal = foodDao.getWaterTotalForDate(dateEpochDay)
+            val currentTotal = foodDao.getWaterTotalForDate(accountId, dateEpochDay)
             val removal = input.amountMilliliters.coerceAtMost(currentTotal.coerceAtLeast(0.0))
             if (removal <= 0.0) {
                 return@withTransaction 0.0
             }
             foodDao.insertWaterEntry(
                 WaterEntryEntity(
+                    accountId = accountId,
                     id = UUID.randomUUID().toString(),
                     dateEpochDay = dateEpochDay,
                     amountMilliliters = -removal,
@@ -1018,26 +1058,28 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun updateWaterGoal(goalMilliliters: Double) {
         require(goalMilliliters.isFinite() && goalMilliliters > 0.0) { "Water goal must be positive" }
+        val accountId = activeAccountId()
         database.withTransaction {
-            val currentGoal = foodDao.getFoodGoal(DEFAULT_GOAL_ID)?.toFoodGoal() ?: DEFAULT_FOOD_GOAL
+            val currentGoal = foodDao.getFoodGoal(accountId, DEFAULT_GOAL_ID)?.toFoodGoal() ?: DEFAULT_FOOD_GOAL
             foodDao.upsertFoodGoal(
                 currentGoal
                     .copy(waterGoalMilliliters = goalMilliliters)
-                    .toEntity(System.currentTimeMillis()),
+                    .toEntity(accountId, System.currentTimeMillis()),
             )
         }
     }
 
-    override fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> =
+    override fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> = activeAccountFlow { accountId ->
         combine(
-            foodDao.observeFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY),
+            foodDao.observeFoodHealthConnectSyncState(accountId, FOOD_HEALTH_CONNECT_SYNC_KEY),
             foodHealthConnectStatusFlow,
             foodHealthConnectPermissionsFlow,
-        ) { entity, status, permissions ->
-            entity.toFoodHealthConnectSyncState(status, permissions)
-        }
+        ) { entity, status, permissions -> entity.toFoodHealthConnectSyncState(status, permissions) }
+    }
 
-    override suspend fun refreshFoodHealthConnectSyncState(): FoodHealthConnectSyncState {
+    override suspend fun refreshFoodHealthConnectSyncState(): FoodHealthConnectSyncState = refreshFoodHealthConnectSyncState(activeAccountId())
+
+    private suspend fun refreshFoodHealthConnectSyncState(accountId: String): FoodHealthConnectSyncState {
         val status = runCatching { healthConnectGateway.status() }.getOrDefault(DEFAULT_HEALTH_CONNECT_STATUS)
         val permissions = if (status.availability == HealthConnectAvailability.Available) {
             runCatching { healthConnectGateway.foodRequestablePermissions() }.getOrDefault(emptySet())
@@ -1047,15 +1089,17 @@ class LocalFoodRepository @Inject constructor(
         foodHealthConnectStatusFlow.value = status
         foodHealthConnectPermissionsFlow.value = permissions
         return foodDao
-            .getFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY)
+            .getFoodHealthConnectSyncState(accountId, FOOD_HEALTH_CONNECT_SYNC_KEY)
             .toFoodHealthConnectSyncState(status, permissions)
     }
 
     override suspend fun setFoodHealthConnectSyncEnabled(isEnabled: Boolean) {
+        val accountId = activeAccountId()
         val now = System.currentTimeMillis()
-        val current = foodDao.getFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY)
+        val current = foodDao.getFoodHealthConnectSyncState(accountId, FOOD_HEALTH_CONNECT_SYNC_KEY)
         foodDao.upsertFoodHealthConnectSyncState(
             FoodHealthConnectSyncEntity(
+                accountId = accountId,
                 key = FOOD_HEALTH_CONNECT_SYNC_KEY,
                 isEnabled = isEnabled,
                 lastSyncAtEpochMillis = current?.lastSyncAtEpochMillis,
@@ -1066,23 +1110,29 @@ class LocalFoodRepository @Inject constructor(
     }
 
     override suspend fun syncFoodToHealthConnect(date: LocalDate): FoodHealthConnectSyncResult {
-        val state = refreshFoodHealthConnectSyncState()
+        val accountId = activeAccountId()
+        val state = refreshFoodHealthConnectSyncState(accountId)
         if (!state.isEnabled) {
-            recordFoodHealthConnectSyncFailure("Enable Health Connect sync first")
+            recordFoodHealthConnectSyncFailure(accountId, "Enable Health Connect sync first")
             error("Enable Health Connect sync first")
         }
         if (state.availability != HealthConnectAvailability.Available) {
-            recordFoodHealthConnectSyncFailure("Health Connect is not available")
+            recordFoodHealthConnectSyncFailure(accountId, "Health Connect is not available")
             error("Health Connect is not available")
         }
         if (!state.canSync) {
-            recordFoodHealthConnectSyncFailure("Check Health Connect nutrition and hydration permissions")
+            recordFoodHealthConnectSyncFailure(accountId, "Check Health Connect nutrition and hydration permissions")
             error("Check Health Connect nutrition and hydration permissions")
         }
 
         return try {
-            val diary = foodDao.getFoodDiaryEntryRowsForDate(date.toEpochDay()).toFoodDiary()
-            val waterSummary = observeWaterSummary(date).first()
+            val diary = foodDao.getFoodDiaryEntryRowsForDate(accountId, date.toEpochDay()).toFoodDiary()
+            val currentGoal = foodDao.getFoodGoal(accountId, DEFAULT_GOAL_ID)?.toFoodGoal() ?: DEFAULT_FOOD_GOAL
+            val waterSummary = FoodWaterSummary(
+                date = date,
+                consumedMilliliters = foodDao.getWaterTotalForDate(accountId, date.toEpochDay()),
+                goalMilliliters = currentGoal.waterGoalMilliliters,
+            )
             val payload = HealthConnectFoodExportPayload(
                 date = date,
                 meals = diary.meals.mapNotNull { meal -> meal.toHealthConnectFoodMealExport() },
@@ -1095,21 +1145,23 @@ class LocalFoodRepository @Inject constructor(
                 nutritionRecordCount = exportResult.nutritionRecordCount,
                 hydrationRecordCount = exportResult.hydrationRecordCount,
             )
-            recordFoodHealthConnectSyncSuccess()
+            recordFoodHealthConnectSyncSuccess(accountId)
             result
         } catch (error: Exception) {
             recordFoodHealthConnectSyncFailure(
+                accountId,
                 error.message ?: "Failed to sync Food to Health Connect",
             )
             throw error
         }
     }
 
-    private suspend fun recordFoodHealthConnectSyncSuccess() {
+    private suspend fun recordFoodHealthConnectSyncSuccess(accountId: String) {
         val now = System.currentTimeMillis()
-        val current = foodDao.getFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY)
+        val current = foodDao.getFoodHealthConnectSyncState(accountId, FOOD_HEALTH_CONNECT_SYNC_KEY)
         foodDao.upsertFoodHealthConnectSyncState(
             FoodHealthConnectSyncEntity(
+                accountId = accountId,
                 key = FOOD_HEALTH_CONNECT_SYNC_KEY,
                 isEnabled = current?.isEnabled ?: false,
                 lastSyncAtEpochMillis = now,
@@ -1119,11 +1171,12 @@ class LocalFoodRepository @Inject constructor(
         )
     }
 
-    private suspend fun recordFoodHealthConnectSyncFailure(message: String) {
+    private suspend fun recordFoodHealthConnectSyncFailure(accountId: String, message: String) {
         val now = System.currentTimeMillis()
-        val current = foodDao.getFoodHealthConnectSyncState(FOOD_HEALTH_CONNECT_SYNC_KEY)
+        val current = foodDao.getFoodHealthConnectSyncState(accountId, FOOD_HEALTH_CONNECT_SYNC_KEY)
         foodDao.upsertFoodHealthConnectSyncState(
             FoodHealthConnectSyncEntity(
+                accountId = accountId,
                 key = FOOD_HEALTH_CONNECT_SYNC_KEY,
                 isEnabled = current?.isEnabled ?: false,
                 lastSyncAtEpochMillis = current?.lastSyncAtEpochMillis,
@@ -1133,13 +1186,13 @@ class LocalFoodRepository @Inject constructor(
         )
     }
 
-    override fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>> =
-        foodDao.observeMealDefinitions().map { definitions ->
-            definitions.map { it.toFoodMealDefinition() }
-        }
+    override fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>> = activeAccountFlow { accountId ->
+        foodDao.observeMealDefinitions(accountId).map { definitions -> definitions.map { it.toFoodMealDefinition() } }
+    }
 
     override suspend fun upsertCustomMealDefinition(input: FoodMealDefinitionInput): String {
         input.requireValid()
+        val accountId = activeAccountId()
         return database.withTransaction {
             val now = System.currentTimeMillis()
             val mealId =
@@ -1147,10 +1200,11 @@ class LocalFoodRepository @Inject constructor(
                     ?.normalizedMealDefinitionId()
                     ?.takeIf { it.isNotBlank() }
                     ?: input.name.generatedMealDefinitionId()
-            val existing = foodDao.getMealDefinition(mealId)
+            val existing = foodDao.getMealDefinition(accountId, mealId)
 
             foodDao.upsertMealDefinition(
                 MealDefinitionEntity(
+                    accountId = accountId,
                     id = mealId,
                     name = input.name.trim(),
                     timeMinutes = input.timeMinutes,
@@ -1164,21 +1218,22 @@ class LocalFoodRepository @Inject constructor(
         }
     }
 
-    override fun observeMealTemplates(): Flow<List<MealTemplate>> =
-        foodDao.observeMealTemplateRows().map { rows ->
-            rows.toMealTemplates()
-        }
+    override fun observeMealTemplates(): Flow<List<MealTemplate>> = activeAccountFlow { accountId ->
+        foodDao.observeMealTemplateRows(accountId).map { rows -> rows.toMealTemplates() }
+    }
 
     override suspend fun saveMealAsTemplate(date: LocalDate, mealType: String, name: String): String {
         require(name.isNotBlank()) { "Template name is required" }
         val normalizedMealType = mealType.trim().ifBlank { DEFAULT_MEAL_TYPE }
+        val accountId = activeAccountId()
         return database.withTransaction {
-            val rows = foodDao.getFoodDiaryEntryRowsForDateAndMeal(date.toEpochDay(), normalizedMealType)
+            val rows = foodDao.getFoodDiaryEntryRowsForDateAndMeal(accountId, date.toEpochDay(), normalizedMealType)
             require(rows.isNotEmpty()) { "Meal has no food to save" }
             val now = System.currentTimeMillis()
             val templateId = UUID.randomUUID().toString()
             foodDao.upsertMealTemplate(
                 MealTemplateEntity(
+                    accountId = accountId,
                     id = templateId,
                     name = name.trim(),
                     mealType = normalizedMealType,
@@ -1188,16 +1243,17 @@ class LocalFoodRepository @Inject constructor(
             )
             rows.sortedWith(compareBy<FoodDiaryEntryRow> { it.createdAtEpochMillis }.thenBy { it.foodName })
                 .forEachIndexed { index, row ->
-                foodDao.upsertMealTemplateItem(
-                    MealTemplateItemEntity(
-                        id = UUID.randomUUID().toString(),
-                        templateId = templateId,
-                        foodId = row.foodId,
-                        quantityGrams = row.quantityGrams,
-                        sortOrder = index,
-                    ),
-                )
-            }
+                    foodDao.upsertMealTemplateItem(
+                        MealTemplateItemEntity(
+                            accountId = accountId,
+                            id = UUID.randomUUID().toString(),
+                            templateId = templateId,
+                            foodId = row.foodId,
+                            quantityGrams = row.quantityGrams,
+                            sortOrder = index,
+                        ),
+                    )
+                }
             templateId
         }
     }
@@ -1205,17 +1261,18 @@ class LocalFoodRepository @Inject constructor(
     override suspend fun logMealTemplate(templateId: String, mealType: String, date: LocalDate): List<String> {
         require(templateId.isNotBlank()) { "Template id is required" }
         val normalizedMealType = mealType.trim().ifBlank { DEFAULT_MEAL_TYPE }
+        val accountId = activeAccountId()
         return database.withTransaction {
-            val rows = foodDao.getMealTemplateRows(templateId)
+            val rows = foodDao.getMealTemplateRows(accountId, templateId)
             require(rows.isNotEmpty()) { "Template has no food" }
             val now = System.currentTimeMillis()
             rows.mapIndexed { index, row ->
                 insertMealItem(
+                    context = MealItemWriteContext(accountId, now + index),
                     foodId = row.foodId,
                     mealType = normalizedMealType,
                     quantityGrams = row.quantityGrams,
                     date = date,
-                    now = now + index,
                 )
             }
         }
@@ -1228,47 +1285,50 @@ class LocalFoodRepository @Inject constructor(
         status: FoodDiaryEntryStatus,
     ): List<String> {
         val normalizedMealType = mealType.trim().ifBlank { DEFAULT_MEAL_TYPE }
+        val accountId = activeAccountId()
         return database.withTransaction {
-            val rows = foodDao.getFoodDiaryEntryRowsForDateAndMeal(fromDate.toEpochDay(), normalizedMealType)
+            val rows = foodDao.getFoodDiaryEntryRowsForDateAndMeal(accountId, fromDate.toEpochDay(), normalizedMealType)
             require(rows.isNotEmpty()) { "Source meal has no food" }
             val now = System.currentTimeMillis()
             rows.sortedWith(compareBy<FoodDiaryEntryRow> { it.createdAtEpochMillis }.thenBy { it.foodName })
                 .mapIndexed { index, row ->
-                insertMealItem(
-                    foodId = row.foodId,
-                    mealType = normalizedMealType,
-                    quantityGrams = row.quantityGrams,
-                    date = toDate,
-                    now = now + index,
-                    status = status,
-                )
-            }
+                    insertMealItem(
+                        context = MealItemWriteContext(accountId, now + index, status),
+                        foodId = row.foodId,
+                        mealType = normalizedMealType,
+                        quantityGrams = row.quantityGrams,
+                        date = toDate,
+                    )
+                }
         }
     }
 
-    override suspend fun copyDay(fromDate: LocalDate, toDate: LocalDate, status: FoodDiaryEntryStatus): List<String> =
-        database.withTransaction {
-            val rows = foodDao.getFoodDiaryEntryRowsForDate(fromDate.toEpochDay())
+    override suspend fun copyDay(fromDate: LocalDate, toDate: LocalDate, status: FoodDiaryEntryStatus): List<String> {
+        val accountId = activeAccountId()
+        return database.withTransaction {
+            val rows = foodDao.getFoodDiaryEntryRowsForDate(accountId, fromDate.toEpochDay())
             require(rows.isNotEmpty()) { "Source day has no food" }
             val now = System.currentTimeMillis()
             rows.sortedWith(compareBy<FoodDiaryEntryRow> { it.createdAtEpochMillis }.thenBy { it.foodName })
                 .mapIndexed { index, row ->
                     insertMealItem(
+                        context = MealItemWriteContext(accountId, now + index, status),
                         foodId = row.foodId,
                         mealType = row.mealType,
                         quantityGrams = row.quantityGrams,
                         date = toDate,
-                        now = now + index,
-                        status = status,
                     )
                 }
         }
+    }
 
     override suspend fun renameMealTemplate(templateId: String, name: String, mealType: String) {
         require(templateId.isNotBlank()) { "Template id is required" }
         require(name.isNotBlank()) { "Template name is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
             val updatedCount = foodDao.updateMealTemplateMetadata(
+                accountId = accountId,
                 templateId = templateId,
                 name = name.trim(),
                 mealType = mealType.trim().ifBlank { DEFAULT_MEAL_TYPE },
@@ -1280,10 +1340,12 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun updateMealTemplate(input: MealTemplateUpdateInput) {
         input.requireValid()
+        val accountId = activeAccountId()
         database.withTransaction {
-            foodDao.getMealTemplate(input.templateId) ?: error("Template not found")
+            foodDao.getMealTemplate(accountId, input.templateId) ?: error("Template not found")
             val now = System.currentTimeMillis()
             val updatedCount = foodDao.updateMealTemplateMetadata(
+                accountId = accountId,
                 templateId = input.templateId,
                 name = input.name.trim(),
                 mealType = input.mealType.trim().ifBlank { DEFAULT_MEAL_TYPE },
@@ -1292,11 +1354,12 @@ class LocalFoodRepository @Inject constructor(
             check(updatedCount > 0) { "Template not found" }
             // This is an intentional whole-list replacement. The enclosing transaction restores
             // both the original template metadata and every item if validation or insertion fails.
-            foodDao.deleteMealTemplateItems(input.templateId)
+            foodDao.deleteMealTemplateItems(accountId, input.templateId)
             input.items.forEachIndexed { index, item ->
-                foodDao.getFood(item.foodId) ?: error("Template item food not found")
+                foodDao.getFood(accountId, item.foodId) ?: error("Template item food not found")
                 foodDao.upsertMealTemplateItem(
                     MealTemplateItemEntity(
+                        accountId = accountId,
                         id = UUID.randomUUID().toString(),
                         templateId = input.templateId,
                         foodId = item.foodId,
@@ -1311,14 +1374,16 @@ class LocalFoodRepository @Inject constructor(
     override suspend fun duplicateMealTemplate(templateId: String, name: String): String {
         require(templateId.isNotBlank()) { "Template id is required" }
         require(name.isNotBlank()) { "Template name is required" }
+        val accountId = activeAccountId()
         return database.withTransaction {
-            val source = foodDao.getMealTemplate(templateId) ?: error("Template not found")
-            val rows = foodDao.getMealTemplateRows(templateId)
+            val source = foodDao.getMealTemplate(accountId, templateId) ?: error("Template not found")
+            val rows = foodDao.getMealTemplateRows(accountId, templateId)
             require(rows.isNotEmpty()) { "Template has no food" }
             val now = System.currentTimeMillis()
             val duplicateId = UUID.randomUUID().toString()
             foodDao.upsertMealTemplate(
                 MealTemplateEntity(
+                    accountId = accountId,
                     id = duplicateId,
                     name = name.trim(),
                     mealType = source.mealType,
@@ -1330,6 +1395,7 @@ class LocalFoodRepository @Inject constructor(
             rows.sortedBy { it.sortOrder }.forEachIndexed { index, row ->
                 foodDao.upsertMealTemplateItem(
                     MealTemplateItemEntity(
+                        accountId = accountId,
                         id = UUID.randomUUID().toString(),
                         templateId = duplicateId,
                         foodId = row.foodId,
@@ -1344,16 +1410,19 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun deleteMealTemplate(templateId: String) {
         require(templateId.isNotBlank()) { "Template id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
-            val deletedCount = foodDao.deleteMealTemplateById(templateId)
+            val deletedCount = foodDao.deleteMealTemplateById(accountId, templateId)
             check(deletedCount > 0) { "Template not found" }
         }
     }
 
     override suspend fun toggleFavoriteMealTemplate(templateId: String, isFavorite: Boolean) {
         require(templateId.isNotBlank()) { "Template id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
             val updatedCount = foodDao.updateMealTemplateFavorite(
+                accountId = accountId,
                 templateId = templateId,
                 isFavorite = isFavorite,
                 updatedAtEpochMillis = System.currentTimeMillis(),
@@ -1364,38 +1433,40 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun copyDiaryEntry(mealItemId: String, mealType: String, date: LocalDate): String {
         require(mealItemId.isNotBlank()) { "Diary item id is required" }
+        val accountId = activeAccountId()
         return database.withTransaction {
-            val item = foodDao.getMealItem(mealItemId) ?: error("Diary item not found")
+            val item = foodDao.getMealItem(accountId, mealItemId) ?: error("Diary item not found")
             insertMealItem(
+                context = MealItemWriteContext(accountId, System.currentTimeMillis()),
                 foodId = item.foodId,
                 mealType = mealType,
                 quantityGrams = item.quantityGrams,
                 date = date,
-                now = System.currentTimeMillis(),
             )
         }
     }
 
     override suspend fun markDiaryEntryLogged(mealItemId: String) {
         require(mealItemId.isNotBlank()) { "Diary item id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
-            val updatedCount = foodDao.updateMealItemStatus(mealItemId, FoodDiaryEntryStatus.Logged.asStorageValue())
+            val updatedCount = foodDao.updateMealItemStatus(accountId, mealItemId, FoodDiaryEntryStatus.Logged.asStorageValue())
             check(updatedCount > 0) { "Diary item not found" }
         }
     }
 
-    override fun observeShoppingList(): Flow<List<ShoppingListGroup>> =
-        foodDao.observeShoppingListItems().map { items -> items.toShoppingListGroups() }
+    override fun observeShoppingList(): Flow<List<ShoppingListGroup>> = activeAccountFlow { accountId -> foodDao.observeShoppingListItems(accountId).map { items -> items.toShoppingListGroups() } }
 
     override suspend fun generateShoppingList(startDate: LocalDate, endDate: LocalDate): List<ShoppingListGroup> {
         require(!endDate.isBefore(startDate)) { "End date must be on or after start date" }
+        val accountId = activeAccountId()
         return database.withTransaction {
             val plannedRows =
-                foodDao.getFoodDiaryEntryRowsForDateRange(startDate.toEpochDay(), endDate.toEpochDay())
+                foodDao.getFoodDiaryEntryRowsForDateRange(accountId, startDate.toEpochDay(), endDate.toEpochDay())
                     .filter { row -> row.status.toFoodDiaryEntryStatus() == FoodDiaryEntryStatus.Planned }
-            val generatedRows = plannedRows.toShoppingListGeneratedRows()
+            val generatedRows = plannedRows.toShoppingListGeneratedRows(accountId)
             val generatedByKey = generatedRows.associateBy { row -> row.sourceKey }
-            val existingGenerated = foodDao.getGeneratedShoppingListItems().associateBy { item -> item.sourceKey }
+            val existingGenerated = foodDao.getGeneratedShoppingListItems(accountId).associateBy { item -> item.sourceKey }
             val now = System.currentTimeMillis()
 
             generatedRows
@@ -1404,6 +1475,7 @@ class LocalFoodRepository @Inject constructor(
                     val existing = existingGenerated[row.sourceKey]
                     foodDao.upsertShoppingListItem(
                         ShoppingListItemEntity(
+                            accountId = accountId,
                             id = existing?.id ?: UUID.randomUUID().toString(),
                             name = row.name,
                             category = row.category,
@@ -1421,19 +1493,21 @@ class LocalFoodRepository @Inject constructor(
             existingGenerated
                 .filterKeys { sourceKey -> sourceKey !in generatedByKey.keys }
                 .values
-                .forEach { staleItem -> foodDao.deleteShoppingListItemById(staleItem.id) }
+                .forEach { staleItem -> foodDao.deleteShoppingListItemById(accountId, staleItem.id) }
 
-            foodDao.getShoppingListItems().toShoppingListGroups()
+            foodDao.getShoppingListItems(accountId).toShoppingListGroups()
         }
     }
 
     override suspend fun addManualShoppingListItem(input: ManualShoppingListItemInput): String {
         input.requireValid()
+        val accountId = activeAccountId()
         return database.withTransaction {
             val now = System.currentTimeMillis()
             val itemId = UUID.randomUUID().toString()
             foodDao.upsertShoppingListItem(
                 ShoppingListItemEntity(
+                    accountId = accountId,
                     id = itemId,
                     name = input.name.trim(),
                     category = input.category.normalizedShoppingCategory(),
@@ -1452,25 +1526,27 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun toggleShoppingListItem(itemId: String, isChecked: Boolean) {
         require(itemId.isNotBlank()) { "Shopping item id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
-            val updatedCount = foodDao.updateShoppingListItemChecked(itemId, isChecked, System.currentTimeMillis())
+            val updatedCount = foodDao.updateShoppingListItemChecked(accountId, itemId, isChecked, System.currentTimeMillis())
             check(updatedCount > 0) { "Shopping item not found" }
         }
     }
 
-    override fun observeRecipes(): Flow<List<Recipe>> =
-        foodDao.observeRecipeRows().map { rows ->
-            rows.toRecipes()
-        }
+    override fun observeRecipes(): Flow<List<Recipe>> = activeAccountFlow { accountId ->
+        foodDao.observeRecipeRows(accountId).map { rows -> rows.toRecipes() }
+    }
 
     override suspend fun upsertRecipe(input: RecipeUpsertInput): String {
         input.requireValid()
+        val accountId = activeAccountId()
         return database.withTransaction {
             val now = System.currentTimeMillis()
             val recipeId = input.recipeId?.trim()?.takeIf { it.isNotEmpty() } ?: UUID.randomUUID().toString()
-            val existing = foodDao.getRecipe(recipeId)
+            val existing = foodDao.getRecipe(accountId, recipeId)
             foodDao.upsertRecipe(
                 RecipeEntity(
+                    accountId = accountId,
                     id = recipeId,
                     name = input.name.trim(),
                     category = input.category?.trim()?.takeIf { it.isNotEmpty() },
@@ -1485,11 +1561,12 @@ class LocalFoodRepository @Inject constructor(
             )
             // Recipe ingredients are an owned collection and are replaced as one atomic graph.
             // A later validation/write failure rolls back both this parent edit and every child row.
-            foodDao.deleteRecipeIngredients(recipeId)
+            foodDao.deleteRecipeIngredients(accountId, recipeId)
             input.ingredients.forEachIndexed { index, ingredient ->
-                foodDao.getFood(ingredient.foodId) ?: error("Ingredient food not found")
+                foodDao.getFood(accountId, ingredient.foodId) ?: error("Ingredient food not found")
                 foodDao.upsertRecipeIngredient(
                     RecipeIngredientEntity(
+                        accountId = accountId,
                         id = UUID.randomUUID().toString(),
                         recipeId = recipeId,
                         foodId = ingredient.foodId,
@@ -1505,23 +1582,21 @@ class LocalFoodRepository @Inject constructor(
         }
     }
 
-    override suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String =
-        insertRecipeMealItem(
-            recipeId = recipeId,
-            mealType = mealType,
-            servings = servings,
-            date = date,
-            status = FoodDiaryEntryStatus.Logged,
-        )
+    override suspend fun logRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String = insertRecipeMealItem(
+        recipeId = recipeId,
+        mealType = mealType,
+        servings = servings,
+        date = date,
+        status = FoodDiaryEntryStatus.Logged,
+    )
 
-    override suspend fun planRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String =
-        insertRecipeMealItem(
-            recipeId = recipeId,
-            mealType = mealType,
-            servings = servings,
-            date = date,
-            status = FoodDiaryEntryStatus.Planned,
-        )
+    override suspend fun planRecipe(recipeId: String, mealType: String, servings: Double, date: LocalDate): String = insertRecipeMealItem(
+        recipeId = recipeId,
+        mealType = mealType,
+        servings = servings,
+        date = date,
+        status = FoodDiaryEntryStatus.Planned,
+    )
 
     private suspend fun insertRecipeMealItem(
         recipeId: String,
@@ -1532,9 +1607,10 @@ class LocalFoodRepository @Inject constructor(
     ): String {
         require(recipeId.isNotBlank()) { "Recipe id is required" }
         require(servings.isFinite() && servings > 0.0) { "Servings must be positive" }
+        val accountId = activeAccountId()
         return database.withTransaction {
-            val recipe = foodDao.getRecipe(recipeId) ?: error("Recipe not found")
-            val rows = foodDao.getRecipeRows(recipeId)
+            val recipe = foodDao.getRecipe(accountId, recipeId) ?: error("Recipe not found")
+            val rows = foodDao.getRecipeRows(accountId, recipeId)
             require(rows.isNotEmpty()) { "Recipe has no ingredients" }
             val fullRecipeGrams = recipe.resolvedCookedYieldGrams(rows)
             val per100gNutrition = rows.calculateRecipeNutritionPer100g(fullRecipeGrams)
@@ -1543,6 +1619,7 @@ class LocalFoodRepository @Inject constructor(
             val foodId = UUID.randomUUID().toString()
             foodDao.upsertFood(
                 FoodEntity(
+                    accountId = accountId,
                     id = foodId,
                     name = recipe.name,
                     brand = RECIPE_BRAND,
@@ -1567,14 +1644,13 @@ class LocalFoodRepository @Inject constructor(
                     magnesiumMgPer100g = per100gDetails.magnesiumMilligrams,
                 ),
             )
-            replaceServings(foodId, listOf(FoodServingInput(recipe.servingName, recipe.servingGrams)))
+            replaceServings(accountId, foodId, listOf(FoodServingInput(recipe.servingName, recipe.servingGrams)))
             insertMealItem(
+                context = MealItemWriteContext(accountId, now, status),
                 foodId = foodId,
                 mealType = mealType,
                 quantityGrams = recipe.servingGrams * servings,
                 date = date,
-                now = now,
-                status = status,
             )
         }
     }
@@ -1582,14 +1658,16 @@ class LocalFoodRepository @Inject constructor(
     override suspend fun duplicateRecipe(recipeId: String, name: String): String {
         require(recipeId.isNotBlank()) { "Recipe id is required" }
         require(name.isNotBlank()) { "Recipe name is required" }
+        val accountId = activeAccountId()
         return database.withTransaction {
-            val source = foodDao.getRecipe(recipeId) ?: error("Recipe not found")
-            val rows = foodDao.getRecipeRows(recipeId)
+            val source = foodDao.getRecipe(accountId, recipeId) ?: error("Recipe not found")
+            val rows = foodDao.getRecipeRows(accountId, recipeId)
             require(rows.isNotEmpty()) { "Recipe has no ingredients" }
             val now = System.currentTimeMillis()
             val duplicateId = UUID.randomUUID().toString()
             foodDao.upsertRecipe(
                 RecipeEntity(
+                    accountId = accountId,
                     id = duplicateId,
                     name = name.trim(),
                     category = source.category,
@@ -1605,6 +1683,7 @@ class LocalFoodRepository @Inject constructor(
             rows.sortedBy { it.sortOrder }.forEachIndexed { index, row ->
                 foodDao.upsertRecipeIngredient(
                     RecipeIngredientEntity(
+                        accountId = accountId,
                         id = UUID.randomUUID().toString(),
                         recipeId = duplicateId,
                         foodId = row.foodId,
@@ -1622,16 +1701,19 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun deleteRecipe(recipeId: String) {
         require(recipeId.isNotBlank()) { "Recipe id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
-            val deletedCount = foodDao.deleteRecipeById(recipeId)
+            val deletedCount = foodDao.deleteRecipeById(accountId, recipeId)
             check(deletedCount > 0) { "Recipe not found" }
         }
     }
 
     override suspend fun toggleFavoriteRecipe(recipeId: String, isFavorite: Boolean) {
         require(recipeId.isNotBlank()) { "Recipe id is required" }
+        val accountId = activeAccountId()
         database.withTransaction {
             val updatedCount = foodDao.updateRecipeFavorite(
+                accountId = accountId,
                 recipeId = recipeId,
                 isFavorite = isFavorite,
                 updatedAtEpochMillis = System.currentTimeMillis(),
@@ -1641,14 +1723,13 @@ class LocalFoodRepository @Inject constructor(
     }
 
     override suspend fun seedStarterFoods() {
-        database.withTransaction {
-            STARTER_FOODS.forEach { input ->
-                upsertSavedFood(input)
-            }
+        val accountId = activeAccountId()
+        STARTER_FOODS.forEach { input ->
+            upsertSavedFood(accountId, input)
         }
     }
 
-    private suspend fun upsertManualFood(input: FoodLogInput, now: Long): String {
+    private suspend fun upsertManualFood(accountId: String, input: FoodLogInput, now: Long): String {
         val foodId = UUID.randomUUID().toString()
         val servingGrams = input.servingGrams ?: input.quantityGrams
         val resolvedBrand = input.brand?.trim()?.takeIf { it.isNotEmpty() }
@@ -1656,6 +1737,7 @@ class LocalFoodRepository @Inject constructor(
 
         foodDao.upsertFood(
             FoodEntity(
+                accountId = accountId,
                 id = foodId,
                 name = input.name.trim(),
                 brand = resolvedBrand,
@@ -1681,45 +1763,46 @@ class LocalFoodRepository @Inject constructor(
                 magnesiumMgPer100g = input.nutritionDetailsPer100g.magnesiumMilligrams,
             ),
         )
-        replaceServings(foodId, listOf(FoodServingInput(servingLabel(servingGrams), servingGrams)))
+        replaceServings(accountId, foodId, listOf(FoodServingInput(servingLabel(servingGrams), servingGrams)))
         return foodId
     }
 
     private suspend fun insertMealItem(
+        context: MealItemWriteContext,
         foodId: String,
         mealType: String,
         quantityGrams: Double,
         date: LocalDate,
-        now: Long,
-        status: FoodDiaryEntryStatus = FoodDiaryEntryStatus.Logged,
     ): String {
         val mealId = UUID.randomUUID().toString()
         val mealItemId = UUID.randomUUID().toString()
 
         foodDao.upsertMeal(
             MealEntity(
+                accountId = context.accountId,
                 id = mealId,
                 dateEpochDay = date.toEpochDay(),
                 type = mealType.trim().ifBlank { DEFAULT_MEAL_TYPE },
                 notes = null,
-                createdAtEpochMillis = now,
-                updatedAtEpochMillis = now,
+                createdAtEpochMillis = context.now,
+                updatedAtEpochMillis = context.now,
             ),
         )
         foodDao.upsertMealItem(
             MealItemEntity(
+                accountId = context.accountId,
                 id = mealItemId,
                 mealId = mealId,
                 foodId = foodId,
                 quantityGrams = quantityGrams,
-                status = status.asStorageValue(),
+                status = context.status.asStorageValue(),
             ),
         )
 
         return mealItemId
     }
 
-    private suspend fun List<FoodDiaryEntryRow>.toShoppingListGeneratedRows(): List<ShoppingListGeneratedRow> {
+    private suspend fun List<FoodDiaryEntryRow>.toShoppingListGeneratedRows(accountId: String): List<ShoppingListGeneratedRow> {
         val generatedBySourceKey = linkedMapOf<String, ShoppingListGeneratedRow>()
 
         suspend fun addFood(foodId: String, name: String, category: String?, quantityGrams: Double) {
@@ -1740,8 +1823,8 @@ class LocalFoodRepository @Inject constructor(
         }
 
         forEach { row ->
-            val recipe = if (row.brand == RECIPE_BRAND) foodDao.getRecipeByName(row.foodName) else null
-            val recipeRows = recipe?.let { foodDao.getRecipeRows(it.id) }.orEmpty()
+            val recipe = if (row.brand == RECIPE_BRAND) foodDao.getRecipeByName(accountId, row.foodName) else null
+            val recipeRows = recipe?.let { foodDao.getRecipeRows(accountId, it.id) }.orEmpty()
             if (recipe != null && recipeRows.isNotEmpty()) {
                 val scale = row.quantityGrams / recipe.resolvedCookedYieldGrams(recipeRows)
                 recipeRows.forEach { ingredient ->
@@ -1766,61 +1849,75 @@ class LocalFoodRepository @Inject constructor(
     }
 
     private suspend fun upsertConfirmedFood(
+        accountId: String,
         result: ProductLookupResult.Found,
-        editedName: String,
-        editedBrand: String?,
-        editedNutrition: FoodNutrition,
-        editedNutritionDetails: NutritionDetails,
-        servingGrams: Double,
-        category: String?,
+        edit: ConfirmedFoodEdit,
         now: Long,
     ): String {
-        val existingBarcodeProduct = foodDao.getBarcodeProduct(result.barcode)
+        val existingBarcodeProduct = foodDao.getBarcodeProduct(accountId, result.barcode)
         val existingFood = existingBarcodeProduct?.linkedFoodId?.let { linkedFoodId ->
-            foodDao.getFood(linkedFoodId)
+            foodDao.getFood(accountId, linkedFoodId)
         }
-        val resolvedName = editedName.ifBlank { result.name }
-        val resolvedBrand = editedBrand?.trim()?.takeIf { it.isNotEmpty() }
+        val resolvedName = edit.name.ifBlank { result.name }
+        val resolvedBrand = edit.brand?.trim()?.takeIf { it.isNotEmpty() }
         val shouldReuseExistingFood =
             existingFood?.matchesLocalSnapshot(
                 name = resolvedName,
                 brand = resolvedBrand,
-                servingGrams = servingGrams,
-                nutrition = editedNutrition,
+                servingGrams = edit.servingGrams,
+                nutrition = edit.nutrition,
             ) == true
         val foodId = if (shouldReuseExistingFood) existingFood.id else UUID.randomUUID().toString()
 
         foodDao.upsertFood(
             FoodEntity(
+                accountId = accountId,
                 id = foodId,
                 name = resolvedName,
                 brand = resolvedBrand,
-                defaultServingGrams = servingGrams,
-                caloriesPer100g = editedNutrition.caloriesKcal,
-                proteinPer100g = editedNutrition.proteinGrams,
-                carbsPer100g = editedNutrition.carbsGrams,
-                fatPer100g = editedNutrition.fatGrams,
+                defaultServingGrams = edit.servingGrams,
+                caloriesPer100g = edit.nutrition.caloriesKcal,
+                proteinPer100g = edit.nutrition.proteinGrams,
+                carbsPer100g = edit.nutrition.carbsGrams,
+                fatPer100g = edit.nutrition.fatGrams,
                 createdAtEpochMillis = existingFood?.takeIf { shouldReuseExistingFood }?.createdAtEpochMillis ?: now,
                 updatedAtEpochMillis = now,
-                servingName = servingLabel(servingGrams),
+                servingName = servingLabel(edit.servingGrams),
                 barcode = result.barcode,
                 imageUrl = result.imageUrl,
-                category = category?.trim()?.takeIf { it.isNotEmpty() },
-                fiberPer100g = editedNutritionDetails.fiberGrams,
-                sugarPer100g = editedNutritionDetails.sugarGrams,
-                saturatedFatPer100g = editedNutritionDetails.saturatedFatGrams,
-                sodiumMgPer100g = editedNutritionDetails.sodiumMilligrams,
-                potassiumMgPer100g = editedNutritionDetails.potassiumMilligrams,
-                calciumMgPer100g = editedNutritionDetails.calciumMilligrams,
-                ironMgPer100g = editedNutritionDetails.ironMilligrams,
-                vitaminDMcgPer100g = editedNutritionDetails.vitaminDMicrograms,
-                vitaminCMgPer100g = editedNutritionDetails.vitaminCMilligrams,
-                magnesiumMgPer100g = editedNutritionDetails.magnesiumMilligrams,
+                category = edit.category?.trim()?.takeIf { it.isNotEmpty() },
+                fiberPer100g = edit.nutritionDetails.fiberGrams,
+                sugarPer100g = edit.nutritionDetails.sugarGrams,
+                saturatedFatPer100g = edit.nutritionDetails.saturatedFatGrams,
+                sodiumMgPer100g = edit.nutritionDetails.sodiumMilligrams,
+                potassiumMgPer100g = edit.nutritionDetails.potassiumMilligrams,
+                calciumMgPer100g = edit.nutritionDetails.calciumMilligrams,
+                ironMgPer100g = edit.nutritionDetails.ironMilligrams,
+                vitaminDMcgPer100g = edit.nutritionDetails.vitaminDMicrograms,
+                vitaminCMgPer100g = edit.nutritionDetails.vitaminCMilligrams,
+                magnesiumMgPer100g = edit.nutritionDetails.magnesiumMilligrams,
             ),
         )
-        replaceServings(foodId, listOf(FoodServingInput(servingLabel(servingGrams), servingGrams)))
+        replaceServings(
+            accountId,
+            foodId,
+            listOf(FoodServingInput(servingLabel(edit.servingGrams), edit.servingGrams)),
+        )
+        upsertBarcodeLink(accountId, existingBarcodeProduct, result, foodId, now)
+
+        return foodId
+    }
+
+    private suspend fun upsertBarcodeLink(
+        accountId: String,
+        existingBarcodeProduct: BarcodeProductEntity?,
+        result: ProductLookupResult.Found,
+        foodId: String,
+        now: Long,
+    ) {
         foodDao.upsertBarcodeProduct(
             BarcodeProductEntity(
+                accountId = accountId,
                 id = existingBarcodeProduct?.id ?: UUID.randomUUID().toString(),
                 barcode = result.barcode,
                 provider = OPEN_FOOD_FACTS_PROVIDER,
@@ -1832,18 +1929,17 @@ class LocalFoodRepository @Inject constructor(
                 fetchedAtEpochMillis = now,
             ),
         )
-
-        return foodId
     }
 
-    private suspend fun replaceServings(foodId: String, servings: List<FoodServingInput>) {
+    private suspend fun replaceServings(accountId: String, foodId: String, servings: List<FoodServingInput>) {
         // Servings are an owned collection. Keep the delete/recreate behavior atomic even if a
         // future caller does not already have an outer repository transaction.
         database.withTransaction {
-            foodDao.deleteServingsForFood(foodId)
+            foodDao.deleteServingsForFood(accountId, foodId)
             servings.forEachIndexed { index, serving ->
                 foodDao.upsertServing(
                     FoodServingEntity(
+                        accountId = accountId,
                         id = "$foodId:serving:$index",
                         foodId = foodId,
                         label = serving.label.trim().ifBlank { servingLabel(serving.grams) },
@@ -1863,25 +1959,23 @@ class LocalFoodRepository @Inject constructor(
         }
     }
 
-    private fun ProductDataQuality.asStorageValue(): String =
-        when (this) {
-            ProductDataQuality.Complete -> "complete"
-            ProductDataQuality.Incomplete -> "incomplete"
-        }
+    private fun ProductDataQuality.asStorageValue(): String = when (this) {
+        ProductDataQuality.Complete -> "complete"
+        ProductDataQuality.Incomplete -> "incomplete"
+    }
 
     private fun FoodEntity.matchesLocalSnapshot(
         name: String,
         brand: String?,
         servingGrams: Double,
         nutrition: FoodNutrition,
-    ): Boolean =
-        this.name == name &&
-            this.brand == brand &&
-            defaultServingGrams == servingGrams &&
-            caloriesPer100g == nutrition.caloriesKcal &&
-            proteinPer100g == nutrition.proteinGrams &&
-            carbsPer100g == nutrition.carbsGrams &&
-            fatPer100g == nutrition.fatGrams
+    ): Boolean = this.name == name &&
+        this.brand == brand &&
+        defaultServingGrams == servingGrams &&
+        caloriesPer100g == nutrition.caloriesKcal &&
+        proteinPer100g == nutrition.proteinGrams &&
+        carbsPer100g == nutrition.carbsGrams &&
+        fatPer100g == nutrition.fatGrams
 
     private companion object {
         const val OPEN_FOOD_FACTS_PROVIDER = "open_food_facts"
@@ -2015,15 +2109,14 @@ private fun FoodDiaryMeal.toHealthConnectFoodMealExport(): HealthConnectFoodMeal
     )
 }
 
-private fun String.toHealthConnectMealName(): String =
-    split('-', '_', ' ')
-        .filter { part -> part.isNotBlank() }
-        .joinToString(" ") { part ->
-            part.replaceFirstChar { char ->
-                if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
-            }
+private fun String.toHealthConnectMealName(): String = split('-', '_', ' ')
+    .filter { part -> part.isNotBlank() }
+    .joinToString(" ") { part ->
+        part.replaceFirstChar { char ->
+            if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
         }
-        .ifBlank { "Meal" }
+    }
+    .ifBlank { "Meal" }
 
 private object NoopHealthConnectGateway : HealthConnectGateway {
     override suspend fun status(): HealthConnectStatus = HealthConnectStatus(
@@ -2171,44 +2264,40 @@ private fun NutritionDetails.requireValid() {
     require(magnesiumMilligrams.isNonNegativeFinite())
 }
 
-private fun SavedFoodUpsertInput.resolvedServings(): List<FoodServingInput> =
-    servings.ifEmpty {
-        listOf(FoodServingInput(servingName?.takeIf { it.isNotBlank() } ?: "${defaultServingGrams.formatFoodNumber()} g", defaultServingGrams))
-    }
+private fun SavedFoodUpsertInput.resolvedServings(): List<FoodServingInput> = servings.ifEmpty {
+    listOf(FoodServingInput(servingName?.takeIf { it.isNotBlank() } ?: "${defaultServingGrams.formatFoodNumber()} g", defaultServingGrams))
+}
 
 private fun Double.isNonNegativeFinite(): Boolean = isFinite() && this >= 0.0
 
-private fun QuickCaloriePresetEntity.toQuickCaloriePreset(): QuickCaloriePreset =
-    QuickCaloriePreset(
-        id = id,
-        name = name,
-        caloriesKcal = caloriesKcal,
-        proteinGrams = proteinGrams,
-        carbsGrams = carbsGrams,
-        fatGrams = fatGrams,
-        isFavorite = isFavorite,
-    )
+private fun QuickCaloriePresetEntity.toQuickCaloriePreset(): QuickCaloriePreset = QuickCaloriePreset(
+    id = id,
+    name = name,
+    caloriesKcal = caloriesKcal,
+    proteinGrams = proteinGrams,
+    carbsGrams = carbsGrams,
+    fatGrams = fatGrams,
+    isFavorite = isFavorite,
+)
 
-private fun MealDefinitionEntity.toFoodMealDefinition(): FoodMealDefinition =
-    FoodMealDefinition(
-        id = id,
-        name = name,
-        timeMinutes = timeMinutes,
-        sortOrder = sortOrder,
-        isHidden = isHidden,
-    )
+private fun MealDefinitionEntity.toFoodMealDefinition(): FoodMealDefinition = FoodMealDefinition(
+    id = id,
+    name = name,
+    timeMinutes = timeMinutes,
+    sortOrder = sortOrder,
+    isHidden = isHidden,
+)
 
-private fun MealNutritionRow.toMealItemInput(): MealItemInput =
-    MealItemInput(
-        foodId = "",
-        quantityGrams = quantityGrams,
-        nutritionPer100g = FoodNutrition(
-            caloriesKcal = caloriesPer100g,
-            proteinGrams = proteinPer100g,
-            carbsGrams = carbsPer100g,
-            fatGrams = fatPer100g,
-        ),
-    )
+private fun MealNutritionRow.toMealItemInput(): MealItemInput = MealItemInput(
+    foodId = "",
+    quantityGrams = quantityGrams,
+    nutritionPer100g = FoodNutrition(
+        caloriesKcal = caloriesPer100g,
+        proteinGrams = proteinPer100g,
+        carbsGrams = carbsPer100g,
+        fatGrams = fatPer100g,
+    ),
+)
 
 private fun List<FoodDiaryEntryRow>.toFoodDiary(): FoodDiary {
     val entriesByMeal = groupBy { it.mealType }
@@ -2288,25 +2377,23 @@ private fun List<FoodDiaryEntryRow>.toFoodWeeklySummary(
     startDate: LocalDate,
     waterRows: List<WaterTotalRow>,
     goal: FoodGoal,
-): FoodWeeklySummary =
-    FoodWeeklySummary(
-        startDate = startDate,
-        days = toFoodRangeDaySummaries(startDate = startDate, dayCount = 7, waterRows = waterRows, goal = goal),
-        goal = goal,
-    )
+): FoodWeeklySummary = FoodWeeklySummary(
+    startDate = startDate,
+    days = toFoodRangeDaySummaries(startDate = startDate, dayCount = 7, waterRows = waterRows, goal = goal),
+    goal = goal,
+)
 
 private fun List<FoodDiaryEntryRow>.toFoodProgressSummary(
     startDate: LocalDate,
     dayCount: Int,
     waterRows: List<WaterTotalRow>,
     goal: FoodGoal,
-): FoodProgressSummary =
-    FoodProgressSummary(
-        startDate = startDate,
-        dayCount = dayCount,
-        days = toFoodRangeDaySummaries(startDate = startDate, dayCount = dayCount, waterRows = waterRows, goal = goal),
-        goal = goal,
-    )
+): FoodProgressSummary = FoodProgressSummary(
+    startDate = startDate,
+    dayCount = dayCount,
+    days = toFoodRangeDaySummaries(startDate = startDate, dayCount = dayCount, waterRows = waterRows, goal = goal),
+    goal = goal,
+)
 
 private fun List<FoodDiaryEntryRow>.toFoodRangeDaySummaries(
     startDate: LocalDate,
@@ -2331,27 +2418,25 @@ private fun List<FoodDiaryEntryRow>.toFoodRangeDaySummaries(
     }
 }
 
-private fun List<FoodDiaryEntry>.calculateTotals(): NutritionTotals =
-    NutritionTotals(
-        caloriesKcal = sumOf { it.caloriesKcal },
-        proteinGrams = sumOf { it.proteinGrams },
-        carbsGrams = sumOf { it.carbsGrams },
-        fatGrams = sumOf { it.fatGrams },
-    )
+private fun List<FoodDiaryEntry>.calculateTotals(): NutritionTotals = NutritionTotals(
+    caloriesKcal = sumOf { it.caloriesKcal },
+    proteinGrams = sumOf { it.proteinGrams },
+    carbsGrams = sumOf { it.carbsGrams },
+    fatGrams = sumOf { it.fatGrams },
+)
 
-private fun List<FoodDiaryEntry>.calculateDetailTotals(): NutritionDetails =
-    NutritionDetails(
-        fiberGrams = sumOf { it.nutritionDetails.fiberGrams },
-        sugarGrams = sumOf { it.nutritionDetails.sugarGrams },
-        saturatedFatGrams = sumOf { it.nutritionDetails.saturatedFatGrams },
-        sodiumMilligrams = sumOf { it.nutritionDetails.sodiumMilligrams },
-        potassiumMilligrams = sumOf { it.nutritionDetails.potassiumMilligrams },
-        calciumMilligrams = sumOf { it.nutritionDetails.calciumMilligrams },
-        ironMilligrams = sumOf { it.nutritionDetails.ironMilligrams },
-        vitaminDMicrograms = sumOf { it.nutritionDetails.vitaminDMicrograms },
-        vitaminCMilligrams = sumOf { it.nutritionDetails.vitaminCMilligrams },
-        magnesiumMilligrams = sumOf { it.nutritionDetails.magnesiumMilligrams },
-    )
+private fun List<FoodDiaryEntry>.calculateDetailTotals(): NutritionDetails = NutritionDetails(
+    fiberGrams = sumOf { it.nutritionDetails.fiberGrams },
+    sugarGrams = sumOf { it.nutritionDetails.sugarGrams },
+    saturatedFatGrams = sumOf { it.nutritionDetails.saturatedFatGrams },
+    sodiumMilligrams = sumOf { it.nutritionDetails.sodiumMilligrams },
+    potassiumMilligrams = sumOf { it.nutritionDetails.potassiumMilligrams },
+    calciumMilligrams = sumOf { it.nutritionDetails.calciumMilligrams },
+    ironMilligrams = sumOf { it.nutritionDetails.ironMilligrams },
+    vitaminDMicrograms = sumOf { it.nutritionDetails.vitaminDMicrograms },
+    vitaminCMilligrams = sumOf { it.nutritionDetails.vitaminCMilligrams },
+    magnesiumMilligrams = sumOf { it.nutritionDetails.magnesiumMilligrams },
+)
 
 private data class ShoppingListGeneratedRow(
     val sourceKey: String,
@@ -2360,176 +2445,164 @@ private data class ShoppingListGeneratedRow(
     val quantityGrams: Double,
 )
 
-private fun List<ShoppingListItemEntity>.toShoppingListGroups(): List<ShoppingListGroup> =
-    groupBy { item -> item.category.normalizedShoppingCategory() }
-        .map { (category, items) ->
-            ShoppingListGroup(
-                category = category,
-                items = items
-                    .sortedWith(compareBy<ShoppingListItemEntity> { it.isChecked }.thenBy { it.name.lowercase(Locale.US) })
-                    .map { it.toShoppingListItem() },
+private fun List<ShoppingListItemEntity>.toShoppingListGroups(): List<ShoppingListGroup> = groupBy { item -> item.category.normalizedShoppingCategory() }
+    .map { (category, items) ->
+        ShoppingListGroup(
+            category = category,
+            items = items
+                .sortedWith(compareBy<ShoppingListItemEntity> { it.isChecked }.thenBy { it.name.lowercase(Locale.US) })
+                .map { it.toShoppingListItem() },
+        )
+    }
+    .sortedBy { group -> group.category.lowercase(Locale.US) }
+
+private fun ShoppingListItemEntity.toShoppingListItem(): ShoppingListItem = ShoppingListItem(
+    id = id,
+    name = name,
+    category = category.normalizedShoppingCategory(),
+    quantityGrams = quantityGrams,
+    isChecked = isChecked,
+    isManual = isManual,
+)
+
+private fun String?.normalizedShoppingCategory(): String = this?.trim()?.takeIf { it.isNotEmpty() } ?: "Other"
+
+private fun FoodDiaryEntryStatus.asStorageValue(): String = when (this) {
+    FoodDiaryEntryStatus.Logged -> "logged"
+    FoodDiaryEntryStatus.Planned -> "planned"
+}
+
+private fun String.toFoodDiaryEntryStatus(): FoodDiaryEntryStatus = when (lowercase(Locale.US)) {
+    "planned" -> FoodDiaryEntryStatus.Planned
+    else -> FoodDiaryEntryStatus.Logged
+}
+
+private fun FoodEntity.toSavedFoodItem(servings: List<FoodServingEntity>): SavedFoodItem = SavedFoodItem(
+    id = id,
+    imageUrl = imageUrl,
+    name = name,
+    brand = brand,
+    defaultServingGrams = defaultServingGrams,
+    nutritionPer100g = FoodNutrition(
+        caloriesKcal = caloriesPer100g,
+        proteinGrams = proteinPer100g,
+        carbsGrams = carbsPer100g,
+        fatGrams = fatPer100g,
+    ),
+    nutritionDetailsPer100g = NutritionDetails(
+        fiberGrams = fiberPer100g,
+        sugarGrams = sugarPer100g,
+        saturatedFatGrams = saturatedFatPer100g,
+        sodiumMilligrams = sodiumMgPer100g,
+        potassiumMilligrams = potassiumMgPer100g,
+        calciumMilligrams = calciumMgPer100g,
+        ironMilligrams = ironMgPer100g,
+        vitaminDMicrograms = vitaminDMcgPer100g,
+        vitaminCMilligrams = vitaminCMgPer100g,
+        magnesiumMilligrams = magnesiumMgPer100g,
+    ),
+    servingName = servingName,
+    barcode = barcode,
+    category = category,
+    isFavorite = isFavorite,
+    servings = servings.map { serving -> FoodServingOption(serving.id, serving.label, serving.grams) },
+)
+
+private fun FoodGoal.toEntity(accountId: String, now: Long): FoodGoalEntity = FoodGoalEntity(
+    accountId = accountId,
+    id = "default",
+    dailyCaloriesKcal = dailyCaloriesKcal,
+    proteinGrams = proteinGrams,
+    carbsGrams = carbsGrams,
+    fatGrams = fatGrams,
+    fiberGrams = fiberGrams,
+    sugarGrams = sugarGrams,
+    saturatedFatGrams = saturatedFatGrams,
+    sodiumMilligrams = sodiumMilligrams,
+    mode = mode.name,
+    includeTrainingCalories = includeTrainingCalories,
+    useNetCarbs = useNetCarbs,
+    waterGoalMilliliters = waterGoalMilliliters,
+    updatedAtEpochMillis = now,
+)
+
+private fun FoodGoalEntity.toFoodGoal(): FoodGoal = FoodGoal(
+    dailyCaloriesKcal = dailyCaloriesKcal,
+    proteinGrams = proteinGrams,
+    carbsGrams = carbsGrams,
+    fatGrams = fatGrams,
+    fiberGrams = fiberGrams,
+    sugarGrams = sugarGrams,
+    saturatedFatGrams = saturatedFatGrams,
+    sodiumMilligrams = sodiumMilligrams,
+    mode = mode.toFoodGoalMode(),
+    includeTrainingCalories = includeTrainingCalories,
+    useNetCarbs = useNetCarbs,
+    waterGoalMilliliters = waterGoalMilliliters,
+)
+
+private fun String.toFoodGoalMode(): FoodGoalMode = when (this) {
+    "Maintain" -> FoodGoalMode.Balanced
+    "LoseWeight" -> FoodGoalMode.WeightLoss
+    else -> runCatching { FoodGoalMode.valueOf(this) }.getOrDefault(FoodGoalMode.Balanced)
+}
+
+private fun List<MealTemplateItemRow>.toMealTemplates(): List<MealTemplate> = groupBy { it.templateId }.map { (_, rows) ->
+    val first = rows.first()
+    MealTemplate(
+        id = first.templateId,
+        name = first.templateName,
+        mealType = first.templateMealType,
+        isFavorite = first.templateIsFavorite,
+        items = rows.sortedBy { it.sortOrder }.map { row ->
+            MealTemplateItem(
+                foodId = row.foodId,
+                foodName = row.foodName,
+                brand = row.brand,
+                quantityGrams = row.quantityGrams,
             )
-        }
-        .sortedBy { group -> group.category.lowercase(Locale.US) }
-
-private fun ShoppingListItemEntity.toShoppingListItem(): ShoppingListItem =
-    ShoppingListItem(
-        id = id,
-        name = name,
-        category = category.normalizedShoppingCategory(),
-        quantityGrams = quantityGrams,
-        isChecked = isChecked,
-        isManual = isManual,
+        },
     )
+}
 
-private fun String?.normalizedShoppingCategory(): String =
-    this?.trim()?.takeIf { it.isNotEmpty() } ?: "Other"
-
-private fun FoodDiaryEntryStatus.asStorageValue(): String =
-    when (this) {
-        FoodDiaryEntryStatus.Logged -> "logged"
-        FoodDiaryEntryStatus.Planned -> "planned"
-    }
-
-private fun String.toFoodDiaryEntryStatus(): FoodDiaryEntryStatus =
-    when (lowercase(Locale.US)) {
-        "planned" -> FoodDiaryEntryStatus.Planned
-        else -> FoodDiaryEntryStatus.Logged
-    }
-
-private fun FoodEntity.toSavedFoodItem(servings: List<FoodServingEntity>): SavedFoodItem =
-    SavedFoodItem(
-        id = id,
-        imageUrl = imageUrl,
-        name = name,
-        brand = brand,
-        defaultServingGrams = defaultServingGrams,
-        nutritionPer100g = FoodNutrition(
-            caloriesKcal = caloriesPer100g,
-            proteinGrams = proteinPer100g,
-            carbsGrams = carbsPer100g,
-            fatGrams = fatPer100g,
-        ),
-        nutritionDetailsPer100g = NutritionDetails(
-            fiberGrams = fiberPer100g,
-            sugarGrams = sugarPer100g,
-            saturatedFatGrams = saturatedFatPer100g,
-            sodiumMilligrams = sodiumMgPer100g,
-            potassiumMilligrams = potassiumMgPer100g,
-            calciumMilligrams = calciumMgPer100g,
-            ironMilligrams = ironMgPer100g,
-            vitaminDMicrograms = vitaminDMcgPer100g,
-            vitaminCMilligrams = vitaminCMgPer100g,
-            magnesiumMilligrams = magnesiumMgPer100g,
-        ),
-        servingName = servingName,
-        barcode = barcode,
-        category = category,
-        isFavorite = isFavorite,
-        servings = servings.map { serving -> FoodServingOption(serving.id, serving.label, serving.grams) },
+private fun List<RecipeIngredientRow>.toRecipes(): List<Recipe> = groupBy { it.recipeId }.map { (_, rows) ->
+    val first = rows.first()
+    val fullRecipeGrams = first.resolvedCookedYieldGrams(rows)
+    val per100gNutrition = rows.calculateRecipeNutritionPer100g(fullRecipeGrams)
+    val per100gDetails = rows.calculateRecipeDetailsPer100g(fullRecipeGrams)
+    val servingMultiplier = first.recipeServingGrams / 100.0
+    Recipe(
+        id = first.recipeId,
+        name = first.recipeName,
+        category = first.recipeCategory,
+        servingName = first.recipeServingName,
+        servingGrams = first.recipeServingGrams,
+        servings = first.recipeServings,
+        cookedYieldGrams = fullRecipeGrams,
+        isFavorite = first.recipeIsFavorite,
+        ingredients = rows.sortedBy { it.sortOrder }.map { row ->
+            RecipeIngredient(
+                foodId = row.foodId,
+                foodName = row.foodName,
+                brand = row.brand,
+                quantityGrams = row.quantityGrams,
+                unitLabel = row.unitLabel,
+                unitGrams = row.unitGrams,
+                unitQuantity = row.unitQuantity.takeIf { it > 0.0 } ?: row.quantityGrams,
+            )
+        },
+        nutritionPerServing = per100gNutrition * servingMultiplier,
+        detailNutritionPerServing = per100gDetails * servingMultiplier,
     )
+}
 
-private fun FoodGoal.toEntity(now: Long): FoodGoalEntity =
-    FoodGoalEntity(
-        id = "default",
-        dailyCaloriesKcal = dailyCaloriesKcal,
-        proteinGrams = proteinGrams,
-        carbsGrams = carbsGrams,
-        fatGrams = fatGrams,
-        fiberGrams = fiberGrams,
-        sugarGrams = sugarGrams,
-        saturatedFatGrams = saturatedFatGrams,
-        sodiumMilligrams = sodiumMilligrams,
-        mode = mode.name,
-        includeTrainingCalories = includeTrainingCalories,
-        useNetCarbs = useNetCarbs,
-        waterGoalMilliliters = waterGoalMilliliters,
-        updatedAtEpochMillis = now,
-    )
+private fun RecipeEntity.resolvedCookedYieldGrams(rows: List<RecipeIngredientRow>): Double = cookedYieldGrams.takeIf { it.isFinite() && it > 0.0 }
+    ?: rows.sumOf { it.quantityGrams }.takeIf { it > 0.0 }
+    ?: servingGrams
 
-private fun FoodGoalEntity.toFoodGoal(): FoodGoal =
-    FoodGoal(
-        dailyCaloriesKcal = dailyCaloriesKcal,
-        proteinGrams = proteinGrams,
-        carbsGrams = carbsGrams,
-        fatGrams = fatGrams,
-        fiberGrams = fiberGrams,
-        sugarGrams = sugarGrams,
-        saturatedFatGrams = saturatedFatGrams,
-        sodiumMilligrams = sodiumMilligrams,
-        mode = mode.toFoodGoalMode(),
-        includeTrainingCalories = includeTrainingCalories,
-        useNetCarbs = useNetCarbs,
-        waterGoalMilliliters = waterGoalMilliliters,
-    )
-
-private fun String.toFoodGoalMode(): FoodGoalMode =
-    when (this) {
-        "Maintain" -> FoodGoalMode.Balanced
-        "LoseWeight" -> FoodGoalMode.WeightLoss
-        else -> runCatching { FoodGoalMode.valueOf(this) }.getOrDefault(FoodGoalMode.Balanced)
-    }
-
-private fun List<MealTemplateItemRow>.toMealTemplates(): List<MealTemplate> =
-    groupBy { it.templateId }.map { (_, rows) ->
-        val first = rows.first()
-        MealTemplate(
-            id = first.templateId,
-            name = first.templateName,
-            mealType = first.templateMealType,
-            isFavorite = first.templateIsFavorite,
-            items = rows.sortedBy { it.sortOrder }.map { row ->
-                MealTemplateItem(
-                    foodId = row.foodId,
-                    foodName = row.foodName,
-                    brand = row.brand,
-                    quantityGrams = row.quantityGrams,
-                )
-            },
-        )
-    }
-
-private fun List<RecipeIngredientRow>.toRecipes(): List<Recipe> =
-    groupBy { it.recipeId }.map { (_, rows) ->
-        val first = rows.first()
-        val fullRecipeGrams = first.resolvedCookedYieldGrams(rows)
-        val per100gNutrition = rows.calculateRecipeNutritionPer100g(fullRecipeGrams)
-        val per100gDetails = rows.calculateRecipeDetailsPer100g(fullRecipeGrams)
-        val servingMultiplier = first.recipeServingGrams / 100.0
-        Recipe(
-            id = first.recipeId,
-            name = first.recipeName,
-            category = first.recipeCategory,
-            servingName = first.recipeServingName,
-            servingGrams = first.recipeServingGrams,
-            servings = first.recipeServings,
-            cookedYieldGrams = fullRecipeGrams,
-            isFavorite = first.recipeIsFavorite,
-            ingredients = rows.sortedBy { it.sortOrder }.map { row ->
-                RecipeIngredient(
-                    foodId = row.foodId,
-                    foodName = row.foodName,
-                    brand = row.brand,
-                    quantityGrams = row.quantityGrams,
-                    unitLabel = row.unitLabel,
-                    unitGrams = row.unitGrams,
-                    unitQuantity = row.unitQuantity.takeIf { it > 0.0 } ?: row.quantityGrams,
-                )
-            },
-            nutritionPerServing = per100gNutrition * servingMultiplier,
-            detailNutritionPerServing = per100gDetails * servingMultiplier,
-        )
-    }
-
-private fun RecipeEntity.resolvedCookedYieldGrams(rows: List<RecipeIngredientRow>): Double =
-    cookedYieldGrams.takeIf { it.isFinite() && it > 0.0 }
-        ?: rows.sumOf { it.quantityGrams }.takeIf { it > 0.0 }
-        ?: servingGrams
-
-private fun RecipeIngredientRow.resolvedCookedYieldGrams(rows: List<RecipeIngredientRow>): Double =
-    recipeCookedYieldGrams.takeIf { it.isFinite() && it > 0.0 }
-        ?: rows.sumOf { it.quantityGrams }.takeIf { it > 0.0 }
-        ?: recipeServingGrams
+private fun RecipeIngredientRow.resolvedCookedYieldGrams(rows: List<RecipeIngredientRow>): Double = recipeCookedYieldGrams.takeIf { it.isFinite() && it > 0.0 }
+    ?: rows.sumOf { it.quantityGrams }.takeIf { it > 0.0 }
+    ?: recipeServingGrams
 
 private fun List<RecipeIngredientRow>.calculateRecipeNutritionPer100g(totalRecipeGrams: Double): FoodNutrition {
     val totalCalories = sumOf { it.caloriesPer100g * it.quantityGrams / 100.0 }
@@ -2566,27 +2639,25 @@ private fun List<RecipeIngredientRow>.calculateRecipeDetailsPer100g(totalRecipeG
     )
 }
 
-private operator fun FoodNutrition.times(multiplier: Double): FoodNutrition =
-    FoodNutrition(
-        caloriesKcal = caloriesKcal * multiplier,
-        proteinGrams = proteinGrams * multiplier,
-        carbsGrams = carbsGrams * multiplier,
-        fatGrams = fatGrams * multiplier,
-    )
+private operator fun FoodNutrition.times(multiplier: Double): FoodNutrition = FoodNutrition(
+    caloriesKcal = caloriesKcal * multiplier,
+    proteinGrams = proteinGrams * multiplier,
+    carbsGrams = carbsGrams * multiplier,
+    fatGrams = fatGrams * multiplier,
+)
 
-private operator fun NutritionDetails.times(multiplier: Double): NutritionDetails =
-    NutritionDetails(
-        fiberGrams = fiberGrams * multiplier,
-        sugarGrams = sugarGrams * multiplier,
-        saturatedFatGrams = saturatedFatGrams * multiplier,
-        sodiumMilligrams = sodiumMilligrams * multiplier,
-        potassiumMilligrams = potassiumMilligrams * multiplier,
-        calciumMilligrams = calciumMilligrams * multiplier,
-        ironMilligrams = ironMilligrams * multiplier,
-        vitaminDMicrograms = vitaminDMicrograms * multiplier,
-        vitaminCMilligrams = vitaminCMilligrams * multiplier,
-        magnesiumMilligrams = magnesiumMilligrams * multiplier,
-    )
+private operator fun NutritionDetails.times(multiplier: Double): NutritionDetails = NutritionDetails(
+    fiberGrams = fiberGrams * multiplier,
+    sugarGrams = sugarGrams * multiplier,
+    saturatedFatGrams = saturatedFatGrams * multiplier,
+    sodiumMilligrams = sodiumMilligrams * multiplier,
+    potassiumMilligrams = potassiumMilligrams * multiplier,
+    calciumMilligrams = calciumMilligrams * multiplier,
+    ironMilligrams = ironMilligrams * multiplier,
+    vitaminDMicrograms = vitaminDMicrograms * multiplier,
+    vitaminCMilligrams = vitaminCMilligrams * multiplier,
+    magnesiumMilligrams = magnesiumMilligrams * multiplier,
+)
 
 private fun String.normalizedMealDefinitionId(): String {
     val normalized = trim().lowercase(Locale.US)
@@ -2596,12 +2667,11 @@ private fun String.normalizedMealDefinitionId(): String {
     }
 }
 
-private fun String.generatedMealDefinitionId(): String =
-    trim()
-        .lowercase(Locale.US)
-        .replace(Regex("[^a-z0-9]+"), "_")
-        .trim('_')
-        .ifBlank { "meal_${UUID.randomUUID()}" }
+private fun String.generatedMealDefinitionId(): String = trim()
+    .lowercase(Locale.US)
+    .replace(Regex("[^a-z0-9]+"), "_")
+    .trim('_')
+    .ifBlank { "meal_${UUID.randomUUID()}" }
 
 private fun Double.formatFoodNumber(): String {
     val longValue = toLong()

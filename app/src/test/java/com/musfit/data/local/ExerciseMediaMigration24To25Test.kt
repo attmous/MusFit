@@ -6,7 +6,6 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.core.di.DatabaseModule
-import java.io.File
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -15,6 +14,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 class ExerciseMediaMigration24To25Test {
@@ -51,6 +51,7 @@ class ExerciseMediaMigration24To25Test {
                     DatabaseModule.MIGRATION_33_34,
                     DatabaseModule.MIGRATION_34_35,
                     DatabaseModule.MIGRATION_35_36,
+                    DatabaseModule.MIGRATION_36_37,
                 )
                 .build()
         try {
@@ -106,12 +107,11 @@ class ExerciseMediaMigration24To25Test {
         }
     }
 
-    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean =
-        database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
-            val nameIndex = cursor.getColumnIndex("name")
-            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
-                .any { it == columnName }
-        }
+    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean = database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
+        val nameIndex = cursor.getColumnIndex("name")
+        generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
+            .any { it == columnName }
+    }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
         val schemaFile = resolveSchemaFile(version)

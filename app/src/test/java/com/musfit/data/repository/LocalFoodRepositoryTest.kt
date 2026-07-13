@@ -19,6 +19,7 @@ import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -38,6 +39,7 @@ import java.util.concurrent.Executor
 class LocalFoodRepositoryTest {
     private lateinit var database: MusFitDatabase
     private lateinit var repository: LocalFoodRepository
+    private lateinit var accountRepository: LocalAccountRepository
     private val executedSql = CopyOnWriteArrayList<String>()
 
     @Before
@@ -51,7 +53,9 @@ class LocalFoodRepositoryTest {
                     Executor { command -> command.run() },
                 )
                 .build()
-        repository = LocalFoodRepository(database = database, foodDao = database.foodDao())
+        accountRepository = LocalAccountRepository(database.accountDao(), clock = { 1_000L })
+        runBlocking { accountRepository.ensureActiveAccount() }
+        repository = LocalFoodRepository(database = database, foodDao = database.foodDao(), accountRepository = accountRepository)
     }
 
     @After
@@ -86,26 +90,109 @@ class LocalFoodRepositoryTest {
         assertEquals(0.0, repository.observeBurnedCalories(date).first(), 0.0)
     }
 
+    @Test
+    fun activeAccount_isolatesEveryFoodOwnedSurface() = runTest {
+        val date = LocalDate.of(2026, 7, 13)
+        val foodId = repository.upsertSavedFood(
+            SavedFoodUpsertInput(
+                foodId = null,
+                name = "Account A oats",
+                brand = "Private pantry",
+                defaultServingGrams = 50.0,
+                nutritionPer100g = nutrition(calories = 380.0, protein = 13.0, carbs = 67.0, fat = 7.0),
+                isFavorite = true,
+                servings = listOf(FoodServingInput("Bowl", 50.0)),
+            ),
+        )
+        repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 50.0, date))
+        repository.planSavedFood(SavedFoodLogInput(foodId, "lunch", 75.0, date.plusDays(1)))
+        repository.saveFavoriteQuickLog(
+            QuickCaloriePresetInput("Account A shake", 300.0, 25.0, 20.0, 8.0),
+        )
+        repository.upsertCustomMealDefinition(
+            FoodMealDefinitionInput("shared-meal", "Account A meal", 9 * 60, 10),
+        )
+        repository.updateFoodGoal(DEFAULT_REPOSITORY_FOOD_GOAL.copy(dailyCaloriesKcal = 2_600.0))
+        repository.logWater(WaterLogInput(date, 750.0))
+        repository.setFoodHealthConnectSyncEnabled(true)
+        repository.saveMealAsTemplate(date, "breakfast", "Account A template")
+        repository.upsertRecipe(
+            RecipeUpsertInput(
+                recipeId = null,
+                name = "Account A recipe",
+                category = "Breakfast",
+                servingName = "Bowl",
+                servingGrams = 50.0,
+                ingredients = listOf(RecipeIngredientInput(foodId, 50.0)),
+            ),
+        )
+        repository.addManualShoppingListItem(
+            ManualShoppingListItemInput("Account A bananas", "Produce", 300.0),
+        )
+
+        val secondAccountId = accountRepository.createAccount("Account B")
+        accountRepository.switchAccount(secondAccountId)
+
+        assertTrue(repository.observeSavedFoods().first().isEmpty())
+        assertTrue(repository.observeFoodDiary(date).first().meals.isEmpty())
+        assertTrue(repository.observeFoodPlan(date).first().all { it.loggedEntryCount == 0 && it.plannedEntryCount == 0 })
+        assertTrue(repository.observeQuickCaloriePresets().first().isEmpty())
+        assertTrue(repository.observeCustomMealDefinitions().first().isEmpty())
+        assertTrue(repository.observeMealTemplates().first().isEmpty())
+        assertTrue(repository.observeRecipes().first().isEmpty())
+        assertTrue(repository.observeShoppingList().first().isEmpty())
+        assertEquals(DEFAULT_REPOSITORY_FOOD_GOAL, repository.observeFoodGoal().first())
+        assertEquals(0.0, repository.observeWaterSummary(date).first().consumedMilliliters, 0.0)
+        assertFalse(repository.observeFoodHealthConnectSyncState().first().isEnabled)
+
+        repository.upsertSavedFood(
+            SavedFoodUpsertInput(
+                foodId = foodId,
+                name = "Account B oats",
+                brand = "Other pantry",
+                defaultServingGrams = 60.0,
+                nutritionPer100g = nutrition(calories = 390.0, protein = 14.0, carbs = 65.0, fat = 8.0),
+                servings = listOf(FoodServingInput("Cup", 60.0)),
+            ),
+        )
+        repository.upsertCustomMealDefinition(
+            FoodMealDefinitionInput("shared-meal", "Account B meal", 10 * 60, 20),
+        )
+        repository.updateFoodGoal(DEFAULT_REPOSITORY_FOOD_GOAL.copy(dailyCaloriesKcal = 1_800.0))
+        repository.logWater(WaterLogInput(date, 250.0))
+
+        assertEquals("Account B oats", repository.observeSavedFoods().first().single().name)
+        assertEquals("Account B meal", repository.observeCustomMealDefinitions().first().single().name)
+        assertEquals(1_800.0, repository.observeFoodGoal().first().dailyCaloriesKcal, 0.0)
+        assertEquals(250.0, repository.observeWaterSummary(date).first().consumedMilliliters, 0.0)
+
+        accountRepository.switchAccount("local-default")
+
+        assertEquals("Account A oats", repository.observeSavedFoods().first().single().name)
+        assertEquals("Account A meal", repository.observeCustomMealDefinitions().first().single().name)
+        assertEquals(2_600.0, repository.observeFoodGoal().first().dailyCaloriesKcal, 0.0)
+        assertEquals(750.0, repository.observeWaterSummary(date).first().consumedMilliliters, 0.0)
+    }
+
     private fun dailyHealthSummary(
         date: LocalDate,
         totalCaloriesKcal: Double?,
         activeCaloriesKcal: Double? = null,
-    ) =
-        DailyHealthSummaryEntity(
-            dateEpochDay = date.toEpochDay(),
-            steps = null,
-            activeCaloriesKcal = activeCaloriesKcal,
-            totalCaloriesKcal = totalCaloriesKcal,
-            distanceMeters = null,
-            sleepMinutes = null,
-            exerciseMinutes = null,
-            exerciseSessionCount = null,
-            latestWeightKg = null,
-            latestBodyFatPercent = null,
-            restingHeartRateBpm = null,
-            hrvRmssdMillis = null,
-            updatedAtEpochMillis = 0L,
-        )
+    ) = DailyHealthSummaryEntity(
+        dateEpochDay = date.toEpochDay(),
+        steps = null,
+        activeCaloriesKcal = activeCaloriesKcal,
+        totalCaloriesKcal = totalCaloriesKcal,
+        distanceMeters = null,
+        sleepMinutes = null,
+        exerciseMinutes = null,
+        exerciseSessionCount = null,
+        latestWeightKg = null,
+        latestBodyFatPercent = null,
+        restingHeartRateBpm = null,
+        hrvRmssdMillis = null,
+        updatedAtEpochMillis = 0L,
+    )
 
     @Test
     fun saveConfirmedProduct_persistsFoodServingAndBarcodeLink() = runTest {
@@ -120,9 +207,9 @@ class LocalFoodRepositoryTest {
                 editedNutrition = editedNutrition,
             )
 
-        val savedFood = database.foodDao().observeFoods().first().single()
-        val barcodeProduct = database.foodDao().getBarcodeProduct(result.barcode)
-        val servings = database.foodDao().getServings(foodId)
+        val savedFood = database.foodDao().observeFoods(TEST_ACCOUNT_ID).first().single()
+        val barcodeProduct = database.foodDao().getBarcodeProduct(TEST_ACCOUNT_ID, result.barcode)
+        val servings = database.foodDao().getServings(TEST_ACCOUNT_ID, foodId)
 
         assertEquals(foodId, barcodeProduct?.linkedFoodId)
         assertEquals("Strained Greek Yogurt", savedFood.name)
@@ -163,9 +250,9 @@ class LocalFoodRepositoryTest {
                 editedNutrition = editedNutrition,
             )
 
-        val foods = database.foodDao().observeFoods().first()
-        val barcodeProduct = database.foodDao().getBarcodeProduct(identicalResult.barcode)
-        val servings = database.foodDao().getServings(firstFoodId)
+        val foods = database.foodDao().observeFoods(TEST_ACCOUNT_ID).first()
+        val barcodeProduct = database.foodDao().getBarcodeProduct(TEST_ACCOUNT_ID, identicalResult.barcode)
+        val servings = database.foodDao().getServings(TEST_ACCOUNT_ID, firstFoodId)
 
         assertEquals(firstFoodId, secondFoodId)
         assertEquals(1, foods.size)
@@ -200,6 +287,7 @@ class LocalFoodRepositoryTest {
 
         val meal =
             MealEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "meal-1",
                 dateEpochDay = 20_000L,
                 type = "breakfast",
@@ -209,6 +297,7 @@ class LocalFoodRepositoryTest {
             )
         val mealItem =
             MealItemEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "meal-item-1",
                 mealId = meal.id,
                 foodId = originalFoodId,
@@ -225,13 +314,13 @@ class LocalFoodRepositoryTest {
                 editedNutrition = updatedNutrition,
             )
 
-        val foodsById = database.foodDao().observeFoods().first().associateBy { it.id }
-        val barcodeProduct = database.foodDao().getBarcodeProduct(initialResult.barcode)
+        val foodsById = database.foodDao().observeFoods(TEST_ACCOUNT_ID).first().associateBy { it.id }
+        val barcodeProduct = database.foodDao().getBarcodeProduct(TEST_ACCOUNT_ID, initialResult.barcode)
         val originalFood = foodsById.getValue(originalFoodId)
         val newFood = foodsById.getValue(newFoodId)
-        val originalServings = database.foodDao().getServings(originalFoodId)
-        val newServings = database.foodDao().getServings(newFoodId)
-        val savedMealItem = database.foodDao().observeMealItems(meal.id).first().single()
+        val originalServings = database.foodDao().getServings(TEST_ACCOUNT_ID, originalFoodId)
+        val newServings = database.foodDao().getServings(TEST_ACCOUNT_ID, newFoodId)
+        val savedMealItem = database.foodDao().observeMealItems(TEST_ACCOUNT_ID, meal.id).first().single()
 
         assertEquals(2, foodsById.size)
         org.junit.Assert.assertNotEquals(originalFoodId, newFoodId)
@@ -273,9 +362,9 @@ class LocalFoodRepositoryTest {
             ),
         )
 
-        val meals = database.foodDao().observeMealsForDate(date.toEpochDay()).first()
-        val mealItems = database.foodDao().observeMealItems(meals.single().id).first()
-        val foods = database.foodDao().observeFoods().first()
+        val meals = database.foodDao().observeMealsForDate(TEST_ACCOUNT_ID, date.toEpochDay()).first()
+        val mealItems = database.foodDao().observeMealItems(TEST_ACCOUNT_ID, meals.single().id).first()
+        val foods = database.foodDao().observeFoods(TEST_ACCOUNT_ID).first()
         val totals = repository.observeDailyNutrition(date).first()
 
         assertEquals("breakfast", meals.single().type)
@@ -307,9 +396,9 @@ class LocalFoodRepositoryTest {
             ),
         )
 
-        val meals = database.foodDao().observeMealsForDate(date.toEpochDay()).first()
-        val mealItems = database.foodDao().observeMealItems(meals.single().id).first()
-        val barcodeProduct = database.foodDao().getBarcodeProduct(result.barcode)
+        val meals = database.foodDao().observeMealsForDate(TEST_ACCOUNT_ID, date.toEpochDay()).first()
+        val mealItems = database.foodDao().observeMealItems(TEST_ACCOUNT_ID, meals.single().id).first()
+        val barcodeProduct = database.foodDao().getBarcodeProduct(TEST_ACCOUNT_ID, result.barcode)
         val totals = repository.observeDailyNutrition(date).first()
 
         assertEquals("snack", meals.single().type)
@@ -392,6 +481,7 @@ class LocalFoodRepositoryTest {
         val dao = database.foodDao()
         dao.upsertFood(
             FoodEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "food-1",
                 name = "Test food",
                 brand = null,
@@ -409,16 +499,16 @@ class LocalFoodRepositoryTest {
         // ordering that only tie-breaks on meal_items.id surfaces lunch first. Meal order must
         // still be deterministic regardless of item ids.
         dao.upsertMeal(
-            MealEntity("meal-breakfast", date.toEpochDay(), "breakfast", null, 1_000L, 1_000L),
+            MealEntity(TEST_ACCOUNT_ID, "meal-breakfast", date.toEpochDay(), "breakfast", null, 1_000L, 1_000L),
         )
         dao.upsertMeal(
-            MealEntity("meal-lunch", date.toEpochDay(), "lunch", null, 1_000L, 1_000L),
+            MealEntity(TEST_ACCOUNT_ID, "meal-lunch", date.toEpochDay(), "lunch", null, 1_000L, 1_000L),
         )
         dao.upsertMealItem(
-            MealItemEntity(id = "item-2-breakfast", mealId = "meal-breakfast", foodId = "food-1", quantityGrams = 100.0),
+            MealItemEntity(accountId = TEST_ACCOUNT_ID, id = "item-2-breakfast", mealId = "meal-breakfast", foodId = "food-1", quantityGrams = 100.0),
         )
         dao.upsertMealItem(
-            MealItemEntity(id = "item-1-lunch", mealId = "meal-lunch", foodId = "food-1", quantityGrams = 100.0),
+            MealItemEntity(accountId = TEST_ACCOUNT_ID, id = "item-1-lunch", mealId = "meal-lunch", foodId = "food-1", quantityGrams = 100.0),
         )
 
         val diary = repository.observeFoodDiary(date).first()
@@ -676,7 +766,7 @@ class LocalFoodRepositoryTest {
             editedNutrition = nutrition(calories = 155.0, protein = 13.0, carbs = 1.0, fat = 11.0),
         )
 
-        val savedEntity = database.foodDao().observeFoods().first().single()
+        val savedEntity = database.foodDao().observeFoods(TEST_ACCOUNT_ID).first().single()
         assertEquals("https://images.test/egg.jpg", savedEntity.imageUrl)
         val savedFood = repository.observeSavedFoods().first().single()
         assertEquals("https://images.test/egg.jpg", savedFood.imageUrl)
@@ -687,10 +777,10 @@ class LocalFoodRepositoryTest {
         val dao = database.foodDao()
         dao.upsertFood(foodEntity(id = "f-egg", name = "Egg"))
         dao.upsertFood(foodEntity(id = "f-ice", name = "Ice cream"))
-        dao.upsertMeal(MealEntity(id = "m1", dateEpochDay = 20260, type = "breakfast", notes = null, createdAtEpochMillis = 100, updatedAtEpochMillis = 100))
-        dao.upsertMealItem(MealItemEntity(id = "mi1", mealId = "m1", foodId = "f-egg", quantityGrams = 100.0))
-        dao.upsertMeal(MealEntity(id = "m2", dateEpochDay = 20260, type = "lunch", notes = null, createdAtEpochMillis = 200, updatedAtEpochMillis = 200))
-        dao.upsertMealItem(MealItemEntity(id = "mi2", mealId = "m2", foodId = "f-ice", quantityGrams = 100.0))
+        dao.upsertMeal(MealEntity(accountId = TEST_ACCOUNT_ID, id = "m1", dateEpochDay = 20260, type = "breakfast", notes = null, createdAtEpochMillis = 100, updatedAtEpochMillis = 100))
+        dao.upsertMealItem(MealItemEntity(accountId = TEST_ACCOUNT_ID, id = "mi1", mealId = "m1", foodId = "f-egg", quantityGrams = 100.0))
+        dao.upsertMeal(MealEntity(accountId = TEST_ACCOUNT_ID, id = "m2", dateEpochDay = 20260, type = "lunch", notes = null, createdAtEpochMillis = 200, updatedAtEpochMillis = 200))
+        dao.upsertMealItem(MealItemEntity(accountId = TEST_ACCOUNT_ID, id = "mi2", mealId = "m2", foodId = "f-ice", quantityGrams = 100.0))
 
         val recents = repository.observeRecentFoods(limit = 10).first()
         assertEquals(listOf("Ice cream", "Egg"), recents.map { it.name })
@@ -703,17 +793,17 @@ class LocalFoodRepositoryTest {
         val today = LocalDate.of(2026, 6, 22)
         dao.upsertFood(foodEntity(id = "f-oats", name = "Oats"))
         dao.upsertFood(foodEntity(id = "f-steak", name = "Steak"))
-        dao.upsertMeal(MealEntity(id = "mb", dateEpochDay = yesterday.toEpochDay(), type = "breakfast", notes = null, createdAtEpochMillis = 100, updatedAtEpochMillis = 100))
-        dao.upsertMealItem(MealItemEntity(id = "mib", mealId = "mb", foodId = "f-oats", quantityGrams = 100.0))
-        dao.upsertMeal(MealEntity(id = "md", dateEpochDay = yesterday.toEpochDay(), type = "dinner", notes = null, createdAtEpochMillis = 110, updatedAtEpochMillis = 110))
-        dao.upsertMealItem(MealItemEntity(id = "mid", mealId = "md", foodId = "f-steak", quantityGrams = 100.0))
+        dao.upsertMeal(MealEntity(accountId = TEST_ACCOUNT_ID, id = "mb", dateEpochDay = yesterday.toEpochDay(), type = "breakfast", notes = null, createdAtEpochMillis = 100, updatedAtEpochMillis = 100))
+        dao.upsertMealItem(MealItemEntity(accountId = TEST_ACCOUNT_ID, id = "mib", mealId = "mb", foodId = "f-oats", quantityGrams = 100.0))
+        dao.upsertMeal(MealEntity(accountId = TEST_ACCOUNT_ID, id = "md", dateEpochDay = yesterday.toEpochDay(), type = "dinner", notes = null, createdAtEpochMillis = 110, updatedAtEpochMillis = 110))
+        dao.upsertMealItem(MealItemEntity(accountId = TEST_ACCOUNT_ID, id = "mid", mealId = "md", foodId = "f-steak", quantityGrams = 100.0))
 
         val same = repository.observeSameAsYesterday(mealType = "breakfast", date = today).first()
         assertEquals(listOf("Oats"), same.map { it.name })
     }
 
     private fun foodEntity(id: String, name: String) = FoodEntity(
-        id = id, name = name, brand = null, defaultServingGrams = 100.0,
+        accountId = TEST_ACCOUNT_ID, id = id, name = name, brand = null, defaultServingGrams = 100.0,
         caloriesPer100g = 100.0, proteinPer100g = 1.0, carbsPer100g = 1.0, fatPer100g = 1.0,
         createdAtEpochMillis = 1, updatedAtEpochMillis = 1,
     )
@@ -742,7 +832,7 @@ class LocalFoodRepositoryTest {
         )
 
         val savedFood = repository.observeSavedFoods().first().single()
-        val servings = database.foodDao().getServings(foodId)
+        val servings = database.foodDao().getServings(TEST_ACCOUNT_ID, foodId)
 
         assertEquals(foodId, savedFood.id)
         assertEquals("Chicken breast cooked", savedFood.name)
@@ -758,21 +848,21 @@ class LocalFoodRepositoryTest {
     fun toggleFavoriteFood_preservesEveryReferencedChildRow() = runTest {
         val graph = createReferencedFoodGraph()
         val dao = database.foodDao()
-        val servingsBefore = dao.getServings(graph.foodId)
-        val mealItemBefore = dao.getMealItem(graph.mealItemId)
-        val templateRowsBefore = dao.getMealTemplateRows(graph.templateId)
-        val recipeRowsBefore = dao.getRecipeRows(graph.recipeId)
-        val barcodeBefore = dao.getBarcodeProduct(graph.barcode)
+        val servingsBefore = dao.getServings(TEST_ACCOUNT_ID, graph.foodId)
+        val mealItemBefore = dao.getMealItem(TEST_ACCOUNT_ID, graph.mealItemId)
+        val templateRowsBefore = dao.getMealTemplateRows(TEST_ACCOUNT_ID, graph.templateId)
+        val recipeRowsBefore = dao.getRecipeRows(TEST_ACCOUNT_ID, graph.recipeId)
+        val barcodeBefore = dao.getBarcodeProduct(TEST_ACCOUNT_ID, graph.barcode)
         executedSql.clear()
 
         repository.toggleFavoriteFood(graph.foodId, true)
 
-        assertEquals(true, dao.getFood(graph.foodId)?.isFavorite)
-        assertEquals(servingsBefore, dao.getServings(graph.foodId))
-        assertEquals(mealItemBefore, dao.getMealItem(graph.mealItemId))
-        assertEquals(templateRowsBefore, dao.getMealTemplateRows(graph.templateId))
-        assertEquals(recipeRowsBefore, dao.getRecipeRows(graph.recipeId))
-        assertEquals(barcodeBefore, dao.getBarcodeProduct(graph.barcode))
+        assertEquals(true, dao.getFood(TEST_ACCOUNT_ID, graph.foodId)?.isFavorite)
+        assertEquals(servingsBefore, dao.getServings(TEST_ACCOUNT_ID, graph.foodId))
+        assertEquals(mealItemBefore, dao.getMealItem(TEST_ACCOUNT_ID, graph.mealItemId))
+        assertEquals(templateRowsBefore, dao.getMealTemplateRows(TEST_ACCOUNT_ID, graph.templateId))
+        assertEquals(recipeRowsBefore, dao.getRecipeRows(TEST_ACCOUNT_ID, graph.recipeId))
+        assertEquals(barcodeBefore, dao.getBarcodeProduct(TEST_ACCOUNT_ID, graph.barcode))
         val graphWrites =
             executedSql.filter { sql ->
                 val normalized = sql.trimStart().lowercase()
@@ -795,9 +885,9 @@ class LocalFoodRepositoryTest {
     fun upsertSavedFood_editsReferencedFoodWithoutRewritingItsRelationships() = runTest {
         val graph = createReferencedFoodGraph()
         val dao = database.foodDao()
-        val mealItemBefore = dao.getMealItem(graph.mealItemId)
-        val templateItemId = dao.getMealTemplateRows(graph.templateId).single().itemId
-        val recipeIngredientId = dao.getRecipeRows(graph.recipeId).single().ingredientId
+        val mealItemBefore = dao.getMealItem(TEST_ACCOUNT_ID, graph.mealItemId)
+        val templateItemId = dao.getMealTemplateRows(TEST_ACCOUNT_ID, graph.templateId).single().itemId
+        val recipeIngredientId = dao.getRecipeRows(TEST_ACCOUNT_ID, graph.recipeId).single().ingredientId
 
         repository.upsertSavedFood(
             SavedFoodUpsertInput(
@@ -819,22 +909,22 @@ class LocalFoodRepositoryTest {
         assertEquals("Updated pantry", updated.brand)
         assertTrue(updated.isFavorite)
         assertEquals(listOf("Scoop"), updated.servings.map { it.label })
-        assertEquals(mealItemBefore, dao.getMealItem(graph.mealItemId))
-        assertEquals(templateItemId, dao.getMealTemplateRows(graph.templateId).single().itemId)
-        assertEquals(graph.foodId, dao.getMealTemplateRows(graph.templateId).single().foodId)
-        assertEquals(recipeIngredientId, dao.getRecipeRows(graph.recipeId).single().ingredientId)
-        assertEquals(graph.foodId, dao.getRecipeRows(graph.recipeId).single().foodId)
-        assertEquals(graph.foodId, dao.getBarcodeProduct(graph.barcode)?.linkedFoodId)
+        assertEquals(mealItemBefore, dao.getMealItem(TEST_ACCOUNT_ID, graph.mealItemId))
+        assertEquals(templateItemId, dao.getMealTemplateRows(TEST_ACCOUNT_ID, graph.templateId).single().itemId)
+        assertEquals(graph.foodId, dao.getMealTemplateRows(TEST_ACCOUNT_ID, graph.templateId).single().foodId)
+        assertEquals(recipeIngredientId, dao.getRecipeRows(TEST_ACCOUNT_ID, graph.recipeId).single().ingredientId)
+        assertEquals(graph.foodId, dao.getRecipeRows(TEST_ACCOUNT_ID, graph.recipeId).single().foodId)
+        assertEquals(graph.foodId, dao.getBarcodeProduct(TEST_ACCOUNT_ID, graph.barcode)?.linkedFoodId)
     }
 
     @Test
     fun failedTemplateAndRecipeGraphReplacements_restoreOriginalParentsAndChildren() = runTest {
         val graph = createReferencedFoodGraph()
         val dao = database.foodDao()
-        val templateBefore = dao.getMealTemplate(graph.templateId)
-        val templateRowsBefore = dao.getMealTemplateRows(graph.templateId)
-        val recipeBefore = dao.getRecipe(graph.recipeId)
-        val recipeRowsBefore = dao.getRecipeRows(graph.recipeId)
+        val templateBefore = dao.getMealTemplate(TEST_ACCOUNT_ID, graph.templateId)
+        val templateRowsBefore = dao.getMealTemplateRows(TEST_ACCOUNT_ID, graph.templateId)
+        val recipeBefore = dao.getRecipe(TEST_ACCOUNT_ID, graph.recipeId)
+        val recipeRowsBefore = dao.getRecipeRows(TEST_ACCOUNT_ID, graph.recipeId)
 
         val templateFailure =
             runCatching {
@@ -852,8 +942,8 @@ class LocalFoodRepositoryTest {
             }.exceptionOrNull()
 
         assertTrue(templateFailure is IllegalStateException)
-        assertEquals(templateBefore, dao.getMealTemplate(graph.templateId))
-        assertEquals(templateRowsBefore, dao.getMealTemplateRows(graph.templateId))
+        assertEquals(templateBefore, dao.getMealTemplate(TEST_ACCOUNT_ID, graph.templateId))
+        assertEquals(templateRowsBefore, dao.getMealTemplateRows(TEST_ACCOUNT_ID, graph.templateId))
 
         val recipeFailure =
             runCatching {
@@ -873,8 +963,8 @@ class LocalFoodRepositoryTest {
             }.exceptionOrNull()
 
         assertTrue(recipeFailure is IllegalStateException)
-        assertEquals(recipeBefore, dao.getRecipe(graph.recipeId))
-        assertEquals(recipeRowsBefore, dao.getRecipeRows(graph.recipeId))
+        assertEquals(recipeBefore, dao.getRecipe(TEST_ACCOUNT_ID, graph.recipeId))
+        assertEquals(recipeRowsBefore, dao.getRecipeRows(TEST_ACCOUNT_ID, graph.recipeId))
     }
 
     @Test
@@ -893,8 +983,8 @@ class LocalFoodRepositoryTest {
         repository.deleteSavedFood(foodId)
 
         assertTrue(repository.observeSavedFoods().first().isEmpty())
-        assertNull(database.foodDao().getFood(foodId))
-        assertTrue(database.foodDao().getServings(foodId).isEmpty())
+        assertNull(database.foodDao().getFood(TEST_ACCOUNT_ID, foodId))
+        assertTrue(database.foodDao().getServings(TEST_ACCOUNT_ID, foodId).isEmpty())
     }
 
     @Test
@@ -967,8 +1057,8 @@ class LocalFoodRepositoryTest {
         val recipe = repository.observeRecipes().first().single { it.id == recipeId }
 
         assertEquals(listOf(primaryFoodId), savedFoods.map { it.id })
-        assertNull(database.foodDao().getFood(duplicateFoodId))
-        assertEquals(primaryFoodId, database.foodDao().getMealItem(mealItemId)?.foodId)
+        assertNull(database.foodDao().getFood(TEST_ACCOUNT_ID, duplicateFoodId))
+        assertEquals(primaryFoodId, database.foodDao().getMealItem(TEST_ACCOUNT_ID, mealItemId)?.foodId)
         assertEquals(primaryFoodId, diary.meals.single().entries.single().foodId)
         assertEquals(primaryFoodId, template.items.single().foodId)
         assertEquals(primaryFoodId, recipe.ingredients.single().foodId)
@@ -1955,6 +2045,7 @@ class LocalFoodRepositoryTest {
             LocalFoodRepository(
                 database = database,
                 foodDao = database.foodDao(),
+                accountRepository = accountRepository,
                 healthConnectGateway = gateway,
             )
         val date = LocalDate.of(2026, 6, 20)
@@ -2029,6 +2120,7 @@ class LocalFoodRepositoryTest {
             )
         database.foodDao().upsertBarcodeProduct(
             BarcodeProductEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "referenced-barcode",
                 barcode = barcode,
                 provider = "test",
@@ -2086,18 +2178,16 @@ class LocalFoodRepositoryTest {
         private val foodPermissions = setOf("write-nutrition", "write-hydration")
         var lastPayload: HealthConnectFoodExportPayload? = null
 
-        override suspend fun status(): HealthConnectStatus =
-            HealthConnectStatus(
-                availability = HealthConnectAvailability.Available,
-                grantedPermissions = foodPermissions,
-            )
+        override suspend fun status(): HealthConnectStatus = HealthConnectStatus(
+            availability = HealthConnectAvailability.Available,
+            grantedPermissions = foodPermissions,
+        )
 
         override suspend fun requestablePermissions(): Set<String> = emptySet()
 
         override suspend fun foodRequestablePermissions(): Set<String> = foodPermissions
 
-        override suspend fun readDailySummary(date: LocalDate, preferredStepsPackage: String?) =
-            com.musfit.domain.health.ImportedDailyHealthSummary()
+        override suspend fun readDailySummary(date: LocalDate, preferredStepsPackage: String?) = com.musfit.domain.health.ImportedDailyHealthSummary()
 
         override suspend fun exportWorkout(
             session: com.musfit.data.local.entity.WorkoutSessionEntity,
@@ -2111,5 +2201,9 @@ class LocalFoodRepositoryTest {
                 hydrationRecordCount = if (payload.hydrationMilliliters > 0.0) 1 else 0,
             )
         }
+    }
+
+    private companion object {
+        const val TEST_ACCOUNT_ID = "local-default"
     }
 }

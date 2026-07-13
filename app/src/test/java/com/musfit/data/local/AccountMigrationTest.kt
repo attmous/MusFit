@@ -7,7 +7,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.musfit.core.di.DatabaseModule
 import com.musfit.data.local.entity.ACTIVE_ACCOUNT_SESSION_KEY
 import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
-import java.io.File
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -16,6 +15,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 class AccountMigrationTest {
@@ -56,6 +56,7 @@ class AccountMigrationTest {
                     DatabaseModule.MIGRATION_33_34,
                     DatabaseModule.MIGRATION_34_35,
                     DatabaseModule.MIGRATION_35_36,
+                    DatabaseModule.MIGRATION_36_37,
                 )
                 .build()
         try {
@@ -66,10 +67,10 @@ class AccountMigrationTest {
 
         val migratedDatabase =
             SQLiteDatabase.openDatabase(
-            context.getDatabasePath(TEST_DATABASE_NAME).path,
-            null,
-            SQLiteDatabase.OPEN_READONLY,
-        )
+                context.getDatabasePath(TEST_DATABASE_NAME).path,
+                null,
+                SQLiteDatabase.OPEN_READONLY,
+            )
         try {
             migratedDatabase.rawQuery(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_session')",
@@ -130,6 +131,7 @@ class AccountMigrationTest {
                     DatabaseModule.MIGRATION_33_34,
                     DatabaseModule.MIGRATION_34_35,
                     DatabaseModule.MIGRATION_35_36,
+                    DatabaseModule.MIGRATION_36_37,
                 )
                 .build()
         try {

@@ -9,8 +9,8 @@ import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
 import com.musfit.data.local.entity.FoodHealthConnectSyncEntity
 import com.musfit.data.local.entity.FoodServingEntity
-import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealDefinitionEntity
+import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
 import com.musfit.data.local.entity.MealTemplateEntity
 import com.musfit.data.local.entity.MealTemplateItemEntity
@@ -127,81 +127,82 @@ data class RecipeIngredientRow(
 interface FoodDao {
     @Query(
         "SELECT foods.* FROM foods " +
-            "INNER JOIN meal_items ON meal_items.foodId = foods.id " +
-            "INNER JOIN meals ON meals.id = meal_items.mealId " +
-            "GROUP BY foods.id " +
+            "INNER JOIN meal_items ON meal_items.accountId = foods.accountId AND meal_items.foodId = foods.id " +
+            "INNER JOIN meals ON meals.accountId = meal_items.accountId AND meals.id = meal_items.mealId " +
+            "WHERE foods.accountId = :accountId " +
+            "GROUP BY foods.accountId, foods.id " +
             "ORDER BY MAX(meals.createdAtEpochMillis) DESC " +
             "LIMIT :limit",
     )
-    fun observeRecentFoods(limit: Int): Flow<List<FoodEntity>>
+    fun observeRecentFoods(accountId: String, limit: Int): Flow<List<FoodEntity>>
 
     @Query(
         "SELECT foods.* FROM foods " +
-            "INNER JOIN meal_items ON meal_items.foodId = foods.id " +
-            "INNER JOIN meals ON meals.id = meal_items.mealId " +
-            "WHERE meals.dateEpochDay = :dateEpochDay AND meals.type = :mealType " +
-            "GROUP BY foods.id " +
+            "INNER JOIN meal_items ON meal_items.accountId = foods.accountId AND meal_items.foodId = foods.id " +
+            "INNER JOIN meals ON meals.accountId = meal_items.accountId AND meals.id = meal_items.mealId " +
+            "WHERE foods.accountId = :accountId AND meals.dateEpochDay = :dateEpochDay AND meals.type = :mealType " +
+            "GROUP BY foods.accountId, foods.id " +
             "ORDER BY MAX(meals.createdAtEpochMillis) DESC",
     )
-    fun observeSameAsYesterday(dateEpochDay: Long, mealType: String): Flow<List<FoodEntity>>
+    fun observeSameAsYesterday(accountId: String, dateEpochDay: Long, mealType: String): Flow<List<FoodEntity>>
 
-    @Query("SELECT * FROM foods ORDER BY name")
-    fun observeFoods(): Flow<List<FoodEntity>>
+    @Query("SELECT * FROM foods WHERE accountId = :accountId ORDER BY name")
+    fun observeFoods(accountId: String): Flow<List<FoodEntity>>
 
-    @Query("SELECT * FROM food_servings WHERE foodId = :foodId ORDER BY label")
-    fun observeServings(foodId: String): Flow<List<FoodServingEntity>>
+    @Query("SELECT * FROM food_servings WHERE accountId = :accountId AND foodId = :foodId ORDER BY label")
+    fun observeServings(accountId: String, foodId: String): Flow<List<FoodServingEntity>>
 
-    @Query("SELECT * FROM food_servings WHERE foodId = :foodId ORDER BY label")
-    suspend fun getServings(foodId: String): List<FoodServingEntity>
+    @Query("SELECT * FROM food_servings WHERE accountId = :accountId AND foodId = :foodId ORDER BY label")
+    suspend fun getServings(accountId: String, foodId: String): List<FoodServingEntity>
 
-    @Query("SELECT * FROM foods WHERE id = :foodId LIMIT 1")
-    suspend fun getFood(foodId: String): FoodEntity?
+    @Query("SELECT * FROM foods WHERE accountId = :accountId AND id = :foodId LIMIT 1")
+    suspend fun getFood(accountId: String, foodId: String): FoodEntity?
 
-    @Query("SELECT * FROM foods WHERE barcode = :barcode LIMIT 1")
-    suspend fun getFoodByBarcode(barcode: String): FoodEntity?
+    @Query("SELECT * FROM foods WHERE accountId = :accountId AND barcode = :barcode LIMIT 1")
+    suspend fun getFoodByBarcode(accountId: String, barcode: String): FoodEntity?
 
     @Query(
         "SELECT * FROM foods " +
-            "WHERE lower(name) = lower(:name) " +
+            "WHERE accountId = :accountId AND lower(name) = lower(:name) " +
             "AND ((brand IS NULL AND :brand IS NULL) OR lower(brand) = lower(:brand)) " +
             "LIMIT 1",
     )
-    suspend fun getFoodByNameAndBrand(name: String, brand: String?): FoodEntity?
+    suspend fun getFoodByNameAndBrand(accountId: String, name: String, brand: String?): FoodEntity?
 
-    @Query("SELECT * FROM meals WHERE id = :mealId LIMIT 1")
-    suspend fun getMeal(mealId: String): MealEntity?
+    @Query("SELECT * FROM meals WHERE accountId = :accountId AND id = :mealId LIMIT 1")
+    suspend fun getMeal(accountId: String, mealId: String): MealEntity?
 
-    @Query("SELECT * FROM meal_items WHERE id = :mealItemId LIMIT 1")
-    suspend fun getMealItem(mealItemId: String): MealItemEntity?
+    @Query("SELECT * FROM meal_items WHERE accountId = :accountId AND id = :mealItemId LIMIT 1")
+    suspend fun getMealItem(accountId: String, mealItemId: String): MealItemEntity?
 
-    @Query("SELECT COUNT(*) FROM meal_items WHERE foodId = :foodId")
-    suspend fun countMealItemsForFood(foodId: String): Int
+    @Query("SELECT COUNT(*) FROM meal_items WHERE accountId = :accountId AND foodId = :foodId")
+    suspend fun countMealItemsForFood(accountId: String, foodId: String): Int
 
-    @Query("SELECT * FROM meals WHERE dateEpochDay = :dateEpochDay ORDER BY createdAtEpochMillis")
-    fun observeMealsForDate(dateEpochDay: Long): Flow<List<MealEntity>>
+    @Query("SELECT * FROM meals WHERE accountId = :accountId AND dateEpochDay = :dateEpochDay ORDER BY createdAtEpochMillis")
+    fun observeMealsForDate(accountId: String, dateEpochDay: Long): Flow<List<MealEntity>>
 
-    @Query("SELECT * FROM meals WHERE dateEpochDay = :dateEpochDay AND type = :mealType ORDER BY createdAtEpochMillis")
-    suspend fun getMealsForDateAndType(dateEpochDay: Long, mealType: String): List<MealEntity>
+    @Query("SELECT * FROM meals WHERE accountId = :accountId AND dateEpochDay = :dateEpochDay AND type = :mealType ORDER BY createdAtEpochMillis")
+    suspend fun getMealsForDateAndType(accountId: String, dateEpochDay: Long, mealType: String): List<MealEntity>
 
     @Query(
         "SELECT DISTINCT meals.dateEpochDay FROM meals " +
-            "INNER JOIN meal_items ON meal_items.mealId = meals.id " +
-            "WHERE meal_items.status = 'logged' AND meals.dateEpochDay >= :fromEpochDay " +
+            "INNER JOIN meal_items ON meal_items.accountId = meals.accountId AND meal_items.mealId = meals.id " +
+            "WHERE meals.accountId = :accountId AND meal_items.status = 'logged' AND meals.dateEpochDay >= :fromEpochDay " +
             "ORDER BY meals.dateEpochDay DESC",
     )
-    fun observeLoggedDayEpochDays(fromEpochDay: Long): Flow<List<Long>>
+    fun observeLoggedDayEpochDays(accountId: String, fromEpochDay: Long): Flow<List<Long>>
 
-    @Query("SELECT * FROM meal_definitions ORDER BY sortOrder, name")
-    fun observeMealDefinitions(): Flow<List<MealDefinitionEntity>>
+    @Query("SELECT * FROM meal_definitions WHERE accountId = :accountId ORDER BY sortOrder, name")
+    fun observeMealDefinitions(accountId: String): Flow<List<MealDefinitionEntity>>
 
-    @Query("SELECT * FROM meal_definitions WHERE id = :mealId LIMIT 1")
-    suspend fun getMealDefinition(mealId: String): MealDefinitionEntity?
+    @Query("SELECT * FROM meal_definitions WHERE accountId = :accountId AND id = :mealId LIMIT 1")
+    suspend fun getMealDefinition(accountId: String, mealId: String): MealDefinitionEntity?
 
     @Upsert
     suspend fun upsertMealDefinition(definition: MealDefinitionEntity)
 
-    @Query("SELECT * FROM meal_items WHERE mealId = :mealId")
-    fun observeMealItems(mealId: String): Flow<List<MealItemEntity>>
+    @Query("SELECT * FROM meal_items WHERE accountId = :accountId AND mealId = :mealId")
+    fun observeMealItems(accountId: String, mealId: String): Flow<List<MealItemEntity>>
 
     @Query(
         "SELECT meal_items.quantityGrams AS quantityGrams, " +
@@ -220,11 +221,11 @@ interface FoodDao {
             "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
             "foods.magnesiumMgPer100g AS magnesiumMgPer100g " +
             "FROM meal_items " +
-            "INNER JOIN meals ON meals.id = meal_items.mealId " +
-            "INNER JOIN foods ON foods.id = meal_items.foodId " +
-            "WHERE meals.dateEpochDay = :dateEpochDay AND meal_items.status = 'logged'",
+            "INNER JOIN meals ON meals.accountId = meal_items.accountId AND meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.accountId = meal_items.accountId AND foods.id = meal_items.foodId " +
+            "WHERE meal_items.accountId = :accountId AND meals.dateEpochDay = :dateEpochDay AND meal_items.status = 'logged'",
     )
-    fun observeMealNutritionRowsForDate(dateEpochDay: Long): Flow<List<MealNutritionRow>>
+    fun observeMealNutritionRowsForDate(accountId: String, dateEpochDay: Long): Flow<List<MealNutritionRow>>
 
     @Query(
         "SELECT meals.id AS mealId, " +
@@ -254,12 +255,12 @@ interface FoodDao {
             "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
             "meals.createdAtEpochMillis AS createdAtEpochMillis " +
             "FROM meal_items " +
-            "INNER JOIN meals ON meals.id = meal_items.mealId " +
-            "INNER JOIN foods ON foods.id = meal_items.foodId " +
-            "WHERE meals.dateEpochDay = :dateEpochDay " +
+            "INNER JOIN meals ON meals.accountId = meal_items.accountId AND meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.accountId = meal_items.accountId AND foods.id = meal_items.foodId " +
+            "WHERE meal_items.accountId = :accountId AND meals.dateEpochDay = :dateEpochDay " +
             "ORDER BY meals.createdAtEpochMillis, meals.type, meal_items.id",
     )
-    fun observeFoodDiaryEntryRowsForDate(dateEpochDay: Long): Flow<List<FoodDiaryEntryRow>>
+    fun observeFoodDiaryEntryRowsForDate(accountId: String, dateEpochDay: Long): Flow<List<FoodDiaryEntryRow>>
 
     @Query(
         "SELECT meals.id AS mealId, " +
@@ -289,12 +290,12 @@ interface FoodDao {
             "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
             "meals.createdAtEpochMillis AS createdAtEpochMillis " +
             "FROM meal_items " +
-            "INNER JOIN meals ON meals.id = meal_items.mealId " +
-            "INNER JOIN foods ON foods.id = meal_items.foodId " +
-            "WHERE meals.dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
+            "INNER JOIN meals ON meals.accountId = meal_items.accountId AND meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.accountId = meal_items.accountId AND foods.id = meal_items.foodId " +
+            "WHERE meal_items.accountId = :accountId AND meals.dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
             "ORDER BY meals.dateEpochDay, meals.createdAtEpochMillis, meals.type, meal_items.id",
     )
-    fun observeFoodDiaryEntryRowsForDateRange(startEpochDay: Long, endEpochDay: Long): Flow<List<FoodDiaryEntryRow>>
+    fun observeFoodDiaryEntryRowsForDateRange(accountId: String, startEpochDay: Long, endEpochDay: Long): Flow<List<FoodDiaryEntryRow>>
 
     @Query(
         "SELECT meals.id AS mealId, " +
@@ -324,12 +325,12 @@ interface FoodDao {
             "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
             "meals.createdAtEpochMillis AS createdAtEpochMillis " +
             "FROM meal_items " +
-            "INNER JOIN meals ON meals.id = meal_items.mealId " +
-            "INNER JOIN foods ON foods.id = meal_items.foodId " +
-            "WHERE meals.dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
+            "INNER JOIN meals ON meals.accountId = meal_items.accountId AND meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.accountId = meal_items.accountId AND foods.id = meal_items.foodId " +
+            "WHERE meal_items.accountId = :accountId AND meals.dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
             "ORDER BY meals.dateEpochDay, meals.createdAtEpochMillis, meals.type, meal_items.id",
     )
-    suspend fun getFoodDiaryEntryRowsForDateRange(startEpochDay: Long, endEpochDay: Long): List<FoodDiaryEntryRow>
+    suspend fun getFoodDiaryEntryRowsForDateRange(accountId: String, startEpochDay: Long, endEpochDay: Long): List<FoodDiaryEntryRow>
 
     @Query(
         "SELECT meals.id AS mealId, " +
@@ -359,12 +360,12 @@ interface FoodDao {
             "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
             "meals.createdAtEpochMillis AS createdAtEpochMillis " +
             "FROM meal_items " +
-            "INNER JOIN meals ON meals.id = meal_items.mealId " +
-            "INNER JOIN foods ON foods.id = meal_items.foodId " +
-            "WHERE meals.dateEpochDay = :dateEpochDay " +
+            "INNER JOIN meals ON meals.accountId = meal_items.accountId AND meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.accountId = meal_items.accountId AND foods.id = meal_items.foodId " +
+            "WHERE meal_items.accountId = :accountId AND meals.dateEpochDay = :dateEpochDay " +
             "ORDER BY meals.createdAtEpochMillis, meals.type, meal_items.id",
     )
-    suspend fun getFoodDiaryEntryRowsForDate(dateEpochDay: Long): List<FoodDiaryEntryRow>
+    suspend fun getFoodDiaryEntryRowsForDate(accountId: String, dateEpochDay: Long): List<FoodDiaryEntryRow>
 
     @Query(
         "SELECT meals.id AS mealId, " +
@@ -394,86 +395,86 @@ interface FoodDao {
             "foods.magnesiumMgPer100g AS magnesiumMgPer100g, " +
             "meals.createdAtEpochMillis AS createdAtEpochMillis " +
             "FROM meal_items " +
-            "INNER JOIN meals ON meals.id = meal_items.mealId " +
-            "INNER JOIN foods ON foods.id = meal_items.foodId " +
-            "WHERE meals.dateEpochDay = :dateEpochDay AND meals.type = :mealType " +
+            "INNER JOIN meals ON meals.accountId = meal_items.accountId AND meals.id = meal_items.mealId " +
+            "INNER JOIN foods ON foods.accountId = meal_items.accountId AND foods.id = meal_items.foodId " +
+            "WHERE meal_items.accountId = :accountId AND meals.dateEpochDay = :dateEpochDay AND meals.type = :mealType " +
             "ORDER BY meals.createdAtEpochMillis, meal_items.id",
     )
-    suspend fun getFoodDiaryEntryRowsForDateAndMeal(dateEpochDay: Long, mealType: String): List<FoodDiaryEntryRow>
+    suspend fun getFoodDiaryEntryRowsForDateAndMeal(accountId: String, dateEpochDay: Long, mealType: String): List<FoodDiaryEntryRow>
 
-    @Query("SELECT * FROM barcode_products WHERE barcode = :barcode LIMIT 1")
-    suspend fun getBarcodeProduct(barcode: String): BarcodeProductEntity?
+    @Query("SELECT * FROM barcode_products WHERE accountId = :accountId AND barcode = :barcode LIMIT 1")
+    suspend fun getBarcodeProduct(accountId: String, barcode: String): BarcodeProductEntity?
 
-    @Query("SELECT * FROM barcode_products ORDER BY fetchedAtEpochMillis DESC")
-    fun observeBarcodeProducts(): Flow<List<BarcodeProductEntity>>
+    @Query("SELECT * FROM barcode_products WHERE accountId = :accountId ORDER BY fetchedAtEpochMillis DESC")
+    fun observeBarcodeProducts(accountId: String): Flow<List<BarcodeProductEntity>>
 
-    @Query("SELECT * FROM barcode_products WHERE linkedFoodId = :foodId ORDER BY fetchedAtEpochMillis DESC")
-    fun observeBarcodeProducts(foodId: String): Flow<List<BarcodeProductEntity>>
+    @Query("SELECT * FROM barcode_products WHERE accountId = :accountId AND linkedFoodId = :foodId ORDER BY fetchedAtEpochMillis DESC")
+    fun observeBarcodeProducts(accountId: String, foodId: String): Flow<List<BarcodeProductEntity>>
 
-    @Query("SELECT * FROM food_goals WHERE id = :id LIMIT 1")
-    fun observeFoodGoal(id: String): Flow<FoodGoalEntity?>
+    @Query("SELECT * FROM food_goals WHERE accountId = :accountId AND id = :id LIMIT 1")
+    fun observeFoodGoal(accountId: String, id: String): Flow<FoodGoalEntity?>
 
-    @Query("SELECT * FROM food_goals WHERE id = :id LIMIT 1")
-    suspend fun getFoodGoal(id: String): FoodGoalEntity?
+    @Query("SELECT * FROM food_goals WHERE accountId = :accountId AND id = :id LIMIT 1")
+    suspend fun getFoodGoal(accountId: String, id: String): FoodGoalEntity?
 
     @Upsert
     suspend fun upsertFoodGoal(goal: FoodGoalEntity)
 
-    @Query("SELECT * FROM food_health_connect_sync WHERE `key` = :key LIMIT 1")
-    fun observeFoodHealthConnectSyncState(key: String): Flow<FoodHealthConnectSyncEntity?>
+    @Query("SELECT * FROM food_health_connect_sync WHERE accountId = :accountId AND `key` = :key LIMIT 1")
+    fun observeFoodHealthConnectSyncState(accountId: String, key: String): Flow<FoodHealthConnectSyncEntity?>
 
-    @Query("SELECT * FROM food_health_connect_sync WHERE `key` = :key LIMIT 1")
-    suspend fun getFoodHealthConnectSyncState(key: String): FoodHealthConnectSyncEntity?
+    @Query("SELECT * FROM food_health_connect_sync WHERE accountId = :accountId AND `key` = :key LIMIT 1")
+    suspend fun getFoodHealthConnectSyncState(accountId: String, key: String): FoodHealthConnectSyncEntity?
 
     @Upsert
     suspend fun upsertFoodHealthConnectSyncState(state: FoodHealthConnectSyncEntity)
 
-    @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE dateEpochDay = :dateEpochDay")
-    fun observeWaterTotalForDate(dateEpochDay: Long): Flow<Double>
+    @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE accountId = :accountId AND dateEpochDay = :dateEpochDay")
+    fun observeWaterTotalForDate(accountId: String, dateEpochDay: Long): Flow<Double>
 
-    @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE dateEpochDay = :dateEpochDay")
-    suspend fun getWaterTotalForDate(dateEpochDay: Long): Double
+    @Query("SELECT COALESCE(SUM(amountMilliliters), 0.0) FROM water_entries WHERE accountId = :accountId AND dateEpochDay = :dateEpochDay")
+    suspend fun getWaterTotalForDate(accountId: String, dateEpochDay: Long): Double
 
     @Query(
         "SELECT dateEpochDay, SUM(amountMilliliters) AS consumedMilliliters " +
             "FROM water_entries " +
-            "WHERE dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
+            "WHERE accountId = :accountId AND dateEpochDay BETWEEN :startEpochDay AND :endEpochDay " +
             "GROUP BY dateEpochDay",
     )
-    fun observeWaterTotalsForDateRange(startEpochDay: Long, endEpochDay: Long): Flow<List<WaterTotalRow>>
+    fun observeWaterTotalsForDateRange(accountId: String, startEpochDay: Long, endEpochDay: Long): Flow<List<WaterTotalRow>>
 
     @Upsert
     suspend fun insertWaterEntry(entry: WaterEntryEntity)
 
-    @Query("SELECT * FROM quick_calorie_presets ORDER BY isFavorite DESC, updatedAtEpochMillis DESC, name")
-    fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePresetEntity>>
+    @Query("SELECT * FROM quick_calorie_presets WHERE accountId = :accountId ORDER BY isFavorite DESC, updatedAtEpochMillis DESC, name")
+    fun observeQuickCaloriePresets(accountId: String): Flow<List<QuickCaloriePresetEntity>>
 
-    @Query("SELECT * FROM quick_calorie_presets WHERE id = :presetId LIMIT 1")
-    suspend fun getQuickCaloriePreset(presetId: String): QuickCaloriePresetEntity?
-
-    @Query(
-        "SELECT * FROM shopping_list_items " +
-            "ORDER BY isChecked ASC, category COLLATE NOCASE, sortOrder ASC, name COLLATE NOCASE",
-    )
-    fun observeShoppingListItems(): Flow<List<ShoppingListItemEntity>>
+    @Query("SELECT * FROM quick_calorie_presets WHERE accountId = :accountId AND id = :presetId LIMIT 1")
+    suspend fun getQuickCaloriePreset(accountId: String, presetId: String): QuickCaloriePresetEntity?
 
     @Query(
-        "SELECT * FROM shopping_list_items " +
+        "SELECT * FROM shopping_list_items WHERE accountId = :accountId " +
             "ORDER BY isChecked ASC, category COLLATE NOCASE, sortOrder ASC, name COLLATE NOCASE",
     )
-    suspend fun getShoppingListItems(): List<ShoppingListItemEntity>
+    fun observeShoppingListItems(accountId: String): Flow<List<ShoppingListItemEntity>>
 
-    @Query("SELECT * FROM shopping_list_items WHERE isManual = 0")
-    suspend fun getGeneratedShoppingListItems(): List<ShoppingListItemEntity>
+    @Query(
+        "SELECT * FROM shopping_list_items WHERE accountId = :accountId " +
+            "ORDER BY isChecked ASC, category COLLATE NOCASE, sortOrder ASC, name COLLATE NOCASE",
+    )
+    suspend fun getShoppingListItems(accountId: String): List<ShoppingListItemEntity>
+
+    @Query("SELECT * FROM shopping_list_items WHERE accountId = :accountId AND isManual = 0")
+    suspend fun getGeneratedShoppingListItems(accountId: String): List<ShoppingListItemEntity>
 
     @Upsert
     suspend fun upsertShoppingListItem(item: ShoppingListItemEntity)
 
-    @Query("UPDATE shopping_list_items SET isChecked = :isChecked, updatedAtEpochMillis = :updatedAtEpochMillis WHERE id = :itemId")
-    suspend fun updateShoppingListItemChecked(itemId: String, isChecked: Boolean, updatedAtEpochMillis: Long): Int
+    @Query("UPDATE shopping_list_items SET isChecked = :isChecked, updatedAtEpochMillis = :updatedAtEpochMillis WHERE accountId = :accountId AND id = :itemId")
+    suspend fun updateShoppingListItemChecked(accountId: String, itemId: String, isChecked: Boolean, updatedAtEpochMillis: Long): Int
 
-    @Query("DELETE FROM shopping_list_items WHERE id = :itemId")
-    suspend fun deleteShoppingListItemById(itemId: String): Int
+    @Query("DELETE FROM shopping_list_items WHERE accountId = :accountId AND id = :itemId")
+    suspend fun deleteShoppingListItemById(accountId: String, itemId: String): Int
 
     @Upsert
     suspend fun upsertQuickCaloriePreset(preset: QuickCaloriePresetEntity)
@@ -481,9 +482,10 @@ interface FoodDao {
     @Query(
         "UPDATE quick_calorie_presets " +
             "SET isFavorite = :isFavorite, updatedAtEpochMillis = :updatedAtEpochMillis " +
-            "WHERE id = :presetId",
+            "WHERE accountId = :accountId AND id = :presetId",
     )
     suspend fun updateQuickCaloriePresetFavorite(
+        accountId: String,
         presetId: String,
         isFavorite: Boolean,
         updatedAtEpochMillis: Long,
@@ -502,11 +504,12 @@ interface FoodDao {
             "meal_template_items.quantityGrams AS quantityGrams, " +
             "meal_template_items.sortOrder AS sortOrder " +
             "FROM meal_template_items " +
-            "INNER JOIN meal_templates ON meal_templates.id = meal_template_items.templateId " +
-            "INNER JOIN foods ON foods.id = meal_template_items.foodId " +
+            "INNER JOIN meal_templates ON meal_templates.accountId = meal_template_items.accountId AND meal_templates.id = meal_template_items.templateId " +
+            "INNER JOIN foods ON foods.accountId = meal_template_items.accountId AND foods.id = meal_template_items.foodId " +
+            "WHERE meal_template_items.accountId = :accountId " +
             "ORDER BY meal_templates.createdAtEpochMillis DESC, meal_template_items.sortOrder",
     )
-    fun observeMealTemplateRows(): Flow<List<MealTemplateItemRow>>
+    fun observeMealTemplateRows(accountId: String): Flow<List<MealTemplateItemRow>>
 
     @Query(
         "SELECT meal_templates.id AS templateId, " +
@@ -521,15 +524,15 @@ interface FoodDao {
             "meal_template_items.quantityGrams AS quantityGrams, " +
             "meal_template_items.sortOrder AS sortOrder " +
             "FROM meal_template_items " +
-            "INNER JOIN meal_templates ON meal_templates.id = meal_template_items.templateId " +
-            "INNER JOIN foods ON foods.id = meal_template_items.foodId " +
-            "WHERE meal_templates.id = :templateId " +
+            "INNER JOIN meal_templates ON meal_templates.accountId = meal_template_items.accountId AND meal_templates.id = meal_template_items.templateId " +
+            "INNER JOIN foods ON foods.accountId = meal_template_items.accountId AND foods.id = meal_template_items.foodId " +
+            "WHERE meal_template_items.accountId = :accountId AND meal_templates.id = :templateId " +
             "ORDER BY meal_template_items.sortOrder",
     )
-    suspend fun getMealTemplateRows(templateId: String): List<MealTemplateItemRow>
+    suspend fun getMealTemplateRows(accountId: String, templateId: String): List<MealTemplateItemRow>
 
-    @Query("SELECT * FROM meal_templates WHERE id = :templateId LIMIT 1")
-    suspend fun getMealTemplate(templateId: String): MealTemplateEntity?
+    @Query("SELECT * FROM meal_templates WHERE accountId = :accountId AND id = :templateId LIMIT 1")
+    suspend fun getMealTemplate(accountId: String, templateId: String): MealTemplateEntity?
 
     @Upsert
     suspend fun upsertMealTemplate(template: MealTemplateEntity)
@@ -537,9 +540,10 @@ interface FoodDao {
     @Query(
         "UPDATE meal_templates " +
             "SET name = :name, mealType = :mealType, updatedAtEpochMillis = :updatedAtEpochMillis " +
-            "WHERE id = :templateId",
+            "WHERE accountId = :accountId AND id = :templateId",
     )
     suspend fun updateMealTemplateMetadata(
+        accountId: String,
         templateId: String,
         name: String,
         mealType: String,
@@ -549,9 +553,10 @@ interface FoodDao {
     @Query(
         "UPDATE meal_templates " +
             "SET isFavorite = :isFavorite, updatedAtEpochMillis = :updatedAtEpochMillis " +
-            "WHERE id = :templateId",
+            "WHERE accountId = :accountId AND id = :templateId",
     )
     suspend fun updateMealTemplateFavorite(
+        accountId: String,
         templateId: String,
         isFavorite: Boolean,
         updatedAtEpochMillis: Long,
@@ -560,11 +565,11 @@ interface FoodDao {
     @Upsert
     suspend fun upsertMealTemplateItem(item: MealTemplateItemEntity)
 
-    @Query("DELETE FROM meal_template_items WHERE templateId = :templateId")
-    suspend fun deleteMealTemplateItems(templateId: String)
+    @Query("DELETE FROM meal_template_items WHERE accountId = :accountId AND templateId = :templateId")
+    suspend fun deleteMealTemplateItems(accountId: String, templateId: String)
 
-    @Query("DELETE FROM meal_templates WHERE id = :templateId")
-    suspend fun deleteMealTemplateById(templateId: String): Int
+    @Query("DELETE FROM meal_templates WHERE accountId = :accountId AND id = :templateId")
+    suspend fun deleteMealTemplateById(accountId: String, templateId: String): Int
 
     @Query(
         "SELECT recipes.id AS recipeId, " +
@@ -601,11 +606,12 @@ interface FoodDao {
             "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
             "foods.magnesiumMgPer100g AS magnesiumMgPer100g " +
             "FROM recipe_ingredients " +
-            "INNER JOIN recipes ON recipes.id = recipe_ingredients.recipeId " +
-            "INNER JOIN foods ON foods.id = recipe_ingredients.foodId " +
+            "INNER JOIN recipes ON recipes.accountId = recipe_ingredients.accountId AND recipes.id = recipe_ingredients.recipeId " +
+            "INNER JOIN foods ON foods.accountId = recipe_ingredients.accountId AND foods.id = recipe_ingredients.foodId " +
+            "WHERE recipe_ingredients.accountId = :accountId " +
             "ORDER BY recipes.createdAtEpochMillis DESC, recipe_ingredients.sortOrder",
     )
-    fun observeRecipeRows(): Flow<List<RecipeIngredientRow>>
+    fun observeRecipeRows(accountId: String): Flow<List<RecipeIngredientRow>>
 
     @Query(
         "SELECT recipes.id AS recipeId, " +
@@ -642,18 +648,18 @@ interface FoodDao {
             "foods.vitaminCMgPer100g AS vitaminCMgPer100g, " +
             "foods.magnesiumMgPer100g AS magnesiumMgPer100g " +
             "FROM recipe_ingredients " +
-            "INNER JOIN recipes ON recipes.id = recipe_ingredients.recipeId " +
-            "INNER JOIN foods ON foods.id = recipe_ingredients.foodId " +
-            "WHERE recipes.id = :recipeId " +
+            "INNER JOIN recipes ON recipes.accountId = recipe_ingredients.accountId AND recipes.id = recipe_ingredients.recipeId " +
+            "INNER JOIN foods ON foods.accountId = recipe_ingredients.accountId AND foods.id = recipe_ingredients.foodId " +
+            "WHERE recipe_ingredients.accountId = :accountId AND recipes.id = :recipeId " +
             "ORDER BY recipe_ingredients.sortOrder",
     )
-    suspend fun getRecipeRows(recipeId: String): List<RecipeIngredientRow>
+    suspend fun getRecipeRows(accountId: String, recipeId: String): List<RecipeIngredientRow>
 
-    @Query("SELECT * FROM recipes WHERE id = :recipeId LIMIT 1")
-    suspend fun getRecipe(recipeId: String): RecipeEntity?
+    @Query("SELECT * FROM recipes WHERE accountId = :accountId AND id = :recipeId LIMIT 1")
+    suspend fun getRecipe(accountId: String, recipeId: String): RecipeEntity?
 
-    @Query("SELECT * FROM recipes WHERE lower(name) = lower(:name) ORDER BY updatedAtEpochMillis DESC LIMIT 1")
-    suspend fun getRecipeByName(name: String): RecipeEntity?
+    @Query("SELECT * FROM recipes WHERE accountId = :accountId AND lower(name) = lower(:name) ORDER BY updatedAtEpochMillis DESC LIMIT 1")
+    suspend fun getRecipeByName(accountId: String, name: String): RecipeEntity?
 
     @Upsert
     suspend fun upsertRecipe(recipe: RecipeEntity)
@@ -661,9 +667,10 @@ interface FoodDao {
     @Query(
         "UPDATE recipes " +
             "SET isFavorite = :isFavorite, updatedAtEpochMillis = :updatedAtEpochMillis " +
-            "WHERE id = :recipeId",
+            "WHERE accountId = :accountId AND id = :recipeId",
     )
     suspend fun updateRecipeFavorite(
+        accountId: String,
         recipeId: String,
         isFavorite: Boolean,
         updatedAtEpochMillis: Long,
@@ -672,44 +679,45 @@ interface FoodDao {
     @Upsert
     suspend fun upsertRecipeIngredient(ingredient: RecipeIngredientEntity)
 
-    @Query("DELETE FROM recipe_ingredients WHERE recipeId = :recipeId")
-    suspend fun deleteRecipeIngredients(recipeId: String)
+    @Query("DELETE FROM recipe_ingredients WHERE accountId = :accountId AND recipeId = :recipeId")
+    suspend fun deleteRecipeIngredients(accountId: String, recipeId: String)
 
-    @Query("DELETE FROM recipes WHERE id = :recipeId")
-    suspend fun deleteRecipeById(recipeId: String): Int
+    @Query("DELETE FROM recipes WHERE accountId = :accountId AND id = :recipeId")
+    suspend fun deleteRecipeById(accountId: String, recipeId: String): Int
 
-    @Query("DELETE FROM food_servings WHERE foodId = :foodId")
-    suspend fun deleteServingsForFood(foodId: String)
+    @Query("DELETE FROM food_servings WHERE accountId = :accountId AND foodId = :foodId")
+    suspend fun deleteServingsForFood(accountId: String, foodId: String)
 
     @Delete
     suspend fun deleteFood(food: FoodEntity)
 
-    @Query("UPDATE meal_items SET foodId = :primaryFoodId WHERE foodId IN (:duplicateFoodIds)")
-    suspend fun reassignMealItemsToFood(primaryFoodId: String, duplicateFoodIds: List<String>)
+    @Query("UPDATE meal_items SET foodId = :primaryFoodId WHERE accountId = :accountId AND foodId IN (:duplicateFoodIds)")
+    suspend fun reassignMealItemsToFood(accountId: String, primaryFoodId: String, duplicateFoodIds: List<String>)
 
-    @Query("UPDATE meal_template_items SET foodId = :primaryFoodId WHERE foodId IN (:duplicateFoodIds)")
-    suspend fun reassignMealTemplateItemsToFood(primaryFoodId: String, duplicateFoodIds: List<String>)
+    @Query("UPDATE meal_template_items SET foodId = :primaryFoodId WHERE accountId = :accountId AND foodId IN (:duplicateFoodIds)")
+    suspend fun reassignMealTemplateItemsToFood(accountId: String, primaryFoodId: String, duplicateFoodIds: List<String>)
 
-    @Query("UPDATE recipe_ingredients SET foodId = :primaryFoodId WHERE foodId IN (:duplicateFoodIds)")
-    suspend fun reassignRecipeIngredientsToFood(primaryFoodId: String, duplicateFoodIds: List<String>)
+    @Query("UPDATE recipe_ingredients SET foodId = :primaryFoodId WHERE accountId = :accountId AND foodId IN (:duplicateFoodIds)")
+    suspend fun reassignRecipeIngredientsToFood(accountId: String, primaryFoodId: String, duplicateFoodIds: List<String>)
 
-    @Query("UPDATE barcode_products SET linkedFoodId = :primaryFoodId WHERE linkedFoodId IN (:duplicateFoodIds)")
-    suspend fun reassignBarcodeProductsToFood(primaryFoodId: String, duplicateFoodIds: List<String>)
+    @Query("UPDATE barcode_products SET linkedFoodId = :primaryFoodId WHERE accountId = :accountId AND linkedFoodId IN (:duplicateFoodIds)")
+    suspend fun reassignBarcodeProductsToFood(accountId: String, primaryFoodId: String, duplicateFoodIds: List<String>)
 
-    @Query("DELETE FROM meal_items WHERE id = :mealItemId")
-    suspend fun deleteMealItemById(mealItemId: String): Int
+    @Query("DELETE FROM meal_items WHERE accountId = :accountId AND id = :mealItemId")
+    suspend fun deleteMealItemById(accountId: String, mealItemId: String): Int
 
-    @Query("UPDATE meal_items SET status = :status WHERE id = :mealItemId")
-    suspend fun updateMealItemStatus(mealItemId: String, status: String): Int
+    @Query("UPDATE meal_items SET status = :status WHERE accountId = :accountId AND id = :mealItemId")
+    suspend fun updateMealItemStatus(accountId: String, mealItemId: String, status: String): Int
 
     @Upsert
     suspend fun upsertFood(food: FoodEntity)
 
     @Query(
         "UPDATE foods SET isFavorite = :isFavorite, updatedAtEpochMillis = :updatedAtEpochMillis " +
-            "WHERE id = :foodId",
+            "WHERE accountId = :accountId AND id = :foodId",
     )
     suspend fun updateFoodFavorite(
+        accountId: String,
         foodId: String,
         isFavorite: Boolean,
         updatedAtEpochMillis: Long,

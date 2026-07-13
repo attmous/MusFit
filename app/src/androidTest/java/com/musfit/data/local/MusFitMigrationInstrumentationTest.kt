@@ -12,9 +12,10 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.musfit.core.di.DatabaseModule
+import com.musfit.data.local.entity.AccountEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodServingEntity
-import java.io.File
+import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -27,6 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
+import java.io.File
 
 private const val LARGE_DATASET_ROWS = 2_500
 private const val LARGE_MIGRATION_BUDGET_MILLIS = 30_000L
@@ -135,9 +137,9 @@ class MusFitRecentMigrationInstrumentationTest {
 
     @Test
     fun schemaValidatorRejectsDeliberatelyBrokenFixture() {
-        // The latest 35 -> 36 migration is data-only, so a no-op remains
-        // structurally valid. Start at 34 to omit the required chat tables and
-        // prove that Room's exported-schema validator rejects the fixture.
+        // Start two versions behind the schema head so the no-op skips the
+        // structural Food ownership migration and Room's exported-schema
+        // validator must reject the deliberately broken fixture.
         val origin = MUSFIT_DATABASE_VERSION - 2
         val databaseName = "deliberately-broken-$origin"
         helper.createDatabase(databaseName, origin).close()
@@ -223,39 +225,50 @@ class MusFitFrameworkDaoInstrumentationTest {
     }
 
     @Test
-    fun frameworkSQLiteEnforcesForeignKeysAndRollsBackMultiDaoTransaction() =
-        runBlocking {
-            database =
-                Room.inMemoryDatabaseBuilder(
-                    ApplicationProvider.getApplicationContext(),
-                    MusFitDatabase::class.java,
-                ).allowMainThreadQueries().build()
-            val foodDao = database.foodDao()
-            val food = sentinelFood("transaction-food")
-            val serving = FoodServingEntity("transaction-serving", food.id, "portion", 42.0)
+    fun frameworkSQLiteEnforcesForeignKeysAndRollsBackMultiDaoTransaction() = runBlocking {
+        database =
+            Room.inMemoryDatabaseBuilder(
+                ApplicationProvider.getApplicationContext(),
+                MusFitDatabase::class.java,
+            ).allowMainThreadQueries().build()
+        val foodDao = database.foodDao()
+        val food = sentinelFood("transaction-food")
+        val serving = FoodServingEntity(LOCAL_DEFAULT_ACCOUNT_ID, "transaction-serving", food.id, "portion", 42.0)
+        database.accountDao().upsertAccount(
+            AccountEntity(
+                id = LOCAL_DEFAULT_ACCOUNT_ID,
+                displayName = "Framework SQLite owner",
+                email = null,
+                remoteUserId = null,
+                authProvider = "local",
+                avatarUrl = null,
+                createdAtEpochMillis = 1_000L,
+                updatedAtEpochMillis = 1_000L,
+            ),
+        )
 
-            assertSuspendThrows(SQLiteConstraintException::class.java) {
-                foodDao.upsertServing(serving.copy(foodId = "missing-parent"))
-            }
+        assertSuspendThrows(SQLiteConstraintException::class.java) {
+            foodDao.upsertServing(serving.copy(foodId = "missing-parent"))
+        }
 
-            assertSuspendThrows(RollbackMarker::class.java) {
-                database.withTransaction {
-                    foodDao.upsertFood(food)
-                    foodDao.upsertServing(serving)
-                    throw RollbackMarker()
-                }
-            }
-            assertNull(foodDao.getFood(food.id))
-            assertTrue(foodDao.getServings(food.id).isEmpty())
-
+        assertSuspendThrows(RollbackMarker::class.java) {
             database.withTransaction {
                 foodDao.upsertFood(food)
                 foodDao.upsertServing(serving)
+                throw RollbackMarker()
             }
-            assertNotNull(foodDao.getFood(food.id))
-            assertEquals(listOf(serving), foodDao.getServings(food.id))
-            database.openHelper.writableDatabase.assertForeignKeysValid()
         }
+        assertNull(foodDao.getFood(LOCAL_DEFAULT_ACCOUNT_ID, food.id))
+        assertTrue(foodDao.getServings(LOCAL_DEFAULT_ACCOUNT_ID, food.id).isEmpty())
+
+        database.withTransaction {
+            foodDao.upsertFood(food)
+            foodDao.upsertServing(serving)
+        }
+        assertNotNull(foodDao.getFood(LOCAL_DEFAULT_ACCOUNT_ID, food.id))
+        assertEquals(listOf(serving), foodDao.getServings(LOCAL_DEFAULT_ACCOUNT_ID, food.id))
+        database.openHelper.writableDatabase.assertForeignKeysValid()
+    }
 
     private class RollbackMarker : RuntimeException()
 }
@@ -267,13 +280,12 @@ private data class MigrationSentinel(
     val mealItemId: String,
 ) {
     companion object {
-        fun forOrigin(origin: Int): MigrationSentinel =
-            MigrationSentinel(
-                foodId = "sentinel-food-$origin",
-                servingId = "sentinel-serving-$origin",
-                mealId = "sentinel-meal-$origin",
-                mealItemId = "sentinel-item-$origin",
-            )
+        fun forOrigin(origin: Int): MigrationSentinel = MigrationSentinel(
+            foodId = "sentinel-food-$origin",
+            servingId = "sentinel-serving-$origin",
+            mealId = "sentinel-meal-$origin",
+            mealItemId = "sentinel-item-$origin",
+        )
     }
 }
 
@@ -308,20 +320,18 @@ private fun SupportSQLiteDatabase.insertSentinelGraph(sentinel: MigrationSentine
 private fun SupportSQLiteDatabase.longValue(
     sql: String,
     vararg args: Any,
-): Long =
-    query(SimpleSQLiteQuery(sql, args)).use { cursor ->
-        assertTrue("Expected one row for: $sql", cursor.moveToFirst())
-        cursor.getLong(0)
-    }
+): Long = query(SimpleSQLiteQuery(sql, args)).use { cursor ->
+    assertTrue("Expected one row for: $sql", cursor.moveToFirst())
+    cursor.getLong(0)
+}
 
 private fun SupportSQLiteDatabase.stringValue(
     sql: String,
     vararg args: Any,
-): String =
-    query(SimpleSQLiteQuery(sql, args)).use { cursor ->
-        assertTrue("Expected one row for: $sql", cursor.moveToFirst())
-        cursor.getString(0)
-    }
+): String = query(SimpleSQLiteQuery(sql, args)).use { cursor ->
+    assertTrue("Expected one row for: $sql", cursor.moveToFirst())
+    cursor.getString(0)
+}
 
 private fun SupportSQLiteDatabase.assertForeignKeysValid() {
     query("PRAGMA foreign_key_check").use { cursor ->
@@ -339,28 +349,27 @@ private fun SupportSQLiteDatabase.assertForeignKeysValid() {
     }
 }
 
-private fun sentinelFood(id: String): FoodEntity =
-    FoodEntity(
-        id = id,
-        name = "Framework SQLite sentinel",
-        brand = null,
-        defaultServingGrams = 100.0,
-        caloriesPer100g = 250.0,
-        proteinPer100g = 12.0,
-        carbsPer100g = 30.0,
-        fatPer100g = 8.0,
-        createdAtEpochMillis = 1_000L,
-        updatedAtEpochMillis = 2_000L,
-    )
+private fun sentinelFood(id: String): FoodEntity = FoodEntity(
+    accountId = LOCAL_DEFAULT_ACCOUNT_ID,
+    id = id,
+    name = "Framework SQLite sentinel",
+    brand = null,
+    defaultServingGrams = 100.0,
+    caloriesPer100g = 250.0,
+    proteinPer100g = 12.0,
+    carbsPer100g = 30.0,
+    fatPer100g = 8.0,
+    createdAtEpochMillis = 1_000L,
+    updatedAtEpochMillis = 2_000L,
+)
 
 private suspend fun <T : Throwable> assertSuspendThrows(
     expected: Class<T>,
     block: suspend () -> Unit,
-): T =
-    try {
-        block()
-        throw AssertionError("Expected ${expected.name} to be thrown")
-    } catch (error: Throwable) {
-        if (!expected.isInstance(error)) throw error
-        expected.cast(error)
-    }
+): T = try {
+    block()
+    throw AssertionError("Expected ${expected.name} to be thrown")
+} catch (error: Throwable) {
+    if (!expected.isInstance(error)) throw error
+    expected.cast(error)
+}
