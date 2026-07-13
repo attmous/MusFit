@@ -421,7 +421,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
-    implementation(libs.androidx.hilt.work)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
@@ -431,7 +430,6 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.health.connect)
-    implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
@@ -451,7 +449,6 @@ dependencies {
     implementation(libs.androidx.profileinstaller)
 
     kapt(libs.hilt.compiler)
-    kapt(libs.androidx.hilt.compiler)
     kapt(libs.androidx.room.compiler)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
@@ -471,7 +468,6 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
     testImplementation(libs.androidx.room.testing)
-    testImplementation(libs.androidx.work.testing)
     testImplementation(libs.robolectric)
     testImplementation(libs.roborazzi.compose)
     testImplementation(platform(libs.androidx.compose.bom))
