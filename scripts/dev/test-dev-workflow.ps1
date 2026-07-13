@@ -583,6 +583,65 @@ Assert-FileDoesNotContain ".github/workflows/android.yml" 'recordRoborazzi'
 $goldenCount = @(Get-ChildItem -LiteralPath (Get-RepoPath "app/src/testInternalDebug/screenshots") -Filter "*.png" -File).Count
 Assert-Equal "Reviewed screenshot golden count" 7 $goldenCount
 
+# W2-PERF-01: production-shaped Macrobenchmark and app-owned Baseline Profile.
+Assert-FileExists "benchmark/build.gradle.kts"
+Assert-FileExists "baselineprofile/build.gradle.kts"
+Assert-FileExists "benchmark/src/main/java/com/musfit/benchmark/MusFitStartupBenchmark.kt"
+Assert-FileExists "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt"
+Assert-FileExists "baselineprofile/src/main/java/com/musfit/baselineprofile/MusFitBaselineProfileGenerator.kt"
+Assert-FileExists "app/src/main/generated/baselineProfiles/baseline-prof.txt"
+Assert-FileExists "app/src/main/generated/baselineProfiles/startup-prof.txt"
+Assert-FileExists "benchmark/baselines/approved-api37.json"
+Assert-FileExists "scripts/performance/verify-benchmark-regression.ps1"
+Assert-PowerShellParses "scripts/performance/verify-benchmark-regression.ps1"
+Assert-FileExists "docs/testing/performance-benchmarks.md"
+Assert-FileExists ".github/workflows/performance.yml"
+Assert-FileContains "settings.gradle.kts" 'include\(":benchmark"\)'
+Assert-FileContains "settings.gradle.kts" 'include\(":baselineprofile"\)'
+Assert-FileContains "app/build.gradle.kts" 'create\("benchmark"\)'
+Assert-FileContains "app/build.gradle.kts" 'baselineProfile\(project\(":baselineprofile"\)\)'
+Assert-FileContains "app/build.gradle.kts" 'automaticGenerationDuringBuild\s*=\s*false'
+Assert-FileContains "benchmark/build.gradle.kts" 'create\("benchmarkApi28"\)'
+Assert-FileContains "benchmark/build.gradle.kts" 'create\("benchmarkApi37"\)'
+Assert-FileContains "benchmark/build.gradle.kts" 'create\("benchmarkApi28And37"\)'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitStartupBenchmark.kt" 'fun coldStartup\(\)'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitStartupBenchmark.kt" 'fun warmStartup\(\)'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun foodJourney\(\)'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun trainingJourney\(\)'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun profileJourney\(\)'
+Assert-FileContains ".github/workflows/performance.yml" 'benchmarkApi28And37GroupBenchmarkAndroidTest'
+Assert-FileContains ".github/workflows/performance.yml" 'verify-benchmark-regression\.ps1[^\r\n]*-ReportOnly'
+Assert-FileContains ".github/workflows/performance.yml" 'managed_device_android_test_additional_output'
+Assert-FileContains ".github/workflows/performance.yml" 'system-images;android-37\.0;google_apis_ps16k;x86_64'
+Assert-FileContains ".github/workflows/performance.yml" 'retention-days:\s*30'
+Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'ThresholdPercent\s*=\s*10\.0'
+Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'Test-Regression 100\.0 110\.01 10\.0'
+Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" '::warning title=MusFit benchmark regression'
+
+foreach ($profilePath in @(
+    "app/src/main/generated/baselineProfiles/baseline-prof.txt",
+    "app/src/main/generated/baselineProfiles/startup-prof.txt"
+)) {
+    $profileLines = @(
+        Get-Content -LiteralPath (Get-RepoPath $profilePath) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+    if ($profileLines.Count -eq 0) {
+        throw "Expected generated profile rules in $profilePath."
+    }
+    $foreignRules = @($profileLines | Where-Object { $_ -notmatch 'com/musfit' })
+    if ($foreignRules.Count -gt 0) {
+        throw "Generated profile must contain only app-owned com/musfit rules: $profilePath"
+    }
+}
+
+$approvedBenchmark = Get-Content -LiteralPath (Get-RepoPath "benchmark/baselines/approved-api37.json") -Raw | ConvertFrom-Json
+Assert-Equal "Approved benchmark schema" 1 ([int] $approvedBenchmark.schemaVersion)
+Assert-Equal "Approved benchmark threshold" 10 ([double] $approvedBenchmark.thresholdPercent)
+if (@($approvedBenchmark.measurements).Count -eq 0) {
+    throw "Approved benchmark baseline must contain regression measurements."
+}
+
 if ($SelfTest) {
     $mismatchDetected = $false
     $expectedMismatchMessage =

@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "MusFit"
 include(":app")
+include(":benchmark")
+include(":baselineprofile")

@@ -16,6 +16,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.roborazzi)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 fun String.asBuildConfigString(): String =
@@ -178,6 +179,11 @@ android {
                 "proguard-rules.pro",
             )
         }
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
     }
 
     sourceSets {
@@ -238,6 +244,9 @@ androidComponents {
             ?.second
         val enabled =
             (distribution == "internal" && variantBuilder.buildType == "debug") ||
+            (distribution == "production" && variantBuilder.buildType == "benchmark") ||
+            (distribution == "production" && variantBuilder.buildType == "benchmarkRelease") ||
+            (distribution == "production" && variantBuilder.buildType == "nonMinifiedRelease") ||
             (distribution == "production" && variantBuilder.buildType == "release") ||
             (distribution == "legacyMigration" && variantBuilder.buildType == "release")
         variantBuilder.enable = enabled
@@ -260,7 +269,14 @@ tasks.register("verifyReleaseVariantMatrix") {
     group = "verification"
     description = "Verifies the only enabled installable variants and their canonical task families."
     doLast {
-        val expectedVariants = setOf("internalDebug", "productionRelease", "legacyMigrationRelease")
+        val expectedVariants = setOf(
+            "internalDebug",
+            "productionBenchmark",
+            "productionBenchmarkRelease",
+            "productionNonMinifiedRelease",
+            "productionRelease",
+            "legacyMigrationRelease",
+        )
         check(enabledApplicationVariants == expectedVariants) {
             "Enabled application variants must be $expectedVariants, got $enabledApplicationVariants"
         }
@@ -271,6 +287,7 @@ tasks.register("verifyReleaseVariantMatrix") {
             "testInternalDebugUnitTest",
             "lintInternalDebug",
             "assembleProductionRelease",
+            "assembleProductionBenchmark",
             "bundleProductionRelease",
             "testProductionReleaseUnitTest",
             "lintProductionRelease",
@@ -362,6 +379,7 @@ dependencies {
     implementation(libs.moshi.kotlin)
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.profileinstaller)
 
     kapt(libs.hilt.compiler)
     kapt(libs.androidx.hilt.compiler)
@@ -389,6 +407,20 @@ dependencies {
     testImplementation(libs.roborazzi.compose)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
+
+    baselineProfile(project(":baselineprofile"))
+}
+
+baselineProfile {
+    automaticGenerationDuringBuild = false
+    saveInSrc = true
+    mergeIntoMain = true
+    filter {
+        include("com.musfit.**")
+    }
+    warnings {
+        disabledVariants = false
+    }
 }
 
 roborazzi {
