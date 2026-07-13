@@ -5,14 +5,14 @@ ksp = "2.3.9"
 cyclonedx = "3.2.4"
 spotless = "8.8.0"
 detekt = "1.23.8"
-composeBom = "2026.04.01"
+composeBom = "2026.06.01"
 core = "1.19.0"
 activity = "1.13.0"
 lifecycle = "2.11.0"
 navigation = "2.9.8"
 hilt = "2.59.2"
-androidxHilt = "1.3.0"
-room = "2.8.1"
+androidxHilt = "1.4.0"
+room = "2.8.4"
 healthConnect = "1.1.0"
 credentials = "1.7.0-alpha02"
 googleid = "1.2.0"
@@ -22,18 +22,18 @@ mlkitText = "16.0.1"
 retrofit = "3.0.0"
 moshi = "1.15.2"
 okhttp = "4.12.0"
-coroutines = "1.10.2"
-serialization = "1.8.1"
+coroutines = "1.11.0"
+serialization = "1.11.0"
 junit = "4.13.2"
 turbine = "1.2.1"
 androidxTest = "1.7.0"
 androidxTestExtJunit = "1.3.0"
 espresso = "3.7.0"
 orchestrator = "1.6.1"
-uiautomator = "2.3.0"
+uiautomator = "2.4.0"
 robolectric = "4.16.1"
 coil = "2.7.0"
-roborazzi = "1.62.0"
+roborazzi = "1.68.0"
 benchmark = "1.5.0-alpha07"
 profileinstaller = "1.4.1"
 
@@ -88,6 +88,7 @@ junit = { module = "junit:junit", version.ref = "junit" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
+roborazzi-core = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
 androidx-benchmark-macro = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 
