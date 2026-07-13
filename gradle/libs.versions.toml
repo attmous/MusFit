@@ -33,7 +33,7 @@ orchestrator = "1.6.1"
 uiautomator = "2.3.0"
 robolectric = "4.16.1"
 coil = "2.7.0"
-roborazzi = "1.62.0"
+roborazzi = "1.68.0"
 benchmark = "1.5.0-alpha07"
 profileinstaller = "1.4.1"
 
