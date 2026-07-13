@@ -63,6 +63,11 @@ Normal pull-request CI runs the unit report because the device matrix is a
 separate, serialized lane. Both workflows retain their reports; no coverage
 service, repository token, or source upload is required.
 
+Robolectric loads Android-facing repositories through its sandbox classloader.
+Unit-test JaCoCo tasks therefore include no-location classes and exclude JDK
+internals; without that task configuration, executable repository tests pass
+but their production classes are incorrectly reported as entirely uncovered.
+
 ## Runtime budget and baseline updates
 
 The measured clean local unit report completed in 223.6 seconds for 814 tests;
