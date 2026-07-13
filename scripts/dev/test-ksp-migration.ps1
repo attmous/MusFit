@@ -17,7 +17,7 @@ function Assert-NoMatch([string] $Label, [string] $Content, [string] $Pattern) {
     }
 }
 
-Assert-Match "Version catalog" $catalog '(?m)^ksp\s*=\s*"2\.3\.9"\s*$'
+Assert-Match "Version catalog" $catalog '(?m)^ksp\s*=\s*"2\.3\.10"\s*$'
 Assert-Match "Version catalog" $catalog 'id\s*=\s*"com\.google\.devtools\.ksp"'
 Assert-NoMatch "Version catalog" $catalog 'com\.android\.legacy-kapt'
 Assert-Match "Root build" $rootBuild 'alias\(libs\.plugins\.ksp\)\s+apply false'
