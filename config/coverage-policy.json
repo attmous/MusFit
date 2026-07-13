@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "c754f7595f2b32a510ac2a5db79ac5a046fdeae5",
+  "businessPathPatterns": [
+    "^app/src/main/java/com/musfit/domain/",
+    "^app/src/main/java/com/musfit/data/repository/",
+    "^app/src/main/java/com/musfit/data/remote/",
+    "^app/src/main/java/com/musfit/data/transfer/",
+    "^app/src/main/java/com/musfit/integrations/",
+    "^app/src/main/java/com/musfit/ui/.+ViewModel\\.kt$",
+    "^app/src/main/java/com/musfit/ui/App(?:Destination|NavigationStack)\\.kt$"
+  ],
+  "criticalPathPatterns": [
+    "^app/src/main/java/com/musfit/domain/",
+    "^app/src/main/java/com/musfit/data/repository/"
+  ],
+  "excludedPathPatterns": [
+    "_Factory\\.java$",
+    "_MembersInjector\\.java$",
+    "^app/src/main/java/hilt_",
+    "^app/src/main/java/dagger/"
+  ],
+  "thresholds": {
+    "changedBusinessLineRatio": 0.80,
+    "changedCriticalLineRatio": 0.90,
+    "overallLineRatioBaseline": 0.578315745913511
+  },
+  "baselineCounts": {
+    "covered": 8385,
+    "missed": 6114,
+    "total": 14499
+  }
+}

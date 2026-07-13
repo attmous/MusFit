@@ -61,6 +61,32 @@ jobs:
       - name: Verify internal, migration bridge, and production-shaped builds
         run: ./gradlew spotlessCheck detekt verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
 
+      - name: Generate and enforce actionable unit coverage
+        timeout-minutes: 10
+        shell: pwsh
+        env:
+          COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          ./gradlew :app:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
+          $baseRef = $env:COVERAGE_BASE_REF
+          if ([string]::IsNullOrWhiteSpace($baseRef) -or $baseRef -match '^0+$') {
+            $baseRef = 'HEAD^'
+          }
+          ./scripts/coverage/verify-coverage.ps1 `
+            -ReportPath app/build/reports/coverage/test/internal/debug/report.xml `
+            -BaseRef $baseRef
+
+      - name: Retain actionable coverage report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: musfit-coverage-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            app/build/reports/coverage/test/internal/debug/
+            build/reports/coverage-policy/
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Generate aggregate CycloneDX SBOM in an isolated graph
         run: ./gradlew cyclonedxBom --no-daemon --console=plain
 
