@@ -112,6 +112,9 @@ Assert-FileContains "build.gradle.kts" 'ktlint\("1\.8\.0"\)'
 Assert-FileContains "build.gradle.kts" 'config/detekt-baseline\.xml'
 Assert-FileContains "app/build.gradle.kts" 'warningsAsErrors\s*=\s*true'
 Assert-FileContains "app/build.gradle.kts" 'baseline\s*=\s*file\("lint-baseline\.xml"\)'
+Assert-FileContains "app/build.gradle.kts" '"AndroidGradlePluginVersion"'
+Assert-FileContains "app/build.gradle.kts" '"GradleDependency"'
+Assert-FileContains "app/build.gradle.kts" '"NewerVersionAvailable"'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-static-quality\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'spotlessCheck'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?m)^\s*"detekt",?\s*$'
@@ -124,6 +127,13 @@ if ([int] $debt.schemaVersion -ne 1) {
 
 $lintCounts = Get-BaselineCounts (Get-RepoPath "app/lint-baseline.xml") "issue" "id"
 $detektCounts = Get-DetektBaselineCounts (Get-RepoPath "config/detekt-baseline.xml")
+$lintBaseline = [xml](Get-Content -LiteralPath (Get-RepoPath "app/lint-baseline.xml") -Raw)
+foreach ($location in $lintBaseline.SelectNodes("//location")) {
+    $file = [string] $location.GetAttribute("file")
+    if ($file -match '^\$HOME[/\\]' -or $file -match '^[A-Za-z]:[/\\]' -or $file.StartsWith('/')) {
+        throw "Lint baseline location must be repository-relative: $file"
+    }
+}
 $forbiddenLintDebt = @(
     "ApplySharedPref",
     "ConstantLocale",

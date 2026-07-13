@@ -311,6 +311,14 @@ android {
         checkReleaseBuilds = true
         warningsAsErrors = true
         baseline = file("lint-baseline.xml")
+        // Network-dependent version availability is owned by W2-DEPS-01's
+        // stable-first Dependabot policy, verification metadata, and 5% guard.
+        disable +=
+            setOf(
+                "AndroidGradlePluginVersion",
+                "GradleDependency",
+                "NewerVersionAvailable",
+            )
     }
 }
 

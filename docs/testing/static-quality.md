@@ -18,9 +18,11 @@ verification graph without changing runtime artifacts.
 
 Security and correctness findings are fixed or narrowly suppressed only when
 the warning conflicts with an intentional, tested contract. They are never
-admitted to the lint baseline. Dependency-version warnings remain governed by
-the stable-first Dependabot policy and are removed through separate dependency
-PRs.
+admitted to the lint baseline. The network-dependent `GradleDependency`,
+`NewerVersionAvailable`, and `AndroidGradlePluginVersion` checks are disabled in
+Android lint because their result changes by analyzer network/cache state. They
+remain governed by the stable-first Dependabot policy, strict verification
+metadata, and dependency-only performance guard.
 
 ## Local commands
 

@@ -3,22 +3,6 @@
   "entries": [
     {
       "tool": "android-lint",
-      "id": "GradleDependency",
-      "occurrences": 7,
-      "owner": "dependency-governance",
-      "expiresOn": "2026-09-30",
-      "rationale": "Stable dependency updates are isolated and benchmarked through W2-DEPS-01 instead of being mixed into a quality-policy PR."
-    },
-    {
-      "tool": "android-lint",
-      "id": "NewerVersionAvailable",
-      "occurrences": 10,
-      "owner": "dependency-governance",
-      "expiresOn": "2026-09-30",
-      "rationale": "Plugin and library updates remain stable-first, grouped, and independently verified by the dependency-governance workflow."
-    },
-    {
-      "tool": "android-lint",
       "id": "UseKtx",
       "occurrences": 10,
       "owner": "mobile-platform",
