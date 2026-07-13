@@ -9,6 +9,7 @@ import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.data.repository.WorkoutSetInputData
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,6 +24,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+private const val TEST_ACCOUNT_ID = "local-default"
 private const val TEST_EXERCISE_GIF_MIRROR_BASE =
     "https://gitlab.stud.idi.ntnu.no/gruppe-1/prog2052-prosjekt/-/raw/main/backend/assets/exercises/"
 
@@ -30,6 +32,7 @@ private const val TEST_EXERCISE_GIF_MIRROR_BASE =
 class LocalTrainingRepositoryTest {
     private lateinit var database: MusFitDatabase
     private lateinit var repository: LocalTrainingRepository
+    private lateinit var accountRepository: LocalAccountRepository
     private var currentInstant: Instant = WORKOUT_START
 
     @Before
@@ -40,11 +43,92 @@ class LocalTrainingRepositoryTest {
             Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
+        accountRepository = LocalAccountRepository(database.accountDao(), clock = { 1_000L })
+        runBlocking { accountRepository.ensureActiveAccount() }
         repository = LocalTrainingRepository(
             database = database,
             trainingDao = database.trainingDao(),
             clock = { currentInstant.toEpochMilli() },
+            accountRepository = accountRepository,
         )
+    }
+
+    @Test
+    fun activeAccount_isolatesEveryTrainingOwnedSurface() = runTest {
+        val sharedExerciseId = "shared-bench"
+        database.trainingDao().upsertExerciseDefinition(
+            ExerciseEntity(
+                id = sharedExerciseId,
+                name = "Shared bench",
+                category = "strength",
+                equipment = "barbell",
+                targetMuscles = "chest",
+                isCustom = false,
+            ),
+        )
+        repository.updateExerciseLocalNotes(sharedExerciseId, "Account A shared note")
+        val accountAExerciseId = repository.createCustomExercise(
+            ExerciseInput(
+                name = "Account A press",
+                category = "strength",
+                equipment = "barbell",
+                targetMuscles = "chest",
+            ),
+        )
+        repository.updateExerciseLocalNotes(accountAExerciseId, "Account A setup")
+        repository.updateTrainingSettings(
+            TrainingSettingsInput(
+                defaultRestSeconds = 75,
+                barWeightKg = 15.0,
+                availablePlatesKg = listOf(20.0, 10.0, 5.0),
+            ),
+        )
+        repository.createRoutine(
+            RoutineInput(
+                name = "Account A routine",
+                notes = "Private plan",
+                exercises = listOf(
+                    RoutineExerciseInput(
+                        exerciseId = accountAExerciseId,
+                        targetSets = 3,
+                        targetReps = "8",
+                    ),
+                ),
+            ),
+        )
+        val accountAWorkoutId = repository.startBlankWorkout()
+        repository.addExerciseToActiveWorkout(accountAWorkoutId, accountAExerciseId)
+
+        val secondAccountId = accountRepository.createAccount("Account B")
+        accountRepository.switchAccount(secondAccountId)
+
+        assertTrue(repository.observeExercises().first().none { it.id == accountAExerciseId })
+        assertEquals(null, repository.getExerciseDetail(accountAExerciseId))
+        assertEquals(null, repository.getExerciseDetail(sharedExerciseId)?.localNotes)
+        assertTrue(repository.observeRoutineSummaries().first().isEmpty())
+        assertEquals(null, repository.observeActiveWorkoutSummary().first())
+        assertEquals(null, repository.observeActiveWorkoutDetail().first())
+        assertTrue(repository.observeWorkoutHistory().first().isEmpty())
+        assertEquals(TrainingSettings(), repository.observeTrainingSettings().first())
+        repository.finishWorkout(accountAWorkoutId)
+
+        val accountBExerciseId = repository.createCustomExercise(
+            ExerciseInput(
+                name = "Account B row",
+                category = "strength",
+                equipment = "cable",
+                targetMuscles = "back",
+            ),
+        )
+        assertEquals("Account B row", repository.observeExercises().first().single { it.id == accountBExerciseId }.name)
+
+        accountRepository.switchAccount("local-default")
+
+        assertEquals("Account A setup", repository.getExerciseDetail(accountAExerciseId)?.localNotes)
+        assertEquals("Account A shared note", repository.getExerciseDetail(sharedExerciseId)?.localNotes)
+        assertEquals("Account A routine", repository.observeRoutineSummaries().first().single().name)
+        assertEquals(accountAWorkoutId, repository.observeActiveWorkoutSummary().first()?.sessionId)
+        assertTrue(repository.observeExercises().first().none { it.id == accountBExerciseId })
     }
 
     @After
@@ -82,8 +166,8 @@ class LocalTrainingRepositoryTest {
             weightKg = 100.0,
         )
 
-        val sessions = database.trainingDao().observeWorkoutSessions().first()
-        val sets = database.trainingDao().getWorkoutSets(sessions.single().id)
+        val sessions = database.trainingDao().observeWorkoutSessions(TEST_ACCOUNT_ID).first()
+        val sets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessions.single().id)
         val summary = repository.observeDailyTrainingSummary(WORKOUT_DATE).first()
 
         assertEquals("Bench Press", savedSet.exerciseName)
@@ -107,8 +191,8 @@ class LocalTrainingRepositoryTest {
         repository.setCompletion(savedSet.id, completed = false)
 
         val summary = repository.observeDailyTrainingSummary(WORKOUT_DATE).first()
-        val sessions = database.trainingDao().observeWorkoutSessions().first()
-        val sets = database.trainingDao().getWorkoutSets(sessions.single().id)
+        val sessions = database.trainingDao().observeWorkoutSessions(TEST_ACCOUNT_ID).first()
+        val sets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessions.single().id)
 
         assertEquals(false, sets.single().completed)
         assertEquals(0, summary.completedSetCount)
@@ -150,7 +234,7 @@ class LocalTrainingRepositoryTest {
             weightKg = 120.0,
         )
 
-        val sessions = database.trainingDao().observeWorkoutSessions().first()
+        val sessions = database.trainingDao().observeWorkoutSessions(TEST_ACCOUNT_ID).first()
         val firstDaySummary = repository.observeDailyTrainingSummary(WORKOUT_DATE).first()
         val nextDaySummary = repository.observeDailyTrainingSummary(nextDate).first()
 
@@ -174,8 +258,8 @@ class LocalTrainingRepositoryTest {
             weightKg = 102.5,
         )
 
-        val sessions = database.trainingDao().observeWorkoutSessions().first()
-        val allSets = sessions.flatMap { session -> database.trainingDao().getWorkoutSets(session.id) }
+        val sessions = database.trainingDao().observeWorkoutSessions(TEST_ACCOUNT_ID).first()
+        val allSets = sessions.flatMap { session -> database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, session.id) }
         val summary = repository.observeDailyTrainingSummary(WORKOUT_DATE).first()
 
         assertEquals(2, sessions.size)
@@ -319,7 +403,7 @@ class LocalTrainingRepositoryTest {
 
     @Test
     fun getExerciseDetail_rewritesLegacyDatasetMediaUrlsToGifMirrorUrls() = runTest {
-        database.trainingDao().upsertExercise(
+        database.trainingDao().upsertExerciseDefinition(
             ExerciseEntity(
                 id = "legacy-media",
                 name = "Legacy Media Curl",
@@ -376,14 +460,14 @@ class LocalTrainingRepositoryTest {
 
         repositoryWithDataset.seedStarterTrainingData()
 
-        val imported = database.trainingDao().getExercise("ds-0025")
+        val imported = database.trainingDao().getExercise(TEST_ACCOUNT_ID, "ds-0025")
         assertNotNull(imported)
         assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", imported?.imageUrl)
         assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", imported?.gifUrl)
 
         // The built-in "Barbell Bench Press" starter keeps the useful text while attaching the
         // matching ExerciseDB demo media from the imported catalog row.
-        val starter = database.trainingDao().getExerciseByName("Barbell Bench Press")
+        val starter = database.trainingDao().getExerciseByName(TEST_ACCOUNT_ID, "Barbell Bench Press")
         assertNotNull(starter)
         assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", starter?.imageUrl)
         assertEquals(TEST_EXERCISE_GIF_MIRROR_BASE + "x.gif", starter?.gifUrl)
@@ -575,7 +659,7 @@ class LocalTrainingRepositoryTest {
 
         val sessionId = repository.startWorkoutFromRoutine(routineId)
         val active = repository.observeActiveWorkoutDetail().first()
-        val persistedSets = database.trainingDao().getWorkoutSets(sessionId)
+        val persistedSets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId)
 
         assertEquals(listOf("warmup", "working", "failure"), active?.exerciseBlocks?.single()?.sets?.map { it.setType })
         assertEquals(listOf("12", "8", "AMRAP"), active?.exerciseBlocks?.single()?.sets?.map { it.targetReps })
@@ -626,6 +710,7 @@ class LocalTrainingRepositoryTest {
         val activeSessionId = repository.startWorkoutFromRoutine(routineId)
         database.trainingDao().upsertWorkoutSession(
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-completed-linked",
                 routineId = routineId,
                 title = "Upper A",
@@ -649,8 +734,8 @@ class LocalTrainingRepositoryTest {
             ),
         )
 
-        val activeSession = database.trainingDao().getWorkoutSession(activeSessionId)
-        val completedSession = database.trainingDao().getWorkoutSession("session-completed-linked")
+        val activeSession = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, activeSessionId)
+        val completedSession = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-completed-linked")
 
         assertEquals(routineId, activeSession?.routineId)
         assertEquals(routineId, completedSession?.routineId)
@@ -664,7 +749,7 @@ class LocalTrainingRepositoryTest {
         val sessionId = repository.startWorkoutFromRoutine(routine.id)
         val active = repository.observeActiveWorkoutSummary().first()
 
-        val sets = database.trainingDao().getWorkoutSets(sessionId)
+        val sets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId)
 
         assertEquals(sessionId, active?.sessionId)
         assertEquals("Full Body A", active?.title)
@@ -679,11 +764,10 @@ class LocalTrainingRepositoryTest {
         val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
         val sessionId = repository.startWorkoutFromRoutine(routine.id)
 
-        suspend fun exerciseOrder(): List<String> =
-            database.trainingDao().getWorkoutSets(sessionId)
-                .sortedBy { it.sortOrder }
-                .map { it.exerciseId }
-                .distinct()
+        suspend fun exerciseOrder(): List<String> = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId)
+            .sortedBy { it.sortOrder }
+            .map { it.exerciseId }
+            .distinct()
 
         val before = exerciseOrder()
         assertTrue(before.size >= 2)
@@ -696,7 +780,7 @@ class LocalTrainingRepositoryTest {
         assertEquals(before[0], after[1])
         // All of the moved block's later exercises stay in place.
         assertEquals(before.drop(2), after.drop(2))
-        val sets = database.trainingDao().getWorkoutSets(sessionId).sortedBy { it.sortOrder }
+        val sets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId).sortedBy { it.sortOrder }
         assertEquals(sets.indices.toList(), sets.map { it.sortOrder })
     }
 
@@ -706,14 +790,14 @@ class LocalTrainingRepositoryTest {
         val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
         val sessionId = repository.startWorkoutFromRoutine(routine.id)
 
-        val workoutExerciseIds = database.trainingDao().getWorkoutSets(sessionId).map { it.exerciseId }.toSet()
-        val original = database.trainingDao().getWorkoutSets(sessionId).sortedBy { it.sortOrder }.first().exerciseId
-        val originalSetCount = database.trainingDao().getWorkoutSets(sessionId).count { it.exerciseId == original }
+        val workoutExerciseIds = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId).map { it.exerciseId }.toSet()
+        val original = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId).sortedBy { it.sortOrder }.first().exerciseId
+        val originalSetCount = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId).count { it.exerciseId == original }
         val replacement = repository.observeExercises(query = "").first().first { it.id !in workoutExerciseIds }
 
         repository.replaceExerciseInActiveWorkout(sessionId, fromExerciseId = original, toExerciseId = replacement.id)
 
-        val sets = database.trainingDao().getWorkoutSets(sessionId)
+        val sets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId)
         assertEquals(0, sets.count { it.exerciseId == original })
         assertEquals(originalSetCount, sets.count { it.exerciseId == replacement.id })
     }
@@ -723,7 +807,7 @@ class LocalTrainingRepositoryTest {
         val sessionId = repository.startBlankWorkout()
 
         val active = repository.observeActiveWorkoutSummary().first()
-        val sets = database.trainingDao().getWorkoutSets(sessionId)
+        val sets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId)
 
         assertEquals("Blank workout", active?.title)
         assertTrue(sets.isEmpty())
@@ -1170,8 +1254,8 @@ class LocalTrainingRepositoryTest {
         )
         repository.deleteWorkoutSet(originalSetId)
 
-        val session = database.trainingDao().getWorkoutSession(sessionId)
-        val sets = database.trainingDao().getWorkoutSets(sessionId)
+        val session = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, sessionId)
+        val sets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId)
         val preservedSet = sets.singleOrNull { it.id == originalSetId }
 
         assertEquals("", addedAfterFinish)
@@ -1232,8 +1316,8 @@ class LocalTrainingRepositoryTest {
         )
         repository.deleteWorkoutSet(originalSetId)
 
-        val session = database.trainingDao().getWorkoutSession(sessionId)
-        val sets = database.trainingDao().getWorkoutSets(sessionId)
+        val session = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, sessionId)
+        val sets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, sessionId)
         val preservedSet = sets.singleOrNull { it.id == originalSetId }
 
         assertEquals("", addedAfterDiscard)
@@ -1260,9 +1344,9 @@ class LocalTrainingRepositoryTest {
             weightKg = 100.0,
         )
 
-        val sessions = database.trainingDao().observeWorkoutSessions().first().sortedBy { it.startedAtEpochMillis }
+        val sessions = database.trainingDao().observeWorkoutSessions(TEST_ACCOUNT_ID).first().sortedBy { it.startedAtEpochMillis }
         val quickLogSessions = sessions.filter { it.id != activeSessionId }
-        val quickLogSets = quickLogSessions.flatMap { session -> database.trainingDao().getWorkoutSets(session.id) }
+        val quickLogSets = quickLogSessions.flatMap { session -> database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, session.id) }
 
         assertEquals(2, sessions.size)
         assertEquals("completed", sessions.first { it.id == activeSessionId }.status)
@@ -1285,11 +1369,11 @@ class LocalTrainingRepositoryTest {
             weightKg = 100.0,
         )
 
-        val sessions = database.trainingDao().observeWorkoutSessions().first().sortedBy { it.startedAtEpochMillis }
+        val sessions = database.trainingDao().observeWorkoutSessions(TEST_ACCOUNT_ID).first().sortedBy { it.startedAtEpochMillis }
         val discardedSession = sessions.first { it.id == activeSessionId }
         val quickLogSessions = sessions.filter { it.id != activeSessionId }
-        val discardedSets = database.trainingDao().getWorkoutSets(activeSessionId)
-        val quickLogSets = quickLogSessions.flatMap { session -> database.trainingDao().getWorkoutSets(session.id) }
+        val discardedSets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, activeSessionId)
+        val quickLogSets = quickLogSessions.flatMap { session -> database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, session.id) }
 
         assertEquals(2, sessions.size)
         assertEquals("discarded", discardedSession.status)
@@ -1305,6 +1389,7 @@ class LocalTrainingRepositoryTest {
         val endedAt = WORKOUT_START.plusSeconds(1200).toEpochMilli()
         val session =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-completed",
                 routineId = null,
                 title = "Completed workout",
@@ -1320,7 +1405,7 @@ class LocalTrainingRepositoryTest {
 
         repository.finishWorkout(session.id)
 
-        val savedSession = database.trainingDao().getWorkoutSession(session.id)
+        val savedSession = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, session.id)
 
         assertEquals("completed", savedSession?.status)
         assertEquals(endedAt, savedSession?.endedAtEpochMillis)
@@ -1331,6 +1416,7 @@ class LocalTrainingRepositoryTest {
         val endedAt = WORKOUT_START.plusSeconds(1800).toEpochMilli()
         val session =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-discarded",
                 routineId = null,
                 title = "Discarded workout",
@@ -1346,7 +1432,7 @@ class LocalTrainingRepositoryTest {
 
         repository.discardWorkout(session.id)
 
-        val savedSession = database.trainingDao().getWorkoutSession(session.id)
+        val savedSession = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, session.id)
 
         assertEquals("discarded", savedSession?.status)
         assertEquals(endedAt, savedSession?.endedAtEpochMillis)
@@ -1361,8 +1447,8 @@ class LocalTrainingRepositoryTest {
         val returnedSessionId = repository.startWorkoutFromRoutine(routine.id)
 
         val active = repository.observeActiveWorkoutSummary().first()
-        val sessions = database.trainingDao().observeWorkoutSessions().first()
-        val sets = database.trainingDao().getWorkoutSets(blankSessionId)
+        val sessions = database.trainingDao().observeWorkoutSessions(TEST_ACCOUNT_ID).first()
+        val sets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, blankSessionId)
 
         assertEquals(blankSessionId, returnedSessionId)
         assertEquals(1, sessions.count { it.status == "active" })
@@ -1379,13 +1465,13 @@ class LocalTrainingRepositoryTest {
         val push = routines.first { it.name == "Push" }
 
         val activeSessionId = repository.startWorkoutFromRoutine(fullBody.id)
-        val originalSets = database.trainingDao().getWorkoutSets(activeSessionId)
+        val originalSets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, activeSessionId)
 
         val returnedSessionId = repository.startWorkoutFromRoutine(push.id)
 
         val active = repository.observeActiveWorkoutSummary().first()
-        val sessions = database.trainingDao().observeWorkoutSessions().first()
-        val setsAfterSecondLaunch = database.trainingDao().getWorkoutSets(activeSessionId)
+        val sessions = database.trainingDao().observeWorkoutSessions(TEST_ACCOUNT_ID).first()
+        val setsAfterSecondLaunch = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, activeSessionId)
 
         assertEquals(activeSessionId, returnedSessionId)
         assertEquals(1, sessions.count { it.status == "active" })
@@ -1401,13 +1487,13 @@ class LocalTrainingRepositoryTest {
         val routine = repository.observeRoutineSummaries().first().first { it.name == "Full Body A" }
 
         val firstSessionId = repository.startWorkoutFromRoutine(routine.id)
-        val originalSets = database.trainingDao().getWorkoutSets(firstSessionId)
+        val originalSets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, firstSessionId)
 
         val secondSessionId = repository.startWorkoutFromRoutine(routine.id)
 
         val active = repository.observeActiveWorkoutSummary().first()
-        val sessions = database.trainingDao().observeWorkoutSessions().first()
-        val setsAfterRepeat = database.trainingDao().getWorkoutSets(firstSessionId)
+        val sessions = database.trainingDao().observeWorkoutSessions(TEST_ACCOUNT_ID).first()
+        val setsAfterRepeat = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, firstSessionId)
 
         assertEquals(firstSessionId, secondSessionId)
         assertEquals(1, sessions.count { it.status == "active" })
@@ -1441,13 +1527,13 @@ class LocalTrainingRepositoryTest {
                 targetMuscles = "chest",
                 isCustom = true,
             )
-        database.trainingDao().upsertExercise(customBenchPress)
+        database.trainingDao().upsertExerciseDefinition(customBenchPress)
 
         repository.seedStarterTrainingData()
 
         val exercises = repository.observeExercises().first()
         val routines = repository.observeRoutineSummaries().first()
-        val pushRoutineExercises = database.trainingDao().getRoutineExercises("starter-routine-push")
+        val pushRoutineExercises = database.trainingDao().getRoutineExercises(TEST_ACCOUNT_ID, "starter-routine-push")
         val matchingBenchPressExercises = exercises.filter { it.name == "Barbell Bench Press" }
 
         assertEquals(TrainingStarterData.exercises.map { it.name }.sorted(), exercises.map { it.name }.sorted())
@@ -1467,6 +1553,7 @@ class LocalTrainingRepositoryTest {
         repository.seedStarterTrainingData()
         database.trainingDao().upsertWorkoutSession(
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-linked-routine",
                 routineId = "starter-routine-full-body-a",
                 title = "Full Body A",
@@ -1481,7 +1568,7 @@ class LocalTrainingRepositoryTest {
 
         repository.seedStarterTrainingData()
 
-        val savedSession = database.trainingDao().getWorkoutSession("session-linked-routine")
+        val savedSession = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-linked-routine")
 
         assertEquals("starter-routine-full-body-a", savedSession?.routineId)
     }
@@ -1499,6 +1586,7 @@ class LocalTrainingRepositoryTest {
             )
         val completedSession =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-completed",
                 routineId = null,
                 title = "Completed workout",
@@ -1511,6 +1599,7 @@ class LocalTrainingRepositoryTest {
             )
         val activeSession =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-active",
                 routineId = null,
                 title = "Active workout",
@@ -1522,11 +1611,12 @@ class LocalTrainingRepositoryTest {
                 healthConnectLastExportedAtEpochMillis = null,
             )
 
-        database.trainingDao().upsertExercise(exercise)
+        database.trainingDao().upsertExerciseDefinition(exercise)
         database.trainingDao().upsertWorkoutSession(completedSession)
         database.trainingDao().upsertWorkoutSession(activeSession)
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-completed",
                 sessionId = completedSession.id,
                 exerciseId = exercise.id,
@@ -1543,6 +1633,7 @@ class LocalTrainingRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-active",
                 sessionId = activeSession.id,
                 exerciseId = exercise.id,
@@ -1579,6 +1670,7 @@ class LocalTrainingRepositoryTest {
             )
         val completedSession =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-completed",
                 routineId = null,
                 title = "Bench workout",
@@ -1590,10 +1682,11 @@ class LocalTrainingRepositoryTest {
                 healthConnectLastExportedAtEpochMillis = null,
             )
 
-        database.trainingDao().upsertExercise(exercise)
+        database.trainingDao().upsertExerciseDefinition(exercise)
         database.trainingDao().upsertWorkoutSession(completedSession)
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-completed",
                 sessionId = completedSession.id,
                 exerciseId = exercise.id,
@@ -1610,6 +1703,7 @@ class LocalTrainingRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-incomplete",
                 sessionId = completedSession.id,
                 exerciseId = exercise.id,
@@ -1644,6 +1738,7 @@ class LocalTrainingRepositoryTest {
             )
         val olderCompletedSession =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-older-completed",
                 routineId = null,
                 title = "Older workout",
@@ -1656,6 +1751,7 @@ class LocalTrainingRepositoryTest {
             )
         val newerEmptyCompletedSession =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-newer-empty",
                 routineId = null,
                 title = "Newer empty workout",
@@ -1667,11 +1763,12 @@ class LocalTrainingRepositoryTest {
                 healthConnectLastExportedAtEpochMillis = null,
             )
 
-        database.trainingDao().upsertExercise(exercise)
+        database.trainingDao().upsertExerciseDefinition(exercise)
         database.trainingDao().upsertWorkoutSession(olderCompletedSession)
         database.trainingDao().upsertWorkoutSession(newerEmptyCompletedSession)
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-older-completed",
                 sessionId = olderCompletedSession.id,
                 exerciseId = exercise.id,
@@ -1688,6 +1785,7 @@ class LocalTrainingRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-newer-incomplete",
                 sessionId = newerEmptyCompletedSession.id,
                 exerciseId = exercise.id,
@@ -1813,6 +1911,7 @@ class LocalTrainingRepositoryTest {
             )
         val completedSession =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-completed",
                 routineId = null,
                 title = "Completed workout",
@@ -1825,6 +1924,7 @@ class LocalTrainingRepositoryTest {
             )
         val activeSession =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-active",
                 routineId = null,
                 title = "Active workout",
@@ -1837,6 +1937,7 @@ class LocalTrainingRepositoryTest {
             )
         val discardedSession =
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-discarded",
                 routineId = null,
                 title = "Discarded workout",
@@ -1848,12 +1949,13 @@ class LocalTrainingRepositoryTest {
                 healthConnectLastExportedAtEpochMillis = null,
             )
 
-        database.trainingDao().upsertExercise(exercise)
+        database.trainingDao().upsertExerciseDefinition(exercise)
         database.trainingDao().upsertWorkoutSession(completedSession)
         database.trainingDao().upsertWorkoutSession(activeSession)
         database.trainingDao().upsertWorkoutSession(discardedSession)
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-completed",
                 sessionId = completedSession.id,
                 exerciseId = exercise.id,
@@ -1870,6 +1972,7 @@ class LocalTrainingRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-active",
                 sessionId = activeSession.id,
                 exerciseId = exercise.id,
@@ -1886,6 +1989,7 @@ class LocalTrainingRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-discarded",
                 sessionId = discardedSession.id,
                 exerciseId = exercise.id,

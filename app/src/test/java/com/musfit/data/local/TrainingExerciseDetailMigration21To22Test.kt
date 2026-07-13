@@ -53,7 +53,7 @@ class TrainingExerciseDetailMigration21To22Test {
                     DatabaseModule.MIGRATION_33_34,
                     DatabaseModule.MIGRATION_34_35,
                     DatabaseModule.MIGRATION_35_36,
-                    DatabaseModule.MIGRATION_36_37,
+                    DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38,
                 )
                 .build()
         try {
@@ -72,10 +72,11 @@ class TrainingExerciseDetailMigration21To22Test {
             assertTrue(tableHasColumn(migratedDatabase, "exercises", "primaryMuscles"))
             assertTrue(tableHasColumn(migratedDatabase, "exercises", "secondaryMuscles"))
             assertTrue(tableHasColumn(migratedDatabase, "exercises", "instructions"))
-            assertTrue(tableHasColumn(migratedDatabase, "exercises", "localNotes"))
+            assertTrue(!tableHasColumn(migratedDatabase, "exercises", "localNotes"))
+            assertTrue(tableHasColumn(migratedDatabase, "exercise_notes", "notes"))
             migratedDatabase.rawQuery(
                 """
-                SELECT targetMuscles, primaryMuscles, secondaryMuscles, instructions, localNotes
+                SELECT targetMuscles, primaryMuscles, secondaryMuscles, instructions
                 FROM exercises
                 WHERE id = 'legacy-bench'
                 """.trimIndent(),
@@ -86,8 +87,8 @@ class TrainingExerciseDetailMigration21To22Test {
                 assertEquals("chest,triceps", cursor.getString(1))
                 assertEquals("", cursor.getString(2))
                 assertTrue(cursor.isNull(3))
-                assertTrue(cursor.isNull(4))
             }
+            assertEquals(0, rowCount(migratedDatabase, "exercise_notes"))
         } finally {
             migratedDatabase.close()
         }
@@ -119,6 +120,11 @@ class TrainingExerciseDetailMigration21To22Test {
         val nameIndex = cursor.getColumnIndex("name")
         generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
             .any { it == columnName }
+    }
+
+    private fun rowCount(database: SQLiteDatabase, tableName: String): Int = database.rawQuery("SELECT COUNT(*) FROM `$tableName`", null).use { cursor ->
+        cursor.moveToFirst()
+        cursor.getInt(0)
     }
 
     private fun createDatabaseFromExportedSchema(version: Int) {

@@ -3,11 +3,23 @@ package com.musfit.data.local.entity
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
-import androidx.room.PrimaryKey
 
-@Entity(tableName = "exercises")
+@Entity(
+    tableName = "exercises",
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("accountId"), Index(value = ["accountId", "name"])],
+    primaryKeys = ["id"],
+)
 data class ExerciseEntity(
-    @PrimaryKey val id: String,
+    val id: String,
+    val accountId: String? = null,
     val name: String,
     val category: String,
     val equipment: String?,
@@ -16,14 +28,78 @@ data class ExerciseEntity(
     val primaryMuscles: String = targetMuscles,
     val secondaryMuscles: String = "",
     val instructions: String? = null,
-    val localNotes: String? = null,
     val imageUrl: String? = null,
     val gifUrl: String? = null,
 )
 
-@Entity(tableName = "routines", indices = [Index("folderId")])
+@Entity(
+    tableName = "exercise_notes",
+    primaryKeys = ["accountId", "exerciseId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = ExerciseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["exerciseId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("exerciseId")],
+)
+data class ExerciseNoteEntity(
+    val accountId: String,
+    val exerciseId: String,
+    val notes: String,
+)
+
+@Entity(
+    tableName = "routine_folders",
+    primaryKeys = ["accountId", "id"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["accountId", "sortOrder", "name"])],
+)
+data class RoutineFolderEntity(
+    val accountId: String,
+    val id: String,
+    val name: String,
+    val sortOrder: Int,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long = createdAtEpochMillis,
+)
+
+@Entity(
+    tableName = "routines",
+    primaryKeys = ["accountId", "id"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = RoutineFolderEntity::class,
+            parentColumns = ["accountId", "id"],
+            childColumns = ["accountId", "folderId"],
+        ),
+    ],
+    indices = [Index(value = ["accountId", "folderId"]), Index(value = ["accountId", "updatedAtEpochMillis"])],
+)
 data class RoutineEntity(
-    @PrimaryKey val id: String,
+    val accountId: String,
+    val id: String,
     val name: String,
     val notes: String?,
     val createdAtEpochMillis: Long,
@@ -34,22 +110,20 @@ data class RoutineEntity(
     val folderId: String? = null,
 )
 
-@Entity(tableName = "routine_folders")
-data class RoutineFolderEntity(
-    @PrimaryKey val id: String,
-    val name: String,
-    val sortOrder: Int,
-    val createdAtEpochMillis: Long,
-    val updatedAtEpochMillis: Long = createdAtEpochMillis,
-)
-
 @Entity(
     tableName = "routine_exercises",
+    primaryKeys = ["accountId", "id"],
     foreignKeys = [
         ForeignKey(
-            entity = RoutineEntity::class,
+            entity = AccountEntity::class,
             parentColumns = ["id"],
-            childColumns = ["routineId"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = RoutineEntity::class,
+            parentColumns = ["accountId", "id"],
+            childColumns = ["accountId", "routineId"],
             onDelete = ForeignKey.CASCADE,
         ),
         ForeignKey(
@@ -59,10 +133,11 @@ data class RoutineFolderEntity(
             onDelete = ForeignKey.RESTRICT,
         ),
     ],
-    indices = [Index("routineId"), Index("exerciseId")],
+    indices = [Index(value = ["accountId", "routineId", "sortOrder"]), Index(value = ["accountId", "exerciseId"]), Index("exerciseId")],
 )
 data class RoutineExerciseEntity(
-    @PrimaryKey val id: String,
+    val accountId: String,
+    val id: String,
     val routineId: String,
     val exerciseId: String,
     val sortOrder: Int,
@@ -73,18 +148,26 @@ data class RoutineExerciseEntity(
 
 @Entity(
     tableName = "routine_exercise_sets",
+    primaryKeys = ["accountId", "id"],
     foreignKeys = [
         ForeignKey(
-            entity = RoutineExerciseEntity::class,
+            entity = AccountEntity::class,
             parentColumns = ["id"],
-            childColumns = ["routineExerciseId"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = RoutineExerciseEntity::class,
+            parentColumns = ["accountId", "id"],
+            childColumns = ["accountId", "routineExerciseId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("routineExerciseId")],
+    indices = [Index(value = ["accountId", "routineExerciseId", "sortOrder"])],
 )
 data class RoutineExerciseSetEntity(
-    @PrimaryKey val id: String,
+    val accountId: String,
+    val id: String,
     val routineExerciseId: String,
     val sortOrder: Int,
     val setType: String,
@@ -94,18 +177,29 @@ data class RoutineExerciseSetEntity(
 
 @Entity(
     tableName = "workout_sessions",
-    indices = [Index("routineId"), Index("startedAtEpochMillis"), Index("status")],
+    primaryKeys = ["accountId", "id"],
+    indices = [
+        Index(value = ["accountId", "routineId"]),
+        Index(value = ["accountId", "startedAtEpochMillis"]),
+        Index(value = ["accountId", "status", "startedAtEpochMillis"]),
+    ],
     foreignKeys = [
         ForeignKey(
-            entity = RoutineEntity::class,
+            entity = AccountEntity::class,
             parentColumns = ["id"],
-            childColumns = ["routineId"],
-            onDelete = ForeignKey.SET_NULL,
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = RoutineEntity::class,
+            parentColumns = ["accountId", "id"],
+            childColumns = ["accountId", "routineId"],
         ),
     ],
 )
 data class WorkoutSessionEntity(
-    @PrimaryKey val id: String,
+    val accountId: String,
+    val id: String,
     val routineId: String?,
     val title: String? = null,
     val status: String = "completed",
@@ -118,11 +212,18 @@ data class WorkoutSessionEntity(
 
 @Entity(
     tableName = "workout_sets",
+    primaryKeys = ["accountId", "id"],
     foreignKeys = [
         ForeignKey(
-            entity = WorkoutSessionEntity::class,
+            entity = AccountEntity::class,
             parentColumns = ["id"],
-            childColumns = ["sessionId"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = WorkoutSessionEntity::class,
+            parentColumns = ["accountId", "id"],
+            childColumns = ["accountId", "sessionId"],
             onDelete = ForeignKey.CASCADE,
         ),
         ForeignKey(
@@ -132,10 +233,11 @@ data class WorkoutSessionEntity(
             onDelete = ForeignKey.RESTRICT,
         ),
     ],
-    indices = [Index("sessionId"), Index("exerciseId")],
+    indices = [Index(value = ["accountId", "sessionId", "sortOrder"]), Index(value = ["accountId", "exerciseId"]), Index("exerciseId")],
 )
 data class WorkoutSetEntity(
-    @PrimaryKey val id: String,
+    val accountId: String,
+    val id: String,
     val sessionId: String,
     val exerciseId: String,
     val sortOrder: Int,
@@ -151,9 +253,21 @@ data class WorkoutSetEntity(
     val restSeconds: Int? = null,
 )
 
-@Entity(tableName = "training_settings")
+@Entity(
+    tableName = "training_settings",
+    primaryKeys = ["accountId", "id"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
 data class TrainingSettingsEntity(
-    @PrimaryKey val id: String = "default",
+    val accountId: String,
+    val id: String = "default",
     val defaultRestSeconds: Int = 120,
     val barWeightKg: Double = 20.0,
     val availablePlatesKg: String = "25,20,15,10,5,2.5,1.25",

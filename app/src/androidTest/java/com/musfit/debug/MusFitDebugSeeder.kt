@@ -34,6 +34,7 @@ import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AssetExerciseDatasetProvider
 import com.musfit.data.repository.FoodGoalMode
+import com.musfit.data.repository.LocalAccountRepository
 import com.musfit.data.repository.LocalTrainingRepository
 import com.musfit.data.repository.TrainingRepository
 import java.time.LocalDate
@@ -120,6 +121,7 @@ internal class MusFitDebugSeeder private constructor(
             seedTrainingHistory(today)
             trainingDao.upsertTrainingSettings(
                 TrainingSettingsEntity(
+                    accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                     id = "default",
                     defaultRestSeconds = 150,
                     barWeightKg = 20.0,
@@ -391,6 +393,7 @@ internal class MusFitDebugSeeder private constructor(
         val dao = database.trainingDao()
         listOf(
             WorkoutSessionEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "debug-workout-upper-a",
                 routineId = "starter-routine-upper-a",
                 title = "Upper A",
@@ -402,6 +405,7 @@ internal class MusFitDebugSeeder private constructor(
                 healthConnectLastExportedAtEpochMillis = null,
             ),
             WorkoutSessionEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "debug-workout-legs",
                 routineId = "starter-routine-legs",
                 title = "Legs",
@@ -413,6 +417,7 @@ internal class MusFitDebugSeeder private constructor(
                 healthConnectLastExportedAtEpochMillis = null,
             ),
             WorkoutSessionEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "debug-workout-active",
                 routineId = "starter-routine-full-body-a",
                 title = "Full Body A",
@@ -426,16 +431,16 @@ internal class MusFitDebugSeeder private constructor(
         ).forEach { dao.upsertWorkoutSession(it) }
 
         listOf(
-            WorkoutSetEntity("debug-set-upper-bench-1", "debug-workout-upper-a", "starter-ex-bench-press", 0, "working", 5, 82.5, null, null, 8.0, null, true),
-            WorkoutSetEntity("debug-set-upper-bench-2", "debug-workout-upper-a", "starter-ex-bench-press", 1, "working", 5, 82.5, null, null, 8.5, null, true),
-            WorkoutSetEntity("debug-set-upper-row-1", "debug-workout-upper-a", "starter-ex-barbell-row", 2, "working", 8, 70.0, null, null, 8.0, null, true),
-            WorkoutSetEntity("debug-set-upper-row-2", "debug-workout-upper-a", "starter-ex-barbell-row", 3, "working", 8, 70.0, null, null, 8.0, null, true),
-            WorkoutSetEntity("debug-set-legs-squat-1", "debug-workout-legs", "starter-ex-back-squat", 0, "working", 5, 105.0, null, null, 8.0, null, true),
-            WorkoutSetEntity("debug-set-legs-squat-2", "debug-workout-legs", "starter-ex-back-squat", 1, "working", 5, 105.0, null, null, 8.5, null, true),
-            WorkoutSetEntity("debug-set-legs-rdl-1", "debug-workout-legs", "starter-ex-romanian-deadlift", 2, "working", 8, 95.0, null, null, 8.0, null, true),
-            WorkoutSetEntity("debug-set-active-squat-1", "debug-workout-active", "starter-ex-back-squat", 0, "working", 5, 107.5, null, null, 7.5, null, true),
-            WorkoutSetEntity("debug-set-active-bench-1", "debug-workout-active", "starter-ex-bench-press", 1, "working", 5, 85.0, null, null, null, null, false),
-            WorkoutSetEntity("debug-set-active-row-1", "debug-workout-active", "starter-ex-barbell-row", 2, "working", 8, 72.5, null, null, null, null, false),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-upper-bench-1", "debug-workout-upper-a", "starter-ex-bench-press", 0, "working", 5, 82.5, null, null, 8.0, null, true),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-upper-bench-2", "debug-workout-upper-a", "starter-ex-bench-press", 1, "working", 5, 82.5, null, null, 8.5, null, true),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-upper-row-1", "debug-workout-upper-a", "starter-ex-barbell-row", 2, "working", 8, 70.0, null, null, 8.0, null, true),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-upper-row-2", "debug-workout-upper-a", "starter-ex-barbell-row", 3, "working", 8, 70.0, null, null, 8.0, null, true),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-legs-squat-1", "debug-workout-legs", "starter-ex-back-squat", 0, "working", 5, 105.0, null, null, 8.0, null, true),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-legs-squat-2", "debug-workout-legs", "starter-ex-back-squat", 1, "working", 5, 105.0, null, null, 8.5, null, true),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-legs-rdl-1", "debug-workout-legs", "starter-ex-romanian-deadlift", 2, "working", 8, 95.0, null, null, 8.0, null, true),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-active-squat-1", "debug-workout-active", "starter-ex-back-squat", 0, "working", 5, 107.5, null, null, 7.5, null, true),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-active-bench-1", "debug-workout-active", "starter-ex-bench-press", 1, "working", 5, 85.0, null, null, null, null, false),
+            WorkoutSetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-active-row-1", "debug-workout-active", "starter-ex-barbell-row", 2, "working", 8, 72.5, null, null, null, null, false),
         ).forEach { dao.upsertWorkoutSet(it) }
     }
 
@@ -484,6 +489,7 @@ internal class MusFitDebugSeeder private constructor(
                 database = database,
                 trainingDao = database.trainingDao(),
                 exerciseDataset = AssetExerciseDatasetProvider(appContext),
+                accountRepository = LocalAccountRepository(database.accountDao()),
             )
             return MusFitDebugSeeder(database, trainingRepository)
         }

@@ -223,7 +223,7 @@ class MusFitCriticalJourneyInstrumentationTest {
     private fun activeBenchSetIsComplete(): Boolean = runBlocking {
         val database = DatabaseModule.provideDatabase(targetContext)
         try {
-            database.trainingDao().getWorkoutSet("debug-set-active-bench-1")?.completed == true
+            database.trainingDao().getWorkoutSet(LOCAL_DEFAULT_ACCOUNT_ID, "debug-set-active-bench-1")?.completed == true
         } finally {
             database.close()
         }

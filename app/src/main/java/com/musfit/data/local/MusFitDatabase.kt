@@ -23,6 +23,7 @@ import com.musfit.data.local.entity.CoachMessageEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.DashboardPinEntity
 import com.musfit.data.local.entity.ExerciseEntity
+import com.musfit.data.local.entity.ExerciseNoteEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
 import com.musfit.data.local.entity.FoodHealthConnectSyncEntity
@@ -49,7 +50,7 @@ import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 
 const val MUSFIT_DATABASE_NAME = "musfit.db"
-const val MUSFIT_DATABASE_VERSION = 37
+const val MUSFIT_DATABASE_VERSION = 38
 
 @Database(
     entities = [
@@ -71,6 +72,7 @@ const val MUSFIT_DATABASE_VERSION = 37
         WaterEntryEntity::class,
         FoodHealthConnectSyncEntity::class,
         ExerciseEntity::class,
+        ExerciseNoteEntity::class,
         RoutineEntity::class,
         RoutineFolderEntity::class,
         RoutineExerciseEntity::class,
@@ -90,7 +92,7 @@ const val MUSFIT_DATABASE_VERSION = 37
         CoachMessageEntity::class,
         DashboardPinEntity::class,
     ],
-    version = 37,
+    version = 38,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {

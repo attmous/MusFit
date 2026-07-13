@@ -68,6 +68,7 @@ object DatabaseModule {
                 MIGRATION_34_35,
                 MIGRATION_35_36,
                 MIGRATION_36_37,
+                MIGRATION_37_38,
             )
             .build()
     }
@@ -1289,6 +1290,194 @@ object DatabaseModule {
             }
         }
 
+    internal val MIGRATION_37_38 =
+        object : Migration(37, 38) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO accounts (
+                        id, displayName, email, remoteUserId, authProvider, avatarUrl,
+                        createdAtEpochMillis, updatedAtEpochMillis
+                    ) VALUES ('local-default', 'You', NULL, NULL, 'local', NULL, 0, 0)
+                    """.trimIndent(),
+                )
+
+                listOf(
+                    "routine_exercise_sets",
+                    "routine_exercises",
+                    "workout_sets",
+                    "workout_sessions",
+                    "routines",
+                    "routine_folders",
+                    "training_settings",
+                    "exercises",
+                ).forEach { table -> db.execSQL("ALTER TABLE `$table` RENAME TO `${table}_legacy`") }
+
+                db.execSQL(
+                    """
+                    CREATE TABLE exercises (
+                        id TEXT NOT NULL, accountId TEXT, name TEXT NOT NULL, category TEXT NOT NULL,
+                        equipment TEXT, targetMuscles TEXT NOT NULL, isCustom INTEGER NOT NULL,
+                        primaryMuscles TEXT NOT NULL, secondaryMuscles TEXT NOT NULL, instructions TEXT,
+                        imageUrl TEXT, gifUrl TEXT, PRIMARY KEY(id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE exercise_notes (
+                        accountId TEXT NOT NULL, exerciseId TEXT NOT NULL, notes TEXT NOT NULL,
+                        PRIMARY KEY(accountId, exerciseId),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(exerciseId) REFERENCES exercises(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE routine_folders (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, sortOrder INTEGER NOT NULL,
+                        createdAtEpochMillis INTEGER NOT NULL, updatedAtEpochMillis INTEGER NOT NULL,
+                        PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE routines (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, notes TEXT,
+                        createdAtEpochMillis INTEGER NOT NULL, updatedAtEpochMillis INTEGER NOT NULL,
+                        isStarter INTEGER NOT NULL, programName TEXT, tags TEXT NOT NULL, folderId TEXT,
+                        PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(accountId, folderId) REFERENCES routine_folders(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE NO ACTION
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE routine_exercises (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, routineId TEXT NOT NULL,
+                        exerciseId TEXT NOT NULL, sortOrder INTEGER NOT NULL, targetSets INTEGER NOT NULL,
+                        targetReps TEXT, restSeconds INTEGER, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(accountId, routineId) REFERENCES routines(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(exerciseId) REFERENCES exercises(id) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE routine_exercise_sets (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, routineExerciseId TEXT NOT NULL,
+                        sortOrder INTEGER NOT NULL, setType TEXT NOT NULL, targetReps TEXT,
+                        targetWeightKg REAL, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(accountId, routineExerciseId) REFERENCES routine_exercises(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE workout_sessions (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, routineId TEXT, title TEXT,
+                        status TEXT NOT NULL, startedAtEpochMillis INTEGER NOT NULL,
+                        endedAtEpochMillis INTEGER, notes TEXT, healthConnectRecordId TEXT,
+                        healthConnectLastExportedAtEpochMillis INTEGER, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(accountId, routineId) REFERENCES routines(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE NO ACTION
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE workout_sets (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, sessionId TEXT NOT NULL,
+                        exerciseId TEXT NOT NULL, sortOrder INTEGER NOT NULL, setType TEXT NOT NULL,
+                        reps INTEGER, weightKg REAL, durationSeconds INTEGER, distanceMeters REAL,
+                        rpe REAL, notes TEXT, completed INTEGER NOT NULL, supersetGroupId TEXT,
+                        restSeconds INTEGER, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(accountId, sessionId) REFERENCES workout_sessions(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(exerciseId) REFERENCES exercises(id) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE training_settings (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, defaultRestSeconds INTEGER NOT NULL,
+                        barWeightKg REAL NOT NULL, availablePlatesKg TEXT NOT NULL,
+                        PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+
+                db.execSQL(
+                    """
+                    INSERT INTO exercises (
+                        id, accountId, name, category, equipment, targetMuscles, isCustom,
+                        primaryMuscles, secondaryMuscles, instructions, imageUrl, gifUrl
+                    ) SELECT id, CASE WHEN isCustom = 1 THEN 'local-default' ELSE NULL END,
+                        name, category, equipment, targetMuscles, isCustom, primaryMuscles,
+                        secondaryMuscles, instructions, imageUrl, gifUrl FROM exercises_legacy
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO exercise_notes(accountId, exerciseId, notes)
+                    SELECT 'local-default', id, localNotes FROM exercises_legacy
+                    WHERE localNotes IS NOT NULL AND TRIM(localNotes) != ''
+                    """.trimIndent(),
+                )
+                db.execSQL("INSERT INTO routine_folders SELECT 'local-default', * FROM routine_folders_legacy")
+                db.execSQL("INSERT INTO routines SELECT 'local-default', * FROM routines_legacy")
+                db.execSQL("INSERT INTO routine_exercises SELECT 'local-default', * FROM routine_exercises_legacy")
+                db.execSQL("INSERT INTO routine_exercise_sets SELECT 'local-default', * FROM routine_exercise_sets_legacy")
+                db.execSQL("INSERT INTO workout_sessions SELECT 'local-default', * FROM workout_sessions_legacy")
+                db.execSQL("INSERT INTO workout_sets SELECT 'local-default', * FROM workout_sets_legacy")
+                db.execSQL("INSERT INTO training_settings SELECT 'local-default', * FROM training_settings_legacy")
+
+                listOf(
+                    "routine_exercise_sets",
+                    "routine_exercises",
+                    "workout_sets",
+                    "workout_sessions",
+                    "routines",
+                    "routine_folders",
+                    "training_settings",
+                    "exercises",
+                ).forEach { table -> db.execSQL("DROP TABLE `${table}_legacy`") }
+
+                listOf(
+                    "CREATE INDEX index_exercises_accountId ON exercises(accountId)",
+                    "CREATE INDEX index_exercises_accountId_name ON exercises(accountId, name)",
+                    "CREATE INDEX index_exercise_notes_exerciseId ON exercise_notes(exerciseId)",
+                    "CREATE INDEX index_routine_folders_accountId_sortOrder_name ON routine_folders(accountId, sortOrder, name)",
+                    "CREATE INDEX index_routines_accountId_folderId ON routines(accountId, folderId)",
+                    "CREATE INDEX index_routines_accountId_updatedAtEpochMillis ON routines(accountId, updatedAtEpochMillis)",
+                    "CREATE INDEX index_routine_exercises_accountId_routineId_sortOrder ON routine_exercises(accountId, routineId, sortOrder)",
+                    "CREATE INDEX index_routine_exercises_accountId_exerciseId ON routine_exercises(accountId, exerciseId)",
+                    "CREATE INDEX index_routine_exercises_exerciseId ON routine_exercises(exerciseId)",
+                    "CREATE INDEX index_routine_exercise_sets_accountId_routineExerciseId_sortOrder ON routine_exercise_sets(accountId, routineExerciseId, sortOrder)",
+                    "CREATE INDEX index_workout_sessions_accountId_routineId ON workout_sessions(accountId, routineId)",
+                    "CREATE INDEX index_workout_sessions_accountId_startedAtEpochMillis ON workout_sessions(accountId, startedAtEpochMillis)",
+                    "CREATE INDEX index_workout_sessions_accountId_status_startedAtEpochMillis ON workout_sessions(accountId, status, startedAtEpochMillis)",
+                    "CREATE INDEX index_workout_sets_accountId_sessionId_sortOrder ON workout_sets(accountId, sessionId, sortOrder)",
+                    "CREATE INDEX index_workout_sets_accountId_exerciseId ON workout_sets(accountId, exerciseId)",
+                    "CREATE INDEX index_workout_sets_exerciseId ON workout_sets(exerciseId)",
+                ).forEach(db::execSQL)
+            }
+        }
+
     /**
      * The exact migration instances registered by production, exposed for
      * framework-SQLite tests. Keep this ordered, gap-free, and synchronized
@@ -1332,5 +1521,6 @@ object DatabaseModule {
             MIGRATION_34_35,
             MIGRATION_35_36,
             MIGRATION_36_37,
+            MIGRATION_37_38,
         )
 }

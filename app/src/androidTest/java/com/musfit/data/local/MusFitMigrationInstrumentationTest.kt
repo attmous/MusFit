@@ -32,6 +32,7 @@ import java.io.File
 
 private const val LARGE_DATASET_ROWS = 2_500
 private const val LARGE_MIGRATION_BUDGET_MILLIS = 30_000L
+private const val FOOD_ACCOUNT_OWNERSHIP_SCHEMA_VERSION = 37
 
 @RunWith(Parameterized::class)
 class MusFitMigrationInstrumentationTest(
@@ -49,7 +50,7 @@ class MusFitMigrationInstrumentationTest(
         val databaseName = "migration-origin-$originVersion"
         val sentinel = MigrationSentinel.forOrigin(originVersion)
         helper.createDatabase(databaseName, originVersion).apply {
-            insertSentinelGraph(sentinel)
+            insertSentinelGraph(sentinel, originVersion)
             close()
         }
 
@@ -117,7 +118,7 @@ class MusFitRecentMigrationInstrumentationTest {
             val databaseName = "adjacent-$origin-${origin + 1}"
             val sentinel = MigrationSentinel.forOrigin(origin)
             helper.createDatabase(databaseName, origin).apply {
-                insertSentinelGraph(sentinel)
+                insertSentinelGraph(sentinel, origin)
                 close()
             }
 
@@ -178,7 +179,7 @@ class MusFitLargeMigrationInstrumentationTest {
             beginTransaction()
             try {
                 repeat(LARGE_DATASET_ROWS) { index ->
-                    insertSentinelGraph(MigrationSentinel.forOrigin(index + 1))
+                    insertSentinelGraph(MigrationSentinel.forOrigin(index + 1), originVersion = 1)
                 }
                 setTransactionSuccessful()
             } finally {
@@ -289,32 +290,76 @@ private data class MigrationSentinel(
     }
 }
 
-private fun SupportSQLiteDatabase.insertSentinelGraph(sentinel: MigrationSentinel) {
-    execSQL(
-        """
-        INSERT INTO foods (
-            id, name, brand, defaultServingGrams, caloriesPer100g, proteinPer100g,
-            carbsPer100g, fatPer100g, createdAtEpochMillis, updatedAtEpochMillis
-        ) VALUES (?, ?, NULL, 100.0, 250.0, 12.0, 30.0, 8.0, 1000, 2000)
-        """.trimIndent(),
-        arrayOf<Any>(sentinel.foodId, "Sentinel ${sentinel.foodId}"),
-    )
-    execSQL(
-        "INSERT INTO food_servings (id, foodId, label, grams) VALUES (?, ?, 'portion', 42.0)",
-        arrayOf<Any>(sentinel.servingId, sentinel.foodId),
-    )
-    execSQL(
-        """
-        INSERT INTO meals (
-            id, dateEpochDay, type, notes, createdAtEpochMillis, updatedAtEpochMillis
-        ) VALUES (?, 20000, 'breakfast', 'sentinel', 1000, 2000)
-        """.trimIndent(),
-        arrayOf<Any>(sentinel.mealId),
-    )
-    execSQL(
-        "INSERT INTO meal_items (id, mealId, foodId, quantityGrams) VALUES (?, ?, ?, 84.0)",
-        arrayOf<Any>(sentinel.mealItemId, sentinel.mealId, sentinel.foodId),
-    )
+private fun SupportSQLiteDatabase.insertSentinelGraph(sentinel: MigrationSentinel, originVersion: Int) {
+    if (originVersion >= FOOD_ACCOUNT_OWNERSHIP_SCHEMA_VERSION) {
+        execSQL(
+            """
+            INSERT OR IGNORE INTO accounts (
+                id, displayName, email, remoteUserId, authProvider, avatarUrl,
+                createdAtEpochMillis, updatedAtEpochMillis
+            ) VALUES (?, 'Migration sentinel', NULL, NULL, 'local', NULL, 1000, 2000)
+            """.trimIndent(),
+            arrayOf<Any>(LOCAL_DEFAULT_ACCOUNT_ID),
+        )
+        execSQL(
+            """
+            INSERT INTO foods (
+                accountId, id, name, brand, defaultServingGrams, caloriesPer100g,
+                proteinPer100g, carbsPer100g, fatPer100g, createdAtEpochMillis,
+                updatedAtEpochMillis
+            ) VALUES (?, ?, ?, NULL, 100.0, 250.0, 12.0, 30.0, 8.0, 1000, 2000)
+            """.trimIndent(),
+            arrayOf<Any>(LOCAL_DEFAULT_ACCOUNT_ID, sentinel.foodId, "Sentinel ${sentinel.foodId}"),
+        )
+        execSQL(
+            """
+            INSERT INTO food_servings (accountId, id, foodId, label, grams)
+            VALUES (?, ?, ?, 'portion', 42.0)
+            """.trimIndent(),
+            arrayOf<Any>(LOCAL_DEFAULT_ACCOUNT_ID, sentinel.servingId, sentinel.foodId),
+        )
+        execSQL(
+            """
+            INSERT INTO meals (
+                accountId, id, dateEpochDay, type, notes, createdAtEpochMillis, updatedAtEpochMillis
+            ) VALUES (?, ?, 20000, 'breakfast', 'sentinel', 1000, 2000)
+            """.trimIndent(),
+            arrayOf<Any>(LOCAL_DEFAULT_ACCOUNT_ID, sentinel.mealId),
+        )
+        execSQL(
+            """
+            INSERT INTO meal_items (accountId, id, mealId, foodId, quantityGrams)
+            VALUES (?, ?, ?, ?, 84.0)
+            """.trimIndent(),
+            arrayOf<Any>(LOCAL_DEFAULT_ACCOUNT_ID, sentinel.mealItemId, sentinel.mealId, sentinel.foodId),
+        )
+    } else {
+        execSQL(
+            """
+            INSERT INTO foods (
+                id, name, brand, defaultServingGrams, caloriesPer100g, proteinPer100g,
+                carbsPer100g, fatPer100g, createdAtEpochMillis, updatedAtEpochMillis
+            ) VALUES (?, ?, NULL, 100.0, 250.0, 12.0, 30.0, 8.0, 1000, 2000)
+            """.trimIndent(),
+            arrayOf<Any>(sentinel.foodId, "Sentinel ${sentinel.foodId}"),
+        )
+        execSQL(
+            "INSERT INTO food_servings (id, foodId, label, grams) VALUES (?, ?, 'portion', 42.0)",
+            arrayOf<Any>(sentinel.servingId, sentinel.foodId),
+        )
+        execSQL(
+            """
+            INSERT INTO meals (
+                id, dateEpochDay, type, notes, createdAtEpochMillis, updatedAtEpochMillis
+            ) VALUES (?, 20000, 'breakfast', 'sentinel', 1000, 2000)
+            """.trimIndent(),
+            arrayOf<Any>(sentinel.mealId),
+        )
+        execSQL(
+            "INSERT INTO meal_items (id, mealId, foodId, quantityGrams) VALUES (?, ?, ?, 84.0)",
+            arrayOf<Any>(sentinel.mealItemId, sentinel.mealId, sentinel.foodId),
+        )
+    }
 }
 
 private fun SupportSQLiteDatabase.longValue(

@@ -40,22 +40,20 @@ interface HealthRepository {
     /** Pins the steps source to [packageName] (null restores the unified cross-source total). */
     suspend fun setPreferredStepsPackage(packageName: String?) {}
 
-    suspend fun refreshRecentData(endDate: LocalDate, days: Int = 7): HealthConnectRefreshResult =
-        HealthConnectRefreshResult(importedDayCount = 0, bodyMetricCount = 0)
+    suspend fun refreshRecentData(endDate: LocalDate, days: Int = 7): HealthConnectRefreshResult = HealthConnectRefreshResult(importedDayCount = 0, bodyMetricCount = 0)
 
     suspend fun exportLatestWorkout(): String?
 
-    fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> =
-        flowOf(emptyList())
+    fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> = flowOf(emptyList())
 
-    fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> =
-        flowOf(emptyList())
+    fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = flowOf(emptyList())
 }
 
 class LocalHealthRepository @Inject constructor(
     private val gateway: HealthConnectGateway,
     private val healthDao: HealthDao,
     private val trainingDao: TrainingDao,
+    private val accountRepository: AccountRepository,
 ) : HealthRepository {
     private var clock: () -> Long = { System.currentTimeMillis() }
 
@@ -63,8 +61,9 @@ class LocalHealthRepository @Inject constructor(
         gateway: HealthConnectGateway,
         healthDao: HealthDao,
         trainingDao: TrainingDao,
+        accountRepository: AccountRepository,
         clock: () -> Long,
-    ) : this(gateway, healthDao, trainingDao) {
+    ) : this(gateway, healthDao, trainingDao, accountRepository) {
         this.clock = clock
     }
 
@@ -72,20 +71,15 @@ class LocalHealthRepository @Inject constructor(
 
     override suspend fun requestablePermissions(): Set<String> = gateway.requestablePermissions()
 
-    override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> =
-        healthDao.observeDailySummary(date.toEpochDay())
+    override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = healthDao.observeDailySummary(date.toEpochDay())
 
-    override fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> =
-        healthDao.observeDailySummariesInRange(startDate.toEpochDay(), endDate.toEpochDay())
+    override fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> = healthDao.observeDailySummariesInRange(startDate.toEpochDay(), endDate.toEpochDay())
 
-    override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> =
-        healthDao.observeBodyMetrics(WEIGHT_METRIC_TYPE, fromEpochMillis)
+    override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = healthDao.observeBodyMetrics(WEIGHT_METRIC_TYPE, fromEpochMillis)
 
-    override suspend fun readStepSources(date: LocalDate): List<StepSource> =
-        gateway.readStepSources(date)
+    override suspend fun readStepSources(date: LocalDate): List<StepSource> = gateway.readStepSources(date)
 
-    override fun observePreferredStepsPackage(): Flow<String?> =
-        healthDao.observeHealthConnectSyncState().map { it?.preferredStepsPackage }
+    override fun observePreferredStepsPackage(): Flow<String?> = healthDao.observeHealthConnectSyncState().map { it?.preferredStepsPackage }
 
     override suspend fun setPreferredStepsPackage(packageName: String?) {
         val existing = healthDao.getHealthConnectSyncState()
@@ -157,8 +151,9 @@ class LocalHealthRepository @Inject constructor(
     }
 
     override suspend fun exportLatestWorkout(): String? {
-        val session = trainingDao.getLatestCompletedWorkoutSession() ?: return null
-        val sets = trainingDao.getCompletedWorkoutSets(session.id)
+        val accountId = accountRepository.ensureActiveAccount().id
+        val session = trainingDao.getLatestCompletedWorkoutSession(accountId) ?: return null
+        val sets = trainingDao.getCompletedWorkoutSets(accountId, session.id)
         if (sets.isEmpty()) return null
 
         val recordId = gateway.exportWorkout(session, sets) ?: return null
