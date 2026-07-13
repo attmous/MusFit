@@ -494,7 +494,12 @@ $androidFetchDepthCount = [regex]::Matches(
     (Get-FileText ".github/workflows/android.yml"),
     '(?m)^\s+fetch-depth:\s*0\s*$'
 ).Count
-Assert-Equal "Full-history Android CI checkout count" 3 $androidFetchDepthCount
+Assert-Equal "Full-history PR Android CI checkout count" 1 $androidFetchDepthCount
+$deviceUiFetchDepthCount = [regex]::Matches(
+    (Get-FileText ".github/workflows/device-ui.yml"),
+    '(?m)^\s+fetch-depth:\s*0\s*$'
+).Count
+Assert-Equal "Full-history device/UI CI checkout count" 3 $deviceUiFetchDepthCount
 Assert-FileContains ".github/workflows/performance.yml" 'fetch-depth:\s*0'
 Assert-FileContains ".github/workflows/android.yml" 'gradle/actions/setup-gradle@[0-9a-f]{40}\s+# v'
 Assert-FileContains ".github/workflows/android.yml" 'cache-read-only:\s*\$\{\{\s*github\.ref\s*!=\s*''refs/heads/master''\s*\}\}'
@@ -572,16 +577,30 @@ Assert-FileContains "docs/testing/compose-testing.md" 'Managed-device journey la
 Assert-FileExists "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt"
 Assert-FileContains "app/build.gradle.kts" 'execution\s*=\s*"ANDROIDX_TEST_ORCHESTRATOR"'
 Assert-FileContains "app/build.gradle.kts" 'create\("criticalJourneysApi28And37"\)'
-Assert-FileContains ".github/workflows/android.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
-Assert-FileContains ".github/workflows/android.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
+Assert-FileExists ".github/workflows/device-ui.yml"
+Assert-FileExists "docs/testing/ci-lanes.md"
+Assert-FileContains ".github/workflows/android.yml" '(?m)^\s*pull_request:'
+Assert-FileContains ".github/workflows/android.yml" 'testProductionReleaseUnitTest'
+Assert-FileContains ".github/workflows/android.yml" 'lintProductionRelease'
+Assert-FileContains ".github/workflows/android.yml" 'bundleProductionRelease'
+Assert-FileContains ".github/workflows/android.yml" '(?s)verify:.{0,100}timeout-minutes:\s*30'
+Assert-FileContains ".github/workflows/android.yml" 'musfit-pr-build-test-reports'
+Assert-FileDoesNotContain ".github/workflows/android.yml" 'criticalJourneysApi28And37|migrationApi28And37|verifyRoborazziInternalDebug'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^name:\s*Android device and UI\s*$'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^\s*schedule:'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^\s*workflow_dispatch:'
+Assert-FileDoesNotContain ".github/workflows/device-ui.yml" '(?m)^\s*pull_request:'
+Assert-FileContains ".github/workflows/device-ui.yml" 'migrationApi28And37GroupInternalDebugAndroidTest'
+Assert-FileContains ".github/workflows/device-ui.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
+Assert-FileContains ".github/workflows/device-ui.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-ksp-migration\.ps1'
-Assert-FileContains ".github/workflows/android.yml" 'MusFitCriticalJourneyInstrumentationTest'
-Assert-FileContains ".github/workflows/android.yml" 'managed_device_android_test_additional_output'
-Assert-FileContains ".github/workflows/android.yml" 'Enable KVM for managed devices'
-Assert-FileContains ".github/workflows/android.yml" 'sdkmanager" --licenses'
-Assert-FileContains ".github/workflows/android.yml" 'system-images;android-28;google_apis;x86_64'
+Assert-FileContains ".github/workflows/device-ui.yml" 'MusFitCriticalJourneyInstrumentationTest'
+Assert-FileContains ".github/workflows/device-ui.yml" 'managed_device_android_test_additional_output'
+Assert-FileContains ".github/workflows/device-ui.yml" 'Enable KVM for managed devices'
+Assert-FileContains ".github/workflows/device-ui.yml" 'sdkmanager" --licenses'
+Assert-FileContains ".github/workflows/device-ui.yml" 'system-images;android-28;google_apis;x86_64'
 Assert-FileExists "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt"
 Assert-FileExists "docs/testing/screenshot-regression.md"
 Assert-FileContains "gradle/libs.versions.toml" 'roborazzi\s*=\s*"1\.62\.0"'
@@ -592,9 +611,9 @@ Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreensh
 Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" 'fontScale\s*=\s*1\.5f'
 Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" 'LayoutDirection\.Rtl'
 Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" '48\.dp\.toPx'
-Assert-FileContains ".github/workflows/android.yml" 'verifyRoborazziInternalDebug'
-Assert-FileContains ".github/workflows/android.yml" 'musfit-screenshot-regression'
-Assert-FileDoesNotContain ".github/workflows/android.yml" 'recordRoborazzi'
+Assert-FileContains ".github/workflows/device-ui.yml" 'verifyRoborazziInternalDebug'
+Assert-FileContains ".github/workflows/device-ui.yml" 'musfit-screenshot-regression'
+Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'recordRoborazzi'
 
 $goldenCount = @(Get-ChildItem -LiteralPath (Get-RepoPath "app/src/testInternalDebug/screenshots") -Filter "*.png" -File).Count
 Assert-Equal "Reviewed screenshot golden count" 7 $goldenCount
@@ -626,10 +645,18 @@ Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyB
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun trainingJourney\(\)'
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun profileJourney\(\)'
 Assert-FileContains ".github/workflows/performance.yml" 'benchmarkApi28And37GroupBenchmarkAndroidTest'
+Assert-FileContains ".github/workflows/performance.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
 Assert-FileContains ".github/workflows/performance.yml" 'verify-benchmark-regression\.ps1[^\r\n]*-ReportOnly'
 Assert-FileContains ".github/workflows/performance.yml" 'managed_device_android_test_additional_output'
 Assert-FileContains ".github/workflows/performance.yml" 'system-images;android-37\.0;google_apis_ps16k;x86_64'
 Assert-FileContains ".github/workflows/performance.yml" 'retention-days:\s*30'
+Assert-FileContains ".github/workflows/performance.yml" '(?s)push:.{0,100}branches:\s*\[\s*"master",\s*"main"\s*\].{0,100}schedule:'
+Assert-FileContains "scripts/release/assert-verified-release-commit.ps1" 'Android device and UI'
+Assert-FileContains "scripts/release/assert-verified-release-commit.ps1" 'Android performance'
+Assert-FileContains ".github/workflows/release.yml" 'device_verification_run_id'
+Assert-FileContains ".github/workflows/release.yml" 'performance_verification_run_id'
+Assert-FileContains "docs/testing/ci-lanes.md" 'PR latency budget'
+Assert-FileContains "docs/testing/ci-lanes.md" 'Nightly and main budget'
 Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'ThresholdPercent\s*=\s*10\.0'
 Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'Test-Regression 100\.0 110\.01 10\.0'
 Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" '::warning title=MusFit benchmark regression'
