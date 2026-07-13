@@ -5,9 +5,15 @@ import com.android.build.api.dsl.ManagedVirtualDevice
 import java.io.ByteArrayOutputStream
 import java.util.Properties
 import javax.inject.Inject
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.SetProperty
 import org.gradle.api.provider.ValueSource
 import org.gradle.api.provider.ValueSourceParameters
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
 import org.gradle.process.ExecOperations
 
 plugins {
@@ -36,9 +42,9 @@ fun localConfigValue(name: String, defaultValue: String = ""): String =
         .get()
 
 // Monotonic build number derived from the git history. Retain the established
-// version sequence while release publication is suspended. Falls back to 1 when
-// git is unavailable (e.g. a source-only checkout). CI must checkout with full
-// history (fetch-depth: 0) or this collapses to 1. See docs/ops/auto-update.md.
+// version sequence while release publication is suspended. A missing Git
+// executable, shallow checkout, command failure, or invalid count fails closed;
+// CI must checkout with fetch-depth: 0. See docs/ops/auto-update.md.
 //
 // This is a ValueSource rather than a configuration-time ProcessBuilder so the
 // commit count is a tracked configuration-cache input: Gradle re-runs it on
@@ -51,37 +57,101 @@ abstract class GitCommitCountValueSource :
 
     interface Parameters : ValueSourceParameters {
         val repositoryRoot: DirectoryProperty
+        val gitExecutable: org.gradle.api.provider.Property<String>
     }
 
     @get:Inject
     abstract val execOperations: ExecOperations
 
-    override fun obtain(): Int =
-        try {
-            val stdout = ByteArrayOutputStream()
-            val result = execOperations.exec {
-                commandLine("git", "rev-list", "--count", "HEAD")
+    private fun runGit(vararg arguments: String): String {
+        val stdout = ByteArrayOutputStream()
+        val stderr = ByteArrayOutputStream()
+        val executable = parameters.gitExecutable.get()
+        val result = try {
+            execOperations.exec {
+                commandLine(executable, *arguments)
                 workingDir(parameters.repositoryRoot.get().asFile)
                 standardOutput = stdout
-                errorOutput = ByteArrayOutputStream()
+                errorOutput = stderr
                 isIgnoreExitValue = true
             }
-            if (result.exitValue == 0) {
-                stdout.toString().trim().toIntOrNull() ?: 1
-            } else {
-                1
-            }
-        } catch (e: Exception) {
-            1
+        } catch (failure: Exception) {
+            throw GradleException("Could not execute '$executable' while deriving versionCode.", failure)
         }
+        if (result.exitValue != 0) {
+            throw GradleException(
+                "Git versionCode command failed (${arguments.joinToString(" ")}): " +
+                    stderr.toString().trim(),
+            )
+        }
+        return stdout.toString().trim()
+    }
+
+    override fun obtain(): Int {
+        val shallow = runGit("rev-parse", "--is-shallow-repository")
+        if (shallow != "false") {
+            throw GradleException("MusFit versionCode requires a non-shallow Git checkout; got '$shallow'.")
+        }
+        val count = runGit("rev-list", "--count", "HEAD").toIntOrNull()
+        if (count == null || count <= 0) {
+            throw GradleException("Git returned an invalid MusFit versionCode: '$count'.")
+        }
+        return count
+    }
 }
 
 val gitCommitCount =
     providers.of(GitCommitCountValueSource::class) {
         parameters {
             repositoryRoot.set(rootDir)
+            gitExecutable.set(providers.gradleProperty("musfit.gitExecutable").orElse("git"))
         }
     }
+
+abstract class VerifyReleaseVariantMatrixTask : DefaultTask() {
+    @get:Input
+    abstract val enabledVariants: SetProperty<String>
+
+    @get:Input
+    abstract val expectedVariants: SetProperty<String>
+
+    @get:Input
+    abstract val availableTaskNames: SetProperty<String>
+
+    @get:Input
+    abstract val requiredTaskNames: SetProperty<String>
+
+    @get:Input
+    abstract val forbiddenTaskNames: SetProperty<String>
+
+    @TaskAction
+    fun verify() {
+        val expected = expectedVariants.get()
+        val enabled = enabledVariants.get()
+        check(enabled == expected) {
+            "Enabled application variants must be $expected, got $enabled"
+        }
+
+        val available = availableTaskNames.get()
+        val missing = requiredTaskNames.get() - available
+        check(missing.isEmpty()) { "Missing required variant tasks: $missing" }
+
+        val forbidden = forbiddenTaskNames.get().intersect(available)
+        check(forbidden.isEmpty()) {
+            "Unsupported variant tasks must remain absent: $forbidden"
+        }
+    }
+}
+
+abstract class EnsureDirectoryTask : DefaultTask() {
+    @get:OutputDirectory
+    abstract val directory: DirectoryProperty
+
+    @TaskAction
+    fun create() {
+        directory.get().asFile.mkdirs()
+    }
+}
 
 val musfitGoogleWebClientId =
     localConfigValue("MUSFIT_GOOGLE_WEB_CLIENT_ID")
@@ -265,23 +335,21 @@ androidComponents {
     }
 }
 
-tasks.register("verifyReleaseVariantMatrix") {
+val verifyReleaseVariantMatrix = tasks.register<VerifyReleaseVariantMatrixTask>("verifyReleaseVariantMatrix") {
     group = "verification"
     description = "Verifies the only enabled installable variants and their canonical task families."
-    doLast {
-        val expectedVariants = setOf(
+    expectedVariants.set(
+        setOf(
             "internalDebug",
             "productionBenchmark",
             "productionBenchmarkRelease",
             "productionNonMinifiedRelease",
             "productionRelease",
             "legacyMigrationRelease",
-        )
-        check(enabledApplicationVariants == expectedVariants) {
-            "Enabled application variants must be $expectedVariants, got $enabledApplicationVariants"
-        }
-
-        val requiredTasks = setOf(
+        ),
+    )
+    requiredTaskNames.set(
+        setOf(
             "assembleInternalDebug",
             "assembleInternalDebugAndroidTest",
             "testInternalDebugUnitTest",
@@ -294,11 +362,10 @@ tasks.register("verifyReleaseVariantMatrix") {
             "assembleLegacyMigrationRelease",
             "testLegacyMigrationReleaseUnitTest",
             "lintLegacyMigrationRelease",
-        )
-        val missingTasks = requiredTasks - project.tasks.names
-        check(missingTasks.isEmpty()) { "Missing required variant tasks: $missingTasks" }
-
-        val forbiddenTasks = setOf(
+        ),
+    )
+    forbiddenTaskNames.set(
+        setOf(
             "assembleProductionDebug",
             "assembleProductionDebugAndroidTest",
             "testProductionDebugUnitTest",
@@ -310,11 +377,14 @@ tasks.register("verifyReleaseVariantMatrix") {
             "assembleLegacyMigrationDebug",
             "testLegacyMigrationDebugUnitTest",
             "lintLegacyMigrationDebug",
-        )
-        val presentForbiddenTasks = forbiddenTasks.intersect(project.tasks.names)
-        check(presentForbiddenTasks.isEmpty()) {
-            "Unsupported variant tasks must remain absent: $presentForbiddenTasks"
-        }
+        ),
+    )
+}
+
+gradle.projectsEvaluated {
+    verifyReleaseVariantMatrix.configure {
+        enabledVariants.set(enabledApplicationVariants)
+        availableTaskNames.set(tasks.names)
     }
 }
 
@@ -322,14 +392,13 @@ mapOf(
     "minifyProductionReleaseWithR8" to "productionRelease",
     "minifyLegacyMigrationReleaseWithR8" to "legacyMigrationRelease",
 ).forEach { (taskName, variantName) ->
+    val prepareReports = tasks.register<EnsureDirectoryTask>(
+        "prepare${variantName.replaceFirstChar(Char::uppercaseChar)}R8Reports",
+    ) {
+        directory.set(layout.buildDirectory.dir("outputs/r8Reports/$variantName"))
+    }
     tasks.matching { it.name == taskName }.configureEach {
-        doFirst {
-            layout.buildDirectory
-                .dir("outputs/r8Reports/$variantName")
-                .get()
-                .asFile
-                .mkdirs()
-        }
+        dependsOn(prepareReports)
     }
 }
 
