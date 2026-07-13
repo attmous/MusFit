@@ -423,7 +423,7 @@ Assert-FileContains "app/build.gradle.kts" '(?s)create\("legacyMigration"\).{0,5
 Assert-FileContains "app/proguard-legacy-migration-reports.pro" '-printusage\s+build/outputs/r8Reports/legacyMigrationRelease/usage\.txt'
 Assert-FileContains "app/proguard-legacy-migration-reports.pro" '-printseeds\s+build/outputs/r8Reports/legacyMigrationRelease/seeds\.txt'
 Assert-FileContains "app/proguard-legacy-migration-reports.pro" '-printconfiguration\s+build/outputs/r8Reports/legacyMigrationRelease/configuration\.txt'
-Assert-FileContains "app/build.gradle.kts" '(?s)minifyProductionReleaseWithR8.{0,200}productionRelease.{0,500}minifyLegacyMigrationReleaseWithR8.{0,200}legacyMigrationRelease.{0,600}doFirst.{0,500}outputs/r8Reports/\$variantName.{0,300}mkdirs\(\)'
+Assert-FileContains "app/build.gradle.kts" '(?s)minifyProductionReleaseWithR8.{0,200}productionRelease.{0,500}minifyLegacyMigrationReleaseWithR8.{0,200}legacyMigrationRelease.{0,800}EnsureDirectoryTask.{0,1200}dependsOn\(prepareReports\)'
 Assert-FileDoesNotContain "gradle.properties" 'android\.enableR8\.fullMode\s*=\s*false'
 Assert-FileDoesNotContain "app/src/main/AndroidManifest.xml" "android\.permission\.ACCESS_LOCAL_NETWORK"
 Assert-FileContains "app/src/internal/AndroidManifest.xml" "android\.permission\.ACCESS_LOCAL_NETWORK"
@@ -476,15 +476,26 @@ Assert-FileContains "scripts/release/verify-data-migration-artifacts.ps1" '\$gra
 Assert-FileContains ".github/workflows/android.yml" "if-no-files-found:\s*error"
 Assert-FileDoesNotContain ".github/workflows/android.yml" "app-internal-debug-androidTest\.apk|outputs/apk/androidTest|app-legacyMigration-release\.apk|softprops/action-gh-release|Publish GitHub Release"
 
-# Gradle build cache is enabled repo-wide and CI restores it via SHA-pinned
-# setup-gradle (not setup-java's bundled cache), read-only off master, keeping
-# --no-daemon. versionCode uses a configuration-cache-safe ValueSource, not a
-# configuration-time ProcessBuilder. The configuration cache itself is deferred
-# (verifyReleaseVariantMatrix is not yet compatible), so only the build-cache
-# flag is asserted here.
+# Gradle build/configuration caches are fail-fast and CI proves same-graph reuse.
+# versionCode uses a cache-safe, non-shallow, fail-closed ValueSource.
 Assert-FileContains "gradle.properties" 'org\.gradle\.caching\s*=\s*true'
+Assert-FileContains "gradle.properties" 'org\.gradle\.configuration-cache\s*=\s*true'
+Assert-FileContains "gradle.properties" 'org\.gradle\.configuration-cache\.problems\s*=\s*fail'
 Assert-FileContains "app/build.gradle.kts" 'ValueSource<Int'
 Assert-FileDoesNotContain "app/build.gradle.kts" 'ProcessBuilder\('
+Assert-FileContains "app/build.gradle.kts" 'requires a non-shallow Git checkout'
+Assert-FileContains "app/build.gradle.kts" 'Could not execute.*while deriving versionCode'
+Assert-FileExists "scripts/dev/test-configuration-cache.ps1"
+Assert-PowerShellParses "scripts/dev/test-configuration-cache.ps1"
+Assert-FileExists "docs/testing/build-caching.md"
+Assert-FileContains ".github/workflows/android.yml" 'test-configuration-cache\.ps1 -SelfTest'
+Assert-FileContains ".github/workflows/android.yml" 'musfit-configuration-cache-diagnostics'
+$androidFetchDepthCount = [regex]::Matches(
+    (Get-FileText ".github/workflows/android.yml"),
+    '(?m)^\s+fetch-depth:\s*0\s*$'
+).Count
+Assert-Equal "Full-history Android CI checkout count" 3 $androidFetchDepthCount
+Assert-FileContains ".github/workflows/performance.yml" 'fetch-depth:\s*0'
 Assert-FileContains ".github/workflows/android.yml" 'gradle/actions/setup-gradle@[0-9a-f]{40}\s+# v'
 Assert-FileContains ".github/workflows/android.yml" 'cache-read-only:\s*\$\{\{\s*github\.ref\s*!=\s*''refs/heads/master''\s*\}\}'
 Assert-FileContains ".github/workflows/android.yml" '--no-daemon'
@@ -562,6 +573,7 @@ Assert-FileExists "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyI
 Assert-FileContains "app/build.gradle.kts" 'execution\s*=\s*"ANDROIDX_TEST_ORCHESTRATOR"'
 Assert-FileContains "app/build.gradle.kts" 'create\("criticalJourneysApi28And37"\)'
 Assert-FileContains ".github/workflows/android.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
+Assert-FileContains ".github/workflows/android.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
 Assert-FileContains ".github/workflows/android.yml" 'MusFitCriticalJourneyInstrumentationTest'
 Assert-FileContains ".github/workflows/android.yml" 'managed_device_android_test_additional_output'
 Assert-FileContains ".github/workflows/android.yml" 'Enable KVM for managed devices'

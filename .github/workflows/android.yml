@@ -46,6 +46,10 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Verify configuration cache reuse and fail-closed versioning
+        shell: pwsh
+        run: ./scripts/dev/test-configuration-cache.ps1 -SelfTest
+
       - name: Verify internal, migration bridge, and production-shaped builds
         run: ./gradlew verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
 
@@ -81,12 +85,25 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Retain configuration-cache diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musfit-configuration-cache-diagnostics
+          path: |
+            build/reports/configuration-cache/
+            build/reports/problems/
+          if-no-files-found: warn
+          retention-days: 14
+
   critical-journeys:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -115,7 +132,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run API 28 and API 37 critical journeys
-        run: ./gradlew criticalJourneysApi28And37GroupInternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
+        run: ./gradlew criticalJourneysApi28And37GroupInternalDebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
 
       - name: Retain managed-device results and failure diagnostics
         if: always()
@@ -135,6 +152,8 @@ jobs:
     steps:
       - name: Checkout reviewed screenshot references
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
