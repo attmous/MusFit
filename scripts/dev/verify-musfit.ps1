@@ -21,7 +21,13 @@ function Invoke-Gradle([string[]] $Arguments) {
     Push-Location $repoRoot
     try {
         Write-Host "Running: $gradleWrapper $($Arguments -join ' ')"
-        $output = & $gradleWrapper @Arguments 2>&1
+        $previousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            $output = & $gradleWrapper @Arguments 2>&1
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
         $exitCode = $LASTEXITCODE
         $output | ForEach-Object { Write-Host $_ }
 
@@ -41,7 +47,13 @@ function Invoke-Gradle([string[]] $Arguments) {
                 throw "Generated-output cleanup failed with exit code $LASTEXITCODE"
             }
 
-            $output = & $gradleWrapper @Arguments 2>&1
+            $previousErrorActionPreference = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+                $output = & $gradleWrapper @Arguments 2>&1
+            } finally {
+                $ErrorActionPreference = $previousErrorActionPreference
+            }
             $exitCode = $LASTEXITCODE
             $output | ForEach-Object { Write-Host $_ }
         }
@@ -115,11 +127,18 @@ if ($Tests.Count -eq 0 -and $Preset -eq "Full") {
     & (Join-Path $repoRoot "scripts\dev\test-no-unused-workmanager.ps1")
     Write-Host "Verifying KSP-only Room/Hilt processing."
     & (Join-Path $repoRoot "scripts\dev\test-ksp-migration.ps1")
+    Write-Host "Verifying immutable supply-chain policy and tamper fixtures."
+    & (Join-Path $repoRoot "scripts\supply-chain\test-supply-chain.ps1") -SelfTest
 }
 
 if ($gradleArgs.Count -gt 0) {
     $gradleArgs += @("--no-daemon", "--console=plain")
     Invoke-Gradle $gradleArgs
+}
+
+if ($Tests.Count -eq 0 -and $Preset -eq "Full") {
+    Write-Host "Generating the verified CycloneDX SBOM in an isolated Gradle graph."
+    Invoke-Gradle @("cyclonedxBom", "--no-daemon", "--console=plain")
 }
 
 if ($Tests.Count -eq 0 -and $Preset -eq "Full") {

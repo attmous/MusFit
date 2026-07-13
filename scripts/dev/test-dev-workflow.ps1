@@ -389,7 +389,7 @@ Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPP
 Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPPDATA\)\s*\{[^}]*Android[\\/]Sdk'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$windows\)\s*\{\s*"gradlew\.bat"\s*\}\s*else\s*\{\s*"gradlew"\s*\}'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" '&\s*\$gradleWrapper\s+@Arguments'
-Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$Tests\.Count\s*-eq\s*0\s*-and\s*\$Preset\s*-eq\s*"Full"\).{0,400}test-dev-workflow\.ps1.{0,400}if\s*\(\$gradleArgs\.Count\s*-gt\s*0\)'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$Tests\.Count\s*-eq\s*0\s*-and\s*\$Preset\s*-eq\s*"Full"\).{0,1200}test-dev-workflow\.ps1.{0,1200}if\s*\(\$gradleArgs\.Count\s*-gt\s*0\)'
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "EvidenceDir"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "Assert-LastExitCode"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "pm clear"
@@ -596,6 +596,19 @@ Assert-FileContains ".github/workflows/device-ui.yml" 'android\.experimental\.te
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-ksp-migration\.ps1'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-supply-chain\.ps1'
+Assert-FileExists "gradle/verification-metadata.xml"
+Assert-FileExists "scripts/supply-chain/test-supply-chain.ps1"
+Assert-FileExists "scripts/supply-chain/write-verified-build-metadata.ps1"
+Assert-FileExists "scripts/supply-chain/verify-verified-build-metadata.ps1"
+Assert-FileExists "docs/ops/supply-chain-verification.md"
+Assert-PowerShellParses "scripts/supply-chain/test-supply-chain.ps1"
+Assert-PowerShellParses "scripts/supply-chain/write-verified-build-metadata.ps1"
+Assert-PowerShellParses "scripts/supply-chain/verify-verified-build-metadata.ps1"
+Assert-FileContains ".github/workflows/android.yml" 'actions/attest@[0-9a-f]{40}\s+# v4\.1\.0'
+Assert-FileContains ".github/workflows/android.yml" 'musfit-verified-release-inputs-'
+Assert-FileContains ".github/workflows/release.yml" 'actions/attest@[0-9a-f]{40}\s+# v4\.1\.0'
+Assert-FileContains "gradle/wrapper/gradle-wrapper.properties" 'distributionSha256Sum=[0-9a-f]{64}'
 Assert-FileContains ".github/workflows/device-ui.yml" 'MusFitCriticalJourneyInstrumentationTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'managed_device_android_test_additional_output'
 Assert-FileContains ".github/workflows/device-ui.yml" 'Enable KVM for managed devices'

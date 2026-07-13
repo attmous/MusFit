@@ -2,6 +2,7 @@
 agp = "9.2.1"
 kotlin = "2.3.10"
 ksp = "2.3.9"
+cyclonedx = "3.2.4"
 composeBom = "2026.04.01"
 core = "1.19.0"
 activity = "1.13.0"
@@ -96,3 +97,4 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
 android-test = { id = "com.android.test", version.ref = "agp" }
 androidx-baselineprofile = { id = "androidx.baselineprofile", version.ref = "benchmark" }
+cyclonedx = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }
