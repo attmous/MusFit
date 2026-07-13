@@ -14,8 +14,9 @@ controls apply to every module and every CI/release workflow.
   version comment is informational; automation executes only the immutable SHA.
 - `gradle/actions/setup-gradle` validates the committed wrapper JAR before each
   Gradle invocation. Its optional Develocity injection is disabled in every
-  lane, so strict dependency verification covers only MusFit's declared build
-  graph instead of action-owned observability plugins.
+  lane, and `GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE=true` disables its
+  action-owned build-result plugin. Strict dependency verification therefore
+  covers only MusFit's declared build graph instead of CI observability plugins.
 
 Dependency updates must run the complete normal verification first. Then update
 metadata explicitly and review every changed coordinate and checksum:

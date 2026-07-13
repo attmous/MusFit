@@ -20,6 +20,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE: "true"
+
 concurrency:
   group: performance-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE: "true"
+
 concurrency:
   group: device-ui-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true

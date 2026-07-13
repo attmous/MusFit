@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # setup-gradle build-result capture injects action-owned plugin dependencies.
+  GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE: "true"
+
 concurrency:
   group: android-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

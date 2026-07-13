@@ -35,6 +35,17 @@ foreach ($block in $setupGradleBlocks) {
     }
 }
 
+$setupGradleWorkflowFiles = @(
+    Get-ChildItem -LiteralPath (Join-Path $repoRoot ".github\workflows") -Filter "*.yml" -File |
+        Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match 'gradle/actions/setup-gradle@' }
+)
+foreach ($workflow in $setupGradleWorkflowFiles) {
+    $text = Get-Content -LiteralPath $workflow.FullName -Raw
+    if ($text -notmatch '(?m)^\s{2}GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE:\s*["'']?true["'']?\s*$') {
+        throw "setup-gradle build-result capture must be disabled in $($workflow.Name)."
+    }
+}
+
 $wrapper = Get-Content -LiteralPath (Join-Path $repoRoot "gradle\wrapper\gradle-wrapper.properties") -Raw
 if ($wrapper -notmatch '(?m)^distributionSha256Sum=[0-9a-f]{64}\r?$') { throw "Gradle distribution SHA-256 is not pinned." }
 
@@ -73,6 +84,15 @@ if ($SelfTest) {
         }
     } catch { $injectionRejected = $true }
     if (-not $injectionRejected) { throw "Missing Develocity injection control self-test did not fail." }
+
+    $captureControlRejected = $false
+    try {
+        $missingCaptureControl = $workflowText -replace '(?m)^\s+GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE:\s*["'']?true["'']?\s*\r?\n', ''
+        if ($missingCaptureControl -notmatch 'GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE') {
+            throw "setup-gradle build-result capture must be disabled."
+        }
+    } catch { $captureControlRejected = $true }
+    if (-not $captureControlRejected) { throw "Missing build-result capture control self-test did not fail." }
 
     $temp = Join-Path ([IO.Path]::GetTempPath()) ("musfit-supply-" + [Guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $temp | Out-Null
