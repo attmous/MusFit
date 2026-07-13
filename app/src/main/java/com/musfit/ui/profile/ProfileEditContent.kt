@@ -2,7 +2,9 @@
 
 package com.musfit.ui.profile
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.TrendingDown
@@ -29,21 +32,25 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,19 +73,17 @@ import com.musfit.ui.theme.LavenderInkDark
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.input.KeyboardType
 import java.time.LocalDate
 import java.time.Period
 import java.util.Locale
 
 private val MEASUREMENT_LABELS = mapOf(
-    "waist" to "Waist", "chest" to "Chest", "arms" to "Arms",
-    "thighs" to "Thighs", "hips" to "Hips", "body_fat" to "Body fat",
+    "waist" to "Waist",
+    "chest" to "Chest",
+    "arms" to "Arms",
+    "thighs" to "Thighs",
+    "hips" to "Hips",
+    "body_fat" to "Body fat",
 )
 
 private const val PACE_STEP = 0.1
@@ -109,7 +114,7 @@ fun ProfileEditSheet(
     var activity by remember { mutableStateOf(initial.activityLevel) }
     var goalType by remember { mutableStateOf(initial.goalType) }
     var pace by remember {
-        mutableStateOf(initial.goalPaceKgPerWeek.takeIf { it > 0.0 } ?: 0.3)
+        mutableDoubleStateOf(initial.goalPaceKgPerWeek.takeIf { it > 0.0 } ?: 0.3)
     }
     var ageText by remember {
         mutableStateOf(
@@ -593,5 +598,4 @@ private fun NumberField(value: String, onValueChange: (String) -> Unit, label: S
     )
 }
 
-internal fun String.toPositiveDoubleOrNull(): Double? =
-    trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+internal fun String.toPositiveDoubleOrNull(): Double? = trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }

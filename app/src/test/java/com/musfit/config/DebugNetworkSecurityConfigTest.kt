@@ -1,9 +1,9 @@
 package com.musfit.config
 
-import java.io.File
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class DebugNetworkSecurityConfigTest {
     @Test
@@ -12,8 +12,9 @@ class DebugNetworkSecurityConfigTest {
 
         assertTrue(
             "Android network-security XML cannot express IP CIDRs; the request-boundary policy is the actual host gate.",
-            config.contains("""<base-config cleartextTrafficPermitted="true">"""),
+            config.contains("""cleartextTrafficPermitted="true"""),
         )
+        assertTrue(config.contains("""tools:ignore="InsecureBaseConfiguration"""))
         assertTrue(config.contains("""<certificates src="system" />"""))
         assertFalse(config.contains("""<certificates src="user"""))
         assertFalse(config.contains("overridePins"))

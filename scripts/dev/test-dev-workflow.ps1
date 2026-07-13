@@ -457,7 +457,7 @@ Assert-FileContains "scripts/dev/new-task-branch.ps1" "DryRun"
 Assert-FileContains ".github/workflows/android.yml" "concurrency:"
 Assert-FileContains ".github/workflows/android.yml" "permissions:"
 Assert-FileContains ".github/workflows/android.yml" "test-dev-workflow\.ps1"
-Assert-FileContains ".github/workflows/android.yml" "verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease"
+Assert-FileContains ".github/workflows/android.yml" "spotlessCheck detekt verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease"
 Assert-FileContains ".github/workflows/android.yml" "app/build/outputs/apk/internal/debug/app-internal-debug\.apk"
 Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/mapping/productionRelease/mapping\.txt'
 Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/r8Reports/productionRelease/usage\.txt'
@@ -598,6 +598,7 @@ Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-ksp-migration\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-supply-chain\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-dependency-governance\.ps1'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-static-quality\.ps1'
 Assert-FileExists "gradle/verification-metadata.xml"
 Assert-FileExists "scripts/supply-chain/test-supply-chain.ps1"
 Assert-FileExists "scripts/supply-chain/write-verified-build-metadata.ps1"
@@ -615,6 +616,15 @@ Assert-FileExists "config/dependency-preview-exceptions.json"
 Assert-FileExists "scripts/dependencies/test-dependency-governance.ps1"
 Assert-FileExists "docs/ops/dependency-governance.md"
 Assert-PowerShellParses "scripts/dependencies/test-dependency-governance.ps1"
+Assert-FileExists "config/static-analysis-debt.json"
+Assert-FileExists "config/detekt.yml"
+Assert-FileExists "config/detekt-baseline.xml"
+Assert-FileExists "app/lint-baseline.xml"
+Assert-FileExists "scripts/quality/test-static-quality.ps1"
+Assert-FileExists "docs/testing/static-quality.md"
+Assert-PowerShellParses "scripts/quality/test-static-quality.ps1"
+Assert-FileContains "build.gradle.kts" 'ratchetFrom\("origin/master"\)'
+Assert-FileContains "app/build.gradle.kts" 'warningsAsErrors\s*=\s*true'
 Assert-FileContains ".github/workflows/device-ui.yml" 'MusFitCriticalJourneyInstrumentationTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'managed_device_android_test_additional_output'
 Assert-FileContains ".github/workflows/device-ui.yml" 'Enable KVM for managed devices'

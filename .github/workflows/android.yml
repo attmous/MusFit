@@ -59,7 +59,7 @@ jobs:
         run: ./scripts/dev/test-configuration-cache.ps1 -SelfTest
 
       - name: Verify internal, migration bridge, and production-shaped builds
-        run: ./gradlew verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
+        run: ./gradlew spotlessCheck detekt verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
 
       - name: Generate aggregate CycloneDX SBOM in an isolated graph
         run: ./gradlew cyclonedxBom --no-daemon --console=plain

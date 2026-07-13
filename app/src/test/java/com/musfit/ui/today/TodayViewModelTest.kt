@@ -2,11 +2,13 @@ package com.musfit.ui.today
 
 import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.CoachMessage
 import com.musfit.data.repository.CoachRepository
 import com.musfit.data.repository.DEFAULT_APP_SETTINGS
+import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodGoalMode
@@ -15,13 +17,9 @@ import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.HealthConnectRefreshResult
-import com.musfit.data.repository.ProfileRepository
-import com.musfit.data.repository.UserGoals
-import com.musfit.data.repository.UserProfile
-import com.musfit.data.repository.WeightEntry
 import com.musfit.data.repository.HealthRepository
-import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.QuickCalorieLogInput
 import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineInput
@@ -30,10 +28,12 @@ import com.musfit.data.repository.SavedFoodLogInput
 import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSummary
+import com.musfit.data.repository.UserGoals
+import com.musfit.data.repository.UserProfile
+import com.musfit.data.repository.WeightEntry
+import com.musfit.data.repository.WorkoutForExport
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
-import com.musfit.data.repository.WorkoutForExport
-import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCandidate
 import com.musfit.domain.coach.CoachMessageCategory
@@ -54,8 +54,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -69,6 +69,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TodayViewModelTest {
@@ -110,11 +111,12 @@ class TodayViewModelTest {
     fun onScreenResumed_refreshesRecentHealthConnectDataForActiveDate() = runTest {
         val date = LocalDate.of(2026, 7, 2)
         val healthRepository = FakeHealthRepository(date)
-        val viewModel = todayViewModel(
-            coachRepository = FakeCoachRepository(),
-            date = date,
-            healthRepository = healthRepository,
-        )
+        val viewModel =
+            todayViewModel(
+                coachRepository = FakeCoachRepository(),
+                date = date,
+                healthRepository = healthRepository,
+            )
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.onScreenResumed()
@@ -126,14 +128,16 @@ class TodayViewModelTest {
     @Test
     fun refreshTodayData_setsRefreshingWhileRecentHealthConnectDataLoads() = runTest {
         val date = LocalDate.of(2026, 7, 3)
-        val healthRepository = FakeHealthRepository(date).apply {
-            refreshGate = CompletableDeferred()
-        }
-        val viewModel = todayViewModel(
-            coachRepository = FakeCoachRepository(),
-            date = date,
-            healthRepository = healthRepository,
-        )
+        val healthRepository =
+            FakeHealthRepository(date).apply {
+                refreshGate = CompletableDeferred()
+            }
+        val viewModel =
+            todayViewModel(
+                coachRepository = FakeCoachRepository(),
+                date = date,
+                healthRepository = healthRepository,
+            )
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.refreshTodayData()
@@ -177,11 +181,12 @@ class TodayViewModelTest {
         val date = LocalDate.now()
         val coachRepository = FakeCoachRepository()
         val viewModel = todayViewModel(coachRepository = coachRepository, date = date)
-        coachRepository.feed.value = listOf(
-            message(3, date, firstSeenAt = 300L),
-            message(2, date, firstSeenAt = 100L),
-            message(1, date.minusDays(1), firstSeenAt = 50L),
-        )
+        coachRepository.feed.value =
+            listOf(
+                message(3, date, firstSeenAt = 300L),
+                message(2, date, firstSeenAt = 100L),
+                message(1, date.minusDays(1), firstSeenAt = 50L),
+            )
         dispatcher.scheduler.advanceUntilIdle()
 
         val groups = viewModel.state.value.feed
@@ -209,11 +214,12 @@ class TodayViewModelTest {
         val date = LocalDate.now()
         val coachRepository = FakeCoachRepository()
         val foodRepository = FakeFoodRepository()
-        val viewModel = todayViewModel(
-            coachRepository = coachRepository,
-            date = date,
-            foodRepository = foodRepository,
-        )
+        val viewModel =
+            todayViewModel(
+                coachRepository = coachRepository,
+                date = date,
+                foodRepository = foodRepository,
+            )
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.onScreenResumed()
@@ -230,19 +236,38 @@ class TodayViewModelTest {
     @Test
     fun buildFeedGroups_labelsOlderDaysWithDate() {
         val today = LocalDate.now()
-        val groups = buildFeedGroups(
-            listOf(
-                message(1, today, firstSeenAt = 10L),
-                message(2, today.minusDays(1), firstSeenAt = 20L),
-                message(3, today.minusDays(3), firstSeenAt = 30L),
-            ),
-            today,
-        )
+        val groups =
+            buildFeedGroups(
+                listOf(
+                    message(1, today, firstSeenAt = 10L),
+                    message(2, today.minusDays(1), firstSeenAt = 20L),
+                    message(3, today.minusDays(3), firstSeenAt = 30L),
+                ),
+                today,
+            )
 
         assertEquals(listOf(1L, 2L, 3L), groups.map { it.messages.single().id })
         assertEquals("Today", groups[0].label)
         assertEquals("Yesterday", groups[1].label)
         assertTrue(groups[2].label != "Today" && groups[2].label != "Yesterday")
+    }
+
+    @Test
+    fun buildFeedGroups_usesCurrentLocaleAfterProcessLocaleChanges() {
+        val originalLocale = Locale.getDefault()
+        val today = LocalDate.of(2026, 7, 13)
+        val message = message(1, today.minusDays(3), firstSeenAt = 30L)
+        try {
+            Locale.setDefault(Locale.ENGLISH)
+            val english = buildFeedGroups(listOf(message), today).single().label
+            Locale.setDefault(Locale.GERMAN)
+            val german = buildFeedGroups(listOf(message), today).single().label
+
+            assertEquals("Friday, 10 July", english)
+            assertEquals("Freitag, 10 Juli", german)
+        } finally {
+            Locale.setDefault(originalLocale)
+        }
     }
 
     @Test
@@ -309,32 +334,43 @@ class TodayViewModelTest {
     @Test
     fun readiness_isDerivedFromCurrentAndRecentHealthSummaries() = runTest {
         val date = LocalDate.of(2026, 7, 7)
-        val healthRepository = FakeHealthRepository(date).apply {
-            dailySummaries.value =
-                (7L downTo 1L).map { daysAgo ->
+        val healthRepository =
+            FakeHealthRepository(date).apply {
+                dailySummaries.value =
+                    (7L downTo 1L).map { daysAgo ->
+                        dailySummary(
+                            date = date.minusDays(daysAgo),
+                            sleepMinutes = 420L,
+                            restingHeartRateBpm = 58L,
+                            hrvRmssdMillis = 55.0,
+                        )
+                    } +
                     dailySummary(
-                        date = date.minusDays(daysAgo),
-                        sleepMinutes = 420L,
-                        restingHeartRateBpm = 58L,
-                        hrvRmssdMillis = 55.0,
+                        date = date,
+                        sleepMinutes = 480L,
+                        restingHeartRateBpm = 53L,
+                        hrvRmssdMillis = 68.0,
                     )
-                } + dailySummary(
-                    date = date,
-                    sleepMinutes = 480L,
-                    restingHeartRateBpm = 53L,
-                    hrvRmssdMillis = 68.0,
-                )
-        }
+            }
 
-        val viewModel = todayViewModel(
-            coachRepository = FakeCoachRepository(),
-            date = date,
-            healthRepository = healthRepository,
-        )
+        val viewModel =
+            todayViewModel(
+                coachRepository = FakeCoachRepository(),
+                date = date,
+                healthRepository = healthRepository,
+            )
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(86, viewModel.state.value.readiness?.score)
-        assertEquals("Ready 86", viewModel.state.value.readiness?.label)
+        assertEquals(
+            86,
+            viewModel.state.value.readiness
+                ?.score,
+        )
+        assertEquals(
+            "Ready 86",
+            viewModel.state.value.readiness
+                ?.label,
+        )
     }
 
     @Test
@@ -348,18 +384,20 @@ class TodayViewModelTest {
         // "…keep nudging toward 75 kg." Anchoring to weekStart (not "now") keeps the
         // test deterministic on every weekday.
         val weekStartEpochDay = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay()
-        healthRepository.weightSeries.value = listOf(
-            BodyMetricEntity("w1", "weight", 82.0, "kg", (weekStartEpochDay - 3L) * 86_400_000L, "manual", null),
-            BodyMetricEntity("w2", "weight", 82.0, "kg", weekStartEpochDay * 86_400_000L, "manual", null),
-        )
-        val viewModel = todayViewModel(
-            coachRepository = coachRepository,
-            date = date,
-            healthRepository = healthRepository,
-            // Seed a DIFFERENT nonzero legacy user_goals target: a surviving fallback
-            // read of user_goals.targetWeightKg would surface 68, not the profile's 75.
-            goalsRepository = FakeGoalsRepository(UserGoals(targetWeightKg = 68.0)),
-        )
+        healthRepository.weightSeries.value =
+            listOf(
+                BodyMetricEntity("w1", "weight", 82.0, "kg", (weekStartEpochDay - 3L) * 86_400_000L, "manual", null),
+                BodyMetricEntity("w2", "weight", 82.0, "kg", weekStartEpochDay * 86_400_000L, "manual", null),
+            )
+        val viewModel =
+            todayViewModel(
+                coachRepository = coachRepository,
+                date = date,
+                healthRepository = healthRepository,
+                // Seed a DIFFERENT nonzero legacy user_goals target: a surviving fallback
+                // read of user_goals.targetWeightKg would surface 68, not the profile's 75.
+                goalsRepository = FakeGoalsRepository(UserGoals(targetWeightKg = 68.0)),
+            )
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.onScreenResumed()
@@ -373,10 +411,11 @@ class TodayViewModelTest {
     @Test
     fun dashboardEditor_prefillsPinsAndGoals() = runTest {
         val coachRepository = FakeCoachRepository()
-        val viewModel = todayViewModel(
-            coachRepository = coachRepository,
-            goalsRepository = FakeGoalsRepository(UserGoals(stepGoal = 12_345)),
-        )
+        val viewModel =
+            todayViewModel(
+                coachRepository = coachRepository,
+                goalsRepository = FakeGoalsRepository(UserGoals(stepGoal = 12_345)),
+            )
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.openDashboardEditor()
@@ -435,10 +474,11 @@ class TodayViewModelTest {
     @Test
     fun saveDashboard_neverTouchesStoredTargetWeight() = runTest {
         val goalsRepository = FakeGoalsRepositoryRecording()
-        val viewModel = todayViewModel(
-            coachRepository = FakeCoachRepository(),
-            goalsRepository = goalsRepository,
-        )
+        val viewModel =
+            todayViewModel(
+                coachRepository = FakeCoachRepository(),
+                goalsRepository = goalsRepository,
+            )
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.openDashboardEditor()
 
@@ -488,7 +528,13 @@ class TodayViewModelTest {
         dateProvider = dateProvider ?: { date },
         // Deterministic afternoon clock: the engine's time-gated rules (water_low is
         // NOT-morning, plan_morning is morning-only) must not flake with wall time.
-        clock = { date.atTime(14, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() },
+        clock = {
+            date
+                .atTime(14, 0)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        },
     )
 
     private fun message(
@@ -521,25 +567,35 @@ class TodayViewModelTest {
 
         override fun observeFeed(): Flow<List<CoachMessage>> = feed
 
-        override suspend fun syncToday(day: LocalDate, candidates: List<CoachMessageCandidate>) {
+        override suspend fun syncToday(
+            day: LocalDate,
+            candidates: List<CoachMessageCandidate>,
+        ) {
             syncedDays += day
             lastCandidates = candidates
         }
 
-        override suspend fun dismiss(id: Long) { dismissedIds += id }
+        override suspend fun dismiss(id: Long) {
+            dismissedIds += id
+        }
 
-        override suspend fun markAllRead() { markAllReadCount++ }
+        override suspend fun markAllRead() {
+            markAllReadCount++
+        }
 
         override fun observeDashboardPins(): Flow<List<TodayMetric>> = pins
 
-        override suspend fun saveDashboardPins(ordered: List<TodayMetric>) { savedPins = ordered }
+        override suspend fun saveDashboardPins(ordered: List<TodayMetric>) {
+            savedPins = ordered
+        }
     }
 
     private class FakeFoodRepository : FoodRepository {
         val observedDates = mutableListOf<LocalDate>()
-        val waterSummary = MutableStateFlow(
-            FoodWaterSummary(LocalDate.now(), consumedMilliliters = 100.0, goalMilliliters = 2000.0),
-        )
+        val waterSummary =
+            MutableStateFlow(
+                FoodWaterSummary(LocalDate.now(), consumedMilliliters = 100.0, goalMilliliters = 2000.0),
+            )
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -555,35 +611,33 @@ class TodayViewModelTest {
             return MutableStateFlow(NutritionTotals(600.0, 45.0, 70.0, 18.0))
         }
 
-        override fun observeFoodGoal(): Flow<FoodGoal> =
-            MutableStateFlow(
-                FoodGoal(
-                    dailyCaloriesKcal = 2000.0,
-                    proteinGrams = 150.0,
-                    carbsGrams = 200.0,
-                    fatGrams = 60.0,
-                    fiberGrams = 30.0,
-                    sugarGrams = 50.0,
-                    saturatedFatGrams = 20.0,
-                    sodiumMilligrams = 2300.0,
-                    mode = FoodGoalMode.Balanced,
-                    includeTrainingCalories = false,
-                ),
-            )
+        override fun observeFoodGoal(): Flow<FoodGoal> = MutableStateFlow(
+            FoodGoal(
+                dailyCaloriesKcal = 2000.0,
+                proteinGrams = 150.0,
+                carbsGrams = 200.0,
+                fatGrams = 60.0,
+                fiberGrams = 30.0,
+                sugarGrams = 50.0,
+                saturatedFatGrams = 20.0,
+                sodiumMilligrams = 2300.0,
+                mode = FoodGoalMode.Balanced,
+                includeTrainingCalories = false,
+            ),
+        )
 
-        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
-            MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
+        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> = MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
 
         override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> = waterSummary
 
-        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
-            MutableStateFlow(emptyList())
+        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
 
-        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
-            MutableStateFlow(emptyList())
+        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
 
-        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> =
-            MutableStateFlow(emptyList())
+        override fun observeSameAsYesterday(
+            mealType: String,
+            date: java.time.LocalDate,
+        ): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
 
         override suspend fun logSavedFood(input: SavedFoodLogInput): String = "meal-item-1"
 
@@ -593,8 +647,7 @@ class TodayViewModelTest {
 
         override suspend fun deleteDiaryEntry(mealItemId: String) = Unit
 
-        override suspend fun upsertSavedFood(input: SavedFoodUpsertInput): String =
-            input.foodId ?: "food-1"
+        override suspend fun upsertSavedFood(input: SavedFoodUpsertInput): String = input.foodId ?: "food-1"
 
         override suspend fun deleteSavedFood(foodId: String) = Unit
     }
@@ -610,10 +663,11 @@ class TodayViewModelTest {
     private class FakeGoalsRepositoryRecording : GoalsRepository {
         var saved: UserGoals? = null
 
-        override fun observeUserGoals(): Flow<UserGoals> =
-            MutableStateFlow(UserGoals(targetWeightKg = STORED_TARGET_WEIGHT))
+        override fun observeUserGoals(): Flow<UserGoals> = MutableStateFlow(UserGoals(targetWeightKg = STORED_TARGET_WEIGHT))
 
-        override suspend fun updateUserGoals(goals: UserGoals) { saved = goals }
+        override suspend fun updateUserGoals(goals: UserGoals) {
+            saved = goals
+        }
 
         companion object {
             const val STORED_TARGET_WEIGHT = 82.0
@@ -622,25 +676,51 @@ class TodayViewModelTest {
 
     private class FakeProfileRepository : ProfileRepository {
         val measurements = MutableStateFlow<Map<String, List<BodyMeasurement>>>(emptyMap())
-        val profile = MutableStateFlow(
-            UserProfile(
-                sex = null, birthDateEpochDay = null, heightCm = null,
-                activityLevel = ActivityLevel.Moderate, goalType = GoalType.Maintain,
-                goalPaceKgPerWeek = 0.0, goalWeightKg = 75.0,
-            ),
-        )
+        val profile =
+            MutableStateFlow(
+                UserProfile(
+                    sex = null,
+                    birthDateEpochDay = null,
+                    heightCm = null,
+                    activityLevel = ActivityLevel.Moderate,
+                    goalType = GoalType.Maintain,
+                    goalPaceKgPerWeek = 0.0,
+                    goalWeightKg = 75.0,
+                ),
+            )
 
         override fun observeProfile(): Flow<UserProfile> = profile
+
         override suspend fun saveProfile(profile: UserProfile) = Unit
+
         override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = MutableStateFlow(null)
-        override suspend fun logWeight(weightKg: Double, source: String) = Unit
+
+        override suspend fun logWeight(
+            weightKg: Double,
+            source: String,
+        ) = Unit
+
         override fun observeLatestWeight(): Flow<WeightEntry?> = MutableStateFlow(null)
+
         override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> = MutableStateFlow(emptyList())
-        override suspend fun logMeasurement(type: String, value: Double, unit: String) = Unit
+
+        override suspend fun logMeasurement(
+            type: String,
+            value: Double,
+            unit: String,
+        ) = Unit
+
         override suspend fun deleteEntry(id: String) = Unit
-        override suspend fun updateEntryValue(id: String, value: Double) = Unit
+
+        override suspend fun updateEntryValue(
+            id: String,
+            value: Double,
+        ) = Unit
+
         override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> = measurements
+
         override fun observeSettings(): Flow<AppSettings> = MutableStateFlow(DEFAULT_APP_SETTINGS)
+
         override suspend fun saveSettings(settings: AppSettings) = Unit
     }
 
@@ -653,7 +733,10 @@ class TodayViewModelTest {
             weightKg: Double,
         ): LoggedWorkoutSet = LoggedWorkoutSet("set-1", exerciseName, reps, weightKg, true)
 
-        override suspend fun setCompletion(setId: String, completed: Boolean) = Unit
+        override suspend fun setCompletion(
+            setId: String,
+            completed: Boolean,
+        ) = Unit
 
         override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> {
             observedDates += date
@@ -668,7 +751,10 @@ class TodayViewModelTest {
 
         override suspend fun createRoutine(input: RoutineInput): String = "routine-1"
 
-        override suspend fun updateRoutine(routineId: String, input: RoutineInput) = Unit
+        override suspend fun updateRoutine(
+            routineId: String,
+            input: RoutineInput,
+        ) = Unit
 
         override suspend fun duplicateRoutine(routineId: String): String = "$routineId-copy"
 
@@ -703,8 +789,7 @@ class TodayViewModelTest {
 
         override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = weightSeries
 
-        override suspend fun status(): HealthConnectStatus =
-            HealthConnectStatus(HealthConnectAvailability.Available, emptySet())
+        override suspend fun status(): HealthConnectStatus = HealthConnectStatus(HealthConnectAvailability.Available, emptySet())
 
         override suspend fun requestablePermissions(): Set<String> = emptySet()
 
@@ -716,22 +801,24 @@ class TodayViewModelTest {
             )
         }
 
-        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary(
-                steps = 8200L,
-                activeCaloriesKcal = 420.0,
-                totalCaloriesKcal = 2_300.0,
-                distanceMeters = 5_000.0,
-                sleepMinutes = 450L,
-                exerciseMinutes = 40L,
-                exerciseSessionCount = 1,
-                latestWeightKg = 82.4,
-                latestBodyFatPercent = null,
-                restingHeartRateBpm = 58,
-                hrvRmssdMillis = 55.0,
-            )
+        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary = ImportedDailyHealthSummary(
+            steps = 8200L,
+            activeCaloriesKcal = 420.0,
+            totalCaloriesKcal = 2_300.0,
+            distanceMeters = 5_000.0,
+            sleepMinutes = 450L,
+            exerciseMinutes = 40L,
+            exerciseSessionCount = 1,
+            latestWeightKg = 82.4,
+            latestBodyFatPercent = null,
+            restingHeartRateBpm = 58,
+            hrvRmssdMillis = 55.0,
+        )
 
-        override suspend fun refreshRecentData(endDate: LocalDate, days: Int): HealthConnectRefreshResult {
+        override suspend fun refreshRecentData(
+            endDate: LocalDate,
+            days: Int,
+        ): HealthConnectRefreshResult {
             refreshDates += endDate
             refreshGate?.await()
             return HealthConnectRefreshResult(importedDayCount = days, bodyMetricCount = 0)
@@ -741,12 +828,14 @@ class TodayViewModelTest {
 
         val dailySummaries = MutableStateFlow<List<DailyHealthSummaryEntity>>(emptyList())
 
-        override fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> =
-            MutableStateFlow(
-                dailySummaries.value.filter { summary ->
-                    summary.dateEpochDay in startDate.toEpochDay()..endDate.toEpochDay()
-                },
-            )
+        override fun observeDailySummaries(
+            startDate: LocalDate,
+            endDate: LocalDate,
+        ): Flow<List<DailyHealthSummaryEntity>> = MutableStateFlow(
+            dailySummaries.value.filter { summary ->
+                summary.dateEpochDay in startDate.toEpochDay()..endDate.toEpochDay()
+            },
+        )
 
         fun dailySummary(
             date: LocalDate,

@@ -1,5 +1,6 @@
 package com.musfit.data.transfer
 
+import android.annotation.SuppressLint
 import android.content.Context
 import com.musfit.data.local.MUSFIT_DATABASE_NAME
 import java.io.DataInputStream
@@ -58,12 +59,13 @@ object PendingDataImport {
             throw IllegalStateException("MusFit data restore failed; the previous database was retained.", error)
         }
 
-        val receipt = DataTransferReceipt(
-            restoredAtEpochMillis = System.currentTimeMillis(),
-            databaseSha256 = pending.manifest.databaseSha256,
-            totalRows = pending.manifest.totalRows,
-            archiveBytes = pending.archiveBytes,
-        )
+        val receipt =
+            DataTransferReceipt(
+                restoredAtEpochMillis = System.currentTimeMillis(),
+                databaseSha256 = pending.manifest.databaseSha256,
+                totalRows = pending.manifest.totalRows,
+                archiveBytes = pending.archiveBytes,
+            )
         saveReceipt(context, receipt)
         staged.delete()
         marker.delete()
@@ -82,17 +84,25 @@ object PendingDataImport {
         )
     }
 
-    fun recordFailure(context: Context, error: Throwable) {
-        context.getSharedPreferences(RECEIPT_PREFERENCES, Context.MODE_PRIVATE).edit()
+    @SuppressLint("ApplySharedPref") // Restore status must be durable before this process can exit.
+    fun recordFailure(
+        context: Context,
+        error: Throwable,
+    ) {
+        context
+            .getSharedPreferences(RECEIPT_PREFERENCES, Context.MODE_PRIVATE)
+            .edit()
             .putString("failure", error.message ?: "MusFit restore could not be completed.")
             .commit()
     }
 
-    fun lastFailure(context: Context): String? =
-        context.getSharedPreferences(RECEIPT_PREFERENCES, Context.MODE_PRIVATE).getString("failure", null)
+    fun lastFailure(context: Context): String? = context.getSharedPreferences(RECEIPT_PREFERENCES, Context.MODE_PRIVATE).getString("failure", null)
 
+    @SuppressLint("ApplySharedPref") // The migration receipt is the durable hand-off to the production-signed app.
     private fun saveReceipt(context: Context, receipt: DataTransferReceipt) {
-        context.getSharedPreferences(RECEIPT_PREFERENCES, Context.MODE_PRIVATE).edit()
+        context
+            .getSharedPreferences(RECEIPT_PREFERENCES, Context.MODE_PRIVATE)
+            .edit()
             .putLong("restoredAt", receipt.restoredAtEpochMillis)
             .putString("sha256", receipt.databaseSha256)
             .putLong("totalRows", receipt.totalRows)
@@ -101,7 +111,11 @@ object PendingDataImport {
             .commit()
     }
 
-    private fun writeMarker(file: File, manifest: DataTransferManifest, archiveBytes: Long) {
+    private fun writeMarker(
+        file: File,
+        manifest: DataTransferManifest,
+        archiveBytes: Long,
+    ) {
         val temporary = File(file.parentFile, file.name + ".tmp")
         FileOutputStream(temporary).use { stream ->
             DataOutputStream(stream).use { output ->
@@ -123,25 +137,25 @@ object PendingDataImport {
         check(temporary.renameReplacing(file)) { "Could not stage MusFit restore metadata." }
     }
 
-    private fun readMarker(file: File): PendingMarker =
-        DataInputStream(FileInputStream(file)).use { input ->
-            require(input.readInt() == MARKER_VERSION) { "Unsupported pending MusFit restore metadata." }
-            val createdAt = input.readLong()
-            val sourceVersion = input.readInt()
-            val schema = input.readInt()
-            val sha = input.readUTF()
-            val tableCount = input.readInt()
-            require(tableCount in 0..512)
-            val counts = buildMap {
+    private fun readMarker(file: File): PendingMarker = DataInputStream(FileInputStream(file)).use { input ->
+        require(input.readInt() == MARKER_VERSION) { "Unsupported pending MusFit restore metadata." }
+        val createdAt = input.readLong()
+        val sourceVersion = input.readInt()
+        val schema = input.readInt()
+        val sha = input.readUTF()
+        val tableCount = input.readInt()
+        require(tableCount in 0..512)
+        val counts =
+            buildMap {
                 repeat(tableCount) { put(input.readUTF(), input.readLong()) }
             }
-            val archiveBytes = input.readLong()
-            require(input.read() == -1)
-            PendingMarker(
-                manifest = DataTransferManifest(createdAt, sourceVersion, schema, sha, counts),
-                archiveBytes = archiveBytes,
-            )
-        }
+        val archiveBytes = input.readLong()
+        require(input.read() == -1)
+        PendingMarker(
+            manifest = DataTransferManifest(createdAt, sourceVersion, schema, sha, counts),
+            archiveBytes = archiveBytes,
+        )
+    }
 
     private fun transferDirectory(context: Context): File = File(context.filesDir, "data-transfer")
 
@@ -170,7 +184,10 @@ object PendingDataImport {
         return renameTo(destination)
     }
 
-    private data class PendingMarker(val manifest: DataTransferManifest, val archiveBytes: Long)
+    private data class PendingMarker(
+        val manifest: DataTransferManifest,
+        val archiveBytes: Long,
+    )
 
     private const val MARKER_VERSION = 1
     private const val RECEIPT_PREFERENCES = "data_transfer_receipt"
