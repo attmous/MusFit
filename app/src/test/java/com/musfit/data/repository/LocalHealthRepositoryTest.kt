@@ -17,6 +17,7 @@ import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -28,11 +29,14 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
 
+private const val TEST_ACCOUNT_ID = "local-default"
+
 @RunWith(RobolectricTestRunner::class)
 class LocalHealthRepositoryTest {
     private lateinit var database: MusFitDatabase
     private lateinit var gateway: FakeHealthConnectGateway
     private lateinit var repository: LocalHealthRepository
+    private lateinit var accountRepository: LocalAccountRepository
 
     @Before
     fun setUp() {
@@ -42,10 +46,13 @@ class LocalHealthRepositoryTest {
                 .allowMainThreadQueries()
                 .build()
         gateway = FakeHealthConnectGateway()
+        accountRepository = LocalAccountRepository(database.accountDao(), clock = { 1_000L })
+        runBlocking { accountRepository.ensureActiveAccount() }
         repository = LocalHealthRepository(
             gateway = gateway,
             healthDao = database.healthDao(),
             trainingDao = database.trainingDao(),
+            accountRepository = accountRepository,
             clock = { 1_000L },
         )
     }
@@ -195,7 +202,7 @@ class LocalHealthRepositoryTest {
 
     @Test
     fun exportLatestWorkout_exportsPersistedWorkoutAndMarksSession() = runTest {
-        database.trainingDao().upsertExercise(
+        database.trainingDao().upsertExerciseDefinition(
             ExerciseEntity(
                 id = "exercise-1",
                 name = "Bench Press",
@@ -207,6 +214,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSession(
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-1",
                 routineId = null,
                 title = "Bench workout",
@@ -220,6 +228,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-1",
                 sessionId = "session-1",
                 exerciseId = "exercise-1",
@@ -237,7 +246,7 @@ class LocalHealthRepositoryTest {
 
         val recordId = repository.exportLatestWorkout()
 
-        val savedSession = database.trainingDao().getWorkoutSession("session-1")
+        val savedSession = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-1")
         val syncState = database.healthDao().observeHealthConnectSyncState().first()
 
         assertEquals("record-id", recordId)
@@ -250,7 +259,7 @@ class LocalHealthRepositoryTest {
 
     @Test
     fun exportLatestWorkout_preservesExportedWorkoutSetsWhenMetadataIsSaved() = runTest {
-        database.trainingDao().upsertExercise(
+        database.trainingDao().upsertExerciseDefinition(
             ExerciseEntity(
                 id = "exercise-1",
                 name = "Bench Press",
@@ -262,6 +271,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSession(
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-1",
                 routineId = null,
                 title = "Bench workout",
@@ -275,6 +285,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-1",
                 sessionId = "session-1",
                 exerciseId = "exercise-1",
@@ -291,6 +302,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-2",
                 sessionId = "session-1",
                 exerciseId = "exercise-1",
@@ -308,14 +320,14 @@ class LocalHealthRepositoryTest {
 
         repository.exportLatestWorkout()
 
-        val savedSets = database.trainingDao().getWorkoutSets("session-1")
+        val savedSets = database.trainingDao().getWorkoutSets(TEST_ACCOUNT_ID, "session-1")
 
         assertEquals(listOf("set-1", "set-2"), savedSets.map { it.id })
     }
 
     @Test
     fun exportLatestWorkout_skipsActiveSessionAndExportsLatestCompletedWorkout() = runTest {
-        database.trainingDao().upsertExercise(
+        database.trainingDao().upsertExerciseDefinition(
             ExerciseEntity(
                 id = "exercise-1",
                 name = "Bench Press",
@@ -327,6 +339,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSession(
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-completed",
                 routineId = null,
                 title = "Completed workout",
@@ -340,6 +353,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSession(
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-active",
                 routineId = null,
                 title = "Active workout",
@@ -353,6 +367,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-completed",
                 sessionId = "session-completed",
                 exerciseId = "exercise-1",
@@ -369,6 +384,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-active",
                 sessionId = "session-active",
                 exerciseId = "exercise-1",
@@ -389,12 +405,12 @@ class LocalHealthRepositoryTest {
         assertEquals("record-id", recordId)
         assertEquals("session-completed", gateway.exportedSession?.id)
         assertEquals(listOf("set-completed"), gateway.exportedSets.map { it.id })
-        assertNull(database.trainingDao().getWorkoutSession("session-active")?.healthConnectRecordId)
+        assertNull(database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-active")?.healthConnectRecordId)
     }
 
     @Test
     fun exportLatestWorkout_filtersOutIncompleteSetsFromCompletedSession() = runTest {
-        database.trainingDao().upsertExercise(
+        database.trainingDao().upsertExerciseDefinition(
             ExerciseEntity(
                 id = "exercise-1",
                 name = "Bench Press",
@@ -406,6 +422,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSession(
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-1",
                 routineId = null,
                 title = "Bench workout",
@@ -419,6 +436,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-completed",
                 sessionId = "session-1",
                 exerciseId = "exercise-1",
@@ -435,6 +453,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-incomplete",
                 sessionId = "session-1",
                 exerciseId = "exercise-1",
@@ -457,7 +476,7 @@ class LocalHealthRepositoryTest {
 
     @Test
     fun exportLatestWorkout_fallsBackWhenNewestCompletedWorkoutHasNoCompletedSets() = runTest {
-        database.trainingDao().upsertExercise(
+        database.trainingDao().upsertExerciseDefinition(
             ExerciseEntity(
                 id = "exercise-1",
                 name = "Bench Press",
@@ -469,6 +488,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSession(
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-older-completed",
                 routineId = null,
                 title = "Older workout",
@@ -482,6 +502,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSession(
             WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "session-newer-empty",
                 routineId = null,
                 title = "Newer empty workout",
@@ -495,6 +516,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-older-completed",
                 sessionId = "session-older-completed",
                 exerciseId = "exercise-1",
@@ -511,6 +533,7 @@ class LocalHealthRepositoryTest {
         )
         database.trainingDao().upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
                 id = "set-newer-incomplete",
                 sessionId = "session-newer-empty",
                 exerciseId = "exercise-1",
@@ -531,7 +554,7 @@ class LocalHealthRepositoryTest {
         assertEquals("record-id", recordId)
         assertEquals("session-older-completed", gateway.exportedSession?.id)
         assertEquals(listOf("set-older-completed"), gateway.exportedSets.map { it.id })
-        assertNull(database.trainingDao().getWorkoutSession("session-newer-empty")?.healthConnectRecordId)
+        assertNull(database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-newer-empty")?.healthConnectRecordId)
     }
 
     private class FakeHealthConnectGateway : HealthConnectGateway {
@@ -572,11 +595,10 @@ class LocalHealthRepositoryTest {
             )
         }
 
-        override suspend fun status(): HealthConnectStatus =
-            HealthConnectStatus(
-                availability = HealthConnectAvailability.Available,
-                grantedPermissions = setOf("steps"),
-            )
+        override suspend fun status(): HealthConnectStatus = HealthConnectStatus(
+            availability = HealthConnectAvailability.Available,
+            grantedPermissions = setOf("steps"),
+        )
 
         override suspend fun requestablePermissions(): Set<String> = setOf("steps")
 
@@ -602,7 +624,6 @@ class LocalHealthRepositoryTest {
             return "record-id"
         }
 
-        override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? =
-            null
+        override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? = null
     }
 }

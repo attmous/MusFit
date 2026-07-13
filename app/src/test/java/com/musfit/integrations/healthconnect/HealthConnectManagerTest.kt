@@ -460,6 +460,7 @@ class HealthConnectManagerTest {
     )
 
     private fun workoutSession() = WorkoutSessionEntity(
+        accountId = "local-default",
         id = "session-1",
         routineId = null,
         startedAtEpochMillis = 1_700_000_000_000,
@@ -471,6 +472,7 @@ class HealthConnectManagerTest {
 
     private fun completedSets() = listOf(
         WorkoutSetEntity(
+            accountId = "local-default",
             id = "set-1",
             sessionId = "session-1",
             exerciseId = "bench",
@@ -485,47 +487,44 @@ class HealthConnectManagerTest {
         ),
     )
 
-    private fun foodExportPayload() =
-        HealthConnectFoodExportPayload(
-            date = LocalDate.of(2026, 6, 20),
-            meals = listOf(
-                HealthConnectFoodMealExport(
-                    mealType = "breakfast",
-                    name = "Breakfast",
-                    caloriesKcal = 410.0,
-                    proteinGrams = 32.0,
-                    carbsGrams = 45.0,
-                    fatGrams = 12.0,
-                    fiberGrams = 8.0,
-                    sugarGrams = 12.0,
-                    saturatedFatGrams = 3.0,
-                    sodiumMilligrams = 450.0,
-                    potassiumMilligrams = 500.0,
-                    calciumMilligrams = 220.0,
-                    ironMilligrams = 4.0,
-                    vitaminDMicrograms = 2.5,
-                    vitaminCMilligrams = 40.0,
-                    magnesiumMilligrams = 90.0,
-                ),
-                HealthConnectFoodMealExport(
-                    mealType = "snacks",
-                    name = "Snacks",
-                    caloriesKcal = 180.0,
-                    proteinGrams = 6.0,
-                    carbsGrams = 25.0,
-                    fatGrams = 7.0,
-                ),
+    private fun foodExportPayload() = HealthConnectFoodExportPayload(
+        date = LocalDate.of(2026, 6, 20),
+        meals = listOf(
+            HealthConnectFoodMealExport(
+                mealType = "breakfast",
+                name = "Breakfast",
+                caloriesKcal = 410.0,
+                proteinGrams = 32.0,
+                carbsGrams = 45.0,
+                fatGrams = 12.0,
+                fiberGrams = 8.0,
+                sugarGrams = 12.0,
+                saturatedFatGrams = 3.0,
+                sodiumMilligrams = 450.0,
+                potassiumMilligrams = 500.0,
+                calciumMilligrams = 220.0,
+                ironMilligrams = 4.0,
+                vitaminDMicrograms = 2.5,
+                vitaminCMilligrams = 40.0,
+                magnesiumMilligrams = 90.0,
             ),
-            hydrationMilliliters = 750.0,
-        )
+            HealthConnectFoodMealExport(
+                mealType = "snacks",
+                name = "Snacks",
+                caloriesKcal = 180.0,
+                proteinGrams = 6.0,
+                carbsGrams = 25.0,
+                fatGrams = 7.0,
+            ),
+        ),
+        hydrationMilliliters = 750.0,
+    )
 
     private fun readStepsPermission() = HealthPermission.getReadPermission(StepsRecord::class)
 
-    private fun readActiveCaloriesPermission() =
-        HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
+    private fun readActiveCaloriesPermission() = HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
 
-    private fun readTotalCaloriesPermission() =
-        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
+    private fun readTotalCaloriesPermission() = HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
 
     private fun readDistancePermission() = HealthPermission.getReadPermission(DistanceRecord::class)
 
@@ -539,20 +538,15 @@ class HealthConnectManagerTest {
 
     private fun readHeartRatePermission() = HealthPermission.getReadPermission(HeartRateRecord::class)
 
-    private fun readRestingHeartRatePermission() =
-        HealthPermission.getReadPermission(RestingHeartRateRecord::class)
+    private fun readRestingHeartRatePermission() = HealthPermission.getReadPermission(RestingHeartRateRecord::class)
 
-    private fun readHeartRateVariabilityPermission() =
-        HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
+    private fun readHeartRateVariabilityPermission() = HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
 
-    private fun writeExercisePermission() =
-        HealthPermission.getWritePermission(ExerciseSessionRecord::class)
+    private fun writeExercisePermission() = HealthPermission.getWritePermission(ExerciseSessionRecord::class)
 
-    private fun writeNutritionPermission() =
-        HealthPermission.getWritePermission(NutritionRecord::class)
+    private fun writeNutritionPermission() = HealthPermission.getWritePermission(NutritionRecord::class)
 
-    private fun writeHydrationPermission() =
-        HealthPermission.getWritePermission(HydrationRecord::class)
+    private fun writeHydrationPermission() = HealthPermission.getWritePermission(HydrationRecord::class)
 
     private class FakeClientFactory(
         private val client: FakeHealthConnectClientAdapter = FakeHealthConnectClientAdapter(),

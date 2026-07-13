@@ -16,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
-class FoodOwnershipMigration36To37Test {
+class TrainingOwnershipMigration37To38Test {
     private lateinit var context: Context
 
     @Before
@@ -31,11 +31,11 @@ class FoodOwnershipMigration36To37Test {
     }
 
     @Test
-    fun migration36To37_assignsEveryFoodRowToLocalDefaultAndPreservesRelations() {
-        createDatabaseFromExportedSchema(36) { database -> seedCompleteFoodGraph(database) }
+    fun migration37To38_assignsTrainingRowsToLocalDefaultAndRetainsSharedCatalog() {
+        createDatabaseFromExportedSchema(37) { database -> seedCompleteTrainingGraph(database) }
 
         val room = Room.databaseBuilder(context, MusFitDatabase::class.java, DATABASE_NAME)
-            .addMigrations(DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38)
+            .addMigrations(DatabaseModule.MIGRATION_37_38)
             .build()
         room.openHelper.writableDatabase
         room.close()
@@ -48,53 +48,66 @@ class FoodOwnershipMigration36To37Test {
             OWNED_TABLES.forEach { table ->
                 assertEquals(table, 1, intValue(database, "SELECT COUNT(*) FROM `$table` WHERE accountId = 'local-default'"))
             }
+            assertEquals(1, intValue(database, "SELECT COUNT(*) FROM exercises WHERE id = 'shared-exercise' AND accountId IS NULL"))
+            assertEquals(1, intValue(database, "SELECT COUNT(*) FROM exercises WHERE id = 'custom-exercise' AND accountId = 'local-default'"))
             assertEquals(
                 1,
                 intValue(
                     database,
                     """
-                    SELECT COUNT(*) FROM meal_items i
-                    JOIN meals m ON m.accountId = i.accountId AND m.id = i.mealId
-                    JOIN foods f ON f.accountId = i.accountId AND f.id = i.foodId
-                    JOIN food_servings s ON s.accountId = f.accountId AND s.foodId = f.id
-                    WHERE i.id = 'item-legacy'
+                    SELECT COUNT(*) FROM workout_sets sets
+                    JOIN workout_sessions sessions
+                        ON sessions.accountId = sets.accountId AND sessions.id = sets.sessionId
+                    JOIN routines routines
+                        ON routines.accountId = sessions.accountId AND routines.id = sessions.routineId
+                    JOIN routine_exercises routine_exercises
+                        ON routine_exercises.accountId = routines.accountId AND routine_exercises.routineId = routines.id
+                    JOIN exercise_notes notes
+                        ON notes.accountId = sets.accountId AND notes.exerciseId = sets.exerciseId
+                    WHERE sets.id = 'workout-set' AND notes.notes = 'Legacy setup note'
                     """.trimIndent(),
                 ),
             )
             assertEquals(0, intValue(database, "SELECT COUNT(*) FROM pragma_foreign_key_check"))
             assertTrue(
-                queryPlan(database, "SELECT * FROM meals WHERE accountId = 'local-default' AND dateEpochDay = 20000")
-                    .contains("index_meals_accountId_dateEpochDay", ignoreCase = true),
+                queryPlan(
+                    database,
+                    "SELECT * FROM workout_sessions WHERE accountId = 'local-default' AND status = 'active' ORDER BY startedAtEpochMillis DESC LIMIT 1",
+                ).contains("index_workout_sessions_accountId_status_startedAtEpochMillis", ignoreCase = true),
             )
             assertTrue(
-                queryPlan(database, "SELECT * FROM water_entries WHERE accountId = 'local-default' AND dateEpochDay = 20000")
-                    .contains("index_water_entries_accountId_dateEpochDay", ignoreCase = true),
+                queryPlan(
+                    database,
+                    "SELECT * FROM routine_exercises WHERE accountId = 'local-default' AND routineId = 'routine' ORDER BY sortOrder",
+                ).contains("index_routine_exercises_accountId_routineId_sortOrder", ignoreCase = true),
             )
         }
     }
 
-    private fun seedCompleteFoodGraph(database: SQLiteDatabase) {
+    private fun seedCompleteTrainingGraph(database: SQLiteDatabase) {
         database.execSQL(
             """
-            INSERT INTO foods (id, name, brand, defaultServingGrams, caloriesPer100g, proteinPer100g,
-                carbsPer100g, fatPer100g, createdAtEpochMillis, updatedAtEpochMillis)
-            VALUES ('food-legacy', 'Oats', NULL, 40, 389, 17, 66, 7, 1, 1)
+            INSERT INTO exercises VALUES (
+                'shared-exercise', 'Bench Press', 'strength', 'barbell', 'chest', 0,
+                'chest', 'triceps', 'Press safely', 'Legacy setup note', NULL, NULL
+            )
             """.trimIndent(),
         )
-        database.execSQL("INSERT INTO food_servings VALUES ('serving-legacy', 'food-legacy', 'Bowl', 40)")
-        database.execSQL("INSERT INTO meals VALUES ('meal-legacy', 20000, 'breakfast', NULL, 1, 1)")
-        database.execSQL("INSERT INTO meal_definitions VALUES ('breakfast', 'Breakfast', 480, 0, 1, 1, 0)")
-        database.execSQL("INSERT INTO meal_items VALUES ('item-legacy', 'meal-legacy', 'food-legacy', 40, 'logged')")
-        database.execSQL("INSERT INTO shopping_list_items VALUES ('shop-legacy', 'Oats', 'Grains', 40, 0, 0, 'food:food-legacy', 0, 1, 1)")
-        database.execSQL("INSERT INTO water_entries VALUES ('water-legacy', 20000, 500, 1)")
-        database.execSQL("INSERT INTO food_health_connect_sync VALUES ('food', 1, NULL, NULL, 1)")
-        database.execSQL("INSERT INTO barcode_products VALUES ('barcode-legacy', '123', 'test', 'Oats', NULL, '{}', 'verified', 'food-legacy', 1)")
-        database.execSQL("INSERT INTO food_goals VALUES ('default', 2000, 100, 200, 70, 30, 50, 20, 2300, 'Balanced', 0, 0, 2000, 1)")
-        database.execSQL("INSERT INTO quick_calorie_presets VALUES ('quick-legacy', 'Shake', 200, 20, 10, 5, 1, 1, 1)")
-        database.execSQL("INSERT INTO meal_templates VALUES ('template-legacy', 'Breakfast', 'breakfast', 1, 1, 1)")
-        database.execSQL("INSERT INTO meal_template_items VALUES ('template-item-legacy', 'template-legacy', 'food-legacy', 40, 0)")
-        database.execSQL("INSERT INTO recipes VALUES ('recipe-legacy', 'Oats', NULL, 'Bowl', 40, 1, 40, 1, 1, 1)")
-        database.execSQL("INSERT INTO recipe_ingredients VALUES ('ingredient-legacy', 'recipe-legacy', 'food-legacy', 40, 'g', 1, 40, 0)")
+        database.execSQL(
+            """
+            INSERT INTO exercises VALUES (
+                'custom-exercise', 'Custom Row', 'strength', 'cable', 'back', 1,
+                'back', 'biceps', NULL, NULL, NULL, NULL
+            )
+            """.trimIndent(),
+        )
+        database.execSQL("INSERT INTO routine_folders VALUES ('folder', 'Strength', 0, 1, 1)")
+        database.execSQL("INSERT INTO routines VALUES ('routine', 'Push', NULL, 1, 1, 0, NULL, '', 'folder')")
+        database.execSQL("INSERT INTO routine_exercises VALUES ('routine-exercise', 'routine', 'shared-exercise', 0, 1, '5', 120)")
+        database.execSQL("INSERT INTO routine_exercise_sets VALUES ('routine-set', 'routine-exercise', 0, 'working', '5', 100)")
+        database.execSQL("INSERT INTO workout_sessions VALUES ('session', 'routine', 'Push', 'active', 1000, NULL, NULL, NULL, NULL)")
+        database.execSQL("INSERT INTO workout_sets VALUES ('workout-set', 'session', 'shared-exercise', 0, 'working', 5, 100, NULL, NULL, 8, NULL, 1, NULL, 120)")
+        database.execSQL("INSERT INTO training_settings VALUES ('default', 120, 20, '20,10,5')")
     }
 
     private fun createDatabaseFromExportedSchema(version: Int, seed: (SQLiteDatabase) -> Unit) {
@@ -137,13 +150,16 @@ class FoodOwnershipMigration36To37Test {
     }
 
     private companion object {
-        const val DATABASE_NAME = "food-own-36-37"
-        val OWNED_TABLES =
-            listOf(
-                "foods", "food_servings", "meals", "meal_definitions", "meal_items",
-                "shopping_list_items", "water_entries", "food_health_connect_sync",
-                "barcode_products", "food_goals", "quick_calorie_presets", "meal_templates",
-                "meal_template_items", "recipes", "recipe_ingredients",
-            )
+        const val DATABASE_NAME = "training-own-37-38"
+        val OWNED_TABLES = listOf(
+            "exercise_notes",
+            "routine_folders",
+            "routines",
+            "routine_exercises",
+            "routine_exercise_sets",
+            "workout_sessions",
+            "workout_sets",
+            "training_settings",
+        )
     }
 }

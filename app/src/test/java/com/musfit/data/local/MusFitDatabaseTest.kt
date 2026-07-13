@@ -18,13 +18,16 @@ import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodServingEntity
+import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
 import com.musfit.data.local.entity.UserGoalsEntity
 import com.musfit.data.local.entity.UserProfileEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.data.repository.LocalAccountRepository
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -57,6 +60,7 @@ class MusFitDatabaseTest {
         trainingDao = database.trainingDao()
         healthDao = database.healthDao()
         profileDao = database.profileDao()
+        runBlocking { LocalAccountRepository(accountDao, clock = { 1_000L }).ensureActiveAccount() }
     }
 
     @After
@@ -151,6 +155,7 @@ class MusFitDatabaseTest {
             )
         val routine =
             RoutineEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "routine-1",
                 name = "Lower Body",
                 notes = null,
@@ -160,6 +165,7 @@ class MusFitDatabaseTest {
             )
         val routineExercise =
             RoutineExerciseEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "routine-exercise-1",
                 routineId = routine.id,
                 exerciseId = exercise.id,
@@ -181,7 +187,7 @@ class MusFitDatabaseTest {
         foodDao.upsertFood(food)
         foodDao.upsertServing(serving)
         foodDao.upsertBarcodeProduct(barcodeProduct)
-        trainingDao.upsertExercise(exercise)
+        trainingDao.upsertExerciseDefinition(exercise)
         trainingDao.upsertRoutine(routine)
         trainingDao.upsertRoutineExercise(routineExercise)
         healthDao.upsertBodyMetric(bodyMetric)
@@ -189,7 +195,7 @@ class MusFitDatabaseTest {
         assertEquals(listOf(serving), foodDao.observeServings(FOOD_ACCOUNT_ID, food.id).first())
         assertEquals(barcodeProduct, foodDao.getBarcodeProduct(FOOD_ACCOUNT_ID, barcodeProduct.barcode))
         assertEquals(listOf(barcodeProduct), foodDao.observeBarcodeProducts(FOOD_ACCOUNT_ID, food.id).first())
-        assertEquals(listOf(routineExercise), trainingDao.observeRoutineExercises(routine.id).first())
+        assertEquals(listOf(routineExercise), trainingDao.observeRoutineExercises(LOCAL_DEFAULT_ACCOUNT_ID, routine.id).first())
         assertEquals(
             listOf(bodyMetric),
             healthDao.observeBodyMetrics(type = bodyMetric.type, fromEpochMillis = 4_000L).first(),
@@ -278,6 +284,7 @@ class MusFitDatabaseTest {
             isCustom = false,
         )
         val session = WorkoutSessionEntity(
+            accountId = LOCAL_DEFAULT_ACCOUNT_ID,
             id = "sess-ss",
             routineId = null,
             title = "Workout",
@@ -288,10 +295,11 @@ class MusFitDatabaseTest {
             healthConnectRecordId = null,
             healthConnectLastExportedAtEpochMillis = null,
         )
-        trainingDao.upsertExercise(exercise)
+        trainingDao.upsertExerciseDefinition(exercise)
         trainingDao.upsertWorkoutSession(session)
         trainingDao.upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "set-grouped",
                 sessionId = session.id,
                 exerciseId = exercise.id,
@@ -309,6 +317,7 @@ class MusFitDatabaseTest {
         )
         trainingDao.upsertWorkoutSet(
             WorkoutSetEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "set-standalone",
                 sessionId = session.id,
                 exerciseId = exercise.id,
@@ -324,8 +333,8 @@ class MusFitDatabaseTest {
             ),
         )
 
-        assertEquals("grp-1", trainingDao.getWorkoutSet("set-grouped")?.supersetGroupId)
-        assertNull(trainingDao.getWorkoutSet("set-standalone")?.supersetGroupId)
+        assertEquals("grp-1", trainingDao.getWorkoutSet(LOCAL_DEFAULT_ACCOUNT_ID, "set-grouped")?.supersetGroupId)
+        assertNull(trainingDao.getWorkoutSet(LOCAL_DEFAULT_ACCOUNT_ID, "set-standalone")?.supersetGroupId)
     }
 
     @Test
@@ -339,6 +348,7 @@ class MusFitDatabaseTest {
             isCustom = false,
         )
         val session = WorkoutSessionEntity(
+            accountId = LOCAL_DEFAULT_ACCOUNT_ID,
             id = "sess-w",
             routineId = null,
             title = "Workout",
@@ -349,11 +359,12 @@ class MusFitDatabaseTest {
             healthConnectRecordId = null,
             healthConnectLastExportedAtEpochMillis = null,
         )
-        trainingDao.upsertExercise(exercise)
+        trainingDao.upsertExerciseDefinition(exercise)
         trainingDao.upsertWorkoutSession(session)
         repeat(2) { i ->
             trainingDao.upsertWorkoutSet(
                 WorkoutSetEntity(
+                    accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                     id = "w$i",
                     sessionId = session.id,
                     exerciseId = exercise.id,
@@ -370,12 +381,12 @@ class MusFitDatabaseTest {
             )
         }
 
-        trainingDao.setExerciseSupersetGroup(session.id, exercise.id, "grp-X")
-        val tagged = trainingDao.observeWorkoutSetDetailRows(session.id).first()
+        trainingDao.setExerciseSupersetGroup(LOCAL_DEFAULT_ACCOUNT_ID, session.id, exercise.id, "grp-X")
+        val tagged = trainingDao.observeWorkoutSetDetailRows(LOCAL_DEFAULT_ACCOUNT_ID, session.id).first()
         assertEquals(listOf("grp-X", "grp-X"), tagged.map { it.supersetGroupId })
 
-        trainingDao.clearSupersetGroup(session.id, "grp-X")
-        val cleared = trainingDao.observeWorkoutSetDetailRows(session.id).first()
+        trainingDao.clearSupersetGroup(LOCAL_DEFAULT_ACCOUNT_ID, session.id, "grp-X")
+        val cleared = trainingDao.observeWorkoutSetDetailRows(LOCAL_DEFAULT_ACCOUNT_ID, session.id).first()
         assertTrue(cleared.all { it.supersetGroupId == null })
     }
 

@@ -43,6 +43,7 @@ class HealthConnectRecordMapperTest {
 
     private fun completedSets(): List<WorkoutSetEntity> = listOf(
         WorkoutSetEntity(
+            accountId = "local-default",
             id = "set-1",
             sessionId = "session-1",
             exerciseId = "bench",
@@ -61,6 +62,7 @@ class HealthConnectRecordMapperTest {
         startedAtEpochMillis: Long,
         endedAtEpochMillis: Long?,
     ) = WorkoutSessionEntity(
+        accountId = "local-default",
         id = "session-1",
         routineId = null,
         startedAtEpochMillis = startedAtEpochMillis,
@@ -69,5 +71,4 @@ class HealthConnectRecordMapperTest {
         healthConnectRecordId = null,
         healthConnectLastExportedAtEpochMillis = null,
     )
-
 }

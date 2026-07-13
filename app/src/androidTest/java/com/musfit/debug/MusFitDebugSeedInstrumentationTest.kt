@@ -54,7 +54,7 @@ class MusFitDebugSeedInstrumentationTest {
         val database = DatabaseModule.provideDatabase(targetContext.applicationContext)
         try {
             assertNotNull(database.foodDao().getFood(LOCAL_DEFAULT_ACCOUNT_ID, PROBE_FOOD_ID))
-            assertNotNull(database.trainingDao().getWorkoutSession(PROBE_WORKOUT_ID))
+            assertNotNull(database.trainingDao().getWorkoutSession(LOCAL_DEFAULT_ACCOUNT_ID, PROBE_WORKOUT_ID))
 
             // Exercise the former intent shape using the test package context. The
             // component/action absence asserted above is the definitive denial;
@@ -73,7 +73,7 @@ class MusFitDebugSeedInstrumentationTest {
             )
             assertNotNull(
                 "A legacy external reset attempt must not delete seeded training data.",
-                database.trainingDao().getWorkoutSession(PROBE_WORKOUT_ID),
+                database.trainingDao().getWorkoutSession(LOCAL_DEFAULT_ACCOUNT_ID, PROBE_WORKOUT_ID),
             )
         } finally {
             database.close()

@@ -49,7 +49,7 @@ class LegacyVersion28RepairTest {
                     DatabaseModule.MIGRATION_33_34,
                     DatabaseModule.MIGRATION_34_35,
                     DatabaseModule.MIGRATION_35_36,
-                    DatabaseModule.MIGRATION_36_37,
+                    DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38,
                 )
                 .build()
         try {
@@ -243,7 +243,7 @@ class LegacyVersion28RepairTest {
     private companion object {
         const val TEST_DATABASE_NAME = "legacy-v28-repair"
         const val LEGACY_HEALTH_SYNC_V28_IDENTITY_HASH = "71b5b71f394a9a0bedf45d1a67317f04"
-        const val CURRENT_DATABASE_IDENTITY_HASH = "84fe8018cc0269b4012cb64becb8a883"
+        const val CURRENT_DATABASE_IDENTITY_HASH = "ed2a1675978e4a09dfc00342902246e7"
 
         val CURRENT_DAILY_HEALTH_SUMMARY_COLUMNS = listOf(
             "dateEpochDay",

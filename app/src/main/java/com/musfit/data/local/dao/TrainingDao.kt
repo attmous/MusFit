@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import androidx.room.Upsert
 import com.musfit.data.local.entity.ExerciseEntity
+import com.musfit.data.local.entity.ExerciseNoteEntity
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
 import com.musfit.data.local.entity.RoutineExerciseSetEntity
@@ -109,53 +110,90 @@ data class ExerciseProgressSetRow(
     val completed: Boolean,
 )
 
+data class ExerciseDetailRow(
+    val id: String,
+    val name: String,
+    val category: String,
+    val equipment: String?,
+    val targetMuscles: String,
+    val primaryMuscles: String,
+    val secondaryMuscles: String,
+    val instructions: String?,
+    val localNotes: String?,
+    val isCustom: Boolean,
+    val imageUrl: String?,
+    val gifUrl: String?,
+)
+
 @Dao
 interface TrainingDao {
-    @Query("SELECT * FROM exercises ORDER BY name")
-    fun observeExercises(): Flow<List<ExerciseEntity>>
+    @Query("SELECT * FROM exercises WHERE accountId IS NULL OR accountId = :accountId ORDER BY isCustom ASC, name ASC")
+    fun observeExercises(accountId: String): Flow<List<ExerciseEntity>>
 
     @Query(
         """
         SELECT *
         FROM exercises
-        WHERE (:query = '' OR name LIKE '%' || :query || '%' OR targetMuscles LIKE '%' || :query || '%' OR primaryMuscles LIKE '%' || :query || '%' OR secondaryMuscles LIKE '%' || :query || '%')
+        WHERE (accountId IS NULL OR accountId = :accountId)
+        AND (:query = '' OR name LIKE '%' || :query || '%' OR targetMuscles LIKE '%' || :query || '%' OR primaryMuscles LIKE '%' || :query || '%' OR secondaryMuscles LIKE '%' || :query || '%')
         AND (:muscle IS NULL OR targetMuscles LIKE '%' || :muscle || '%' OR primaryMuscles LIKE '%' || :muscle || '%' OR secondaryMuscles LIKE '%' || :muscle || '%')
         AND (:equipment IS NULL OR equipment = :equipment)
         ORDER BY isCustom ASC, name ASC
         """,
     )
     fun observeExercisesFiltered(
+        accountId: String,
         query: String,
         muscle: String?,
         equipment: String?,
     ): Flow<List<ExerciseEntity>>
 
-    @Query("SELECT * FROM exercises WHERE name = :name LIMIT 1")
-    suspend fun getExerciseByName(name: String): ExerciseEntity?
+    @Query("SELECT * FROM exercises WHERE (accountId IS NULL OR accountId = :accountId) AND name = :name ORDER BY accountId IS NULL ASC LIMIT 1")
+    suspend fun getExerciseByName(accountId: String, name: String): ExerciseEntity?
 
-    @Query("SELECT * FROM exercises WHERE id = :exerciseId LIMIT 1")
-    suspend fun getExercise(exerciseId: String): ExerciseEntity?
+    @Query("SELECT * FROM exercises WHERE (accountId IS NULL OR accountId = :accountId) AND id = :exerciseId LIMIT 1")
+    suspend fun getExercise(accountId: String, exerciseId: String): ExerciseEntity?
 
-    @Query("SELECT * FROM exercises WHERE LOWER(name) = LOWER(:name) LIMIT 1")
-    suspend fun getExerciseByNormalizedName(name: String): ExerciseEntity?
+    @Query("SELECT * FROM exercises WHERE (accountId IS NULL OR accountId = :accountId) AND LOWER(name) = LOWER(:name) ORDER BY accountId IS NULL ASC LIMIT 1")
+    suspend fun getExerciseByNormalizedName(accountId: String, name: String): ExerciseEntity?
 
-    @Query("UPDATE exercises SET localNotes = :notes WHERE id = :exerciseId")
-    suspend fun updateExerciseLocalNotes(exerciseId: String, notes: String?)
+    @Query(
+        """
+        SELECT exercises.id AS id,
+            exercises.name AS name,
+            exercises.category AS category,
+            exercises.equipment AS equipment,
+            exercises.targetMuscles AS targetMuscles,
+            exercises.primaryMuscles AS primaryMuscles,
+            exercises.secondaryMuscles AS secondaryMuscles,
+            exercises.instructions AS instructions,
+            exercise_notes.notes AS localNotes,
+            exercises.isCustom AS isCustom,
+            exercises.imageUrl AS imageUrl,
+            exercises.gifUrl AS gifUrl
+        FROM exercises
+        LEFT JOIN exercise_notes ON exercise_notes.accountId = :accountId AND exercise_notes.exerciseId = exercises.id
+        WHERE (exercises.accountId IS NULL OR exercises.accountId = :accountId)
+        AND exercises.id = :exerciseId
+        LIMIT 1
+        """,
+    )
+    suspend fun getExerciseDetail(accountId: String, exerciseId: String): ExerciseDetailRow?
 
-    @Query("SELECT * FROM routines ORDER BY createdAtEpochMillis DESC")
-    fun observeRoutines(): Flow<List<RoutineEntity>>
+    @Query("SELECT * FROM routines WHERE accountId = :accountId ORDER BY createdAtEpochMillis DESC")
+    fun observeRoutines(accountId: String): Flow<List<RoutineEntity>>
 
-    @Query("SELECT * FROM routine_folders ORDER BY sortOrder ASC, name ASC")
-    fun observeRoutineFolders(): Flow<List<RoutineFolderEntity>>
+    @Query("SELECT * FROM routine_folders WHERE accountId = :accountId ORDER BY sortOrder ASC, name ASC")
+    fun observeRoutineFolders(accountId: String): Flow<List<RoutineFolderEntity>>
 
-    @Query("SELECT * FROM routine_folders WHERE id = :folderId LIMIT 1")
-    suspend fun getRoutineFolder(folderId: String): RoutineFolderEntity?
+    @Query("SELECT * FROM routine_folders WHERE accountId = :accountId AND id = :folderId LIMIT 1")
+    suspend fun getRoutineFolder(accountId: String, folderId: String): RoutineFolderEntity?
 
-    @Query("SELECT * FROM routine_folders WHERE LOWER(name) = LOWER(:name) LIMIT 1")
-    suspend fun getRoutineFolderByName(name: String): RoutineFolderEntity?
+    @Query("SELECT * FROM routine_folders WHERE accountId = :accountId AND LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun getRoutineFolderByName(accountId: String, name: String): RoutineFolderEntity?
 
-    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM routine_folders")
-    suspend fun getMaxRoutineFolderSortOrder(): Int
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM routine_folders WHERE accountId = :accountId")
+    suspend fun getMaxRoutineFolderSortOrder(accountId: String): Int
 
     @Query(
         """
@@ -171,17 +209,18 @@ interface TrainingDao {
             routine_folders.name AS folderName,
             COALESCE(GROUP_CONCAT(exercises.primaryMuscles), '') AS primaryMuscles
         FROM routines
-        LEFT JOIN routine_folders ON routine_folders.id = routines.folderId
-        LEFT JOIN routine_exercises ON routine_exercises.routineId = routines.id
+        LEFT JOIN routine_folders ON routine_folders.accountId = routines.accountId AND routine_folders.id = routines.folderId
+        LEFT JOIN routine_exercises ON routine_exercises.accountId = routines.accountId AND routine_exercises.routineId = routines.id
         LEFT JOIN exercises ON exercises.id = routine_exercises.exerciseId
+        WHERE routines.accountId = :accountId
         GROUP BY routines.id
         ORDER BY routine_folders.sortOrder ASC, routine_folders.name ASC, routines.updatedAtEpochMillis DESC, routines.name ASC
         """,
     )
-    fun observeRoutineSummaries(): Flow<List<RoutineSummaryRow>>
+    fun observeRoutineSummaries(accountId: String): Flow<List<RoutineSummaryRow>>
 
-    @Query("SELECT * FROM workout_sessions ORDER BY startedAtEpochMillis DESC")
-    fun observeWorkoutSessions(): Flow<List<WorkoutSessionEntity>>
+    @Query("SELECT * FROM workout_sessions WHERE accountId = :accountId ORDER BY startedAtEpochMillis DESC")
+    fun observeWorkoutSessions(accountId: String): Flow<List<WorkoutSessionEntity>>
 
     @Query(
         """
@@ -191,29 +230,30 @@ interface TrainingDao {
             COALESCE(SUM(CASE WHEN workout_sets.completed = 1 THEN 1 ELSE 0 END), 0) AS completedSetCount,
             COALESCE(SUM(CASE WHEN workout_sets.completed = 1 AND workout_sets.reps IS NOT NULL AND workout_sets.weightKg IS NOT NULL THEN workout_sets.reps * workout_sets.weightKg ELSE 0 END), 0) AS totalVolumeKg
         FROM workout_sessions
-        LEFT JOIN workout_sets ON workout_sets.sessionId = workout_sessions.id
-        WHERE workout_sessions.status = 'active'
+        LEFT JOIN workout_sets ON workout_sets.accountId = workout_sessions.accountId AND workout_sets.sessionId = workout_sessions.id
+        WHERE workout_sessions.accountId = :accountId
+        AND workout_sessions.status = 'active'
         GROUP BY workout_sessions.id
         ORDER BY workout_sessions.startedAtEpochMillis DESC
         LIMIT 1
         """,
     )
-    fun observeActiveWorkoutSummary(): Flow<ActiveWorkoutSummaryRow?>
+    fun observeActiveWorkoutSummary(accountId: String): Flow<ActiveWorkoutSummaryRow?>
 
-    @Query("SELECT * FROM workout_sessions WHERE status = 'active' ORDER BY startedAtEpochMillis DESC LIMIT 1")
-    fun observeActiveWorkoutSession(): Flow<WorkoutSessionEntity?>
+    @Query("SELECT * FROM workout_sessions WHERE accountId = :accountId AND status = 'active' ORDER BY startedAtEpochMillis DESC LIMIT 1")
+    fun observeActiveWorkoutSession(accountId: String): Flow<WorkoutSessionEntity?>
 
-    @Query("SELECT * FROM training_settings WHERE id = 'default' LIMIT 1")
-    fun observeTrainingSettings(): Flow<TrainingSettingsEntity?>
+    @Query("SELECT * FROM training_settings WHERE accountId = :accountId AND id = 'default' LIMIT 1")
+    fun observeTrainingSettings(accountId: String): Flow<TrainingSettingsEntity?>
 
-    @Query("SELECT * FROM training_settings WHERE id = 'default' LIMIT 1")
-    suspend fun getTrainingSettings(): TrainingSettingsEntity?
+    @Query("SELECT * FROM training_settings WHERE accountId = :accountId AND id = 'default' LIMIT 1")
+    suspend fun getTrainingSettings(accountId: String): TrainingSettingsEntity?
 
-    @Query("SELECT * FROM workout_sessions WHERE id = :sessionId LIMIT 1")
-    suspend fun getWorkoutSession(sessionId: String): WorkoutSessionEntity?
+    @Query("SELECT * FROM workout_sessions WHERE accountId = :accountId AND id = :sessionId LIMIT 1")
+    suspend fun getWorkoutSession(accountId: String, sessionId: String): WorkoutSessionEntity?
 
-    @Query("SELECT * FROM routines WHERE id = :routineId LIMIT 1")
-    suspend fun getRoutine(routineId: String): RoutineEntity?
+    @Query("SELECT * FROM routines WHERE accountId = :accountId AND id = :routineId LIMIT 1")
+    suspend fun getRoutine(accountId: String, routineId: String): RoutineEntity?
 
     @Query(
         """
@@ -233,11 +273,13 @@ interface TrainingDao {
             exercises.gifUrl AS gifUrl
         FROM routine_exercises
         INNER JOIN exercises ON exercises.id = routine_exercises.exerciseId
-        WHERE routine_exercises.routineId = :routineId
+        WHERE routine_exercises.accountId = :accountId
+        AND routine_exercises.routineId = :routineId
+        AND (exercises.accountId IS NULL OR exercises.accountId = :accountId)
         ORDER BY routine_exercises.sortOrder ASC
         """,
     )
-    suspend fun getRoutineExerciseDetailRows(routineId: String): List<RoutineExerciseDetailRow>
+    suspend fun getRoutineExerciseDetailRows(accountId: String, routineId: String): List<RoutineExerciseDetailRow>
 
     @Query(
         """
@@ -248,46 +290,50 @@ interface TrainingDao {
             routine_exercise_sets.targetReps AS targetReps,
             routine_exercise_sets.targetWeightKg AS targetWeightKg
         FROM routine_exercise_sets
-        INNER JOIN routine_exercises ON routine_exercises.id = routine_exercise_sets.routineExerciseId
-        WHERE routine_exercises.routineId = :routineId
+        INNER JOIN routine_exercises ON routine_exercises.accountId = routine_exercise_sets.accountId AND routine_exercises.id = routine_exercise_sets.routineExerciseId
+        WHERE routine_exercises.accountId = :accountId
+        AND routine_exercises.routineId = :routineId
         ORDER BY routine_exercises.sortOrder ASC, routine_exercise_sets.sortOrder ASC
         """,
     )
-    suspend fun getRoutineExerciseSetDetailRows(routineId: String): List<RoutineExerciseSetDetailRow>
+    suspend fun getRoutineExerciseSetDetailRows(accountId: String, routineId: String): List<RoutineExerciseSetDetailRow>
 
-    @Query("SELECT * FROM workout_sessions ORDER BY startedAtEpochMillis DESC LIMIT 1")
-    suspend fun getLatestWorkoutSession(): WorkoutSessionEntity?
+    @Query("SELECT * FROM workout_sessions WHERE accountId = :accountId ORDER BY startedAtEpochMillis DESC LIMIT 1")
+    suspend fun getLatestWorkoutSession(accountId: String): WorkoutSessionEntity?
 
     @Query(
         """
         SELECT *
         FROM workout_sessions
-        WHERE status = 'active'
+        WHERE accountId = :accountId
+        AND status = 'active'
         ORDER BY startedAtEpochMillis DESC
         LIMIT 1
         """,
     )
-    suspend fun getLatestActiveWorkoutSession(): WorkoutSessionEntity?
+    suspend fun getLatestActiveWorkoutSession(accountId: String): WorkoutSessionEntity?
 
     @Query(
         """
         SELECT *
         FROM workout_sessions
-        WHERE status = 'completed'
+        WHERE accountId = :accountId
+        AND status = 'completed'
         AND EXISTS (
             SELECT 1
             FROM workout_sets
-            WHERE workout_sets.sessionId = workout_sessions.id
+            WHERE workout_sets.accountId = workout_sessions.accountId
+            AND workout_sets.sessionId = workout_sessions.id
             AND workout_sets.completed = 1
         )
         ORDER BY startedAtEpochMillis DESC
         LIMIT 1
         """,
     )
-    suspend fun getLatestCompletedWorkoutSession(): WorkoutSessionEntity?
+    suspend fun getLatestCompletedWorkoutSession(accountId: String): WorkoutSessionEntity?
 
-    @Query("SELECT * FROM workout_sessions WHERE id = :sessionId AND status = 'completed' LIMIT 1")
-    suspend fun getCompletedWorkoutSession(sessionId: String): WorkoutSessionEntity?
+    @Query("SELECT * FROM workout_sessions WHERE accountId = :accountId AND id = :sessionId AND status = 'completed' LIMIT 1")
+    suspend fun getCompletedWorkoutSession(accountId: String, sessionId: String): WorkoutSessionEntity?
 
     @Query(
         """
@@ -298,13 +344,14 @@ interface TrainingDao {
             COALESCE(SUM(CASE WHEN workout_sets.completed = 1 THEN 1 ELSE 0 END), 0) AS completedSetCount,
             COALESCE(SUM(CASE WHEN workout_sets.completed = 1 AND workout_sets.reps IS NOT NULL AND workout_sets.weightKg IS NOT NULL THEN workout_sets.reps * workout_sets.weightKg ELSE 0 END), 0) AS totalVolumeKg
         FROM workout_sessions
-        LEFT JOIN workout_sets ON workout_sets.sessionId = workout_sessions.id
-        WHERE workout_sessions.status = 'completed'
+        LEFT JOIN workout_sets ON workout_sets.accountId = workout_sessions.accountId AND workout_sets.sessionId = workout_sessions.id
+        WHERE workout_sessions.accountId = :accountId
+        AND workout_sessions.status = 'completed'
         GROUP BY workout_sessions.id
         ORDER BY workout_sessions.startedAtEpochMillis DESC
         """,
     )
-    fun observeWorkoutHistorySummaries(): Flow<List<WorkoutHistorySummaryRow>>
+    fun observeWorkoutHistorySummaries(accountId: String): Flow<List<WorkoutHistorySummaryRow>>
 
     @Query(
         """
@@ -315,14 +362,15 @@ interface TrainingDao {
             COALESCE(SUM(CASE WHEN workout_sets.completed = 1 THEN 1 ELSE 0 END), 0) AS completedSetCount,
             COALESCE(SUM(CASE WHEN workout_sets.completed = 1 AND workout_sets.reps IS NOT NULL AND workout_sets.weightKg IS NOT NULL THEN workout_sets.reps * workout_sets.weightKg ELSE 0 END), 0) AS totalVolumeKg
         FROM workout_sessions
-        LEFT JOIN workout_sets ON workout_sets.sessionId = workout_sessions.id
-        WHERE workout_sessions.id = :sessionId
+        LEFT JOIN workout_sets ON workout_sets.accountId = workout_sessions.accountId AND workout_sets.sessionId = workout_sessions.id
+        WHERE workout_sessions.accountId = :accountId
+        AND workout_sessions.id = :sessionId
         AND workout_sessions.status = 'completed'
         GROUP BY workout_sessions.id
         LIMIT 1
         """,
     )
-    suspend fun getWorkoutHistorySummary(sessionId: String): WorkoutHistorySummaryRow?
+    suspend fun getWorkoutHistorySummary(accountId: String, sessionId: String): WorkoutHistorySummaryRow?
 
     @Query(
         """
@@ -338,14 +386,15 @@ interface TrainingDao {
             workout_sets.weightKg AS weightKg,
             workout_sets.completed AS completed
         FROM workout_sets
-        INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId
+        INNER JOIN workout_sessions ON workout_sessions.accountId = workout_sets.accountId AND workout_sessions.id = workout_sets.sessionId
         INNER JOIN exercises ON exercises.id = workout_sets.exerciseId
-        WHERE workout_sets.exerciseId = :exerciseId
+        WHERE workout_sets.accountId = :accountId
+        AND workout_sets.exerciseId = :exerciseId
         AND workout_sessions.status = 'completed'
         ORDER BY workout_sessions.startedAtEpochMillis ASC, workout_sets.sortOrder ASC
         """,
     )
-    fun observeExerciseProgressSetRows(exerciseId: String): Flow<List<ExerciseProgressSetRow>>
+    fun observeExerciseProgressSetRows(accountId: String, exerciseId: String): Flow<List<ExerciseProgressSetRow>>
 
     @Query(
         """
@@ -361,13 +410,14 @@ interface TrainingDao {
             workout_sets.weightKg AS weightKg,
             workout_sets.completed AS completed
         FROM workout_sets
-        INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId
+        INNER JOIN workout_sessions ON workout_sessions.accountId = workout_sets.accountId AND workout_sessions.id = workout_sets.sessionId
         INNER JOIN exercises ON exercises.id = workout_sets.exerciseId
-        WHERE workout_sessions.status = 'completed'
+        WHERE workout_sets.accountId = :accountId
+        AND workout_sessions.status = 'completed'
         ORDER BY workout_sessions.startedAtEpochMillis ASC, workout_sets.sortOrder ASC
         """,
     )
-    fun observeCompletedExerciseProgressSetRows(): Flow<List<ExerciseProgressSetRow>>
+    fun observeCompletedExerciseProgressSetRows(accountId: String): Flow<List<ExerciseProgressSetRow>>
 
     @Query(
         """
@@ -392,36 +442,39 @@ interface TrainingDao {
             exercises.gifUrl AS gifUrl
         FROM workout_sets
         INNER JOIN exercises ON exercises.id = workout_sets.exerciseId
-        WHERE workout_sets.sessionId = :sessionId
+        WHERE workout_sets.accountId = :accountId
+        AND workout_sets.sessionId = :sessionId
+        AND (exercises.accountId IS NULL OR exercises.accountId = :accountId)
         ORDER BY workout_sets.sortOrder ASC
         """,
     )
-    fun observeWorkoutSetDetailRows(sessionId: String): Flow<List<WorkoutSetDetailRow>>
+    fun observeWorkoutSetDetailRows(accountId: String, sessionId: String): Flow<List<WorkoutSetDetailRow>>
 
-    @Query("SELECT * FROM routine_exercises WHERE routineId = :routineId ORDER BY sortOrder")
-    fun observeRoutineExercises(routineId: String): Flow<List<RoutineExerciseEntity>>
+    @Query("SELECT * FROM routine_exercises WHERE accountId = :accountId AND routineId = :routineId ORDER BY sortOrder")
+    fun observeRoutineExercises(accountId: String, routineId: String): Flow<List<RoutineExerciseEntity>>
 
-    @Query("SELECT * FROM routine_exercises WHERE routineId = :routineId ORDER BY sortOrder")
-    suspend fun getRoutineExercises(routineId: String): List<RoutineExerciseEntity>
+    @Query("SELECT * FROM routine_exercises WHERE accountId = :accountId AND routineId = :routineId ORDER BY sortOrder")
+    suspend fun getRoutineExercises(accountId: String, routineId: String): List<RoutineExerciseEntity>
 
-    @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId ORDER BY sortOrder")
-    fun observeWorkoutSets(sessionId: String): Flow<List<WorkoutSetEntity>>
+    @Query("SELECT * FROM workout_sets WHERE accountId = :accountId AND sessionId = :sessionId ORDER BY sortOrder")
+    fun observeWorkoutSets(accountId: String, sessionId: String): Flow<List<WorkoutSetEntity>>
 
-    @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId ORDER BY sortOrder")
-    suspend fun getWorkoutSets(sessionId: String): List<WorkoutSetEntity>
+    @Query("SELECT * FROM workout_sets WHERE accountId = :accountId AND sessionId = :sessionId ORDER BY sortOrder")
+    suspend fun getWorkoutSets(accountId: String, sessionId: String): List<WorkoutSetEntity>
 
-    @Query("SELECT * FROM workout_sets WHERE id = :setId LIMIT 1")
-    suspend fun getWorkoutSet(setId: String): WorkoutSetEntity?
+    @Query("SELECT * FROM workout_sets WHERE accountId = :accountId AND id = :setId LIMIT 1")
+    suspend fun getWorkoutSet(accountId: String, setId: String): WorkoutSetEntity?
 
-    @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId AND exerciseId = :exerciseId ORDER BY sortOrder DESC LIMIT 1")
-    suspend fun getLastWorkoutSetForExercise(sessionId: String, exerciseId: String): WorkoutSetEntity?
+    @Query("SELECT * FROM workout_sets WHERE accountId = :accountId AND sessionId = :sessionId AND exerciseId = :exerciseId ORDER BY sortOrder DESC LIMIT 1")
+    suspend fun getLastWorkoutSetForExercise(accountId: String, sessionId: String, exerciseId: String): WorkoutSetEntity?
 
     @Query(
         """
         SELECT workout_sets.*
         FROM workout_sets
-        INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId
-        WHERE workout_sets.exerciseId = :exerciseId
+        INNER JOIN workout_sessions ON workout_sessions.accountId = workout_sets.accountId AND workout_sessions.id = workout_sets.sessionId
+        WHERE workout_sets.accountId = :accountId
+        AND workout_sets.exerciseId = :exerciseId
         AND workout_sets.completed = 1
         AND workout_sets.reps IS NOT NULL
         AND workout_sets.weightKg IS NOT NULL
@@ -432,6 +485,7 @@ interface TrainingDao {
         """,
     )
     suspend fun getLatestCompletedSetForExerciseBefore(
+        accountId: String,
         exerciseId: String,
         beforeStartedAtEpochMillis: Long,
     ): WorkoutSetEntity?
@@ -440,8 +494,9 @@ interface TrainingDao {
         """
         SELECT workout_sets.*
         FROM workout_sets
-        INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId
-        WHERE workout_sets.exerciseId = :exerciseId
+        INNER JOIN workout_sessions ON workout_sessions.accountId = workout_sets.accountId AND workout_sessions.id = workout_sets.sessionId
+        WHERE workout_sets.accountId = :accountId
+        AND workout_sets.exerciseId = :exerciseId
         AND workout_sets.completed = 1
         AND workout_sets.reps IS NOT NULL
         AND workout_sets.weightKg IS NOT NULL
@@ -450,45 +505,58 @@ interface TrainingDao {
         """,
     )
     suspend fun getCompletedSetsForExerciseBefore(
+        accountId: String,
         exerciseId: String,
         beforeStartedAtEpochMillis: Long,
     ): List<WorkoutSetEntity>
 
-    @Query("SELECT MAX(sortOrder) FROM workout_sets WHERE sessionId = :sessionId")
-    suspend fun getMaxWorkoutSetSortOrder(sessionId: String): Int?
+    @Query("SELECT MAX(sortOrder) FROM workout_sets WHERE accountId = :accountId AND sessionId = :sessionId")
+    suspend fun getMaxWorkoutSetSortOrder(accountId: String, sessionId: String): Int?
 
     @Query(
         """
         SELECT *
         FROM workout_sets
-        WHERE sessionId = :sessionId
+        WHERE accountId = :accountId
+        AND sessionId = :sessionId
         AND completed = 1
         ORDER BY sortOrder
         """,
     )
-    suspend fun getCompletedWorkoutSets(sessionId: String): List<WorkoutSetEntity>
+    suspend fun getCompletedWorkoutSets(accountId: String, sessionId: String): List<WorkoutSetEntity>
 
     @Query(
         "SELECT workout_sets.* FROM workout_sets " +
-            "INNER JOIN workout_sessions ON workout_sessions.id = workout_sets.sessionId " +
-            "WHERE workout_sessions.startedAtEpochMillis >= :startEpochMillis " +
+            "INNER JOIN workout_sessions ON workout_sessions.accountId = workout_sets.accountId AND workout_sessions.id = workout_sets.sessionId " +
+            "WHERE workout_sessions.accountId = :accountId " +
+            "AND workout_sessions.startedAtEpochMillis >= :startEpochMillis " +
             "AND workout_sessions.startedAtEpochMillis < :endEpochMillis " +
             "AND workout_sessions.status = 'completed' " +
             "ORDER BY workout_sessions.startedAtEpochMillis, workout_sets.sortOrder",
     )
     fun observeWorkoutSetsForDate(
+        accountId: String,
         startEpochMillis: Long,
         endEpochMillis: Long,
     ): Flow<List<WorkoutSetEntity>>
 
     @Upsert
-    suspend fun upsertExercise(exercise: ExerciseEntity)
+    suspend fun upsertExerciseDefinition(exercise: ExerciseEntity)
 
     @Update
-    suspend fun updateExercise(exercise: ExerciseEntity): Int
+    suspend fun updateExerciseDefinition(exercise: ExerciseEntity): Int
 
     @Upsert
-    suspend fun upsertExercises(exercises: List<ExerciseEntity>)
+    suspend fun upsertSharedExercises(exercises: List<ExerciseEntity>)
+
+    @Upsert
+    suspend fun upsertExerciseDefinitions(exercises: List<ExerciseEntity>)
+
+    @Upsert
+    suspend fun upsertExerciseNote(note: ExerciseNoteEntity)
+
+    @Query("DELETE FROM exercise_notes WHERE accountId = :accountId AND exerciseId = :exerciseId")
+    suspend fun deleteExerciseNote(accountId: String, exerciseId: String)
 
     @Upsert
     suspend fun upsertRoutine(routine: RoutineEntity)
@@ -535,33 +603,36 @@ interface TrainingDao {
     @Upsert
     suspend fun upsertTrainingSettings(settings: TrainingSettingsEntity)
 
-    @Query("UPDATE workout_sets SET completed = :completed WHERE id = :setId")
-    suspend fun updateWorkoutSetCompletion(setId: String, completed: Boolean)
+    @Query("UPDATE workout_sets SET completed = :completed WHERE accountId = :accountId AND id = :setId")
+    suspend fun updateWorkoutSetCompletion(accountId: String, setId: String, completed: Boolean)
 
-    @Query("UPDATE workout_sets SET supersetGroupId = :groupId WHERE sessionId = :sessionId AND exerciseId = :exerciseId")
-    suspend fun setExerciseSupersetGroup(sessionId: String, exerciseId: String, groupId: String?)
+    @Query("UPDATE workout_sets SET supersetGroupId = :groupId WHERE accountId = :accountId AND sessionId = :sessionId AND exerciseId = :exerciseId")
+    suspend fun setExerciseSupersetGroup(accountId: String, sessionId: String, exerciseId: String, groupId: String?)
 
-    @Query("UPDATE workout_sets SET supersetGroupId = NULL WHERE sessionId = :sessionId AND supersetGroupId = :groupId")
-    suspend fun clearSupersetGroup(sessionId: String, groupId: String)
+    @Query("UPDATE workout_sets SET supersetGroupId = NULL WHERE accountId = :accountId AND sessionId = :sessionId AND supersetGroupId = :groupId")
+    suspend fun clearSupersetGroup(accountId: String, sessionId: String, groupId: String)
 
-    @Query("DELETE FROM workout_sets WHERE id = :setId")
-    suspend fun deleteWorkoutSetById(setId: String)
+    @Query("DELETE FROM workout_sets WHERE accountId = :accountId AND id = :setId")
+    suspend fun deleteWorkoutSetById(accountId: String, setId: String)
 
-    @Query("UPDATE workout_sessions SET status = :status, endedAtEpochMillis = :endedAtEpochMillis WHERE id = :sessionId")
-    suspend fun updateWorkoutSessionStatus(sessionId: String, status: String, endedAtEpochMillis: Long?)
+    @Query("UPDATE workout_sessions SET status = :status, endedAtEpochMillis = :endedAtEpochMillis WHERE accountId = :accountId AND id = :sessionId")
+    suspend fun updateWorkoutSessionStatus(accountId: String, sessionId: String, status: String, endedAtEpochMillis: Long?)
 
-    @Query("DELETE FROM routine_exercises WHERE routineId = :routineId")
-    suspend fun deleteRoutineExercises(routineId: String)
+    @Query("DELETE FROM routine_exercises WHERE accountId = :accountId AND routineId = :routineId")
+    suspend fun deleteRoutineExercises(accountId: String, routineId: String)
 
-    @Query("UPDATE routines SET folderId = NULL WHERE folderId = :folderId")
-    suspend fun clearRoutineFolder(folderId: String)
+    @Query("UPDATE routines SET folderId = NULL WHERE accountId = :accountId AND folderId = :folderId")
+    suspend fun clearRoutineFolder(accountId: String, folderId: String)
 
-    @Query("UPDATE routines SET folderId = :folderId, updatedAtEpochMillis = :updatedAtEpochMillis WHERE id = :routineId")
-    suspend fun updateRoutineFolderAssignment(routineId: String, folderId: String?, updatedAtEpochMillis: Long)
+    @Query("UPDATE routines SET folderId = :folderId, updatedAtEpochMillis = :updatedAtEpochMillis WHERE accountId = :accountId AND id = :routineId")
+    suspend fun updateRoutineFolderAssignment(accountId: String, routineId: String, folderId: String?, updatedAtEpochMillis: Long)
 
-    @Query("DELETE FROM routine_folders WHERE id = :folderId")
-    suspend fun deleteRoutineFolderById(folderId: String)
+    @Query("DELETE FROM routine_folders WHERE accountId = :accountId AND id = :folderId")
+    suspend fun deleteRoutineFolderById(accountId: String, folderId: String)
 
-    @Query("DELETE FROM routines WHERE id = :routineId")
-    suspend fun deleteRoutineById(routineId: String)
+    @Query("UPDATE workout_sessions SET routineId = NULL WHERE accountId = :accountId AND routineId = :routineId")
+    suspend fun clearWorkoutRoutine(accountId: String, routineId: String)
+
+    @Query("DELETE FROM routines WHERE accountId = :accountId AND id = :routineId")
+    suspend fun deleteRoutineById(accountId: String, routineId: String)
 }

@@ -6,6 +6,8 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.dao.TrainingDao
 import com.musfit.data.local.entity.ExerciseEntity
+import com.musfit.data.local.entity.ExerciseNoteEntity
+import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
 import com.musfit.data.local.entity.RoutineEntity
 import com.musfit.data.local.entity.RoutineExerciseEntity
 import com.musfit.data.local.entity.RoutineExerciseSetEntity
@@ -13,6 +15,8 @@ import com.musfit.data.local.entity.RoutineFolderEntity
 import com.musfit.data.local.entity.TrainingSettingsEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.data.repository.LocalAccountRepository
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -34,6 +38,7 @@ class TrainingParentUpsertTest {
             .allowMainThreadQueries()
             .build()
         dao = database.trainingDao()
+        runBlocking { LocalAccountRepository(database.accountDao(), clock = { 1_000L }).ensureActiveAccount() }
     }
 
     @After
@@ -43,20 +48,20 @@ class TrainingParentUpsertTest {
     fun exerciseUpserts_preserveRoutineAndWorkoutReferences() = runTest {
         val graph = insertTrainingGraph()
 
-        dao.upsertExercise(graph.exercise.copy(name = "Bench Press Updated"))
-        dao.upsertExercises(
+        dao.upsertExerciseNote(ExerciseNoteEntity(LOCAL_DEFAULT_ACCOUNT_ID, graph.exercise.id, "Keep this graph attached."))
+        dao.upsertExerciseDefinition(graph.exercise.copy(name = "Bench Press Updated"))
+        dao.upsertExerciseDefinitions(
             listOf(
                 graph.exercise.copy(
                     name = "Bench Press Updated Again",
-                    localNotes = "Keep this graph attached.",
                 ),
             ),
         )
 
-        assertEquals("Bench Press Updated Again", dao.getExercise(graph.exercise.id)?.name)
-        assertEquals("Keep this graph attached.", dao.getExercise(graph.exercise.id)?.localNotes)
-        assertEquals(listOf(graph.routineExercise), dao.getRoutineExercises(graph.routine.id))
-        assertEquals(listOf(graph.workoutSet), dao.getWorkoutSets(graph.session.id))
+        assertEquals("Bench Press Updated Again", dao.getExercise(LOCAL_DEFAULT_ACCOUNT_ID, graph.exercise.id)?.name)
+        assertEquals("Keep this graph attached.", dao.getExerciseDetail(LOCAL_DEFAULT_ACCOUNT_ID, graph.exercise.id)?.localNotes)
+        assertEquals(listOf(graph.routineExercise), dao.getRoutineExercises(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id))
+        assertEquals(listOf(graph.workoutSet), dao.getWorkoutSets(LOCAL_DEFAULT_ACCOUNT_ID, graph.session.id))
     }
 
     @Test
@@ -67,15 +72,15 @@ class TrainingParentUpsertTest {
         dao.upsertRoutine(graph.routine.copy(name = "Push Updated"))
         dao.upsertRoutines(listOf(graph.routine.copy(name = "Push Updated Again")))
 
-        assertEquals("Strength Block Updated", dao.getRoutineFolder(graph.folder.id)?.name)
-        assertEquals("Push Updated Again", dao.getRoutine(graph.routine.id)?.name)
-        assertEquals(graph.folder.id, dao.getRoutine(graph.routine.id)?.folderId)
-        assertEquals(listOf(graph.routineExercise), dao.getRoutineExercises(graph.routine.id))
+        assertEquals("Strength Block Updated", dao.getRoutineFolder(LOCAL_DEFAULT_ACCOUNT_ID, graph.folder.id)?.name)
+        assertEquals("Push Updated Again", dao.getRoutine(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id)?.name)
+        assertEquals(graph.folder.id, dao.getRoutine(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id)?.folderId)
+        assertEquals(listOf(graph.routineExercise), dao.getRoutineExercises(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id))
         assertEquals(
             listOf(graph.routineExerciseSet.id),
-            dao.getRoutineExerciseSetDetailRows(graph.routine.id).map { it.id },
+            dao.getRoutineExerciseSetDetailRows(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id).map { it.id },
         )
-        assertEquals(graph.routine.id, dao.getWorkoutSession(graph.session.id)?.routineId)
+        assertEquals(graph.routine.id, dao.getWorkoutSession(LOCAL_DEFAULT_ACCOUNT_ID, graph.session.id)?.routineId)
     }
 
     @Test
@@ -87,8 +92,8 @@ class TrainingParentUpsertTest {
             listOf(graph.routineExercise.copy(targetSets = 5, targetReps = "5")),
         )
 
-        val savedExercise = dao.getRoutineExercises(graph.routine.id).single()
-        val savedPlans = dao.getRoutineExerciseSetDetailRows(graph.routine.id)
+        val savedExercise = dao.getRoutineExercises(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id).single()
+        val savedPlans = dao.getRoutineExerciseSetDetailRows(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id)
         assertEquals(5, savedExercise.targetSets)
         assertEquals("5", savedExercise.targetReps)
         assertEquals(listOf(graph.routineExerciseSet.id), savedPlans.map { it.id })
@@ -107,7 +112,7 @@ class TrainingParentUpsertTest {
             ),
         )
 
-        val savedSession = dao.getWorkoutSession(graph.session.id)
+        val savedSession = dao.getWorkoutSession(LOCAL_DEFAULT_ACCOUNT_ID, graph.session.id)
         assertEquals("Push Updated", savedSession?.title)
         assertEquals("Metadata only", savedSession?.notes)
         assertEquals(graph.session.healthConnectRecordId, savedSession?.healthConnectRecordId)
@@ -115,15 +120,16 @@ class TrainingParentUpsertTest {
             graph.session.healthConnectLastExportedAtEpochMillis,
             savedSession?.healthConnectLastExportedAtEpochMillis,
         )
-        assertEquals(listOf(graph.workoutSet), dao.getWorkoutSets(graph.session.id))
+        assertEquals(listOf(graph.workoutSet), dao.getWorkoutSets(LOCAL_DEFAULT_ACCOUNT_ID, graph.session.id))
     }
 
     @Test
     fun trainingSettingsUpsert_updatesScalarState() = runTest {
-        dao.upsertTrainingSettings(TrainingSettingsEntity())
+        dao.upsertTrainingSettings(TrainingSettingsEntity(accountId = LOCAL_DEFAULT_ACCOUNT_ID))
 
         dao.upsertTrainingSettings(
             TrainingSettingsEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 defaultRestSeconds = 90,
                 barWeightKg = 15.0,
                 availablePlatesKg = "20,10,5,2.5",
@@ -132,11 +138,12 @@ class TrainingParentUpsertTest {
 
         assertEquals(
             TrainingSettingsEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 defaultRestSeconds = 90,
                 barWeightKg = 15.0,
                 availablePlatesKg = "20,10,5,2.5",
             ),
-            dao.getTrainingSettings(),
+            dao.getTrainingSettings(LOCAL_DEFAULT_ACCOUNT_ID),
         )
     }
 
@@ -157,15 +164,15 @@ class TrainingParentUpsertTest {
         }
 
         assertTrue(rolledBack)
-        assertEquals(graph.folder, dao.getRoutineFolder(graph.folder.id))
-        assertEquals(graph.routine, dao.getRoutine(graph.routine.id))
-        assertEquals(graph.session, dao.getWorkoutSession(graph.session.id))
-        assertEquals(listOf(graph.routineExercise), dao.getRoutineExercises(graph.routine.id))
+        assertEquals(graph.folder, dao.getRoutineFolder(LOCAL_DEFAULT_ACCOUNT_ID, graph.folder.id))
+        assertEquals(graph.routine, dao.getRoutine(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id))
+        assertEquals(graph.session, dao.getWorkoutSession(LOCAL_DEFAULT_ACCOUNT_ID, graph.session.id))
+        assertEquals(listOf(graph.routineExercise), dao.getRoutineExercises(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id))
         assertEquals(
             listOf(graph.routineExerciseSet.id),
-            dao.getRoutineExerciseSetDetailRows(graph.routine.id).map { it.id },
+            dao.getRoutineExerciseSetDetailRows(LOCAL_DEFAULT_ACCOUNT_ID, graph.routine.id).map { it.id },
         )
-        assertEquals(listOf(graph.workoutSet), dao.getWorkoutSets(graph.session.id))
+        assertEquals(listOf(graph.workoutSet), dao.getWorkoutSets(LOCAL_DEFAULT_ACCOUNT_ID, graph.session.id))
     }
 
     private suspend fun insertTrainingGraph(): TrainingGraph {
@@ -178,6 +185,7 @@ class TrainingParentUpsertTest {
             isCustom = true,
         )
         val folder = RoutineFolderEntity(
+            accountId = LOCAL_DEFAULT_ACCOUNT_ID,
             id = "folder-strength",
             name = "Strength Block",
             sortOrder = 0,
@@ -185,6 +193,7 @@ class TrainingParentUpsertTest {
             updatedAtEpochMillis = 1_000L,
         )
         val routine = RoutineEntity(
+            accountId = LOCAL_DEFAULT_ACCOUNT_ID,
             id = "routine-push",
             name = "Push",
             notes = "Heavy",
@@ -193,6 +202,7 @@ class TrainingParentUpsertTest {
             folderId = folder.id,
         )
         val routineExercise = RoutineExerciseEntity(
+            accountId = LOCAL_DEFAULT_ACCOUNT_ID,
             id = "routine-exercise-bench",
             routineId = routine.id,
             exerciseId = exercise.id,
@@ -202,6 +212,7 @@ class TrainingParentUpsertTest {
             restSeconds = 180,
         )
         val routineExerciseSet = RoutineExerciseSetEntity(
+            accountId = LOCAL_DEFAULT_ACCOUNT_ID,
             id = "routine-exercise-bench-set-0",
             routineExerciseId = routineExercise.id,
             sortOrder = 0,
@@ -210,6 +221,7 @@ class TrainingParentUpsertTest {
             targetWeightKg = 100.0,
         )
         val session = WorkoutSessionEntity(
+            accountId = LOCAL_DEFAULT_ACCOUNT_ID,
             id = "session-push",
             routineId = routine.id,
             title = "Push",
@@ -221,6 +233,7 @@ class TrainingParentUpsertTest {
             healthConnectLastExportedAtEpochMillis = 5_000L,
         )
         val workoutSet = WorkoutSetEntity(
+            accountId = LOCAL_DEFAULT_ACCOUNT_ID,
             id = "workout-set-bench",
             sessionId = session.id,
             exerciseId = exercise.id,
@@ -235,7 +248,7 @@ class TrainingParentUpsertTest {
             completed = true,
         )
 
-        dao.upsertExercise(exercise)
+        dao.upsertExerciseDefinition(exercise)
         dao.upsertRoutineFolder(folder)
         dao.upsertRoutine(routine)
         dao.upsertRoutineExercise(routineExercise)
