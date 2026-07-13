@@ -108,6 +108,11 @@ if ($InstallSeed) {
     $gradleArgs = @($missingSeedBuildTasks) + $gradleArgs
 }
 
+if ($Tests.Count -eq 0 -and $Preset -eq "Full") {
+    Write-Host "Running source-derived development workflow contract."
+    & (Join-Path $repoRoot "scripts\dev\test-dev-workflow.ps1") -SelfTest
+}
+
 if ($gradleArgs.Count -gt 0) {
     $gradleArgs += @("--no-daemon", "--console=plain")
     Invoke-Gradle $gradleArgs
