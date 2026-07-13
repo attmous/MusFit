@@ -5,7 +5,7 @@ controls apply to every module and every CI/release workflow.
 
 ## Immutable inputs
 
-- `gradle/wrapper/gradle-wrapper.properties` pins the official Gradle 9.4.1
+- `gradle/wrapper/gradle-wrapper.properties` pins the official Gradle 9.6.1
   binary distribution SHA-256.
 - `gradle/verification-metadata.xml` enables Gradle's global dependency
   verification with SHA-256 entries for plugin, metadata, direct, and
