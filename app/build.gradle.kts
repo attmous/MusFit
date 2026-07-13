@@ -1,10 +1,7 @@
+import com.android.build.api.dsl.ManagedVirtualDevice
 import com.android.build.api.variant.ApplicationVariantBuilder
 import com.android.build.api.variant.DeviceTestBuilder
 import com.android.build.api.variant.HostTestBuilder
-import com.android.build.api.dsl.ManagedVirtualDevice
-import java.io.ByteArrayOutputStream
-import java.util.Properties
-import javax.inject.Inject
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
@@ -15,6 +12,9 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.process.ExecOperations
+import java.io.ByteArrayOutputStream
+import java.util.Properties
+import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.android.application)
@@ -25,18 +25,22 @@ plugins {
     alias(libs.plugins.androidx.baselineprofile)
 }
 
-fun String.asBuildConfigString(): String =
-    "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+fun String.asBuildConfigString(): String = "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
-val localProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
-    if (file.isFile) {
-        file.inputStream().use(::load)
+val localProperties =
+    Properties().apply {
+        val file = rootProject.file("local.properties")
+        if (file.isFile) {
+            file.inputStream().use(::load)
+        }
     }
-}
 
-fun localConfigValue(name: String, defaultValue: String = ""): String =
-    providers.gradleProperty(name)
+fun localConfigValue(
+    name: String,
+    defaultValue: String = "",
+): String =
+    providers
+        .gradleProperty(name)
         .orElse(providers.environmentVariable(name))
         .orElse(localProperties.getProperty(name).orEmpty().ifBlank { defaultValue })
         .get()
@@ -52,9 +56,7 @@ fun localConfigValue(name: String, defaultValue: String = ""): String =
 // instead of freezing the OTA versionCode at a cached value. The configuration
 // cache is not enabled yet (see gradle.properties for why); keeping this
 // config-cache-safe makes enabling it later a one-line change.
-abstract class GitCommitCountValueSource :
-    ValueSource<Int, GitCommitCountValueSource.Parameters> {
-
+abstract class GitCommitCountValueSource : ValueSource<Int, GitCommitCountValueSource.Parameters> {
     interface Parameters : ValueSourceParameters {
         val repositoryRoot: DirectoryProperty
         val gitExecutable: org.gradle.api.provider.Property<String>
@@ -67,17 +69,18 @@ abstract class GitCommitCountValueSource :
         val stdout = ByteArrayOutputStream()
         val stderr = ByteArrayOutputStream()
         val executable = parameters.gitExecutable.get()
-        val result = try {
-            execOperations.exec {
-                commandLine(executable, *arguments)
-                workingDir(parameters.repositoryRoot.get().asFile)
-                standardOutput = stdout
-                errorOutput = stderr
-                isIgnoreExitValue = true
+        val result =
+            try {
+                execOperations.exec {
+                    commandLine(executable, *arguments)
+                    workingDir(parameters.repositoryRoot.get().asFile)
+                    standardOutput = stdout
+                    errorOutput = stderr
+                    isIgnoreExitValue = true
+                }
+            } catch (failure: Exception) {
+                throw GradleException("Could not execute '$executable' while deriving versionCode.", failure)
             }
-        } catch (failure: Exception) {
-            throw GradleException("Could not execute '$executable' while deriving versionCode.", failure)
-        }
         if (result.exitValue != 0) {
             throw GradleException(
                 "Git versionCode command failed (${arguments.joinToString(" ")}): " +
@@ -303,22 +306,29 @@ android {
         }
     }
 
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = true
+        warningsAsErrors = true
+        baseline = file("lint-baseline.xml")
+    }
 }
 
 val enabledApplicationVariants = mutableSetOf<String>()
 
 androidComponents {
     beforeVariants(selector().all()) { variantBuilder ->
-        val distribution = variantBuilder.productFlavors
-            .firstOrNull { (dimension, _) -> dimension == "distribution" }
-            ?.second
+        val distribution =
+            variantBuilder.productFlavors
+                .firstOrNull { (dimension, _) -> dimension == "distribution" }
+                ?.second
         val enabled =
             (distribution == "internal" && variantBuilder.buildType == "debug") ||
-            (distribution == "production" && variantBuilder.buildType == "benchmark") ||
-            (distribution == "production" && variantBuilder.buildType == "benchmarkRelease") ||
-            (distribution == "production" && variantBuilder.buildType == "nonMinifiedRelease") ||
-            (distribution == "production" && variantBuilder.buildType == "release") ||
-            (distribution == "legacyMigration" && variantBuilder.buildType == "release")
+                (distribution == "production" && variantBuilder.buildType == "benchmark") ||
+                (distribution == "production" && variantBuilder.buildType == "benchmarkRelease") ||
+                (distribution == "production" && variantBuilder.buildType == "nonMinifiedRelease") ||
+                (distribution == "production" && variantBuilder.buildType == "release") ||
+                (distribution == "legacyMigration" && variantBuilder.buildType == "release")
         variantBuilder.enable = enabled
         if (enabled) {
             val applicationVariantBuilder = variantBuilder as ApplicationVariantBuilder
@@ -335,51 +345,52 @@ androidComponents {
     }
 }
 
-val verifyReleaseVariantMatrix = tasks.register<VerifyReleaseVariantMatrixTask>("verifyReleaseVariantMatrix") {
-    group = "verification"
-    description = "Verifies the only enabled installable variants and their canonical task families."
-    expectedVariants.set(
-        setOf(
-            "internalDebug",
-            "productionBenchmark",
-            "productionBenchmarkRelease",
-            "productionNonMinifiedRelease",
-            "productionRelease",
-            "legacyMigrationRelease",
-        ),
-    )
-    requiredTaskNames.set(
-        setOf(
-            "assembleInternalDebug",
-            "assembleInternalDebugAndroidTest",
-            "testInternalDebugUnitTest",
-            "lintInternalDebug",
-            "assembleProductionRelease",
-            "assembleProductionBenchmark",
-            "bundleProductionRelease",
-            "testProductionReleaseUnitTest",
-            "lintProductionRelease",
-            "assembleLegacyMigrationRelease",
-            "testLegacyMigrationReleaseUnitTest",
-            "lintLegacyMigrationRelease",
-        ),
-    )
-    forbiddenTaskNames.set(
-        setOf(
-            "assembleProductionDebug",
-            "assembleProductionDebugAndroidTest",
-            "testProductionDebugUnitTest",
-            "lintProductionDebug",
-            "assembleInternalRelease",
-            "bundleInternalRelease",
-            "testInternalReleaseUnitTest",
-            "lintInternalRelease",
-            "assembleLegacyMigrationDebug",
-            "testLegacyMigrationDebugUnitTest",
-            "lintLegacyMigrationDebug",
-        ),
-    )
-}
+val verifyReleaseVariantMatrix =
+    tasks.register<VerifyReleaseVariantMatrixTask>("verifyReleaseVariantMatrix") {
+        group = "verification"
+        description = "Verifies the only enabled installable variants and their canonical task families."
+        expectedVariants.set(
+            setOf(
+                "internalDebug",
+                "productionBenchmark",
+                "productionBenchmarkRelease",
+                "productionNonMinifiedRelease",
+                "productionRelease",
+                "legacyMigrationRelease",
+            ),
+        )
+        requiredTaskNames.set(
+            setOf(
+                "assembleInternalDebug",
+                "assembleInternalDebugAndroidTest",
+                "testInternalDebugUnitTest",
+                "lintInternalDebug",
+                "assembleProductionRelease",
+                "assembleProductionBenchmark",
+                "bundleProductionRelease",
+                "testProductionReleaseUnitTest",
+                "lintProductionRelease",
+                "assembleLegacyMigrationRelease",
+                "testLegacyMigrationReleaseUnitTest",
+                "lintLegacyMigrationRelease",
+            ),
+        )
+        forbiddenTaskNames.set(
+            setOf(
+                "assembleProductionDebug",
+                "assembleProductionDebugAndroidTest",
+                "testProductionDebugUnitTest",
+                "lintProductionDebug",
+                "assembleInternalRelease",
+                "bundleInternalRelease",
+                "testInternalReleaseUnitTest",
+                "lintInternalRelease",
+                "assembleLegacyMigrationDebug",
+                "testLegacyMigrationDebugUnitTest",
+                "lintLegacyMigrationDebug",
+            ),
+        )
+    }
 
 gradle.projectsEvaluated {
     verifyReleaseVariantMatrix.configure {
@@ -392,11 +403,12 @@ mapOf(
     "minifyProductionReleaseWithR8" to "productionRelease",
     "minifyLegacyMigrationReleaseWithR8" to "legacyMigrationRelease",
 ).forEach { (taskName, variantName) ->
-    val prepareReports = tasks.register<EnsureDirectoryTask>(
-        "prepare${variantName.replaceFirstChar(Char::uppercaseChar)}R8Reports",
-    ) {
-        directory.set(layout.buildDirectory.dir("outputs/r8Reports/$variantName"))
-    }
+    val prepareReports =
+        tasks.register<EnsureDirectoryTask>(
+            "prepare${variantName.replaceFirstChar(Char::uppercaseChar)}R8Reports",
+        ) {
+            directory.set(layout.buildDirectory.dir("outputs/r8Reports/$variantName"))
+        }
     tasks.matching { it.name == taskName }.configureEach {
         dependsOn(prepareReports)
     }
@@ -492,10 +504,10 @@ roborazzi {
 
 // The seed-surface contract reads both installable merged manifests. Keep the
 // generating tasks wired to the focused unit-test lane used locally and in CI.
-tasks.matching {
-    it.name == "testInternalDebugUnitTest" || it.name == "testProductionReleaseUnitTest"
-}
-    .configureEach {
+tasks
+    .matching {
+        it.name == "testInternalDebugUnitTest" || it.name == "testProductionReleaseUnitTest"
+    }.configureEach {
         dependsOn(
             "processInternalDebugMainManifest",
             "processProductionReleaseMainManifest",

@@ -34,11 +34,11 @@ import com.musfit.domain.today.vitalsTileMetrics
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -106,7 +106,9 @@ class TodayViewModel internal constructor(
 
     init {
         viewModelScope.launch {
-            activeDate.collect { date -> mutableState.update { it.copy(dateLabel = date.format(DATE_FORMATTER)) } }
+            activeDate.collect { date ->
+                mutableState.update { it.copy(dateLabel = date.format(currentDateFormatter())) }
+            }
         }
         observeFeed()
         observeCoach()
@@ -134,7 +136,8 @@ class TodayViewModel internal constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeVitals() {
         viewModelScope.launch {
-            activeDate.flatMapLatest { vitalsFlow(it) }
+            activeDate
+                .flatMapLatest { vitalsFlow(it) }
                 .collect { dashboard ->
                     mutableState.update {
                         it.copy(vitals = dashboard.vitals, readiness = dashboard.readiness)
@@ -149,24 +152,27 @@ class TodayViewModel internal constructor(
         val weightFromMillis = (date.toEpochDay() - 30L) * DAY_MILLIS
         val measurementsFromMillis = (date.toEpochDay() - 90L) * DAY_MILLIS
         val readinessStart = date.minusDays(7)
-        val food = combine(
-            foodRepository.observeDailyNutrition(date),
-            foodRepository.observeFoodGoal(),
-            foodRepository.observeWaterSummary(date),
-            foodRepository.observeLoggedDayEpochDays(date.toEpochDay() - 365L),
-        ) { nutrition, goal, water, loggedDays -> FoodSnapshot(nutrition, goal, water, loggedDays) }
-        val health = combine(
-            healthRepository.observeDailySummary(date),
-            healthRepository.observeDailySummaries(readinessStart, date),
-            goalsRepository.observeUserGoals(),
-            healthRepository.observeWeightSeries(weightFromMillis),
-        ) { summary, recentSummaries, userGoals, weights ->
-            HealthSnapshot(summary, recentSummaries, userGoals, weights)
-        }
-        val bodyAndTraining = combine(
-            profileRepository.observeRecentMeasurements(measurementsFromMillis),
-            trainingRepository.observeWorkoutHistory(),
-        ) { measurements, history -> measurements to history }
+        val food =
+            combine(
+                foodRepository.observeDailyNutrition(date),
+                foodRepository.observeFoodGoal(),
+                foodRepository.observeWaterSummary(date),
+                foodRepository.observeLoggedDayEpochDays(date.toEpochDay() - 365L),
+            ) { nutrition, goal, water, loggedDays -> FoodSnapshot(nutrition, goal, water, loggedDays) }
+        val health =
+            combine(
+                healthRepository.observeDailySummary(date),
+                healthRepository.observeDailySummaries(readinessStart, date),
+                goalsRepository.observeUserGoals(),
+                healthRepository.observeWeightSeries(weightFromMillis),
+            ) { summary, recentSummaries, userGoals, weights ->
+                HealthSnapshot(summary, recentSummaries, userGoals, weights)
+            }
+        val bodyAndTraining =
+            combine(
+                profileRepository.observeRecentMeasurements(measurementsFromMillis),
+                trainingRepository.observeWorkoutHistory(),
+            ) { measurements, history -> measurements to history }
         return combine(
             food,
             health,
@@ -177,7 +183,8 @@ class TodayViewModel internal constructor(
             currentPins = pins
             currentUserGoals = h.userGoals
             TodayDashboardUiState(
-                vitals = buildVitals(
+                vitals =
+                buildVitals(
                     f,
                     h.summary,
                     h.userGoals,
@@ -196,7 +203,8 @@ class TodayViewModel internal constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeCoach() {
         viewModelScope.launch {
-            activeDate.flatMapLatest { date -> coachInputFlow(date).map { input -> date to input } }
+            activeDate
+                .flatMapLatest { date -> coachInputFlow(date).map { input -> date to input } }
                 .collect { anchored ->
                     latestCoachInput = anchored
                     if (isResumed) syncCoachFeed()
@@ -208,23 +216,26 @@ class TodayViewModel internal constructor(
         val weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val weekStartMillis = weekStart.toEpochDay() * DAY_MILLIS
         val weightFromMillis = (weekStart.toEpochDay() - 7L) * DAY_MILLIS
-        val nutritionGoalHealth = combine(
-            foodRepository.observeDailyNutrition(date),
-            foodRepository.observeFoodGoal(),
-            healthRepository.observeDailySummary(date),
-        ) { nutrition, goal, health -> Triple(nutrition, goal, health) }
-        val trainingGoalsProfile = combine(
-            trainingRepository.observeWorkoutHistory(),
-            trainingRepository.observeRoutineSummaries(),
-            goalsRepository.observeUserGoals(),
-            profileRepository.observeProfile(),
-        ) { history, routines, userGoals, profile ->
-            TrainingGoalsProfile(history, routines, userGoals, profile.goalWeightKg)
-        }
-        val waterAndStreak = combine(
-            foodRepository.observeWaterSummary(date),
-            foodRepository.observeLoggedDayEpochDays(date.toEpochDay() - 365L),
-        ) { water, loggedDays -> water to loggedDays }
+        val nutritionGoalHealth =
+            combine(
+                foodRepository.observeDailyNutrition(date),
+                foodRepository.observeFoodGoal(),
+                healthRepository.observeDailySummary(date),
+            ) { nutrition, goal, health -> Triple(nutrition, goal, health) }
+        val trainingGoalsProfile =
+            combine(
+                trainingRepository.observeWorkoutHistory(),
+                trainingRepository.observeRoutineSummaries(),
+                goalsRepository.observeUserGoals(),
+                profileRepository.observeProfile(),
+            ) { history, routines, userGoals, profile ->
+                TrainingGoalsProfile(history, routines, userGoals, profile.goalWeightKg)
+            }
+        val waterAndStreak =
+            combine(
+                foodRepository.observeWaterSummary(date),
+                foodRepository.observeLoggedDayEpochDays(date.toEpochDay() - 365L),
+            ) { water, loggedDays -> water to loggedDays }
         return combine(
             nutritionGoalHealth,
             trainingGoalsProfile,
@@ -235,8 +246,18 @@ class TodayViewModel internal constructor(
             val (history, routines, userGoals, profileGoalWeightKg) = tgp
             val (water, loggedDays) = ws
             buildCoachInput(
-                date, nutrition, goal, health, history, routines, userGoals, profileGoalWeightKg,
-                weights, water, loggedDays, weekStartMillis,
+                date,
+                nutrition,
+                goal,
+                health,
+                history,
+                routines,
+                userGoals,
+                profileGoalWeightKg,
+                weights,
+                water,
+                loggedDays,
+                weekStartMillis,
             )
         }
     }
@@ -293,7 +314,10 @@ class TodayViewModel internal constructor(
         }
     }
 
-    private fun refreshHealthConnectData(date: LocalDate, showLoading: Boolean = false) {
+    private fun refreshHealthConnectData(
+        date: LocalDate,
+        showLoading: Boolean = false,
+    ) {
         viewModelScope.launch {
             if (showLoading) mutableState.update { it.copy(isRefreshing = true) }
             runCatching { healthRepository.refreshRecentData(date) }
@@ -319,10 +343,11 @@ class TodayViewModel internal constructor(
         val lastWorkoutMillis = history.maxOfOrNull { it.startedAtEpochMillis }
         val daysSince = lastWorkoutMillis?.let { ((nowMillis - it) / DAY_MILLIS).toInt().coerceAtLeast(0) }
         val nextRoutine = routines.firstOrNull()
-        val (_, weightDelta) = WeeklyGoalsCalculator.weightTrend(
-            weights.map { it.measuredAtEpochMillis to it.value },
-            weekStartMillis,
-        )
+        val (_, weightDelta) =
+            WeeklyGoalsCalculator.weightTrend(
+                weights.map { it.measuredAtEpochMillis to it.value },
+                weekStartMillis,
+            )
         return CoachInput(
             timeOfDay = timeOfDay(nowMillis),
             firstName = null,
@@ -374,16 +399,23 @@ class TodayViewModel internal constructor(
     fun togglePin(metric: TodayMetric) {
         mutableState.update { state ->
             val pins = state.editPins
-            val next = when {
-                metric in pins && pins.size <= 1 -> pins // never remove the last pin
-                metric in pins -> pins - metric
-                else -> pins + metric
-            }
+            val next =
+                when {
+                    metric in pins && pins.size <= 1 -> pins
+
+                    // never remove the last pin
+                    metric in pins -> pins - metric
+
+                    else -> pins + metric
+                }
             state.copy(editPins = next)
         }
     }
 
-    fun movePin(metric: TodayMetric, up: Boolean) {
+    fun movePin(
+        metric: TodayMetric,
+        up: Boolean,
+    ) {
         mutableState.update { state ->
             val pins = state.editPins.toMutableList()
             val index = pins.indexOf(metric)
@@ -404,14 +436,16 @@ class TodayViewModel internal constructor(
 
     fun saveDashboard() {
         val current = state.value
-        val goals = UserGoals(
-            stepGoal = current.stepGoalInput.toLongOrNull()?.coerceAtLeast(0L) ?: currentUserGoals.stepGoal,
-            weeklySessionTarget = current.sessionTargetInput.toIntOrNull()?.coerceAtLeast(0)
-                ?: currentUserGoals.weeklySessionTarget,
-            // Preserved verbatim: the column stays but Profile owns the value — Today
-            // neither edits nor reads it for behavior anymore.
-            targetWeightKg = currentUserGoals.targetWeightKg,
-        )
+        val goals =
+            UserGoals(
+                stepGoal = current.stepGoalInput.toLongOrNull()?.coerceAtLeast(0L) ?: currentUserGoals.stepGoal,
+                weeklySessionTarget =
+                current.sessionTargetInput.toIntOrNull()?.coerceAtLeast(0)
+                    ?: currentUserGoals.weeklySessionTarget,
+                // Preserved verbatim: the column stays but Profile owns the value — Today
+                // neither edits nor reads it for behavior anymore.
+                targetWeightKg = currentUserGoals.targetWeightKg,
+            )
         viewModelScope.launch {
             coachRepository.saveDashboardPins(current.editPins)
             goalsRepository.updateUserGoals(goals)
@@ -422,25 +456,29 @@ class TodayViewModel internal constructor(
 
 private const val DAY_MILLIS = 86_400_000L
 
-private val DATE_FORMATTER = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault())
-
-private val FEED_DAY_FORMATTER = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault())
+private fun currentDateFormatter(): DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault())
 
 /** Pure: groups feed messages under day headers, newest day first, newest message first. */
-internal fun buildFeedGroups(messages: List<CoachMessage>, today: LocalDate): List<CoachFeedDayGroup> =
-    messages
-        .groupBy { it.day }
-        .toSortedMap(reverseOrder())
-        .map { (day, dayMessages) ->
+internal fun buildFeedGroups(
+    messages: List<CoachMessage>,
+    today: LocalDate,
+): List<CoachFeedDayGroup> = messages
+    .groupBy { it.day }
+    .toSortedMap(reverseOrder())
+    .let { messagesByDay ->
+        val formatter = currentDateFormatter()
+        messagesByDay.map { (day, dayMessages) ->
             CoachFeedDayGroup(
-                label = when (day) {
+                label =
+                when (day) {
                     today -> "Today"
                     today.minusDays(1) -> "Yesterday"
-                    else -> day.format(FEED_DAY_FORMATTER)
+                    else -> day.format(formatter)
                 },
                 messages = dayMessages.sortedByDescending { it.firstSeenAtEpochMillis },
             )
         }
+    }
 
 private data class FoodSnapshot(
     val nutrition: NutritionTotals,
@@ -479,37 +517,39 @@ private fun buildVitals(
     date: LocalDate,
     weekStartMillis: Long,
 ): List<MetricCardUiState> {
-    val (_, weightDelta) = WeeklyGoalsCalculator.weightTrend(
-        weights.map { it.measuredAtEpochMillis to it.value },
-        (date.toEpochDay() - 7L) * DAY_MILLIS,
-    )
+    val (_, weightDelta) =
+        WeeklyGoalsCalculator.weightTrend(
+            weights.map { it.measuredAtEpochMillis to it.value },
+            (date.toEpochDay() - 7L) * DAY_MILLIS,
+        )
     val bodyFatSeries = measurements["body_fat"].orEmpty().sortedBy { it.measuredAtEpochMillis }
-    val snapshot = MetricSnapshot(
-        caloriesKcal = food.nutrition.caloriesKcal,
-        calorieGoalKcal = food.goal.dailyCaloriesKcal,
-        proteinGrams = food.nutrition.proteinGrams,
-        proteinGoalGrams = food.goal.proteinGrams,
-        carbsGrams = food.nutrition.carbsGrams,
-        carbsGoalGrams = food.goal.carbsGrams,
-        fatGrams = food.nutrition.fatGrams,
-        fatGoalGrams = food.goal.fatGrams,
-        waterMl = food.water.consumedMilliliters,
-        waterGoalMl = food.water.goalMilliliters,
-        steps = health?.steps,
-        stepGoal = userGoals.stepGoal,
-        latestWeightKg = weights.maxByOrNull { it.measuredAtEpochMillis }?.value,
-        weightDeltaKg = weightDelta,
-        bodyFatPercent = bodyFatSeries.lastOrNull()?.value,
-        bodyFatDelta = bodyFatSeries.takeLast(2).takeIf { it.size == 2 }?.let { it[1].value - it[0].value },
-        sessionsDone = countSessionsInWeek(history.map { it.startedAtEpochMillis }, weekStartMillis),
-        sessionTarget = userGoals.weeklySessionTarget,
-        activeCaloriesKcal = health?.activeCaloriesKcal,
-        sleepMinutes = health?.sleepMinutes,
-        exerciseMinutes = health?.exerciseMinutes,
-        exerciseSessionCount = health?.exerciseSessionCount,
-        restingHeartRateBpm = health?.restingHeartRateBpm,
-        loggingStreakDays = LoggingStreakCalculator.streakDays(food.loggedDays, date.toEpochDay()),
-    )
+    val snapshot =
+        MetricSnapshot(
+            caloriesKcal = food.nutrition.caloriesKcal,
+            calorieGoalKcal = food.goal.dailyCaloriesKcal,
+            proteinGrams = food.nutrition.proteinGrams,
+            proteinGoalGrams = food.goal.proteinGrams,
+            carbsGrams = food.nutrition.carbsGrams,
+            carbsGoalGrams = food.goal.carbsGrams,
+            fatGrams = food.nutrition.fatGrams,
+            fatGoalGrams = food.goal.fatGrams,
+            waterMl = food.water.consumedMilliliters,
+            waterGoalMl = food.water.goalMilliliters,
+            steps = health?.steps,
+            stepGoal = userGoals.stepGoal,
+            latestWeightKg = weights.maxByOrNull { it.measuredAtEpochMillis }?.value,
+            weightDeltaKg = weightDelta,
+            bodyFatPercent = bodyFatSeries.lastOrNull()?.value,
+            bodyFatDelta = bodyFatSeries.takeLast(2).takeIf { it.size == 2 }?.let { it[1].value - it[0].value },
+            sessionsDone = countSessionsInWeek(history.map { it.startedAtEpochMillis }, weekStartMillis),
+            sessionTarget = userGoals.weeklySessionTarget,
+            activeCaloriesKcal = health?.activeCaloriesKcal,
+            sleepMinutes = health?.sleepMinutes,
+            exerciseMinutes = health?.exerciseMinutes,
+            exerciseSessionCount = health?.exerciseSessionCount,
+            restingHeartRateBpm = health?.restingHeartRateBpm,
+            loggingStreakDays = LoggingStreakCalculator.streakDays(food.loggedDays, date.toEpochDay()),
+        )
     return vitalsTileMetrics(pins).map { metric ->
         MetricCardUiState(metric, metric.label, MetricResolver.resolve(metric, snapshot))
     }
@@ -521,23 +561,24 @@ private fun buildReadinessUiState(
     recentSummaries: List<DailyHealthSummaryEntity>,
 ): TodayReadinessUiState? {
     val todayEpochDay = date.toEpochDay()
-    val today = health?.takeIf { it.dateEpochDay == todayEpochDay }
-        ?: recentSummaries.firstOrNull { it.dateEpochDay == todayEpochDay }
-        ?: return null
-    val readiness = ReadinessCalculator.resolve(
-        today = today.toReadinessSample(),
-        recent = recentSummaries.map { it.toReadinessSample() },
-    ) ?: return null
+    val today =
+        health?.takeIf { it.dateEpochDay == todayEpochDay }
+            ?: recentSummaries.firstOrNull { it.dateEpochDay == todayEpochDay }
+            ?: return null
+    val readiness =
+        ReadinessCalculator.resolve(
+            today = today.toReadinessSample(),
+            recent = recentSummaries.map { it.toReadinessSample() },
+        ) ?: return null
     return TodayReadinessUiState(
         score = readiness.score,
         levelLabel = readiness.level.label,
     )
 }
 
-private fun DailyHealthSummaryEntity.toReadinessSample(): DailyReadinessSample =
-    DailyReadinessSample(
-        epochDay = dateEpochDay,
-        sleepMinutes = sleepMinutes,
-        restingHeartRateBpm = restingHeartRateBpm,
-        hrvRmssdMillis = hrvRmssdMillis,
-    )
+private fun DailyHealthSummaryEntity.toReadinessSample(): DailyReadinessSample = DailyReadinessSample(
+    epochDay = dateEpochDay,
+    sleepMinutes = sleepMinutes,
+    restingHeartRateBpm = restingHeartRateBpm,
+    hrvRmssdMillis = hrvRmssdMillis,
+)

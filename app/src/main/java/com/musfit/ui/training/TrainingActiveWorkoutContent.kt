@@ -54,6 +54,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -289,7 +290,7 @@ private fun ActiveWorkoutHeader(
     onOpenRestSettings: () -> Unit,
     onDiscard: () -> Unit,
 ) {
-    var nowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(workout.sessionId) {
         while (true) {
             nowMillis = System.currentTimeMillis()
@@ -1220,22 +1221,43 @@ private fun ExerciseOptionsSheet(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             if (hasWarmupSuggestions) {
-                ExerciseSheetItem(Icons.Outlined.FitnessCenter, "Add suggested warm-up sets", MusFitTheme.colors.onSurface) { onAddWarmupSets(); onDismiss() }
+                ExerciseSheetItem(Icons.Outlined.FitnessCenter, "Add suggested warm-up sets", MusFitTheme.colors.onSurface) {
+                    onAddWarmupSets()
+                    onDismiss()
+                }
             }
             if (canMoveUp) {
-                ExerciseSheetItem(Icons.Outlined.KeyboardArrowUp, "Move up", MusFitTheme.colors.onSurface) { onMoveUp(); onDismiss() }
+                ExerciseSheetItem(Icons.Outlined.KeyboardArrowUp, "Move up", MusFitTheme.colors.onSurface) {
+                    onMoveUp()
+                    onDismiss()
+                }
             }
             if (canMoveDown) {
-                ExerciseSheetItem(Icons.Outlined.KeyboardArrowDown, "Move down", MusFitTheme.colors.onSurface) { onMoveDown(); onDismiss() }
+                ExerciseSheetItem(Icons.Outlined.KeyboardArrowDown, "Move down", MusFitTheme.colors.onSurface) {
+                    onMoveDown()
+                    onDismiss()
+                }
             }
-            ExerciseSheetItem(Icons.Outlined.SwapHoriz, "Replace exercise", MusFitTheme.colors.onSurface) { onReplace(); onDismiss() }
+            ExerciseSheetItem(Icons.Outlined.SwapHoriz, "Replace exercise", MusFitTheme.colors.onSurface) {
+                onReplace()
+                onDismiss()
+            }
             if (canMakeSuperset) {
-                ExerciseSheetItem(Icons.Outlined.Add, "Add to superset", MusFitTheme.colors.onSurface) { onMakeSuperset(); onDismiss() }
+                ExerciseSheetItem(Icons.Outlined.Add, "Add to superset", MusFitTheme.colors.onSurface) {
+                    onMakeSuperset()
+                    onDismiss()
+                }
             }
             if (inSuperset && onDissolveSuperset != null) {
-                ExerciseSheetItem(Icons.Outlined.Close, "Dissolve superset", MusFitTheme.colors.onSurface) { onDissolveSuperset(); onDismiss() }
+                ExerciseSheetItem(Icons.Outlined.Close, "Dissolve superset", MusFitTheme.colors.onSurface) {
+                    onDissolveSuperset()
+                    onDismiss()
+                }
             }
-            ExerciseSheetItem(Icons.Outlined.Delete, "Remove exercise", MusFitTheme.colors.warning) { onRemove(); onDismiss() }
+            ExerciseSheetItem(Icons.Outlined.Delete, "Remove exercise", MusFitTheme.colors.warning) {
+                onRemove()
+                onDismiss()
+            }
         }
     }
 }
@@ -1442,8 +1464,11 @@ internal fun formatWorkoutSetRowsForDisplay(
         val isFailureSet = normalizedSetType == SET_TYPE_FAILURE
         val setLabel = when {
             isWarmup -> "W"
+
             isDropSet -> "D"
+
             isFailureSet -> "F"
+
             else -> {
                 workingSetNumber += 1
                 workingSetNumber.toString()
@@ -1478,9 +1503,8 @@ internal fun orderedWorkoutBlocks(workout: ActiveWorkoutDetail): List<WorkoutExe
 }
 
 /** The exercise in focus: the first with an unfinished set, else the last one (or null when empty). */
-internal fun defaultFocusedExerciseId(blocks: List<WorkoutExerciseBlock>): String? =
-    blocks.firstOrNull { block -> block.sets.any { !it.completed } }?.exercise?.id
-        ?: blocks.lastOrNull()?.exercise?.id
+internal fun defaultFocusedExerciseId(blocks: List<WorkoutExerciseBlock>): String? = blocks.firstOrNull { block -> block.sets.any { !it.completed } }?.exercise?.id
+    ?: blocks.lastOrNull()?.exercise?.id
 
 /** Merged header stat line (mock 5c): "1:12 · 537.5 kg · set 2 of 13". */
 internal fun activeWorkoutStatLine(
@@ -1532,8 +1556,7 @@ internal fun restElapsedFraction(restTimer: RestTimerState): Float {
 }
 
 /** The wave flattens across the final ten seconds of rest (0 = full wave, 1 = flat). */
-internal fun restWaveFlatten(remainingSeconds: Int): Float =
-    ((10 - remainingSeconds) / 10f).coerceIn(0f, 1f)
+internal fun restWaveFlatten(remainingSeconds: Int): Float = ((10 - remainingSeconds) / 10f).coerceIn(0f, 1f)
 
 internal fun warmupSuggestionsFor(
     block: WorkoutExerciseBlock,
@@ -1604,26 +1627,23 @@ internal fun restTimerSettingsSummaryText(restTimerDefaultSecondsInput: String):
     }
 }
 
-internal fun restTimerDisplayText(restTimer: RestTimerState): String =
-    when {
-        !restTimer.isVisible || restTimer.remainingSeconds <= 0 -> "Rest Timer: OFF"
-        restTimer.isRunning -> "Rest Timer: ${restTimer.remainingSeconds.formatDuration()}"
-        else -> "Rest Timer: Paused at ${restTimer.remainingSeconds.formatDuration()}"
-    }
+internal fun restTimerDisplayText(restTimer: RestTimerState): String = when {
+    !restTimer.isVisible || restTimer.remainingSeconds <= 0 -> "Rest Timer: OFF"
+    restTimer.isRunning -> "Rest Timer: ${restTimer.remainingSeconds.formatDuration()}"
+    else -> "Rest Timer: Paused at ${restTimer.remainingSeconds.formatDuration()}"
+}
 
-private fun Double?.formatCompact(): String =
-    when {
-        this == null -> ""
-        this % 1.0 == 0.0 -> toInt().toString()
-        else -> String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
-    }
+private fun Double?.formatCompact(): String = when {
+    this == null -> ""
+    this % 1.0 == 0.0 -> toInt().toString()
+    else -> String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
+}
 
-private fun Double.formatPlate(): String =
-    if (this % 1.0 == 0.0) {
-        toInt().toString()
-    } else {
-        String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
-    }
+private fun Double.formatPlate(): String = if (this % 1.0 == 0.0) {
+    toInt().toString()
+} else {
+    String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
+}
 
 private fun Int.toMinSec(): String {
     val minutes = this / 60
@@ -1652,12 +1672,11 @@ private fun Long.toElapsedClock(): String {
     }
 }
 
-private fun Double.formatKg(): String =
-    if (this % 1.0 == 0.0) {
-        toInt().toString()
-    } else {
-        String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
-    }
+private fun Double.formatKg(): String = if (this % 1.0 == 0.0) {
+    toInt().toString()
+} else {
+    String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
+}
 
 private const val SET_TYPE_WARMUP = "warmup"
 private const val SET_TYPE_WORKING = "working"

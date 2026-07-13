@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
     <!--
       Android network-security XML cannot express loopback/private IP CIDRs.
       The internal variant therefore opts into platform cleartext here, while
       AiCoachEndpointPolicy is the mandatory request-boundary host gate.
       Trust remains limited to system CAs; user-added CAs are not accepted.
     -->
-    <base-config cleartextTrafficPermitted="true">
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
