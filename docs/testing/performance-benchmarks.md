@@ -76,9 +76,12 @@ metric. The CI gate compares approved metrics from
 - a built-in deliberate-regression self-test proves that the comparison is
   capable of failing.
 
-The baseline is updated only from a complete, reviewed API 37 run using the
-explicit `-WriteBaseline` switch. A baseline update must explain the measured
-product change; it must not be used simply to make a regression green.
+The initial approved values use the per-metric maximum from the complete local
+run and the first exact-head GitHub-hosted run. That measured two-host envelope
+avoids treating runner CPU differences as product regressions while retaining a
+strict >10% failure above every verified environment. Later baseline updates
+use a complete, reviewed API 37 run and must explain the measured product or
+runner change; they must not be used simply to make a regression green.
 
 ## CI and evidence
 

@@ -1,6 +1,11 @@
 ﻿{
     "schemaVersion":  1,
     "thresholdPercent":  10,
+    "provenance":  {
+                       "policy":  "Per-metric maximum from the verified local and exact-head GitHub-hosted API 37 runs",
+                       "localHead":  "1e9023d1976f5b25c5b11b7386b1965ceb1acd25",
+                       "githubRun":  "https://github.com/attmous/MusFit/actions/runs/29214608530"
+                   },
     "devices":  [
                     {
                         "key":  "api37-sdk_gphone16k_x86_64",
@@ -35,32 +40,32 @@
                          {
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.profileJourney|frameDurationCpuMs",
                              "statistic":  "p90",
-                             "approvedValue":  47.8149
+                             "approvedValue":  123.2663
                          },
                          {
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.profileJourney|frameOverrunMs",
                              "statistic":  "p90",
-                             "approvedValue":  49.7052
+                             "approvedValue":  250.0349
                          },
                          {
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.profileJourney|memoryHeapSizeMaxKb",
                              "statistic":  "maximum",
-                             "approvedValue":  13136
+                             "approvedValue":  14192
                          },
                          {
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.profileJourney|memoryRssAnonMaxKb",
                              "statistic":  "maximum",
-                             "approvedValue":  84140
+                             "approvedValue":  86876
                          },
                          {
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|frameDurationCpuMs",
                              "statistic":  "p90",
-                             "approvedValue":  80.7459
+                             "approvedValue":  256.9968
                          },
                          {
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|frameOverrunMs",
                              "statistic":  "p90",
-                             "approvedValue":  111.0156
+                             "approvedValue":  441.3738
                          },
                          {
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|memoryHeapSizeMaxKb",
@@ -80,7 +85,7 @@
                          {
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitStartupBenchmark.warmStartup|timeToInitialDisplayMs",
                              "statistic":  "p90",
-                             "approvedValue":  953.0521
+                             "approvedValue":  1592.3229
                          }
                      ]
 }
