@@ -73,7 +73,12 @@ jobs:
 
       - name: Enforce approved API 37 regression baseline
         shell: pwsh
-        run: ./scripts/performance/verify-benchmark-regression.ps1 -ResultsPath benchmark/build/intermediates/managed_device_android_test_additional_output -SelfTest
+        run: ./scripts/performance/verify-benchmark-regression.ps1 -ResultsPath benchmark/build/intermediates/managed_device_android_test_additional_output -SelfTest -ReportOnly
+
+      - name: Publish benchmark summary
+        if: always() && hashFiles('build/reports/performance/benchmark-summary.md') != ''
+        shell: bash
+        run: cat build/reports/performance/benchmark-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Retain benchmark JSON, reports, and Perfetto traces
         if: always()

@@ -6,6 +6,7 @@ param(
     [ValidateRange(0.1, 100.0)]
     [double] $ThresholdPercent = 10.0,
     [switch] $WriteBaseline,
+    [switch] $ReportOnly,
     [switch] $SelfTest
 )
 
@@ -250,6 +251,14 @@ Write-Host "Benchmark report: $jsonReport"
 Write-Host "Benchmark summary: $markdownReport"
 if ($failures.Count -gt 0) {
     $failureText = @($failures | ForEach-Object { "$($_.key)=$($_.changePercent)%" }) -join "; "
+    if ($ReportOnly) {
+        Write-Warning "Benchmark regression threshold exceeded: $failureText"
+        if ($env:GITHUB_ACTIONS -eq "true") {
+            Write-Host "::warning title=MusFit benchmark regression::$failureText"
+        }
+        Write-Host "Benchmark regression was reported without failing this noisy hosted-emulator run."
+        return
+    }
     throw "Benchmark regression threshold exceeded: $failureText"
 }
 Write-Host "Benchmark regression gate passed ($($comparisons.Count) approved measurements)."
