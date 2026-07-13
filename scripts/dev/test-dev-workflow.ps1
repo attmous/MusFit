@@ -573,6 +573,7 @@ Assert-FileExists "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyI
 Assert-FileContains "app/build.gradle.kts" 'execution\s*=\s*"ANDROIDX_TEST_ORCHESTRATOR"'
 Assert-FileContains "app/build.gradle.kts" 'create\("criticalJourneysApi28And37"\)'
 Assert-FileContains ".github/workflows/android.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
+Assert-FileContains ".github/workflows/android.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
 Assert-FileContains ".github/workflows/android.yml" 'MusFitCriticalJourneyInstrumentationTest'
 Assert-FileContains ".github/workflows/android.yml" 'managed_device_android_test_additional_output'
 Assert-FileContains ".github/workflows/android.yml" 'Enable KVM for managed devices'

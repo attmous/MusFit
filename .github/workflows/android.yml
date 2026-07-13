@@ -132,7 +132,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run API 28 and API 37 critical journeys
-        run: ./gradlew criticalJourneysApi28And37GroupInternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
+        run: ./gradlew criticalJourneysApi28And37GroupInternalDebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
 
       - name: Retain managed-device results and failure diagnostics
         if: always()
