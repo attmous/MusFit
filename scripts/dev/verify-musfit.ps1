@@ -129,6 +129,8 @@ if ($Tests.Count -eq 0 -and $Preset -eq "Full") {
     & (Join-Path $repoRoot "scripts\dev\test-ksp-migration.ps1")
     Write-Host "Verifying immutable supply-chain policy and tamper fixtures."
     & (Join-Path $repoRoot "scripts\supply-chain\test-supply-chain.ps1") -SelfTest
+    Write-Host "Verifying stable-first dependency governance and catalog ownership."
+    & (Join-Path $repoRoot "scripts\dependencies\test-dependency-governance.ps1") -SelfTest
 }
 
 if ($gradleArgs.Count -gt 0) {

@@ -1,0 +1,52 @@
+version: 2
+
+updates:
+  - package-ecosystem: "gradle"
+    directory: "/"
+    target-branch: "master"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:17"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    allow:
+      - dependency-type: "direct"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+      # Registered preview families stay human-reviewed until their exit PR.
+      - dependency-name: "androidx.credentials:*"
+      - dependency-name: "androidx.benchmark:*"
+      - dependency-name: "androidx.baselineprofile"
+    groups:
+      android-toolchain:
+        patterns:
+          - "com.android.*"
+          - "com.google.devtools.ksp"
+          - "org.jetbrains.kotlin*"
+          - "com.google.dagger*"
+        update-types:
+          - "minor"
+          - "patch"
+      app-runtime:
+        patterns:
+          - "androidx.*"
+          - "com.google.android.*"
+          - "com.google.mlkit:*"
+          - "com.squareup.*"
+          - "io.coil-kt:*"
+          - "org.jetbrains.kotlinx:*"
+        update-types:
+          - "minor"
+          - "patch"
+      test-tooling:
+        patterns:
+          - "app.cash.turbine:*"
+          - "io.github.takahirom.roborazzi*"
+          - "junit:*"
+          - "org.robolectric:*"
+        update-types:
+          - "minor"
+          - "patch"

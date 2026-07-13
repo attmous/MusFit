@@ -597,6 +597,7 @@ Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-ksp-migration\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-supply-chain\.ps1'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-dependency-governance\.ps1'
 Assert-FileExists "gradle/verification-metadata.xml"
 Assert-FileExists "scripts/supply-chain/test-supply-chain.ps1"
 Assert-FileExists "scripts/supply-chain/write-verified-build-metadata.ps1"
@@ -609,6 +610,11 @@ Assert-FileContains ".github/workflows/android.yml" 'actions/attest@[0-9a-f]{40}
 Assert-FileContains ".github/workflows/android.yml" 'musfit-verified-release-inputs-'
 Assert-FileContains ".github/workflows/release.yml" 'actions/attest@[0-9a-f]{40}\s+# v4\.1\.0'
 Assert-FileContains "gradle/wrapper/gradle-wrapper.properties" 'distributionSha256Sum=[0-9a-f]{64}'
+Assert-FileExists ".github/dependabot.yml"
+Assert-FileExists "config/dependency-preview-exceptions.json"
+Assert-FileExists "scripts/dependencies/test-dependency-governance.ps1"
+Assert-FileExists "docs/ops/dependency-governance.md"
+Assert-PowerShellParses "scripts/dependencies/test-dependency-governance.ps1"
 Assert-FileContains ".github/workflows/device-ui.yml" 'MusFitCriticalJourneyInstrumentationTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'managed_device_android_test_additional_output'
 Assert-FileContains ".github/workflows/device-ui.yml" 'Enable KVM for managed devices'

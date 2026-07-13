@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "versionKey": "credentials",
+      "coordinates": [
+        "androidx.credentials:credentials",
+        "androidx.credentials:credentials-play-services-auth"
+      ],
+      "version": "1.7.0-alpha02",
+      "owner": "@attmous",
+      "expiresOn": "2026-07-31",
+      "rationale": "The audited baseline already ships this preview. MusFit uses only the Google sign-in retrieval surface, so moving back to stable 1.6.0 is isolated to a dependency-only compatibility PR rather than mixed into governance infrastructure.",
+      "exitCriteria": "Move to the latest stable Credentials release after API 28 and API 37 Google sign-in smoke tests, the Full gate, and the dependency-only startup and size guard pass."
+    },
+    {
+      "versionKey": "benchmark",
+      "coordinates": [
+        "androidx.benchmark:benchmark-macro-junit4",
+        "androidx.baselineprofile"
+      ],
+      "version": "1.5.0-alpha07",
+      "owner": "@attmous",
+      "expiresOn": "2026-09-30",
+      "rationale": "The approved API 37 regression baseline and serialized API 28/37 harness were established on this measurement engine. Changing it can alter Perfetto capture and benchmark semantics, so recalibration belongs in a measured dependency-only PR.",
+      "exitCriteria": "Adopt the 1.5 stable release, or a separately proven stable alternative, after both managed-device matrices pass and the approved performance baseline is deliberately recalibrated."
+    }
+  ]
+}
