@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # setup-gradle build-result capture injects action-owned plugin dependencies.
+  GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE: "true"
+
 concurrency:
   group: android-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -19,7 +23,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           # Full history so the app's versionCode (git commit count) is real.
           # A shallow checkout would collapse it to 1 and break OTA updates.
@@ -30,7 +34,7 @@ jobs:
         run: ./scripts/dev/test-dev-workflow.ps1 -SelfTest
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "17"
@@ -38,6 +42,9 @@ jobs:
       - name: Set up Gradle build and configuration cache
         uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
+          # Keep strict verification scoped to MusFit's declared build inputs.
+          # setup-gradle's optional Develocity plugin has its own rotating graph.
+          develocity-injection-enabled: false
           # Only master runs write cache entries; PR/branch runs read them.
           # Branches can read the default-branch cache, so same-commit re-runs
           # and non-source PRs reuse master's task outputs while the repo stays
@@ -54,6 +61,9 @@ jobs:
       - name: Verify internal, migration bridge, and production-shaped builds
         run: ./gradlew verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
 
+      - name: Generate aggregate CycloneDX SBOM in an isolated graph
+        run: ./gradlew cyclonedxBom --no-daemon --console=plain
+
       - name: Verify migration artifact identities and legacy certificate
         shell: pwsh
         run: ./scripts/release/verify-data-migration-artifacts.ps1 -SkipBuild
@@ -62,8 +72,24 @@ jobs:
         shell: pwsh
         run: ./scripts/release/verify-r8-artifacts.ps1
 
+      - name: Prepare exact-commit checksums, metadata, and CycloneDX SBOM
+        shell: pwsh
+        env:
+          VERIFIED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          ./scripts/supply-chain/write-verified-build-metadata.ps1 -CommitSha $env:VERIFIED_COMMIT
+          ./scripts/supply-chain/verify-verified-build-metadata.ps1 -CommitSha $env:VERIFIED_COMMIT
+
+      - name: Retain verified release inputs and SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: musfit-verified-release-inputs-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/verified-artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Retain internal verification APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: musfit-internal-debug-apk
           path: app/build/outputs/apk/internal/debug/app-internal-debug.apk
@@ -71,7 +97,7 @@ jobs:
           retention-days: 7
 
       - name: Retain production R8 reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: musfit-production-r8-reports
           path: |
@@ -88,7 +114,7 @@ jobs:
 
       - name: Retain configuration-cache diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: musfit-configuration-cache-diagnostics
           path: |
@@ -97,9 +123,45 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  provenance:
+    if: github.event_name == 'push'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Checkout verification scripts from exact commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download exact verified artifact set
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: musfit-verified-release-inputs-${{ github.sha }}
+          path: verified-artifacts
+
+      - name: Reverify checksums and commit binding
+        shell: pwsh
+        run: ./scripts/supply-chain/verify-verified-build-metadata.ps1 -CommitSha $env:GITHUB_SHA -ArtifactDirectory verified-artifacts
+
+      - name: Publish signed SLSA build provenance
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-checksums: verified-artifacts/SHA256SUMS
+
+      - name: Publish signed CycloneDX SBOM attestation
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-checksums: verified-artifacts/SHA256SUMS
+          sbom-path: verified-artifacts/musfit.cdx.json
+
       - name: Retain PR build, unit, lint, and release reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: musfit-pr-build-test-reports-${{ github.run_attempt }}
           path: |

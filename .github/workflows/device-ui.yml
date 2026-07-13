@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE: "true"
+
 concurrency:
   group: device-ui-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
@@ -20,12 +23,12 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "17"
@@ -33,6 +36,7 @@ jobs:
       - name: Set up Gradle build cache
         uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
+          develocity-injection-enabled: false
           cache-read-only: ${{ github.ref != 'refs/heads/master' }}
 
       - name: Enable KVM for managed devices
@@ -56,7 +60,7 @@ jobs:
 
       - name: Retain migration reports and device diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: musfit-migration-matrix-${{ github.run_attempt }}
           path: |
@@ -71,12 +75,12 @@ jobs:
     timeout-minutes: 35
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "17"
@@ -84,6 +88,7 @@ jobs:
       - name: Set up Gradle build cache
         uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
+          develocity-injection-enabled: false
           cache-read-only: ${{ github.ref != 'refs/heads/master' }}
 
       - name: Enable KVM for managed devices
@@ -107,7 +112,7 @@ jobs:
 
       - name: Retain managed-device results and failure diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: musfit-critical-journeys-${{ github.run_attempt }}
           path: |
@@ -122,12 +127,12 @@ jobs:
     timeout-minutes: 12
     steps:
       - name: Checkout reviewed screenshot references
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "17"
@@ -135,6 +140,7 @@ jobs:
       - name: Set up Gradle build cache
         uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
+          develocity-injection-enabled: false
           cache-read-only: ${{ github.ref != 'refs/heads/master' }}
 
       - name: Make Gradle executable
@@ -145,7 +151,7 @@ jobs:
 
       - name: Retain deterministic screenshot diffs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: musfit-screenshot-regression-${{ github.run_attempt }}
           path: |

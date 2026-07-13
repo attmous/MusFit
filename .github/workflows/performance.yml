@@ -20,6 +20,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE: "true"
+
 concurrency:
   group: performance-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -43,6 +46,7 @@ jobs:
       - name: Set up Gradle build cache
         uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
+          develocity-injection-enabled: false
           cache-read-only: ${{ github.ref != 'refs/heads/master' }}
 
       - name: Enable KVM for managed devices

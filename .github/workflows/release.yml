@@ -163,6 +163,9 @@ jobs:
     environment: production-release
     permissions:
       contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
       - name: Checkout verification scripts from exact commit
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -206,6 +209,11 @@ jobs:
           $existingTag = @(git ls-remote --tags origin "refs/tags/$expected")
           if ($LASTEXITCODE -ne 0) { throw "Could not inspect remote release tags." }
           if ($existingTag.Count -ne 0) { throw "Release tag already exists: $expected" }
+
+      - name: Publish signed provenance for final Play/GitHub artifacts
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-checksums: release-candidate/SHA256SUMS
 
       - name: Publish exact APK/AAB and checksums for Obtainium
         shell: bash
