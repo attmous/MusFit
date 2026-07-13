@@ -389,6 +389,7 @@ Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPP
 Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPPDATA\)\s*\{[^}]*Android[\\/]Sdk'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$windows\)\s*\{\s*"gradlew\.bat"\s*\}\s*else\s*\{\s*"gradlew"\s*\}'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" '&\s*\$gradleWrapper\s+@Arguments'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$Tests\.Count\s*-eq\s*0\s*-and\s*\$Preset\s*-eq\s*"Full"\).{0,400}test-dev-workflow\.ps1.{0,400}if\s*\(\$gradleArgs\.Count\s*-gt\s*0\)'
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "EvidenceDir"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "Assert-LastExitCode"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "pm clear"
