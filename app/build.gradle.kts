@@ -23,6 +23,11 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.roborazzi)
     alias(libs.plugins.androidx.baselineprofile)
+    jacoco
+}
+
+jacoco {
+    toolVersion = "0.8.14"
 }
 
 fun String.asBuildConfigString(): String = "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
@@ -242,6 +247,8 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
+            enableUnitTestCoverage = true
+            enableAndroidTestCoverage = true
         }
         release {
             isDebuggable = false

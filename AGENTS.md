@@ -115,6 +115,19 @@ The standard variant gate is:
 .\scripts\dev\verify-musfit.ps1 -Preset Full -RetryOnGeneratedOutputIssue
 ```
 
+Generate and enforce the actionable unit-coverage report with:
+
+```powershell
+.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
+.\scripts\coverage\verify-coverage.ps1 `
+  -ReportPath app\build\reports\coverage\test\internal\debug\report.xml `
+  -BaseRef origin/master
+```
+
+Coverage is a change ratchet, not a replacement for behavior tests. See
+[`docs/testing/coverage.md`](docs/testing/coverage.md) for eligible source,
+thresholds, aggregation, and the CI budget.
+
 It runs unit tests, lint, and assembly for `internalDebug`, the non-debuggable
 `legacyMigrationRelease` bridge, and non-debuggable `productionRelease`, builds
 the internal instrumentation APK, and builds the unsigned production AAB. The installable developer APK is written to
