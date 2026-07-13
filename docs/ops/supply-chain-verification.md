@@ -33,6 +33,8 @@ Use an empty Gradle home for this explicit bootstrap so parent POMs and Gradle
 module metadata needed by a fresh CI runner cannot be hidden by a local cache.
 Run the Android and aggregate-SBOM graphs separately because the CycloneDX
 aggregate consumes Android variant artifacts during configuration.
+Review platform-specific Android tools such as AAPT2 for both Windows and the
+Linux CI runner when their classifier-specific binaries change.
 
 Never use permissive or `off` dependency-verification mode in CI or release
 workflows. Never accept a checksum only to make a failed build green; verify the
