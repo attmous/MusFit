@@ -72,7 +72,7 @@ function Get-AggregatedLineMap([string[]] $Paths, [object] $Policy) {
 }
 
 function Get-CoverageStats([object[]] $Lines) {
-    $all = @($Lines)
+    $all = @($Lines | Where-Object { $null -ne $_ })
     $covered = @($all | Where-Object Covered).Count
     $total = $all.Count
     $ratio = if ($total -eq 0) { 1.0 } else { $covered / [double] $total }
@@ -137,6 +137,10 @@ function Invoke-PolicySelfTest {
         $stats = Get-CoverageStats @($map.Values)
         if ($stats.Covered -ne 2 -or $stats.Total -ne 2) {
             throw "Self-test failed to merge unit/instrumented coverage: $($stats.Covered)/$($stats.Total)."
+        }
+        $emptyStats = Get-CoverageStats @($null)
+        if ($emptyStats.Covered -ne 0 -or $emptyStats.Total -ne 0 -or $emptyStats.Ratio -ne 1.0) {
+            throw "Self-test failed to normalize an empty changed-line result."
         }
         $caught = $false
         try {
