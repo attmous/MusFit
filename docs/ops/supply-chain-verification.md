@@ -23,9 +23,16 @@ metadata explicitly and review every changed coordinate and checksum:
 
 ```powershell
 . .\scripts\android\android-env.ps1
+$env:GRADLE_USER_HOME = Join-Path $env:TEMP ("musfit-verification-" + [guid]::NewGuid().ToString("N"))
+.\gradlew.bat --write-verification-metadata sha256 verifyReleaseVariantMatrix --no-daemon --console=plain
 .\gradlew.bat --write-verification-metadata sha256 cyclonedxBom --no-daemon --console=plain
 .\scripts\dev\verify-musfit.ps1 -Preset Full
 ```
+
+Use an empty Gradle home for this explicit bootstrap so parent POMs and Gradle
+module metadata needed by a fresh CI runner cannot be hidden by a local cache.
+Run the Android and aggregate-SBOM graphs separately because the CycloneDX
+aggregate consumes Android variant artifacts during configuration.
 
 Never use permissive or `off` dependency-verification mode in CI or release
 workflows. Never accept a checksum only to make a failed build green; verify the
