@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -154,9 +155,7 @@ class MusFitScreenshotRegressionTest {
         }
         compose.waitForIdle()
         assertTouchTargets()
-        captureRoboImage(fileName) {
-            ScreenshotFrame(dark = dark, rtl = rtl, fontScale = fontScale, content = content)
-        }
+        compose.onRoot().captureRoboImage(fileName)
     }
 
     private fun assertTouchTargets() {
