@@ -9,12 +9,25 @@ internal const val UI_TIMEOUT_MILLIS = 15_000L
 
 internal fun MacrobenchmarkScope.launchToToday() {
     pressHome()
-    startActivityAndWait()
+    startActivityAndWaitWithSetupRetry()
     val today = device.wait(Until.findObject(By.desc("Today")), UI_TIMEOUT_MILLIS)
         ?: error("MusFit bottom navigation did not become ready.")
     today.click()
     device.waitForIdle()
     Thread.sleep(500)
+}
+
+private fun MacrobenchmarkScope.startActivityAndWaitWithSetupRetry() {
+    repeat(2) { attempt ->
+        try {
+            startActivityAndWait()
+            return
+        } catch (failure: IllegalStateException) {
+            if (attempt == 1) throw failure
+            pressHome()
+            Thread.sleep(1_000)
+        }
+    }
 }
 
 internal fun MacrobenchmarkScope.visitDestination(contentDescription: String) {

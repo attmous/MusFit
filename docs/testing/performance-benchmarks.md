@@ -14,6 +14,11 @@ Profile. It is non-debuggable and is signed with the public debug key only so it
 can be installed by local and CI managed devices; it is never a release
 artifact.
 
+Journey setup has one bounded retry for the managed-emulator first-launch race
+where the process is created but has not attached when `am start -W` returns.
+The retry occurs before measurement; a second failure remains a hard test
+failure. Startup measurements never retry inside their measured block.
+
 The managed-device matrix is:
 
 | Target | Purpose | Result transport |
