@@ -79,6 +79,7 @@ if ($SelfTest) {
     if ($failureText -notmatch "Could not execute '$([regex]::Escape($missingGit))' while deriving versionCode\.") {
         throw "Version-code failure did not contain the fail-closed diagnostic."
     }
+    $global:LASTEXITCODE = 0
     Write-Host "Deliberate missing-Git version-code self-test passed."
 }
 
