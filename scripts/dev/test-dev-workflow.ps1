@@ -633,6 +633,7 @@ Assert-FileContains ".github/workflows/device-ui.yml" 'system-images;android-28;
 Assert-FileExists "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt"
 Assert-FileExists "docs/testing/screenshot-regression.md"
 Assert-FileContains "gradle/libs.versions.toml" 'roborazzi\s*=\s*"1\.68\.0"'
+Assert-FileContains "app/build.gradle.kts" 'testImplementation\(libs\.roborazzi\.core\)'
 Assert-FileContains "app/build.gradle.kts" 'outputDir\.set\(file\("src/testInternalDebug/screenshots"\)\)'
 Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" 'w400dp-h800dp-mdpi'
 Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" 'w610dp-h900dp-mdpi'

@@ -70,7 +70,9 @@ class MusFitScreenshotRegressionTest {
         Box(Modifier.fillMaxSize().padding(20.dp)) {
             TrainingHomeContent(
                 accent = tabAccentFor(AppDestination.Training),
-                onStartBlankWorkout = {}, onNewRoutine = {}, onOpenLibrary = {},
+                onStartBlankWorkout = {},
+                onNewRoutine = {},
+                onOpenLibrary = {},
             )
         }
     }
@@ -122,7 +124,9 @@ class MusFitScreenshotRegressionTest {
             TrainingHomeContent(
                 hasActiveWorkout = true,
                 accent = tabAccentFor(AppDestination.Training),
-                onStartBlankWorkout = {}, onNewRoutine = {}, onOpenLibrary = {},
+                onStartBlankWorkout = {},
+                onNewRoutine = {},
+                onOpenLibrary = {},
             )
         }
     }

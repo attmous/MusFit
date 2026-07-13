@@ -33,7 +33,7 @@ orchestrator = "1.6.1"
 uiautomator = "2.4.0"
 robolectric = "4.16.1"
 coil = "2.7.0"
-roborazzi = "1.62.0"
+roborazzi = "1.68.0"
 benchmark = "1.5.0-alpha07"
 profileinstaller = "1.4.1"
 
@@ -88,6 +88,7 @@ junit = { module = "junit:junit", version.ref = "junit" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
+roborazzi-core = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
 androidx-benchmark-macro = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 
