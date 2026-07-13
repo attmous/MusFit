@@ -5,7 +5,6 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.core.di.DatabaseModule
-import java.io.File
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -14,6 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 class VitalsPinsMigration35To36Test {
@@ -66,7 +66,7 @@ class VitalsPinsMigration35To36Test {
     private fun runMigration() {
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_35_36)
+                .addMigrations(DatabaseModule.MIGRATION_35_36, DatabaseModule.MIGRATION_36_37)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()

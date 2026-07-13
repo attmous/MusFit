@@ -49,7 +49,7 @@ import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 
 const val MUSFIT_DATABASE_NAME = "musfit.db"
-const val MUSFIT_DATABASE_VERSION = 36
+const val MUSFIT_DATABASE_VERSION = 37
 
 @Database(
     entities = [
@@ -90,7 +90,7 @@ const val MUSFIT_DATABASE_VERSION = 36
         CoachMessageEntity::class,
         DashboardPinEntity::class,
     ],
-    version = 36,
+    version = 37,
     exportSchema = true,
 )
 abstract class MusFitDatabase : RoomDatabase() {

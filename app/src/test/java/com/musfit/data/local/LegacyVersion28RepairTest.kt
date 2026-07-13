@@ -5,7 +5,6 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.core.di.DatabaseModule
-import java.io.File
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -14,6 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 class LegacyVersion28RepairTest {
@@ -49,6 +49,7 @@ class LegacyVersion28RepairTest {
                     DatabaseModule.MIGRATION_33_34,
                     DatabaseModule.MIGRATION_34_35,
                     DatabaseModule.MIGRATION_35_36,
+                    DatabaseModule.MIGRATION_36_37,
                 )
                 .build()
         try {
@@ -114,7 +115,9 @@ class LegacyVersion28RepairTest {
                 val tableName = entity.getString("tableName")
                 when (tableName) {
                     "accounts" -> createLegacyAccountsTable(database)
+
                     "daily_health_summaries" -> createLegacyDailyHealthSummariesTable(database)
+
                     else -> {
                         database.execSQL(resolveSchemaSql(entity.getString("createSql"), tableName))
                         val indices = entity.optJSONArray("indices") ?: continue
@@ -207,29 +210,26 @@ class LegacyVersion28RepairTest {
         }
     }
 
-    private fun readRoomIdentityHash(): String? =
-        SQLiteDatabase.openDatabase(
-            context.getDatabasePath(TEST_DATABASE_NAME).path,
-            null,
-            SQLiteDatabase.OPEN_READONLY,
-        ).use { database ->
-            database.readRoomIdentityHash()
-        }
+    private fun readRoomIdentityHash(): String? = SQLiteDatabase.openDatabase(
+        context.getDatabasePath(TEST_DATABASE_NAME).path,
+        null,
+        SQLiteDatabase.OPEN_READONLY,
+    ).use { database ->
+        database.readRoomIdentityHash()
+    }
 
-    private fun SQLiteDatabase.readRoomIdentityHash(): String? =
-        rawQuery("SELECT identity_hash FROM room_master_table WHERE id = 42 LIMIT 1", null).use { cursor ->
-            if (cursor.moveToFirst()) cursor.getString(0) else null
-        }
+    private fun SQLiteDatabase.readRoomIdentityHash(): String? = rawQuery("SELECT identity_hash FROM room_master_table WHERE id = 42 LIMIT 1", null).use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0) else null
+    }
 
-    private fun tableColumns(database: SQLiteDatabase, tableName: String): List<String> =
-        database.rawQuery("PRAGMA table_info(`$tableName`)", null).use { cursor ->
-            buildList {
-                val nameIndex = cursor.getColumnIndexOrThrow("name")
-                while (cursor.moveToNext()) {
-                    add(cursor.getString(nameIndex))
-                }
+    private fun tableColumns(database: SQLiteDatabase, tableName: String): List<String> = database.rawQuery("PRAGMA table_info(`$tableName`)", null).use { cursor ->
+        buildList {
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                add(cursor.getString(nameIndex))
             }
         }
+    }
 
     private fun resolveSchemaSql(sql: String, tableName: String): String = sql.replace("\${TABLE_NAME}", tableName)
 
@@ -243,7 +243,7 @@ class LegacyVersion28RepairTest {
     private companion object {
         const val TEST_DATABASE_NAME = "legacy-v28-repair"
         const val LEGACY_HEALTH_SYNC_V28_IDENTITY_HASH = "71b5b71f394a9a0bedf45d1a67317f04"
-        const val CURRENT_DATABASE_IDENTITY_HASH = "2a7735b2e2d090f9d9d380fa0cc83ca5"
+        const val CURRENT_DATABASE_IDENTITY_HASH = "84fe8018cc0269b4012cb64becb8a883"
 
         val CURRENT_DAILY_HEALTH_SUMMARY_COLUMNS = listOf(
             "dateEpochDay",

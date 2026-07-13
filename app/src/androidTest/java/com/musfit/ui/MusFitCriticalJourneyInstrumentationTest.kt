@@ -2,8 +2,8 @@ package com.musfit.ui
 
 import android.Manifest
 import android.app.Instrumentation
-import android.os.Environment
 import android.os.Build
+import android.os.Environment
 import android.os.ParcelFileDescriptor
 import androidx.activity.compose.setContent
 import androidx.compose.material3.Button
@@ -27,21 +27,22 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import com.musfit.MainActivity
 import com.musfit.core.di.DatabaseModule
+import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
 import com.musfit.debug.MusFitDebugSeeder
 import com.musfit.ui.theme.MusFitTheme
-import java.io.File
-import java.io.FileOutputStream
-import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.rules.TestWatcher
-import org.junit.rules.RuleChain
 import org.junit.runner.Description
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
+import java.io.File
+import java.io.FileOutputStream
+import java.time.LocalDate
 
 /**
  * Small framework-owned journey layer. Lower-level state and callback behavior stays in unit and
@@ -144,7 +145,10 @@ class MusFitCriticalJourneyInstrumentationTest {
         compose.waitForText("Add burned calories to budget")
 
         val toggle = compose.onAllNodes(isToggleable()).onFirst()
-        val initiallyOn = runCatching { toggle.assertIsOn(); true }.getOrDefault(false)
+        val initiallyOn = runCatching {
+            toggle.assertIsOn()
+            true
+        }.getOrDefault(false)
         toggle.performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = 10_000) {
             runCatching {
@@ -207,25 +211,23 @@ class MusFitCriticalJourneyInstrumentationTest {
         }
     }
 
-    private fun todayDiaryRowCount(): Int =
-        runBlocking {
-            val database = DatabaseModule.provideDatabase(targetContext)
-            try {
-                database.foodDao().getFoodDiaryEntryRowsForDate(LocalDate.now().toEpochDay()).size
-            } finally {
-                database.close()
-            }
+    private fun todayDiaryRowCount(): Int = runBlocking {
+        val database = DatabaseModule.provideDatabase(targetContext)
+        try {
+            database.foodDao().getFoodDiaryEntryRowsForDate(LOCAL_DEFAULT_ACCOUNT_ID, LocalDate.now().toEpochDay()).size
+        } finally {
+            database.close()
         }
+    }
 
-    private fun activeBenchSetIsComplete(): Boolean =
-        runBlocking {
-            val database = DatabaseModule.provideDatabase(targetContext)
-            try {
-                database.trainingDao().getWorkoutSet("debug-set-active-bench-1")?.completed == true
-            } finally {
-                database.close()
-            }
+    private fun activeBenchSetIsComplete(): Boolean = runBlocking {
+        val database = DatabaseModule.provideDatabase(targetContext)
+        try {
+            database.trainingDao().getWorkoutSet("debug-set-active-bench-1")?.completed == true
+        } finally {
+            database.close()
         }
+    }
 
     private fun configureCameraDenial() {
         // Orchestrator clears package data before every case, so CAMERA is already denied. Mark

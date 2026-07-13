@@ -5,7 +5,6 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.core.di.DatabaseModule
-import java.io.File
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -14,6 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 class TrainingRoutineFoldersMigration30To31Test {
@@ -37,7 +37,7 @@ class TrainingRoutineFoldersMigration30To31Test {
 
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_30_31, DatabaseModule.MIGRATION_31_32, DatabaseModule.MIGRATION_32_33, DatabaseModule.MIGRATION_33_34, DatabaseModule.MIGRATION_34_35, DatabaseModule.MIGRATION_35_36)
+                .addMigrations(DatabaseModule.MIGRATION_30_31, DatabaseModule.MIGRATION_31_32, DatabaseModule.MIGRATION_32_33, DatabaseModule.MIGRATION_33_34, DatabaseModule.MIGRATION_34_35, DatabaseModule.MIGRATION_35_36, DatabaseModule.MIGRATION_36_37)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
@@ -121,32 +121,28 @@ class TrainingRoutineFoldersMigration30To31Test {
         }
     }
 
-    private fun tableExists(database: SQLiteDatabase, tableName: String): Boolean =
-        database.rawQuery(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-            arrayOf(tableName),
-        ).use { cursor -> cursor.moveToFirst() }
+    private fun tableExists(database: SQLiteDatabase, tableName: String): Boolean = database.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        arrayOf(tableName),
+    ).use { cursor -> cursor.moveToFirst() }
 
-    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean =
-        database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
-            val nameIndex = cursor.getColumnIndex("name")
-            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
-                .any { it == columnName }
-        }
+    private fun tableHasColumn(database: SQLiteDatabase, tableName: String, columnName: String): Boolean = database.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
+        val nameIndex = cursor.getColumnIndex("name")
+        generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
+            .any { it == columnName }
+    }
 
-    private fun stringValue(database: SQLiteDatabase, query: String): String? =
-        database.rawQuery(query, null).use { cursor ->
-            if (cursor.moveToFirst()) cursor.getString(0) else null
-        }
+    private fun stringValue(database: SQLiteDatabase, query: String): String? = database.rawQuery(query, null).use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0) else null
+    }
 
-    private fun stringValues(database: SQLiteDatabase, query: String): List<String> =
-        database.rawQuery(query, null).use { cursor ->
-            buildList {
-                while (cursor.moveToNext()) {
-                    add(cursor.getString(0))
-                }
+    private fun stringValues(database: SQLiteDatabase, query: String): List<String> = database.rawQuery(query, null).use { cursor ->
+        buildList {
+            while (cursor.moveToNext()) {
+                add(cursor.getString(0))
             }
         }
+    }
 
     private fun createDatabaseFromExportedSchema(version: Int) {
         val schemaFile = resolveSchemaFile(version)

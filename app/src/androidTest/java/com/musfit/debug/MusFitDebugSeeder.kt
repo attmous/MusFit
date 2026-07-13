@@ -136,6 +136,7 @@ internal class MusFitDebugSeeder private constructor(
         DEBUG_FOODS.forEach { food ->
             dao.upsertFood(
                 FoodEntity(
+                    accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                     id = food.id,
                     name = food.name,
                     brand = food.brand,
@@ -166,6 +167,7 @@ internal class MusFitDebugSeeder private constructor(
             food.servings.forEach { serving ->
                 dao.upsertServing(
                     FoodServingEntity(
+                        accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                         id = "${food.id}-serving-${serving.label.lowercase().replace(" ", "-")}",
                         foodId = food.id,
                         label = serving.label,
@@ -177,6 +179,7 @@ internal class MusFitDebugSeeder private constructor(
 
         dao.upsertFoodGoal(
             FoodGoalEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "default",
                 dailyCaloriesKcal = 2_450.0,
                 proteinGrams = 180.0,
@@ -195,6 +198,7 @@ internal class MusFitDebugSeeder private constructor(
         )
         dao.upsertFoodHealthConnectSyncState(
             FoodHealthConnectSyncEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 key = "food",
                 isEnabled = false,
                 lastSyncAtEpochMillis = today.minusDays(1).atHourMillis(20),
@@ -249,6 +253,7 @@ internal class MusFitDebugSeeder private constructor(
                 val mealId = "debug-meal-${date.toEpochDay()}-$mealType"
                 dao.upsertMeal(
                     MealEntity(
+                        accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                         id = mealId,
                         dateEpochDay = date.toEpochDay(),
                         type = mealType,
@@ -260,6 +265,7 @@ internal class MusFitDebugSeeder private constructor(
                 mealPlans.forEach { item ->
                     dao.upsertMealItem(
                         MealItemEntity(
+                            accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                             id = "debug-item-${date.toEpochDay()}-$mealType-${item.foodId}",
                             mealId = mealId,
                             foodId = item.foodId,
@@ -274,35 +280,36 @@ internal class MusFitDebugSeeder private constructor(
     private suspend fun seedFoodExtras(today: LocalDate, now: Long) {
         val dao = database.foodDao()
         val definitions = listOf(
-            MealDefinitionEntity("breakfast", "Breakfast", 8 * 60, 0, now, now),
-            MealDefinitionEntity("lunch", "Lunch", 12 * 60 + 30, 10, now, now),
-            MealDefinitionEntity("dinner", "Dinner", 19 * 60, 20, now, now),
-            MealDefinitionEntity("snacks", "Snacks", 16 * 60, 30, now, now),
-            MealDefinitionEntity("post-workout", "Post-workout", 18 * 60, 35, now, now),
+            MealDefinitionEntity(LOCAL_DEFAULT_ACCOUNT_ID, "breakfast", "Breakfast", 8 * 60, 0, now, now),
+            MealDefinitionEntity(LOCAL_DEFAULT_ACCOUNT_ID, "lunch", "Lunch", 12 * 60 + 30, 10, now, now),
+            MealDefinitionEntity(LOCAL_DEFAULT_ACCOUNT_ID, "dinner", "Dinner", 19 * 60, 20, now, now),
+            MealDefinitionEntity(LOCAL_DEFAULT_ACCOUNT_ID, "snacks", "Snacks", 16 * 60, 30, now, now),
+            MealDefinitionEntity(LOCAL_DEFAULT_ACCOUNT_ID, "post-workout", "Post-workout", 18 * 60, 35, now, now),
         )
         definitions.forEach { dao.upsertMealDefinition(it) }
 
         listOf(
-            QuickCaloriePresetEntity("debug-quick-protein-shake", "Protein shake", 220.0, 32.0, 14.0, 4.0, now, now, true),
-            QuickCaloriePresetEntity("debug-quick-small-snack", "Small snack", 180.0, 10.0, 20.0, 6.0, now, now, true),
-            QuickCaloriePresetEntity("debug-quick-coffee-milk", "Coffee with milk", 70.0, 4.0, 8.0, 2.0, now, now, false),
+            QuickCaloriePresetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-quick-protein-shake", "Protein shake", 220.0, 32.0, 14.0, 4.0, now, now, true),
+            QuickCaloriePresetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-quick-small-snack", "Small snack", 180.0, 10.0, 20.0, 6.0, now, now, true),
+            QuickCaloriePresetEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-quick-coffee-milk", "Coffee with milk", 70.0, 4.0, 8.0, 2.0, now, now, false),
         ).forEach { dao.upsertQuickCaloriePreset(it) }
 
         listOf(
-            MealTemplateEntity("debug-template-protein-breakfast", "Protein breakfast", "breakfast", now, now, true),
-            MealTemplateEntity("debug-template-chicken-prep", "Chicken prep lunch", "lunch", now, now, true),
+            MealTemplateEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-template-protein-breakfast", "Protein breakfast", "breakfast", now, now, true),
+            MealTemplateEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-template-chicken-prep", "Chicken prep lunch", "lunch", now, now, true),
         ).forEach { dao.upsertMealTemplate(it) }
         listOf(
-            MealTemplateItemEntity("debug-template-protein-breakfast-oats", "debug-template-protein-breakfast", "debug-food-oats", 60.0, 0),
-            MealTemplateItemEntity("debug-template-protein-breakfast-yogurt", "debug-template-protein-breakfast", "debug-food-yogurt", 200.0, 1),
-            MealTemplateItemEntity("debug-template-protein-breakfast-whey", "debug-template-protein-breakfast", "debug-food-whey", 30.0, 2),
-            MealTemplateItemEntity("debug-template-chicken-prep-chicken", "debug-template-chicken-prep", "debug-food-chicken", 160.0, 0),
-            MealTemplateItemEntity("debug-template-chicken-prep-rice", "debug-template-chicken-prep", "debug-food-rice", 190.0, 1),
-            MealTemplateItemEntity("debug-template-chicken-prep-spinach", "debug-template-chicken-prep", "debug-food-spinach", 60.0, 2),
+            MealTemplateItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-template-protein-breakfast-oats", "debug-template-protein-breakfast", "debug-food-oats", 60.0, 0),
+            MealTemplateItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-template-protein-breakfast-yogurt", "debug-template-protein-breakfast", "debug-food-yogurt", 200.0, 1),
+            MealTemplateItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-template-protein-breakfast-whey", "debug-template-protein-breakfast", "debug-food-whey", 30.0, 2),
+            MealTemplateItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-template-chicken-prep-chicken", "debug-template-chicken-prep", "debug-food-chicken", 160.0, 0),
+            MealTemplateItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-template-chicken-prep-rice", "debug-template-chicken-prep", "debug-food-rice", 190.0, 1),
+            MealTemplateItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-template-chicken-prep-spinach", "debug-template-chicken-prep", "debug-food-spinach", 60.0, 2),
         ).forEach { dao.upsertMealTemplateItem(it) }
 
         dao.upsertRecipe(
             RecipeEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "debug-recipe-salmon-power-bowl",
                 name = "Salmon power bowl",
                 category = "Dinner",
@@ -316,25 +323,25 @@ internal class MusFitDebugSeeder private constructor(
             ),
         )
         listOf(
-            RecipeIngredientEntity("debug-recipe-salmon-power-bowl-salmon", "debug-recipe-salmon-power-bowl", "debug-food-salmon", 340.0, "fillet", 170.0, 2.0, 0),
-            RecipeIngredientEntity("debug-recipe-salmon-power-bowl-sweet-potato", "debug-recipe-salmon-power-bowl", "debug-food-sweet-potato", 400.0, "medium", 200.0, 2.0, 1),
-            RecipeIngredientEntity("debug-recipe-salmon-power-bowl-spinach", "debug-recipe-salmon-power-bowl", "debug-food-spinach", 140.0, "cup", 30.0, 4.7, 2),
-            RecipeIngredientEntity("debug-recipe-salmon-power-bowl-avocado", "debug-recipe-salmon-power-bowl", "debug-food-avocado", 120.0, "half", 70.0, 1.7, 3),
+            RecipeIngredientEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-recipe-salmon-power-bowl-salmon", "debug-recipe-salmon-power-bowl", "debug-food-salmon", 340.0, "fillet", 170.0, 2.0, 0),
+            RecipeIngredientEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-recipe-salmon-power-bowl-sweet-potato", "debug-recipe-salmon-power-bowl", "debug-food-sweet-potato", 400.0, "medium", 200.0, 2.0, 1),
+            RecipeIngredientEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-recipe-salmon-power-bowl-spinach", "debug-recipe-salmon-power-bowl", "debug-food-spinach", 140.0, "cup", 30.0, 4.7, 2),
+            RecipeIngredientEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-recipe-salmon-power-bowl-avocado", "debug-recipe-salmon-power-bowl", "debug-food-avocado", 120.0, "half", 70.0, 1.7, 3),
         ).forEach { dao.upsertRecipeIngredient(it) }
 
         listOf(
-            ShoppingListItemEntity("debug-shop-salmon", "Salmon fillets", "Protein", 500.0, false, false, "debug-seed-salmon", 0, now, now),
-            ShoppingListItemEntity("debug-shop-yogurt", "Greek yogurt", "Dairy", 500.0, false, false, "debug-seed-yogurt", 1, now, now),
-            ShoppingListItemEntity("debug-shop-spinach", "Baby spinach", "Produce", 200.0, true, false, "debug-seed-spinach", 2, now, now),
-            ShoppingListItemEntity("debug-shop-coffee", "Coffee filters", "Pantry", 1.0, false, true, null, 3, now, now),
+            ShoppingListItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-shop-salmon", "Salmon fillets", "Protein", 500.0, false, false, "debug-seed-salmon", 0, now, now),
+            ShoppingListItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-shop-yogurt", "Greek yogurt", "Dairy", 500.0, false, false, "debug-seed-yogurt", 1, now, now),
+            ShoppingListItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-shop-spinach", "Baby spinach", "Produce", 200.0, true, false, "debug-seed-spinach", 2, now, now),
+            ShoppingListItemEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-shop-coffee", "Coffee filters", "Pantry", 1.0, false, true, null, 3, now, now),
         ).forEach { dao.upsertShoppingListItem(it) }
 
         listOf(
-            WaterEntryEntity("debug-water-${today.toEpochDay()}-morning", today.toEpochDay(), 500.0, today.atHourMillis(8)),
-            WaterEntryEntity("debug-water-${today.toEpochDay()}-lunch", today.toEpochDay(), 750.0, today.atHourMillis(12)),
-            WaterEntryEntity("debug-water-${today.toEpochDay()}-afternoon", today.toEpochDay(), 500.0, today.atHourMillis(16)),
-            WaterEntryEntity("debug-water-${today.minusDays(1).toEpochDay()}-total", today.minusDays(1).toEpochDay(), 2_400.0, today.minusDays(1).atHourMillis(20)),
-            WaterEntryEntity("debug-water-${today.minusDays(2).toEpochDay()}-total", today.minusDays(2).toEpochDay(), 2_150.0, today.minusDays(2).atHourMillis(20)),
+            WaterEntryEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-water-${today.toEpochDay()}-morning", today.toEpochDay(), 500.0, today.atHourMillis(8)),
+            WaterEntryEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-water-${today.toEpochDay()}-lunch", today.toEpochDay(), 750.0, today.atHourMillis(12)),
+            WaterEntryEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-water-${today.toEpochDay()}-afternoon", today.toEpochDay(), 500.0, today.atHourMillis(16)),
+            WaterEntryEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-water-${today.minusDays(1).toEpochDay()}-total", today.minusDays(1).toEpochDay(), 2_400.0, today.minusDays(1).atHourMillis(20)),
+            WaterEntryEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-water-${today.minusDays(2).toEpochDay()}-total", today.minusDays(2).toEpochDay(), 2_150.0, today.minusDays(2).atHourMillis(20)),
         ).forEach { dao.insertWaterEntry(it) }
     }
 
@@ -504,19 +511,17 @@ internal class MusFitDebugSeeder private constructor(
     }
 }
 
-private fun LocalDate.atMealMillis(mealType: String): Long =
-    atHourMillis(
-        when (mealType) {
-            "breakfast" -> 8
-            "lunch" -> 13
-            "dinner" -> 19
-            "snacks" -> 16
-            else -> 12
-        },
-    )
+private fun LocalDate.atMealMillis(mealType: String): Long = atHourMillis(
+    when (mealType) {
+        "breakfast" -> 8
+        "lunch" -> 13
+        "dinner" -> 19
+        "snacks" -> 16
+        else -> 12
+    },
+)
 
-private fun LocalDate.atHourMillis(hour: Int): Long =
-    atStartOfDay(ZoneId.systemDefault())
-        .plusHours(hour.toLong())
-        .toInstant()
-        .toEpochMilli()
+private fun LocalDate.atHourMillis(hour: Int): Long = atStartOfDay(ZoneId.systemDefault())
+    .plusHours(hour.toLong())
+    .toInstant()
+    .toEpochMilli()

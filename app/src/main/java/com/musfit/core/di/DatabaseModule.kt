@@ -5,8 +5,8 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.MUSFIT_DATABASE_NAME
+import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.AccountDao
 import com.musfit.data.local.dao.AiCoachChatDao
 import com.musfit.data.local.dao.AiCoachDao
@@ -67,6 +67,7 @@ object DatabaseModule {
                 MIGRATION_33_34,
                 MIGRATION_34_35,
                 MIGRATION_35_36,
+                MIGRATION_36_37,
             )
             .build()
     }
@@ -135,22 +136,20 @@ object DatabaseModule {
         }
     }
 
-    private fun SQLiteDatabase.readRoomIdentityHash(): String? =
-        if (!tableExists("room_master_table")) {
-            null
-        } else {
-            rawQuery("SELECT identity_hash FROM room_master_table WHERE id = 42 LIMIT 1", null).use { cursor ->
-                if (cursor.moveToFirst()) cursor.getString(0) else null
-            }
+    private fun SQLiteDatabase.readRoomIdentityHash(): String? = if (!tableExists("room_master_table")) {
+        null
+    } else {
+        rawQuery("SELECT identity_hash FROM room_master_table WHERE id = 42 LIMIT 1", null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
         }
+    }
 
-    private fun SQLiteDatabase.tableExists(tableName: String): Boolean =
-        rawQuery(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
-            arrayOf(tableName),
-        ).use { cursor ->
-            cursor.moveToFirst()
-        }
+    private fun SQLiteDatabase.tableExists(tableName: String): Boolean = rawQuery(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+        arrayOf(tableName),
+    ).use { cursor ->
+        cursor.moveToFirst()
+    }
 
     private fun SQLiteDatabase.addColumnIfMissing(tableName: String, columnName: String, sql: String) {
         if (tableColumns(tableName).contains(columnName)) return
@@ -189,15 +188,14 @@ object DatabaseModule {
         execSQL("ALTER TABLE daily_health_summaries_room_repair RENAME TO daily_health_summaries")
     }
 
-    private fun SQLiteDatabase.tableColumns(tableName: String): List<String> =
-        rawQuery("PRAGMA table_info(`$tableName`)", null).use { cursor ->
-            buildList {
-                val nameIndex = cursor.getColumnIndexOrThrow("name")
-                while (cursor.moveToNext()) {
-                    add(cursor.getString(nameIndex))
-                }
+    private fun SQLiteDatabase.tableColumns(tableName: String): List<String> = rawQuery("PRAGMA table_info(`$tableName`)", null).use { cursor ->
+        buildList {
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                add(cursor.getString(nameIndex))
             }
         }
+    }
 
     internal const val CURRENT_V28_IDENTITY_HASH = "09b1d1975301639eaff70e11601ed13b"
     private const val LEGACY_HEALTH_SYNC_V28_IDENTITY_HASH = "71b5b71f394a9a0bedf45d1a67317f04"
@@ -994,6 +992,303 @@ object DatabaseModule {
             }
         }
 
+    internal val MIGRATION_36_37 =
+        object : Migration(36, 37) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO accounts (
+                        id, displayName, email, remoteUserId, authProvider, avatarUrl,
+                        createdAtEpochMillis, updatedAtEpochMillis
+                    ) VALUES ('local-default', 'You', NULL, NULL, 'local', NULL, 0, 0)
+                    """.trimIndent(),
+                )
+
+                val tables =
+                    listOf(
+                        "food_servings",
+                        "meal_items",
+                        "meal_template_items",
+                        "recipe_ingredients",
+                        "barcode_products",
+                        "foods",
+                        "meals",
+                        "meal_definitions",
+                        "shopping_list_items",
+                        "water_entries",
+                        "food_health_connect_sync",
+                        "food_goals",
+                        "quick_calorie_presets",
+                        "meal_templates",
+                        "recipes",
+                    )
+                tables.forEach { table -> db.execSQL("ALTER TABLE `$table` RENAME TO `${table}_legacy`") }
+
+                db.execSQL(
+                    """
+                    CREATE TABLE foods (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, brand TEXT,
+                        defaultServingGrams REAL NOT NULL, caloriesPer100g REAL NOT NULL,
+                        proteinPer100g REAL NOT NULL, carbsPer100g REAL NOT NULL, fatPer100g REAL NOT NULL,
+                        createdAtEpochMillis INTEGER NOT NULL, updatedAtEpochMillis INTEGER NOT NULL,
+                        servingName TEXT, barcode TEXT, category TEXT, isFavorite INTEGER NOT NULL DEFAULT 0,
+                        fiberPer100g REAL NOT NULL DEFAULT 0, sugarPer100g REAL NOT NULL DEFAULT 0,
+                        saturatedFatPer100g REAL NOT NULL DEFAULT 0, sodiumMgPer100g REAL NOT NULL DEFAULT 0,
+                        potassiumMgPer100g REAL NOT NULL DEFAULT 0, calciumMgPer100g REAL NOT NULL DEFAULT 0,
+                        ironMgPer100g REAL NOT NULL DEFAULT 0, vitaminDMcgPer100g REAL NOT NULL DEFAULT 0,
+                        vitaminCMgPer100g REAL NOT NULL DEFAULT 0, magnesiumMgPer100g REAL NOT NULL DEFAULT 0,
+                        imageUrl TEXT, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE meals (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, dateEpochDay INTEGER NOT NULL,
+                        type TEXT NOT NULL, notes TEXT, createdAtEpochMillis INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE meal_definitions (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, timeMinutes INTEGER,
+                        sortOrder INTEGER NOT NULL, createdAtEpochMillis INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL, isHidden INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE shopping_list_items (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL,
+                        quantityGrams REAL NOT NULL, isChecked INTEGER NOT NULL, isManual INTEGER NOT NULL,
+                        sourceKey TEXT, sortOrder INTEGER NOT NULL, createdAtEpochMillis INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE water_entries (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, dateEpochDay INTEGER NOT NULL,
+                        amountMilliliters REAL NOT NULL, createdAtEpochMillis INTEGER NOT NULL,
+                        PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE food_health_connect_sync (
+                        accountId TEXT NOT NULL, `key` TEXT NOT NULL, isEnabled INTEGER NOT NULL,
+                        lastSyncAtEpochMillis INTEGER, lastFailureMessage TEXT,
+                        updatedAtEpochMillis INTEGER NOT NULL, PRIMARY KEY(accountId, `key`),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE food_goals (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, dailyCaloriesKcal REAL NOT NULL,
+                        proteinGrams REAL NOT NULL, carbsGrams REAL NOT NULL, fatGrams REAL NOT NULL,
+                        fiberGrams REAL NOT NULL, sugarGrams REAL NOT NULL, saturatedFatGrams REAL NOT NULL,
+                        sodiumMilligrams REAL NOT NULL, mode TEXT NOT NULL, includeTrainingCalories INTEGER NOT NULL,
+                        useNetCarbs INTEGER NOT NULL DEFAULT 0, waterGoalMilliliters REAL NOT NULL DEFAULT 2000,
+                        updatedAtEpochMillis INTEGER NOT NULL, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE quick_calorie_presets (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, caloriesKcal REAL NOT NULL,
+                        proteinGrams REAL NOT NULL, carbsGrams REAL NOT NULL, fatGrams REAL NOT NULL,
+                        createdAtEpochMillis INTEGER NOT NULL, updatedAtEpochMillis INTEGER NOT NULL,
+                        isFavorite INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE meal_templates (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, mealType TEXT NOT NULL,
+                        createdAtEpochMillis INTEGER NOT NULL, updatedAtEpochMillis INTEGER NOT NULL,
+                        isFavorite INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE recipes (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, category TEXT,
+                        servingName TEXT NOT NULL, servingGrams REAL NOT NULL, servings REAL NOT NULL DEFAULT 1,
+                        cookedYieldGrams REAL NOT NULL DEFAULT 0, createdAtEpochMillis INTEGER NOT NULL,
+                        updatedAtEpochMillis INTEGER NOT NULL, isFavorite INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE food_servings (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, foodId TEXT NOT NULL, label TEXT NOT NULL,
+                        grams REAL NOT NULL, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId, foodId) REFERENCES foods(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE meal_items (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, mealId TEXT NOT NULL, foodId TEXT NOT NULL,
+                        quantityGrams REAL NOT NULL, status TEXT NOT NULL DEFAULT 'logged',
+                        PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId, mealId) REFERENCES meals(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(accountId, foodId) REFERENCES foods(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE meal_template_items (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, templateId TEXT NOT NULL, foodId TEXT NOT NULL,
+                        quantityGrams REAL NOT NULL, sortOrder INTEGER NOT NULL, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId, templateId) REFERENCES meal_templates(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(accountId, foodId) REFERENCES foods(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE recipe_ingredients (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, recipeId TEXT NOT NULL, foodId TEXT NOT NULL,
+                        quantityGrams REAL NOT NULL, unitLabel TEXT NOT NULL DEFAULT 'g',
+                        unitGrams REAL NOT NULL DEFAULT 1, unitQuantity REAL NOT NULL DEFAULT 0,
+                        sortOrder INTEGER NOT NULL, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId, recipeId) REFERENCES recipes(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(accountId, foodId) REFERENCES foods(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE barcode_products (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, barcode TEXT NOT NULL, provider TEXT NOT NULL,
+                        providerProductName TEXT, providerBrand TEXT, rawJson TEXT NOT NULL, quality TEXT NOT NULL,
+                        linkedFoodAccountId TEXT, linkedFoodId TEXT, fetchedAtEpochMillis INTEGER NOT NULL,
+                        PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(linkedFoodAccountId, linkedFoodId) REFERENCES foods(accountId, id)
+                            ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                    """.trimIndent(),
+                )
+
+                db.execSQL(
+                    """
+                    INSERT INTO foods SELECT 'local-default', id, name, brand, defaultServingGrams,
+                        caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g,
+                        createdAtEpochMillis, updatedAtEpochMillis, servingName, barcode, category,
+                        isFavorite, fiberPer100g, sugarPer100g, saturatedFatPer100g, sodiumMgPer100g,
+                        potassiumMgPer100g, calciumMgPer100g, ironMgPer100g, vitaminDMcgPer100g,
+                        vitaminCMgPer100g, magnesiumMgPer100g, imageUrl FROM foods_legacy
+                    """.trimIndent(),
+                )
+                db.execSQL("INSERT INTO meals SELECT 'local-default', * FROM meals_legacy")
+                db.execSQL("INSERT INTO meal_definitions SELECT 'local-default', * FROM meal_definitions_legacy")
+                db.execSQL("INSERT INTO shopping_list_items SELECT 'local-default', * FROM shopping_list_items_legacy")
+                db.execSQL("INSERT INTO water_entries SELECT 'local-default', * FROM water_entries_legacy")
+                db.execSQL("INSERT INTO food_health_connect_sync SELECT 'local-default', * FROM food_health_connect_sync_legacy")
+                db.execSQL("INSERT INTO food_goals SELECT 'local-default', * FROM food_goals_legacy")
+                db.execSQL("INSERT INTO quick_calorie_presets SELECT 'local-default', * FROM quick_calorie_presets_legacy")
+                db.execSQL("INSERT INTO meal_templates SELECT 'local-default', * FROM meal_templates_legacy")
+                db.execSQL("INSERT INTO recipes SELECT 'local-default', * FROM recipes_legacy")
+                db.execSQL("INSERT INTO food_servings SELECT 'local-default', * FROM food_servings_legacy")
+                db.execSQL("INSERT INTO meal_items SELECT 'local-default', * FROM meal_items_legacy")
+                db.execSQL("INSERT INTO meal_template_items SELECT 'local-default', * FROM meal_template_items_legacy")
+                db.execSQL("INSERT INTO recipe_ingredients SELECT 'local-default', * FROM recipe_ingredients_legacy")
+                db.execSQL(
+                    """
+                    INSERT INTO barcode_products (
+                        accountId, id, barcode, provider, providerProductName, providerBrand, rawJson,
+                        quality, linkedFoodAccountId, linkedFoodId, fetchedAtEpochMillis
+                    ) SELECT 'local-default', id, barcode, provider, providerProductName, providerBrand,
+                        rawJson, quality,
+                        CASE WHEN linkedFoodId IS NULL THEN NULL ELSE 'local-default' END,
+                        linkedFoodId, fetchedAtEpochMillis FROM barcode_products_legacy
+                    """.trimIndent(),
+                )
+
+                listOf(
+                    "food_servings",
+                    "meal_items",
+                    "meal_template_items",
+                    "recipe_ingredients",
+                    "barcode_products",
+                    "foods",
+                    "meals",
+                    "meal_definitions",
+                    "shopping_list_items",
+                    "water_entries",
+                    "food_health_connect_sync",
+                    "food_goals",
+                    "quick_calorie_presets",
+                    "meal_templates",
+                    "recipes",
+                ).forEach { table -> db.execSQL("DROP TABLE `${table}_legacy`") }
+
+                val indexes =
+                    listOf(
+                        "CREATE INDEX index_foods_accountId_barcode ON foods(accountId, barcode)",
+                        "CREATE INDEX index_foods_accountId_name ON foods(accountId, name)",
+                        "CREATE INDEX index_foods_accountId_brand ON foods(accountId, brand)",
+                        "CREATE INDEX index_foods_accountId_category ON foods(accountId, category)",
+                        "CREATE INDEX index_foods_accountId_isFavorite ON foods(accountId, isFavorite)",
+                        "CREATE INDEX index_food_servings_accountId_foodId_label ON food_servings(accountId, foodId, label)",
+                        "CREATE INDEX index_meals_accountId_dateEpochDay_createdAtEpochMillis ON meals(accountId, dateEpochDay, createdAtEpochMillis)",
+                        "CREATE INDEX index_meals_accountId_dateEpochDay_type_createdAtEpochMillis ON meals(accountId, dateEpochDay, type, createdAtEpochMillis)",
+                        "CREATE INDEX index_meal_definitions_accountId_sortOrder_name ON meal_definitions(accountId, sortOrder, name)",
+                        "CREATE INDEX index_meal_items_accountId_mealId_status ON meal_items(accountId, mealId, status)",
+                        "CREATE INDEX index_meal_items_accountId_foodId ON meal_items(accountId, foodId)",
+                        "CREATE INDEX index_shopping_list_items_accountId_category ON shopping_list_items(accountId, category)",
+                        "CREATE UNIQUE INDEX index_shopping_list_items_accountId_sourceKey ON shopping_list_items(accountId, sourceKey)",
+                        "CREATE INDEX index_shopping_list_items_accountId_isManual ON shopping_list_items(accountId, isManual)",
+                        "CREATE INDEX index_water_entries_accountId_dateEpochDay ON water_entries(accountId, dateEpochDay)",
+                        "CREATE UNIQUE INDEX index_barcode_products_accountId_barcode ON barcode_products(accountId, barcode)",
+                        "CREATE INDEX index_barcode_products_accountId_linkedFoodId ON barcode_products(accountId, linkedFoodId)",
+                        "CREATE INDEX index_barcode_products_linkedFoodAccountId_linkedFoodId ON barcode_products(linkedFoodAccountId, linkedFoodId)",
+                        "CREATE INDEX index_quick_calorie_presets_accountId_isFavorite_updatedAtEpochMillis_name ON quick_calorie_presets(accountId, isFavorite, updatedAtEpochMillis, name)",
+                        "CREATE INDEX index_meal_templates_accountId_updatedAtEpochMillis ON meal_templates(accountId, updatedAtEpochMillis)",
+                        "CREATE INDEX index_meal_template_items_accountId_templateId_sortOrder ON meal_template_items(accountId, templateId, sortOrder)",
+                        "CREATE INDEX index_meal_template_items_accountId_foodId ON meal_template_items(accountId, foodId)",
+                        "CREATE INDEX index_recipes_accountId_updatedAtEpochMillis ON recipes(accountId, updatedAtEpochMillis)",
+                        "CREATE INDEX index_recipes_accountId_name ON recipes(accountId, name)",
+                        "CREATE INDEX index_recipe_ingredients_accountId_recipeId_sortOrder ON recipe_ingredients(accountId, recipeId, sortOrder)",
+                        "CREATE INDEX index_recipe_ingredients_accountId_foodId ON recipe_ingredients(accountId, foodId)",
+                    )
+                indexes.forEach(db::execSQL)
+            }
+        }
+
     /**
      * The exact migration instances registered by production, exposed for
      * framework-SQLite tests. Keep this ordered, gap-free, and synchronized
@@ -1036,5 +1331,6 @@ object DatabaseModule {
             MIGRATION_33_34,
             MIGRATION_34_35,
             MIGRATION_35_36,
+            MIGRATION_36_37,
         )
 }

@@ -8,6 +8,7 @@ import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.musfit.core.di.DatabaseModule
+import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -52,7 +53,7 @@ class MusFitDebugSeedInstrumentationTest {
 
         val database = DatabaseModule.provideDatabase(targetContext.applicationContext)
         try {
-            assertNotNull(database.foodDao().getFood(PROBE_FOOD_ID))
+            assertNotNull(database.foodDao().getFood(LOCAL_DEFAULT_ACCOUNT_ID, PROBE_FOOD_ID))
             assertNotNull(database.trainingDao().getWorkoutSession(PROBE_WORKOUT_ID))
 
             // Exercise the former intent shape using the test package context. The
@@ -68,7 +69,7 @@ class MusFitDebugSeedInstrumentationTest {
 
             assertNotNull(
                 "A legacy external reset attempt must not delete seeded data.",
-                database.foodDao().getFood(PROBE_FOOD_ID),
+                database.foodDao().getFood(LOCAL_DEFAULT_ACCOUNT_ID, PROBE_FOOD_ID),
             )
             assertNotNull(
                 "A legacy external reset attempt must not delete seeded training data.",
@@ -79,29 +80,27 @@ class MusFitDebugSeedInstrumentationTest {
         }
     }
 
-    private fun PackageManager.hasReceiver(component: ComponentName): Boolean =
-        try {
-            if (Build.VERSION.SDK_INT >= 33) {
-                getReceiverInfo(component, PackageManager.ComponentInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                getReceiverInfo(component, 0)
-            }
-            true
-        } catch (_: PackageManager.NameNotFoundException) {
-            false
-        }
-
-    private fun PackageManager.queryLegacySeedReceivers(targetPackage: String) =
+    private fun PackageManager.hasReceiver(component: ComponentName): Boolean = try {
         if (Build.VERSION.SDK_INT >= 33) {
-            queryBroadcastReceivers(
-                Intent(LEGACY_SEED_ACTION).setPackage(targetPackage),
-                PackageManager.ResolveInfoFlags.of(0),
-            )
+            getReceiverInfo(component, PackageManager.ComponentInfoFlags.of(0))
         } else {
             @Suppress("DEPRECATION")
-            queryBroadcastReceivers(Intent(LEGACY_SEED_ACTION).setPackage(targetPackage), 0)
+            getReceiverInfo(component, 0)
         }
+        true
+    } catch (_: PackageManager.NameNotFoundException) {
+        false
+    }
+
+    private fun PackageManager.queryLegacySeedReceivers(targetPackage: String) = if (Build.VERSION.SDK_INT >= 33) {
+        queryBroadcastReceivers(
+            Intent(LEGACY_SEED_ACTION).setPackage(targetPackage),
+            PackageManager.ResolveInfoFlags.of(0),
+        )
+    } else {
+        @Suppress("DEPRECATION")
+        queryBroadcastReceivers(Intent(LEGACY_SEED_ACTION).setPackage(targetPackage), 0)
+    }
 
     private companion object {
         const val RESET_ARGUMENT = "reset"

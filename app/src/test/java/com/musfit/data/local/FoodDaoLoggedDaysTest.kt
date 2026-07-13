@@ -3,6 +3,7 @@ package com.musfit.data.local
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.musfit.data.local.entity.AccountEntity
 import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
@@ -35,8 +36,12 @@ class FoodDaoLoggedDaysTest {
     private suspend fun insertParentFood() {
         // meal_items has FOREIGN KEY(foodId) → foods(id) and Room enables PRAGMA foreign_keys —
         // a parent foods row must exist or every meal_items insert throws SQLiteConstraintException.
+        database.accountDao().upsertAccount(
+            AccountEntity(ACCOUNT_ID, "Test", null, null, "local", null, 1, 1),
+        )
         database.foodDao().upsertFood(
             FoodEntity(
+                accountId = ACCOUNT_ID,
                 id = "food-1",
                 name = "Test food",
                 brand = null,
@@ -55,6 +60,7 @@ class FoodDaoLoggedDaysTest {
         val dao = database.foodDao()
         dao.upsertMeal(
             MealEntity(
+                accountId = ACCOUNT_ID,
                 id = mealId,
                 dateEpochDay = epochDay,
                 type = "breakfast",
@@ -65,6 +71,7 @@ class FoodDaoLoggedDaysTest {
         )
         dao.upsertMealItem(
             MealItemEntity(
+                accountId = ACCOUNT_ID,
                 id = "$mealId-item",
                 mealId = mealId,
                 foodId = "food-1",
@@ -85,6 +92,7 @@ class FoodDaoLoggedDaysTest {
         database.foodDao().upsertMealItem(
             // mixed day: planned item alongside m1's logged item → day still appears exactly once
             MealItemEntity(
+                accountId = ACCOUNT_ID,
                 id = "m1-planned-item",
                 mealId = "m1",
                 foodId = "food-1",
@@ -93,8 +101,12 @@ class FoodDaoLoggedDaysTest {
             ),
         )
 
-        val days = database.foodDao().observeLoggedDayEpochDays(fromEpochDay = 19_500L).first()
+        val days = database.foodDao().observeLoggedDayEpochDays(accountId = ACCOUNT_ID, fromEpochDay = 19_500L).first()
 
         assertEquals(listOf(20_001L, 20_000L), days)
+    }
+
+    private companion object {
+        const val ACCOUNT_ID = "food-days-account"
     }
 }
