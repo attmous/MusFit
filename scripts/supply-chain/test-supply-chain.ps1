@@ -22,6 +22,19 @@ $workflowText = Get-ChildItem -LiteralPath (Join-Path $repoRoot ".github\workflo
     ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw } | Out-String
 Assert-PinnedActions $workflowText
 
+$setupGradleBlocks = [regex]::Matches(
+    $workflowText,
+    '(?ms)^\s*-\s+name:\s+Set up Gradle[^\r\n]*\r?\n\s+uses:\s+gradle/actions/setup-gradle@[0-9a-f]{40}[^\r\n]*\r?\n\s+with:\s*\r?\n(?<inputs>(?:\s{10,}[^\r\n]*\r?\n)+)'
+)
+if ($setupGradleBlocks.Count -ne 5) {
+    throw "Expected five setup-gradle workflow steps, found $($setupGradleBlocks.Count)."
+}
+foreach ($block in $setupGradleBlocks) {
+    if ($block.Groups['inputs'].Value -notmatch '(?m)^\s+develocity-injection-enabled:\s*false\s*$') {
+        throw "setup-gradle must disable its external Develocity dependency injection."
+    }
+}
+
 $wrapper = Get-Content -LiteralPath (Join-Path $repoRoot "gradle\wrapper\gradle-wrapper.properties") -Raw
 if ($wrapper -notmatch '(?m)^distributionSha256Sum=[0-9a-f]{64}\r?$') { throw "Gradle distribution SHA-256 is not pinned." }
 
@@ -45,6 +58,21 @@ if ($SelfTest) {
     $mutableRejected = $false
     try { Assert-PinnedActions "    uses: actions/checkout@v4" } catch { $mutableRejected = $true }
     if (-not $mutableRejected) { throw "Mutable action reference self-test did not fail." }
+
+    $injectionRejected = $false
+    try {
+        $missingInjectionControl = $workflowText -replace '(?m)^\s+develocity-injection-enabled:\s*false\s*\r?\n', ''
+        $missingBlocks = [regex]::Matches(
+            $missingInjectionControl,
+            '(?ms)^\s*-\s+name:\s+Set up Gradle[^\r\n]*\r?\n\s+uses:\s+gradle/actions/setup-gradle@[0-9a-f]{40}[^\r\n]*\r?\n\s+with:\s*\r?\n(?<inputs>(?:\s{10,}[^\r\n]*\r?\n)+)'
+        )
+        foreach ($block in $missingBlocks) {
+            if ($block.Groups['inputs'].Value -notmatch '(?m)^\s+develocity-injection-enabled:\s*false\s*$') {
+                throw "setup-gradle must disable its external Develocity dependency injection."
+            }
+        }
+    } catch { $injectionRejected = $true }
+    if (-not $injectionRejected) { throw "Missing Develocity injection control self-test did not fail." }
 
     $temp = Join-Path ([IO.Path]::GetTempPath()) ("musfit-supply-" + [Guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $temp | Out-Null

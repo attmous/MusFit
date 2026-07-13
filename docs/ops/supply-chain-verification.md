@@ -13,7 +13,9 @@ controls apply to every module and every CI/release workflow.
 - Every GitHub Action reference is a full 40-character commit SHA. The adjacent
   version comment is informational; automation executes only the immutable SHA.
 - `gradle/actions/setup-gradle` validates the committed wrapper JAR before each
-  Gradle invocation.
+  Gradle invocation. Its optional Develocity injection is disabled in every
+  lane, so strict dependency verification covers only MusFit's declared build
+  graph instead of action-owned observability plugins.
 
 Dependency updates must run the complete normal verification first. Then update
 metadata explicitly and review every changed coordinate and checksum:
