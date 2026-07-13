@@ -612,6 +612,7 @@ Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyB
 Assert-FileContains ".github/workflows/performance.yml" 'benchmarkApi28And37GroupBenchmarkAndroidTest'
 Assert-FileContains ".github/workflows/performance.yml" 'verify-benchmark-regression\.ps1'
 Assert-FileContains ".github/workflows/performance.yml" 'managed_device_android_test_additional_output'
+Assert-FileContains ".github/workflows/performance.yml" 'system-images;android-37\.0;google_apis_ps16k;x86_64'
 Assert-FileContains ".github/workflows/performance.yml" 'retention-days:\s*30'
 Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'ThresholdPercent\s*=\s*10\.0'
 Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'Test-Regression 100\.0 110\.01 10\.0'
