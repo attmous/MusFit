@@ -31,7 +31,8 @@ and on manual dispatch. Its jobs run in parallel on isolated runners:
 `Android performance` also runs on every default-branch push, weekly, and on
 manual dispatch with a 35-minute timeout. This guarantees every commit eligible
 for release has an exact-SHA performance/profile run, even when the commit did
-not touch a performance path.
+not touch a performance path. API 28 and API 37 execute serially on the hosted
+runner so their emulator VMs do not compete for memory after R8 packaging.
 
 ## Release promotion contract
 
