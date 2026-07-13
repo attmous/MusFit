@@ -576,6 +576,7 @@ Assert-FileContains ".github/workflows/android.yml" 'criticalJourneysApi28And37G
 Assert-FileContains ".github/workflows/android.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-ksp-migration\.ps1'
 Assert-FileContains ".github/workflows/android.yml" 'MusFitCriticalJourneyInstrumentationTest'
 Assert-FileContains ".github/workflows/android.yml" 'managed_device_android_test_additional_output'
 Assert-FileContains ".github/workflows/android.yml" 'Enable KVM for managed devices'

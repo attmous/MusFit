@@ -113,6 +113,8 @@ if ($Tests.Count -eq 0 -and $Preset -eq "Full") {
     & (Join-Path $repoRoot "scripts\dev\test-dev-workflow.ps1") -SelfTest
     Write-Host "Verifying that unused WorkManager/Hilt Work does not return."
     & (Join-Path $repoRoot "scripts\dev\test-no-unused-workmanager.ps1")
+    Write-Host "Verifying KSP-only Room/Hilt processing."
+    & (Join-Path $repoRoot "scripts\dev\test-ksp-migration.ps1")
 }
 
 if ($gradleArgs.Count -gt 0) {
