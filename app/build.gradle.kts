@@ -11,7 +11,9 @@ import org.gradle.api.provider.ValueSourceParameters
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+import org.gradle.api.tasks.testing.Test
 import org.gradle.process.ExecOperations
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 import java.io.ByteArrayOutputStream
 import java.util.Properties
 import javax.inject.Inject
@@ -28,6 +30,13 @@ plugins {
 
 jacoco {
     toolVersion = "0.8.14"
+}
+
+tasks.withType<Test>().configureEach {
+    extensions.configure<JacocoTaskExtension> {
+        isIncludeNoLocationClasses = true
+        excludes = listOf("jdk.internal.*")
+    }
 }
 
 fun String.asBuildConfigString(): String = "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
