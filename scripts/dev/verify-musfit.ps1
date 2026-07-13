@@ -111,11 +111,17 @@ if ($InstallSeed) {
 if ($Tests.Count -eq 0 -and $Preset -eq "Full") {
     Write-Host "Running source-derived development workflow contract."
     & (Join-Path $repoRoot "scripts\dev\test-dev-workflow.ps1") -SelfTest
+    Write-Host "Verifying that unused WorkManager/Hilt Work does not return."
+    & (Join-Path $repoRoot "scripts\dev\test-no-unused-workmanager.ps1")
 }
 
 if ($gradleArgs.Count -gt 0) {
     $gradleArgs += @("--no-daemon", "--console=plain")
     Invoke-Gradle $gradleArgs
+}
+
+if ($Tests.Count -eq 0 -and $Preset -eq "Full") {
+    & (Join-Path $repoRoot "scripts\dev\test-no-unused-workmanager.ps1") -RequireReleaseArtifact
 }
 
 if ($InstallSeed) {
