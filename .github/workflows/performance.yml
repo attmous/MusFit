@@ -13,15 +13,6 @@ on:
       - ".github/workflows/performance.yml"
   push:
     branches: [ "master", "main" ]
-    paths:
-      - "app/**"
-      - "benchmark/**"
-      - "baselineprofile/**"
-      - "scripts/performance/**"
-      - "gradle/libs.versions.toml"
-      - "build.gradle.kts"
-      - "settings.gradle.kts"
-      - ".github/workflows/performance.yml"
   schedule:
     - cron: "23 3 * * 1"
   workflow_dispatch:

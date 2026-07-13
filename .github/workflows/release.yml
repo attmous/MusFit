@@ -28,6 +28,8 @@ jobs:
     outputs:
       verified_commit: ${{ steps.verified.outputs.verified_commit }}
       verification_run_id: ${{ steps.verified.outputs.verification_run_id }}
+      device_verification_run_id: ${{ steps.verified.outputs.device_verification_run_id }}
+      performance_verification_run_id: ${{ steps.verified.outputs.performance_verification_run_id }}
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -212,6 +214,8 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           RELEASE_COMMIT: ${{ needs.preflight.outputs.verified_commit }}
           VERIFICATION_RUN_ID: ${{ needs.preflight.outputs.verification_run_id }}
+          DEVICE_VERIFICATION_RUN_ID: ${{ needs.preflight.outputs.device_verification_run_id }}
+          PERFORMANCE_VERIFICATION_RUN_ID: ${{ needs.preflight.outputs.performance_verification_run_id }}
         run: |
           gh release create "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
@@ -219,6 +223,8 @@ jobs:
             --title "MusFit $RELEASE_TAG" \
             --notes "Verified commit: $RELEASE_COMMIT
           Android verification run: $VERIFICATION_RUN_ID
+          Device/UI verification run: $DEVICE_VERIFICATION_RUN_ID
+          Performance verification run: $PERFORMANCE_VERIFICATION_RUN_ID
           Play track: internal
           SHA-256 checksums are attached in SHA256SUMS." \
             release-candidate/musfit-universal.apk \
