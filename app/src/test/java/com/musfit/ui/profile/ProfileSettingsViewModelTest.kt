@@ -18,22 +18,22 @@ import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.DEFAULT_APP_SETTINGS
 import com.musfit.data.repository.DEFAULT_REPOSITORY_FOOD_GOAL
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
-import com.musfit.data.repository.ExternalAuthRepository
-import com.musfit.data.repository.ExternalAccountProfile
 import com.musfit.data.repository.DiaryEntryUpdateInput
+import com.musfit.data.repository.ExternalAccountProfile
+import com.musfit.data.repository.ExternalAuthRepository
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodRepository
-import com.musfit.data.repository.QuickCalorieLogInput
-import com.musfit.data.repository.SavedFoodItem
-import com.musfit.data.repository.SavedFoodLogInput
-import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.GitHubDeviceAuthorization
 import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.LocalAgentKind
 import com.musfit.data.repository.ProfileRepository
+import com.musfit.data.repository.QuickCalorieLogInput
+import com.musfit.data.repository.SavedFoodItem
+import com.musfit.data.repository.SavedFoodLogInput
+import com.musfit.data.repository.SavedFoodUpsertInput
 import com.musfit.data.repository.UserProfile
 import com.musfit.data.repository.WeightEntry
 import com.musfit.domain.health.HealthConnectAvailability
@@ -46,7 +46,6 @@ import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
 import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
-import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -63,6 +62,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileSettingsViewModelTest {
@@ -190,6 +190,17 @@ class ProfileSettingsViewModelTest {
     }
 
     @Test
+    fun importToday_keepsTypedFailureVisible() = runTest {
+        val repository = FakeHealthRepository(importFailureMessage = "Health Connect permissions were revoked.")
+        val viewModel = settingsViewModel(healthRepository = repository)
+
+        viewModel.importToday()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Health Connect permissions were revoked.", viewModel.state.value.message)
+    }
+
+    @Test
     fun syncRecentHealthData_refreshesRecentWindowAndReportsResult() = runTest {
         val repository = FakeHealthRepository(refreshResult = HealthConnectRefreshResult(7, 2))
         val viewModel = settingsViewModel(healthRepository = repository)
@@ -200,6 +211,23 @@ class ProfileSettingsViewModelTest {
         assertEquals(LocalDate.now(), repository.refreshDate)
         assertFalse(viewModel.state.value.isHealthConnectSyncing)
         assertEquals("Synced 7 days and 2 body metrics from Health Connect.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun syncRecentHealthData_reportsTotalFailureInsteadOfStaleSuccess() = runTest {
+        val repository = FakeHealthRepository(
+            refreshResult = HealthConnectRefreshResult(
+                importedDayCount = 0,
+                bodyMetricCount = 0,
+                failedDayCount = 7,
+            ),
+        )
+        val viewModel = settingsViewModel(healthRepository = repository)
+
+        viewModel.syncRecentHealthData()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Health Connect sync failed for 7 days.", viewModel.state.value.message)
     }
 
     @Test
@@ -660,7 +688,6 @@ class ProfileSettingsViewModelTest {
             RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
             viewModel.state.value.targetApplyTargets,
         )
-
     }
 
     @Test
@@ -817,6 +844,7 @@ class ProfileSettingsViewModelTest {
         private val requestablePermissions: Set<String> = setOf("steps"),
         private val exportedRecordId: String? = "record-id",
         private val refreshResult: HealthConnectRefreshResult = HealthConnectRefreshResult(1, 0),
+        private val importFailureMessage: String? = null,
     ) : HealthRepository {
         var statusException: Throwable? = null
         var importedDate: LocalDate? = null
@@ -832,22 +860,26 @@ class ProfileSettingsViewModelTest {
 
         override suspend fun requestablePermissions(): Set<String> = requestablePermissions
 
-        override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> =
-            flowOf(null)
+        override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
 
-        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary {
+        override suspend fun importDailySummary(date: LocalDate): com.musfit.data.repository.HealthConnectImportResult {
             importedDate = date
-            return ImportedDailyHealthSummary(
-                steps = 1200,
-                activeCaloriesKcal = 100.0,
-                totalCaloriesKcal = 2_000.0,
-                distanceMeters = 3_000.0,
-                sleepMinutes = 450,
-                exerciseMinutes = 35,
-                exerciseSessionCount = 1,
-                latestWeightKg = null,
-                latestBodyFatPercent = null,
-                restingHeartRateBpm = null,
+            importFailureMessage?.let { message ->
+                return com.musfit.data.repository.HealthConnectImportResult.Failure(message)
+            }
+            return com.musfit.data.repository.HealthConnectImportResult.Complete(
+                ImportedDailyHealthSummary(
+                    steps = 1200,
+                    activeCaloriesKcal = 100.0,
+                    totalCaloriesKcal = 2_000.0,
+                    distanceMeters = 3_000.0,
+                    sleepMinutes = 450,
+                    exerciseMinutes = 35,
+                    exerciseSessionCount = 1,
+                    latestWeightKg = null,
+                    latestBodyFatPercent = null,
+                    restingHeartRateBpm = null,
+                ),
             )
         }
 
@@ -925,13 +957,11 @@ class ProfileSettingsViewModelTest {
         override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = flowOf(null)
         override suspend fun logWeight(weightKg: Double, source: String) = Unit
         override fun observeLatestWeight(): Flow<WeightEntry?> = flowOf(latestWeight)
-        override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> =
-            flowOf(listOfNotNull(latestWeight))
+        override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> = flowOf(listOfNotNull(latestWeight))
         override suspend fun logMeasurement(type: String, value: Double, unit: String) = Unit
         override suspend fun deleteEntry(id: String) = Unit
         override suspend fun updateEntryValue(id: String, value: Double) = Unit
-        override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> =
-            flowOf(emptyMap())
+        override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> = flowOf(emptyMap())
         override fun observeSettings(): Flow<AppSettings> = flowOf(DEFAULT_APP_SETTINGS)
         override suspend fun saveSettings(settings: AppSettings) = Unit
     }
@@ -962,18 +992,15 @@ class ProfileSettingsViewModelTest {
 
         override suspend fun logFood(input: FoodLogInput): String = ""
 
-        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
-            MutableStateFlow(NutritionTotals(0.0, 0.0, 0.0, 0.0))
+        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> = MutableStateFlow(NutritionTotals(0.0, 0.0, 0.0, 0.0))
 
-        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
-            MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
+        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> = MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
 
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
 
         override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
 
-        override fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>> =
-            MutableStateFlow(emptyList())
+        override fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
 
         override suspend fun logSavedFood(input: SavedFoodLogInput): String = ""
 

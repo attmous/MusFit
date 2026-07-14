@@ -801,18 +801,20 @@ class TodayViewModelTest {
             )
         }
 
-        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary = ImportedDailyHealthSummary(
-            steps = 8200L,
-            activeCaloriesKcal = 420.0,
-            totalCaloriesKcal = 2_300.0,
-            distanceMeters = 5_000.0,
-            sleepMinutes = 450L,
-            exerciseMinutes = 40L,
-            exerciseSessionCount = 1,
-            latestWeightKg = 82.4,
-            latestBodyFatPercent = null,
-            restingHeartRateBpm = 58,
-            hrvRmssdMillis = 55.0,
+        override suspend fun importDailySummary(date: LocalDate): com.musfit.data.repository.HealthConnectImportResult = com.musfit.data.repository.HealthConnectImportResult.Complete(
+            ImportedDailyHealthSummary(
+                steps = 8200L,
+                activeCaloriesKcal = 420.0,
+                totalCaloriesKcal = 2_300.0,
+                distanceMeters = 5_000.0,
+                sleepMinutes = 450L,
+                exerciseMinutes = 40L,
+                exerciseSessionCount = 1,
+                latestWeightKg = 82.4,
+                latestBodyFatPercent = null,
+                restingHeartRateBpm = 58,
+                hrvRmssdMillis = 55.0,
+            ),
         )
 
         override suspend fun refreshRecentData(
