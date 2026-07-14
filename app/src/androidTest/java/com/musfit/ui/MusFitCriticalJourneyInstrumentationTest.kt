@@ -2,6 +2,7 @@ package com.musfit.ui
 
 import android.Manifest
 import android.app.Instrumentation
+import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Environment
 import android.os.ParcelFileDescriptor
@@ -32,6 +33,7 @@ import com.musfit.debug.MusFitDebugSeeder
 import com.musfit.ui.theme.MusFitTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
@@ -211,6 +213,37 @@ class MusFitCriticalJourneyInstrumentationTest {
         }
     }
 
+    @Test
+    fun cameraScanner_rapidOpenBackAndRotate_twentyCyclesWithoutRetainedSession() {
+        runShellCommand("pm grant ${targetContext.packageName} ${Manifest.permission.CAMERA}")
+        compose.onNodeWithContentDescription("Food").performClick()
+        compose.onAllNodesWithContentDescription("Add to Breakfast").onFirst().performClick()
+
+        repeat(20) { cycle ->
+            compose.onAllNodesWithContentDescription("Scan barcode").onFirst().performClick()
+            compose.waitUntil(timeoutMillis = 15_000) {
+                compose.onAllNodesWithContentDescription("Close scanner").fetchSemanticsNodes().isNotEmpty()
+            }
+            when (cycle) {
+                6 -> compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                13 -> compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+            compose.waitForIdle()
+            UiDevice.getInstance(instrumentation).pressBack()
+            compose.waitUntil(timeoutMillis = 15_000) {
+                compose.onAllNodesWithContentDescription("Scan barcode").fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+
+        compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        compose.waitUntil(timeoutMillis = 15_000) { activeCameraClients().isEmpty() }
+        val cameraDump = activeCameraClients()
+        assertTrue(
+            "Camera service retained an active client after the scanner route closed:\n$cameraDump",
+            cameraDump.isEmpty(),
+        )
+    }
+
     private fun todayDiaryRowCount(): Int = runBlocking {
         val database = DatabaseModule.provideDatabase(targetContext)
         try {
@@ -247,11 +280,16 @@ class MusFitCriticalJourneyInstrumentationTest {
         )
     }
 
-    private fun runShellCommand(command: String) {
-        ParcelFileDescriptor.AutoCloseInputStream(
-            instrumentation.uiAutomation.executeShellCommand(command),
-        ).use { stream -> stream.readBytes() }
-    }
+    private fun runShellCommand(command: String): String = ParcelFileDescriptor.AutoCloseInputStream(
+        instrumentation.uiAutomation.executeShellCommand(command),
+    ).use { stream -> stream.readBytes().decodeToString() }
+
+    private fun activeCameraClients(): String = runShellCommand("dumpsys media.camera")
+        .substringAfter("Active Camera Clients:", missingDelimiterValue = "unavailable")
+        .substringBefore("Allowed user IDs:")
+        .trim()
+        .takeUnless { it == "[]" }
+        .orEmpty()
 
     private fun failureOutputDirectory(): File {
         val managedOutput = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")

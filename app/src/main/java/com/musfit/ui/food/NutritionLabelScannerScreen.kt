@@ -1,19 +1,15 @@
 package com.musfit.ui.food
 
-import android.Manifest
-import android.content.pm.PackageManager
 import androidx.annotation.OptIn
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCase
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -21,7 +17,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,24 +44,12 @@ fun NutritionLabelScannerScreen(
     val previewView = remember { PreviewView(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val captureHandled = remember { AtomicBoolean(false) }
-    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    var cameraSession by remember {
+        mutableStateOf<LifecycleSafeCameraSession<ProcessCameraProvider, UseCase, Camera>?>(null)
+    }
     var latestText by remember { mutableStateOf("") }
-    var hasCameraPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
-        )
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { granted -> hasCameraPermission = granted },
-    )
+    val cameraPermission = rememberCameraPermissionAccess()
     val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
-
-    LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
 
     DisposableEffect(recognizer, analysisExecutor) {
         onDispose {
@@ -75,73 +58,69 @@ fun NutritionLabelScannerScreen(
         }
     }
 
-    DisposableEffect(lifecycleOwner, hasCameraPermission) {
-        if (hasCameraPermission) {
+    DisposableEffect(lifecycleOwner, cameraPermission.isGranted) {
+        if (cameraPermission.isGranted) {
             val executor = ContextCompat.getMainExecutor(context)
-            cameraProviderFuture.addListener(
-                {
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also { cameraPreview ->
-                        cameraPreview.surfaceProvider = previewView.surfaceProvider
-                    }
-                    val analysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build()
-
-                    analysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                        if (captureHandled.get()) {
-                            imageProxy.close()
-                            return@setAnalyzer
-                        }
-                        val mediaImage = imageProxy.image
-                        if (mediaImage == null) {
-                            imageProxy.close()
-                            return@setAnalyzer
-                        }
-                        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                        recognizer.process(image)
-                            .addOnSuccessListener { result ->
-                                if (!captureHandled.get()) {
-                                    latestText = result.text
-                                }
-                            }
-                            .addOnCompleteListener {
-                                imageProxy.close()
-                            }
-                    }
-
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
+            val preview = Preview.Builder().build().also { cameraPreview ->
+                cameraPreview.surfaceProvider = previewView.surfaceProvider
+            }
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+            val session = LifecycleSafeCameraSession<ProcessCameraProvider, UseCase, Camera>(
+                providerFuture = ProcessCameraProvider.getInstance(context),
+                callbackExecutor = executor,
+                bindUseCases = { provider, useCases ->
+                    provider.bindToLifecycle(
                         lifecycleOwner,
                         CameraSelector.DEFAULT_BACK_CAMERA,
-                        preview,
-                        analysis,
+                        useCases[0],
+                        useCases[1],
                     )
                 },
-                executor,
+                unbindUseCases = { provider, useCases -> provider.unbind(useCases[0], useCases[1]) },
+                onFailure = { cameraSession = null },
             )
-        }
-
-        onDispose {
-            if (cameraProviderFuture.isDone) {
-                cameraProviderFuture.get().unbindAll()
+            cameraSession = session
+            analysis.setAnalyzer(analysisExecutor) { imageProxy ->
+                if (captureHandled.get()) {
+                    imageProxy.close()
+                    return@setAnalyzer
+                }
+                val mediaImage = imageProxy.image
+                if (mediaImage == null) {
+                    imageProxy.close()
+                    return@setAnalyzer
+                }
+                val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                recognizer.process(image)
+                    .addOnSuccessListener { result ->
+                        if (!captureHandled.get()) {
+                            latestText = result.text
+                        }
+                    }
+                    .addOnCompleteListener {
+                        imageProxy.close()
+                    }
             }
+            session.start(listOf(preview, analysis)) { }
+
+            onDispose {
+                if (cameraSession === session) cameraSession = null
+                analysis.clearAnalyzer()
+                session.close()
+            }
+        } else {
+            onDispose { }
         }
     }
 
-    if (!hasCameraPermission) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = "Camera permission is required to scan nutrition labels.",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
-                Text(text = "Grant camera access")
-            }
-        }
+    if (!cameraPermission.isGranted) {
+        CameraPermissionDeniedContent(
+            message = "Camera permission is required to scan nutrition labels.",
+            action = cameraPermission.action,
+            onAction = cameraPermission.performAction,
+        )
         return
     }
 
@@ -158,9 +137,7 @@ fun NutritionLabelScannerScreen(
         Button(
             onClick = {
                 if (latestText.isNotBlank() && captureHandled.compareAndSet(false, true)) {
-                    if (cameraProviderFuture.isDone) {
-                        cameraProviderFuture.get().unbindAll()
-                    }
+                    cameraSession?.unbindOwned()
                     onLabelCaptured(latestText)
                 }
             },
