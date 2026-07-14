@@ -35,7 +35,7 @@ class FoodOwnershipMigration36To37Test {
         createDatabaseFromExportedSchema(36) { database -> seedCompleteFoodGraph(database) }
 
         val room = Room.databaseBuilder(context, MusFitDatabase::class.java, DATABASE_NAME)
-            .addMigrations(DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38, DatabaseModule.MIGRATION_38_39)
+            .addMigrations(DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38, DatabaseModule.MIGRATION_38_39, DatabaseModule.MIGRATION_39_40)
             .build()
         room.openHelper.writableDatabase
         room.close()

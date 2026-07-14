@@ -6,13 +6,13 @@ import androidx.health.connect.client.records.NutritionRecord
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.musfit.domain.health.HealthConnectAvailability
-import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
 
 @RunWith(AndroidJUnit4::class)
 class HealthConnectFoodExportInstrumentationTest {
@@ -35,17 +35,28 @@ class HealthConnectFoodExportInstrumentationTest {
         )
 
         val date = LocalDate.now().minusDays(PROBE_DAYS_AGO)
-        val nutritionClientId = "musfit-food-nutrition-$date-$PROBE_MEAL_TYPE"
-        val hydrationClientId = "musfit-food-hydration-$date"
+        val nutritionClientId = HealthConnectRecordIdentity.forNutrition(
+            PROBE_ACCOUNT_ID,
+            PROBE_MEAL_ID,
+            version = 1,
+        ).clientRecordId
+        val hydrationClientId = HealthConnectRecordIdentity.forHydration(
+            PROBE_ACCOUNT_ID,
+            date,
+            version = 1,
+        ).clientRecordId
         val client = HealthConnectClient.getOrCreate(targetContext)
 
         try {
             val result = manager.exportFood(
                 HealthConnectFoodExportPayload(
+                    accountId = PROBE_ACCOUNT_ID,
                     date = date,
                     meals = listOf(
                         HealthConnectFoodMealExport(
                             mealType = PROBE_MEAL_TYPE,
+                            accountId = PROBE_ACCOUNT_ID,
+                            localMealId = PROBE_MEAL_ID,
                             name = "W1 Health permission probe",
                             caloriesKcal = 125.0,
                             proteinGrams = 10.0,
@@ -58,13 +69,10 @@ class HealthConnectFoodExportInstrumentationTest {
             )
 
             assertNotNull(result)
-            assertEquals(
-                HealthConnectFoodExportResult(
-                    nutritionRecordCount = 1,
-                    hydrationRecordCount = 1,
-                ),
-                result,
-            )
+            assertEquals(1, result?.nutritionRecordCount)
+            assertEquals(1, result?.hydrationRecordCount)
+            assertEquals(PROBE_MEAL_ID, result?.nutritionProviderRecordIds?.keys?.single())
+            assertNotNull(result?.hydrationProviderRecordId)
         } finally {
             client.deleteRecords(
                 NutritionRecord::class,
@@ -83,5 +91,7 @@ class HealthConnectFoodExportInstrumentationTest {
         const val OPT_IN_ARGUMENT = "runHealthConnectExport"
         const val PROBE_DAYS_AGO = 20L
         const val PROBE_MEAL_TYPE = "w1-hc-01"
+        const val PROBE_MEAL_ID = "w3-hc-01-probe-meal"
+        const val PROBE_ACCOUNT_ID = "w3-hc-01-probe-account"
     }
 }

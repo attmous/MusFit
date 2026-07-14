@@ -16,6 +16,7 @@ import com.musfit.domain.health.StepSource
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
+import com.musfit.integrations.healthconnect.HealthConnectRecordIdentity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -358,6 +359,71 @@ class LocalHealthRepositoryTest {
     }
 
     @Test
+    fun exportLatestWorkout_unchangedRetryUsesPersistedProviderIdentityWithoutAnotherWrite() = runTest {
+        seedCompletedWorkout()
+
+        val first = repository.exportLatestWorkout()
+        val retry = repository.exportLatestWorkout()
+        val persisted = database.healthDao().getHealthConnectExportRecord(
+            TEST_ACCOUNT_ID,
+            "workout",
+            "session-stable",
+        )
+
+        assertEquals("record-id", first)
+        assertEquals(first, retry)
+        assertEquals(1, gateway.exportedIdentities.size)
+        assertEquals(1L, gateway.exportedIdentities.single().clientRecordVersion)
+        assertEquals("record-id", persisted?.providerRecordId)
+        assertEquals(gateway.exportedIdentities.single().clientRecordId, persisted?.clientRecordId)
+    }
+
+    @Test
+    fun exportLatestWorkout_editKeepsClientIdAndAdvancesVersion() = runTest {
+        seedCompletedWorkout()
+        repository.exportLatestWorkout()
+        val saved = requireNotNull(database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-stable"))
+        database.trainingDao().upsertWorkoutSession(saved.copy(notes = "Edited after export"))
+
+        repository.exportLatestWorkout()
+        val persisted = database.healthDao().getHealthConnectExportRecord(
+            TEST_ACCOUNT_ID,
+            "workout",
+            "session-stable",
+        )
+
+        assertEquals(listOf(1L, 2L), gateway.exportedIdentities.map { it.clientRecordVersion })
+        assertEquals(1, gateway.exportedIdentities.map { it.clientRecordId }.distinct().size)
+        assertEquals(2L, persisted?.clientRecordVersion)
+    }
+
+    @Test
+    fun exportLatestWorkout_adoptsLegacyProviderIdentityWithoutRewritingHealthConnect() = runTest {
+        seedCompletedWorkout()
+        val legacySession = requireNotNull(
+            database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-stable"),
+        ).copy(
+            healthConnectRecordId = "legacy-provider-id",
+            healthConnectLastExportedAtEpochMillis = 777L,
+        )
+        database.trainingDao().upsertWorkoutSession(legacySession)
+
+        val recordId = repository.exportLatestWorkout()
+        val persisted = database.healthDao().getHealthConnectExportRecord(
+            TEST_ACCOUNT_ID,
+            "workout",
+            "session-stable",
+        )
+
+        assertEquals("legacy-provider-id", recordId)
+        assertEquals(emptyList<HealthConnectRecordIdentity>(), gateway.exportedIdentities)
+        assertEquals("legacy-provider-id", persisted?.providerRecordId)
+        assertEquals(1L, persisted?.clientRecordVersion)
+        assertEquals(777L, persisted?.exportedAtEpochMillis)
+        assertNotNull(persisted?.payloadFingerprint)
+    }
+
+    @Test
     fun exportLatestWorkout_skipsActiveSessionAndExportsLatestCompletedWorkout() = runTest {
         database.trainingDao().upsertExerciseDefinition(
             ExerciseEntity(
@@ -592,6 +658,7 @@ class LocalHealthRepositoryTest {
     private class FakeHealthConnectGateway : HealthConnectGateway {
         var exportedSession: WorkoutSessionEntity? = null
         var exportedSets: List<WorkoutSetEntity> = emptyList()
+        val exportedIdentities = mutableListOf<HealthConnectRecordIdentity>()
         val importedDates = mutableListOf<LocalDate>()
         val preferredStepsPackages = mutableListOf<String?>()
         var stepSources: List<StepSource> = emptyList()
@@ -656,6 +723,58 @@ class LocalHealthRepositoryTest {
             return "record-id"
         }
 
+        override suspend fun exportWorkout(
+            session: WorkoutSessionEntity,
+            sets: List<WorkoutSetEntity>,
+            identity: HealthConnectRecordIdentity,
+        ): String {
+            exportedIdentities += identity
+            return exportWorkout(session, sets)
+        }
+
         override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? = null
+    }
+
+    private suspend fun seedCompletedWorkout() {
+        database.trainingDao().upsertExerciseDefinition(
+            ExerciseEntity(
+                id = "exercise-stable",
+                name = "Bench Press",
+                category = "strength",
+                equipment = null,
+                targetMuscles = "chest",
+                isCustom = true,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                accountId = TEST_ACCOUNT_ID,
+                id = "session-stable",
+                routineId = null,
+                title = "Stable workout",
+                status = "completed",
+                startedAtEpochMillis = 500L,
+                endedAtEpochMillis = 900L,
+                notes = null,
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+        database.trainingDao().upsertWorkoutSet(
+            WorkoutSetEntity(
+                accountId = TEST_ACCOUNT_ID,
+                id = "set-stable",
+                sessionId = "session-stable",
+                exerciseId = "exercise-stable",
+                sortOrder = 0,
+                reps = 5,
+                weightKg = 100.0,
+                durationSeconds = null,
+                distanceMeters = null,
+                rpe = 8.0,
+                notes = null,
+                completed = true,
+            ),
+        )
     }
 }

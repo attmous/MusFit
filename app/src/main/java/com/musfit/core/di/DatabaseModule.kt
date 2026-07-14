@@ -70,6 +70,7 @@ object DatabaseModule {
                 MIGRATION_36_37,
                 MIGRATION_37_38,
                 MIGRATION_38_39,
+                MIGRATION_39_40,
             )
             .build()
     }
@@ -1622,6 +1623,32 @@ object DatabaseModule {
             }
         }
 
+    internal val MIGRATION_39_40 =
+        object : Migration(39, 40) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE health_connect_export_records (
+                        accountId TEXT NOT NULL,
+                        recordType TEXT NOT NULL,
+                        localEntityId TEXT NOT NULL,
+                        clientRecordId TEXT NOT NULL,
+                        clientRecordVersion INTEGER NOT NULL,
+                        payloadFingerprint TEXT NOT NULL,
+                        providerRecordId TEXT NOT NULL,
+                        exportedAtEpochMillis INTEGER NOT NULL,
+                        PRIMARY KEY(accountId, recordType, localEntityId),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX index_health_connect_export_records_accountId_recordType " +
+                        "ON health_connect_export_records(accountId, recordType)",
+                )
+            }
+        }
+
     /**
      * The exact migration instances registered by production, exposed for
      * framework-SQLite tests. Keep this ordered, gap-free, and synchronized
@@ -1667,5 +1694,6 @@ object DatabaseModule {
             MIGRATION_36_37,
             MIGRATION_37_38,
             MIGRATION_38_39,
+            MIGRATION_39_40,
         )
 }

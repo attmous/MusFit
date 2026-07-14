@@ -26,5 +26,10 @@ interface HealthConnectGateway {
     suspend fun readStepSources(date: LocalDate): List<StepSource> = emptyList()
 
     suspend fun exportWorkout(session: WorkoutSessionEntity, sets: List<WorkoutSetEntity>): String?
+    suspend fun exportWorkout(
+        session: WorkoutSessionEntity,
+        sets: List<WorkoutSetEntity>,
+        identity: HealthConnectRecordIdentity,
+    ): String? = exportWorkout(session, sets)
     suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult?
 }
