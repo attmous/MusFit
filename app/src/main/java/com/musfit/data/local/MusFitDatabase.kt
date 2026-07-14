@@ -3,6 +3,7 @@ package com.musfit.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.musfit.data.local.dao.AccountDao
+import com.musfit.data.local.dao.AccountErasureDao
 import com.musfit.data.local.dao.AiCoachChatDao
 import com.musfit.data.local.dao.AiCoachDao
 import com.musfit.data.local.dao.CoachDao
@@ -99,6 +100,8 @@ const val MUSFIT_DATABASE_VERSION = 42
 )
 abstract class MusFitDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
+
+    abstract fun accountErasureDao(): AccountErasureDao
 
     abstract fun foodDao(): FoodDao
 

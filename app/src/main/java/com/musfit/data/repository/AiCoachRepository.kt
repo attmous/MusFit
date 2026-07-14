@@ -4,10 +4,15 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.core.content.edit
 import com.musfit.data.local.dao.AiCoachDao
 import com.musfit.data.local.entity.AiCoachSettingsEntity
 import com.musfit.data.remote.coach.AiCoachEndpointPolicy
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import java.security.GeneralSecurityException
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -15,10 +20,6 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 
 enum class AiCoachProviderKind {
     Disabled,
@@ -72,6 +73,9 @@ interface AiCoachSecretStore {
     suspend fun saveApiKey(accountId: String, apiKey: String)
     suspend fun getApiKey(accountId: String): String?
     suspend fun clearApiKey(accountId: String)
+    suspend fun clearAll(accountIds: Collection<String>) {
+        accountIds.forEach { clearApiKey(it) }
+    }
 }
 
 interface AiCoachRepository {
@@ -100,16 +104,15 @@ class LocalAiCoachRepository @Inject constructor(
         this.clock = clock
     }
 
-    override fun observeSettings(): Flow<AiCoachSettings> =
-        accountRepository.observeActiveAccount().flatMapLatest { account ->
-            aiCoachDao.observeSettings(account.id).map { row ->
-                if (row == null) {
-                    debugDefaults.toHermesSettings() ?: AiCoachSettings()
-                } else {
-                    settingsWithRuntimeCredential(account.id, row)
-                }
+    override fun observeSettings(): Flow<AiCoachSettings> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        aiCoachDao.observeSettings(account.id).map { row ->
+            if (row == null) {
+                debugDefaults.toHermesSettings() ?: AiCoachSettings()
+            } else {
+                settingsWithRuntimeCredential(account.id, row)
             }
         }
+    }
 
     override suspend fun saveSettings(input: AiCoachSettingsInput) {
         val normalized = input.normalized()
@@ -143,9 +146,11 @@ class LocalAiCoachRepository @Inject constructor(
 
         when (input.apiKey) {
             AiCoachApiKeyUpdate.KeepExisting -> Unit
+
             AiCoachApiKeyUpdate.Clear -> {
                 secretStore.clearApiKey(account.id)
             }
+
             is AiCoachApiKeyUpdate.Replace -> {
                 val trimmed = replacementApiKey.orEmpty()
                 if (trimmed.isBlank()) {
@@ -292,6 +297,12 @@ class AndroidKeyStoreAiCoachSecretStore @Inject constructor(
         preferences.edit().remove(accountId.preferenceKey()).apply()
     }
 
+    override suspend fun clearAll(accountIds: Collection<String>) {
+        preferences.edit { clear() }
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        if (keyStore.containsAlias(KEY_ALIAS)) keyStore.deleteEntry(KEY_ALIAS)
+    }
+
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
@@ -332,49 +343,47 @@ private data class NormalizedAiCoachSettings(
     val localAgentKind: LocalAgentKind,
 )
 
-private fun AiCoachSettingsInput.normalized(): NormalizedAiCoachSettings =
-    when (providerKind) {
-        AiCoachProviderKind.Disabled -> NormalizedAiCoachSettings(
-            providerKind = AiCoachProviderKind.Disabled,
-            baseUrl = "",
-            modelName = "",
-            localAgentKind = LocalAgentKind.Custom,
-        )
-        AiCoachProviderKind.OpenAiCompatible -> NormalizedAiCoachSettings(
-            providerKind = AiCoachProviderKind.OpenAiCompatible,
-            baseUrl = AiCoachEndpointPolicy.requireAllowed(baseUrl).normalizedBaseUrl,
-            modelName = modelName.trim().takeIf { it.isNotBlank() }
-                ?: throw IllegalArgumentException("Model name is required for API-compatible providers."),
-            localAgentKind = LocalAgentKind.Custom,
-        )
-        AiCoachProviderKind.LocalAgent -> NormalizedAiCoachSettings(
-            providerKind = AiCoachProviderKind.LocalAgent,
-            baseUrl = AiCoachEndpointPolicy.requireAllowed(baseUrl).normalizedBaseUrl,
-            modelName = modelName.trim(),
-            localAgentKind = localAgentKind,
-        )
-    }
+private fun AiCoachSettingsInput.normalized(): NormalizedAiCoachSettings = when (providerKind) {
+    AiCoachProviderKind.Disabled -> NormalizedAiCoachSettings(
+        providerKind = AiCoachProviderKind.Disabled,
+        baseUrl = "",
+        modelName = "",
+        localAgentKind = LocalAgentKind.Custom,
+    )
+
+    AiCoachProviderKind.OpenAiCompatible -> NormalizedAiCoachSettings(
+        providerKind = AiCoachProviderKind.OpenAiCompatible,
+        baseUrl = AiCoachEndpointPolicy.requireAllowed(baseUrl).normalizedBaseUrl,
+        modelName = modelName.trim().takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("Model name is required for API-compatible providers."),
+        localAgentKind = LocalAgentKind.Custom,
+    )
+
+    AiCoachProviderKind.LocalAgent -> NormalizedAiCoachSettings(
+        providerKind = AiCoachProviderKind.LocalAgent,
+        baseUrl = AiCoachEndpointPolicy.requireAllowed(baseUrl).normalizedBaseUrl,
+        modelName = modelName.trim(),
+        localAgentKind = localAgentKind,
+    )
+}
 
 private fun NormalizedAiCoachSettings.toEntity(
     accountId: String,
     apiKeyStored: Boolean,
     now: Long,
-): AiCoachSettingsEntity =
-    AiCoachSettingsEntity(
-        accountId = accountId,
-        providerKind = providerKind.name,
-        baseUrl = baseUrl,
-        modelName = modelName,
-        localAgentKind = localAgentKind.name,
-        apiKeyStored = apiKeyStored,
-        updatedAtEpochMillis = now,
-    )
+): AiCoachSettingsEntity = AiCoachSettingsEntity(
+    accountId = accountId,
+    providerKind = providerKind.name,
+    baseUrl = baseUrl,
+    modelName = modelName,
+    localAgentKind = localAgentKind.name,
+    apiKeyStored = apiKeyStored,
+    updatedAtEpochMillis = now,
+)
 
-private fun NormalizedAiCoachSettings.requiresApiServerKey(): Boolean =
-    providerKind == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
+private fun NormalizedAiCoachSettings.requiresApiServerKey(): Boolean = providerKind == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
 
-private fun AiCoachSettings.requiresApiServerKey(): Boolean =
-    providerKind == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
+private fun AiCoachSettings.requiresApiServerKey(): Boolean = providerKind == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
 
 private fun AiCoachDebugDefaults.toHermesSettings(): AiCoachSettings? {
     val normalizedBaseUrl = AiCoachEndpointPolicy.normalizedBaseUrlOrNull(hermesBaseUrl) ?: return null
@@ -388,14 +397,13 @@ private fun AiCoachDebugDefaults.toHermesSettings(): AiCoachSettings? {
     )
 }
 
-private fun AiCoachSettingsEntity.toSettings(): AiCoachSettings =
-    AiCoachSettings(
-        providerKind = runCatching { AiCoachProviderKind.valueOf(providerKind) }
-            .getOrDefault(AiCoachProviderKind.Disabled),
-        baseUrl = baseUrl,
-        modelName = modelName,
-        localAgentKind = runCatching { LocalAgentKind.valueOf(localAgentKind) }
-            .getOrDefault(LocalAgentKind.Custom),
-        hasApiKey = apiKeyStored,
-        updatedAtEpochMillis = updatedAtEpochMillis,
-    )
+private fun AiCoachSettingsEntity.toSettings(): AiCoachSettings = AiCoachSettings(
+    providerKind = runCatching { AiCoachProviderKind.valueOf(providerKind) }
+        .getOrDefault(AiCoachProviderKind.Disabled),
+    baseUrl = baseUrl,
+    modelName = modelName,
+    localAgentKind = runCatching { LocalAgentKind.valueOf(localAgentKind) }
+        .getOrDefault(LocalAgentKind.Custom),
+    hasApiKey = apiKeyStored,
+    updatedAtEpochMillis = updatedAtEpochMillis,
+)

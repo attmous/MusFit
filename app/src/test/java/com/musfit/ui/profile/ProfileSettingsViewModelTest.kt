@@ -4,6 +4,10 @@ import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.repository.Account
 import com.musfit.data.repository.AccountAuthProvider
+import com.musfit.data.repository.AccountErasureRepository
+import com.musfit.data.repository.AccountErasureRequest
+import com.musfit.data.repository.AccountErasureResult
+import com.musfit.data.repository.AccountErasureScope
 import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.AiCoachApiKeyUpdate
 import com.musfit.data.repository.AiCoachChatMessage
@@ -71,6 +75,7 @@ class ProfileSettingsViewModelTest {
     private fun settingsViewModel(
         healthRepository: HealthRepository = FakeHealthRepository(),
         accountRepository: AccountRepository = FakeAccountRepository(),
+        accountErasureRepository: AccountErasureRepository = FakeAccountErasureRepository(),
         profileRepository: ProfileRepository = FakeProfileRepository(),
         externalAuthRepository: ExternalAuthRepository = FakeExternalAuthRepository(),
         aiCoachRepository: AiCoachRepository = FakeAiCoachRepository(),
@@ -78,12 +83,14 @@ class ProfileSettingsViewModelTest {
         foodRepository: FoodRepository = FakeFoodRepository(),
     ) = ProfileSettingsViewModel(
         healthRepository,
-        accountRepository,
-        profileRepository,
+        AccountSettingsRepositories(accountRepository, accountErasureRepository),
+        ProfileSettingsRepositories(
+            profileRepository,
+            aiCoachRepository,
+            aiCoachChatRepository,
+            foodRepository,
+        ),
         externalAuthRepository,
-        aiCoachRepository,
-        aiCoachChatRepository,
-        foodRepository,
     )
 
     @Before
@@ -107,6 +114,40 @@ class ProfileSettingsViewModelTest {
         assertEquals(1, viewModel.state.value.grantedPermissionCount)
         assertEquals(setOf("steps"), viewModel.state.value.requestablePermissions)
         assertEquals(true, viewModel.state.value.canRequestPermissions)
+    }
+
+    @Test
+    fun dismissAccountErasure_cancelsWithoutDeletingAnything() = runTest {
+        val erasureRepository = FakeAccountErasureRepository()
+        val viewModel = settingsViewModel(accountErasureRepository = erasureRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAccountErasure(AccountErasureScope.AllAccounts)
+        viewModel.setDeleteAuthoredHealthRecords(true)
+        viewModel.closeAccountErasure()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(null, viewModel.state.value.accountErasureScope)
+        assertTrue(erasureRepository.requests.isEmpty())
+    }
+
+    @Test
+    fun confirmAccountErasure_passesExplicitScopeAndHealthChoice() = runTest {
+        val erasureRepository = FakeAccountErasureRepository()
+        val viewModel = settingsViewModel(accountErasureRepository = erasureRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAccountErasure(AccountErasureScope.ActiveAccount)
+        viewModel.setDeleteAuthoredHealthRecords(true)
+        viewModel.confirmAccountErasure()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf(AccountErasureRequest(AccountErasureScope.ActiveAccount, true)),
+            erasureRepository.requests,
+        )
+        assertEquals(null, viewModel.state.value.accountErasureScope)
+        assertEquals("The account and its local MusFit data were erased.", viewModel.state.value.message)
     }
 
     @Test
@@ -896,6 +937,16 @@ class ProfileSettingsViewModelTest {
         override suspend fun setPreferredStepsPackage(packageName: String?) {
             preferredStepsWrites += packageName
             preferredStepsWriteGate?.await()
+        }
+    }
+
+    private class FakeAccountErasureRepository : AccountErasureRepository {
+        val requests = mutableListOf<AccountErasureRequest>()
+        var result: AccountErasureResult = AccountErasureResult.Complete("fallback")
+
+        override suspend fun erase(request: AccountErasureRequest): AccountErasureResult {
+            requests += request
+            return result
         }
     }
 

@@ -9,6 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.musfit.data.local.MUSFIT_DATABASE_NAME
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.AccountDao
+import com.musfit.data.local.dao.AccountErasureDao
 import com.musfit.data.local.dao.AiCoachChatDao
 import com.musfit.data.local.dao.AiCoachDao
 import com.musfit.data.local.dao.CoachDao
@@ -82,6 +83,9 @@ object DatabaseModule {
 
     @Provides
     fun provideAccountDao(database: MusFitDatabase): AccountDao = database.accountDao()
+
+    @Provides
+    fun provideAccountErasureDao(database: MusFitDatabase): AccountErasureDao = database.accountErasureDao()
 
     @Provides
     fun provideFoodDao(database: MusFitDatabase): FoodDao = database.foodDao()

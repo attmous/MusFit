@@ -85,7 +85,8 @@ class MusFitScreenshotRegressionTest {
             accent = tabAccentFor(AppDestination.Profile),
             onBack = {}, onEditAccount = {}, onOpenProfileDetails = {}, onGoogleSignIn = {},
             onGitHubSignIn = {}, onOpenAiCoach = {}, onOpenHealthConnect = {},
-            onOpenDataTransfer = {}, onIncludeBurnedCaloriesChange = {},
+            onOpenDataTransfer = {},
+            onIncludeBurnedCaloriesChange = {},
         )
     }
 
@@ -165,6 +166,9 @@ class MusFitScreenshotRegressionTest {
     private fun assertTouchTargets() {
         val minimum = with(compose.density) { 48.dp.toPx() }
         compose.onAllNodes(hasClickAction()).fetchSemanticsNodes().forEach { node ->
+            // A vertically scrolling screen retains semantics for composed rows below
+            // the viewport; Robolectric reports those nodes at 0x0 until scrolled to.
+            if (node.boundsInRoot.width == 0f && node.boundsInRoot.height == 0f) return@forEach
             val label =
                 node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
                     ?: node.config.getOrNull(SemanticsProperties.Text)?.joinToString { it.text }
