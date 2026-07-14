@@ -47,6 +47,9 @@ interface AiCoachChatDao {
     @Update
     suspend fun updateMessage(message: AiCoachChatMessageEntity)
 
+    @Query("DELETE FROM ai_coach_chat_messages WHERE id = :messageId")
+    suspend fun deleteMessage(messageId: String)
+
     @Query("DELETE FROM ai_coach_chat_messages WHERE threadId = :threadId")
     suspend fun clearMessages(threadId: String)
 

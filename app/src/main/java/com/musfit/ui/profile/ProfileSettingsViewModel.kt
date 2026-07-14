@@ -30,6 +30,7 @@ import com.musfit.domain.health.StepSource
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -631,7 +632,7 @@ class ProfileSettingsViewModel @Inject constructor(
                         )
                     }
                 }
-            }.onSuccess { profile ->
+            }.rethrowCancellation().onSuccess { profile ->
                 linkProviderProfile(profile)
             }.onFailure { error ->
                 mutableState.update {
@@ -651,7 +652,7 @@ class ProfileSettingsViewModel @Inject constructor(
     private suspend fun linkProviderProfile(profile: ExternalAccountProfile) {
         runCatching {
             accountRepository.signInWithProvider(profile)
-        }.onSuccess {
+        }.rethrowCancellation().onSuccess {
             mutableState.update {
                 it.copy(
                     githubSignInInProgress = false,
@@ -863,6 +864,10 @@ class ProfileSettingsViewModel @Inject constructor(
             }
         }
     }
+}
+
+private fun <T> Result<T>.rethrowCancellation(): Result<T> = onFailure { error ->
+    if (error is CancellationException) throw error
 }
 
 private fun AccountAuthProvider.messageLabel(): String = when (this) {

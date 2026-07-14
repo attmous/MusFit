@@ -8,17 +8,21 @@ import com.musfit.data.repository.AiCoachConnection
 import com.squareup.moshi.Json
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.io.IOException
-import java.net.InetAddress
-import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.Dns
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import java.io.IOException
+import java.net.InetAddress
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 data class HermesChatMessage(
     val role: String,
@@ -111,7 +115,7 @@ class HermesCoachClient @Inject constructor(
         bodyJson: String? = null,
         idempotencyKey: String? = null,
         remoteSessionId: String? = null,
-    ): RawHermesResponse = withContext(Dispatchers.IO) {
+    ): RawHermesResponse {
         val builder = Request.Builder()
             .url(endpoint.resolve(relativePath))
             .header("Accept", "application/json")
@@ -126,7 +130,7 @@ class HermesCoachClient @Inject constructor(
                 .header("Content-Type", JSON_MEDIA_TYPE.toString())
         }
 
-        clientFor(endpoint).newCall(builder.build()).execute().use { response ->
+        return clientFor(endpoint).newCall(builder.build()).awaitResponse().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 val message = errorAdapter.fromJsonOrNull(body)?.error?.message
@@ -153,14 +157,12 @@ class HermesCoachClient @Inject constructor(
         return client.newBuilder()
             .socketFactory(localNetwork.socketFactory)
             .dns(object : Dns {
-                override fun lookup(hostname: String): List<InetAddress> =
-                    localNetwork.getAllByName(hostname).toList()
+                override fun lookup(hostname: String): List<InetAddress> = localNetwork.getAllByName(hostname).toList()
             })
             .build()
     }
 
-    private fun <T> com.squareup.moshi.JsonAdapter<T>.fromJsonOrNull(raw: String): T? =
-        runCatching { fromJson(raw) }.getOrNull()
+    private fun <T> com.squareup.moshi.JsonAdapter<T>.fromJsonOrNull(raw: String): T? = runCatching { fromJson(raw) }.getOrNull()
 
     private data class RawHermesResponse(
         val body: String,
@@ -173,17 +175,30 @@ class HermesCoachClient @Inject constructor(
     }
 }
 
-internal fun AiCoachConnection.shouldPreferLocalNetwork(): Boolean =
-    AiCoachEndpointPolicy.requiresPrivateLanRouting(baseUrl)
+private suspend fun Call.awaitResponse(): Response = suspendCancellableCoroutine { continuation ->
+    continuation.invokeOnCancellation { cancel() }
+    enqueue(object : Callback {
+        override fun onFailure(call: Call, error: IOException) {
+            if (continuation.isActive) continuation.resumeWithException(error)
+        }
 
-internal fun hermesRequestClient(okHttpClient: OkHttpClient): OkHttpClient =
-    okHttpClient.newBuilder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(90, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .followRedirects(false)
-        .followSslRedirects(false)
-        .build()
+        override fun onResponse(call: Call, response: Response) {
+            continuation.resume(response) { _, unconsumedResponse, _ ->
+                unconsumedResponse.close()
+            }
+        }
+    })
+}
+
+internal fun AiCoachConnection.shouldPreferLocalNetwork(): Boolean = AiCoachEndpointPolicy.requiresPrivateLanRouting(baseUrl)
+
+internal fun hermesRequestClient(okHttpClient: OkHttpClient): OkHttpClient = okHttpClient.newBuilder()
+    .connectTimeout(15, TimeUnit.SECONDS)
+    .readTimeout(90, TimeUnit.SECONDS)
+    .writeTimeout(30, TimeUnit.SECONDS)
+    .followRedirects(false)
+    .followSslRedirects(false)
+    .build()
 
 private val NetworkCapabilities.isLocalTransport: Boolean
     get() = hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||

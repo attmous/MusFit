@@ -9,11 +9,10 @@ import com.musfit.data.repository.LocalAgentKind
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.sun.net.httpserver.HttpServer
-import java.io.IOException
-import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -29,6 +28,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.system.measureTimeMillis
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -145,6 +152,35 @@ class HermesCoachClientTest {
     }
 
     @Test
+    fun cancellationCancelsUnderlyingCallWithinOneSecond() = runBlocking {
+        val requestStarted = CountDownLatch(1)
+        val callCanceled = CountDownLatch(1)
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                requestStarted.countDown()
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+                while (!chain.call().isCanceled() && System.nanoTime() < deadline) {
+                    Thread.sleep(10)
+                }
+                if (chain.call().isCanceled()) callCanceled.countDown()
+                throw IOException("Delayed fake stopped.")
+            }
+            .build()
+        val completionClient = HermesCoachClient(client, moshi, context, localNetworkProvider = { null })
+        val request = async(Dispatchers.IO) {
+            completionClient.testConnection(connection("https://api.example.com/v1/"))
+        }
+        assertTrue("Delayed fake did not receive the request.", requestStarted.await(1, TimeUnit.SECONDS))
+
+        val cancellationMillis = measureTimeMillis {
+            request.cancelAndJoin()
+        }
+
+        assertTrue("Underlying OkHttp call was not canceled.", callCanceled.await(1, TimeUnit.SECONDS))
+        assertTrue("Cancellation took ${cancellationMillis}ms.", cancellationMillis < 1_000L)
+    }
+
+    @Test
     fun redirectResponseCannotCarryBearerOrChatBodyToASecondEndpoint() = runTest {
         assumeTrue(isInternal)
         val loopback = InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1))
@@ -222,35 +258,32 @@ class HermesCoachClientTest {
         assertFalse(loopbackConnection.shouldPreferLocalNetwork())
     }
 
-    private fun clientWithResponse(dispatches: AtomicInteger, body: String): OkHttpClient =
-        OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                dispatches.incrementAndGet()
-                syntheticResponse(chain, body)
-            }
-            .build()
+    private fun clientWithResponse(dispatches: AtomicInteger, body: String): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            dispatches.incrementAndGet()
+            syntheticResponse(chain, body)
+        }
+        .build()
 
-    private fun syntheticResponse(chain: Interceptor.Chain, body: String): Response =
-        Response.Builder()
-            .request(chain.request())
-            .protocol(Protocol.HTTP_1_1)
-            .code(200)
-            .message("OK")
-            .body(body.toResponseBody())
-            .build()
+    private fun syntheticResponse(chain: Interceptor.Chain, body: String): Response = Response.Builder()
+        .request(chain.request())
+        .protocol(Protocol.HTTP_1_1)
+        .code(200)
+        .message("OK")
+        .body(body.toResponseBody())
+        .build()
 
     private fun connection(
         baseUrl: String,
         providerKind: AiCoachProviderKind = AiCoachProviderKind.LocalAgent,
         apiKey: String? = "dummy-key",
-    ): AiCoachConnection =
-        AiCoachConnection(
-            providerKind = providerKind,
-            baseUrl = baseUrl,
-            modelName = "hermes-agent",
-            localAgentKind = LocalAgentKind.HermesAgent,
-            apiKey = apiKey,
-        )
+    ): AiCoachConnection = AiCoachConnection(
+        providerKind = providerKind,
+        baseUrl = baseUrl,
+        modelName = "hermes-agent",
+        localAgentKind = LocalAgentKind.HermesAgent,
+        apiKey = apiKey,
+    )
 
     private companion object {
         const val OPEN_AI_RESPONSE =

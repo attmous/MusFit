@@ -7,6 +7,7 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.remote.coach.CoachCompletionClient
 import com.musfit.data.remote.coach.HermesChatRequest
 import com.musfit.data.remote.coach.HermesChatResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -18,6 +19,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.IOException
 
 @RunWith(RobolectricTestRunner::class)
 class LocalAiCoachChatRepositoryTest {
@@ -37,14 +39,20 @@ class LocalAiCoachChatRepositoryTest {
             .build()
         accountRepository = LocalAccountRepository(
             accountDao = database.accountDao(),
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
         secretStore = FakeAiCoachSecretStore()
         aiCoachRepository = LocalAiCoachRepository(
             aiCoachDao = database.aiCoachDao(),
             accountRepository = accountRepository,
             secretStore = secretStore,
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
         completionClient = FakeCoachCompletionClient()
         repository = LocalAiCoachChatRepository(
@@ -52,7 +60,10 @@ class LocalAiCoachChatRepositoryTest {
             accountRepository = accountRepository,
             aiCoachRepository = aiCoachRepository,
             coachCompletionClient = completionClient,
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
     }
 
@@ -119,7 +130,10 @@ class LocalAiCoachChatRepositoryTest {
             accountRepository = accountRepository,
             aiCoachRepository = aiCoachRepository,
             coachCompletionClient = completionClient,
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
 
         try {
@@ -139,6 +153,40 @@ class LocalAiCoachChatRepositoryTest {
         }
     }
 
+    @Test
+    fun sendMessage_cancellationRethrowsWithoutCommittingAssistantFailure() = runTest {
+        saveHermesConnection()
+        completionClient.error = CancellationException("Chat closed")
+
+        try {
+            repository.sendMessage("Cancel this request", systemPrompt = "context")
+            org.junit.Assert.fail("Expected cancellation")
+        } catch (_: CancellationException) {
+            val messages = repository.observeMessages().first()
+            assertEquals(listOf(AiCoachChatRole.User), messages.map { it.role })
+            assertEquals(listOf(AiCoachChatMessageStatus.Sent), messages.map { it.status })
+        }
+    }
+
+    @Test
+    fun sendMessage_networkFailureStillCommitsRetryableAssistantFailure() = runTest {
+        saveHermesConnection()
+        completionClient.error = IOException("Gateway unavailable")
+
+        try {
+            repository.sendMessage("Try this request", systemPrompt = "context")
+            org.junit.Assert.fail("Expected network failure")
+        } catch (_: IOException) {
+            val messages = repository.observeMessages().first()
+            assertEquals(listOf(AiCoachChatRole.User, AiCoachChatRole.Assistant), messages.map { it.role })
+            assertEquals(
+                listOf(AiCoachChatMessageStatus.Sent, AiCoachChatMessageStatus.Failed),
+                messages.map { it.status },
+            )
+            assertEquals("Gateway unavailable", messages.last().errorMessage)
+        }
+    }
+
     private suspend fun saveHermesConnection() {
         aiCoachRepository.saveSettings(
             AiCoachSettingsInput(
@@ -154,11 +202,13 @@ class LocalAiCoachChatRepositoryTest {
     private class FakeCoachCompletionClient : CoachCompletionClient {
         val requests = mutableListOf<HermesChatRequest>()
         var reply = HermesChatResponse("Hydrate, eat protein, and start Lower Strength.", remoteSessionId = "radxa-session-1")
+        var error: Throwable? = null
 
         override suspend fun testConnection(connection: AiCoachConnection) = Unit
 
         override suspend fun chat(request: HermesChatRequest): HermesChatResponse {
             requests += request
+            error?.let { throw it }
             return reply
         }
     }

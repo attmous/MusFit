@@ -3,17 +3,20 @@ package com.musfit.data.repository
 import com.musfit.data.local.dao.AiCoachChatDao
 import com.musfit.data.local.entity.AiCoachChatMessageEntity
 import com.musfit.data.local.entity.AiCoachThreadEntity
-import com.musfit.data.remote.coach.CoachCompletionClient
 import com.musfit.data.remote.coach.AiCoachEndpointPolicy
+import com.musfit.data.remote.coach.CoachCompletionClient
 import com.musfit.data.remote.coach.HermesChatMessage
 import com.musfit.data.remote.coach.HermesChatRequest
-import java.util.UUID
-import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import java.util.UUID
+import javax.inject.Inject
 
 enum class AiCoachChatRole { User, Assistant }
 
@@ -54,26 +57,25 @@ class LocalAiCoachChatRepository @Inject constructor(
         this.clock = clock
     }
 
-    override fun observeMessages(): Flow<List<AiCoachChatMessage>> =
-        accountRepository.observeActiveAccount().flatMapLatest { account ->
-            aiCoachRepository.observeSettings().flatMapLatest { settings ->
-                if (settings.providerKind == AiCoachProviderKind.Disabled) {
-                    flowOf(emptyList())
-                } else {
-                    chatDao.observeThread(
-                        accountId = account.id,
-                        providerKind = settings.providerKind.name,
-                        localAgentKind = settings.localAgentKind.name,
-                    ).flatMapLatest { thread ->
-                        if (thread == null) {
-                            flowOf(emptyList())
-                        } else {
-                            chatDao.observeMessages(thread.id).map { rows -> rows.mapNotNull { it.toChatMessage() } }
-                        }
+    override fun observeMessages(): Flow<List<AiCoachChatMessage>> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        aiCoachRepository.observeSettings().flatMapLatest { settings ->
+            if (settings.providerKind == AiCoachProviderKind.Disabled) {
+                flowOf(emptyList())
+            } else {
+                chatDao.observeThread(
+                    accountId = account.id,
+                    providerKind = settings.providerKind.name,
+                    localAgentKind = settings.localAgentKind.name,
+                ).flatMapLatest { thread ->
+                    if (thread == null) {
+                        flowOf(emptyList())
+                    } else {
+                        chatDao.observeMessages(thread.id).map { rows -> rows.mapNotNull { it.toChatMessage() } }
                     }
                 }
             }
         }
+    }
 
     override suspend fun sendMessage(content: String, systemPrompt: String) {
         val trimmed = content.trim()
@@ -106,7 +108,7 @@ class LocalAiCoachChatRepository @Inject constructor(
         )
         chatDao.insertMessage(assistantMessage)
 
-        runCatching {
+        val responseResult = runCatching {
             val recent = chatDao.getRecentMessages(thread.id, HISTORY_LIMIT)
                 .asReversed()
                 .filter { it.id != assistantMessage.id && it.status == AiCoachChatMessageStatus.Sent.name }
@@ -129,26 +131,34 @@ class LocalAiCoachChatRepository @Inject constructor(
                     remoteSessionId = thread.remoteSessionId,
                 ),
             )
-        }.onSuccess { response ->
-            chatDao.updateMessage(
-                assistantMessage.copy(
-                    content = response.content,
-                    status = AiCoachChatMessageStatus.Sent.name,
-                    errorMessage = null,
-                ),
-            )
-            response.remoteSessionId?.let {
-                chatDao.updateRemoteSession(thread.id, it, updatedAt = clock())
+        }
+        val requestError = responseResult.exceptionOrNull()
+        if (requestError is CancellationException) {
+            withContext(NonCancellable) {
+                chatDao.deleteMessage(assistantMessage.id)
             }
-        }.onFailure { error ->
+            throw requestError
+        }
+        if (requestError != null) {
             chatDao.updateMessage(
                 assistantMessage.copy(
                     content = "I could not reach the coach connection.",
                     status = AiCoachChatMessageStatus.Failed.name,
-                    errorMessage = error.message ?: "Hermes request failed.",
+                    errorMessage = requestError.message ?: "Hermes request failed.",
                 ),
             )
-            throw error
+            throw requestError
+        }
+        val response = responseResult.getOrThrow()
+        chatDao.updateMessage(
+            assistantMessage.copy(
+                content = response.content,
+                status = AiCoachChatMessageStatus.Sent.name,
+                errorMessage = null,
+            ),
+        )
+        response.remoteSessionId?.let {
+            chatDao.updateRemoteSession(thread.id, it, updatedAt = clock())
         }
     }
 
