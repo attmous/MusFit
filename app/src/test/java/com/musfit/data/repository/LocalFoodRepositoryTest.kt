@@ -179,6 +179,7 @@ class LocalFoodRepositoryTest {
         totalCaloriesKcal: Double?,
         activeCaloriesKcal: Double? = null,
     ) = DailyHealthSummaryEntity(
+        accountId = "local-default",
         dateEpochDay = date.toEpochDay(),
         steps = null,
         activeCaloriesKcal = activeCaloriesKcal,

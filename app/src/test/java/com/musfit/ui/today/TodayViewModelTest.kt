@@ -386,8 +386,8 @@ class TodayViewModelTest {
         val weekStartEpochDay = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay()
         healthRepository.weightSeries.value =
             listOf(
-                BodyMetricEntity("w1", "weight", 82.0, "kg", (weekStartEpochDay - 3L) * 86_400_000L, "manual", null),
-                BodyMetricEntity("w2", "weight", 82.0, "kg", weekStartEpochDay * 86_400_000L, "manual", null),
+                BodyMetricEntity("test-account", "w1", "weight", 82.0, "kg", (weekStartEpochDay - 3L) * 86_400_000L, "manual", null),
+                BodyMetricEntity("test-account", "w2", "weight", 82.0, "kg", weekStartEpochDay * 86_400_000L, "manual", null),
             )
         val viewModel =
             todayViewModel(
@@ -843,6 +843,7 @@ class TodayViewModelTest {
             restingHeartRateBpm: Long = 58L,
             hrvRmssdMillis: Double = 55.0,
         ) = DailyHealthSummaryEntity(
+            accountId = "test-account",
             dateEpochDay = date.toEpochDay(),
             steps = 8200L,
             activeCaloriesKcal = 420.0,

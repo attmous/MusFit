@@ -175,6 +175,7 @@ class MusFitDatabaseTest {
             )
         val bodyMetric =
             BodyMetricEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 id = "metric-1",
                 type = "weight",
                 value = 80.5,
@@ -198,7 +199,11 @@ class MusFitDatabaseTest {
         assertEquals(listOf(routineExercise), trainingDao.observeRoutineExercises(LOCAL_DEFAULT_ACCOUNT_ID, routine.id).first())
         assertEquals(
             listOf(bodyMetric),
-            healthDao.observeBodyMetrics(type = bodyMetric.type, fromEpochMillis = 4_000L).first(),
+            healthDao.observeBodyMetrics(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
+                type = bodyMetric.type,
+                fromEpochMillis = 4_000L,
+            ).first(),
         )
     }
 

@@ -83,37 +83,37 @@ class LocalProfileRepository @Inject constructor(
         this.clock = clock
     }
 
-    override fun observeProfile(): Flow<UserProfile> =
-        accountRepository.observeActiveAccount().flatMapLatest { account ->
-            profileDao.observeProfile(account.id).map { it?.toUserProfile() ?: DEFAULT_USER_PROFILE }
-        }
+    override fun observeProfile(): Flow<UserProfile> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        profileDao.observeProfile(account.id).map { it?.toUserProfile() ?: DEFAULT_USER_PROFILE }
+    }
 
     override suspend fun saveProfile(profile: UserProfile) {
         val account = accountRepository.ensureActiveAccount()
         profileDao.upsertProfile(profile.toEntity(id = account.id, now = clock()))
     }
 
-    override fun observeRecommendedTargets(): Flow<RecommendedTargets?> =
-        combine(observeProfile(), observeLatestWeight()) { profile, weight ->
-            val sex = profile.sex ?: return@combine null
-            val height = profile.heightCm ?: return@combine null
-            val birth = profile.birthDateEpochDay ?: return@combine null
-            val current = weight?.weightKg ?: return@combine null
-            EnergyCalculator.recommendedTargets(
-                sex = sex,
-                weightKg = current,
-                heightCm = height,
-                ageYears = ageYears(birth),
-                activityLevel = profile.activityLevel,
-                goalType = profile.goalType,
-                goalPaceKgPerWeek = profile.goalPaceKgPerWeek,
-            )
-        }
+    override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = combine(observeProfile(), observeLatestWeight()) { profile, weight ->
+        val sex = profile.sex ?: return@combine null
+        val height = profile.heightCm ?: return@combine null
+        val birth = profile.birthDateEpochDay ?: return@combine null
+        val current = weight?.weightKg ?: return@combine null
+        EnergyCalculator.recommendedTargets(
+            sex = sex,
+            weightKg = current,
+            heightCm = height,
+            ageYears = ageYears(birth),
+            activityLevel = profile.activityLevel,
+            goalType = profile.goalType,
+            goalPaceKgPerWeek = profile.goalPaceKgPerWeek,
+        )
+    }
 
     override suspend fun logWeight(weightKg: Double, source: String) {
         require(weightKg.isFinite() && weightKg > 0.0) { "Weight must be positive" }
+        val accountId = accountRepository.ensureActiveAccount().id
         healthDao.upsertBodyMetric(
             BodyMetricEntity(
+                accountId = accountId,
                 id = UUID.randomUUID().toString(),
                 type = WEIGHT_METRIC_TYPE,
                 value = weightKg,
@@ -125,20 +125,24 @@ class LocalProfileRepository @Inject constructor(
         )
     }
 
-    override fun observeLatestWeight(): Flow<WeightEntry?> =
-        healthDao.observeBodyMetrics(WEIGHT_METRIC_TYPE, 0L).map { rows ->
+    override fun observeLatestWeight(): Flow<WeightEntry?> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        healthDao.observeBodyMetrics(account.id, WEIGHT_METRIC_TYPE, 0L).map { rows ->
             rows.firstOrNull()?.let { WeightEntry(it.id, it.measuredAtEpochMillis, it.value, it.source) }
         }
+    }
 
-    override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> =
-        healthDao.observeBodyMetrics(WEIGHT_METRIC_TYPE, sinceEpochMillis).map { rows ->
+    override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        healthDao.observeBodyMetrics(account.id, WEIGHT_METRIC_TYPE, sinceEpochMillis).map { rows ->
             rows.map { WeightEntry(it.id, it.measuredAtEpochMillis, it.value, it.source) }
         }
+    }
 
     override suspend fun logMeasurement(type: String, value: Double, unit: String) {
         require(value.isFinite() && value > 0.0) { "Measurement must be positive" }
+        val accountId = accountRepository.ensureActiveAccount().id
         healthDao.upsertBodyMetric(
             BodyMetricEntity(
+                accountId = accountId,
                 id = UUID.randomUUID().toString(),
                 type = type,
                 value = value,
@@ -151,27 +155,26 @@ class LocalProfileRepository @Inject constructor(
     }
 
     override suspend fun deleteEntry(id: String) {
-        healthDao.deleteBodyMetric(id)
+        healthDao.deleteBodyMetric(accountRepository.ensureActiveAccount().id, id)
     }
 
     override suspend fun updateEntryValue(id: String, value: Double) {
         require(value.isFinite() && value > 0.0) { "Value must be positive" }
-        healthDao.updateBodyMetricValue(id, value)
+        healthDao.updateBodyMetricValue(accountRepository.ensureActiveAccount().id, id, value)
     }
 
-    override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> {
+    override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> = accountRepository.observeActiveAccount().flatMapLatest { account ->
         val typeFlows: List<Flow<Pair<String, List<BodyMeasurement>>>> = MEASUREMENT_TYPES.map { type ->
-            healthDao.observeBodyMetrics(type, sinceEpochMillis).map { rows ->
+            healthDao.observeBodyMetrics(account.id, type, sinceEpochMillis).map { rows ->
                 type to rows.map { BodyMeasurement(it.id, it.type, it.value, it.unit, it.measuredAtEpochMillis) }
             }
         }
-        return combine(typeFlows) { pairs -> pairs.toMap() }
+        combine(typeFlows) { pairs -> pairs.toMap() }
     }
 
-    override fun observeSettings(): Flow<AppSettings> =
-        accountRepository.observeActiveAccount().flatMapLatest { account ->
-            profileDao.observeSettings(account.id).map { it?.toAppSettings() ?: DEFAULT_APP_SETTINGS }
-        }
+    override fun observeSettings(): Flow<AppSettings> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        profileDao.observeSettings(account.id).map { it?.toAppSettings() ?: DEFAULT_APP_SETTINGS }
+    }
 
     override suspend fun saveSettings(settings: AppSettings) {
         val account = accountRepository.ensureActiveAccount()

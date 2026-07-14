@@ -350,17 +350,18 @@ internal class MusFitDebugSeeder private constructor(
     private suspend fun seedHealth(today: LocalDate, now: Long) {
         val dao = database.healthDao()
         listOf(
-            BodyMetricEntity("debug-weight-${today.minusDays(14).toEpochDay()}", "weight", 79.8, "kg", today.minusDays(14).atHourMillis(7), "manual", null),
-            BodyMetricEntity("debug-weight-${today.minusDays(7).toEpochDay()}", "weight", 80.3, "kg", today.minusDays(7).atHourMillis(7), "manual", null),
-            BodyMetricEntity("debug-weight-${today.toEpochDay()}", "weight", 80.9, "kg", today.atHourMillis(7), "manual", null),
-            BodyMetricEntity("debug-waist-${today.toEpochDay()}", "waist", 82.0, "cm", today.atHourMillis(7), "manual", null),
-            BodyMetricEntity("debug-body-fat-${today.toEpochDay()}", "body_fat", 14.8, "%", today.atHourMillis(7), "manual", null),
+            BodyMetricEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-weight-${today.minusDays(14).toEpochDay()}", "weight", 79.8, "kg", today.minusDays(14).atHourMillis(7), "manual", null),
+            BodyMetricEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-weight-${today.minusDays(7).toEpochDay()}", "weight", 80.3, "kg", today.minusDays(7).atHourMillis(7), "manual", null),
+            BodyMetricEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-weight-${today.toEpochDay()}", "weight", 80.9, "kg", today.atHourMillis(7), "manual", null),
+            BodyMetricEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-waist-${today.toEpochDay()}", "waist", 82.0, "cm", today.atHourMillis(7), "manual", null),
+            BodyMetricEntity(LOCAL_DEFAULT_ACCOUNT_ID, "debug-body-fat-${today.toEpochDay()}", "body_fat", 14.8, "%", today.atHourMillis(7), "manual", null),
         ).forEach { dao.upsertBodyMetric(it) }
 
         (0L..6L).forEach { offset ->
             val date = today.minusDays(offset)
             dao.upsertDailySummary(
                 DailyHealthSummaryEntity(
+                    accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                     dateEpochDay = date.toEpochDay(),
                     steps = 7_800L + (offset * 450L),
                     activeCaloriesKcal = 360.0 + (offset * 18.0),
@@ -379,6 +380,7 @@ internal class MusFitDebugSeeder private constructor(
         }
         dao.upsertHealthConnectSyncState(
             HealthConnectSyncStateEntity(
+                accountId = LOCAL_DEFAULT_ACCOUNT_ID,
                 key = "health_connect",
                 isAvailable = false,
                 grantedPermissionsCsv = "",

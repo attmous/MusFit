@@ -13,44 +13,44 @@ import kotlinx.coroutines.flow.Flow
 interface HealthDao {
     @Query(
         "SELECT * FROM body_metrics " +
-            "WHERE type = :type AND measuredAtEpochMillis >= :fromEpochMillis " +
+            "WHERE accountId = :accountId AND type = :type AND measuredAtEpochMillis >= :fromEpochMillis " +
             "ORDER BY measuredAtEpochMillis DESC",
     )
-    fun observeBodyMetrics(type: String, fromEpochMillis: Long): Flow<List<BodyMetricEntity>>
+    fun observeBodyMetrics(accountId: String, type: String, fromEpochMillis: Long): Flow<List<BodyMetricEntity>>
 
     @Query(
         "SELECT * FROM body_metrics " +
-            "WHERE type = :type AND measuredAtEpochMillis >= :fromEpochMillis " +
+            "WHERE accountId = :accountId AND type = :type AND measuredAtEpochMillis >= :fromEpochMillis " +
             "ORDER BY measuredAtEpochMillis DESC",
     )
-    suspend fun getBodyMetrics(type: String, fromEpochMillis: Long): List<BodyMetricEntity>
+    suspend fun getBodyMetrics(accountId: String, type: String, fromEpochMillis: Long): List<BodyMetricEntity>
 
-    @Query("SELECT * FROM daily_health_summaries WHERE dateEpochDay = :dateEpochDay LIMIT 1")
-    fun observeDailySummary(dateEpochDay: Long): Flow<DailyHealthSummaryEntity?>
+    @Query("SELECT * FROM daily_health_summaries WHERE accountId = :accountId AND dateEpochDay = :dateEpochDay LIMIT 1")
+    fun observeDailySummary(accountId: String, dateEpochDay: Long): Flow<DailyHealthSummaryEntity?>
 
-    @Query("SELECT * FROM daily_health_summaries WHERE dateEpochDay = :dateEpochDay LIMIT 1")
-    suspend fun getDailySummary(dateEpochDay: Long): DailyHealthSummaryEntity?
+    @Query("SELECT * FROM daily_health_summaries WHERE accountId = :accountId AND dateEpochDay = :dateEpochDay LIMIT 1")
+    suspend fun getDailySummary(accountId: String, dateEpochDay: Long): DailyHealthSummaryEntity?
 
     @Query(
         "SELECT * FROM daily_health_summaries " +
-            "WHERE dateEpochDay BETWEEN :startEpochDay AND :endEpochDay ORDER BY dateEpochDay",
+            "WHERE accountId = :accountId AND dateEpochDay BETWEEN :startEpochDay AND :endEpochDay ORDER BY dateEpochDay",
     )
-    fun observeDailySummariesInRange(startEpochDay: Long, endEpochDay: Long): Flow<List<DailyHealthSummaryEntity>>
+    fun observeDailySummariesInRange(accountId: String, startEpochDay: Long, endEpochDay: Long): Flow<List<DailyHealthSummaryEntity>>
 
-    @Query("SELECT * FROM health_connect_sync_state WHERE key = 'health_connect' LIMIT 1")
-    fun observeHealthConnectSyncState(): Flow<HealthConnectSyncStateEntity?>
+    @Query("SELECT * FROM health_connect_sync_state WHERE accountId = :accountId AND key = 'health_connect' LIMIT 1")
+    fun observeHealthConnectSyncState(accountId: String): Flow<HealthConnectSyncStateEntity?>
 
-    @Query("SELECT * FROM health_connect_sync_state WHERE key = 'health_connect' LIMIT 1")
-    suspend fun getHealthConnectSyncState(): HealthConnectSyncStateEntity?
+    @Query("SELECT * FROM health_connect_sync_state WHERE accountId = :accountId AND key = 'health_connect' LIMIT 1")
+    suspend fun getHealthConnectSyncState(accountId: String): HealthConnectSyncStateEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertBodyMetric(metric: BodyMetricEntity)
 
-    @Query("DELETE FROM body_metrics WHERE id = :id")
-    suspend fun deleteBodyMetric(id: String)
+    @Query("DELETE FROM body_metrics WHERE accountId = :accountId AND id = :id")
+    suspend fun deleteBodyMetric(accountId: String, id: String)
 
-    @Query("UPDATE body_metrics SET value = :value WHERE id = :id")
-    suspend fun updateBodyMetricValue(id: String, value: Double)
+    @Query("UPDATE body_metrics SET value = :value WHERE accountId = :accountId AND id = :id")
+    suspend fun updateBodyMetricValue(accountId: String, id: String, value: Double)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDailySummary(summary: DailyHealthSummaryEntity)
@@ -60,7 +60,7 @@ interface HealthDao {
 
     @Query(
         "UPDATE health_connect_sync_state SET preferredStepsPackage = :packageName " +
-            "WHERE key = 'health_connect'",
+            "WHERE accountId = :accountId AND key = 'health_connect'",
     )
-    suspend fun updatePreferredStepsPackage(packageName: String?)
+    suspend fun updatePreferredStepsPackage(accountId: String, packageName: String?)
 }
