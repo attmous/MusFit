@@ -1,5 +1,6 @@
 package com.musfit.integrations.healthconnect
 
+import androidx.health.connect.client.records.MealType
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import org.junit.Assert.assertEquals
@@ -77,6 +78,35 @@ class HealthConnectRecordMapperTest {
         assertNotEquals(first.metadata.clientRecordId, second.metadata.clientRecordId)
         assertNotEquals(first.metadata.clientRecordId, otherAccount.metadata.clientRecordId)
         assertEquals(3, first.metadata.clientRecordVersion)
+    }
+
+    @Test
+    fun defaultFoodIdentity_mapsLunchDinnerAndHydrationWithStableLocalIdentity() {
+        val date = LocalDate.of(2026, 7, 14)
+        val lunch = HealthConnectRecordMapper.toNutritionRecord(
+            date = date,
+            meal = foodMeal(localMealId = "meal-lunch", mealType = "lunch"),
+            zoneId = ZoneOffset.UTC,
+        )
+        val dinner = HealthConnectRecordMapper.toNutritionRecord(
+            date = date,
+            meal = foodMeal(localMealId = "meal-dinner", mealType = "dinner"),
+            zoneId = ZoneOffset.UTC,
+        )
+        val hydration = HealthConnectRecordMapper.toHydrationRecord(
+            date = date,
+            milliliters = 500.0,
+            zoneId = ZoneOffset.UTC,
+        )
+
+        assertEquals(MealType.MEAL_TYPE_LUNCH, lunch.mealType)
+        assertEquals(MealType.MEAL_TYPE_DINNER, dinner.mealType)
+        assertEquals(12, lunch.startTime.atOffset(ZoneOffset.UTC).hour)
+        assertEquals(18, dinner.startTime.atOffset(ZoneOffset.UTC).hour)
+        assertEquals(1, lunch.metadata.clientRecordVersion)
+        assertEquals(1, dinner.metadata.clientRecordVersion)
+        assertEquals(1, hydration.metadata.clientRecordVersion)
+        assertNotEquals(lunch.metadata.clientRecordId, dinner.metadata.clientRecordId)
     }
 
     @Test

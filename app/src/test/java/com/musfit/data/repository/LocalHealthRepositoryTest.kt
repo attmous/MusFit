@@ -398,6 +398,32 @@ class LocalHealthRepositoryTest {
     }
 
     @Test
+    fun exportLatestWorkout_adoptsLegacyProviderIdentityWithoutRewritingHealthConnect() = runTest {
+        seedCompletedWorkout()
+        val legacySession = requireNotNull(
+            database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-stable"),
+        ).copy(
+            healthConnectRecordId = "legacy-provider-id",
+            healthConnectLastExportedAtEpochMillis = 777L,
+        )
+        database.trainingDao().upsertWorkoutSession(legacySession)
+
+        val recordId = repository.exportLatestWorkout()
+        val persisted = database.healthDao().getHealthConnectExportRecord(
+            TEST_ACCOUNT_ID,
+            "workout",
+            "session-stable",
+        )
+
+        assertEquals("legacy-provider-id", recordId)
+        assertEquals(emptyList<HealthConnectRecordIdentity>(), gateway.exportedIdentities)
+        assertEquals("legacy-provider-id", persisted?.providerRecordId)
+        assertEquals(1L, persisted?.clientRecordVersion)
+        assertEquals(777L, persisted?.exportedAtEpochMillis)
+        assertNotNull(persisted?.payloadFingerprint)
+    }
+
+    @Test
     fun exportLatestWorkout_skipsActiveSessionAndExportsLatestCompletedWorkout() = runTest {
         database.trainingDao().upsertExerciseDefinition(
             ExerciseEntity(

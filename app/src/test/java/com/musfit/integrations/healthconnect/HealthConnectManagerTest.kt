@@ -450,6 +450,26 @@ class HealthConnectManagerTest {
         )
     }
 
+    @Test
+    fun exportFood_hydrationOnlySkipsNutritionInsert() = runTest {
+        val client = FakeHealthConnectClientAdapter()
+        val factory = FakeClientFactory(client)
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(writeHydrationPermission()),
+            ),
+            factory = factory,
+        )
+
+        val result = manager.exportFood(foodExportPayload().copy(meals = emptyList()))
+
+        assertEquals(0, result?.nutritionRecordCount)
+        assertEquals(1, result?.hydrationRecordCount)
+        assertEquals(0, client.insertNutritionCalls)
+        assertEquals(1, client.insertHydrationCalls)
+    }
+
     private fun managerWith(
         status: HealthConnectStatus,
         factory: FakeClientFactory,
