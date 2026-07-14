@@ -116,6 +116,20 @@ class MusFitCriticalJourneyInstrumentationTest {
     }
 
     @Test
+    fun foodDatabaseQuery_restoresWithoutWritingDuringRecreation() {
+        compose.onNodeWithContentDescription("Food").performClick()
+        compose.onNodeWithContentDescription("More actions").performClick()
+        compose.onNodeWithText("Food database").performClick()
+        compose.waitForText("Food database")
+        compose.onNodeWithText("Search foods").performTextReplacement("zzzunknown")
+
+        compose.activityRule.scenario.recreate()
+
+        compose.waitForText("Food database")
+        compose.onNodeWithText("zzzunknown").assertIsDisplayed()
+    }
+
+    @Test
     fun activeWorkout_setAndRestStateSurviveRecreation_andTickerStopsOffScreen() {
         compose.onNodeWithContentDescription("Training").performClick()
         compose.waitForText("Resume")
