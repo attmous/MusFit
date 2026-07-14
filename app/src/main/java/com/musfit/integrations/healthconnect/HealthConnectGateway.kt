@@ -22,6 +22,21 @@ interface HealthConnectGateway {
         preferredStepsPackage: String? = null,
     ): HealthConnectDailyReadResult
 
+    /**
+     * Reads an inclusive range of local calendar days. Adapters should override this to batch
+     * provider work; the default keeps test and fallback gateways source-compatible.
+     */
+    suspend fun readDailySummaries(
+        startDate: LocalDate,
+        endDateInclusive: LocalDate,
+        preferredStepsPackage: String? = null,
+    ): Map<LocalDate, HealthConnectDailyReadResult> {
+        require(!endDateInclusive.isBefore(startDate)) { "endDateInclusive must not precede startDate" }
+        return generateSequence(startDate) { date -> date.plusDays(1) }
+            .takeWhile { date -> !date.isAfter(endDateInclusive) }
+            .associateWith { date -> readDailySummary(date, preferredStepsPackage) }
+    }
+
     /** Per-origin step totals for [date], so the user can choose which source MusFit mirrors. */
     suspend fun readStepSources(date: LocalDate): List<StepSource> = emptyList()
 

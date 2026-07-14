@@ -454,6 +454,8 @@ class LocalHealthRepositoryTest {
             (0L..6L).map { anchor.minusDays(6L - it) },
             gateway.importedDates,
         )
+        assertEquals(1, gateway.rangeReadCalls)
+        assertEquals(0, gateway.dailyReadCalls)
         assertEquals(7, result.importedDayCount)
         assertEquals(14, result.bodyMetricCount)
         assertEquals(
@@ -1007,6 +1009,8 @@ class LocalHealthRepositoryTest {
         val exportedIdentities = mutableListOf<HealthConnectRecordIdentity>()
         val importedDates = mutableListOf<LocalDate>()
         val preferredStepsPackages = mutableListOf<String?>()
+        var dailyReadCalls: Int = 0
+        var rangeReadCalls: Int = 0
         var stepSources: List<StepSource> = emptyList()
         var dailyReadResultFactory: ((LocalDate) -> HealthConnectDailyReadResult)? = null
         var readFailure: Throwable? = null
@@ -1058,6 +1062,25 @@ class LocalHealthRepositoryTest {
         override suspend fun readStepSources(date: LocalDate): List<StepSource> = stepSources
 
         override suspend fun readDailySummary(
+            date: LocalDate,
+            preferredStepsPackage: String?,
+        ): HealthConnectDailyReadResult {
+            dailyReadCalls += 1
+            return dailyResult(date, preferredStepsPackage)
+        }
+
+        override suspend fun readDailySummaries(
+            startDate: LocalDate,
+            endDateInclusive: LocalDate,
+            preferredStepsPackage: String?,
+        ): Map<LocalDate, HealthConnectDailyReadResult> {
+            rangeReadCalls += 1
+            return generateSequence(startDate) { date -> date.plusDays(1) }
+                .takeWhile { date -> !date.isAfter(endDateInclusive) }
+                .associateWith { date -> dailyResult(date, preferredStepsPackage) }
+        }
+
+        private suspend fun dailyResult(
             date: LocalDate,
             preferredStepsPackage: String?,
         ): HealthConnectDailyReadResult {

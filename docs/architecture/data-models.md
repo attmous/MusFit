@@ -125,6 +125,9 @@ unavailable, or failure results. `HealthRepository` uses the successful-metric
 set to clear confirmed-empty fields, preserve only failed/ungranted fields, and
 atomically persist summaries, body metrics, and sync state. Cancellation is
 control flow and must never be converted to a result or stale success.
+Recent imports use one inclusive local-date range. Calendar-period aggregates
+retain 23/24/25-hour day semantics, raw record types traverse every page token,
+and results are still classified and reconciled independently per local day.
 
 For MusFit-authored Health Connect records, local MusFit entities remain the
 source of truth and `health_connect_export_records` is the deletion allowlist.

@@ -30,7 +30,9 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.time.Duration
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.concurrent.CancellationException
 
 @RunWith(RobolectricTestRunner::class)
@@ -189,6 +191,64 @@ class HealthConnectManagerTest {
         assertEquals(9_800L, summary.steps)
         assertEquals(1, client.stepsCalls)
         assertEquals(0, client.stepsForOriginsCalls)
+    }
+
+    @Test
+    fun readDailySummaries_batchesSevenDaysIntoOneCallPerMetric() = runTest {
+        val startDate = LocalDate.of(2026, 7, 6)
+        val endDate = LocalDate.of(2026, 7, 12)
+        val client = FakeHealthConnectClientAdapter().apply {
+            batchedSteps = (0L..6L).associate { offset ->
+                startDate.plusDays(offset) to (1_000L + offset)
+            }
+        }
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission()),
+            ),
+            factory = FakeClientFactory(client),
+        )
+
+        val results = manager.readDailySummaries(startDate, endDate)
+
+        assertEquals((0L..6L).map { 1_000L + it }, results.values.map { it.steps })
+        assertEquals(1, client.batchedStepsCalls)
+        assertEquals(0, client.stepsCalls)
+    }
+
+    @Test
+    fun readAllHealthConnectPages_consumesEveryContinuationToken() = runTest {
+        val requestedTokens = mutableListOf<String?>()
+
+        val records = readAllHealthConnectPages { pageToken ->
+            requestedTokens += pageToken
+            when (pageToken) {
+                null -> HealthConnectRecordPage(records = (0 until 1_000).toList(), nextPageToken = "page-2")
+                "page-2" -> HealthConnectRecordPage(records = (1_000 until 1_500).toList(), nextPageToken = null)
+                else -> error("Unexpected page token: $pageToken")
+            }
+        }
+
+        assertEquals(1_500, records.size)
+        assertEquals(0, records.first())
+        assertEquals(1_499, records.last())
+        assertEquals(listOf(null, "page-2"), requestedTokens)
+    }
+
+    @Test
+    fun healthConnectDateRange_preservesCalendarDaysAcrossDstTransition() {
+        val range = HealthConnectDateRange(
+            startDate = LocalDate.of(2026, 3, 28),
+            endDateInclusive = LocalDate.of(2026, 3, 29),
+            zoneId = ZoneId.of("Europe/Berlin"),
+        )
+
+        assertEquals(
+            listOf(LocalDate.of(2026, 3, 28), LocalDate.of(2026, 3, 29)),
+            range.dates,
+        )
+        assertEquals(47L, Duration.between(range.startTime, range.endTime).toHours())
     }
 
     @Test
@@ -834,6 +894,9 @@ class HealthConnectManagerTest {
     ) : HealthConnectClientAdapter {
         var stepsCalls: Int = 0
             private set
+        var batchedSteps: Map<LocalDate, Long?>? = null
+        var batchedStepsCalls: Int = 0
+            private set
         var stepsForOriginsCalls: Int = 0
             private set
         var readStepCountsByOriginCalls: Int = 0
@@ -882,6 +945,11 @@ class HealthConnectManagerTest {
             stepsCalls += 1
             stepsFailure?.let { throw it }
             return steps
+        }
+
+        override suspend fun aggregateStepsByDay(range: HealthConnectDateRange): Map<LocalDate, Long?> {
+            batchedStepsCalls += 1
+            return batchedSteps ?: super.aggregateStepsByDay(range)
         }
 
         override suspend fun aggregateStepsForOrigins(
