@@ -96,4 +96,14 @@ interface HealthDao {
 
     @Upsert
     suspend fun upsertHealthConnectExportRecord(record: HealthConnectExportRecordEntity)
+
+    @Query(
+        "DELETE FROM health_connect_export_records " +
+            "WHERE accountId = :accountId AND recordType = :recordType AND localEntityId = :localEntityId",
+    )
+    suspend fun deleteHealthConnectExportRecord(
+        accountId: String,
+        recordType: String,
+        localEntityId: String,
+    ): Int
 }

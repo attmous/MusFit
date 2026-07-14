@@ -33,6 +33,7 @@ import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.MealItemInput
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.nutrition.NutritionCalculator
+import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectFoodMealExport
@@ -59,6 +60,7 @@ private data class PreparedFoodHealthExport(
     val payload: HealthConnectFoodExportPayload,
     val hydrationFingerprint: String,
     val hydrationChanged: Boolean,
+    val staleLedgerRecords: List<HealthConnectExportRecordEntity>,
 )
 
 data class NutritionDetails(
@@ -1139,6 +1141,7 @@ class LocalFoodRepository @Inject constructor(
 
         return try {
             val prepared = prepareFoodHealthExport(accountId, date)
+            deleteStaleFoodHealthRecords(accountId, prepared.staleLedgerRecords)
             val exportResult = exportFoodHealthPayload(prepared.payload)
             persistFoodHealthExport(accountId, prepared, exportResult)
             val result = FoodHealthConnectSyncResult(
@@ -1158,7 +1161,23 @@ class LocalFoodRepository @Inject constructor(
 
     private suspend fun prepareFoodHealthExport(accountId: String, date: LocalDate): PreparedFoodHealthExport {
         val diaryRows = foodDao.getFoodDiaryEntryRowsForDate(accountId, date.toEpochDay())
-        val changedMeals = changedNutritionExports(accountId, date, diaryRows)
+        val nutritionExports = diaryRows.toHealthConnectFoodMealExports(accountId)
+        val existingNutrition = database.healthDao().getHealthConnectExportRecords(
+            accountId,
+            HEALTH_EXPORT_TYPE_NUTRITION,
+        )
+        val existingNutritionByLocalId = existingNutrition.associateBy(HealthConnectExportRecordEntity::localEntityId)
+        val changedMeals = nutritionExports.mapNotNull { meal ->
+            val fingerprint = nutritionExportFingerprint(date, meal)
+            val existing = existingNutritionByLocalId[meal.localMealId]
+            if (existing?.payloadFingerprint == fingerprint) {
+                null
+            } else {
+                meal.copy(clientRecordVersion = existing?.clientRecordVersion?.plus(1) ?: 1)
+            }
+        }
+        val currentNutritionIds = nutritionExports.mapTo(mutableSetOf(), HealthConnectFoodMealExport::localMealId)
+        val staleNutrition = existingNutrition.filter { it.localEntityId !in currentNutritionIds }
         val hydrationMilliliters = foodDao.getWaterTotalForDate(accountId, date.toEpochDay())
         val hydrationFingerprint = hydrationExportFingerprint(date, hydrationMilliliters)
         val existingHydration = database.healthDao().getHealthConnectExportRecord(
@@ -1178,24 +1197,38 @@ class LocalFoodRepository @Inject constructor(
             ),
             hydrationFingerprint = hydrationFingerprint,
             hydrationChanged = hydrationChanged,
+            staleLedgerRecords = staleNutrition + listOfNotNull(
+                existingHydration.takeIf { hydrationMilliliters <= 0.0 },
+            ),
         )
     }
 
-    private suspend fun changedNutritionExports(
+    private suspend fun deleteStaleFoodHealthRecords(
         accountId: String,
-        date: LocalDate,
-        diaryRows: List<FoodDiaryEntryRow>,
-    ): List<HealthConnectFoodMealExport> = buildList {
-        diaryRows.toHealthConnectFoodMealExports(accountId).forEach { meal ->
-            val fingerprint = nutritionExportFingerprint(date, meal)
-            val existing = database.healthDao().getHealthConnectExportRecord(
-                accountId,
-                HEALTH_EXPORT_TYPE_NUTRITION,
-                meal.localMealId,
+        staleLedgerRecords: List<HealthConnectExportRecordEntity>,
+    ) {
+        val authoredRecords = staleLedgerRecords.mapNotNullTo(linkedSetOf()) { it.toAuthoredRecordOrNull() }
+        if (authoredRecords.isEmpty()) return
+        val result = healthConnectGateway.deleteAuthoredRecords(authoredRecords)
+        staleLedgerRecords.forEach { ledgerRecord ->
+            val authoredRecord = ledgerRecord.toAuthoredRecordOrNull() ?: return@forEach
+            if (authoredRecord !in result.deletedRecords) return@forEach
+            database.healthDao().deleteHealthConnectExportRecord(
+                accountId = accountId,
+                recordType = ledgerRecord.recordType,
+                localEntityId = ledgerRecord.localEntityId,
             )
-            if (existing?.payloadFingerprint != fingerprint) {
-                add(meal.copy(clientRecordVersion = existing?.clientRecordVersion?.plus(1) ?: 1))
-            }
+        }
+        when (result) {
+            is HealthConnectDeleteResult.Complete -> Unit
+
+            is HealthConnectDeleteResult.Partial -> error(
+                result.failures.joinToString("; ") { failure -> failure.message },
+            )
+
+            is HealthConnectDeleteResult.Unavailable -> error(result.message)
+
+            is HealthConnectDeleteResult.Failure -> error(result.message)
         }
     }
 

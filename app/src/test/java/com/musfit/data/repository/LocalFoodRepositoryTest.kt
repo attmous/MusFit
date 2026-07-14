@@ -8,6 +8,7 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.FoodEntity
+import com.musfit.data.local.entity.HealthConnectExportRecordEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
 import com.musfit.data.remote.food.ProductDataQuality
@@ -15,6 +16,8 @@ import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.model.FoodNutrition
+import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecord
+import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
@@ -2162,6 +2165,86 @@ class LocalFoodRepositoryTest {
         assertEquals(setOf("meal/a", "meal:b"), ledger.map { it.localEntityId }.toSet())
     }
 
+    @Test
+    fun foodHealthConnectSync_deletesRemovedAuthoredMealAndHydrationAndRetryIsNoOp() = runTest {
+        val gateway = FakeHealthConnectGateway()
+        repository = LocalFoodRepository(
+            database = database,
+            foodDao = database.foodDao(),
+            accountRepository = accountRepository,
+            healthConnectGateway = gateway,
+        )
+        val date = LocalDate.of(2026, 7, 14)
+        val foodId = repository.upsertSavedFood(
+            SavedFoodUpsertInput(
+                foodId = "delete-export-food",
+                name = "Recovery oats",
+                brand = null,
+                defaultServingGrams = 100.0,
+                nutritionPer100g = nutrition(390.0, 17.0, 66.0, 7.0),
+            ),
+        )
+        val mealItemId = repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 100.0, date))
+        repository.logWater(WaterLogInput(date, 500.0))
+        repository.setFoodHealthConnectSyncEnabled(true)
+        repository.syncFoodToHealthConnect(date)
+        val expectedClientIds = setOf(
+            database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "nutrition").single().clientRecordId,
+            database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "hydration").single().clientRecordId,
+        )
+
+        repository.deleteDiaryEntry(mealItemId)
+        repository.removeWater(WaterLogInput(date, 500.0))
+        val deletionSync = repository.syncFoodToHealthConnect(date)
+
+        assertEquals(FoodHealthConnectSyncResult(0, 0), deletionSync)
+        assertEquals(expectedClientIds, gateway.deletedRequests.single().map { it.clientRecordId }.toSet())
+        assertEquals(emptyList<HealthConnectExportRecordEntity>(), database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "nutrition"))
+        assertEquals(emptyList<HealthConnectExportRecordEntity>(), database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "hydration"))
+
+        repository.syncFoodToHealthConnect(date)
+        assertEquals(1, gateway.deletedRequests.size)
+        assertEquals(1, gateway.payloads.size)
+    }
+
+    @Test
+    fun foodHealthConnectSync_keepsLedgerAndRecordsFailureWhenDeletionFails() = runTest {
+        val gateway = FakeHealthConnectGateway()
+        repository = LocalFoodRepository(
+            database = database,
+            foodDao = database.foodDao(),
+            accountRepository = accountRepository,
+            healthConnectGateway = gateway,
+        )
+        val date = LocalDate.of(2026, 7, 15)
+        val foodId = repository.upsertSavedFood(
+            SavedFoodUpsertInput(
+                foodId = "failed-delete-food",
+                name = "Oats",
+                brand = null,
+                defaultServingGrams = 100.0,
+                nutritionPer100g = nutrition(390.0, 17.0, 66.0, 7.0),
+            ),
+        )
+        val mealItemId = repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 100.0, date))
+        repository.setFoodHealthConnectSyncEnabled(true)
+        repository.syncFoodToHealthConnect(date)
+        val ledger = database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "nutrition").single()
+        repository.deleteDiaryEntry(mealItemId)
+        gateway.deleteResultFactory = { HealthConnectDeleteResult.Failure("provider delete failed") }
+
+        var failure: IllegalStateException? = null
+        try {
+            repository.syncFoodToHealthConnect(date)
+        } catch (caught: IllegalStateException) {
+            failure = caught
+        }
+
+        assertEquals("provider delete failed", failure?.message)
+        assertEquals(listOf(ledger), database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "nutrition"))
+        assertEquals("provider delete failed", repository.observeFoodHealthConnectSyncState().first().lastFailureMessage)
+    }
+
     private suspend fun createReferencedFoodGraph(): ReferencedFoodGraph {
         val date = LocalDate.of(2026, 7, 10)
         val foodId = "referenced-food"
@@ -2255,6 +2338,10 @@ class LocalFoodRepositoryTest {
         private val foodPermissions = setOf("write-nutrition", "write-hydration")
         var lastPayload: HealthConnectFoodExportPayload? = null
         val payloads = mutableListOf<HealthConnectFoodExportPayload>()
+        val deletedRequests = mutableListOf<Set<HealthConnectAuthoredRecord>>()
+        var deleteResultFactory: (Set<HealthConnectAuthoredRecord>) -> HealthConnectDeleteResult = {
+            HealthConnectDeleteResult.Complete(it)
+        }
 
         override suspend fun status(): HealthConnectStatus = HealthConnectStatus(
             availability = HealthConnectAvailability.Available,
@@ -2294,6 +2381,11 @@ class LocalFoodRepositoryTest {
                     null
                 },
             )
+        }
+
+        override suspend fun deleteAuthoredRecords(records: Set<HealthConnectAuthoredRecord>): HealthConnectDeleteResult {
+            deletedRequests += records
+            return deleteResultFactory(records)
         }
     }
 

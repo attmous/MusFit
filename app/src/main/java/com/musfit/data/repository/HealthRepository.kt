@@ -15,6 +15,9 @@ import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.health.StepSource
+import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecord
+import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecordType
+import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
 import com.musfit.integrations.healthconnect.HealthConnectRecordIdentity
 import com.musfit.integrations.healthconnect.workoutExportFingerprint
@@ -79,6 +82,9 @@ interface HealthRepository {
     suspend fun refreshRecentData(endDate: LocalDate, days: Int = 7): HealthConnectRefreshResult = HealthConnectRefreshResult(importedDayCount = 0, bodyMetricCount = 0)
 
     suspend fun exportLatestWorkout(): String?
+
+    /** Deletes only records allowlisted by MusFit's authored-export ledger. */
+    suspend fun deleteAuthoredRecords(): HealthConnectDeleteResult = HealthConnectDeleteResult.Failure("Health Connect authored-record deletion is not implemented.")
 
     fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> = flowOf(emptyList())
 
@@ -349,6 +355,50 @@ class LocalHealthRepository @Inject constructor(
         return recordId
     }
 
+    override suspend fun deleteAuthoredRecords(): HealthConnectDeleteResult {
+        val accountId = accountRepository.ensureActiveAccount().id
+        val ledgerRecords = listOf(
+            HEALTH_EXPORT_TYPE_WORKOUT,
+            HEALTH_EXPORT_TYPE_NUTRITION,
+            HEALTH_EXPORT_TYPE_HYDRATION,
+        ).flatMap { recordType -> healthDao.getHealthConnectExportRecords(accountId, recordType) }
+        val authoredRecords = ledgerRecords.mapNotNullTo(linkedSetOf()) { it.toAuthoredRecordOrNull() }
+        if (authoredRecords.isEmpty()) return HealthConnectDeleteResult.Complete(emptySet())
+
+        val result = gateway.deleteAuthoredRecords(authoredRecords)
+        removeConfirmedAuthoredRecords(accountId, ledgerRecords, result.deletedRecords)
+        return result
+    }
+
+    private suspend fun removeConfirmedAuthoredRecords(
+        accountId: String,
+        ledgerRecords: List<HealthConnectExportRecordEntity>,
+        deletedRecords: Set<HealthConnectAuthoredRecord>,
+    ) {
+        ledgerRecords.forEach { ledgerRecord ->
+            val authoredRecord = ledgerRecord.toAuthoredRecordOrNull() ?: return@forEach
+            if (authoredRecord !in deletedRecords) return@forEach
+            healthDao.deleteHealthConnectExportRecord(
+                accountId = accountId,
+                recordType = ledgerRecord.recordType,
+                localEntityId = ledgerRecord.localEntityId,
+            )
+            if (authoredRecord.type == HealthConnectAuthoredRecordType.Workout) {
+                clearWorkoutExportMetadata(accountId, ledgerRecord.localEntityId)
+            }
+        }
+    }
+
+    private suspend fun clearWorkoutExportMetadata(accountId: String, sessionId: String) {
+        val session = trainingDao.getWorkoutSession(accountId, sessionId) ?: return
+        trainingDao.updateWorkoutSession(
+            session.copy(
+                healthConnectRecordId = null,
+                healthConnectLastExportedAtEpochMillis = null,
+            ),
+        )
+    }
+
     private suspend fun adoptLegacyWorkoutExport(
         accountId: String,
         session: WorkoutSessionEntity,
@@ -421,6 +471,8 @@ class LocalHealthRepository @Inject constructor(
 
     private companion object {
         const val HEALTH_EXPORT_TYPE_WORKOUT = "workout"
+        const val HEALTH_EXPORT_TYPE_NUTRITION = "nutrition"
+        const val HEALTH_EXPORT_TYPE_HYDRATION = "hydration"
         const val SYNC_STATE_KEY = "health_connect"
         const val WEIGHT_METRIC_TYPE = "weight"
     }

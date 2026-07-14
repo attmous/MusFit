@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.ExerciseEntity
+import com.musfit.data.local.entity.HealthConnectExportRecordEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
@@ -17,6 +18,10 @@ import com.musfit.domain.health.HealthConnectUnavailableReason
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.health.StepSource
+import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecord
+import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecordType
+import com.musfit.integrations.healthconnect.HealthConnectDeleteFailure
+import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
@@ -814,6 +819,53 @@ class LocalHealthRepositoryTest {
         assertNull(database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-newer-empty")?.healthConnectRecordId)
     }
 
+    @Test
+    fun deleteAuthoredRecords_removesOnlyLedgerBackedRecordsAndMakesRetryANoOp() = runTest {
+        seedCompletedWorkout()
+        repository.exportLatestWorkout()
+        listOf("nutrition" to "meal-1", "hydration" to "2026-07-14").forEach { (type, localId) ->
+            database.healthDao().upsertHealthConnectExportRecord(exportRecord(type, localId))
+        }
+        gateway.deleteResultFactory = { records -> HealthConnectDeleteResult.Complete(records) }
+
+        val result = repository.deleteAuthoredRecords()
+
+        assertEquals(HealthConnectDeleteResult.Complete::class, result::class)
+        assertEquals(3, gateway.deletedRequests.single().size)
+        assertEquals(emptyList<HealthConnectExportRecordEntity>(), database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "workout"))
+        assertEquals(emptyList<HealthConnectExportRecordEntity>(), database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "nutrition"))
+        assertEquals(emptyList<HealthConnectExportRecordEntity>(), database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "hydration"))
+        val session = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-stable")
+        assertNull(session?.healthConnectRecordId)
+        assertNull(session?.healthConnectLastExportedAtEpochMillis)
+
+        val retry = repository.deleteAuthoredRecords()
+
+        assertEquals(HealthConnectDeleteResult.Complete(emptySet()), retry)
+        assertEquals(1, gateway.deletedRequests.size)
+    }
+
+    @Test
+    fun deleteAuthoredRecords_keepsFailedLedgerRowsForRetry() = runTest {
+        val nutrition = exportRecord("nutrition", "meal-1")
+        val hydration = exportRecord("hydration", "2026-07-14")
+        database.healthDao().upsertHealthConnectExportRecord(nutrition)
+        database.healthDao().upsertHealthConnectExportRecord(hydration)
+        gateway.deleteResultFactory = { records ->
+            val deleted = records.filterTo(linkedSetOf()) { it.type == HealthConnectAuthoredRecordType.Nutrition }
+            HealthConnectDeleteResult.Partial(
+                deletedRecords = deleted,
+                failures = listOf(HealthConnectDeleteFailure(HealthConnectAuthoredRecordType.Hydration, "provider failed")),
+            )
+        }
+
+        val result = repository.deleteAuthoredRecords()
+
+        assertEquals(HealthConnectDeleteResult.Partial::class, result::class)
+        assertEquals(emptyList<HealthConnectExportRecordEntity>(), database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "nutrition"))
+        assertEquals(listOf(hydration), database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "hydration"))
+    }
+
     private class FakeHealthConnectGateway : HealthConnectGateway {
         var exportedSession: WorkoutSessionEntity? = null
         var exportedSets: List<WorkoutSetEntity> = emptyList()
@@ -823,6 +875,10 @@ class LocalHealthRepositoryTest {
         var stepSources: List<StepSource> = emptyList()
         var dailyReadResultFactory: ((LocalDate) -> HealthConnectDailyReadResult)? = null
         var readFailure: Throwable? = null
+        val deletedRequests = mutableListOf<Set<HealthConnectAuthoredRecord>>()
+        var deleteResultFactory: (Set<HealthConnectAuthoredRecord>) -> HealthConnectDeleteResult = {
+            HealthConnectDeleteResult.Complete(it)
+        }
         var dailySummaryFactory: (LocalDate) -> ImportedDailyHealthSummary = { date ->
             ImportedDailyHealthSummary(
                 steps = 1234L,
@@ -903,7 +959,23 @@ class LocalHealthRepositoryTest {
         }
 
         override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? = null
+
+        override suspend fun deleteAuthoredRecords(records: Set<HealthConnectAuthoredRecord>): HealthConnectDeleteResult {
+            deletedRequests += records
+            return deleteResultFactory(records)
+        }
     }
+
+    private fun exportRecord(type: String, localId: String) = HealthConnectExportRecordEntity(
+        accountId = TEST_ACCOUNT_ID,
+        recordType = type,
+        localEntityId = localId,
+        clientRecordId = "$type-client-$localId",
+        clientRecordVersion = 1,
+        payloadFingerprint = "$type-fingerprint",
+        providerRecordId = "$type-provider-$localId",
+        exportedAtEpochMillis = 900L,
+    )
 
     private suspend fun seedCompletedWorkout() {
         database.trainingDao().upsertExerciseDefinition(

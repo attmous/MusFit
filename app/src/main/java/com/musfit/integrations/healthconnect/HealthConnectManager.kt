@@ -36,6 +36,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
 
+@Suppress("TooManyFunctions")
 class HealthConnectManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) : HealthConnectGateway {
@@ -339,6 +340,65 @@ class HealthConnectManager @Inject constructor(
         return healthConnectCatchingOrNull { insertFoodRecords(nutritionExports, nutritionRecords, hydrationRecord) }
     }
 
+    @Suppress("CyclomaticComplexMethod", "ReturnCount", "TooGenericExceptionCaught")
+    override suspend fun deleteAuthoredRecords(records: Set<HealthConnectAuthoredRecord>): HealthConnectDeleteResult {
+        if (records.isEmpty()) return HealthConnectDeleteResult.Complete(emptySet())
+        val currentStatus = try {
+            status()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Exception) {
+            return HealthConnectDeleteResult.Failure(failure.healthConnectMessage())
+        }
+        if (currentStatus.availability != HealthConnectAvailability.Available) {
+            return HealthConnectDeleteResult.Unavailable("Health Connect is unavailable.")
+        }
+
+        val groupedRecords = records.groupBy(HealthConnectAuthoredRecord::type)
+        val permittedTypes = groupedRecords.keys.filter { type ->
+            type.requiredWritePermission() in currentStatus.grantedPermissions
+        }
+        if (permittedTypes.isEmpty()) {
+            return HealthConnectDeleteResult.Unavailable("Health Connect write permissions are unavailable.")
+        }
+        val client = try {
+            clientFactory()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Exception) {
+            return HealthConnectDeleteResult.Failure(failure.healthConnectMessage())
+        }
+
+        val deletedRecords = linkedSetOf<HealthConnectAuthoredRecord>()
+        val failures = mutableListOf<HealthConnectDeleteFailure>()
+        HealthConnectAuthoredRecordType.entries.forEach { type ->
+            val typedRecords = groupedRecords[type].orEmpty()
+            if (typedRecords.isEmpty()) return@forEach
+            if (type !in permittedTypes) {
+                failures += HealthConnectDeleteFailure(type, "Health Connect write permission is unavailable.")
+                return@forEach
+            }
+            try {
+                val clientRecordIds = typedRecords.map(HealthConnectAuthoredRecord::clientRecordId).sorted()
+                when (type) {
+                    HealthConnectAuthoredRecordType.Workout -> client.deleteExerciseSessions(clientRecordIds)
+                    HealthConnectAuthoredRecordType.Nutrition -> client.deleteNutritionRecords(clientRecordIds)
+                    HealthConnectAuthoredRecordType.Hydration -> client.deleteHydrationRecords(clientRecordIds)
+                }
+                deletedRecords += typedRecords
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Exception) {
+                failures += HealthConnectDeleteFailure(type, failure.healthConnectMessage())
+            }
+        }
+        return when {
+            failures.isEmpty() -> HealthConnectDeleteResult.Complete(deletedRecords)
+            deletedRecords.isNotEmpty() -> HealthConnectDeleteResult.Partial(deletedRecords, failures)
+            else -> HealthConnectDeleteResult.Failure(failures.joinToString("; ") { it.message })
+        }
+    }
+
     private suspend fun insertFoodRecords(
         nutritionExports: List<HealthConnectFoodMealExport>,
         nutritionRecords: List<NutritionRecord>,
@@ -428,6 +488,12 @@ class HealthConnectManager @Inject constructor(
             )
         }
     }
+}
+
+private fun HealthConnectAuthoredRecordType.requiredWritePermission(): String = when (this) {
+    HealthConnectAuthoredRecordType.Workout -> HealthPermissionInventory.writeExercisePermission
+    HealthConnectAuthoredRecordType.Nutrition -> HealthPermissionInventory.writeNutritionPermission
+    HealthConnectAuthoredRecordType.Hydration -> HealthPermissionInventory.writeHydrationPermission
 }
 
 @Suppress("TooGenericExceptionCaught")
@@ -548,6 +614,12 @@ internal interface HealthConnectClientAdapter {
     suspend fun insertNutritionRecords(records: List<NutritionRecord>): List<String>
 
     suspend fun insertHydrationRecord(record: HydrationRecord): String?
+
+    suspend fun deleteExerciseSessions(clientRecordIds: List<String>)
+
+    suspend fun deleteNutritionRecords(clientRecordIds: List<String>)
+
+    suspend fun deleteHydrationRecords(clientRecordIds: List<String>)
 }
 
 private class DefaultHealthConnectClientAdapter(
@@ -671,6 +743,24 @@ private class DefaultHealthConnectClientAdapter(
     override suspend fun insertNutritionRecords(records: List<NutritionRecord>): List<String> = client.insertRecords(records).recordIdsList
 
     override suspend fun insertHydrationRecord(record: HydrationRecord): String? = client.insertRecords(listOf(record)).recordIdsList.firstOrNull()
+
+    override suspend fun deleteExerciseSessions(clientRecordIds: List<String>) = client.deleteRecords(
+        ExerciseSessionRecord::class,
+        recordIdsList = emptyList(),
+        clientRecordIdsList = clientRecordIds,
+    )
+
+    override suspend fun deleteNutritionRecords(clientRecordIds: List<String>) = client.deleteRecords(
+        NutritionRecord::class,
+        recordIdsList = emptyList(),
+        clientRecordIdsList = clientRecordIds,
+    )
+
+    override suspend fun deleteHydrationRecords(clientRecordIds: List<String>) = client.deleteRecords(
+        HydrationRecord::class,
+        recordIdsList = emptyList(),
+        clientRecordIdsList = clientRecordIds,
+    )
 }
 
 private fun LocalDate.asHealthConnectTimeRange(zoneId: ZoneId = ZoneId.systemDefault()): HealthConnectTimeRange {

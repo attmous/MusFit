@@ -119,8 +119,11 @@ for tracked days, average calories/protein, target and hydration adherence,
 habit coverage, and calorie trends. The score uses a neutral training factor
 until a weekly Training/Health Connect signal is connected.
 
-**Health Connect.** Food/hydration export implementation with a sync-state card;
-the manifest write-permission gap is tracked by the July 2026 audit.
+**Health Connect.** Food/hydration export implementation with a sync-state card.
+An explicit sync treats the current local day as the source of truth: removed
+MusFit meal aggregates and zeroed hydration delete only their ledger-backed,
+MusFit-authored Health Connect records. Manual and imported provider records are
+outside this deletion boundary.
 
 **Cross-cutting.** Favorites across foods/templates/recipes/quick-logs, undo
 delete, copy/move entries, and mark planned → logged.
@@ -141,8 +144,8 @@ Health Connect, and architecture work remains in the remediation backlog.
 - AI voice/photo logging remain UX shells and require explicit product scope
   before becoming model-backed write flows.
 - Nutrition-label OCR parsing is best-effort and always review-before-save/log.
-- Nutrition/hydration export is implemented in code, but the required Health
-  Connect manifest write declarations remain an open audit finding.
+- Provider-side deletion/revocation reconciliation for imported Health data is
+  tracked separately by `W3-HC-03B`.
 - The Profile nutrition-trends score uses a neutral training factor until a real weekly
   Training/Health Connect signal is connected.
 - Food trust reports are local UI state, not a persisted review queue.
