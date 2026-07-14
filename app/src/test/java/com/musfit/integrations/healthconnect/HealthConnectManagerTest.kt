@@ -432,21 +432,21 @@ class HealthConnectManagerTest {
 
         val result = manager.exportFood(foodExportPayload())
 
-        assertEquals(HealthConnectFoodExportResult(nutritionRecordCount = 2, hydrationRecordCount = 1), result)
+        assertEquals(2, result?.nutritionRecordCount)
+        assertEquals(1, result?.hydrationRecordCount)
+        assertEquals(setOf("breakfast", "snacks"), result?.nutritionProviderRecordIds?.keys)
+        assertEquals("hydration-record-id", result?.hydrationProviderRecordId)
         assertEquals(1, factory.createCount)
         assertEquals(1, client.insertNutritionCalls)
         assertEquals(1, client.insertHydrationCalls)
         assertEquals(2, client.insertedNutritionRecords.size)
         assertEquals(
-            listOf(
-                "musfit-food-nutrition-2026-06-20-breakfast",
-                "musfit-food-nutrition-2026-06-20-snacks",
-            ),
-            client.insertedNutritionRecords.map { record -> record.metadata.clientRecordId },
+            2,
+            client.insertedNutritionRecords.map { record -> record.metadata.clientRecordId }.distinct().size,
         )
         assertEquals(
-            "musfit-food-hydration-2026-06-20",
-            client.insertedHydrationRecord?.metadata?.clientRecordId,
+            1L,
+            client.insertedHydrationRecord?.metadata?.clientRecordVersion,
         )
     }
 
@@ -702,10 +702,10 @@ class HealthConnectManagerTest {
             return insertedRecordId
         }
 
-        override suspend fun insertNutritionRecords(records: List<NutritionRecord>): Int {
+        override suspend fun insertNutritionRecords(records: List<NutritionRecord>): List<String> {
             insertNutritionCalls += 1
             insertedNutritionRecords = records
-            return records.size
+            return records.indices.map { index -> "nutrition-record-$index" }
         }
 
         override suspend fun insertHydrationRecord(record: HydrationRecord): String? {

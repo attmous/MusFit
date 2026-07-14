@@ -4,8 +4,10 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.local.entity.HealthConnectExportRecordEntity
 import com.musfit.data.local.entity.HealthConnectSyncStateEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -63,4 +65,23 @@ interface HealthDao {
             "WHERE accountId = :accountId AND key = 'health_connect'",
     )
     suspend fun updatePreferredStepsPackage(accountId: String, packageName: String?)
+
+    @Query(
+        "SELECT * FROM health_connect_export_records " +
+            "WHERE accountId = :accountId AND recordType = :recordType AND localEntityId = :localEntityId LIMIT 1",
+    )
+    suspend fun getHealthConnectExportRecord(
+        accountId: String,
+        recordType: String,
+        localEntityId: String,
+    ): HealthConnectExportRecordEntity?
+
+    @Query(
+        "SELECT * FROM health_connect_export_records " +
+            "WHERE accountId = :accountId AND recordType = :recordType ORDER BY localEntityId",
+    )
+    suspend fun getHealthConnectExportRecords(accountId: String, recordType: String): List<HealthConnectExportRecordEntity>
+
+    @Upsert
+    suspend fun upsertHealthConnectExportRecord(record: HealthConnectExportRecordEntity)
 }

@@ -4,13 +4,17 @@ import com.musfit.data.local.dao.HealthDao
 import com.musfit.data.local.dao.TrainingDao
 import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.local.entity.HealthConnectExportRecordEntity
 import com.musfit.data.local.entity.HealthConnectSyncStateEntity
+import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.health.StepSource
 import com.musfit.integrations.healthconnect.HealthConnectGateway
+import com.musfit.integrations.healthconnect.HealthConnectRecordIdentity
+import com.musfit.integrations.healthconnect.workoutExportFingerprint
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -172,17 +176,35 @@ class LocalHealthRepository @Inject constructor(
         val sets = trainingDao.getCompletedWorkoutSets(accountId, session.id)
         if (sets.isEmpty()) return null
 
-        val recordId = gateway.exportWorkout(session, sets) ?: return null
-        val now = clock()
-        val updatedSession =
-            session.copy(
-                healthConnectRecordId = recordId,
-                healthConnectLastExportedAtEpochMillis = now,
-            )
-        val inserted = trainingDao.insertWorkoutSession(updatedSession)
-        if (inserted == -1L) {
-            trainingDao.updateWorkoutSession(updatedSession)
+        val fingerprint = workoutExportFingerprint(session, sets)
+        val existing = healthDao.getHealthConnectExportRecord(accountId, HEALTH_EXPORT_TYPE_WORKOUT, session.id)
+        if (existing?.payloadFingerprint == fingerprint) {
+            return existing.providerRecordId
         }
+        if (existing == null) {
+            adoptLegacyWorkoutExport(accountId, session, fingerprint)?.let { return it }
+        }
+
+        val identity = HealthConnectRecordIdentity.forWorkout(
+            accountId = accountId,
+            sessionId = session.id,
+            version = existing?.clientRecordVersion?.plus(1) ?: 1,
+        )
+        val recordId = gateway.exportWorkout(session, sets, identity) ?: return null
+        val now = clock()
+        persistWorkoutExportRecord(
+            HealthConnectExportRecordEntity(
+                accountId = accountId,
+                recordType = HEALTH_EXPORT_TYPE_WORKOUT,
+                localEntityId = session.id,
+                clientRecordId = identity.clientRecordId,
+                clientRecordVersion = identity.clientRecordVersion,
+                payloadFingerprint = fingerprint,
+                providerRecordId = recordId,
+                exportedAtEpochMillis = now,
+            ),
+        )
+        persistWorkoutProviderMetadata(session, recordId, now)
         upsertSyncState(
             accountId = accountId,
             lastImportAtEpochMillis = null,
@@ -190,6 +212,44 @@ class LocalHealthRepository @Inject constructor(
             lastFailureMessage = null,
         )
         return recordId
+    }
+
+    private suspend fun adoptLegacyWorkoutExport(
+        accountId: String,
+        session: WorkoutSessionEntity,
+        fingerprint: String,
+    ): String? {
+        val providerRecordId = session.healthConnectRecordId?.takeIf(String::isNotBlank) ?: return null
+        val identity = HealthConnectRecordIdentity.forWorkout(accountId, session.id, version = 1)
+        persistWorkoutExportRecord(
+            HealthConnectExportRecordEntity(
+                accountId = accountId,
+                recordType = HEALTH_EXPORT_TYPE_WORKOUT,
+                localEntityId = session.id,
+                clientRecordId = identity.clientRecordId,
+                clientRecordVersion = identity.clientRecordVersion,
+                payloadFingerprint = fingerprint,
+                providerRecordId = providerRecordId,
+                exportedAtEpochMillis = session.healthConnectLastExportedAtEpochMillis ?: clock(),
+            ),
+        )
+        return providerRecordId
+    }
+
+    private suspend fun persistWorkoutExportRecord(record: HealthConnectExportRecordEntity) = healthDao.upsertHealthConnectExportRecord(record)
+
+    private suspend fun persistWorkoutProviderMetadata(
+        session: WorkoutSessionEntity,
+        providerRecordId: String,
+        exportedAt: Long,
+    ) {
+        val updatedSession = session.copy(
+            healthConnectRecordId = providerRecordId,
+            healthConnectLastExportedAtEpochMillis = exportedAt,
+        )
+        if (trainingDao.insertWorkoutSession(updatedSession) == -1L) {
+            trainingDao.updateWorkoutSession(updatedSession)
+        }
     }
 
     private suspend fun upsertSyncState(
@@ -216,6 +276,7 @@ class LocalHealthRepository @Inject constructor(
     }
 
     private companion object {
+        const val HEALTH_EXPORT_TYPE_WORKOUT = "workout"
         const val SYNC_STATE_KEY = "health_connect"
         const val WEIGHT_METRIC_TYPE = "weight"
     }

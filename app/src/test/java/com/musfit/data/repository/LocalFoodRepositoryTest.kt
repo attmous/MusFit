@@ -2065,7 +2065,7 @@ class LocalFoodRepositoryTest {
                     ),
                 ),
             )
-        repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 50.0, date))
+        val mealItemId = repository.logSavedFood(SavedFoodLogInput(foodId, "breakfast", 50.0, date))
         repository.logWater(WaterLogInput(date = date, amountMilliliters = 500.0))
 
         repository.setFoodHealthConnectSyncEnabled(true)
@@ -2084,6 +2084,82 @@ class LocalFoodRepositoryTest {
         assertEquals(6.5, meal.proteinGrams, 0.01)
         assertEquals(5.0, meal.fiberGrams, 0.01)
         assertEquals(500.0, gateway.lastPayload?.hydrationMilliliters ?: 0.0, 0.01)
+
+        val retry = repository.syncFoodToHealthConnect(date)
+        assertEquals(FoodHealthConnectSyncResult(0, 0), retry)
+        assertEquals(1, gateway.payloads.size)
+
+        repository.updateDiaryEntry(
+            DiaryEntryUpdateInput(
+                mealItemId = mealItemId,
+                mealType = "breakfast",
+                quantityGrams = 75.0,
+                date = date,
+            ),
+        )
+        val edited = repository.syncFoodToHealthConnect(date)
+        val nutritionLedger = database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "nutrition").single()
+        val hydrationLedger = database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "hydration").single()
+
+        assertEquals(FoodHealthConnectSyncResult(1, 0), edited)
+        assertEquals(2, gateway.payloads.size)
+        assertEquals(listOf(1L, 2L), gateway.payloads.map { it.meals.single().clientRecordVersion })
+        assertEquals(2L, nutritionLedger.clientRecordVersion)
+        assertEquals("nutrition-provider-2-${meal.localMealId}", nutritionLedger.providerRecordId)
+        assertEquals(1L, hydrationLedger.clientRecordVersion)
+        assertEquals("hydration-provider-1", hydrationLedger.providerRecordId)
+    }
+
+    @Test
+    fun foodHealthConnectSync_sameNormalizedCustomLabelsKeepDistinctMealIdentity() = runTest {
+        val gateway = FakeHealthConnectGateway()
+        repository = LocalFoodRepository(
+            database = database,
+            foodDao = database.foodDao(),
+            accountRepository = accountRepository,
+            healthConnectGateway = gateway,
+        )
+        val date = LocalDate.of(2026, 7, 14)
+        val foodId = repository.upsertSavedFood(
+            SavedFoodUpsertInput(
+                foodId = "collision-food",
+                name = "Recovery bowl",
+                brand = null,
+                defaultServingGrams = 100.0,
+                nutritionPer100g = nutrition(400.0, 30.0, 50.0, 10.0),
+            ),
+        )
+        listOf("meal/a" to "Post Run", "meal:b" to "post-run").forEachIndexed { index, (mealId, label) ->
+            database.foodDao().upsertMeal(
+                MealEntity(
+                    accountId = TEST_ACCOUNT_ID,
+                    id = mealId,
+                    dateEpochDay = date.toEpochDay(),
+                    type = label,
+                    notes = null,
+                    createdAtEpochMillis = index.toLong(),
+                    updatedAtEpochMillis = index.toLong(),
+                ),
+            )
+            database.foodDao().upsertMealItem(
+                MealItemEntity(
+                    accountId = TEST_ACCOUNT_ID,
+                    id = "item-$index",
+                    mealId = mealId,
+                    foodId = foodId,
+                    quantityGrams = 100.0,
+                ),
+            )
+        }
+        repository.setFoodHealthConnectSyncEnabled(true)
+
+        val result = repository.syncFoodToHealthConnect(date)
+        val ledger = database.healthDao().getHealthConnectExportRecords(TEST_ACCOUNT_ID, "nutrition")
+
+        assertEquals(2, result.nutritionRecordCount)
+        assertEquals(setOf("meal/a", "meal:b"), gateway.lastPayload?.meals?.map { it.localMealId }?.toSet())
+        assertEquals(2, ledger.map { it.clientRecordId }.distinct().size)
+        assertEquals(setOf("meal/a", "meal:b"), ledger.map { it.localEntityId }.toSet())
     }
 
     private suspend fun createReferencedFoodGraph(): ReferencedFoodGraph {
@@ -2178,6 +2254,7 @@ class LocalFoodRepositoryTest {
     private class FakeHealthConnectGateway : HealthConnectGateway {
         private val foodPermissions = setOf("write-nutrition", "write-hydration")
         var lastPayload: HealthConnectFoodExportPayload? = null
+        val payloads = mutableListOf<HealthConnectFoodExportPayload>()
 
         override suspend fun status(): HealthConnectStatus = HealthConnectStatus(
             availability = HealthConnectAvailability.Available,
@@ -2197,9 +2274,19 @@ class LocalFoodRepositoryTest {
 
         override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult {
             lastPayload = payload
+            payloads += payload
+            val callNumber = payloads.size
             return HealthConnectFoodExportResult(
                 nutritionRecordCount = payload.meals.size,
                 hydrationRecordCount = if (payload.hydrationMilliliters > 0.0) 1 else 0,
+                nutritionProviderRecordIds = payload.meals.associate { meal ->
+                    meal.localMealId to "nutrition-provider-$callNumber-${meal.localMealId}"
+                },
+                hydrationProviderRecordId = if (payload.hydrationMilliliters > 0.0) {
+                    "hydration-provider-$callNumber"
+                } else {
+                    null
+                },
             )
         }
     }

@@ -6,8 +6,8 @@ import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.BodyFatRecord
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
-import androidx.health.connect.client.records.HydrationRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
+import androidx.health.connect.client.records.HydrationRecord
 import androidx.health.connect.client.records.NutritionRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
@@ -210,6 +210,7 @@ class HealthConnectManager @Inject constructor(
     private fun labelForStepSource(packageName: String): String = when {
         packageName == ON_DEVICE_STEPS_PACKAGE ||
             packageName.startsWith(ON_DEVICE_SPN_PREFIX) -> "Your phone"
+
         else -> runCatching {
             val packageManager = context.packageManager
             packageManager
@@ -221,6 +222,16 @@ class HealthConnectManager @Inject constructor(
     override suspend fun exportWorkout(
         session: WorkoutSessionEntity,
         sets: List<WorkoutSetEntity>,
+    ): String? = exportWorkout(
+        session = session,
+        sets = sets,
+        identity = HealthConnectRecordIdentity.forWorkout(session.accountId, session.id, version = 1),
+    )
+
+    override suspend fun exportWorkout(
+        session: WorkoutSessionEntity,
+        sets: List<WorkoutSetEntity>,
+        identity: HealthConnectRecordIdentity,
     ): String? {
         val currentStatus = status()
         if (
@@ -232,7 +243,7 @@ class HealthConnectManager @Inject constructor(
 
         return runCatching {
             clientFactory().insertExerciseSession(
-                HealthConnectRecordMapper.toExerciseSessionRecord(session, sets),
+                HealthConnectRecordMapper.toExerciseSessionRecord(session, sets, identity = identity),
             )
         }.getOrNull()
     }
@@ -249,38 +260,38 @@ class HealthConnectManager @Inject constructor(
             return null
         }
 
-        val nutritionRecords = if (canWriteNutrition) {
-            payload.meals
-                .filter { meal -> meal.caloriesKcal > 0.0 || meal.proteinGrams > 0.0 || meal.carbsGrams > 0.0 || meal.fatGrams > 0.0 }
-                .map { meal -> HealthConnectRecordMapper.toNutritionRecord(payload.date, meal) }
-        } else {
-            emptyList()
-        }
-        val hydrationRecord = if (canWriteHydration && payload.hydrationMilliliters > 0.0) {
-            HealthConnectRecordMapper.toHydrationRecord(payload.date, payload.hydrationMilliliters)
-        } else {
-            null
-        }
+        val nutritionExports = payload.writeableNutritionExports(canWriteNutrition)
+        val nutritionRecords = payload.toNutritionRecords(nutritionExports)
+        val hydrationRecord = payload.toHydrationRecord(canWriteHydration)
 
         if (nutritionRecords.isEmpty() && hydrationRecord == null) {
             return HealthConnectFoodExportResult(nutritionRecordCount = 0, hydrationRecordCount = 0)
         }
 
-        return runCatching {
-            val client = clientFactory()
-            val nutritionCount = if (nutritionRecords.isNotEmpty()) {
-                client.insertNutritionRecords(nutritionRecords)
-            } else {
-                0
-            }
-            val hydrationCount = hydrationRecord?.let { record ->
-                if (client.insertHydrationRecord(record) != null) 1 else 0
-            } ?: 0
-            HealthConnectFoodExportResult(
-                nutritionRecordCount = nutritionCount,
-                hydrationRecordCount = hydrationCount,
-            )
-        }.getOrNull()
+        return runCatching { insertFoodRecords(nutritionExports, nutritionRecords, hydrationRecord) }.getOrNull()
+    }
+
+    private suspend fun insertFoodRecords(
+        nutritionExports: List<HealthConnectFoodMealExport>,
+        nutritionRecords: List<NutritionRecord>,
+        hydrationRecord: HydrationRecord?,
+    ): HealthConnectFoodExportResult {
+        val client = clientFactory()
+        val nutritionProviderIds = if (nutritionRecords.isEmpty()) {
+            emptyList()
+        } else {
+            client.insertNutritionRecords(nutritionRecords)
+        }
+        val hydrationProviderId = hydrationRecord?.let { record -> client.insertHydrationRecord(record) }
+        return HealthConnectFoodExportResult(
+            nutritionRecordCount = nutritionProviderIds.size,
+            hydrationRecordCount = if (hydrationProviderId != null) 1 else 0,
+            nutritionProviderRecordIds = nutritionExports
+                .map { meal -> meal.localMealId }
+                .zip(nutritionProviderIds)
+                .toMap(),
+            hydrationProviderRecordId = hydrationProviderId,
+        )
     }
 
     private companion object {
@@ -327,8 +338,10 @@ class HealthConnectManager @Inject constructor(
                 )
             ) {
                 HealthConnectClient.SDK_AVAILABLE -> HealthConnectAvailability.Available
+
                 HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED ->
                     HealthConnectAvailability.NotInstalled
+
                 else -> HealthConnectAvailability.NotSupported
             }
 
@@ -348,6 +361,40 @@ class HealthConnectManager @Inject constructor(
         }
     }
 }
+
+private fun HealthConnectFoodExportPayload.writeableNutritionExports(
+    canWriteNutrition: Boolean,
+): List<HealthConnectFoodMealExport> = if (canWriteNutrition) meals.filter { it.hasMacroNutrition() } else emptyList()
+
+private fun HealthConnectFoodExportPayload.toNutritionRecords(
+    exports: List<HealthConnectFoodMealExport>,
+): List<NutritionRecord> = exports.map { meal ->
+    HealthConnectRecordMapper.toNutritionRecord(
+        date = date,
+        meal = meal,
+        identity = HealthConnectRecordIdentity.forNutrition(
+            accountId = accountId,
+            mealId = meal.localMealId,
+            version = meal.clientRecordVersion,
+        ),
+    )
+}
+
+private fun HealthConnectFoodExportPayload.toHydrationRecord(canWriteHydration: Boolean): HydrationRecord? {
+    if (!canWriteHydration || hydrationMilliliters <= 0.0) return null
+    return HealthConnectRecordMapper.toHydrationRecord(
+        date = date,
+        milliliters = hydrationMilliliters,
+        accountId = accountId,
+        identity = HealthConnectRecordIdentity.forHydration(
+            accountId = accountId,
+            date = date,
+            version = hydrationClientRecordVersion,
+        ),
+    )
+}
+
+private fun HealthConnectFoodMealExport.hasMacroNutrition(): Boolean = caloriesKcal > 0.0 || proteinGrams > 0.0 || carbsGrams > 0.0 || fatGrams > 0.0
 
 internal data class HealthConnectTimeRange(
     val startTime: Instant,
@@ -388,7 +435,7 @@ internal interface HealthConnectClientAdapter {
 
     suspend fun insertExerciseSession(record: ExerciseSessionRecord): String?
 
-    suspend fun insertNutritionRecords(records: List<NutritionRecord>): Int
+    suspend fun insertNutritionRecords(records: List<NutritionRecord>): List<String>
 
     suspend fun insertHydrationRecord(record: HydrationRecord): String?
 }
@@ -414,120 +461,106 @@ private class DefaultHealthConnectClientAdapter(
         ),
     )[StepsRecord.COUNT_TOTAL]
 
-    override suspend fun readStepCountsByOrigin(range: HealthConnectTimeRange): Map<String, Long> =
-        client.readRecords(
-            ReadRecordsRequest(
-                recordType = StepsRecord::class,
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        ).records
-            .groupBy { it.metadata.dataOrigin.packageName }
-            .mapValues { (_, records) -> records.sumOf { it.count } }
+    override suspend fun readStepCountsByOrigin(range: HealthConnectTimeRange): Map<String, Long> = client.readRecords(
+        ReadRecordsRequest(
+            recordType = StepsRecord::class,
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    ).records
+        .groupBy { it.metadata.dataOrigin.packageName }
+        .mapValues { (_, records) -> records.sumOf { it.count } }
 
-    override suspend fun aggregateActiveCalories(range: HealthConnectTimeRange): Double? =
-        client.aggregate(
-            AggregateRequest(
-                metrics = setOf(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL),
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        )[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
+    override suspend fun aggregateActiveCalories(range: HealthConnectTimeRange): Double? = client.aggregate(
+        AggregateRequest(
+            metrics = setOf(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL),
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    )[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
 
-    override suspend fun aggregateTotalCalories(range: HealthConnectTimeRange): Double? =
-        client.aggregate(
-            AggregateRequest(
-                metrics = setOf(TotalCaloriesBurnedRecord.ENERGY_TOTAL),
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        )[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories
+    override suspend fun aggregateTotalCalories(range: HealthConnectTimeRange): Double? = client.aggregate(
+        AggregateRequest(
+            metrics = setOf(TotalCaloriesBurnedRecord.ENERGY_TOTAL),
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    )[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories
 
-    override suspend fun aggregateDistanceMeters(range: HealthConnectTimeRange): Double? =
-        client.aggregate(
-            AggregateRequest(
-                metrics = setOf(DistanceRecord.DISTANCE_TOTAL),
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        )[DistanceRecord.DISTANCE_TOTAL]?.inMeters
+    override suspend fun aggregateDistanceMeters(range: HealthConnectTimeRange): Double? = client.aggregate(
+        AggregateRequest(
+            metrics = setOf(DistanceRecord.DISTANCE_TOTAL),
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    )[DistanceRecord.DISTANCE_TOTAL]?.inMeters
 
-    override suspend fun aggregateSleepMinutes(range: HealthConnectTimeRange): Long? =
-        client.aggregate(
-            AggregateRequest(
-                metrics = setOf(SleepSessionRecord.SLEEP_DURATION_TOTAL),
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        )[SleepSessionRecord.SLEEP_DURATION_TOTAL]?.toMinutes()
+    override suspend fun aggregateSleepMinutes(range: HealthConnectTimeRange): Long? = client.aggregate(
+        AggregateRequest(
+            metrics = setOf(SleepSessionRecord.SLEEP_DURATION_TOTAL),
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    )[SleepSessionRecord.SLEEP_DURATION_TOTAL]?.toMinutes()
 
-    override suspend fun aggregateExerciseMinutes(range: HealthConnectTimeRange): Long? =
-        client.aggregate(
-            AggregateRequest(
-                metrics = setOf(ExerciseSessionRecord.EXERCISE_DURATION_TOTAL),
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        )[ExerciseSessionRecord.EXERCISE_DURATION_TOTAL]?.toMinutes()
+    override suspend fun aggregateExerciseMinutes(range: HealthConnectTimeRange): Long? = client.aggregate(
+        AggregateRequest(
+            metrics = setOf(ExerciseSessionRecord.EXERCISE_DURATION_TOTAL),
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    )[ExerciseSessionRecord.EXERCISE_DURATION_TOTAL]?.toMinutes()
 
-    override suspend fun readExerciseSessionCount(range: HealthConnectTimeRange): Int? =
-        client.readRecords(
-            ReadRecordsRequest(
-                recordType = ExerciseSessionRecord::class,
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        ).records.size
+    override suspend fun readExerciseSessionCount(range: HealthConnectTimeRange): Int? = client.readRecords(
+        ReadRecordsRequest(
+            recordType = ExerciseSessionRecord::class,
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    ).records.size
 
-    override suspend fun readLatestWeightMetric(range: HealthConnectTimeRange): ImportedBodyMetric? =
-        client.readRecords(
-            ReadRecordsRequest(
-                recordType = WeightRecord::class,
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        ).records.maxByOrNull { it.time }?.let { record ->
-            ImportedBodyMetric(
-                type = "weight",
-                value = record.weight.inKilograms,
-                unit = "kg",
-                measuredAtEpochMillis = record.time.toEpochMilli(),
-                externalId = record.metadata.id.takeIf { it.isNotBlank() },
-            )
-        }
+    override suspend fun readLatestWeightMetric(range: HealthConnectTimeRange): ImportedBodyMetric? = client.readRecords(
+        ReadRecordsRequest(
+            recordType = WeightRecord::class,
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    ).records.maxByOrNull { it.time }?.let { record ->
+        ImportedBodyMetric(
+            type = "weight",
+            value = record.weight.inKilograms,
+            unit = "kg",
+            measuredAtEpochMillis = record.time.toEpochMilli(),
+            externalId = record.metadata.id.takeIf { it.isNotBlank() },
+        )
+    }
 
-    override suspend fun readLatestBodyFatMetric(range: HealthConnectTimeRange): ImportedBodyMetric? =
-        client.readRecords(
-            ReadRecordsRequest(
-                recordType = BodyFatRecord::class,
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        ).records.maxByOrNull { it.time }?.let { record ->
-            ImportedBodyMetric(
-                type = "body_fat",
-                value = record.percentage.value,
-                unit = "%",
-                measuredAtEpochMillis = record.time.toEpochMilli(),
-                externalId = record.metadata.id.takeIf { it.isNotBlank() },
-            )
-        }
+    override suspend fun readLatestBodyFatMetric(range: HealthConnectTimeRange): ImportedBodyMetric? = client.readRecords(
+        ReadRecordsRequest(
+            recordType = BodyFatRecord::class,
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    ).records.maxByOrNull { it.time }?.let { record ->
+        ImportedBodyMetric(
+            type = "body_fat",
+            value = record.percentage.value,
+            unit = "%",
+            measuredAtEpochMillis = record.time.toEpochMilli(),
+            externalId = record.metadata.id.takeIf { it.isNotBlank() },
+        )
+    }
 
-    override suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long? =
-        client.readRecords(
-            ReadRecordsRequest(
-                recordType = RestingHeartRateRecord::class,
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        ).records.maxByOrNull { it.time }?.beatsPerMinute
+    override suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long? = client.readRecords(
+        ReadRecordsRequest(
+            recordType = RestingHeartRateRecord::class,
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    ).records.maxByOrNull { it.time }?.beatsPerMinute
 
-    override suspend fun readLatestHeartRateVariabilityRmssdMillis(range: HealthConnectTimeRange): Double? =
-        client.readRecords(
-            ReadRecordsRequest(
-                recordType = HeartRateVariabilityRmssdRecord::class,
-                timeRangeFilter = range.asTimeRangeFilter(),
-            ),
-        ).records.maxByOrNull { it.time }?.heartRateVariabilityMillis
+    override suspend fun readLatestHeartRateVariabilityRmssdMillis(range: HealthConnectTimeRange): Double? = client.readRecords(
+        ReadRecordsRequest(
+            recordType = HeartRateVariabilityRmssdRecord::class,
+            timeRangeFilter = range.asTimeRangeFilter(),
+        ),
+    ).records.maxByOrNull { it.time }?.heartRateVariabilityMillis
 
-    override suspend fun insertExerciseSession(record: ExerciseSessionRecord): String? =
-        client.insertRecords(listOf(record)).recordIdsList.firstOrNull()
+    override suspend fun insertExerciseSession(record: ExerciseSessionRecord): String? = client.insertRecords(listOf(record)).recordIdsList.firstOrNull()
 
-    override suspend fun insertNutritionRecords(records: List<NutritionRecord>): Int =
-        client.insertRecords(records).recordIdsList.size
+    override suspend fun insertNutritionRecords(records: List<NutritionRecord>): List<String> = client.insertRecords(records).recordIdsList
 
-    override suspend fun insertHydrationRecord(record: HydrationRecord): String? =
-        client.insertRecords(listOf(record)).recordIdsList.firstOrNull()
+    override suspend fun insertHydrationRecord(record: HydrationRecord): String? = client.insertRecords(listOf(record)).recordIdsList.firstOrNull()
 }
 
 private fun LocalDate.asHealthConnectTimeRange(zoneId: ZoneId = ZoneId.systemDefault()): HealthConnectTimeRange {

@@ -13,6 +13,7 @@ import com.musfit.data.local.entity.FoodEntity
 import com.musfit.data.local.entity.FoodGoalEntity
 import com.musfit.data.local.entity.FoodHealthConnectSyncEntity
 import com.musfit.data.local.entity.FoodServingEntity
+import com.musfit.data.local.entity.HealthConnectExportRecordEntity
 import com.musfit.data.local.entity.MealDefinitionEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
@@ -36,6 +37,9 @@ import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectFoodMealExport
 import com.musfit.integrations.healthconnect.HealthConnectGateway
+import com.musfit.integrations.healthconnect.HealthConnectRecordIdentity
+import com.musfit.integrations.healthconnect.hydrationExportFingerprint
+import com.musfit.integrations.healthconnect.nutritionExportFingerprint
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +54,12 @@ import java.util.UUID
 import javax.inject.Inject
 
 const val DEFAULT_WATER_GOAL_MILLILITERS = 2000.0
+
+private data class PreparedFoodHealthExport(
+    val payload: HealthConnectFoodExportPayload,
+    val hydrationFingerprint: String,
+    val hydrationChanged: Boolean,
+)
 
 data class NutritionDetails(
     val fiberGrams: Double = 0.0,
@@ -1128,21 +1138,9 @@ class LocalFoodRepository @Inject constructor(
         }
 
         return try {
-            val diary = foodDao.getFoodDiaryEntryRowsForDate(accountId, date.toEpochDay()).toFoodDiary()
-            val currentGoal = foodDao.getFoodGoal(accountId, DEFAULT_GOAL_ID)?.toFoodGoal() ?: DEFAULT_FOOD_GOAL
-            val waterSummary = FoodWaterSummary(
-                date = date,
-                consumedMilliliters = foodDao.getWaterTotalForDate(accountId, date.toEpochDay()),
-                goalMilliliters = currentGoal.waterGoalMilliliters,
-            )
-            val payload = HealthConnectFoodExportPayload(
-                date = date,
-                meals = diary.meals.mapNotNull { meal -> meal.toHealthConnectFoodMealExport() },
-                hydrationMilliliters = waterSummary.consumedMilliliters,
-            )
-            val exportResult =
-                healthConnectGateway.exportFood(payload)
-                    ?: error("Check Health Connect nutrition and hydration permissions")
+            val prepared = prepareFoodHealthExport(accountId, date)
+            val exportResult = exportFoodHealthPayload(prepared.payload)
+            persistFoodHealthExport(accountId, prepared, exportResult)
             val result = FoodHealthConnectSyncResult(
                 nutritionRecordCount = exportResult.nutritionRecordCount,
                 hydrationRecordCount = exportResult.hydrationRecordCount,
@@ -1156,6 +1154,118 @@ class LocalFoodRepository @Inject constructor(
             )
             throw error
         }
+    }
+
+    private suspend fun prepareFoodHealthExport(accountId: String, date: LocalDate): PreparedFoodHealthExport {
+        val diaryRows = foodDao.getFoodDiaryEntryRowsForDate(accountId, date.toEpochDay())
+        val changedMeals = changedNutritionExports(accountId, date, diaryRows)
+        val hydrationMilliliters = foodDao.getWaterTotalForDate(accountId, date.toEpochDay())
+        val hydrationFingerprint = hydrationExportFingerprint(date, hydrationMilliliters)
+        val existingHydration = database.healthDao().getHealthConnectExportRecord(
+            accountId,
+            HEALTH_EXPORT_TYPE_HYDRATION,
+            date.toString(),
+        )
+        val hydrationChanged = hydrationMilliliters > 0.0 &&
+            existingHydration?.payloadFingerprint != hydrationFingerprint
+        return PreparedFoodHealthExport(
+            payload = HealthConnectFoodExportPayload(
+                accountId = accountId,
+                date = date,
+                meals = changedMeals,
+                hydrationMilliliters = if (hydrationChanged) hydrationMilliliters else 0.0,
+                hydrationClientRecordVersion = existingHydration?.clientRecordVersion?.plus(1) ?: 1,
+            ),
+            hydrationFingerprint = hydrationFingerprint,
+            hydrationChanged = hydrationChanged,
+        )
+    }
+
+    private suspend fun changedNutritionExports(
+        accountId: String,
+        date: LocalDate,
+        diaryRows: List<FoodDiaryEntryRow>,
+    ): List<HealthConnectFoodMealExport> = buildList {
+        diaryRows.toHealthConnectFoodMealExports(accountId).forEach { meal ->
+            val fingerprint = nutritionExportFingerprint(date, meal)
+            val existing = database.healthDao().getHealthConnectExportRecord(
+                accountId,
+                HEALTH_EXPORT_TYPE_NUTRITION,
+                meal.localMealId,
+            )
+            if (existing?.payloadFingerprint != fingerprint) {
+                add(meal.copy(clientRecordVersion = existing?.clientRecordVersion?.plus(1) ?: 1))
+            }
+        }
+    }
+
+    private suspend fun exportFoodHealthPayload(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult = if (payload.meals.isEmpty() && payload.hydrationMilliliters <= 0.0) {
+        HealthConnectFoodExportResult(nutritionRecordCount = 0, hydrationRecordCount = 0)
+    } else {
+        healthConnectGateway.exportFood(payload)
+            ?: error("Check Health Connect nutrition and hydration permissions")
+    }
+
+    private suspend fun persistFoodHealthExport(
+        accountId: String,
+        prepared: PreparedFoodHealthExport,
+        result: HealthConnectFoodExportResult,
+    ) {
+        val exportedAt = System.currentTimeMillis()
+        persistNutritionExportRecords(accountId, prepared.payload, result, exportedAt)
+        persistHydrationExportRecord(accountId, prepared, result, exportedAt)
+    }
+
+    private suspend fun persistNutritionExportRecords(
+        accountId: String,
+        payload: HealthConnectFoodExportPayload,
+        result: HealthConnectFoodExportResult,
+        exportedAt: Long,
+    ) {
+        payload.meals.forEach { meal ->
+            val providerRecordId = result.nutritionProviderRecordIds[meal.localMealId] ?: return@forEach
+            val identity = HealthConnectRecordIdentity.forNutrition(accountId, meal.localMealId, meal.clientRecordVersion)
+            database.healthDao().upsertHealthConnectExportRecord(
+                HealthConnectExportRecordEntity(
+                    accountId = accountId,
+                    recordType = HEALTH_EXPORT_TYPE_NUTRITION,
+                    localEntityId = meal.localMealId,
+                    clientRecordId = identity.clientRecordId,
+                    clientRecordVersion = identity.clientRecordVersion,
+                    payloadFingerprint = nutritionExportFingerprint(payload.date, meal),
+                    providerRecordId = providerRecordId,
+                    exportedAtEpochMillis = exportedAt,
+                ),
+            )
+        }
+    }
+
+    private suspend fun persistHydrationExportRecord(
+        accountId: String,
+        prepared: PreparedFoodHealthExport,
+        result: HealthConnectFoodExportResult,
+        exportedAt: Long,
+    ) {
+        val providerRecordId = result.hydrationProviderRecordId ?: return
+        if (!prepared.hydrationChanged) return
+        val payload = prepared.payload
+        val identity = HealthConnectRecordIdentity.forHydration(
+            accountId,
+            payload.date,
+            payload.hydrationClientRecordVersion,
+        )
+        database.healthDao().upsertHealthConnectExportRecord(
+            HealthConnectExportRecordEntity(
+                accountId = accountId,
+                recordType = HEALTH_EXPORT_TYPE_HYDRATION,
+                localEntityId = payload.date.toString(),
+                clientRecordId = identity.clientRecordId,
+                clientRecordVersion = identity.clientRecordVersion,
+                payloadFingerprint = prepared.hydrationFingerprint,
+                providerRecordId = providerRecordId,
+                exportedAtEpochMillis = exportedAt,
+            ),
+        )
     }
 
     private suspend fun recordFoodHealthConnectSyncSuccess(accountId: String) {
@@ -1985,6 +2095,8 @@ class LocalFoodRepository @Inject constructor(
         const val QUICK_CALORIES_NAME = "Quick calories"
         const val DEFAULT_GOAL_ID = "default"
         const val FOOD_HEALTH_CONNECT_SYNC_KEY = "food"
+        const val HEALTH_EXPORT_TYPE_NUTRITION = "nutrition"
+        const val HEALTH_EXPORT_TYPE_HYDRATION = "hydration"
         const val RECIPE_BRAND = "Recipe"
         val DEFAULT_HEALTH_CONNECT_STATUS =
             HealthConnectStatus(
@@ -2084,32 +2196,39 @@ private fun FoodHealthConnectSyncEntity?.toFoodHealthConnectSyncState(
     )
 }
 
-private fun FoodDiaryMeal.toHealthConnectFoodMealExport(): HealthConnectFoodMealExport? {
-    val hasLoggedNutrition =
-        entries.any { entry -> entry.status == FoodDiaryEntryStatus.Logged } &&
-            (totals.caloriesKcal > 0.0 || totals.proteinGrams > 0.0 || totals.carbsGrams > 0.0 || totals.fatGrams > 0.0)
-    if (!hasLoggedNutrition) {
-        return null
+private fun List<FoodDiaryEntryRow>.toHealthConnectFoodMealExports(accountId: String): List<HealthConnectFoodMealExport> = groupBy { row -> row.mealId }.values.mapNotNull { mealRows ->
+    val first = mealRows.first()
+    val loggedEntries = mealRows
+        .map { row -> row.toDiaryEntry() }
+        .filter { entry -> entry.status == FoodDiaryEntryStatus.Logged }
+    val totals = loggedEntries.calculateTotals()
+    val details = loggedEntries.calculateDetailTotals()
+    if (loggedEntries.isEmpty() || !totals.hasHealthConnectNutrition()) {
+        return@mapNotNull null
     }
-    return HealthConnectFoodMealExport(
-        mealType = type,
-        name = type.toHealthConnectMealName(),
+    HealthConnectFoodMealExport(
+        mealType = first.mealType,
+        accountId = accountId,
+        localMealId = first.mealId,
+        name = first.mealType.toHealthConnectMealName(),
         caloriesKcal = totals.caloriesKcal,
         proteinGrams = totals.proteinGrams,
         carbsGrams = totals.carbsGrams,
         fatGrams = totals.fatGrams,
-        fiberGrams = detailTotals.fiberGrams,
-        sugarGrams = detailTotals.sugarGrams,
-        saturatedFatGrams = detailTotals.saturatedFatGrams,
-        sodiumMilligrams = detailTotals.sodiumMilligrams,
-        potassiumMilligrams = detailTotals.potassiumMilligrams,
-        calciumMilligrams = detailTotals.calciumMilligrams,
-        ironMilligrams = detailTotals.ironMilligrams,
-        vitaminDMicrograms = detailTotals.vitaminDMicrograms,
-        vitaminCMilligrams = detailTotals.vitaminCMilligrams,
-        magnesiumMilligrams = detailTotals.magnesiumMilligrams,
+        fiberGrams = details.fiberGrams,
+        sugarGrams = details.sugarGrams,
+        saturatedFatGrams = details.saturatedFatGrams,
+        sodiumMilligrams = details.sodiumMilligrams,
+        potassiumMilligrams = details.potassiumMilligrams,
+        calciumMilligrams = details.calciumMilligrams,
+        ironMilligrams = details.ironMilligrams,
+        vitaminDMicrograms = details.vitaminDMicrograms,
+        vitaminCMilligrams = details.vitaminCMilligrams,
+        magnesiumMilligrams = details.magnesiumMilligrams,
     )
 }
+
+private fun NutritionTotals.hasHealthConnectNutrition(): Boolean = caloriesKcal > 0.0 || proteinGrams > 0.0 || carbsGrams > 0.0 || fatGrams > 0.0
 
 private fun String.toHealthConnectMealName(): String = split('-', '_', ' ')
     .filter { part -> part.isNotBlank() }

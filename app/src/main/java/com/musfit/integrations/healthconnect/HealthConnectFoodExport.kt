@@ -3,13 +3,18 @@ package com.musfit.integrations.healthconnect
 import java.time.LocalDate
 
 data class HealthConnectFoodExportPayload(
+    val accountId: String = "local-default",
     val date: LocalDate,
     val meals: List<HealthConnectFoodMealExport>,
     val hydrationMilliliters: Double,
+    val hydrationClientRecordVersion: Long = 1,
 )
 
 data class HealthConnectFoodMealExport(
     val mealType: String,
+    val accountId: String = "local-default",
+    val localMealId: String = mealType,
+    val clientRecordVersion: Long = 1,
     val name: String,
     val caloriesKcal: Double,
     val proteinGrams: Double,
@@ -30,4 +35,6 @@ data class HealthConnectFoodMealExport(
 data class HealthConnectFoodExportResult(
     val nutritionRecordCount: Int,
     val hydrationRecordCount: Int,
+    val nutritionProviderRecordIds: Map<String, String> = emptyMap(),
+    val hydrationProviderRecordId: String? = null,
 )

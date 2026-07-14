@@ -171,7 +171,7 @@ Major table groups:
 - Account: local account identity, active account session, provider metadata, and optional Google/GitHub remote identity key.
 - Food: foods, servings, meals, meal items, barcode products, goals, quick presets, meal definitions, templates, recipes, shopping list, water entries, food Health Connect sync state.
 - Training: exercises, routines, routine exercises, workout sessions, workout sets with set type, RPE, notes, completion state, optional superset grouping, and local tool settings.
-- Health: body metrics, daily health summaries, Health Connect sync state.
+- Health: body metrics, daily health summaries, Health Connect sync state, and account-owned export identity/version/provider records.
 - Profile/Today: profile and app settings, user goals, coach-feed messages, and dashboard pin order.
 - AI coach: provider settings plus account/provider-scoped chat threads and messages; runtime-entered secrets are stored outside Room.
 
@@ -226,11 +226,15 @@ The app currently supports:
 - Reading recent steps, calories, distance, sleep, exercise sessions, weight, body fat, and resting heart rate.
 - Exporting completed workouts.
 - Food and hydration export boundary through `HealthConnectFoodExportPayload`.
+- Stable client identities derived from record type plus immutable account/entity IDs, with monotonic versions and persisted provider IDs.
 
 The Food sync card handles availability, permission summary, enable/disable
-state, last sync, and sync errors. The July 2026 audit records that the main
-manifest still lacks the nutrition/hydration write declarations, so that export
-path is not fully operational until HC-001 is resolved.
+state, last sync, and sync errors. Export retries consult
+`health_connect_export_records`, so unchanged records do not issue another
+provider write; changed records keep their client ID and advance their version.
+Pre-version-40 workout provider IDs are adopted into the ledger without a
+rewrite. Older Food records and legacy unversioned workout records are retained
+in Health Connect; automated cleanup is intentionally deferred to W3-HC-03.
 
 ## Theme And Design System
 

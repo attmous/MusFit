@@ -79,3 +79,27 @@ data class HealthConnectSyncStateEntity(
     val lastFailureMessage: String?,
     val preferredStepsPackage: String? = null,
 )
+
+@Entity(
+    tableName = "health_connect_export_records",
+    primaryKeys = ["accountId", "recordType", "localEntityId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["accountId", "recordType"])],
+)
+data class HealthConnectExportRecordEntity(
+    val accountId: String,
+    val recordType: String,
+    val localEntityId: String,
+    val clientRecordId: String,
+    val clientRecordVersion: Long,
+    val payloadFingerprint: String,
+    val providerRecordId: String,
+    val exportedAtEpochMillis: Long,
+)

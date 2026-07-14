@@ -16,13 +16,17 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
-import java.util.Locale
 
 object HealthConnectRecordMapper {
     fun toExerciseSessionRecord(
         session: WorkoutSessionEntity,
         sets: List<WorkoutSetEntity>,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        identity: HealthConnectRecordIdentity = HealthConnectRecordIdentity.forWorkout(
+            accountId = session.accountId,
+            sessionId = session.id,
+            version = 1,
+        ),
     ): ExerciseSessionRecord {
         val startInstant = Instant.ofEpochMilli(session.startedAtEpochMillis)
         val endInstant = Instant.ofEpochMilli(
@@ -34,7 +38,7 @@ object HealthConnectRecordMapper {
             startZoneOffset = zoneId.rules.getOffset(startInstant),
             endTime = endInstant,
             endZoneOffset = zoneId.rules.getOffset(endInstant),
-            metadata = Metadata.manualEntry(),
+            metadata = Metadata.manualEntry(identity.clientRecordId, identity.clientRecordVersion),
             exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
             title = "MusFit workout: $completedSetCount completed sets",
             notes = session.notes,
@@ -45,7 +49,11 @@ object HealthConnectRecordMapper {
         date: LocalDate,
         meal: HealthConnectFoodMealExport,
         zoneId: ZoneId = ZoneId.systemDefault(),
-        clientRecordVersion: Long = System.currentTimeMillis(),
+        identity: HealthConnectRecordIdentity = HealthConnectRecordIdentity.forNutrition(
+            accountId = meal.accountId,
+            mealId = meal.localMealId,
+            version = 1,
+        ),
     ): NutritionRecord {
         val startInstant = date
             .atTime(meal.mealStartTime())
@@ -58,8 +66,8 @@ object HealthConnectRecordMapper {
             endTime = endInstant,
             endZoneOffset = zoneId.rules.getOffset(endInstant),
             metadata = Metadata.manualEntry(
-                date.toNutritionClientRecordId(meal.mealType),
-                clientRecordVersion,
+                identity.clientRecordId,
+                identity.clientRecordVersion,
             ),
             energy = meal.caloriesKcal.coerceAtLeast(0.0).kilocalories,
             protein = meal.proteinGrams.positiveOrNull()?.grams,
@@ -84,7 +92,8 @@ object HealthConnectRecordMapper {
         date: LocalDate,
         milliliters: Double,
         zoneId: ZoneId = ZoneId.systemDefault(),
-        clientRecordVersion: Long = System.currentTimeMillis(),
+        accountId: String = "local-default",
+        identity: HealthConnectRecordIdentity = HealthConnectRecordIdentity.forHydration(accountId, date, version = 1),
     ): HydrationRecord {
         val startInstant = date.atTime(LocalTime.NOON).atZone(zoneId).toInstant()
         val endInstant = startInstant.plusSeconds(60)
@@ -95,44 +104,27 @@ object HealthConnectRecordMapper {
             endZoneOffset = zoneId.rules.getOffset(endInstant),
             volume = milliliters.coerceAtLeast(0.0).milliliters,
             metadata = Metadata.manualEntry(
-                date.toHydrationClientRecordId(),
-                clientRecordVersion,
+                identity.clientRecordId,
+                identity.clientRecordVersion,
             ),
         )
     }
 }
 
-private fun LocalDate.toNutritionClientRecordId(mealType: String): String =
-    "musfit-food-nutrition-$this-${mealType.toClientRecordToken()}"
-
-private fun LocalDate.toHydrationClientRecordId(): String =
-    "musfit-food-hydration-$this"
-
-private fun String.toClientRecordToken(): String {
-    val token = trim()
-        .lowercase(Locale.US)
-        .replace(Regex("[^a-z0-9]+"), "-")
-        .trim('-')
-    return token.ifBlank { "meal" }
+private fun HealthConnectFoodMealExport.mealStartTime(): LocalTime = when (mealType.lowercase()) {
+    "breakfast" -> LocalTime.of(7, 30)
+    "lunch" -> LocalTime.of(12, 30)
+    "dinner" -> LocalTime.of(18, 30)
+    "snacks", "snack" -> LocalTime.of(15, 30)
+    else -> LocalTime.NOON
 }
 
-private fun HealthConnectFoodMealExport.mealStartTime(): LocalTime =
-    when (mealType.lowercase()) {
-        "breakfast" -> LocalTime.of(7, 30)
-        "lunch" -> LocalTime.of(12, 30)
-        "dinner" -> LocalTime.of(18, 30)
-        "snacks", "snack" -> LocalTime.of(15, 30)
-        else -> LocalTime.NOON
-    }
+private fun String.toHealthConnectMealType(): Int = when (lowercase()) {
+    "breakfast" -> MealType.MEAL_TYPE_BREAKFAST
+    "lunch" -> MealType.MEAL_TYPE_LUNCH
+    "dinner" -> MealType.MEAL_TYPE_DINNER
+    "snacks", "snack" -> MealType.MEAL_TYPE_SNACK
+    else -> MealType.MEAL_TYPE_UNKNOWN
+}
 
-private fun String.toHealthConnectMealType(): Int =
-    when (lowercase()) {
-        "breakfast" -> MealType.MEAL_TYPE_BREAKFAST
-        "lunch" -> MealType.MEAL_TYPE_LUNCH
-        "dinner" -> MealType.MEAL_TYPE_DINNER
-        "snacks", "snack" -> MealType.MEAL_TYPE_SNACK
-        else -> MealType.MEAL_TYPE_UNKNOWN
-    }
-
-private fun Double.positiveOrNull(): Double? =
-    takeIf { value -> value.isFinite() && value > 0.0 }
+private fun Double.positiveOrNull(): Double? = takeIf { value -> value.isFinite() && value > 0.0 }
