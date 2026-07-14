@@ -50,6 +50,7 @@ import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
 import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -454,6 +455,25 @@ class ProfileSettingsViewModelTest {
         assertEquals("https://github.com/login/device", viewModel.state.value.githubDeviceCode?.verificationUri)
         assertEquals(AccountAuthProvider.GitHub, accountRepository.linkedProfile?.provider)
         assertEquals("Signed in with GitHub.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun signInWithGitHub_cancellationDoesNotLinkOrMapToFailureMessage() = runTest {
+        val accountRepository = FakeAccountRepository()
+        val externalAuthRepository = FakeExternalAuthRepository(
+            error = CancellationException("Settings closed"),
+        )
+        val viewModel = settingsViewModel(
+            accountRepository = accountRepository,
+            externalAuthRepository = externalAuthRepository,
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.signInWithGitHub()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(null, accountRepository.linkedProfile)
+        assertEquals("Enter WDJB-MJHT at GitHub to finish sign-in.", viewModel.state.value.message)
     }
 
     @Test
@@ -1074,6 +1094,7 @@ class ProfileSettingsViewModelTest {
             email = null,
             avatarUrl = null,
         ),
+        private val error: Throwable? = null,
     ) : ExternalAuthRepository {
         override val isGitHubConfigured: Boolean = true
 
@@ -1087,6 +1108,7 @@ class ProfileSettingsViewModelTest {
                     expiresInSeconds = 900,
                 ),
             )
+            error?.let { throw it }
             return profile
         }
     }

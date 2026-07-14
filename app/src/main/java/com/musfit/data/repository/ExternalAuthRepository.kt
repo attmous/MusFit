@@ -2,6 +2,7 @@ package com.musfit.data.repository
 
 import com.musfit.data.remote.auth.GitHubAuthApi
 import com.musfit.data.remote.auth.GitHubDeviceCodeResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import javax.inject.Inject
 
@@ -65,8 +66,11 @@ class GitHubExternalAuthRepository @Inject constructor(
 
             when (tokenResponse.error) {
                 "authorization_pending" -> Unit
+
                 "slow_down" -> pollIntervalSeconds += SLOW_DOWN_INCREMENT_SECONDS
+
                 "expired_token" -> throw IllegalStateException("GitHub sign-in code expired.")
+
                 else -> throw IllegalStateException(
                     tokenResponse.errorDescription ?: "GitHub sign-in failed.",
                 )
@@ -78,11 +82,15 @@ class GitHubExternalAuthRepository @Inject constructor(
     private suspend fun fetchGitHubProfile(accessToken: String): ExternalAccountProfile {
         val authorization = "Bearer $accessToken"
         val user = gitHubAuthApi.getUser(authorization)
-        val primaryEmail = runCatching {
+        val primaryEmail = try {
             gitHubAuthApi.getEmails(authorization)
                 .firstOrNull { it.primary && it.verified }
                 ?.email
-        }.getOrNull()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
+        }
         return ExternalAccountProfile(
             provider = AccountAuthProvider.GitHub,
             providerUserId = user.id.toString(),
@@ -100,9 +108,8 @@ class GitHubExternalAuthRepository @Inject constructor(
     }
 }
 
-private fun GitHubDeviceCodeResponse.toAuthorization(): GitHubDeviceAuthorization =
-    GitHubDeviceAuthorization(
-        userCode = userCode,
-        verificationUri = verificationUri,
-        expiresInSeconds = expiresInSeconds,
-    )
+private fun GitHubDeviceCodeResponse.toAuthorization(): GitHubDeviceAuthorization = GitHubDeviceAuthorization(
+    userCode = userCode,
+    verificationUri = verificationUri,
+    expiresInSeconds = expiresInSeconds,
+)
