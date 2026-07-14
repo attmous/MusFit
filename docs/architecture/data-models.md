@@ -124,8 +124,18 @@ integration boundary. Daily reads return metric-aware complete, partial, empty,
 unavailable, or failure results. `HealthRepository` uses the successful-metric
 set to clear confirmed-empty fields, preserve only failed/ungranted fields, and
 atomically persist summaries, body metrics, and sync state. Cancellation is
-control flow and must never be converted to a result or stale success. Provider
-deletion reconciliation beyond the daily cache remains owned by W3-HC-03.
+control flow and must never be converted to a result or stale success.
+
+For MusFit-authored Health Connect records, local MusFit entities remain the
+source of truth and `health_connect_export_records` is the deletion allowlist.
+Deletion uses only the stable client IDs in that account-owned ledger; it never
+scans or deletes manual records or records written by another app. Provider
+confirmation removes the matching ledger row, failed record-type batches stay
+pending for retry, and successful retries are no-ops. An explicit Food sync
+reconciles removed meal aggregates and zeroed hydration. Account erasure can use
+the same active-account cleanup boundary for workouts, nutrition, and hydration.
+Imported-record provider deletion/revocation reconciliation remains owned by
+W3-HC-03B.
 
 ## Schema And Migration Contract
 

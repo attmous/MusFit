@@ -17,7 +17,7 @@ import java.time.LocalDate
 @RunWith(AndroidJUnit4::class)
 class HealthConnectFoodExportInstrumentationTest {
     @Test
-    fun grantedFoodPermissionsInsertExactlyOneNutritionAndHydrationRecord() = runBlocking {
+    fun grantedFoodPermissionsInsertThenDeleteExactlyOneNutritionAndHydrationRecord() = runBlocking {
         assumeTrue(
             "Run explicitly with -e $OPT_IN_ARGUMENT true on a disposable Health emulator.",
             InstrumentationRegistry.getArguments()
@@ -46,6 +46,11 @@ class HealthConnectFoodExportInstrumentationTest {
             version = 1,
         ).clientRecordId
         val client = HealthConnectClient.getOrCreate(targetContext)
+        val authoredRecords = setOf(
+            HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Nutrition, nutritionClientId),
+            HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Hydration, hydrationClientId),
+        )
+        var deletionConfirmed = false
 
         try {
             val result = manager.exportFood(
@@ -73,17 +78,28 @@ class HealthConnectFoodExportInstrumentationTest {
             assertEquals(1, result?.hydrationRecordCount)
             assertEquals(PROBE_MEAL_ID, result?.nutritionProviderRecordIds?.keys?.single())
             assertNotNull(result?.hydrationProviderRecordId)
+            assertEquals(
+                HealthConnectDeleteResult.Complete(authoredRecords),
+                manager.deleteAuthoredRecords(authoredRecords),
+            )
+            deletionConfirmed = true
         } finally {
-            client.deleteRecords(
-                NutritionRecord::class,
-                recordIdsList = emptyList(),
-                clientRecordIdsList = listOf(nutritionClientId),
-            )
-            client.deleteRecords(
-                HydrationRecord::class,
-                recordIdsList = emptyList(),
-                clientRecordIdsList = listOf(hydrationClientId),
-            )
+            if (!deletionConfirmed) {
+                runCatching {
+                    client.deleteRecords(
+                        NutritionRecord::class,
+                        recordIdsList = emptyList(),
+                        clientRecordIdsList = listOf(nutritionClientId),
+                    )
+                }
+                runCatching {
+                    client.deleteRecords(
+                        HydrationRecord::class,
+                        recordIdsList = emptyList(),
+                        clientRecordIdsList = listOf(hydrationClientId),
+                    )
+                }
+            }
         }
     }
 

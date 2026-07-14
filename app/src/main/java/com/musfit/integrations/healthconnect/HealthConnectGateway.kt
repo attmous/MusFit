@@ -32,4 +32,6 @@ interface HealthConnectGateway {
         identity: HealthConnectRecordIdentity,
     ): String? = exportWorkout(session, sets)
     suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult?
+
+    suspend fun deleteAuthoredRecords(records: Set<HealthConnectAuthoredRecord>): HealthConnectDeleteResult = HealthConnectDeleteResult.Failure("Health Connect authored-record deletion is not implemented.")
 }

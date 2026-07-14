@@ -557,6 +557,154 @@ class HealthConnectManagerTest {
         assertEquals(1, client.insertHydrationCalls)
     }
 
+    @Test
+    fun deleteAuthoredRecords_deletesStableClientIdsByRecordType() = runTest {
+        val client = FakeHealthConnectClientAdapter()
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(
+                    writeExercisePermission(),
+                    writeNutritionPermission(),
+                    writeHydrationPermission(),
+                ),
+            ),
+            factory = FakeClientFactory(client),
+        )
+        val records = setOf(
+            HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Workout, "workout-client"),
+            HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Nutrition, "nutrition-client-1"),
+            HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Nutrition, "nutrition-client-2"),
+            HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Hydration, "hydration-client"),
+        )
+
+        val result = manager.deleteAuthoredRecords(records)
+
+        assertEquals(HealthConnectDeleteResult.Complete(records), result)
+        assertEquals(listOf("workout-client"), client.deletedWorkoutClientIds)
+        assertEquals(listOf("nutrition-client-1", "nutrition-client-2"), client.deletedNutritionClientIds)
+        assertEquals(listOf("hydration-client"), client.deletedHydrationClientIds)
+    }
+
+    @Test
+    fun deleteAuthoredRecords_reportsPartialWithoutCallingUnpermittedType() = runTest {
+        val client = FakeHealthConnectClientAdapter()
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(writeNutritionPermission()),
+            ),
+            factory = FakeClientFactory(client),
+        )
+        val nutrition = HealthConnectAuthoredRecord(
+            HealthConnectAuthoredRecordType.Nutrition,
+            "nutrition-client",
+        )
+        val workout = HealthConnectAuthoredRecord(
+            HealthConnectAuthoredRecordType.Workout,
+            "workout-client",
+        )
+
+        val result = manager.deleteAuthoredRecords(setOf(nutrition, workout)) as HealthConnectDeleteResult.Partial
+
+        assertEquals(setOf(nutrition), result.deletedRecords)
+        assertEquals(listOf(HealthConnectAuthoredRecordType.Workout), result.failures.map { it.type })
+        assertEquals(emptyList<String>(), client.deletedWorkoutClientIds)
+        assertEquals(listOf("nutrition-client"), client.deletedNutritionClientIds)
+    }
+
+    @Test
+    fun deleteAuthoredRecords_returnsUnavailableWithoutCreatingClient() = runTest {
+        val factory = FakeClientFactory()
+        val manager = managerWith(
+            status = HealthConnectStatus(HealthConnectAvailability.NotInstalled, emptySet()),
+            factory = factory,
+        )
+
+        val result = manager.deleteAuthoredRecords(
+            setOf(HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Workout, "workout-client")),
+        )
+
+        assertEquals(HealthConnectDeleteResult.Unavailable::class, result::class)
+        assertEquals(0, factory.createCount)
+    }
+
+    @Test
+    fun deleteAuthoredRecords_emptyRequestIsANoOp() = runTest {
+        val factory = FakeClientFactory()
+        val manager = managerWith(
+            status = HealthConnectStatus(HealthConnectAvailability.Available, emptySet()),
+            factory = factory,
+        )
+
+        val result = manager.deleteAuthoredRecords(emptySet())
+
+        assertEquals(HealthConnectDeleteResult.Complete(emptySet()), result)
+        assertEquals(0, factory.createCount)
+    }
+
+    @Test
+    fun deleteAuthoredRecords_returnsUnavailableWhenEveryWritePermissionIsMissing() = runTest {
+        val factory = FakeClientFactory()
+        val manager = managerWith(
+            status = HealthConnectStatus(HealthConnectAvailability.Available, setOf(readStepsPermission())),
+            factory = factory,
+        )
+
+        val result = manager.deleteAuthoredRecords(
+            setOf(HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Workout, "workout-client")),
+        )
+
+        assertEquals(HealthConnectDeleteResult.Unavailable::class, result::class)
+        assertEquals(0, factory.createCount)
+    }
+
+    @Test
+    fun deleteAuthoredRecords_keepsEntireTypePendingWhenProviderBatchFails() = runTest {
+        val client = FakeHealthConnectClientAdapter().apply {
+            nutritionDeleteFailure = IllegalStateException("provider delete failed")
+        }
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                HealthConnectAvailability.Available,
+                setOf(writeNutritionPermission()),
+            ),
+            factory = FakeClientFactory(client),
+        )
+
+        val result = manager.deleteAuthoredRecords(
+            setOf(HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Nutrition, "nutrition-client")),
+        ) as HealthConnectDeleteResult.Failure
+
+        assertEquals("provider delete failed", result.message)
+        assertEquals(emptySet<HealthConnectAuthoredRecord>(), result.deletedRecords)
+    }
+
+    @Test
+    fun deleteAuthoredRecords_rethrowsProviderCancellation() = runTest {
+        val client = FakeHealthConnectClientAdapter().apply {
+            hydrationDeleteFailure = CancellationException("cancelled by caller")
+        }
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                HealthConnectAvailability.Available,
+                setOf(writeHydrationPermission()),
+            ),
+            factory = FakeClientFactory(client),
+        )
+
+        var cancellation: CancellationException? = null
+        try {
+            manager.deleteAuthoredRecords(
+                setOf(HealthConnectAuthoredRecord(HealthConnectAuthoredRecordType.Hydration, "hydration-client")),
+            )
+        } catch (caught: CancellationException) {
+            cancellation = caught
+        }
+
+        assertEquals("cancelled by caller", cancellation?.message)
+    }
+
     private fun managerWith(
         status: HealthConnectStatus,
         factory: FakeClientFactory,
@@ -720,6 +868,15 @@ class HealthConnectManagerTest {
             private set
         var insertedHydrationRecord: HydrationRecord? = null
             private set
+        var deletedWorkoutClientIds: List<String> = emptyList()
+            private set
+        var deletedNutritionClientIds: List<String> = emptyList()
+            private set
+        var deletedHydrationClientIds: List<String> = emptyList()
+            private set
+        var workoutDeleteFailure: Throwable? = null
+        var nutritionDeleteFailure: Throwable? = null
+        var hydrationDeleteFailure: Throwable? = null
 
         override suspend fun aggregateSteps(range: HealthConnectTimeRange): Long? {
             stepsCalls += 1
@@ -823,6 +980,21 @@ class HealthConnectManagerTest {
             insertHydrationCalls += 1
             insertedHydrationRecord = record
             return "hydration-record-id"
+        }
+
+        override suspend fun deleteExerciseSessions(clientRecordIds: List<String>) {
+            workoutDeleteFailure?.let { throw it }
+            deletedWorkoutClientIds = clientRecordIds
+        }
+
+        override suspend fun deleteNutritionRecords(clientRecordIds: List<String>) {
+            nutritionDeleteFailure?.let { throw it }
+            deletedNutritionClientIds = clientRecordIds
+        }
+
+        override suspend fun deleteHydrationRecords(clientRecordIds: List<String>) {
+            hydrationDeleteFailure?.let { throw it }
+            deletedHydrationClientIds = clientRecordIds
         }
     }
 }
