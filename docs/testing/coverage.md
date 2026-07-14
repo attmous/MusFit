@@ -71,10 +71,10 @@ but their production classes are incorrectly reported as entirely uncovered.
 ## Runtime budget and baseline updates
 
 The measured clean local unit report completed in 223.6 seconds for 814 tests;
-the warm report-only rerun completed in 16.6 seconds. The coverage step has a
-hard CI budget of **10 minutes**. Managed-device coverage reuses the
-already-required critical-journey execution and has the same additional
-10-minute reporting budget.
+the warm report-only rerun completed in 16.6 seconds. The unit coverage step
+has a hard CI budget of **10 minutes**. Managed-device coverage reuses the
+already-required critical-journey execution and has an additional 15-minute
+reporting budget.
 
 Do not lower a threshold or replace the baseline merely to make CI green. A
 baseline update requires a measured report from current `origin/master`, the

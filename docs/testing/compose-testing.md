@@ -53,15 +53,18 @@ Every UI test must name the user contract it protects. Add a new high-level
 journey only when a lower layer cannot provide equivalent confidence.
 
 `MusFitCriticalJourneyInstrumentationTest` is the managed-device layer. Its
-four orchestrated cases cover:
+six orchestrated cases cover:
 
 - a real Hilt/Room Food quick log and persistence after Activity recreation;
 - the Room-owned active-workout set/rest lifecycle and leaving/re-entering the
   Training destination;
 - Profile preference persistence plus restored visit-order back navigation;
+- unsaved Profile editor draft restoration across Activity recreation;
 - a deterministic scanner-result return on both devices, with fixed
   camera-permission denial and offline transport additionally exercised on API
-  37 (the Android 9 legacy permission dialog is intentionally not automated).
+  37 (the Android 9 legacy permission dialog is intentionally not automated);
+- 20 rapid scanner open/back/rotation cycles without retaining a camera
+  session.
 
 The instrumentation-only seeder resets each isolated test process. External
 services and camera hardware are never required. Every wait is bounded to 15

@@ -593,6 +593,8 @@ Assert-FileDoesNotContain ".github/workflows/device-ui.yml" '(?m)^\s*pull_reques
 Assert-FileContains ".github/workflows/device-ui.yml" 'migrationApi28And37GroupInternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?s)migrationApi28And37GroupInternalDebugAndroidTest.{0,300}android\.testInstrumentationRunnerArguments\.package=com\.musfit\.data\.local'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?s)Aggregate unit and managed-device coverage.{0,100}timeout-minutes:\s*15'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-ksp-migration\.ps1'

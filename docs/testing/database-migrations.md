@@ -23,7 +23,9 @@ the AOSP x86 image and API 37 using Google's available 16 KB-page x86_64 image:
 
 ```powershell
 . .\scripts\android\android-env.ps1
-.\gradlew.bat migrationApi28And37GroupInternalDebugAndroidTest --no-daemon --console=plain
+.\gradlew.bat migrationApi28And37GroupInternalDebugAndroidTest `
+  '-Pandroid.testInstrumentationRunnerArguments.package=com.musfit.data.local' `
+  --no-daemon --console=plain
 ```
 
 For focused work against an already running dedicated emulator:
