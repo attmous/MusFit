@@ -8,6 +8,7 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.entity.BarcodeProductEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.FoodEntity
+import com.musfit.data.local.entity.FoodServingEntity
 import com.musfit.data.local.entity.HealthConnectExportRecordEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
@@ -439,6 +440,39 @@ class LocalFoodRepositoryTest {
     }
 
     @Test
+    fun observeSavedFoods_readsFiveHundredFoodsAndServingsWithOneGraphQuery() = runTest {
+        val dao = database.foodDao()
+        repeat(500) { index ->
+            val foodId = "food-${index.toString().padStart(3, '0')}"
+            dao.upsertFood(foodEntity(id = foodId, name = "Food ${index.toString().padStart(3, '0')}"))
+            repeat(2) { servingIndex ->
+                dao.upsertServing(
+                    FoodServingEntity(
+                        accountId = TEST_ACCOUNT_ID,
+                        id = "$foodId-serving-$servingIndex",
+                        foodId = foodId,
+                        label = "Serving $servingIndex",
+                        grams = 50.0 + servingIndex,
+                    ),
+                )
+            }
+        }
+        executedSql.clear()
+
+        val savedFoods = repository.observeSavedFoods().first()
+
+        assertEquals(500, savedFoods.size)
+        assertTrue(savedFoods.all { food -> food.servings.size == 2 })
+        val foodGraphReads =
+            executedSql.filter { sql ->
+                val normalized = sql.lowercase()
+                normalized.startsWith("select") &&
+                    (normalized.contains(" from foods") || normalized.contains(" from food_servings"))
+            }
+        assertEquals(foodGraphReads.joinToString("\n"), 1, foodGraphReads.size)
+    }
+
+    @Test
     fun observeFoodDiary_groupsLoggedFoodsByMealAndCalculatesSectionTotals() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         repository.logFood(
@@ -846,6 +880,37 @@ class LocalFoodRepositoryTest {
         assertEquals(32.0, savedFood.nutritionPer100g.proteinGrams, 0.01)
         assertEquals(1, servings.size)
         assertEquals("120 g", servings.single().label)
+    }
+
+    @Test
+    fun upsertSavedFood_matchesNameAndBrandCaseInsensitively() = runTest {
+        val originalId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "Greek Yogurt",
+                    brand = "Dairy House",
+                    defaultServingGrams = 170.0,
+                    nutritionPer100g = nutrition(calories = 60.0, protein = 10.0, carbs = 4.0, fat = 0.0),
+                ),
+            )
+
+        val matchedId =
+            repository.upsertSavedFood(
+                SavedFoodUpsertInput(
+                    foodId = null,
+                    name = "greek yogurt",
+                    brand = "dairy house",
+                    defaultServingGrams = 200.0,
+                    nutritionPer100g = nutrition(calories = 65.0, protein = 11.0, carbs = 4.0, fat = 0.0),
+                ),
+            )
+
+        assertEquals(originalId, matchedId)
+        val savedFood = repository.observeSavedFoods().first().single()
+        assertEquals("greek yogurt", savedFood.name)
+        assertEquals("dairy house", savedFood.brand)
+        assertEquals(200.0, savedFood.defaultServingGrams, 0.01)
     }
 
     @Test

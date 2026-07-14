@@ -18,8 +18,6 @@ import androidx.room.Index
     ],
     indices = [
         Index(value = ["accountId", "barcode"]),
-        Index(value = ["accountId", "name"]),
-        Index(value = ["accountId", "brand"]),
         Index(value = ["accountId", "category"]),
         Index(value = ["accountId", "isFavorite"]),
     ],

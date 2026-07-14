@@ -179,6 +179,12 @@ Room migrations are registered from version 1 through the current version in
 `DatabaseModule`. The app does not use destructive migration fallback, so schema
 changes must include a registered migration and a committed schema JSON.
 
+Saved Food reads use one account-scoped foods-plus-servings projection rather
+than a per-food serving query. Production database open installs the measured
+case-insensitive Food name/brand/order index after Room schema validation; the
+exact query-count, P90, storage, and write-fanout evidence lives in
+`FoodPerformanceMigration40To41Test` and [data-models.md](data-models.md).
+
 ### Training Persistence Notes
 
 Training stores only local strength-training data. Exercise rows hold list metadata plus detail fields (`primaryMuscles`, `secondaryMuscles`, `instructions`, and `localNotes`). Routines store starter/custom status, optional `programName`, and CSV-backed tags, with ordered routine exercises in `routine_exercises`. Active and completed workouts use the same session/set tables, with session `status` separating active, completed, and discarded workouts. Completed workout recap data is derived from the session and completed set rows, including local session notes. Supersets are represented by a nullable `supersetGroupId` on workout sets and are derived into grouped UI models by the repository. Global Training tool settings live in `training_settings` for default rest duration, bar weight, and available plate inventory.

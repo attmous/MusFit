@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.FoodDao
 import com.musfit.data.local.dao.FoodDiaryEntryRow
+import com.musfit.data.local.dao.FoodWithServingRow
 import com.musfit.data.local.dao.MealNutritionRow
 import com.musfit.data.local.dao.MealTemplateItemRow
 import com.musfit.data.local.dao.RecipeIngredientRow
@@ -699,9 +700,9 @@ class LocalFoodRepository @Inject constructor(
     }
 
     override fun observeSavedFoods(): Flow<List<SavedFoodItem>> = activeAccountFlow { accountId ->
-        foodDao.observeFoods(accountId).map { foods ->
-            foods.filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
-                .map { food -> food.toSavedFoodItem(foodDao.getServings(accountId, food.id)) }
+        foodDao.observeFoodsWithServings(accountId).map { rows ->
+            rows.toSavedFoodItems()
+                .filterNot { food -> food.name == QUICK_CALORIES_NAME && food.brand == null }
         }
     }
 
@@ -721,7 +722,7 @@ class LocalFoodRepository @Inject constructor(
 
     override suspend fun getFoodDetail(foodId: String): SavedFoodItem? {
         val accountId = activeAccountId()
-        return foodDao.getFood(accountId, foodId)?.toSavedFoodItem(foodDao.getServings(accountId, foodId))
+        return foodDao.getFoodWithServings(accountId, foodId).toSavedFoodItems().singleOrNull()
     }
 
     override suspend fun logSavedFood(input: SavedFoodLogInput): String {
@@ -899,7 +900,12 @@ class LocalFoodRepository @Inject constructor(
         val normalizedBarcode = input.barcode?.trim()?.takeIf { it.isNotEmpty() }
         val resolvedBrand = input.brand?.trim()?.takeIf { it.isNotEmpty() }
         val existingByBarcode = normalizedBarcode?.let { foodDao.getFoodByBarcode(accountId, it) }
-        val existingByName = foodDao.getFoodByNameAndBrand(accountId, input.name.trim(), resolvedBrand)
+        val existingByName =
+            if (resolvedBrand == null) {
+                foodDao.getFoodByNameAndNullBrand(accountId, input.name.trim())
+            } else {
+                foodDao.getFoodByNameAndBrand(accountId, input.name.trim(), resolvedBrand)
+            }
         val foodId =
             input.foodId?.trim()?.takeIf { it.isNotEmpty() }
                 ?: existingByBarcode?.id
@@ -2665,6 +2671,22 @@ private fun FoodEntity.toSavedFoodItem(servings: List<FoodServingEntity>): Saved
     isFavorite = isFavorite,
     servings = servings.map { serving -> FoodServingOption(serving.id, serving.label, serving.grams) },
 )
+
+private fun List<FoodWithServingRow>.toSavedFoodItems(): List<SavedFoodItem> = groupBy { row -> row.food.id }.values.map { foodRows ->
+    val food = foodRows.first().food
+    val servings =
+        foodRows.mapNotNull { row ->
+            val servingId = row.servingId ?: return@mapNotNull null
+            FoodServingEntity(
+                accountId = food.accountId,
+                id = servingId,
+                foodId = food.id,
+                label = requireNotNull(row.servingLabel),
+                grams = requireNotNull(row.servingGrams),
+            )
+        }
+    food.toSavedFoodItem(servings)
+}
 
 private fun FoodGoal.toEntity(accountId: String, now: Long): FoodGoalEntity = FoodGoalEntity(
     accountId = accountId,
