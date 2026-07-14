@@ -73,8 +73,10 @@ object DatabaseModule {
                 MIGRATION_38_39,
                 MIGRATION_39_40,
                 MIGRATION_40_41,
+                MIGRATION_41_42,
             )
             .addCallback(FOOD_PERFORMANCE_INDEX_CALLBACK)
+            .addCallback(TRAINING_PERFORMANCE_INDEX_CALLBACK)
             .build()
     }
 
@@ -1660,10 +1662,29 @@ object DatabaseModule {
             }
         }
 
+    internal val MIGRATION_41_42 =
+        object : Migration(41, 42) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS index_exercises_accountId_name")
+                db.execSQL("DROP INDEX IF EXISTS index_workout_sets_accountId_exerciseId")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_workout_sets_accountId_exerciseId_completed_sessionId_sortOrder " +
+                        "ON workout_sets(accountId, exerciseId, completed, sessionId, sortOrder)",
+                )
+            }
+        }
+
     internal val FOOD_PERFORMANCE_INDEX_CALLBACK =
         object : RoomDatabase.Callback() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 createFoodPerformanceIndex(db)
+            }
+        }
+
+    internal val TRAINING_PERFORMANCE_INDEX_CALLBACK =
+        object : RoomDatabase.Callback() {
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                createTrainingPerformanceIndex(db)
             }
         }
 
@@ -1714,12 +1735,21 @@ object DatabaseModule {
             MIGRATION_38_39,
             MIGRATION_39_40,
             MIGRATION_40_41,
+            MIGRATION_41_42,
         )
 
     private fun createFoodPerformanceIndex(db: SupportSQLiteDatabase) {
         db.execSQL(
             "CREATE INDEX IF NOT EXISTS index_foods_accountId_name_brand_id_nocase " +
                 "ON foods(accountId, name COLLATE NOCASE, brand COLLATE NOCASE, id)",
+        )
+    }
+
+    /** Room cannot represent the NOCASE column collation needed by Training name ordering. */
+    private fun createTrainingPerformanceIndex(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_exercises_accountId_isCustom_name_id_nocase " +
+                "ON exercises(accountId, isCustom, name COLLATE NOCASE, id)",
         )
     }
 }

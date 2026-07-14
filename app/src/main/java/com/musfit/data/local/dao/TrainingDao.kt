@@ -87,6 +87,15 @@ data class WorkoutSetDetailRow(
     val gifUrl: String? = null,
 )
 
+data class PriorCompletedWorkoutSetRow(
+    val sessionId: String,
+    val exerciseId: String,
+    val sortOrder: Int,
+    val reps: Int,
+    val weightKg: Double,
+    val startedAtEpochMillis: Long,
+)
+
 data class WorkoutHistorySummaryRow(
     val sessionId: String,
     val title: String?,
@@ -315,18 +324,14 @@ interface TrainingDao {
 
     @Query(
         """
-        SELECT *
-        FROM workout_sessions
-        WHERE accountId = :accountId
-        AND status = 'completed'
-        AND EXISTS (
-            SELECT 1
-            FROM workout_sets
-            WHERE workout_sets.accountId = workout_sessions.accountId
+        SELECT workout_sessions.*
+        FROM workout_sessions INDEXED BY index_workout_sessions_accountId_status_startedAtEpochMillis
+        INNER JOIN workout_sets ON workout_sets.accountId = workout_sessions.accountId
             AND workout_sets.sessionId = workout_sessions.id
             AND workout_sets.completed = 1
-        )
-        ORDER BY startedAtEpochMillis DESC
+        WHERE workout_sessions.accountId = :accountId
+        AND workout_sessions.status = 'completed'
+        ORDER BY workout_sessions.startedAtEpochMillis DESC
         LIMIT 1
         """,
     )
@@ -470,33 +475,16 @@ interface TrainingDao {
 
     @Query(
         """
-        SELECT workout_sets.*
+        SELECT workout_sets.sessionId AS sessionId,
+            workout_sets.exerciseId AS exerciseId,
+            workout_sets.sortOrder AS sortOrder,
+            workout_sets.reps AS reps,
+            workout_sets.weightKg AS weightKg,
+            workout_sessions.startedAtEpochMillis AS startedAtEpochMillis
         FROM workout_sets
         INNER JOIN workout_sessions ON workout_sessions.accountId = workout_sets.accountId AND workout_sessions.id = workout_sets.sessionId
         WHERE workout_sets.accountId = :accountId
-        AND workout_sets.exerciseId = :exerciseId
-        AND workout_sets.completed = 1
-        AND workout_sets.reps IS NOT NULL
-        AND workout_sets.weightKg IS NOT NULL
-        AND workout_sessions.status = 'completed'
-        AND workout_sessions.startedAtEpochMillis < :beforeStartedAtEpochMillis
-        ORDER BY workout_sessions.startedAtEpochMillis DESC, workout_sets.sortOrder DESC
-        LIMIT 1
-        """,
-    )
-    suspend fun getLatestCompletedSetForExerciseBefore(
-        accountId: String,
-        exerciseId: String,
-        beforeStartedAtEpochMillis: Long,
-    ): WorkoutSetEntity?
-
-    @Query(
-        """
-        SELECT workout_sets.*
-        FROM workout_sets
-        INNER JOIN workout_sessions ON workout_sessions.accountId = workout_sets.accountId AND workout_sessions.id = workout_sets.sessionId
-        WHERE workout_sets.accountId = :accountId
-        AND workout_sets.exerciseId = :exerciseId
+        AND workout_sets.exerciseId IN (:exerciseIds)
         AND workout_sets.completed = 1
         AND workout_sets.reps IS NOT NULL
         AND workout_sets.weightKg IS NOT NULL
@@ -504,11 +492,11 @@ interface TrainingDao {
         AND workout_sessions.startedAtEpochMillis < :beforeStartedAtEpochMillis
         """,
     )
-    suspend fun getCompletedSetsForExerciseBefore(
+    suspend fun getCompletedSetsForExercisesBefore(
         accountId: String,
-        exerciseId: String,
+        exerciseIds: List<String>,
         beforeStartedAtEpochMillis: Long,
-    ): List<WorkoutSetEntity>
+    ): List<PriorCompletedWorkoutSetRow>
 
     @Query("SELECT MAX(sortOrder) FROM workout_sets WHERE accountId = :accountId AND sessionId = :sessionId")
     suspend fun getMaxWorkoutSetSortOrder(accountId: String, sessionId: String): Int?

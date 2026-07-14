@@ -2,6 +2,7 @@ package com.musfit.data.repository
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.entity.ExerciseEntity
@@ -23,6 +24,8 @@ import org.robolectric.RobolectricTestRunner
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 
 private const val TEST_ACCOUNT_ID = "local-default"
 private const val TEST_EXERCISE_GIF_MIRROR_BASE =
@@ -34,6 +37,7 @@ class LocalTrainingRepositoryTest {
     private lateinit var repository: LocalTrainingRepository
     private lateinit var accountRepository: LocalAccountRepository
     private var currentInstant: Instant = WORKOUT_START
+    private val executedSql = CopyOnWriteArrayList<String>()
 
     @Before
     fun setUp() {
@@ -42,6 +46,10 @@ class LocalTrainingRepositoryTest {
         database =
             Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
                 .allowMainThreadQueries()
+                .setQueryCallback(
+                    RoomDatabase.QueryCallback { sqlQuery, _ -> executedSql += sqlQuery },
+                    Executor { command -> command.run() },
+                )
                 .build()
         accountRepository = LocalAccountRepository(database.accountDao(), clock = { 1_000L })
         runBlocking { accountRepository.ensureActiveAccount() }
@@ -51,6 +59,97 @@ class LocalTrainingRepositoryTest {
             clock = { currentInstant.toEpochMilli() },
             accountRepository = accountRepository,
         )
+    }
+
+    @Test
+    fun observeActiveWorkoutDetail_batchesPriorHistoryForTwentyExercises() = runTest {
+        val completedSession = WorkoutSessionEntity(
+            accountId = TEST_ACCOUNT_ID,
+            id = "history-session",
+            routineId = null,
+            title = "Prior workout",
+            status = "completed",
+            startedAtEpochMillis = WORKOUT_START.minusSeconds(3_600).toEpochMilli(),
+            endedAtEpochMillis = WORKOUT_START.minusSeconds(1_800).toEpochMilli(),
+            notes = null,
+            healthConnectRecordId = null,
+            healthConnectLastExportedAtEpochMillis = null,
+        )
+        val activeSession = WorkoutSessionEntity(
+            accountId = TEST_ACCOUNT_ID,
+            id = "active-session",
+            routineId = null,
+            title = "Large active workout",
+            status = "active",
+            startedAtEpochMillis = WORKOUT_START.toEpochMilli(),
+            endedAtEpochMillis = null,
+            notes = null,
+            healthConnectRecordId = null,
+            healthConnectLastExportedAtEpochMillis = null,
+        )
+        database.trainingDao().upsertWorkoutSession(completedSession)
+        database.trainingDao().upsertWorkoutSession(activeSession)
+        repeat(20) { index ->
+            val exerciseId = "exercise-$index"
+            database.trainingDao().upsertExerciseDefinition(
+                ExerciseEntity(
+                    id = exerciseId,
+                    accountId = TEST_ACCOUNT_ID,
+                    name = "Exercise $index",
+                    category = "strength",
+                    equipment = "barbell",
+                    targetMuscles = "full body",
+                    isCustom = true,
+                ),
+            )
+            database.trainingDao().upsertWorkoutSet(
+                WorkoutSetEntity(
+                    accountId = TEST_ACCOUNT_ID,
+                    id = "history-set-$index",
+                    sessionId = completedSession.id,
+                    exerciseId = exerciseId,
+                    sortOrder = index,
+                    setType = "working",
+                    reps = 5,
+                    weightKg = 100.0 + index,
+                    durationSeconds = null,
+                    distanceMeters = null,
+                    rpe = 8.0,
+                    notes = null,
+                    completed = true,
+                ),
+            )
+            database.trainingDao().upsertWorkoutSet(
+                WorkoutSetEntity(
+                    accountId = TEST_ACCOUNT_ID,
+                    id = "active-set-$index",
+                    sessionId = activeSession.id,
+                    exerciseId = exerciseId,
+                    sortOrder = index,
+                    setType = "working",
+                    reps = null,
+                    weightKg = null,
+                    durationSeconds = null,
+                    distanceMeters = null,
+                    rpe = null,
+                    notes = null,
+                    completed = false,
+                ),
+            )
+        }
+
+        executedSql.clear()
+        val detail = repository.observeActiveWorkoutDetail().first()
+        val priorHistoryQueries = executedSql.filter { sql ->
+            sql.contains("FROM workout_sets", ignoreCase = true) &&
+                sql.contains("INNER JOIN workout_sessions", ignoreCase = true) &&
+                sql.contains("startedAtEpochMillis <", ignoreCase = true)
+        }
+
+        assertEquals(20, detail?.exerciseBlocks?.size)
+        assertTrue(detail?.exerciseBlocks.orEmpty().all { it.sets.single().previousLabel != null })
+        assertTrue(detail?.exerciseBlocks.orEmpty().all { it.priorBestEstimatedOneRepMaxKg > 0.0 })
+        assertEquals(1, priorHistoryQueries.size)
     }
 
     @Test

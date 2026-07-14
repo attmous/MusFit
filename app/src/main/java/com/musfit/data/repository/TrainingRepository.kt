@@ -5,6 +5,7 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.local.dao.ActiveWorkoutSummaryRow
 import com.musfit.data.local.dao.ExerciseDetailRow
 import com.musfit.data.local.dao.ExerciseProgressSetRow
+import com.musfit.data.local.dao.PriorCompletedWorkoutSetRow
 import com.musfit.data.local.dao.RoutineExerciseDetailRow
 import com.musfit.data.local.dao.RoutineSummaryRow
 import com.musfit.data.local.dao.TrainingDao
@@ -1766,36 +1767,25 @@ private suspend fun List<WorkoutSetDetailRow>.toActiveWorkoutDetail(
     trainingDao: TrainingDao,
 ): ActiveWorkoutDetail {
     val distinctExerciseIds = map { it.exerciseId }.distinct()
+    val priorSetsByExercise = trainingDao.getCompletedSetsForExercisesBefore(
+        accountId = session.accountId,
+        exerciseIds = distinctExerciseIds,
+        beforeStartedAtEpochMillis = session.startedAtEpochMillis,
+    ).groupBy { it.exerciseId }
     // Per-set LAST labels: the most recent prior session's completed sets for the
     // exercise, in set order, so row N can show what set N lifted last time.
-    val previousLabels = distinctExerciseIds.associateWith { exerciseId ->
-        val latestSet = trainingDao.getLatestCompletedSetForExerciseBefore(
-            accountId = session.accountId,
-            exerciseId = exerciseId,
-            beforeStartedAtEpochMillis = session.startedAtEpochMillis,
-        ) ?: return@associateWith emptyList()
-        trainingDao.getCompletedSetsForExerciseBefore(
-            accountId = session.accountId,
-            exerciseId = exerciseId,
-            beforeStartedAtEpochMillis = session.startedAtEpochMillis,
-        )
-            .filter { it.sessionId == latestSet.sessionId }
+    val previousLabels = priorSetsByExercise.mapValues { (_, priorSets) ->
+        val latestSet = priorSets.maxWithOrNull(
+            compareBy<PriorCompletedWorkoutSetRow> { it.startedAtEpochMillis }
+                .thenBy { it.sortOrder },
+        ) ?: return@mapValues emptyList()
+        priorSets.filter { it.sessionId == latestSet.sessionId }
             .sortedBy { it.sortOrder }
-            .mapNotNull { it.toPreviousLabel() }
+            .map { it.toPreviousLabel() }
     }
-    val priorBest1RM = distinctExerciseIds.associateWith { exerciseId ->
-        trainingDao.getCompletedSetsForExerciseBefore(
-            accountId = session.accountId,
-            exerciseId = exerciseId,
-            beforeStartedAtEpochMillis = session.startedAtEpochMillis,
-        ).maxOfOrNull { set ->
-            val reps = set.reps
-            val weightKg = set.weightKg
-            if (reps != null && weightKg != null) {
-                WorkoutCalculator.estimatedOneRepMax(weightKg = weightKg, reps = reps)
-            } else {
-                0.0
-            }
+    val priorBest1RM = priorSetsByExercise.mapValues { (_, priorSets) ->
+        priorSets.maxOfOrNull { set ->
+            WorkoutCalculator.estimatedOneRepMax(weightKg = set.weightKg, reps = set.reps)
         } ?: 0.0
     }
     // Derive an A/B label per exercise within its superset (first member = A), in sortOrder order.
@@ -1921,6 +1911,8 @@ private fun WorkoutSetEntity.toPreviousLabel(): String? {
     val weightKg = weightKg ?: return null
     return "${weightKg.formatCompactKg()} kg x $reps"
 }
+
+private fun PriorCompletedWorkoutSetRow.toPreviousLabel(): String = "${weightKg.formatCompactKg()} kg x $reps"
 
 private fun encodeWorkoutSetNotes(targetReps: String?, userNote: String?): String? {
     val metadata = targetReps?.trim()?.takeIf { it.isNotEmpty() }?.let { "$TARGET_REPS_PREFIX$it" }

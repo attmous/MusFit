@@ -118,7 +118,7 @@ class GoalWeightMigration26To27Test {
     fun migration26To27_timestampTieKeepsProfileValue() {
         createDatabaseFromExportedSchema(version = 26)
         insertGoals("local-default", targetWeightKg = 70.0, updatedAt = 200L)
-        insertProfile("local-default", goalWeightKg = 80.0, updatedAt = 200L) // tie → no recency evidence
+        insertProfile("local-default", goalWeightKg = 80.0, updatedAt = 200L) // tie â†’ no recency evidence
 
         runMigration()
 
@@ -139,7 +139,7 @@ class GoalWeightMigration26To27Test {
                     DatabaseModule.MIGRATION_33_34,
                     DatabaseModule.MIGRATION_34_35,
                     DatabaseModule.MIGRATION_35_36,
-                    DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38, DatabaseModule.MIGRATION_38_39, DatabaseModule.MIGRATION_39_40, DatabaseModule.MIGRATION_40_41,
+                    DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38, DatabaseModule.MIGRATION_38_39, DatabaseModule.MIGRATION_39_40, DatabaseModule.MIGRATION_40_41, DatabaseModule.MIGRATION_41_42,
                 )
                 .build()
         try {

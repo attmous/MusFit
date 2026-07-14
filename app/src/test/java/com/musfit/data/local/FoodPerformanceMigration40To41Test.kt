@@ -47,7 +47,7 @@ class FoodPerformanceMigration40To41Test {
 
         val room =
             Room.databaseBuilder(context, MusFitDatabase::class.java, MIGRATION_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_40_41)
+                .addMigrations(DatabaseModule.MIGRATION_40_41, DatabaseModule.MIGRATION_41_42)
                 .addCallback(DatabaseModule.FOOD_PERFORMANCE_INDEX_CALLBACK)
                 .build()
         room.openHelper.writableDatabase
