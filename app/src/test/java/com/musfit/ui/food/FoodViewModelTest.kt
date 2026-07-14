@@ -1,9 +1,11 @@
 package com.musfit.ui.food
 
+import androidx.lifecycle.SavedStateHandle
 import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.ProductDataQuality
 import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.remote.food.ProductSearchResult
+import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodDiaryEntry
 import com.musfit.data.repository.FoodDiaryEntryStatus
@@ -17,22 +19,21 @@ import com.musfit.data.repository.FoodMealDefinition
 import com.musfit.data.repository.FoodMealDefinitionInput
 import com.musfit.data.repository.FoodPlanDay
 import com.musfit.data.repository.FoodProgressSummary
+import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.FoodServingOption
 import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.FoodWeeklyDaySummary
 import com.musfit.data.repository.FoodWeeklySummary
-import com.musfit.data.repository.MealTemplate
-import com.musfit.data.repository.MealTemplateItemInput
-import com.musfit.data.repository.MealTemplateItem
-import com.musfit.data.repository.MealTemplateUpdateInput
 import com.musfit.data.repository.ManualShoppingListItemInput
+import com.musfit.data.repository.MealTemplate
+import com.musfit.data.repository.MealTemplateItem
+import com.musfit.data.repository.MealTemplateItemInput
+import com.musfit.data.repository.MealTemplateUpdateInput
 import com.musfit.data.repository.NutritionDetails
-import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.QuickCalorieLogInput
 import com.musfit.data.repository.QuickCaloriePreset
 import com.musfit.data.repository.QuickCaloriePresetInput
-import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.Recipe
 import com.musfit.data.repository.RecipeIngredient
 import com.musfit.data.repository.RecipeUpsertInput
@@ -76,6 +77,56 @@ class FoodViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun restoration_retainsFoodAddRouteAndBoundedDraftWithoutTransientMessage() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val first = FoodViewModel(FakeProductProvider(), FakeFoodRepository(), savedStateHandle)
+        first.onScannedBarcode("123abc45")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val restored = FoodViewModel(FakeProductProvider(), FakeFoodRepository(), savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodSheetMode.AddFood, restored.state.value.sheetMode)
+        assertEquals(AddTab.Create, restored.state.value.addTab)
+        assertEquals("12345", restored.state.value.barcode)
+        assertEquals("Greek Yogurt", restored.state.value.productName)
+        assertNull(restored.state.value.message)
+        assertFalse(restored.state.value.isLoading)
+        assertFalse(restored.state.value.isSaving)
+    }
+
+    @Test
+    fun restoration_retainsFoodDatabaseQueryAndSelectedDate() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val first = FoodViewModel(FakeProductProvider(), FakeFoodRepository(), savedStateHandle)
+        first.goToPreviousDay()
+        first.openFoodDatabase()
+        first.onFoodDatabaseQueryChanged("oats")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val restored = FoodViewModel(FakeProductProvider(), FakeFoodRepository(), savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FoodSheetMode.FoodDatabase, restored.state.value.sheetMode)
+        assertEquals("oats", restored.state.value.foodDatabaseQuery)
+        assertEquals(first.state.value.selectedDate, restored.state.value.selectedDate)
+    }
+
+    @Test
+    fun restoration_retainsSelectedDateWithoutAnOpenFoodSheet() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val first = FoodViewModel(FakeProductProvider(), FakeFoodRepository(), savedStateHandle)
+        first.goToPreviousDay()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val restored = FoodViewModel(FakeProductProvider(), FakeFoodRepository(), savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(first.state.value.selectedDate, restored.state.value.selectedDate)
+        assertNull(restored.state.value.sheetMode)
     }
 
     @Test
@@ -493,19 +544,18 @@ class FoodViewModelTest {
 
     @Test
     fun includeTrainingCaloriesAddsBurnedToRemainingBudget() = runTest {
-        fun goal(includeTraining: Boolean) =
-            FoodGoal(
-                dailyCaloriesKcal = 2083.0,
-                proteinGrams = 104.0,
-                carbsGrams = 260.0,
-                fatGrams = 69.0,
-                fiberGrams = 30.0,
-                sugarGrams = 50.0,
-                saturatedFatGrams = 20.0,
-                sodiumMilligrams = 2300.0,
-                mode = FoodGoalMode.Balanced,
-                includeTrainingCalories = includeTraining,
-            )
+        fun goal(includeTraining: Boolean) = FoodGoal(
+            dailyCaloriesKcal = 2083.0,
+            proteinGrams = 104.0,
+            carbsGrams = 260.0,
+            fatGrams = 69.0,
+            fiberGrams = 30.0,
+            sugarGrams = 50.0,
+            saturatedFatGrams = 20.0,
+            sodiumMilligrams = 2300.0,
+            mode = FoodGoalMode.Balanced,
+            includeTrainingCalories = includeTraining,
+        )
 
         val off = FoodViewModel(
             provider = FakeProductProvider(),
@@ -4512,8 +4562,7 @@ class FoodViewModelTest {
             }
         }
 
-        override suspend fun searchProducts(query: String, pageSize: Int): ProductSearchResult =
-            searchResult
+        override suspend fun searchProducts(query: String, pageSize: Int): ProductSearchResult = searchResult
     }
 
     private class BlockingProductProvider : FoodProductProvider {
@@ -4529,8 +4578,7 @@ class FoodViewModelTest {
     private class BarcodeBlockingProductProvider : FoodProductProvider {
         private val resultsByBarcode = mutableMapOf<String, CompletableDeferred<ProductLookupResult>>()
 
-        override suspend fun lookupBarcode(barcode: String): ProductLookupResult =
-            resultsByBarcode.getOrPut(barcode) { CompletableDeferred() }.await()
+        override suspend fun lookupBarcode(barcode: String): ProductLookupResult = resultsByBarcode.getOrPut(barcode) { CompletableDeferred() }.await()
 
         fun completeWith(barcode: String, value: ProductLookupResult) {
             resultsByBarcode.getOrPut(barcode) { CompletableDeferred() }.complete(value)
@@ -4538,26 +4586,23 @@ class FoodViewModelTest {
     }
 
     private class ThrowingSearchProductProvider : FoodProductProvider {
-        override suspend fun lookupBarcode(barcode: String): ProductLookupResult =
-            ProductLookupResult.NotFound(barcode)
+        override suspend fun lookupBarcode(barcode: String): ProductLookupResult = ProductLookupResult.NotFound(barcode)
 
-        override suspend fun searchProducts(query: String, pageSize: Int): ProductSearchResult =
-            throw IllegalStateException("network unavailable")
+        override suspend fun searchProducts(query: String, pageSize: Int): ProductSearchResult = throw IllegalStateException("network unavailable")
     }
 
-    private fun highProteinGoal(): FoodGoal =
-        FoodGoal(
-            dailyCaloriesKcal = 2083.0,
-            proteinGrams = 150.0,
-            carbsGrams = 210.0,
-            fatGrams = 70.0,
-            fiberGrams = 30.0,
-            sugarGrams = 50.0,
-            saturatedFatGrams = 20.0,
-            sodiumMilligrams = 2300.0,
-            mode = FoodGoalMode.HighProtein,
-            includeTrainingCalories = false,
-        )
+    private fun highProteinGoal(): FoodGoal = FoodGoal(
+        dailyCaloriesKcal = 2083.0,
+        proteinGrams = 150.0,
+        carbsGrams = 210.0,
+        fatGrams = 70.0,
+        fiberGrams = 30.0,
+        sugarGrams = 50.0,
+        saturatedFatGrams = 20.0,
+        sodiumMilligrams = 2300.0,
+        mode = FoodGoalMode.HighProtein,
+        includeTrainingCalories = false,
+    )
 
     private fun weeklySummaryForScore(startDate: LocalDate): FoodWeeklySummary {
         val goal =
@@ -4610,10 +4655,15 @@ class FoodViewModelTest {
             (0L..27L).map { offset ->
                 when (offset) {
                     2L -> weeklyDay(startDate.plusDays(offset), calories = 1500.0, protein = 80.0, fiber = 18.0, sodium = 2100.0, water = 2000.0)
+
                     8L -> weeklyDay(startDate.plusDays(offset), calories = 1700.0, protein = 90.0, fiber = 22.0, sodium = 1900.0, water = 1800.0)
+
                     21L -> weeklyDay(startDate.plusDays(offset), calories = 1980.0, protein = 118.0, fiber = 32.0, sodium = 1800.0, water = 2000.0)
+
                     22L -> weeklyDay(startDate.plusDays(offset), calories = 1900.0, protein = 104.0, fiber = 25.0, sodium = 2100.0, water = 2000.0)
+
                     23L -> weeklyDay(startDate.plusDays(offset), calories = 2600.0, protein = 65.0, fiber = 8.0, sodium = 3400.0, water = 500.0)
+
                     else ->
                         FoodWeeklyDaySummary(
                             date = startDate.plusDays(offset),
@@ -4632,16 +4682,15 @@ class FoodViewModelTest {
         fiber: Double,
         sodium: Double,
         water: Double,
-    ): FoodWeeklyDaySummary =
-        FoodWeeklyDaySummary(
-            date = date,
-            diary = FoodDiary(
-                totals = NutritionTotals(calories, protein, carbsGrams = calories / 10.0, fatGrams = calories / 40.0),
-                meals = emptyList(),
-                detailTotals = NutritionDetails(fiberGrams = fiber, sodiumMilligrams = sodium),
-            ),
-            water = FoodWaterSummary(date, water, 2000.0),
-        )
+    ): FoodWeeklyDaySummary = FoodWeeklyDaySummary(
+        date = date,
+        diary = FoodDiary(
+            totals = NutritionTotals(calories, protein, carbsGrams = calories / 10.0, fatGrams = calories / 40.0),
+            meals = emptyList(),
+            detailTotals = NutritionDetails(fiberGrams = fiber, sodiumMilligrams = sodium),
+        ),
+        water = FoodWaterSummary(date, water, 2000.0),
+    )
 
     private class FakeFoodRepository(
         diary: FoodDiary = emptyFoodDiary(),
@@ -4785,25 +4834,20 @@ class FoodViewModelTest {
             return "meal-item-1"
         }
 
-        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
-            flowOf(NutritionTotals(0.0, 0.0, 0.0, 0.0))
+        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> = flowOf(NutritionTotals(0.0, 0.0, 0.0, 0.0))
 
-        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
-            diaryFlow
+        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> = diaryFlow
 
-        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
-            savedFoodsFlow
+        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> = savedFoodsFlow
 
-        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
-            flowOf(emptyList())
+        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> = flowOf(emptyList())
 
         override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> {
             sameAsYesterdayRequests += mealType
             return flowOf(sameAsYesterdayItems)
         }
 
-        override suspend fun getFoodDetail(foodId: String): SavedFoodItem? =
-            savedFoodsFlow.value.firstOrNull { it.id == foodId }
+        override suspend fun getFoodDetail(foodId: String): SavedFoodItem? = savedFoodsFlow.value.firstOrNull { it.id == foodId }
 
         override suspend fun logSavedFood(input: SavedFoodLogInput): String {
             savedFoodLog = input
@@ -4821,19 +4865,16 @@ class FoodViewModelTest {
             return "meal-item-1"
         }
 
-        override fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> =
-            weeklyPlanFlow
+        override fun observeFoodPlan(startDate: LocalDate): Flow<List<FoodPlanDay>> = weeklyPlanFlow
 
         override fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> {
             weeklySummaryStartDates += startDate
             return weeklySummaryFlow
         }
 
-        override fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> =
-            progressSummaryFlow
+        override fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> = progressSummaryFlow
 
-        override fun observeShoppingList(): Flow<List<ShoppingListGroup>> =
-            shoppingGroupsFlow
+        override fun observeShoppingList(): Flow<List<ShoppingListGroup>> = shoppingGroupsFlow
 
         override suspend fun generateShoppingList(startDate: LocalDate, endDate: LocalDate): List<ShoppingListGroup> {
             generateShoppingListCall = GenerateShoppingListCall(startDate, endDate)
@@ -4849,11 +4890,9 @@ class FoodViewModelTest {
             toggledShoppingItem = itemId to isChecked
         }
 
-        override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> =
-            waterSummaryFlow
+        override fun observeWaterSummary(date: LocalDate): Flow<FoodWaterSummary> = waterSummaryFlow
 
-        override fun observeBurnedCalories(date: LocalDate): Flow<Double> =
-            MutableStateFlow(burnedCalories)
+        override fun observeBurnedCalories(date: LocalDate): Flow<Double> = MutableStateFlow(burnedCalories)
 
         override suspend fun logWater(input: WaterLogInput): String {
             waterLogInput = input
@@ -4870,11 +4909,9 @@ class FoodViewModelTest {
             waterSummaryFlow.value = waterSummaryFlow.value.copy(goalMilliliters = goalMilliliters)
         }
 
-        override fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> =
-            foodHealthConnectSyncStateFlow
+        override fun observeFoodHealthConnectSyncState(): Flow<FoodHealthConnectSyncState> = foodHealthConnectSyncStateFlow
 
-        override suspend fun refreshFoodHealthConnectSyncState(): FoodHealthConnectSyncState =
-            foodHealthConnectSyncStateFlow.value
+        override suspend fun refreshFoodHealthConnectSyncState(): FoodHealthConnectSyncState = foodHealthConnectSyncStateFlow.value
 
         override suspend fun setFoodHealthConnectSyncEnabled(isEnabled: Boolean) {
             foodHealthConnectEnabled = isEnabled
@@ -4894,8 +4931,7 @@ class FoodViewModelTest {
             return foodHealthConnectSyncResult
         }
 
-        override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> =
-            quickCaloriePresetsFlow
+        override fun observeQuickCaloriePresets(): Flow<List<QuickCaloriePreset>> = quickCaloriePresetsFlow
 
         override suspend fun saveFavoriteQuickLog(input: QuickCaloriePresetInput): String {
             favoriteQuickLogSave = input
@@ -4911,8 +4947,7 @@ class FoodViewModelTest {
             return "meal-item-1"
         }
 
-        override fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>> =
-            customMealDefinitionsFlow
+        override fun observeCustomMealDefinitions(): Flow<List<FoodMealDefinition>> = customMealDefinitionsFlow
 
         override suspend fun upsertCustomMealDefinition(input: FoodMealDefinitionInput): String {
             customMealDefinitionUpsert = input
@@ -4944,16 +4979,14 @@ class FoodViewModelTest {
             favoriteToggle = foodId to isFavorite
         }
 
-        override fun observeFoodGoal(): Flow<FoodGoal> =
-            foodGoalFlow
+        override fun observeFoodGoal(): Flow<FoodGoal> = foodGoalFlow
 
         override suspend fun updateFoodGoal(goal: FoodGoal) {
             foodGoalUpdate = goal
             foodGoalFlow.value = goal
         }
 
-        override fun observeMealTemplates(): Flow<List<MealTemplate>> =
-            templatesFlow
+        override fun observeMealTemplates(): Flow<List<MealTemplate>> = templatesFlow
 
         override suspend fun saveMealAsTemplate(date: LocalDate, mealType: String, name: String): String {
             saveTemplateCall = SaveTemplateCall(date, mealType, name)
@@ -5011,8 +5044,7 @@ class FoodViewModelTest {
             markedLoggedEntryId = mealItemId
         }
 
-        override fun observeRecipes(): Flow<List<Recipe>> =
-            recipesFlow
+        override fun observeRecipes(): Flow<List<Recipe>> = recipesFlow
 
         override suspend fun upsertRecipe(input: RecipeUpsertInput): String {
             recipeUpsert = input
@@ -5066,20 +5098,15 @@ class FoodViewModelTest {
             return saveResult.await()
         }
 
-        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
-            flowOf(NutritionTotals(0.0, 0.0, 0.0, 0.0))
+        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> = flowOf(NutritionTotals(0.0, 0.0, 0.0, 0.0))
 
-        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
-            flowOf(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
+        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> = flowOf(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
 
-        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> =
-            flowOf(emptyList())
+        override fun observeSavedFoods(): Flow<List<SavedFoodItem>> = flowOf(emptyList())
 
-        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> =
-            flowOf(emptyList())
+        override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> = flowOf(emptyList())
 
-        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> =
-            flowOf(emptyList())
+        override fun observeSameAsYesterday(mealType: String, date: java.time.LocalDate): Flow<List<SavedFoodItem>> = flowOf(emptyList())
 
         override suspend fun logSavedFood(input: SavedFoodLogInput): String {
             saveCalls += 1
@@ -5133,8 +5160,7 @@ private fun foundProduct(
     rawJson = "{}",
 )
 
-private fun emptyFoodDiary(): FoodDiary =
-    FoodDiary(
-        totals = NutritionTotals(0.0, 0.0, 0.0, 0.0),
-        meals = emptyList(),
-    )
+private fun emptyFoodDiary(): FoodDiary = FoodDiary(
+    totals = NutritionTotals(0.0, 0.0, 0.0, 0.0),
+    meals = emptyList(),
+)
