@@ -228,6 +228,7 @@ The app currently supports:
 - Food and hydration export boundary through `HealthConnectFoodExportPayload`.
 - Stable client identities derived from record type plus immutable account/entity IDs, with monotonic versions and persisted provider IDs.
 - Typed daily-read outcomes that distinguish complete, partial, legitimately empty, unavailable/revoked, and failed reads; coroutine cancellation is always rethrown.
+- Calendar-day range imports batch provider work by metric, preserve zone-aware day boundaries, and consume every continuation token for raw record reads.
 
 The Food sync card handles availability, permission summary, enable/disable
 state, last sync, and sync errors. Export retries consult
@@ -245,6 +246,9 @@ visible failure without advancing `lastImportAtEpochMillis`. Completed Weight
 and BodyFat types also reconcile same-day Health Connect-sourced body-metric IDs;
 provider-deleted rows are removed, while manual and failed/ungranted types are
 preserved.
+Recent refresh requests one inclusive date range and then persists the existing
+per-day result contract in order. Provider call count therefore scales with the
+granted metric set (plus raw-record pages), not days multiplied by metrics.
 
 ## Theme And Design System
 

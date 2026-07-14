@@ -2,6 +2,8 @@ package com.musfit.integrations.healthconnect
 
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.aggregate.AggregateMetric
+import androidx.health.connect.client.aggregate.AggregationResult
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.BodyFatRecord
 import androidx.health.connect.client.records.DistanceRecord
@@ -9,12 +11,14 @@ import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.HydrationRecord
 import androidx.health.connect.client.records.NutritionRecord
+import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.records.metadata.DataOrigin
+import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
@@ -33,8 +37,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import java.time.Instant
 import java.time.LocalDate
+import java.time.Period
 import java.time.ZoneId
 import javax.inject.Inject
+import kotlin.reflect.KClass
 
 @Suppress("TooManyFunctions")
 class HealthConnectManager @Inject constructor(
@@ -63,23 +69,32 @@ class HealthConnectManager @Inject constructor(
 
     override suspend fun foodRequestablePermissions(): Set<String> = foodPermissions
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount", "TooGenericExceptionCaught")
     override suspend fun readDailySummary(
         date: LocalDate,
         preferredStepsPackage: String?,
-    ): HealthConnectDailyReadResult {
+    ): HealthConnectDailyReadResult = readDailySummaries(date, date, preferredStepsPackage).getValue(date)
+
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount", "TooGenericExceptionCaught")
+    override suspend fun readDailySummaries(
+        startDate: LocalDate,
+        endDateInclusive: LocalDate,
+        preferredStepsPackage: String?,
+    ): Map<LocalDate, HealthConnectDailyReadResult> {
+        val range = HealthConnectDateRange(startDate, endDateInclusive, ZoneId.systemDefault())
         val currentStatus = try {
             status()
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Exception) {
-            return HealthConnectDailyReadResult.Failure(failure.healthConnectMessage())
+            return range.sameResult(HealthConnectDailyReadResult.Failure(failure.healthConnectMessage()))
         }
         if (currentStatus.availability != HealthConnectAvailability.Available) {
-            return HealthConnectDailyReadResult.Unavailable(
-                status = currentStatus,
-                reason = HealthConnectUnavailableReason.ProviderUnavailable,
-                message = "Health Connect is unavailable.",
+            return range.sameResult(
+                HealthConnectDailyReadResult.Unavailable(
+                    status = currentStatus,
+                    reason = HealthConnectUnavailableReason.ProviderUnavailable,
+                    message = "Health Connect is unavailable.",
+                ),
             )
         }
 
@@ -107,10 +122,12 @@ class HealthConnectManager @Inject constructor(
             !canReadRestingHeartRate &&
             !canReadHeartRateVariability
         ) {
-            return HealthConnectDailyReadResult.Unavailable(
-                status = currentStatus,
-                reason = HealthConnectUnavailableReason.PermissionsUnavailable,
-                message = "Health Connect read permissions are unavailable.",
+            return range.sameResult(
+                HealthConnectDailyReadResult.Unavailable(
+                    status = currentStatus,
+                    reason = HealthConnectUnavailableReason.PermissionsUnavailable,
+                    message = "Health Connect read permissions are unavailable.",
+                ),
             )
         }
 
@@ -119,137 +136,124 @@ class HealthConnectManager @Inject constructor(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Exception) {
-            return HealthConnectDailyReadResult.Failure(
-                message = failure.healthConnectMessage(),
-                status = currentStatus,
+            return range.sameResult(
+                HealthConnectDailyReadResult.Failure(
+                    message = failure.healthConnectMessage(),
+                    status = currentStatus,
+                ),
             )
         }
-        val range = date.asHealthConnectTimeRange()
-        val completedMetrics = linkedSetOf<HealthConnectMetric>()
-        val failures = mutableListOf<HealthConnectMetricFailure>()
+        val completedMetrics = range.dates.associateWith { linkedSetOf<HealthConnectMetric>() }
+        val failures = range.dates.associateWith { mutableListOf<HealthConnectMetricFailure>() }
 
         val steps = if (canReadSteps) {
-            readMetric(HealthConnectMetric.Steps, completedMetrics, failures) {
+            readMetricByDay(HealthConnectMetric.Steps, range, completedMetrics, failures) {
                 if (preferredStepsPackage != null) {
-                    client.aggregateStepsForOrigins(range, setOf(preferredStepsPackage))
+                    client.aggregateStepsForOriginsByDay(range, setOf(preferredStepsPackage))
                 } else {
-                    client.aggregateSteps(range)
+                    client.aggregateStepsByDay(range)
                 }
             }
         } else {
-            null
+            emptyMap()
         }
 
         val activeCalories = if (canReadActiveCalories) {
-            readMetric(HealthConnectMetric.ActiveCalories, completedMetrics, failures) {
-                client.aggregateActiveCalories(range)
+            readMetricByDay(HealthConnectMetric.ActiveCalories, range, completedMetrics, failures) {
+                client.aggregateActiveCaloriesByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
         val totalCalories = if (canReadTotalCalories) {
-            readMetric(HealthConnectMetric.TotalCalories, completedMetrics, failures) {
-                client.aggregateTotalCalories(range)
+            readMetricByDay(HealthConnectMetric.TotalCalories, range, completedMetrics, failures) {
+                client.aggregateTotalCaloriesByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
         val distance = if (canReadDistance) {
-            readMetric(HealthConnectMetric.Distance, completedMetrics, failures) {
-                client.aggregateDistanceMeters(range)
+            readMetricByDay(HealthConnectMetric.Distance, range, completedMetrics, failures) {
+                client.aggregateDistanceMetersByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
         val sleepMinutes = if (canReadSleep) {
-            readMetric(HealthConnectMetric.Sleep, completedMetrics, failures) {
-                client.aggregateSleepMinutes(range)
+            readMetricByDay(HealthConnectMetric.Sleep, range, completedMetrics, failures) {
+                client.aggregateSleepMinutesByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
         val exerciseMinutes = if (canReadExercise) {
-            readMetric(HealthConnectMetric.ExerciseDuration, completedMetrics, failures) {
-                client.aggregateExerciseMinutes(range)
+            readMetricByDay(HealthConnectMetric.ExerciseDuration, range, completedMetrics, failures) {
+                client.aggregateExerciseMinutesByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
         val exerciseSessionCount = if (canReadExercise) {
-            readMetric(HealthConnectMetric.ExerciseSessions, completedMetrics, failures) {
-                client.readExerciseSessionCount(range)
+            readMetricByDay(HealthConnectMetric.ExerciseSessions, range, completedMetrics, failures) {
+                client.readExerciseSessionCountByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
         val latestWeight = if (canReadWeight) {
-            readMetric(HealthConnectMetric.Weight, completedMetrics, failures) {
-                client.readLatestWeightMetric(range)
+            readMetricByDay(HealthConnectMetric.Weight, range, completedMetrics, failures) {
+                client.readLatestWeightMetricByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
         val latestBodyFat = if (canReadBodyFat) {
-            readMetric(HealthConnectMetric.BodyFat, completedMetrics, failures) {
-                client.readLatestBodyFatMetric(range)
+            readMetricByDay(HealthConnectMetric.BodyFat, range, completedMetrics, failures) {
+                client.readLatestBodyFatMetricByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
         val restingHeartRate = if (canReadRestingHeartRate) {
-            readMetric(HealthConnectMetric.RestingHeartRate, completedMetrics, failures) {
-                client.readLatestRestingHeartRate(range)
+            readMetricByDay(HealthConnectMetric.RestingHeartRate, range, completedMetrics, failures) {
+                client.readLatestRestingHeartRateByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
         val hrvRmssd = if (canReadHeartRateVariability) {
-            readMetric(HealthConnectMetric.HeartRateVariability, completedMetrics, failures) {
-                client.readLatestHeartRateVariabilityRmssdMillis(range)
+            readMetricByDay(HealthConnectMetric.HeartRateVariability, range, completedMetrics, failures) {
+                client.readLatestHeartRateVariabilityRmssdMillisByDay(range)
             }
         } else {
-            null
+            emptyMap()
         }
 
-        val summary = ImportedDailyHealthSummary(
-            steps = steps,
-            activeCaloriesKcal = activeCalories,
-            totalCaloriesKcal = totalCalories,
-            distanceMeters = distance,
-            sleepMinutes = sleepMinutes,
-            exerciseMinutes = exerciseMinutes,
-            exerciseSessionCount = exerciseSessionCount,
-            latestWeightKg = latestWeight?.value,
-            latestBodyFatPercent = latestBodyFat?.value,
-            restingHeartRateBpm = restingHeartRate,
-            hrvRmssdMillis = hrvRmssd,
-            bodyMetrics = listOfNotNull(latestWeight, latestBodyFat),
-        )
-        return when {
-            failures.isNotEmpty() && completedMetrics.isEmpty() -> HealthConnectDailyReadResult.Failure(
-                message = failures.joinToString("; ") { failure -> failure.message },
-                status = currentStatus,
+        return range.dates.associateWith { date ->
+            val summary = ImportedDailyHealthSummary(
+                steps = steps[date],
+                activeCaloriesKcal = activeCalories[date],
+                totalCaloriesKcal = totalCalories[date],
+                distanceMeters = distance[date],
+                sleepMinutes = sleepMinutes[date],
+                exerciseMinutes = exerciseMinutes[date],
+                exerciseSessionCount = exerciseSessionCount[date],
+                latestWeightKg = latestWeight[date]?.value,
+                latestBodyFatPercent = latestBodyFat[date]?.value,
+                restingHeartRateBpm = restingHeartRate[date],
+                hrvRmssdMillis = hrvRmssd[date],
+                bodyMetrics = listOfNotNull(latestWeight[date], latestBodyFat[date]),
             )
-
-            failures.isNotEmpty() -> HealthConnectDailyReadResult.Partial(
-                summary = summary,
-                completedMetrics = completedMetrics,
-                failures = failures,
-                status = currentStatus,
-            )
-
-            summary.isEmpty() -> HealthConnectDailyReadResult.Empty(completedMetrics, currentStatus)
-
-            else -> HealthConnectDailyReadResult.Complete(summary, completedMetrics, currentStatus)
+            dailyReadResult(summary, completedMetrics.getValue(date), failures.getValue(date), currentStatus)
         }
     }
 
@@ -497,18 +501,46 @@ private fun HealthConnectAuthoredRecordType.requiredWritePermission(): String = 
 }
 
 @Suppress("TooGenericExceptionCaught")
-private suspend fun <T> readMetric(
+private suspend fun <T> readMetricByDay(
     metric: HealthConnectMetric,
-    completedMetrics: MutableSet<HealthConnectMetric>,
-    failures: MutableList<HealthConnectMetricFailure>,
-    read: suspend () -> T,
-): T? = try {
-    read().also { completedMetrics += metric }
+    range: HealthConnectDateRange,
+    completedMetrics: Map<LocalDate, MutableSet<HealthConnectMetric>>,
+    failures: Map<LocalDate, MutableList<HealthConnectMetricFailure>>,
+    read: suspend () -> Map<LocalDate, T?>,
+): Map<LocalDate, T?> = try {
+    read().also {
+        range.dates.forEach { date -> completedMetrics.getValue(date) += metric }
+    }
 } catch (cancellation: CancellationException) {
     throw cancellation
 } catch (failure: Exception) {
-    failures += HealthConnectMetricFailure(metric, failure.healthConnectMessage())
-    null
+    range.dates.forEach { date ->
+        failures.getValue(date) += HealthConnectMetricFailure(metric, failure.healthConnectMessage())
+    }
+    emptyMap()
+}
+
+private fun dailyReadResult(
+    summary: ImportedDailyHealthSummary,
+    completedMetrics: Set<HealthConnectMetric>,
+    failures: List<HealthConnectMetricFailure>,
+    status: HealthConnectStatus,
+): HealthConnectDailyReadResult = when {
+    failures.isNotEmpty() && completedMetrics.isEmpty() -> HealthConnectDailyReadResult.Failure(
+        message = failures.joinToString("; ") { failure -> failure.message },
+        status = status,
+    )
+
+    failures.isNotEmpty() -> HealthConnectDailyReadResult.Partial(
+        summary = summary,
+        completedMetrics = completedMetrics,
+        failures = failures,
+        status = status,
+    )
+
+    summary.isEmpty() -> HealthConnectDailyReadResult.Empty(completedMetrics, status)
+
+    else -> HealthConnectDailyReadResult.Complete(summary, completedMetrics, status)
 }
 
 @Suppress("TooGenericExceptionCaught")
@@ -572,13 +604,6 @@ private fun HealthConnectFoodExportPayload.toHydrationRecord(canWriteHydration: 
 
 private fun HealthConnectFoodMealExport.hasMacroNutrition(): Boolean = caloriesKcal > 0.0 || proteinGrams > 0.0 || carbsGrams > 0.0 || fatGrams > 0.0
 
-internal data class HealthConnectTimeRange(
-    val startTime: Instant,
-    val endTime: Instant,
-) {
-    fun asTimeRangeFilter(): TimeRangeFilter = TimeRangeFilter.between(startTime, endTime)
-}
-
 internal interface HealthConnectClientAdapter {
     suspend fun aggregateSteps(range: HealthConnectTimeRange): Long?
 
@@ -587,27 +612,60 @@ internal interface HealthConnectClientAdapter {
         packageNames: Set<String>,
     ): Long?
 
+    suspend fun aggregateStepsByDay(range: HealthConnectDateRange): Map<LocalDate, Long?> = range.readEachDay(::aggregateSteps)
+
+    suspend fun aggregateStepsForOriginsByDay(
+        range: HealthConnectDateRange,
+        packageNames: Set<String>,
+    ): Map<LocalDate, Long?> = range.readEachDay { day -> aggregateStepsForOrigins(day, packageNames) }
+
     suspend fun readStepCountsByOrigin(range: HealthConnectTimeRange): Map<String, Long>
 
     suspend fun aggregateActiveCalories(range: HealthConnectTimeRange): Double?
 
+    suspend fun aggregateActiveCaloriesByDay(range: HealthConnectDateRange): Map<LocalDate, Double?> = range.readEachDay(::aggregateActiveCalories)
+
     suspend fun aggregateTotalCalories(range: HealthConnectTimeRange): Double?
+
+    suspend fun aggregateTotalCaloriesByDay(range: HealthConnectDateRange): Map<LocalDate, Double?> = range.readEachDay(::aggregateTotalCalories)
 
     suspend fun aggregateDistanceMeters(range: HealthConnectTimeRange): Double?
 
+    suspend fun aggregateDistanceMetersByDay(range: HealthConnectDateRange): Map<LocalDate, Double?> = range.readEachDay(::aggregateDistanceMeters)
+
     suspend fun aggregateSleepMinutes(range: HealthConnectTimeRange): Long?
+
+    suspend fun aggregateSleepMinutesByDay(range: HealthConnectDateRange): Map<LocalDate, Long?> = range.readEachDay(::aggregateSleepMinutes)
 
     suspend fun aggregateExerciseMinutes(range: HealthConnectTimeRange): Long?
 
+    suspend fun aggregateExerciseMinutesByDay(range: HealthConnectDateRange): Map<LocalDate, Long?> = range.readEachDay(::aggregateExerciseMinutes)
+
     suspend fun readExerciseSessionCount(range: HealthConnectTimeRange): Int?
+
+    suspend fun readExerciseSessionCountByDay(range: HealthConnectDateRange): Map<LocalDate, Int?> = range.readEachDay(::readExerciseSessionCount)
 
     suspend fun readLatestWeightMetric(range: HealthConnectTimeRange): ImportedBodyMetric?
 
+    suspend fun readLatestWeightMetricByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, ImportedBodyMetric?> = range.readEachDay(::readLatestWeightMetric)
+
     suspend fun readLatestBodyFatMetric(range: HealthConnectTimeRange): ImportedBodyMetric?
+
+    suspend fun readLatestBodyFatMetricByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, ImportedBodyMetric?> = range.readEachDay(::readLatestBodyFatMetric)
 
     suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long?
 
+    suspend fun readLatestRestingHeartRateByDay(range: HealthConnectDateRange): Map<LocalDate, Long?> = range.readEachDay(::readLatestRestingHeartRate)
+
     suspend fun readLatestHeartRateVariabilityRmssdMillis(range: HealthConnectTimeRange): Double?
+
+    suspend fun readLatestHeartRateVariabilityRmssdMillisByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, Double?> = range.readEachDay(::readLatestHeartRateVariabilityRmssdMillis)
 
     suspend fun insertExerciseSession(record: ExerciseSessionRecord): String?
 
@@ -622,7 +680,7 @@ internal interface HealthConnectClientAdapter {
     suspend fun deleteHydrationRecords(clientRecordIds: List<String>)
 }
 
-private class DefaultHealthConnectClientAdapter(
+internal class DefaultHealthConnectClientAdapter(
     private val client: HealthConnectClient,
 ) : HealthConnectClientAdapter {
     override suspend fun aggregateSteps(range: HealthConnectTimeRange): Long? = client.aggregate(
@@ -643,12 +701,21 @@ private class DefaultHealthConnectClientAdapter(
         ),
     )[StepsRecord.COUNT_TOTAL]
 
-    override suspend fun readStepCountsByOrigin(range: HealthConnectTimeRange): Map<String, Long> = client.readRecords(
-        ReadRecordsRequest(
-            recordType = StepsRecord::class,
-            timeRangeFilter = range.asTimeRangeFilter(),
-        ),
-    ).records
+    override suspend fun aggregateStepsByDay(range: HealthConnectDateRange): Map<LocalDate, Long?> = aggregateByDay(range, StepsRecord.COUNT_TOTAL) { result -> result[StepsRecord.COUNT_TOTAL] }
+
+    override suspend fun aggregateStepsForOriginsByDay(
+        range: HealthConnectDateRange,
+        packageNames: Set<String>,
+    ): Map<LocalDate, Long?> = aggregateByDay(
+        range = range,
+        metric = StepsRecord.COUNT_TOTAL,
+        dataOriginFilter = packageNames.mapTo(linkedSetOf(), ::DataOrigin),
+    ) { result -> result[StepsRecord.COUNT_TOTAL] }
+
+    override suspend fun readStepCountsByOrigin(range: HealthConnectTimeRange): Map<String, Long> = readAllRecords(
+        StepsRecord::class,
+        range.asTimeRangeFilter(),
+    )
         .groupBy { it.metadata.dataOrigin.packageName }
         .mapValues { (_, records) -> records.sumOf { it.count } }
 
@@ -659,12 +726,24 @@ private class DefaultHealthConnectClientAdapter(
         ),
     )[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
 
+    override suspend fun aggregateActiveCaloriesByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, Double?> = aggregateByDay(range, ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL) { result ->
+        result[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
+    }
+
     override suspend fun aggregateTotalCalories(range: HealthConnectTimeRange): Double? = client.aggregate(
         AggregateRequest(
             metrics = setOf(TotalCaloriesBurnedRecord.ENERGY_TOTAL),
             timeRangeFilter = range.asTimeRangeFilter(),
         ),
     )[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories
+
+    override suspend fun aggregateTotalCaloriesByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, Double?> = aggregateByDay(range, TotalCaloriesBurnedRecord.ENERGY_TOTAL) { result ->
+        result[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories
+    }
 
     override suspend fun aggregateDistanceMeters(range: HealthConnectTimeRange): Double? = client.aggregate(
         AggregateRequest(
@@ -673,12 +752,24 @@ private class DefaultHealthConnectClientAdapter(
         ),
     )[DistanceRecord.DISTANCE_TOTAL]?.inMeters
 
+    override suspend fun aggregateDistanceMetersByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, Double?> = aggregateByDay(range, DistanceRecord.DISTANCE_TOTAL) { result ->
+        result[DistanceRecord.DISTANCE_TOTAL]?.inMeters
+    }
+
     override suspend fun aggregateSleepMinutes(range: HealthConnectTimeRange): Long? = client.aggregate(
         AggregateRequest(
             metrics = setOf(SleepSessionRecord.SLEEP_DURATION_TOTAL),
             timeRangeFilter = range.asTimeRangeFilter(),
         ),
     )[SleepSessionRecord.SLEEP_DURATION_TOTAL]?.toMinutes()
+
+    override suspend fun aggregateSleepMinutesByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, Long?> = aggregateByDay(range, SleepSessionRecord.SLEEP_DURATION_TOTAL) { result ->
+        result[SleepSessionRecord.SLEEP_DURATION_TOTAL]?.toMinutes()
+    }
 
     override suspend fun aggregateExerciseMinutes(range: HealthConnectTimeRange): Long? = client.aggregate(
         AggregateRequest(
@@ -687,56 +778,136 @@ private class DefaultHealthConnectClientAdapter(
         ),
     )[ExerciseSessionRecord.EXERCISE_DURATION_TOTAL]?.toMinutes()
 
-    override suspend fun readExerciseSessionCount(range: HealthConnectTimeRange): Int? = client.readRecords(
-        ReadRecordsRequest(
-            recordType = ExerciseSessionRecord::class,
-            timeRangeFilter = range.asTimeRangeFilter(),
-        ),
-    ).records.size
-
-    override suspend fun readLatestWeightMetric(range: HealthConnectTimeRange): ImportedBodyMetric? = client.readRecords(
-        ReadRecordsRequest(
-            recordType = WeightRecord::class,
-            timeRangeFilter = range.asTimeRangeFilter(),
-        ),
-    ).records.maxByOrNull { it.time }?.let { record ->
-        ImportedBodyMetric(
-            type = "weight",
-            value = record.weight.inKilograms,
-            unit = "kg",
-            measuredAtEpochMillis = record.time.toEpochMilli(),
-            externalId = record.metadata.id.takeIf { it.isNotBlank() },
-        )
+    override suspend fun aggregateExerciseMinutesByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, Long?> = aggregateByDay(range, ExerciseSessionRecord.EXERCISE_DURATION_TOTAL) { result ->
+        result[ExerciseSessionRecord.EXERCISE_DURATION_TOTAL]?.toMinutes()
     }
 
-    override suspend fun readLatestBodyFatMetric(range: HealthConnectTimeRange): ImportedBodyMetric? = client.readRecords(
-        ReadRecordsRequest(
-            recordType = BodyFatRecord::class,
-            timeRangeFilter = range.asTimeRangeFilter(),
-        ),
-    ).records.maxByOrNull { it.time }?.let { record ->
-        ImportedBodyMetric(
-            type = "body_fat",
-            value = record.percentage.value,
-            unit = "%",
-            measuredAtEpochMillis = record.time.toEpochMilli(),
-            externalId = record.metadata.id.takeIf { it.isNotBlank() },
-        )
+    override suspend fun readExerciseSessionCount(range: HealthConnectTimeRange): Int? = readAllRecords(
+        ExerciseSessionRecord::class,
+        range.asTimeRangeFilter(),
+    ).size
+
+    override suspend fun readExerciseSessionCountByDay(range: HealthConnectDateRange): Map<LocalDate, Int?> {
+        val records = readAllRecords(ExerciseSessionRecord::class, range.asTimeRangeFilter())
+        return range.dates.associateWith { date ->
+            val day = range.dayRange(date)
+            records.count { record -> record.startTime < day.endTime && record.endTime > day.startTime }
+        }
     }
 
-    override suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long? = client.readRecords(
-        ReadRecordsRequest(
-            recordType = RestingHeartRateRecord::class,
-            timeRangeFilter = range.asTimeRangeFilter(),
-        ),
-    ).records.maxByOrNull { it.time }?.beatsPerMinute
+    override suspend fun readLatestWeightMetric(range: HealthConnectTimeRange): ImportedBodyMetric? = readAllRecords(
+        WeightRecord::class,
+        range.asTimeRangeFilter(),
+    ).maxByOrNull { it.time }?.toImportedBodyMetric()
 
-    override suspend fun readLatestHeartRateVariabilityRmssdMillis(range: HealthConnectTimeRange): Double? = client.readRecords(
-        ReadRecordsRequest(
-            recordType = HeartRateVariabilityRmssdRecord::class,
-            timeRangeFilter = range.asTimeRangeFilter(),
+    override suspend fun readLatestWeightMetricByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, ImportedBodyMetric?> = readLatestByDay(
+        range,
+        readAllRecords(WeightRecord::class, range.asTimeRangeFilter()),
+        WeightRecord::time,
+        { record -> record.toImportedBodyMetric() },
+    )
+
+    override suspend fun readLatestBodyFatMetric(range: HealthConnectTimeRange): ImportedBodyMetric? = readAllRecords(
+        BodyFatRecord::class,
+        range.asTimeRangeFilter(),
+    ).maxByOrNull { it.time }?.toImportedBodyMetric()
+
+    override suspend fun readLatestBodyFatMetricByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, ImportedBodyMetric?> = readLatestByDay(
+        range,
+        readAllRecords(BodyFatRecord::class, range.asTimeRangeFilter()),
+        BodyFatRecord::time,
+        { record -> record.toImportedBodyMetric() },
+    )
+
+    override suspend fun readLatestRestingHeartRate(range: HealthConnectTimeRange): Long? = readAllRecords(
+        RestingHeartRateRecord::class,
+        range.asTimeRangeFilter(),
+    ).maxByOrNull { it.time }?.beatsPerMinute
+
+    override suspend fun readLatestRestingHeartRateByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, Long?> = readLatestByDay(
+        range,
+        readAllRecords(RestingHeartRateRecord::class, range.asTimeRangeFilter()),
+        RestingHeartRateRecord::time,
+        RestingHeartRateRecord::beatsPerMinute,
+    )
+
+    override suspend fun readLatestHeartRateVariabilityRmssdMillis(range: HealthConnectTimeRange): Double? = readAllRecords(
+        HeartRateVariabilityRmssdRecord::class,
+        range.asTimeRangeFilter(),
+    ).maxByOrNull { it.time }?.heartRateVariabilityMillis
+
+    override suspend fun readLatestHeartRateVariabilityRmssdMillisByDay(
+        range: HealthConnectDateRange,
+    ): Map<LocalDate, Double?> = readLatestByDay(
+        range,
+        readAllRecords(HeartRateVariabilityRmssdRecord::class, range.asTimeRangeFilter()),
+        HeartRateVariabilityRmssdRecord::time,
+        HeartRateVariabilityRmssdRecord::heartRateVariabilityMillis,
+    )
+
+    private suspend fun <T> aggregateByDay(
+        range: HealthConnectDateRange,
+        metric: AggregateMetric<*>,
+        dataOriginFilter: Set<DataOrigin> = emptySet(),
+        value: (AggregationResult) -> T?,
+    ): Map<LocalDate, T?> = client.aggregateGroupByPeriod(
+        AggregateGroupByPeriodRequest(
+            metrics = setOf(metric),
+            timeRangeFilter = range.asLocalTimeRangeFilter(),
+            timeRangeSlicer = Period.ofDays(1),
+            dataOriginFilter = dataOriginFilter,
         ),
-    ).records.maxByOrNull { it.time }?.heartRateVariabilityMillis
+    ).associate { row -> row.startTime.toLocalDate() to value(row.result) }
+
+    private suspend fun <T : Record> readAllRecords(
+        recordType: KClass<T>,
+        timeRangeFilter: TimeRangeFilter,
+    ): List<T> = readAllHealthConnectPages { pageToken ->
+        val response = client.readRecords(
+            ReadRecordsRequest(
+                recordType = recordType,
+                timeRangeFilter = timeRangeFilter,
+                pageToken = pageToken,
+            ),
+        )
+        HealthConnectRecordPage(response.records, response.pageToken)
+    }
+
+    private fun <T, R> readLatestByDay(
+        range: HealthConnectDateRange,
+        records: List<T>,
+        time: (T) -> Instant,
+        transform: (T) -> R,
+    ): Map<LocalDate, R?> {
+        val recordsByDate = records.groupBy { record -> time(record).atZone(range.zoneId).toLocalDate() }
+        return range.dates.associateWith { date ->
+            recordsByDate[date]?.maxByOrNull(time)?.let(transform)
+        }
+    }
+
+    private fun WeightRecord.toImportedBodyMetric(): ImportedBodyMetric = ImportedBodyMetric(
+        type = "weight",
+        value = weight.inKilograms,
+        unit = "kg",
+        measuredAtEpochMillis = time.toEpochMilli(),
+        externalId = metadata.id.takeIf { it.isNotBlank() },
+    )
+
+    private fun BodyFatRecord.toImportedBodyMetric(): ImportedBodyMetric = ImportedBodyMetric(
+        type = "body_fat",
+        value = percentage.value,
+        unit = "%",
+        measuredAtEpochMillis = time.toEpochMilli(),
+        externalId = metadata.id.takeIf { it.isNotBlank() },
+    )
 
     override suspend fun insertExerciseSession(record: ExerciseSessionRecord): String? = client.insertRecords(listOf(record)).recordIdsList.firstOrNull()
 
@@ -761,10 +932,4 @@ private class DefaultHealthConnectClientAdapter(
         recordIdsList = emptyList(),
         clientRecordIdsList = clientRecordIds,
     )
-}
-
-private fun LocalDate.asHealthConnectTimeRange(zoneId: ZoneId = ZoneId.systemDefault()): HealthConnectTimeRange {
-    val dayStart = atStartOfDay(zoneId).toInstant()
-    val dayEnd = plusDays(1).atStartOfDay(zoneId).toInstant()
-    return HealthConnectTimeRange(startTime = dayStart, endTime = dayEnd)
 }

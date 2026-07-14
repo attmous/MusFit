@@ -161,6 +161,15 @@ class LocalHealthRepository @Inject constructor(
         val accountId = accountRepository.ensureActiveAccount().id
         val existingSyncState = healthDao.getHealthConnectSyncState(accountId)
         val readResult = gateway.readDailySummary(date, existingSyncState?.preferredStepsPackage)
+        return persistDailyReadResult(accountId, date, existingSyncState, readResult)
+    }
+
+    private suspend fun persistDailyReadResult(
+        accountId: String,
+        date: LocalDate,
+        existingSyncState: HealthConnectSyncStateEntity?,
+        readResult: HealthConnectDailyReadResult,
+    ): HealthConnectImportResult {
         val dateEpochDay = date.toEpochDay()
         val existingSummary = healthDao.getDailySummary(accountId, dateEpochDay)
         val target = HealthConnectImportTarget(accountId, date, dateEpochDay, existingSummary, existingSyncState)
@@ -212,13 +221,22 @@ class LocalHealthRepository @Inject constructor(
 
     override suspend fun refreshRecentData(endDate: LocalDate, days: Int): HealthConnectRefreshResult {
         val safeDays = days.coerceAtLeast(1)
+        val startDate = endDate.minusDays((safeDays - 1).toLong())
+        val accountId = accountRepository.ensureActiveAccount().id
+        val preferredStepsPackage = healthDao.getHealthConnectSyncState(accountId)?.preferredStepsPackage
+        val readResults = gateway.readDailySummaries(startDate, endDate, preferredStepsPackage)
         var importedDayCount = 0
         var bodyMetricCount = 0
         var partialDayCount = 0
         var emptyDayCount = 0
         var failedDayCount = 0
-        for (offset in safeDays - 1 downTo 0) {
-            when (val result = importDailySummary(endDate.minusDays(offset.toLong()))) {
+        for (offset in 0 until safeDays) {
+            val date = startDate.plusDays(offset.toLong())
+            val readResult = readResults[date] ?: HealthConnectDailyReadResult.Failure(
+                "Health Connect did not return a result for $date.",
+            )
+            val existingSyncState = healthDao.getHealthConnectSyncState(accountId)
+            when (val result = persistDailyReadResult(accountId, date, existingSyncState, readResult)) {
                 is HealthConnectImportResult.Complete -> {
                     importedDayCount += 1
                     bodyMetricCount += result.summary.bodyMetrics.size
