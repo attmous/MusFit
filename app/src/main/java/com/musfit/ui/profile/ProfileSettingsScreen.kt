@@ -80,7 +80,7 @@ fun ProfileSettingsScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var subPage by rememberSaveable { mutableStateOf<SettingsSubPage?>(null) }
-    var showProfileSheet by remember { mutableStateOf(false) }
+    var showProfileSheet by rememberSaveable { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
     ) { viewModel.refreshStatus() }

@@ -1,5 +1,6 @@
 package com.musfit.ui.profile
 
+import androidx.lifecycle.SavedStateHandle
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.repository.Account
@@ -82,6 +83,7 @@ class ProfileSettingsViewModelTest {
         aiCoachRepository: AiCoachRepository = FakeAiCoachRepository(),
         aiCoachChatRepository: AiCoachChatRepository = FakeAiCoachChatRepository(),
         foodRepository: FoodRepository = FakeFoodRepository(),
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
     ) = ProfileSettingsViewModel(
         healthRepository,
         AccountSettingsRepositories(accountRepository, accountErasureRepository),
@@ -92,6 +94,7 @@ class ProfileSettingsViewModelTest {
             foodRepository,
         ),
         externalAuthRepository,
+        savedStateHandle,
     )
 
     @Before
@@ -115,6 +118,45 @@ class ProfileSettingsViewModelTest {
         assertEquals(1, viewModel.state.value.grantedPermissionCount)
         assertEquals(setOf("steps"), viewModel.state.value.requestablePermissions)
         assertEquals(true, viewModel.state.value.canRequestPermissions)
+    }
+
+    @Test
+    fun accountEditor_restoresBoundedDraftWithoutTransientError() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val first = settingsViewModel(savedStateHandle = savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+        first.openAccountEditor()
+        first.onAccountNameChanged("Restored name")
+        first.onAccountEmailChanged("restored@example.com")
+
+        val restored = settingsViewModel(savedStateHandle = savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(restored.state.value.accountEditorOpen)
+        assertEquals("Restored name", restored.state.value.accountNameInput)
+        assertEquals("restored@example.com", restored.state.value.accountEmailInput)
+        assertEquals(null, restored.state.value.accountErrorMessage)
+    }
+
+    @Test
+    fun aiCoachEditor_restoresNonSensitiveDraftAndDropsApiKey() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val first = settingsViewModel(savedStateHandle = savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+        first.openAiCoachEditor()
+        first.onAiCoachProviderChanged(AiCoachProviderKind.OpenAiCompatible)
+        first.onAiCoachBaseUrlChanged("https://coach.example.test")
+        first.onAiCoachModelNameChanged("musfit-test")
+        first.onAiCoachApiKeyChanged("must-not-be-saved")
+
+        val restored = settingsViewModel(savedStateHandle = savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(restored.state.value.aiCoachEditorOpen)
+        assertEquals(AiCoachProviderKind.OpenAiCompatible, restored.state.value.aiCoachProviderInput)
+        assertEquals("https://coach.example.test", restored.state.value.aiCoachBaseUrlInput)
+        assertEquals("musfit-test", restored.state.value.aiCoachModelNameInput)
+        assertEquals("", restored.state.value.aiCoachApiKeyInput)
     }
 
     @Test

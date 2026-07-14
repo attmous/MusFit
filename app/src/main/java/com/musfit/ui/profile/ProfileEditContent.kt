@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -110,23 +111,26 @@ fun ProfileEditSheet(
     val accent = tabAccentFor(AppDestination.Profile)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var sex by remember { mutableStateOf(initial.sex) }
-    var activity by remember { mutableStateOf(initial.activityLevel) }
-    var goalType by remember { mutableStateOf(initial.goalType) }
-    var pace by remember {
+    var sexName by rememberSaveable { mutableStateOf(initial.sex?.name) }
+    var activityName by rememberSaveable { mutableStateOf(initial.activityLevel.name) }
+    var goalTypeName by rememberSaveable { mutableStateOf(initial.goalType.name) }
+    val sex = sexName?.let(Sex::valueOf)
+    val activity = ActivityLevel.valueOf(activityName)
+    val goalType = GoalType.valueOf(goalTypeName)
+    var pace by rememberSaveable {
         mutableDoubleStateOf(initial.goalPaceKgPerWeek.takeIf { it > 0.0 } ?: 0.3)
     }
-    var ageText by remember {
+    var ageText by rememberSaveable {
         mutableStateOf(
             initial.birthDateEpochDay?.let {
                 Period.between(LocalDate.ofEpochDay(it), LocalDate.now()).years.toString()
             } ?: "",
         )
     }
-    var heightText by remember { mutableStateOf(initial.heightCm?.let { it.format1() } ?: "") }
-    var goalWeightText by remember { mutableStateOf(initial.goalWeightKg?.let { it.format1() } ?: "") }
-    val initialWeightText = remember { initialWeightKg?.let { it.format1() } ?: "" }
-    var currentWeightText by remember { mutableStateOf(initialWeightText) }
+    var heightText by rememberSaveable { mutableStateOf(initial.heightCm?.let { it.format1() } ?: "") }
+    var goalWeightText by rememberSaveable { mutableStateOf(initial.goalWeightKg?.let { it.format1() } ?: "") }
+    val initialWeightText = rememberSaveable { initialWeightKg?.let { it.format1() } ?: "" }
+    var currentWeightText by rememberSaveable { mutableStateOf(initialWeightText) }
 
     val liveTargets = liveRecommendedTargets(
         sex = sex,
@@ -188,7 +192,7 @@ fun ProfileEditSheet(
                 selected = sex,
                 label = { it.label() },
                 accent = accent,
-                onSelect = { sex = it },
+                onSelect = { sexName = it.name },
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -217,14 +221,14 @@ fun ProfileEditSheet(
                 selected = activity,
                 label = { it.label() },
                 accent = accent,
-                onSelect = { activity = it },
+                onSelect = { activityName = it.name },
             )
             ConnectedSegmentRow(
                 options = listOf(ActivityLevel.Active, ActivityLevel.VeryActive),
                 selected = activity,
                 label = { it.label() },
                 accent = accent,
-                onSelect = { activity = it },
+                onSelect = { activityName = it.name },
             )
 
             SheetFieldLabel("Goal")
@@ -233,7 +237,7 @@ fun ProfileEditSheet(
                 selected = goalType,
                 label = { it.sheetLabel() },
                 accent = accent,
-                onSelect = { goalType = it },
+                onSelect = { goalTypeName = it.name },
                 optionIcon = { it.trendIcon() },
             )
 
