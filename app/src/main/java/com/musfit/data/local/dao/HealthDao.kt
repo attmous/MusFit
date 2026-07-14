@@ -28,6 +28,18 @@ interface HealthDao {
     )
     suspend fun getBodyMetrics(accountId: String, type: String, fromEpochMillis: Long): List<BodyMetricEntity>
 
+    @Query(
+        "SELECT * FROM body_metrics " +
+            "WHERE accountId = :accountId AND source = 'health_connect' AND type IN (:types) " +
+            "AND measuredAtEpochMillis >= :fromEpochMillis AND measuredAtEpochMillis < :toEpochMillis",
+    )
+    suspend fun getHealthConnectBodyMetrics(
+        accountId: String,
+        types: Set<String>,
+        fromEpochMillis: Long,
+        toEpochMillis: Long,
+    ): List<BodyMetricEntity>
+
     @Query("SELECT * FROM daily_health_summaries WHERE accountId = :accountId AND dateEpochDay = :dateEpochDay LIMIT 1")
     fun observeDailySummary(accountId: String, dateEpochDay: Long): Flow<DailyHealthSummaryEntity?>
 
@@ -52,6 +64,12 @@ interface HealthDao {
     @Query("DELETE FROM body_metrics WHERE accountId = :accountId AND id = :id")
     suspend fun deleteBodyMetric(accountId: String, id: String)
 
+    @Query(
+        "DELETE FROM body_metrics " +
+            "WHERE accountId = :accountId AND source = 'health_connect' AND id IN (:ids)",
+    )
+    suspend fun deleteHealthConnectBodyMetrics(accountId: String, ids: List<String>): Int
+
     @Query("UPDATE body_metrics SET value = :value WHERE accountId = :accountId AND id = :id")
     suspend fun updateBodyMetricValue(accountId: String, id: String, value: Double)
 
@@ -65,9 +83,13 @@ interface HealthDao {
     suspend fun persistHealthConnectImport(
         summary: DailyHealthSummaryEntity,
         bodyMetrics: List<BodyMetricEntity>,
+        staleBodyMetricIds: List<String>,
         syncState: HealthConnectSyncStateEntity,
     ) {
         upsertDailySummary(summary)
+        if (staleBodyMetricIds.isNotEmpty()) {
+            deleteHealthConnectBodyMetrics(summary.accountId, staleBodyMetricIds)
+        }
         bodyMetrics.forEach { metric -> upsertBodyMetric(metric) }
         upsertHealthConnectSyncState(syncState)
     }

@@ -235,12 +235,16 @@ state, last sync, and sync errors. Export retries consult
 provider write; changed records keep their client ID and advance their version.
 Pre-version-40 workout provider IDs are adopted into the ledger without a
 rewrite. Older Food records and legacy unversioned workout records are retained
-in Health Connect; automated cleanup is intentionally deferred to W3-HC-03.
+in Health Connect because they have no safe ledger identity for automated
+deletion.
 Successful and partial imports persist the daily summary, imported body metrics,
 and `health_connect_sync_state` in one Room transaction. A completed metric with
 no provider value clears that cached daily field, while a failed or ungranted
 metric preserves its previous value. Total failure or permission loss records a
-visible failure without advancing `lastImportAtEpochMillis`.
+visible failure without advancing `lastImportAtEpochMillis`. Completed Weight
+and BodyFat types also reconcile same-day Health Connect-sourced body-metric IDs;
+provider-deleted rows are removed, while manual and failed/ungranted types are
+preserved.
 
 ## Theme And Design System
 

@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 
 data class HealthConnectRefreshResult(
@@ -162,7 +163,7 @@ class LocalHealthRepository @Inject constructor(
         val readResult = gateway.readDailySummary(date, existingSyncState?.preferredStepsPackage)
         val dateEpochDay = date.toEpochDay()
         val existingSummary = healthDao.getDailySummary(accountId, dateEpochDay)
-        val target = HealthConnectImportTarget(accountId, dateEpochDay, existingSummary, existingSyncState)
+        val target = HealthConnectImportTarget(accountId, date, dateEpochDay, existingSummary, existingSyncState)
         return when (readResult) {
             is HealthConnectDailyReadResult.Failure -> persistImportFailure(
                 accountId = accountId,
@@ -289,9 +290,12 @@ class LocalHealthRepository @Inject constructor(
         val failureMessage = read.failures
             .takeIf(List<*>::isNotEmpty)
             ?.joinToString("; ") { failure -> "${failure.metric}: ${failure.message}" }
+        val importedBodyMetrics = read.summary.bodyMetrics.map { metric -> metric.toBodyMetricEntity(target.accountId) }
+        val staleBodyMetricIds = findStaleBodyMetricIds(target, read, importedBodyMetrics)
         healthDao.persistHealthConnectImport(
             summary = mergedSummary,
-            bodyMetrics = read.summary.bodyMetrics.map { metric -> metric.toBodyMetricEntity(target.accountId) },
+            bodyMetrics = importedBodyMetrics,
+            staleBodyMetricIds = staleBodyMetricIds,
             syncState = HealthConnectSyncStateEntity(
                 accountId = target.accountId,
                 key = SYNC_STATE_KEY,
@@ -309,6 +313,27 @@ class LocalHealthRepository @Inject constructor(
             read.emptyRead -> HealthConnectImportResult.Empty(read.summary)
             else -> HealthConnectImportResult.Complete(read.summary)
         }
+    }
+
+    private suspend fun findStaleBodyMetricIds(
+        target: HealthConnectImportTarget,
+        read: SuccessfulHealthRead,
+        importedBodyMetrics: List<BodyMetricEntity>,
+    ): List<String> {
+        val completedTypes = read.completedMetrics.mapNotNullTo(linkedSetOf()) { metric -> metric.bodyMetricTypeOrNull() }
+        if (completedTypes.isEmpty()) return emptyList()
+        val zoneId = ZoneId.systemDefault()
+        val fromEpochMillis = target.date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val toEpochMillis = target.date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val retainedIds = importedBodyMetrics
+            .filter { metric -> metric.type in completedTypes }
+            .mapTo(mutableSetOf(), BodyMetricEntity::id)
+        return healthDao.getHealthConnectBodyMetrics(
+            accountId = target.accountId,
+            types = completedTypes,
+            fromEpochMillis = fromEpochMillis,
+            toEpochMillis = toEpochMillis,
+        ).mapNotNull { existing -> existing.id.takeUnless { it in retainedIds } }
     }
 
     override suspend fun exportLatestWorkout(): String? {
@@ -480,10 +505,17 @@ class LocalHealthRepository @Inject constructor(
 
 private data class HealthConnectImportTarget(
     val accountId: String,
+    val date: LocalDate,
     val dateEpochDay: Long,
     val existingSummary: DailyHealthSummaryEntity?,
     val existingSyncState: HealthConnectSyncStateEntity?,
 )
+
+private fun HealthConnectMetric.bodyMetricTypeOrNull(): String? = when (this) {
+    HealthConnectMetric.Weight -> "weight"
+    HealthConnectMetric.BodyFat -> "body_fat"
+    else -> null
+}
 
 private data class SuccessfulHealthRead(
     val summary: ImportedDailyHealthSummary,

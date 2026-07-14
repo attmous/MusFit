@@ -134,8 +134,12 @@ confirmation removes the matching ledger row, failed record-type batches stay
 pending for retry, and successful retries are no-ops. An explicit Food sync
 reconciles removed meal aggregates and zeroed hydration. Account erasure can use
 the same active-account cleanup boundary for workouts, nutrition, and hydration.
-Imported-record provider deletion/revocation reconciliation remains owned by
-W3-HC-03B.
+Successful or partial Weight/BodyFat imports also reconcile the completed local
+day against cached `source = health_connect` body-metric IDs. Provider-deleted
+IDs are removed in the same Room transaction as summary/body/sync-state writes.
+Failed or ungranted metric types preserve their cached rows and the sync state
+marks them stale through the visible failure without advancing last success.
+Manual body measurements are never candidates for provider reconciliation.
 
 ## Schema And Migration Contract
 
