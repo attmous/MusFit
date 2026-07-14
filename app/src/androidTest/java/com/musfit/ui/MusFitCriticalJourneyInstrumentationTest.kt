@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -23,6 +24,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
@@ -173,6 +175,20 @@ class MusFitCriticalJourneyInstrumentationTest {
         compose.onNodeWithContentDescription("Training").assertIsSelected()
         UiDevice.getInstance(instrumentation).pressBack()
         compose.onNodeWithContentDescription("Food").assertIsSelected()
+    }
+
+    @Test
+    fun profileEditorDraft_restoresSettingsRouteWithoutSavingDuringRecreation() {
+        compose.onNodeWithContentDescription("Profile").performClick()
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithText("Profile details").performScrollTo().performClick()
+        compose.waitForText("Your profile")
+        compose.onNodeWithContentDescription("Height, cm").performTextReplacement("181")
+
+        compose.activityRule.scenario.recreate()
+
+        compose.waitForText("Your profile")
+        compose.onNodeWithContentDescription("Height, cm").assertTextEquals("181")
     }
 
     @Test

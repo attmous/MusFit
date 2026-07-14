@@ -1,5 +1,6 @@
 package com.musfit.ui.profile
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.AccountAuthProvider
@@ -48,6 +49,14 @@ import javax.inject.Inject
 private const val DEFAULT_STATUS_MESSAGE = "Refresh status to check whether Health Connect is ready."
 private const val ALL_STEP_SOURCES_LABEL = "All sources (unified)"
 internal const val HERMES_DEFAULT_MODEL_NAME = "hermes-agent"
+private const val ACCOUNT_EDITOR_OPEN_KEY = "profile.accountEditor.open"
+private const val ACCOUNT_EDITOR_NAME_KEY = "profile.accountEditor.name"
+private const val ACCOUNT_EDITOR_EMAIL_KEY = "profile.accountEditor.email"
+private const val AI_COACH_EDITOR_OPEN_KEY = "profile.aiCoachEditor.open"
+private const val AI_COACH_EDITOR_PROVIDER_KEY = "profile.aiCoachEditor.provider"
+private const val AI_COACH_EDITOR_BASE_URL_KEY = "profile.aiCoachEditor.baseUrl"
+private const val AI_COACH_EDITOR_MODEL_NAME_KEY = "profile.aiCoachEditor.modelName"
+private const val AI_COACH_EDITOR_LOCAL_AGENT_KEY = "profile.aiCoachEditor.localAgent"
 
 private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSource>): String = if (preferredStepsPackage == null) {
     ALL_STEP_SOURCES_LABEL
@@ -213,6 +222,76 @@ private data class AiCoachEditorState(
     val errorMessage: String? = null,
 )
 
+private fun SavedStateHandle.restoreAccountEditor(): AccountEditorState = AccountEditorState(
+    open = get<Boolean>(ACCOUNT_EDITOR_OPEN_KEY) ?: false,
+    nameInput = get<String>(ACCOUNT_EDITOR_NAME_KEY).orEmpty(),
+    emailInput = get<String>(ACCOUNT_EDITOR_EMAIL_KEY).orEmpty(),
+)
+
+private fun SavedStateHandle.saveAccountEditor(editor: AccountEditorState) {
+    if (!editor.open) {
+        remove<Boolean>(ACCOUNT_EDITOR_OPEN_KEY)
+        remove<String>(ACCOUNT_EDITOR_NAME_KEY)
+        remove<String>(ACCOUNT_EDITOR_EMAIL_KEY)
+        return
+    }
+    set(ACCOUNT_EDITOR_OPEN_KEY, true)
+    set(ACCOUNT_EDITOR_NAME_KEY, editor.nameInput)
+    set(ACCOUNT_EDITOR_EMAIL_KEY, editor.emailInput)
+}
+
+private fun SavedStateHandle.restoreAiCoachEditor(): AiCoachEditorState {
+    if (get<Boolean>(AI_COACH_EDITOR_OPEN_KEY) != true) return AiCoachEditorState()
+    return AiCoachEditorState(
+        open = true,
+        providerKind = get<String>(AI_COACH_EDITOR_PROVIDER_KEY)
+            ?.let { runCatching { AiCoachProviderKind.valueOf(it) }.getOrNull() }
+            ?: AiCoachProviderKind.Disabled,
+        baseUrlInput = get<String>(AI_COACH_EDITOR_BASE_URL_KEY).orEmpty(),
+        modelNameInput = get<String>(AI_COACH_EDITOR_MODEL_NAME_KEY).orEmpty(),
+        localAgentKind = get<String>(AI_COACH_EDITOR_LOCAL_AGENT_KEY)
+            ?.let { runCatching { LocalAgentKind.valueOf(it) }.getOrNull() }
+            ?: LocalAgentKind.Custom,
+    )
+}
+
+private fun SavedStateHandle.saveAiCoachEditor(editor: AiCoachEditorState) {
+    if (!editor.open) {
+        remove<Boolean>(AI_COACH_EDITOR_OPEN_KEY)
+        remove<String>(AI_COACH_EDITOR_PROVIDER_KEY)
+        remove<String>(AI_COACH_EDITOR_BASE_URL_KEY)
+        remove<String>(AI_COACH_EDITOR_MODEL_NAME_KEY)
+        remove<String>(AI_COACH_EDITOR_LOCAL_AGENT_KEY)
+        return
+    }
+    set(AI_COACH_EDITOR_OPEN_KEY, true)
+    set(AI_COACH_EDITOR_PROVIDER_KEY, editor.providerKind.name)
+    set(AI_COACH_EDITOR_BASE_URL_KEY, editor.baseUrlInput)
+    set(AI_COACH_EDITOR_MODEL_NAME_KEY, editor.modelNameInput)
+    set(AI_COACH_EDITOR_LOCAL_AGENT_KEY, editor.localAgentKind.name)
+}
+
+private class ProfileSettingsEditorDraftState(
+    private val savedStateHandle: SavedStateHandle,
+) {
+    val accountEditorFlow = MutableStateFlow(savedStateHandle.restoreAccountEditor())
+    val aiCoachEditorFlow = MutableStateFlow(savedStateHandle.restoreAiCoachEditor())
+
+    fun setAccount(editor: AccountEditorState) {
+        accountEditorFlow.value = editor
+        savedStateHandle.saveAccountEditor(editor)
+    }
+
+    fun updateAccount(transform: (AccountEditorState) -> AccountEditorState) = setAccount(transform(accountEditorFlow.value))
+
+    fun setAiCoach(editor: AiCoachEditorState) {
+        aiCoachEditorFlow.value = editor
+        savedStateHandle.saveAiCoachEditor(editor)
+    }
+
+    fun updateAiCoach(transform: (AiCoachEditorState) -> AiCoachEditorState) = setAiCoach(transform(aiCoachEditorFlow.value))
+}
+
 class AccountSettingsRepositories @Inject constructor(
     val accounts: AccountRepository,
     val erasure: AccountErasureRepository,
@@ -231,6 +310,7 @@ class ProfileSettingsViewModel @Inject constructor(
     accountRepositories: AccountSettingsRepositories,
     repositories: ProfileSettingsRepositories,
     private val externalAuthRepository: ExternalAuthRepository,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val accountRepository = accountRepositories.accounts
     private val accountErasureRepository = accountRepositories.erasure
@@ -244,9 +324,8 @@ class ProfileSettingsViewModel @Inject constructor(
     private val mutableState = MutableStateFlow(
         HealthConnectState(isGitHubSignInConfigured = externalAuthRepository.isGitHubConfigured),
     )
-    private val accountEditorFlow = MutableStateFlow(AccountEditorState())
     private val accountErasureFlow = MutableStateFlow(AccountErasureState())
-    private val aiCoachEditorFlow = MutableStateFlow(AiCoachEditorState())
+    private val editorDraftState = ProfileSettingsEditorDraftState(savedStateHandle)
 
     init {
         viewModelScope.launch {
@@ -276,12 +355,12 @@ class ProfileSettingsViewModel @Inject constructor(
 
     private val aiCoachState = combine(
         aiCoachRepository.observeSettings(),
-        aiCoachEditorFlow,
+        editorDraftState.aiCoachEditorFlow,
     ) { settings, editor -> settings.toUiState() to editor }
 
     private val accountState = combine(
         accountRepository.observeActiveAccount(),
-        accountEditorFlow,
+        editorDraftState.accountEditorFlow,
         accountErasureFlow,
     ) { account, editor, erasure -> Triple(account, editor, erasure) }
 
@@ -506,15 +585,17 @@ class ProfileSettingsViewModel @Inject constructor(
 
     fun openAccountEditor() {
         val account = state.value.account
-        accountEditorFlow.value = AccountEditorState(
-            open = true,
-            nameInput = account.displayName,
-            emailInput = account.email.orEmpty(),
+        editorDraftState.setAccount(
+            AccountEditorState(
+                open = true,
+                nameInput = account.displayName,
+                emailInput = account.email.orEmpty(),
+            ),
         )
     }
 
     fun closeAccountEditor() {
-        accountEditorFlow.value = AccountEditorState()
+        editorDraftState.setAccount(AccountEditorState())
     }
 
     fun openAccountErasure(scope: AccountErasureScope) {
@@ -569,17 +650,17 @@ class ProfileSettingsViewModel @Inject constructor(
     }
 
     fun onAccountNameChanged(value: String) {
-        accountEditorFlow.update { it.copy(nameInput = value, errorMessage = null) }
+        editorDraftState.updateAccount { it.copy(nameInput = value, errorMessage = null) }
     }
 
     fun onAccountEmailChanged(value: String) {
-        accountEditorFlow.update { it.copy(emailInput = value, errorMessage = null) }
+        editorDraftState.updateAccount { it.copy(emailInput = value, errorMessage = null) }
     }
 
     fun saveAccount() {
-        val editor = accountEditorFlow.value
+        val editor = editorDraftState.accountEditorFlow.value
         if (editor.nameInput.isBlank()) {
-            accountEditorFlow.update { it.copy(errorMessage = "Account name is required.") }
+            editorDraftState.updateAccount { it.copy(errorMessage = "Account name is required.") }
             return
         }
         viewModelScope.launch {
@@ -589,9 +670,9 @@ class ProfileSettingsViewModel @Inject constructor(
                     email = editor.emailInput.trim().takeIf { it.isNotBlank() },
                 )
             }.onSuccess {
-                accountEditorFlow.value = AccountEditorState()
+                editorDraftState.setAccount(AccountEditorState())
             }.onFailure { error ->
-                accountEditorFlow.update {
+                editorDraftState.updateAccount {
                     it.copy(errorMessage = error.message ?: "Could not save account.")
                 }
             }
@@ -659,7 +740,7 @@ class ProfileSettingsViewModel @Inject constructor(
                     message = "Signed in with ${profile.provider.messageLabel()}.",
                 )
             }
-            accountEditorFlow.value = AccountEditorState()
+            editorDraftState.setAccount(AccountEditorState())
         }.onFailure { error ->
             mutableState.update {
                 it.copy(
@@ -672,21 +753,23 @@ class ProfileSettingsViewModel @Inject constructor(
 
     fun openAiCoachEditor() {
         val settings = state.value.aiCoach
-        aiCoachEditorFlow.value = AiCoachEditorState(
-            open = true,
-            providerKind = settings.providerKind,
-            baseUrlInput = settings.baseUrl,
-            modelNameInput = settings.modelName,
-            localAgentKind = settings.localAgentKind,
+        editorDraftState.setAiCoach(
+            AiCoachEditorState(
+                open = true,
+                providerKind = settings.providerKind,
+                baseUrlInput = settings.baseUrl,
+                modelNameInput = settings.modelName,
+                localAgentKind = settings.localAgentKind,
+            ),
         )
     }
 
     fun closeAiCoachEditor() {
-        aiCoachEditorFlow.value = AiCoachEditorState()
+        editorDraftState.setAiCoach(AiCoachEditorState())
     }
 
     fun onAiCoachProviderChanged(value: AiCoachProviderKind) {
-        aiCoachEditorFlow.update { editor ->
+        editorDraftState.updateAiCoach { editor ->
             val isHermesLocal = value == AiCoachProviderKind.LocalAgent &&
                 editor.localAgentKind == LocalAgentKind.HermesAgent
             editor.copy(
@@ -707,15 +790,15 @@ class ProfileSettingsViewModel @Inject constructor(
     }
 
     fun onAiCoachBaseUrlChanged(value: String) {
-        aiCoachEditorFlow.update { it.copy(baseUrlInput = value, errorMessage = null) }
+        editorDraftState.updateAiCoach { it.copy(baseUrlInput = value, errorMessage = null) }
     }
 
     fun onAiCoachModelNameChanged(value: String) {
-        aiCoachEditorFlow.update { it.copy(modelNameInput = value, errorMessage = null) }
+        editorDraftState.updateAiCoach { it.copy(modelNameInput = value, errorMessage = null) }
     }
 
     fun onAiCoachLocalAgentKindChanged(value: LocalAgentKind) {
-        aiCoachEditorFlow.update { editor ->
+        editorDraftState.updateAiCoach { editor ->
             editor.copy(
                 localAgentKind = value,
                 errorMessage = null,
@@ -734,11 +817,11 @@ class ProfileSettingsViewModel @Inject constructor(
     }
 
     fun onAiCoachApiKeyChanged(value: String) {
-        aiCoachEditorFlow.update { it.copy(apiKeyInput = value, errorMessage = null) }
+        editorDraftState.updateAiCoach { it.copy(apiKeyInput = value, errorMessage = null) }
     }
 
     fun saveAiCoachSettings() {
-        val editor = aiCoachEditorFlow.value
+        val editor = editorDraftState.aiCoachEditorFlow.value
         viewModelScope.launch {
             runCatching {
                 aiCoachRepository.saveSettings(
@@ -755,13 +838,13 @@ class ProfileSettingsViewModel @Inject constructor(
                     ),
                 )
             }.onSuccess {
-                aiCoachEditorFlow.value = AiCoachEditorState()
+                editorDraftState.setAiCoach(AiCoachEditorState())
                 // A previous test result no longer describes the new settings.
                 mutableState.update {
                     it.copy(aiCoachMessage = "AI coach setup saved.", aiCoachTestState = AiCoachTestState.Idle)
                 }
             }.onFailure { error ->
-                aiCoachEditorFlow.update {
+                editorDraftState.updateAiCoach {
                     it.copy(errorMessage = error.message ?: "Could not save AI coach setup.")
                 }
             }
