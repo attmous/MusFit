@@ -10,7 +10,7 @@ start.
 
 | Workflow/job | Trigger | Hard budget | Required evidence |
 | --- | --- | ---: | --- |
-| Android / `verify` | Every PR, default-branch push, manual | 30-minute execution target; 40-minute hard timeout | Workflow contract; configuration-cache contract; internal, migration-bridge, and production unit/lint/build; APK/AAB identities; R8 reports; unit/lint reports |
+| Android / `verify` | Every PR, default-branch push, manual | 30-minute execution target; 60-minute hard timeout | Workflow contract; configuration-cache contract; internal, migration-bridge, and production unit/lint/build; APK/AAB identities; R8 reports; unit/lint reports |
 | Android performance / `macrobenchmark` | Performance-relevant PRs | 35 minutes | API 28 execution, API 37 benchmark JSON, summary, regression report, and Perfetto traces |
 
 PRs do not boot managed UI/migration devices or run screenshot verification.
