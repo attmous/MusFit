@@ -189,6 +189,14 @@ exact query-count, P90, storage, and write-fanout evidence lives in
 
 Training stores only local strength-training data. Exercise rows hold list metadata plus detail fields (`primaryMuscles`, `secondaryMuscles`, `instructions`, and `localNotes`). Routines store starter/custom status, optional `programName`, and CSV-backed tags, with ordered routine exercises in `routine_exercises`. Active and completed workouts use the same session/set tables, with session `status` separating active, completed, and discarded workouts. Completed workout recap data is derived from the session and completed set rows, including local session notes. Supersets are represented by a nullable `supersetGroupId` on workout sets and are derived into grouped UI models by the repository. Global Training tool settings live in `training_settings` for default rest duration, bar weight, and available plate inventory.
 
+Active-workout prior-set labels and PR baselines are loaded in one batched query
+for all displayed exercise IDs. Schema 42 replaces the redundant two-column
+history index with the measured account/exercise/completion/session/order index,
+and production database open installs the collation-aware exercise-name index
+after Room schema validation. Executable query-count, query-plan, P90, and
+storage evidence lives in `TrainingPerformanceMigration41To42Test` and
+[data-models.md](data-models.md).
+
 ## Remote And Device Integrations
 
 ### Account Identity

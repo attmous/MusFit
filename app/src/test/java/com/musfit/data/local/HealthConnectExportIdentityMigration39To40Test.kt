@@ -35,7 +35,7 @@ class HealthConnectExportIdentityMigration39To40Test {
     fun migration39To40_addsAccountOwnedExportIdentityLedger() {
         createDatabaseFromExportedSchema(39)
         val room = Room.databaseBuilder(context, MusFitDatabase::class.java, DATABASE_NAME)
-            .addMigrations(DatabaseModule.MIGRATION_39_40, DatabaseModule.MIGRATION_40_41)
+            .addMigrations(DatabaseModule.MIGRATION_39_40, DatabaseModule.MIGRATION_40_41, DatabaseModule.MIGRATION_41_42)
             .allowMainThreadQueries()
             .build()
         room.openHelper.writableDatabase

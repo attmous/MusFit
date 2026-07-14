@@ -48,7 +48,7 @@ class CoachMigration25To26Test {
                     DatabaseModule.MIGRATION_33_34,
                     DatabaseModule.MIGRATION_34_35,
                     DatabaseModule.MIGRATION_35_36,
-                    DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38, DatabaseModule.MIGRATION_38_39, DatabaseModule.MIGRATION_39_40, DatabaseModule.MIGRATION_40_41,
+                    DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38, DatabaseModule.MIGRATION_38_39, DatabaseModule.MIGRATION_39_40, DatabaseModule.MIGRATION_40_41, DatabaseModule.MIGRATION_41_42,
                 )
                 .build()
         try {
@@ -67,7 +67,7 @@ class CoachMigration25To26Test {
             assertTrue(tableHasColumn(migrated, "coach_messages", "ruleKey"))
             assertTrue(tableHasColumn(migrated, "coach_messages", "firstSeenAtEpochMillis"))
             assertTrue(tableHasColumn(migrated, "coach_messages", "source"))
-            // 25→26 seeds the three default pins; 35→36 appends water for users
+            // 25â†’26 seeds the three default pins; 35â†’36 appends water for users
             // still on that untouched default, so the full chain lands on four.
             migrated.rawQuery(
                 "SELECT metricId, position FROM dashboard_pins ORDER BY position",

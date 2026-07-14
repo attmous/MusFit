@@ -14,7 +14,7 @@ import androidx.room.Index
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("accountId"), Index(value = ["accountId", "name"])],
+    indices = [Index("accountId")],
     primaryKeys = ["id"],
 )
 data class ExerciseEntity(
@@ -233,7 +233,11 @@ data class WorkoutSessionEntity(
             onDelete = ForeignKey.RESTRICT,
         ),
     ],
-    indices = [Index(value = ["accountId", "sessionId", "sortOrder"]), Index(value = ["accountId", "exerciseId"]), Index("exerciseId")],
+    indices = [
+        Index(value = ["accountId", "sessionId", "sortOrder"]),
+        Index(value = ["accountId", "exerciseId", "completed", "sessionId", "sortOrder"]),
+        Index("exerciseId"),
+    ],
 )
 data class WorkoutSetEntity(
     val accountId: String,

@@ -89,6 +89,28 @@ The existing account-leading meal date/type/time and body-metric type/time
 indexes already satisfy their representative query plans. They are retained as
 current-source fixes and are not duplicated by W3-DATA-01.
 
+W3-DATA-02 removes Training's per-exercise history reads. The active-workout
+projection passes all visible exercise IDs to one account-scoped DAO query,
+groups the returned completed sets in memory, and derives both the latest prior
+session labels and prior best estimated 1RM without changing repository output.
+The latest-completed-workout lookup now streams the existing
+account/status/start-time session index and probes completed sets rather than
+using a correlated subquery. Schema 42 replaces the superseded
+`(accountId, exerciseId)` workout-set index with
+`(accountId, exerciseId, completed, sessionId, sortOrder)`. A production-open
+callback installs `(accountId, isCustom, name COLLATE NOCASE, id)` for
+account-aware exercise ordering after Room validation.
+
+Executable W3-DATA-02 evidence in
+`TrainingPerformanceMigration41To42Test` records:
+
+- a 20-exercise active workout reducing prior-history queries from 60 to one;
+- history P90 improving from 40,880,100 ns to 4,369,701 ns (89.3%);
+- database allocation changing from 675,840 bytes to 684,032 bytes (+8 KiB);
+- intended indexes selected without correlated or temporary-sort work for the
+  latest completed workout plan;
+- migrated and fresh production databases receiving the same search index.
+
 ## Account Ownership Contract
 
 All persisted user-specific feature data is scoped to the active account.

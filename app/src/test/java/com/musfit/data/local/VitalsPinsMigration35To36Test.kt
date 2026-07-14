@@ -52,7 +52,7 @@ class VitalsPinsMigration35To36Test {
     @Test
     fun migration35To36_leavesCustomizedPinsAlone() {
         createDatabaseFromExportedSchema(version = 35) { database ->
-            // The user reordered and trimmed the set — never touch it.
+            // The user reordered and trimmed the set â€” never touch it.
             database.execSQL(
                 "INSERT INTO dashboard_pins (metricId, position) VALUES ('weight', 0), ('calories', 1)",
             )
@@ -66,7 +66,7 @@ class VitalsPinsMigration35To36Test {
     private fun runMigration() {
         val roomDatabase =
             Room.databaseBuilder(context, MusFitDatabase::class.java, TEST_DATABASE_NAME)
-                .addMigrations(DatabaseModule.MIGRATION_35_36, DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38, DatabaseModule.MIGRATION_38_39, DatabaseModule.MIGRATION_39_40, DatabaseModule.MIGRATION_40_41)
+                .addMigrations(DatabaseModule.MIGRATION_35_36, DatabaseModule.MIGRATION_36_37, DatabaseModule.MIGRATION_37_38, DatabaseModule.MIGRATION_38_39, DatabaseModule.MIGRATION_39_40, DatabaseModule.MIGRATION_40_41, DatabaseModule.MIGRATION_41_42)
                 .build()
         try {
             roomDatabase.openHelper.writableDatabase.close()
