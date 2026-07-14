@@ -67,6 +67,28 @@ DAO projection rows belong beside the SQL that produces them. They are read
 shapes, not additional tables and not stable repository APIs. Repositories must
 map them before exposing data to ViewModels.
 
+Food's saved-food list uses one account-scoped joined projection for foods and
+their serving rows. Repository mapping groups that flat result into
+`SavedFoodItem` models without issuing one serving query per food. Name/brand
+identity lookup and saved-food ordering use the production-installed
+case-insensitive composite index; the migration removes the two superseded
+binary name/brand indexes. Room validates only its modeled schema first, then
+the production database callback installs this collated index for both migrated
+and fresh databases.
+
+W3-DATA-01 performance evidence on the deterministic 1,000-food framework
+SQLite fixture is executable in `FoodPerformanceMigration40To41Test`:
+
+- case-insensitive search P90 improved from 464,101 ns to 224,200 ns (51.7%);
+- database allocation changed from 831,488 bytes to 811,008 bytes;
+- Food secondary-index write fanout changed from five indexes to four;
+- the 500-food/1,000-serving repository fixture performs one Food graph query,
+  independent of food count.
+
+The existing account-leading meal date/type/time and body-metric type/time
+indexes already satisfy their representative query plans. They are retained as
+current-source fixes and are not duplicated by W3-DATA-01.
+
 ## Account Ownership Contract
 
 All persisted user-specific feature data is scoped to the active account.

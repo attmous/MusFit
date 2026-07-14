@@ -2,6 +2,7 @@ package com.musfit.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
+import androidx.room.Embedded
 import androidx.room.Query
 import androidx.room.Upsert
 import com.musfit.data.local.entity.BarcodeProductEntity
@@ -71,6 +72,13 @@ data class FoodDiaryEntryRow(
 data class WaterTotalRow(
     val dateEpochDay: Long,
     val consumedMilliliters: Double,
+)
+
+data class FoodWithServingRow(
+    @Embedded val food: FoodEntity,
+    val servingId: String?,
+    val servingLabel: String?,
+    val servingGrams: Double?,
 )
 
 data class MealTemplateItemRow(
@@ -146,8 +154,21 @@ interface FoodDao {
     )
     fun observeSameAsYesterday(accountId: String, dateEpochDay: Long, mealType: String): Flow<List<FoodEntity>>
 
-    @Query("SELECT * FROM foods WHERE accountId = :accountId ORDER BY name")
+    @Query(
+        "SELECT * FROM foods WHERE accountId = :accountId " +
+            "ORDER BY name COLLATE NOCASE, brand COLLATE NOCASE, id",
+    )
     fun observeFoods(accountId: String): Flow<List<FoodEntity>>
+
+    @Query(
+        "SELECT foods.*, food_servings.id AS servingId, food_servings.label AS servingLabel, " +
+            "food_servings.grams AS servingGrams FROM foods " +
+            "LEFT JOIN food_servings ON food_servings.accountId = foods.accountId AND food_servings.foodId = foods.id " +
+            "WHERE foods.accountId = :accountId " +
+            "ORDER BY foods.name COLLATE NOCASE, foods.brand COLLATE NOCASE, foods.id, " +
+            "food_servings.label, food_servings.id",
+    )
+    fun observeFoodsWithServings(accountId: String): Flow<List<FoodWithServingRow>>
 
     @Query("SELECT * FROM food_servings WHERE accountId = :accountId AND foodId = :foodId ORDER BY label")
     fun observeServings(accountId: String, foodId: String): Flow<List<FoodServingEntity>>
@@ -158,16 +179,29 @@ interface FoodDao {
     @Query("SELECT * FROM foods WHERE accountId = :accountId AND id = :foodId LIMIT 1")
     suspend fun getFood(accountId: String, foodId: String): FoodEntity?
 
+    @Query(
+        "SELECT foods.*, food_servings.id AS servingId, food_servings.label AS servingLabel, " +
+            "food_servings.grams AS servingGrams FROM foods " +
+            "LEFT JOIN food_servings ON food_servings.accountId = foods.accountId AND food_servings.foodId = foods.id " +
+            "WHERE foods.accountId = :accountId AND foods.id = :foodId " +
+            "ORDER BY food_servings.label, food_servings.id",
+    )
+    suspend fun getFoodWithServings(accountId: String, foodId: String): List<FoodWithServingRow>
+
     @Query("SELECT * FROM foods WHERE accountId = :accountId AND barcode = :barcode LIMIT 1")
     suspend fun getFoodByBarcode(accountId: String, barcode: String): FoodEntity?
 
     @Query(
-        "SELECT * FROM foods " +
-            "WHERE accountId = :accountId AND lower(name) = lower(:name) " +
-            "AND ((brand IS NULL AND :brand IS NULL) OR lower(brand) = lower(:brand)) " +
-            "LIMIT 1",
+        "SELECT * FROM foods WHERE accountId = :accountId AND name = :name COLLATE NOCASE " +
+            "AND brand IS NULL LIMIT 1",
     )
-    suspend fun getFoodByNameAndBrand(accountId: String, name: String, brand: String?): FoodEntity?
+    suspend fun getFoodByNameAndNullBrand(accountId: String, name: String): FoodEntity?
+
+    @Query(
+        "SELECT * FROM foods WHERE accountId = :accountId AND name = :name COLLATE NOCASE " +
+            "AND brand = :brand COLLATE NOCASE LIMIT 1",
+    )
+    suspend fun getFoodByNameAndBrand(accountId: String, name: String, brand: String): FoodEntity?
 
     @Query("SELECT * FROM meals WHERE accountId = :accountId AND id = :mealId LIMIT 1")
     suspend fun getMeal(accountId: String, mealId: String): MealEntity?

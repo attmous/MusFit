@@ -3,6 +3,7 @@ package com.musfit.core.di
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.musfit.data.local.MUSFIT_DATABASE_NAME
@@ -71,7 +72,9 @@ object DatabaseModule {
                 MIGRATION_37_38,
                 MIGRATION_38_39,
                 MIGRATION_39_40,
+                MIGRATION_40_41,
             )
+            .addCallback(FOOD_PERFORMANCE_INDEX_CALLBACK)
             .build()
     }
 
@@ -1649,6 +1652,21 @@ object DatabaseModule {
             }
         }
 
+    internal val MIGRATION_40_41 =
+        object : Migration(40, 41) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS index_foods_accountId_name")
+                db.execSQL("DROP INDEX IF EXISTS index_foods_accountId_brand")
+            }
+        }
+
+    internal val FOOD_PERFORMANCE_INDEX_CALLBACK =
+        object : RoomDatabase.Callback() {
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                createFoodPerformanceIndex(db)
+            }
+        }
+
     /**
      * The exact migration instances registered by production, exposed for
      * framework-SQLite tests. Keep this ordered, gap-free, and synchronized
@@ -1695,5 +1713,13 @@ object DatabaseModule {
             MIGRATION_37_38,
             MIGRATION_38_39,
             MIGRATION_39_40,
+            MIGRATION_40_41,
         )
+
+    private fun createFoodPerformanceIndex(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_foods_accountId_name_brand_id_nocase " +
+                "ON foods(accountId, name COLLATE NOCASE, brand COLLATE NOCASE, id)",
+        )
+    }
 }

@@ -48,7 +48,7 @@ class RemainingOwnershipMigration38To39Test {
         }
 
         val room = Room.databaseBuilder(context, MusFitDatabase::class.java, DATABASE_NAME)
-            .addMigrations(DatabaseModule.MIGRATION_38_39, DatabaseModule.MIGRATION_39_40)
+            .addMigrations(DatabaseModule.MIGRATION_38_39, DatabaseModule.MIGRATION_39_40, DatabaseModule.MIGRATION_40_41)
             .build()
         room.openHelper.writableDatabase
         room.close()
