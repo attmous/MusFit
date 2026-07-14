@@ -9,7 +9,11 @@ import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectDailyReadResult
+import com.musfit.domain.health.HealthConnectMetric
+import com.musfit.domain.health.HealthConnectMetricFailure
 import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.HealthConnectUnavailableReason
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.health.StepSource
@@ -29,6 +33,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
+import java.util.concurrent.CancellationException
 
 private const val TEST_ACCOUNT_ID = "local-default"
 
@@ -38,9 +43,11 @@ class LocalHealthRepositoryTest {
     private lateinit var gateway: FakeHealthConnectGateway
     private lateinit var repository: LocalHealthRepository
     private lateinit var accountRepository: LocalAccountRepository
+    private var now: Long = 1_000L
 
     @Before
     fun setUp() {
+        now = 1_000L
         val context = ApplicationProvider.getApplicationContext<Context>()
         database =
             Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
@@ -54,7 +61,7 @@ class LocalHealthRepositoryTest {
             healthDao = database.healthDao(),
             trainingDao = database.trainingDao(),
             accountRepository = accountRepository,
-            clock = { 1_000L },
+            clock = { now },
         )
     }
 
@@ -67,9 +74,10 @@ class LocalHealthRepositoryTest {
     fun importDailySummary_persistsSummaryAndSyncState() = runTest {
         val date = LocalDate.of(2026, 6, 20)
 
-        repository.importDailySummary(date)
+        val result = repository.importDailySummary(date)
 
         val summary = database.healthDao().observeDailySummary(TEST_ACCOUNT_ID, date.toEpochDay()).first()
+        assertEquals(HealthConnectImportResult.Complete::class, result::class)
         val syncState = database.healthDao().observeHealthConnectSyncState(TEST_ACCOUNT_ID).first()
 
         assertEquals(1234L, summary?.steps)
@@ -99,7 +107,7 @@ class LocalHealthRepositoryTest {
     }
 
     @Test
-    fun importDailySummary_preservesExistingValuesWhenImportHasNoValue() = runTest {
+    fun importDailySummary_clearsCompletedMetricsWhenProviderLegitimatelyReturnsEmpty() = runTest {
         val date = LocalDate.of(2026, 6, 20)
         database.healthDao().upsertDailySummary(
             DailyHealthSummaryEntity(
@@ -121,21 +129,130 @@ class LocalHealthRepositoryTest {
         )
         gateway.dailySummaryFactory = { ImportedDailyHealthSummary() }
 
-        repository.importDailySummary(date)
+        val result = repository.importDailySummary(date)
 
         val summary = database.healthDao().observeDailySummary(TEST_ACCOUNT_ID, date.toEpochDay()).first()
-        assertEquals(7_800L, summary?.steps)
-        assertEquals(360.0, summary?.activeCaloriesKcal ?: 0.0, 0.01)
-        assertEquals(2_150.0, summary?.totalCaloriesKcal ?: 0.0, 0.01)
-        assertEquals(5_200.0, summary?.distanceMeters ?: 0.0, 0.01)
-        assertEquals(430L, summary?.sleepMinutes)
-        assertEquals(35L, summary?.exerciseMinutes)
-        assertEquals(1, summary?.exerciseSessionCount)
-        assertEquals(80.9, summary?.latestWeightKg ?: 0.0, 0.01)
-        assertEquals(14.8, summary?.latestBodyFatPercent ?: 0.0, 0.01)
-        assertEquals(58L, summary?.restingHeartRateBpm)
-        assertEquals(66.0, summary?.hrvRmssdMillis ?: 0.0, 0.01)
+        assertEquals(HealthConnectImportResult.Cleared::class, result::class)
+        assertNull(summary?.steps)
+        assertNull(summary?.activeCaloriesKcal)
+        assertNull(summary?.totalCaloriesKcal)
+        assertNull(summary?.distanceMeters)
+        assertNull(summary?.sleepMinutes)
+        assertNull(summary?.exerciseMinutes)
+        assertNull(summary?.exerciseSessionCount)
+        assertNull(summary?.latestWeightKg)
+        assertNull(summary?.latestBodyFatPercent)
+        assertNull(summary?.restingHeartRateBpm)
+        assertNull(summary?.hrvRmssdMillis)
         assertEquals(1_000L, summary?.updatedAtEpochMillis)
+    }
+
+    @Test
+    fun importDailySummary_partialReadUpdatesSuccessfulMetricAndPreservesFailedMetric() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        database.healthDao().upsertDailySummary(
+            DailyHealthSummaryEntity(
+                accountId = TEST_ACCOUNT_ID,
+                dateEpochDay = date.toEpochDay(),
+                steps = 7_800L,
+                activeCaloriesKcal = 360.0,
+                totalCaloriesKcal = null,
+                distanceMeters = null,
+                sleepMinutes = null,
+                exerciseMinutes = null,
+                exerciseSessionCount = null,
+                latestWeightKg = null,
+                latestBodyFatPercent = null,
+                restingHeartRateBpm = null,
+                hrvRmssdMillis = null,
+                updatedAtEpochMillis = 500L,
+            ),
+        )
+        val status = HealthConnectStatus(HealthConnectAvailability.Available, setOf("steps", "active"))
+        gateway.dailyReadResultFactory = {
+            HealthConnectDailyReadResult.Partial(
+                summary = ImportedDailyHealthSummary(steps = 9_100L),
+                completedMetrics = setOf(HealthConnectMetric.Steps),
+                failures = listOf(HealthConnectMetricFailure(HealthConnectMetric.ActiveCalories, "provider read failed")),
+                status = status,
+            )
+        }
+        now = 2_000L
+
+        val result = repository.importDailySummary(date)
+        val summary = database.healthDao().getDailySummary(TEST_ACCOUNT_ID, date.toEpochDay())
+        val syncState = database.healthDao().getHealthConnectSyncState(TEST_ACCOUNT_ID)
+
+        assertEquals(HealthConnectImportResult.Partial::class, result::class)
+        assertEquals(9_100L, summary?.steps)
+        assertEquals(360.0, summary?.activeCaloriesKcal ?: 0.0, 0.01)
+        assertEquals(2_000L, summary?.updatedAtEpochMillis)
+        assertEquals(2_000L, syncState?.lastImportAtEpochMillis)
+        assertEquals(true, syncState?.lastFailureMessage?.contains("provider read failed"))
+    }
+
+    @Test
+    fun importDailySummary_totalFailurePreservesCachedDataAndDoesNotAdvanceLastSuccess() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        repository.importDailySummary(date)
+        val before = database.healthDao().getDailySummary(TEST_ACCOUNT_ID, date.toEpochDay())
+        gateway.dailyReadResultFactory = {
+            HealthConnectDailyReadResult.Failure(
+                message = "provider unavailable",
+                status = HealthConnectStatus(HealthConnectAvailability.Available, setOf("steps")),
+            )
+        }
+        now = 2_000L
+
+        val result = repository.importDailySummary(date)
+        val after = database.healthDao().getDailySummary(TEST_ACCOUNT_ID, date.toEpochDay())
+        val syncState = database.healthDao().getHealthConnectSyncState(TEST_ACCOUNT_ID)
+
+        assertEquals(HealthConnectImportResult.Failure::class, result::class)
+        assertEquals(before, after)
+        assertEquals(1_000L, syncState?.lastImportAtEpochMillis)
+        assertEquals("provider unavailable", syncState?.lastFailureMessage)
+    }
+
+    @Test
+    fun importDailySummary_permissionRevocationRecordsUnavailableWithoutStaleSuccess() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        gateway.dailyReadResultFactory = {
+            HealthConnectDailyReadResult.Unavailable(
+                status = HealthConnectStatus(HealthConnectAvailability.Available, emptySet()),
+                reason = HealthConnectUnavailableReason.PermissionsUnavailable,
+                message = "Health Connect read permissions are unavailable.",
+            )
+        }
+
+        val result = repository.importDailySummary(date)
+        val syncState = database.healthDao().getHealthConnectSyncState(TEST_ACCOUNT_ID)
+
+        assertEquals(HealthConnectImportResult.Unavailable::class, result::class)
+        assertNull(database.healthDao().getDailySummary(TEST_ACCOUNT_ID, date.toEpochDay()))
+        assertNull(syncState?.lastImportAtEpochMillis)
+        assertEquals(true, syncState?.isAvailable)
+        assertEquals("Health Connect read permissions are unavailable.", syncState?.lastFailureMessage)
+    }
+
+    @Test
+    fun importDailySummary_cancellationPropagatesWithinOneSecondWithoutWritingState() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        gateway.readFailure = CancellationException("cancelled by caller")
+        val startedAt = System.nanoTime()
+        var cancellation: CancellationException? = null
+
+        try {
+            repository.importDailySummary(date)
+        } catch (caught: CancellationException) {
+            cancellation = caught
+        }
+        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+
+        assertEquals("cancelled by caller", cancellation?.message)
+        assertEquals(true, elapsedMillis < 1_000L)
+        assertNull(database.healthDao().getDailySummary(TEST_ACCOUNT_ID, date.toEpochDay()))
+        assertNull(database.healthDao().getHealthConnectSyncState(TEST_ACCOUNT_ID))
     }
 
     @Test
@@ -207,6 +324,48 @@ class LocalHealthRepositoryTest {
                 anchor.toEpochDay(),
             ).first().size,
         )
+    }
+
+    @Test
+    fun refreshRecentData_countsPartialEmptyAndFailedDaysWithoutReportingStaleSuccess() = runTest {
+        val endDate = LocalDate.of(2026, 7, 14)
+        val status = HealthConnectStatus(HealthConnectAvailability.Available, setOf("weight"))
+        gateway.dailyReadResultFactory = { date ->
+            when (date) {
+                endDate.minusDays(2) -> HealthConnectDailyReadResult.Partial(
+                    summary = ImportedDailyHealthSummary(
+                        latestWeightKg = 81.5,
+                        bodyMetrics = listOf(
+                            ImportedBodyMetric(
+                                type = "weight",
+                                value = 81.5,
+                                unit = "kg",
+                                measuredAtEpochMillis = 1_700_000_000_000L,
+                                externalId = "partial-weight",
+                            ),
+                        ),
+                    ),
+                    completedMetrics = setOf(HealthConnectMetric.Weight),
+                    failures = listOf(HealthConnectMetricFailure(HealthConnectMetric.Steps, "steps failed")),
+                    status = status,
+                )
+
+                endDate.minusDays(1) -> HealthConnectDailyReadResult.Empty(
+                    completedMetrics = setOf(HealthConnectMetric.Weight),
+                    status = status,
+                )
+
+                else -> HealthConnectDailyReadResult.Failure("provider unavailable", status)
+            }
+        }
+
+        val result = repository.refreshRecentData(endDate, days = 3)
+
+        assertEquals(2, result.importedDayCount)
+        assertEquals(1, result.bodyMetricCount)
+        assertEquals(1, result.partialDayCount)
+        assertEquals(1, result.emptyDayCount)
+        assertEquals(1, result.failedDayCount)
     }
 
     @Test
@@ -662,6 +821,8 @@ class LocalHealthRepositoryTest {
         val importedDates = mutableListOf<LocalDate>()
         val preferredStepsPackages = mutableListOf<String?>()
         var stepSources: List<StepSource> = emptyList()
+        var dailyReadResultFactory: ((LocalDate) -> HealthConnectDailyReadResult)? = null
+        var readFailure: Throwable? = null
         var dailySummaryFactory: (LocalDate) -> ImportedDailyHealthSummary = { date ->
             ImportedDailyHealthSummary(
                 steps = 1234L,
@@ -708,10 +869,19 @@ class LocalHealthRepositoryTest {
         override suspend fun readDailySummary(
             date: LocalDate,
             preferredStepsPackage: String?,
-        ): ImportedDailyHealthSummary {
+        ): HealthConnectDailyReadResult {
             importedDates += date
             preferredStepsPackages += preferredStepsPackage
-            return dailySummaryFactory(date)
+            readFailure?.let { throw it }
+            dailyReadResultFactory?.let { factory -> return factory(date) }
+            val summary = dailySummaryFactory(date)
+            val currentStatus = status()
+            val completedMetrics = HealthConnectMetric.entries.toSet()
+            return if (summary == ImportedDailyHealthSummary()) {
+                HealthConnectDailyReadResult.Empty(completedMetrics, currentStatus)
+            } else {
+                HealthConnectDailyReadResult.Complete(summary, completedMetrics, currentStatus)
+            }
         }
 
         override suspend fun exportWorkout(

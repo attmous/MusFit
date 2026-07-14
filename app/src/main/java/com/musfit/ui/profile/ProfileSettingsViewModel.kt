@@ -4,17 +4,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountRepository
-import com.musfit.data.repository.AiCoachChatRepository
 import com.musfit.data.repository.AiCoachApiKeyUpdate
+import com.musfit.data.repository.AiCoachChatRepository
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.AiCoachRepository
 import com.musfit.data.repository.AiCoachSettings
 import com.musfit.data.repository.AiCoachSettingsInput
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
-import com.musfit.data.repository.ExternalAuthRepository
 import com.musfit.data.repository.ExternalAccountProfile
+import com.musfit.data.repository.ExternalAuthRepository
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.GitHubDeviceAuthorization
+import com.musfit.data.repository.HealthConnectImportResult
 import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.LocalAgentKind
@@ -43,12 +44,11 @@ private const val DEFAULT_STATUS_MESSAGE = "Refresh status to check whether Heal
 private const val ALL_STEP_SOURCES_LABEL = "All sources (unified)"
 internal const val HERMES_DEFAULT_MODEL_NAME = "hermes-agent"
 
-private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSource>): String =
-    if (preferredStepsPackage == null) {
-        ALL_STEP_SOURCES_LABEL
-    } else {
-        sources.firstOrNull { it.packageName == preferredStepsPackage }?.label ?: preferredStepsPackage
-    }
+private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSource>): String = if (preferredStepsPackage == null) {
+    ALL_STEP_SOURCES_LABEL
+} else {
+    sources.firstOrNull { it.packageName == preferredStepsPackage }?.label ?: preferredStepsPackage
+}
 
 /** Lifecycle of the coach connection test — drives the 11c hero status line. */
 enum class AiCoachTestState { Idle, Testing, Success, Failure }
@@ -122,39 +122,38 @@ internal fun providerSignInActions(
     googleConfigured: Boolean,
     githubConfigured: Boolean,
     githubBusy: Boolean,
-): ProviderSignInActionsUiState =
-    ProviderSignInActionsUiState(
-        google = ProviderSignInActionUiState(
-            providerLabel = "Google",
-            buttonLabel = "Connect Google",
-            statusLabel = when {
-                !googleConfigured -> "Setup needed"
-                githubBusy -> "Waiting"
-                else -> "Ready"
-            },
-            supportingText = when {
-                !googleConfigured -> "Missing Google OAuth client ID in this build."
-                githubBusy -> "Wait for GitHub to finish first."
-                else -> "Links Google to this local account. MusFit still keeps your data on this device."
-            },
-            enabled = googleConfigured && !githubBusy,
-        ),
-        github = ProviderSignInActionUiState(
-            providerLabel = "GitHub",
-            buttonLabel = if (githubBusy) "Waiting for GitHub" else "Connect GitHub",
-            statusLabel = when {
-                githubBusy -> "In progress"
-                !githubConfigured -> "Setup needed"
-                else -> "Ready"
-            },
-            supportingText = when {
-                githubBusy -> "Enter the code in GitHub to finish linking your local account."
-                !githubConfigured -> "Missing GitHub OAuth client ID in this build."
-                else -> "Uses GitHub device flow to link your local account."
-            },
-            enabled = githubConfigured && !githubBusy,
-        ),
-    )
+): ProviderSignInActionsUiState = ProviderSignInActionsUiState(
+    google = ProviderSignInActionUiState(
+        providerLabel = "Google",
+        buttonLabel = "Connect Google",
+        statusLabel = when {
+            !googleConfigured -> "Setup needed"
+            githubBusy -> "Waiting"
+            else -> "Ready"
+        },
+        supportingText = when {
+            !googleConfigured -> "Missing Google OAuth client ID in this build."
+            githubBusy -> "Wait for GitHub to finish first."
+            else -> "Links Google to this local account. MusFit still keeps your data on this device."
+        },
+        enabled = googleConfigured && !githubBusy,
+    ),
+    github = ProviderSignInActionUiState(
+        providerLabel = "GitHub",
+        buttonLabel = if (githubBusy) "Waiting for GitHub" else "Connect GitHub",
+        statusLabel = when {
+            githubBusy -> "In progress"
+            !githubConfigured -> "Setup needed"
+            else -> "Ready"
+        },
+        supportingText = when {
+            githubBusy -> "Enter the code in GitHub to finish linking your local account."
+            !githubConfigured -> "Missing GitHub OAuth client ID in this build."
+            else -> "Uses GitHub device flow to link your local account."
+        },
+        enabled = githubConfigured && !githubBusy,
+    ),
+)
 
 /**
  * Only the fields the mutable base flow actually owns (Health Connect status plus the
@@ -782,19 +781,18 @@ private fun AccountAuthProvider.messageLabel(): String = when (this) {
     AccountAuthProvider.GitHub -> "GitHub"
 }
 
-private fun AiCoachSettings.toUiState(): AiCoachSettingsUiState =
-    AiCoachSettingsUiState(
-        providerKind = providerKind,
-        baseUrl = baseUrl,
-        modelName = modelName,
-        localAgentKind = localAgentKind,
-        hasApiKey = hasApiKey,
-        providerLabel = providerKind.displayLabel(localAgentKind),
-        endpointLabel = baseUrl.ifBlank { "Not set" },
-        modelLabel = modelName.ifBlank { "Not set" },
-        localAgentLabel = localAgentKind.displayLabel(),
-        apiKeyLabel = if (hasApiKey) "Key saved" else "No API key",
-    )
+private fun AiCoachSettings.toUiState(): AiCoachSettingsUiState = AiCoachSettingsUiState(
+    providerKind = providerKind,
+    baseUrl = baseUrl,
+    modelName = modelName,
+    localAgentKind = localAgentKind,
+    hasApiKey = hasApiKey,
+    providerLabel = providerKind.displayLabel(localAgentKind),
+    endpointLabel = baseUrl.ifBlank { "Not set" },
+    modelLabel = modelName.ifBlank { "Not set" },
+    localAgentLabel = localAgentKind.displayLabel(),
+    apiKeyLabel = if (hasApiKey) "Key saved" else "No API key",
+)
 
 private fun AiCoachProviderKind.displayLabel(localAgentKind: LocalAgentKind): String = when (this) {
     AiCoachProviderKind.Disabled -> "Off"
@@ -808,7 +806,22 @@ private fun LocalAgentKind.displayLabel(): String = when (this) {
     LocalAgentKind.Custom -> "Custom local agent"
 }
 
-private fun com.musfit.domain.health.ImportedDailyHealthSummary.importMessage(): String {
+private fun HealthConnectImportResult.importMessage(): String = when (this) {
+    is HealthConnectImportResult.Complete -> summary.importedSummaryMessage()
+
+    is HealthConnectImportResult.Partial ->
+        "Imported available Health Connect data, but ${failures.size} metric reads failed."
+
+    is HealthConnectImportResult.Empty -> "No Health Connect data was found for today."
+
+    is HealthConnectImportResult.Cleared -> "Health Connect no longer has data for today; cached values were cleared."
+
+    is HealthConnectImportResult.Unavailable -> message
+
+    is HealthConnectImportResult.Failure -> message
+}
+
+private fun com.musfit.domain.health.ImportedDailyHealthSummary.importedSummaryMessage(): String {
     val stepsText = steps?.let { "$it steps" } ?: "health data"
     val caloriesText = activeCaloriesKcal?.let { "${it.formatMetric()} kcal" }
     val sleepText = sleepMinutes?.let { it.formatDuration() + " sleep" }
@@ -818,21 +831,28 @@ private fun com.musfit.domain.health.ImportedDailyHealthSummary.importMessage():
 }
 
 private fun HealthConnectRefreshResult.toMessage(): String {
+    if (importedDayCount == 0 && failedDayCount > 0) {
+        return "Health Connect sync failed for $failedDayCount ${if (failedDayCount == 1) "day" else "days"}."
+    }
     val dayText = if (importedDayCount == 1) "1 day" else "$importedDayCount days"
     val metricText = when (bodyMetricCount) {
         0 -> null
         1 -> "1 body metric"
         else -> "$bodyMetricCount body metrics"
     }
-    return "Synced ${listOfNotNull(dayText, metricText).joinForSentence()} from Health Connect."
+    val warningText = when {
+        failedDayCount > 0 -> "$failedDayCount failed"
+        partialDayCount > 0 -> "$partialDayCount partial"
+        else -> null
+    }
+    return "Synced ${listOfNotNull(dayText, metricText, warningText).joinForSentence()} from Health Connect."
 }
 
-private fun Double.formatMetric(): String =
-    if (this % 1.0 == 0.0) {
-        toInt().toString()
-    } else {
-        String.format(Locale.US, "%.1f", this)
-    }
+private fun Double.formatMetric(): String = if (this % 1.0 == 0.0) {
+    toInt().toString()
+} else {
+    String.format(Locale.US, "%.1f", this)
+}
 
 private fun Long.formatDuration(): String {
     val hours = this / 60L

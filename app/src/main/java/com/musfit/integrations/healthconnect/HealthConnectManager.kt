@@ -21,11 +21,16 @@ import androidx.health.connect.client.time.TimeRangeFilter
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectDailyReadResult
+import com.musfit.domain.health.HealthConnectMetric
+import com.musfit.domain.health.HealthConnectMetricFailure
 import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.HealthConnectUnavailableReason
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.health.StepSource
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -57,13 +62,24 @@ class HealthConnectManager @Inject constructor(
 
     override suspend fun foodRequestablePermissions(): Set<String> = foodPermissions
 
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount", "TooGenericExceptionCaught")
     override suspend fun readDailySummary(
         date: LocalDate,
         preferredStepsPackage: String?,
-    ): ImportedDailyHealthSummary {
-        val currentStatus = status()
+    ): HealthConnectDailyReadResult {
+        val currentStatus = try {
+            status()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Exception) {
+            return HealthConnectDailyReadResult.Failure(failure.healthConnectMessage())
+        }
         if (currentStatus.availability != HealthConnectAvailability.Available) {
-            return EMPTY_SUMMARY
+            return HealthConnectDailyReadResult.Unavailable(
+                status = currentStatus,
+                reason = HealthConnectUnavailableReason.ProviderUnavailable,
+                message = "Health Connect is unavailable.",
+            )
         }
 
         val grantedPermissions = currentStatus.grantedPermissions
@@ -90,85 +106,120 @@ class HealthConnectManager @Inject constructor(
             !canReadRestingHeartRate &&
             !canReadHeartRateVariability
         ) {
-            return EMPTY_SUMMARY
+            return HealthConnectDailyReadResult.Unavailable(
+                status = currentStatus,
+                reason = HealthConnectUnavailableReason.PermissionsUnavailable,
+                message = "Health Connect read permissions are unavailable.",
+            )
         }
 
-        val client = clientFactory()
+        val client = try {
+            clientFactory()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Exception) {
+            return HealthConnectDailyReadResult.Failure(
+                message = failure.healthConnectMessage(),
+                status = currentStatus,
+            )
+        }
         val range = date.asHealthConnectTimeRange()
+        val completedMetrics = linkedSetOf<HealthConnectMetric>()
+        val failures = mutableListOf<HealthConnectMetricFailure>()
 
         val steps = if (canReadSteps) {
-            runCatching {
+            readMetric(HealthConnectMetric.Steps, completedMetrics, failures) {
                 if (preferredStepsPackage != null) {
-                    client.aggregateStepsForOrigins(range, setOf(preferredStepsPackage)) ?: 0L
+                    client.aggregateStepsForOrigins(range, setOf(preferredStepsPackage))
                 } else {
-                    client.aggregateSteps(range) ?: 0L
+                    client.aggregateSteps(range)
                 }
-            }.getOrNull()
+            }
         } else {
             null
         }
 
         val activeCalories = if (canReadActiveCalories) {
-            runCatching { client.aggregateActiveCalories(range) }.getOrNull()
+            readMetric(HealthConnectMetric.ActiveCalories, completedMetrics, failures) {
+                client.aggregateActiveCalories(range)
+            }
         } else {
             null
         }
 
         val totalCalories = if (canReadTotalCalories) {
-            runCatching { client.aggregateTotalCalories(range) }.getOrNull()
+            readMetric(HealthConnectMetric.TotalCalories, completedMetrics, failures) {
+                client.aggregateTotalCalories(range)
+            }
         } else {
             null
         }
 
         val distance = if (canReadDistance) {
-            runCatching { client.aggregateDistanceMeters(range) }.getOrNull()
+            readMetric(HealthConnectMetric.Distance, completedMetrics, failures) {
+                client.aggregateDistanceMeters(range)
+            }
         } else {
             null
         }
 
         val sleepMinutes = if (canReadSleep) {
-            runCatching { client.aggregateSleepMinutes(range) }.getOrNull()
+            readMetric(HealthConnectMetric.Sleep, completedMetrics, failures) {
+                client.aggregateSleepMinutes(range)
+            }
         } else {
             null
         }
 
         val exerciseMinutes = if (canReadExercise) {
-            runCatching { client.aggregateExerciseMinutes(range) }.getOrNull()
+            readMetric(HealthConnectMetric.ExerciseDuration, completedMetrics, failures) {
+                client.aggregateExerciseMinutes(range)
+            }
         } else {
             null
         }
 
         val exerciseSessionCount = if (canReadExercise) {
-            runCatching { client.readExerciseSessionCount(range) }.getOrNull()
+            readMetric(HealthConnectMetric.ExerciseSessions, completedMetrics, failures) {
+                client.readExerciseSessionCount(range)
+            }
         } else {
             null
         }
 
         val latestWeight = if (canReadWeight) {
-            runCatching { client.readLatestWeightMetric(range) }.getOrNull()
+            readMetric(HealthConnectMetric.Weight, completedMetrics, failures) {
+                client.readLatestWeightMetric(range)
+            }
         } else {
             null
         }
 
         val latestBodyFat = if (canReadBodyFat) {
-            runCatching { client.readLatestBodyFatMetric(range) }.getOrNull()
+            readMetric(HealthConnectMetric.BodyFat, completedMetrics, failures) {
+                client.readLatestBodyFatMetric(range)
+            }
         } else {
             null
         }
 
         val restingHeartRate = if (canReadRestingHeartRate) {
-            runCatching { client.readLatestRestingHeartRate(range) }.getOrNull()
+            readMetric(HealthConnectMetric.RestingHeartRate, completedMetrics, failures) {
+                client.readLatestRestingHeartRate(range)
+            }
         } else {
             null
         }
 
         val hrvRmssd = if (canReadHeartRateVariability) {
-            runCatching { client.readLatestHeartRateVariabilityRmssdMillis(range) }.getOrNull()
+            readMetric(HealthConnectMetric.HeartRateVariability, completedMetrics, failures) {
+                client.readLatestHeartRateVariabilityRmssdMillis(range)
+            }
         } else {
             null
         }
 
-        return ImportedDailyHealthSummary(
+        val summary = ImportedDailyHealthSummary(
             steps = steps,
             activeCaloriesKcal = activeCalories,
             totalCaloriesKcal = totalCalories,
@@ -182,6 +233,23 @@ class HealthConnectManager @Inject constructor(
             hrvRmssdMillis = hrvRmssd,
             bodyMetrics = listOfNotNull(latestWeight, latestBodyFat),
         )
+        return when {
+            failures.isNotEmpty() && completedMetrics.isEmpty() -> HealthConnectDailyReadResult.Failure(
+                message = failures.joinToString("; ") { failure -> failure.message },
+                status = currentStatus,
+            )
+
+            failures.isNotEmpty() -> HealthConnectDailyReadResult.Partial(
+                summary = summary,
+                completedMetrics = completedMetrics,
+                failures = failures,
+                status = currentStatus,
+            )
+
+            summary.isEmpty() -> HealthConnectDailyReadResult.Empty(completedMetrics, currentStatus)
+
+            else -> HealthConnectDailyReadResult.Complete(summary, completedMetrics, currentStatus)
+        }
     }
 
     override suspend fun readStepSources(date: LocalDate): List<StepSource> {
@@ -195,7 +263,7 @@ class HealthConnectManager @Inject constructor(
 
         val client = clientFactory()
         val range = date.asHealthConnectTimeRange()
-        val byOrigin = runCatching { client.readStepCountsByOrigin(range) }.getOrNull().orEmpty()
+        val byOrigin = healthConnectCatchingOrNull { client.readStepCountsByOrigin(range) }.orEmpty()
         return byOrigin
             .map { (packageName, steps) ->
                 StepSource(
@@ -241,11 +309,11 @@ class HealthConnectManager @Inject constructor(
             return null
         }
 
-        return runCatching {
+        return healthConnectCatchingOrNull {
             clientFactory().insertExerciseSession(
                 HealthConnectRecordMapper.toExerciseSessionRecord(session, sets, identity = identity),
             )
-        }.getOrNull()
+        }
     }
 
     override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? {
@@ -268,7 +336,7 @@ class HealthConnectManager @Inject constructor(
             return HealthConnectFoodExportResult(nutritionRecordCount = 0, hydrationRecordCount = 0)
         }
 
-        return runCatching { insertFoodRecords(nutritionExports, nutritionRecords, hydrationRecord) }.getOrNull()
+        return healthConnectCatchingOrNull { insertFoodRecords(nutritionExports, nutritionRecords, hydrationRecord) }
     }
 
     private suspend fun insertFoodRecords(
@@ -361,6 +429,48 @@ class HealthConnectManager @Inject constructor(
         }
     }
 }
+
+@Suppress("TooGenericExceptionCaught")
+private suspend fun <T> readMetric(
+    metric: HealthConnectMetric,
+    completedMetrics: MutableSet<HealthConnectMetric>,
+    failures: MutableList<HealthConnectMetricFailure>,
+    read: suspend () -> T,
+): T? = try {
+    read().also { completedMetrics += metric }
+} catch (cancellation: CancellationException) {
+    throw cancellation
+} catch (failure: Exception) {
+    failures += HealthConnectMetricFailure(metric, failure.healthConnectMessage())
+    null
+}
+
+@Suppress("TooGenericExceptionCaught")
+private suspend fun <T> healthConnectCatchingOrNull(block: suspend () -> T): T? = try {
+    block()
+} catch (cancellation: CancellationException) {
+    throw cancellation
+} catch (_: Exception) {
+    null
+}
+
+private fun Throwable.healthConnectMessage(): String = message
+    ?.takeIf(String::isNotBlank)
+    ?: this::class.simpleName
+    ?: "Health Connect read failed."
+
+private fun ImportedDailyHealthSummary.isEmpty(): Boolean = steps == null &&
+    activeCaloriesKcal == null &&
+    totalCaloriesKcal == null &&
+    distanceMeters == null &&
+    sleepMinutes == null &&
+    exerciseMinutes == null &&
+    exerciseSessionCount == null &&
+    latestWeightKg == null &&
+    latestBodyFatPercent == null &&
+    restingHeartRateBpm == null &&
+    hrvRmssdMillis == null &&
+    bodyMetrics.isEmpty()
 
 private fun HealthConnectFoodExportPayload.writeableNutritionExports(
     canWriteNutrition: Boolean,

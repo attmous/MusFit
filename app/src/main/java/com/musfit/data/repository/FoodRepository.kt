@@ -2252,7 +2252,11 @@ private object NoopHealthConnectGateway : HealthConnectGateway {
     override suspend fun readDailySummary(
         date: LocalDate,
         preferredStepsPackage: String?,
-    ): ImportedDailyHealthSummary = ImportedDailyHealthSummary()
+    ): com.musfit.domain.health.HealthConnectDailyReadResult = com.musfit.domain.health.HealthConnectDailyReadResult.Unavailable(
+        status = status(),
+        reason = com.musfit.domain.health.HealthConnectUnavailableReason.ProviderUnavailable,
+        message = "Health Connect is unavailable.",
+    )
 
     override suspend fun exportWorkout(
         session: com.musfit.data.local.entity.WorkoutSessionEntity,

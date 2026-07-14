@@ -2265,7 +2265,13 @@ class LocalFoodRepositoryTest {
 
         override suspend fun foodRequestablePermissions(): Set<String> = foodPermissions
 
-        override suspend fun readDailySummary(date: LocalDate, preferredStepsPackage: String?) = com.musfit.domain.health.ImportedDailyHealthSummary()
+        override suspend fun readDailySummary(
+            date: LocalDate,
+            preferredStepsPackage: String?,
+        ) = com.musfit.domain.health.HealthConnectDailyReadResult.Empty(
+            completedMetrics = emptySet(),
+            status = status(),
+        )
 
         override suspend fun exportWorkout(
             session: com.musfit.data.local.entity.WorkoutSessionEntity,

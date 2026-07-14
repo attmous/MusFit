@@ -63,8 +63,8 @@ class ProfileViewModelTest {
     // UTC epoch-day anchors: the ViewModel's window math is epoch-day based, so
     // local-zone times would flake in far-west zones.
     private val fixedDate = LocalDate.of(2026, 7, 2)
-    private val DAY = 86_400_000L
-    private fun daysAgo(n: Long) = (fixedDate.toEpochDay() - n) * DAY + 12L * 3_600_000L
+    private val dayMillis = 86_400_000L
+    private fun daysAgo(n: Long) = (fixedDate.toEpochDay() - n) * dayMillis + 12L * 3_600_000L
 
     private fun profileViewModel(
         profileRepository: ProfileRepository = FakeProfileRepository(),
@@ -124,19 +124,19 @@ class ProfileViewModelTest {
         //   weightTrend:       avg(82, 84) − avg(85, 89) = 83 − 87 = −4.0
         //   changeOverWindow:  82 − 85                            = −3.0
         repo.weightSeries = listOf(
-            WeightEntry("w6", daysAgo(1), 82.0, "manual"),   // this week
-            WeightEntry("w5", daysAgo(3), 84.0, "manual"),   // this week
-            WeightEntry("w4", daysAgo(8), 85.0, "manual"),   // prior week
-            WeightEntry("w3", daysAgo(10), 89.0, "manual"),  // prior week
-            WeightEntry("w2", daysAgo(29), 86.0, "manual"),  // just inside the 30-day chart window
-            WeightEntry("w1", daysAgo(31), 90.0, "manual"),  // just outside the 30-day chart window
+            WeightEntry("w6", daysAgo(1), 82.0, "manual"), // this week
+            WeightEntry("w5", daysAgo(3), 84.0, "manual"), // this week
+            WeightEntry("w4", daysAgo(8), 85.0, "manual"), // prior week
+            WeightEntry("w3", daysAgo(10), 89.0, "manual"), // prior week
+            WeightEntry("w2", daysAgo(29), 86.0, "manual"), // just inside the 30-day chart window
+            WeightEntry("w1", daysAgo(31), 90.0, "manual"), // just outside the 30-day chart window
         )
         val viewModel = profileViewModel(profileRepository = repo)
         dispatcher.scheduler.advanceUntilIdle()
 
         val hero = viewModel.state.value.hero
         assertEquals(82.0, hero.latestWeightKg!!, 0.001)
-        assertEquals(-4.0, hero.deltaKg!!, 0.001)              // weekly averages, not endpoints
+        assertEquals(-4.0, hero.deltaKg!!, 0.001) // weekly averages, not endpoints
         assertEquals(75.0, hero.goalWeightKg!!, 0.001)
         // progress baseline is the ALL-TIME first entry (90): (90−82)/(90−75) = 8/15
         assertEquals(8.0 / 15.0, hero.goalProgressFraction!!, 0.001)
@@ -176,9 +176,9 @@ class ProfileViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         val hero = viewModel.state.value.hero
-        assertEquals(84.0, hero.latestWeightKg!!, 0.001)   // all-time latest survives
-        assertTrue(hero.chartSeries.isEmpty())              // 30-day window empty
-        assertEquals(true, hero.hasAnyEntry)                // → "no entries in last 30 days", not first-log
+        assertEquals(84.0, hero.latestWeightKg!!, 0.001) // all-time latest survives
+        assertTrue(hero.chartSeries.isEmpty()) // 30-day window empty
+        assertEquals(true, hero.hasAnyEntry) // → "no entries in last 30 days", not first-log
     }
 
     @Test
@@ -200,7 +200,7 @@ class ProfileViewModelTest {
             profile = UserProfile(Sex.Male, 0L, 180.0, ActivityLevel.Moderate, GoalType.Lose, 0.5, 80.0),
         )
         repo.weightSeries = listOf(
-            WeightEntry("w2", daysAgo(1), 78.0, "manual"),  // past the goal
+            WeightEntry("w2", daysAgo(1), 78.0, "manual"), // past the goal
             WeightEntry("w1", daysAgo(20), 85.0, "manual"),
         )
         val viewModel = profileViewModel(profileRepository = repo)
@@ -264,10 +264,10 @@ class ProfileViewModelTest {
         assertEquals(-1.0, tiles["waist"]!!.deltaFromPrevious!!, 0.001)
         assertEquals(2, tiles["waist"]!!.entryCount)
         assertNull(tiles["chest"]!!.deltaFromPrevious)
-        assertEquals(listOf(104.0), tiles["chest"]!!.sparkline)             // lone in-window point kept (dot)
+        assertEquals(listOf(104.0), tiles["chest"]!!.sparkline) // lone in-window point kept (dot)
         assertEquals(-1.0, tiles["body_fat"]!!.deltaFromPrevious!!, 0.001) // delta is all-time
-        assertEquals(listOf(18.5), tiles["body_fat"]!!.sparkline)           // window has 1 point
-        assertEquals(0, tiles["arms"]!!.entryCount)                         // never logged
+        assertEquals(listOf(18.5), tiles["body_fat"]!!.sparkline) // window has 1 point
+        assertEquals(0, tiles["arms"]!!.entryCount) // never logged
         // Stale-newest tile: value + all-time delta survive; chart empty (the tile analog
         // of the stale-logger hero).
         assertEquals(96.0, tiles["hips"]!!.value!!, 0.001)
@@ -317,8 +317,8 @@ class ProfileViewModelTest {
         var currentDate = fixedDate
         val repo = FakeProfileRepository()
         repo.weightSeries = listOf(
-            WeightEntry("w2", daysAgo(1), 82.0, "manual"),   // inside every window in play
-            WeightEntry("w1", daysAgo(25), 84.0, "manual"),  // in the 30d chart at fixedDate, out at +8d
+            WeightEntry("w2", daysAgo(1), 82.0, "manual"), // inside every window in play
+            WeightEntry("w1", daysAgo(25), 84.0, "manual"), // in the 30d chart at fixedDate, out at +8d
         )
         val viewModel = profileViewModel(
             profileRepository = repo,
@@ -514,49 +514,48 @@ class ProfileViewModelTest {
             saveProfileError?.let { throw it }
         }
         override fun observeRecommendedTargets(): Flow<RecommendedTargets?> = flowOf(targets)
-        override suspend fun logWeight(weightKg: Double, source: String) { loggedWeight = weightKg }
+        override suspend fun logWeight(weightKg: Double, source: String) {
+            loggedWeight = weightKg
+        }
         override fun observeLatestWeight(): Flow<WeightEntry?> = flowOf(latestWeight)
-        override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> =
-            flowOf(weightSeries)
+        override fun observeWeightSeries(sinceEpochMillis: Long): Flow<List<WeightEntry>> = flowOf(weightSeries)
         override suspend fun logMeasurement(type: String, value: Double, unit: String) = Unit
-        override suspend fun deleteEntry(id: String) { deletedId = id }
-        override suspend fun updateEntryValue(id: String, value: Double) { updatedId = id; updatedValue = value }
-        override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> =
-            flowOf(measurements)
+        override suspend fun deleteEntry(id: String) {
+            deletedId = id
+        }
+        override suspend fun updateEntryValue(id: String, value: Double) {
+            updatedId = id
+            updatedValue = value
+        }
+        override fun observeRecentMeasurements(sinceEpochMillis: Long): Flow<Map<String, List<BodyMeasurement>>> = flowOf(measurements)
         override fun observeSettings(): Flow<AppSettings> = flowOf(DEFAULT_APP_SETTINGS)
         override suspend fun saveSettings(settings: AppSettings) = Unit
     }
 
     private class FakeHealthRepo : HealthRepository {
-        override suspend fun status(): HealthConnectStatus =
-            HealthConnectStatus(HealthConnectAvailability.Available, setOf("steps"))
+        override suspend fun status(): HealthConnectStatus = HealthConnectStatus(HealthConnectAvailability.Available, setOf("steps"))
         override suspend fun requestablePermissions(): Set<String> = setOf("steps")
         override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
-        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary()
+        override suspend fun importDailySummary(date: LocalDate): com.musfit.data.repository.HealthConnectImportResult = com.musfit.data.repository.HealthConnectImportResult.Empty(ImportedDailyHealthSummary())
         override suspend fun exportLatestWorkout(): String? = null
     }
 
     /** Pins the `availability != Available` half of the nudge predicate. */
     private class FakeHealthRepoNotInstalled : HealthRepository {
-        override suspend fun status(): HealthConnectStatus =
-            HealthConnectStatus(HealthConnectAvailability.NotInstalled, emptySet())
+        override suspend fun status(): HealthConnectStatus = HealthConnectStatus(HealthConnectAvailability.NotInstalled, emptySet())
         override suspend fun requestablePermissions(): Set<String> = emptySet()
         override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
-        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary()
+        override suspend fun importDailySummary(date: LocalDate): com.musfit.data.repository.HealthConnectImportResult = com.musfit.data.repository.HealthConnectImportResult.Empty(ImportedDailyHealthSummary())
         override suspend fun exportLatestWorkout(): String? = null
     }
 
     /** [FakeHealthRepo] whose granted-permission set can change between [status] calls. */
     private class FakeHealthRepoMutableStatus : HealthRepository {
         var granted: Set<String> = emptySet()
-        override suspend fun status(): HealthConnectStatus =
-            HealthConnectStatus(HealthConnectAvailability.Available, granted)
+        override suspend fun status(): HealthConnectStatus = HealthConnectStatus(HealthConnectAvailability.Available, granted)
         override suspend fun requestablePermissions(): Set<String> = setOf("steps")
         override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
-        override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary =
-            ImportedDailyHealthSummary()
+        override suspend fun importDailySummary(date: LocalDate): com.musfit.data.repository.HealthConnectImportResult = com.musfit.data.repository.HealthConnectImportResult.Empty(ImportedDailyHealthSummary())
         override suspend fun exportLatestWorkout(): String? = null
     }
 
@@ -576,8 +575,7 @@ class ProfileViewModelTest {
 
         override suspend fun setCompletion(setId: String, completed: Boolean) = Unit
 
-        override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> =
-            MutableStateFlow(TrainingSummary())
+        override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> = MutableStateFlow(TrainingSummary())
 
         override suspend fun createRoutine(input: RoutineInput): String = "routine-1"
 
@@ -634,18 +632,15 @@ class ProfileViewModelTest {
 
         override suspend fun logFood(input: FoodLogInput): String = ""
 
-        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> =
-            MutableStateFlow(NutritionTotals(0.0, 0.0, 0.0, 0.0))
+        override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> = MutableStateFlow(NutritionTotals(0.0, 0.0, 0.0, 0.0))
 
-        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> =
-            MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
+        override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> = MutableStateFlow(FoodDiary(totals = NutritionTotals(0.0, 0.0, 0.0, 0.0), meals = emptyList()))
 
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
 
         override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
 
-        override fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>> =
-            MutableStateFlow(emptyList())
+        override fun observeSameAsYesterday(mealType: String, date: LocalDate): Flow<List<SavedFoodItem>> = MutableStateFlow(emptyList())
 
         override suspend fun logSavedFood(input: SavedFoodLogInput): String = ""
 

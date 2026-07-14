@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
@@ -59,6 +60,17 @@ interface HealthDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertHealthConnectSyncState(state: HealthConnectSyncStateEntity)
+
+    @Transaction
+    suspend fun persistHealthConnectImport(
+        summary: DailyHealthSummaryEntity,
+        bodyMetrics: List<BodyMetricEntity>,
+        syncState: HealthConnectSyncStateEntity,
+    ) {
+        upsertDailySummary(summary)
+        bodyMetrics.forEach { metric -> upsertBodyMetric(metric) }
+        upsertHealthConnectSyncState(syncState)
+    }
 
     @Query(
         "UPDATE health_connect_sync_state SET preferredStepsPackage = :packageName " +

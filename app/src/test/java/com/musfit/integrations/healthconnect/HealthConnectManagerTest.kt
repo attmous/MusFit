@@ -19,6 +19,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectDailyReadResult
+import com.musfit.domain.health.HealthConnectMetric
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
@@ -29,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
+import java.util.concurrent.CancellationException
 
 @RunWith(RobolectricTestRunner::class)
 class HealthConnectManagerTest {
@@ -42,8 +45,9 @@ class HealthConnectManagerTest {
             factory = factory,
         )
 
-        val summary = manager.readDailySummary(LocalDate.of(2026, 6, 20))
+        val result = manager.readDailySummary(LocalDate.of(2026, 6, 20))
 
+        assertEquals(HealthConnectDailyReadResult.Unavailable::class, result::class)
         assertEquals(
             ImportedDailyHealthSummary(
                 steps = null,
@@ -59,7 +63,7 @@ class HealthConnectManagerTest {
                 hrvRmssdMillis = null,
                 bodyMetrics = emptyList(),
             ),
-            summary,
+            result.summary,
         )
         assertEquals(0, factory.createCount)
     }
@@ -119,7 +123,7 @@ class HealthConnectManagerTest {
     }
 
     @Test
-    fun readDailySummary_reportsZeroSteps_whenPermissionGrantedButNoStepRecordsExist() = runTest {
+    fun readDailySummary_reportsLegitimateEmpty_whenPermissionGrantedButNoStepRecordsExist() = runTest {
         val client = FakeHealthConnectClientAdapter(steps = null)
         val factory = FakeClientFactory(client)
         val manager = managerWith(
@@ -130,9 +134,10 @@ class HealthConnectManagerTest {
             factory = factory,
         )
 
-        val summary = manager.readDailySummary(LocalDate.of(2026, 7, 3))
+        val result = manager.readDailySummary(LocalDate.of(2026, 7, 3))
 
-        assertEquals(0L, summary.steps)
+        assertEquals(HealthConnectDailyReadResult.Empty::class, result::class)
+        assertNull(result.steps)
         assertEquals(1, client.stepsCalls)
     }
 
@@ -338,6 +343,88 @@ class HealthConnectManagerTest {
         assertEquals(1, client.latestBodyFatMetricCalls)
         assertEquals(1, client.restingHeartRateCalls)
         assertEquals(1, client.hrvCalls)
+    }
+
+    @Test
+    fun readDailySummary_returnsPartialResultWhenOneGrantedMetricFails() = runTest {
+        val client = FakeHealthConnectClientAdapter(
+            steps = 8_500L,
+            activeCaloriesFailure = IllegalStateException("provider read failed"),
+        )
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission(), readActiveCaloriesPermission()),
+            ),
+            factory = FakeClientFactory(client),
+        )
+
+        val result = manager.readDailySummary(LocalDate.of(2026, 7, 14))
+        val partial = result as HealthConnectDailyReadResult.Partial
+
+        assertEquals(8_500L, partial.summary.steps)
+        assertEquals(setOf(HealthConnectMetric.Steps), partial.completedMetrics)
+        assertEquals(setOf(HealthConnectMetric.ActiveCalories), partial.failures.map { it.metric }.toSet())
+    }
+
+    @Test
+    fun readDailySummary_returnsFailureWhenEveryGrantedMetricFails() = runTest {
+        val client = FakeHealthConnectClientAdapter(
+            stepsFailure = IllegalStateException("provider read failed"),
+        )
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission()),
+            ),
+            factory = FakeClientFactory(client),
+        )
+
+        val result = manager.readDailySummary(LocalDate.of(2026, 7, 14))
+
+        assertEquals(HealthConnectDailyReadResult.Failure::class, result::class)
+        assertEquals("provider read failed", (result as HealthConnectDailyReadResult.Failure).message)
+    }
+
+    @Test
+    fun readDailySummary_distinguishesRevokedPermissionsFromLegitimateEmpty() = runTest {
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = emptySet(),
+            ),
+            factory = FakeClientFactory(),
+        )
+
+        val result = manager.readDailySummary(LocalDate.of(2026, 7, 14))
+        val unavailable = result as HealthConnectDailyReadResult.Unavailable
+
+        assertEquals(com.musfit.domain.health.HealthConnectUnavailableReason.PermissionsUnavailable, unavailable.reason)
+    }
+
+    @Test
+    fun readDailySummary_rethrowsCancellationWithinOneSecond() = runTest {
+        val client = FakeHealthConnectClientAdapter(
+            stepsFailure = CancellationException("cancelled by caller"),
+        )
+        val manager = managerWith(
+            status = HealthConnectStatus(
+                availability = HealthConnectAvailability.Available,
+                grantedPermissions = setOf(readStepsPermission()),
+            ),
+            factory = FakeClientFactory(client),
+        )
+
+        val startedAt = System.nanoTime()
+        var cancellation: CancellationException? = null
+        try {
+            manager.readDailySummary(LocalDate.of(2026, 7, 14))
+        } catch (caught: CancellationException) {
+            cancellation = caught
+        }
+
+        assertEquals("cancelled by caller", cancellation?.message)
+        assertEquals(true, (System.nanoTime() - startedAt) / 1_000_000 < 1_000L)
     }
 
     @Test
@@ -594,6 +681,8 @@ class HealthConnectManagerTest {
         private val restingHeartRateBpm: Long? = null,
         private val hrvRmssdMillis: Double? = null,
         private val insertedRecordId: String? = "exported-record-id",
+        private val stepsFailure: Throwable? = null,
+        private val activeCaloriesFailure: Throwable? = null,
     ) : HealthConnectClientAdapter {
         var stepsCalls: Int = 0
             private set
@@ -634,6 +723,7 @@ class HealthConnectManagerTest {
 
         override suspend fun aggregateSteps(range: HealthConnectTimeRange): Long? {
             stepsCalls += 1
+            stepsFailure?.let { throw it }
             return steps
         }
 
@@ -653,6 +743,7 @@ class HealthConnectManagerTest {
 
         override suspend fun aggregateActiveCalories(range: HealthConnectTimeRange): Double? {
             activeCaloriesCalls += 1
+            activeCaloriesFailure?.let { throw it }
             return activeCaloriesKcal
         }
 

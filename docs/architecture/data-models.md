@@ -120,9 +120,12 @@ persistence or UI exposure.
 `HealthConnectGateway`, its payload/result types, record mapper, and Android
 manager live under `integrations/healthconnect`. Repository models decide what
 the app stores and displays; platform record types should remain at the
-integration boundary. The architecture audit documents current dependency and
-sync-correctness gaps, so consult its Health Connect packages before changing
-these contracts.
+integration boundary. Daily reads return metric-aware complete, partial, empty,
+unavailable, or failure results. `HealthRepository` uses the successful-metric
+set to clear confirmed-empty fields, preserve only failed/ungranted fields, and
+atomically persist summaries, body metrics, and sync state. Cancellation is
+control flow and must never be converted to a result or stale success. Provider
+deletion reconciliation beyond the daily cache remains owned by W3-HC-03.
 
 ## Schema And Migration Contract
 

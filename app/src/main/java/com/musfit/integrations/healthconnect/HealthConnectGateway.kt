@@ -2,8 +2,8 @@ package com.musfit.integrations.healthconnect
 
 import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.domain.health.HealthConnectDailyReadResult
 import com.musfit.domain.health.HealthConnectStatus
-import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.health.StepSource
 import java.time.LocalDate
 
@@ -20,7 +20,7 @@ interface HealthConnectGateway {
     suspend fun readDailySummary(
         date: LocalDate,
         preferredStepsPackage: String? = null,
-    ): ImportedDailyHealthSummary
+    ): HealthConnectDailyReadResult
 
     /** Per-origin step totals for [date], so the user can choose which source MusFit mirrors. */
     suspend fun readStepSources(date: LocalDate): List<StepSource> = emptyList()
