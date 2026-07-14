@@ -12,6 +12,8 @@ import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecordType
+import com.musfit.integrations.healthconnect.HealthConnectDeleteFailure
 import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -118,6 +120,70 @@ class LocalAccountErasureRepositoryTest {
         assertNotNull(database.aiCoachDao().getSettings("account-a"))
         assertEquals("secret-a", secrets.getApiKey("account-a"))
         assertEquals(listOf("account-a"), health.deletedAccountIds)
+    }
+
+    @Test
+    fun eraseActiveAccount_emptyDatabaseCreatesValidLocalFallback() = runTest {
+        val result = repository.erase(
+            AccountErasureRequest(AccountErasureScope.ActiveAccount, deleteAuthoredHealthRecords = false),
+        )
+
+        assertEquals(AccountErasureResult.Complete(LOCAL_DEFAULT_ACCOUNT_ID), result)
+        assertEquals(LOCAL_DEFAULT_ACCOUNT_ID, database.accountDao().getActiveAccount()?.id)
+        assertEquals(50_000L, database.accountDao().getActiveAccount()?.createdAtEpochMillis)
+    }
+
+    @Test
+    fun eraseAll_withSuccessfulHealthCleanupDeletesEveryTargetBeforeLocalErasure() = runTest {
+        seedAccount("account-a", updatedAt = 20L)
+        seedAccount("account-b", updatedAt = 10L)
+        activate("account-a")
+
+        val result = repository.erase(
+            AccountErasureRequest(AccountErasureScope.AllAccounts, deleteAuthoredHealthRecords = true),
+        )
+
+        assertEquals(AccountErasureResult.Complete(LOCAL_DEFAULT_ACCOUNT_ID), result)
+        assertEquals(listOf("account-a", "account-b"), health.deletedAccountIds)
+        assertEquals(listOf(LOCAL_DEFAULT_ACCOUNT_ID), database.accountErasureDao().getAccounts().map { it.id })
+    }
+
+    @Test
+    fun requestedHealthCleanup_partialFailurePreservesLocalDataAndReportsRetry() = runTest {
+        seedAccount("account-a", updatedAt = 20L)
+        activate("account-a")
+        health.deleteResult = HealthConnectDeleteResult.Partial(
+            deletedRecords = emptySet(),
+            failures = listOf(
+                HealthConnectDeleteFailure(HealthConnectAuthoredRecordType.Workout, "provider failure"),
+            ),
+        )
+
+        val result = repository.erase(
+            AccountErasureRequest(AccountErasureScope.ActiveAccount, deleteAuthoredHealthRecords = true),
+        )
+
+        assertEquals(
+            AccountErasureResult.HealthCleanupFailed(
+                "Health Connect deleted some MusFit records, but 1 failed. Retry before erasing local data.",
+            ),
+            result,
+        )
+        assertNotNull(database.accountDao().getAccount("account-a"))
+    }
+
+    @Test
+    fun requestedHealthCleanup_unavailablePreservesLocalDataAndMessage() = runTest {
+        seedAccount("account-a", updatedAt = 20L)
+        activate("account-a")
+        health.deleteResult = HealthConnectDeleteResult.Unavailable("Health Connect is unavailable.")
+
+        val result = repository.erase(
+            AccountErasureRequest(AccountErasureScope.ActiveAccount, deleteAuthoredHealthRecords = true),
+        )
+
+        assertEquals(AccountErasureResult.HealthCleanupFailed("Health Connect is unavailable."), result)
+        assertNotNull(database.accountDao().getAccount("account-a"))
     }
 
     private suspend fun seedAccount(id: String, updatedAt: Long) {

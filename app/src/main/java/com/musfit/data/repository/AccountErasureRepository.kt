@@ -129,16 +129,10 @@ class LocalAccountErasureRepository @Inject constructor(
     }
 
     private suspend fun ensureFallbackAccount(): String = database.withTransaction {
-        val existing = accountErasureDao.getMostRecentlyUpdatedAccount()
-        if (existing != null) {
-            accountErasureDao.upsertSession(existing.toSession(clock()))
-            existing.id
-        } else {
-            val fallback = newFallbackAccount()
-            accountErasureDao.upsertAccount(fallback)
-            accountErasureDao.upsertSession(fallback.toSession(clock()))
-            fallback.id
-        }
+        val fallback = newFallbackAccount()
+        accountErasureDao.upsertAccount(fallback)
+        accountErasureDao.upsertSession(fallback.toSession(clock()))
+        fallback.id
     }
 
     private fun newFallbackAccount(): AccountEntity {
