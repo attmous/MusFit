@@ -2,8 +2,10 @@ package com.musfit.data.repository
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.local.MusFitDatabase
+import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.ExerciseEntity
 import com.musfit.data.local.entity.HealthConnectExportRecordEntity
@@ -39,6 +41,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
 import java.util.concurrent.CancellationException
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 
 private const val TEST_ACCOUNT_ID = "local-default"
 
@@ -49,6 +53,7 @@ class LocalHealthRepositoryTest {
     private lateinit var repository: LocalHealthRepository
     private lateinit var accountRepository: LocalAccountRepository
     private var now: Long = 1_000L
+    private val executedSql = CopyOnWriteArrayList<String>()
 
     @Before
     fun setUp() {
@@ -57,6 +62,10 @@ class LocalHealthRepositoryTest {
         database =
             Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
                 .allowMainThreadQueries()
+                .setQueryCallback(
+                    RoomDatabase.QueryCallback { sqlQuery, _ -> executedSql += sqlQuery },
+                    Executor { command -> command.run() },
+                )
                 .build()
         gateway = FakeHealthConnectGateway()
         accountRepository = LocalAccountRepository(database.accountDao(), clock = { 1_000L })
@@ -237,6 +246,132 @@ class LocalHealthRepositoryTest {
         assertNull(database.healthDao().getDailySummary(TEST_ACCOUNT_ID, date.toEpochDay()))
         assertNull(syncState?.lastImportAtEpochMillis)
         assertEquals(true, syncState?.isAvailable)
+        assertEquals("Health Connect read permissions are unavailable.", syncState?.lastFailureMessage)
+    }
+
+    @Test
+    fun importDailySummary_providerDeletionRemovesOnlyStaleHealthConnectBodyMetric() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val measuredAt = date.toEpochDay() * 86_400_000L + 12 * 60 * 60 * 1_000L
+        val providerWeight = bodyMetric("provider-weight", "weight", "health_connect", measuredAt)
+        val manualWeight = bodyMetric("manual-weight", "weight", "manual", measuredAt + 1)
+        val providerBodyFat = bodyMetric("provider-body-fat", "body_fat", "health_connect", measuredAt + 2)
+        database.healthDao().upsertBodyMetric(providerWeight)
+        database.healthDao().upsertBodyMetric(manualWeight)
+        database.healthDao().upsertBodyMetric(providerBodyFat)
+        database.healthDao().upsertDailySummary(
+            DailyHealthSummaryEntity(
+                accountId = TEST_ACCOUNT_ID,
+                dateEpochDay = date.toEpochDay(),
+                steps = null,
+                activeCaloriesKcal = null,
+                totalCaloriesKcal = null,
+                distanceMeters = null,
+                sleepMinutes = null,
+                exerciseMinutes = null,
+                exerciseSessionCount = null,
+                latestWeightKg = 82.0,
+                latestBodyFatPercent = 18.0,
+                restingHeartRateBpm = null,
+                hrvRmssdMillis = null,
+                updatedAtEpochMillis = 500L,
+            ),
+        )
+        val status = HealthConnectStatus(HealthConnectAvailability.Available, setOf("weight"))
+        gateway.dailyReadResultFactory = {
+            HealthConnectDailyReadResult.Empty(
+                completedMetrics = setOf(HealthConnectMetric.Weight),
+                status = status,
+            )
+        }
+        executedSql.clear()
+
+        val result = repository.importDailySummary(date)
+
+        assertEquals(HealthConnectImportResult.Cleared::class, result::class)
+        assertEquals(listOf(manualWeight), database.healthDao().getBodyMetrics(TEST_ACCOUNT_ID, "weight", 0L))
+        assertEquals(listOf(providerBodyFat), database.healthDao().getBodyMetrics(TEST_ACCOUNT_ID, "body_fat", 0L))
+        val summary = database.healthDao().getDailySummary(TEST_ACCOUNT_ID, date.toEpochDay())
+        assertNull(summary?.latestWeightKg)
+        assertEquals(18.0, summary?.latestBodyFatPercent ?: 0.0, 0.01)
+
+        repository.importDailySummary(date)
+        assertEquals(listOf(manualWeight), database.healthDao().getBodyMetrics(TEST_ACCOUNT_ID, "weight", 0L))
+    }
+
+    @Test
+    fun importDailySummary_partialReadReconcilesCompletedBodyTypeAndPreservesFailedType() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val measuredAt = date.toEpochDay() * 86_400_000L + 12 * 60 * 60 * 1_000L
+        val staleWeight = bodyMetric("stale-weight", "weight", "health_connect", measuredAt)
+        val retainedBodyFat = bodyMetric("retained-body-fat", "body_fat", "health_connect", measuredAt + 1)
+        database.healthDao().upsertBodyMetric(staleWeight)
+        database.healthDao().upsertBodyMetric(retainedBodyFat)
+        val importedWeight = ImportedBodyMetric(
+            type = "weight",
+            value = 80.5,
+            unit = "kg",
+            measuredAtEpochMillis = measuredAt + 2,
+            externalId = "new-weight",
+        )
+        val status = HealthConnectStatus(HealthConnectAvailability.Available, setOf("weight"))
+        gateway.dailyReadResultFactory = {
+            HealthConnectDailyReadResult.Partial(
+                summary = ImportedDailyHealthSummary(
+                    latestWeightKg = importedWeight.value,
+                    bodyMetrics = listOf(importedWeight),
+                ),
+                completedMetrics = setOf(HealthConnectMetric.Weight),
+                failures = listOf(HealthConnectMetricFailure(HealthConnectMetric.BodyFat, "body fat failed")),
+                status = status,
+            )
+        }
+
+        val result = repository.importDailySummary(date)
+
+        assertEquals(HealthConnectImportResult.Partial::class, result::class)
+        val weights = database.healthDao().getBodyMetrics(TEST_ACCOUNT_ID, "weight", 0L)
+        assertEquals(listOf("health-connect-weight-new-weight"), weights.map { it.id })
+        assertEquals(listOf(retainedBodyFat), database.healthDao().getBodyMetrics(TEST_ACCOUNT_ID, "body_fat", 0L))
+        assertEquals(
+            1,
+            executedSql.count { sql ->
+                sql.contains("SELECT * FROM body_metrics", ignoreCase = true) &&
+                    sql.contains("source = 'health_connect'", ignoreCase = true)
+            },
+        )
+        assertEquals(
+            1,
+            executedSql.count { sql ->
+                sql.contains("DELETE FROM body_metrics", ignoreCase = true) &&
+                    sql.contains("source = 'health_connect'", ignoreCase = true)
+            },
+        )
+    }
+
+    @Test
+    fun importDailySummary_permissionRevocationMarksCacheStaleWithoutDeletingBodyMetrics() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        repository.importDailySummary(date)
+        val measuredAt = date.toEpochDay() * 86_400_000L + 13 * 60 * 60 * 1_000L
+        database.healthDao().upsertBodyMetric(bodyMetric("manual-weight", "weight", "manual", measuredAt))
+        val before = database.healthDao().getBodyMetrics(TEST_ACCOUNT_ID, "weight", 0L)
+        gateway.dailyReadResultFactory = {
+            HealthConnectDailyReadResult.Unavailable(
+                status = HealthConnectStatus(HealthConnectAvailability.Available, emptySet()),
+                reason = HealthConnectUnavailableReason.PermissionsUnavailable,
+                message = "Health Connect read permissions are unavailable.",
+            )
+        }
+        now = 2_000L
+
+        val result = repository.importDailySummary(date)
+
+        assertEquals(HealthConnectImportResult.Unavailable::class, result::class)
+        assertEquals(before, database.healthDao().getBodyMetrics(TEST_ACCOUNT_ID, "weight", 0L))
+        val syncState = database.healthDao().getHealthConnectSyncState(TEST_ACCOUNT_ID)
+        assertEquals(1_000L, syncState?.lastImportAtEpochMillis)
+        assertEquals(emptySet<String>(), syncState?.grantedPermissionsCsv?.split(',')?.filter(String::isNotBlank)?.toSet())
         assertEquals("Health Connect read permissions are unavailable.", syncState?.lastFailureMessage)
     }
 
@@ -975,6 +1110,22 @@ class LocalHealthRepositoryTest {
         payloadFingerprint = "$type-fingerprint",
         providerRecordId = "$type-provider-$localId",
         exportedAtEpochMillis = 900L,
+    )
+
+    private fun bodyMetric(
+        id: String,
+        type: String,
+        source: String,
+        measuredAtEpochMillis: Long,
+    ) = BodyMetricEntity(
+        accountId = TEST_ACCOUNT_ID,
+        id = id,
+        type = type,
+        value = if (type == "weight") 82.0 else 18.0,
+        unit = if (type == "weight") "kg" else "%",
+        measuredAtEpochMillis = measuredAtEpochMillis,
+        source = source,
+        externalId = id,
     )
 
     private suspend fun seedCompletedWorkout() {
