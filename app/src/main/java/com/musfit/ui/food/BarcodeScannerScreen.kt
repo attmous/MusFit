@@ -1,22 +1,17 @@
 package com.musfit.ui.food
 
-import android.Manifest
-import android.content.pm.PackageManager
 import androidx.annotation.OptIn
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCase
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,11 +29,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -76,18 +70,9 @@ fun BarcodeScannerScreen(
     val previewView = remember { PreviewView(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val detectionHandled = remember { AtomicBoolean(false) }
-    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     var boundCamera by remember { mutableStateOf<Camera?>(null) }
     var torchEnabled by remember { mutableStateOf(false) }
-    var hasCameraPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
-        )
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { granted -> hasCameraPermission = granted },
-    )
+    val cameraPermission = rememberCameraPermissionAccess()
     val scanner = remember {
         BarcodeScanning.getClient(
             BarcodeScannerOptions.Builder()
@@ -101,12 +86,6 @@ fun BarcodeScannerScreen(
         )
     }
 
-    LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
     DisposableEffect(scanner, analysisExecutor) {
         onDispose {
             scanner.close()
@@ -114,69 +93,72 @@ fun BarcodeScannerScreen(
         }
     }
 
-    DisposableEffect(lifecycleOwner, hasCameraPermission) {
-        if (hasCameraPermission) {
+    DisposableEffect(lifecycleOwner, cameraPermission.isGranted) {
+        if (cameraPermission.isGranted) {
             val executor = ContextCompat.getMainExecutor(context)
-            cameraProviderFuture.addListener(
-                {
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also { cameraPreview ->
-                        cameraPreview.surfaceProvider = previewView.surfaceProvider
-                    }
-                    val analysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build()
-
-                    analysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                        if (detectionHandled.get()) {
-                            imageProxy.close()
-                            return@setAnalyzer
-                        }
-
-                        val mediaImage = imageProxy.image
-                        if (mediaImage == null) {
-                            imageProxy.close()
-                            return@setAnalyzer
-                        }
-
-                        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                        scanner.process(image)
-                            .addOnSuccessListener { barcodes ->
-                                val barcode = barcodes.firstNotNullOfOrNull { it.rawValue?.trim()?.takeIf(String::isNotBlank) }
-                                if (barcode != null && detectionHandled.compareAndSet(false, true)) {
-                                    analysis.clearAnalyzer()
-                                    cameraProvider.unbindAll()
-                                    onBarcodeDetected(barcode)
-                                }
-                            }
-                            .addOnCompleteListener {
-                                imageProxy.close()
-                            }
-                    }
-
-                    cameraProvider.unbindAll()
-                    boundCamera = cameraProvider.bindToLifecycle(
+            val preview = Preview.Builder().build().also { cameraPreview ->
+                cameraPreview.surfaceProvider = previewView.surfaceProvider
+            }
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+            val session = LifecycleSafeCameraSession<ProcessCameraProvider, UseCase, Camera>(
+                providerFuture = ProcessCameraProvider.getInstance(context),
+                callbackExecutor = executor,
+                bindUseCases = { provider, useCases ->
+                    provider.bindToLifecycle(
                         lifecycleOwner,
                         CameraSelector.DEFAULT_BACK_CAMERA,
-                        preview,
-                        analysis,
+                        useCases[0],
+                        useCases[1],
                     )
                 },
-                executor,
+                unbindUseCases = { provider, useCases -> provider.unbind(useCases[0], useCases[1]) },
+                onFailure = { boundCamera = null },
             )
-        }
+            analysis.setAnalyzer(analysisExecutor) { imageProxy ->
+                if (detectionHandled.get()) {
+                    imageProxy.close()
+                    return@setAnalyzer
+                }
 
-        onDispose {
-            boundCamera = null
-            if (cameraProviderFuture.isDone) {
-                cameraProviderFuture.get().unbindAll()
+                val mediaImage = imageProxy.image
+                if (mediaImage == null) {
+                    imageProxy.close()
+                    return@setAnalyzer
+                }
+
+                val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                scanner.process(image)
+                    .addOnSuccessListener { barcodes ->
+                        val barcode = barcodes.firstNotNullOfOrNull { it.rawValue?.trim()?.takeIf(String::isNotBlank) }
+                        if (barcode != null && detectionHandled.compareAndSet(false, true)) {
+                            analysis.clearAnalyzer()
+                            session.unbindOwned()
+                            onBarcodeDetected(barcode)
+                        }
+                    }
+                    .addOnCompleteListener {
+                        imageProxy.close()
+                    }
             }
+            session.start(listOf(preview, analysis)) { camera -> boundCamera = camera }
+
+            onDispose {
+                boundCamera = null
+                analysis.clearAnalyzer()
+                session.close()
+            }
+        } else {
+            onDispose { }
         }
     }
 
-    if (!hasCameraPermission) {
-        BarcodeScannerPermissionDeniedContent(
-            onGrantCameraAccess = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+    if (!cameraPermission.isGranted) {
+        CameraPermissionDeniedContent(
+            message = "Camera permission is required to scan barcodes.",
+            action = cameraPermission.action,
+            onAction = cameraPermission.performAction,
         )
         return
     }
@@ -249,28 +231,12 @@ fun BarcodeScannerScreen(
 }
 
 @Composable
-internal fun BarcodeScannerPermissionDeniedContent(
-    onGrantCameraAccess: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CameraSurface)
-            .statusBarsPadding()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(
-            text = "Camera permission is required to scan barcodes.",
-            style = MusFitTheme.typography.bodyLarge,
-            color = Cream,
-        )
-        PillButton(
-            text = "Grant camera access",
-            onClick = onGrantCameraAccess,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
+internal fun BarcodeScannerPermissionDeniedContent(onGrantCameraAccess: () -> Unit) {
+    CameraPermissionDeniedContent(
+        message = "Camera permission is required to scan barcodes.",
+        action = CameraPermissionAction.RequestPermission,
+        onAction = onGrantCameraAccess,
+    )
 }
 
 @Composable
