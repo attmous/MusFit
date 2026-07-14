@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,10 +20,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,6 +48,9 @@ import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.BuildConfig
+import com.musfit.data.repository.AccountErasureScope
+import com.musfit.data.repository.AiCoachProviderKind
+import com.musfit.data.repository.UserProfile
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
@@ -56,14 +63,12 @@ import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.transfer.DataTransferActivity
-import com.musfit.data.repository.AiCoachProviderKind
-import com.musfit.data.repository.UserProfile
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.Period
-import kotlinx.coroutines.launch
 
 /** Inner settings surfaces reached from the 11b hub. */
-private enum class SettingsSubPage { AiCoach, HealthConnect }
+private enum class SettingsSubPage { AiCoach, HealthConnect, DataPrivacy }
 
 @Composable
 fun ProfileSettingsScreen(
@@ -88,16 +93,12 @@ fun ProfileSettingsScreen(
             viewModel.reportAiCoachLocalNetworkPermissionDenied()
         }
     }
-    val onTestAiCoach = {
-        if (
-            requiresLocalNetworkPermission(state.aiCoach.baseUrl) &&
-            !hasLocalNetworkPermission(context)
-        ) {
-            localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION)
-        } else {
-            viewModel.testAiCoachConnection()
-        }
-    }
+    val onTestAiCoach = aiCoachTestAction(
+        requiresPermission = requiresLocalNetworkPermission(state.aiCoach.baseUrl),
+        permissionGranted = hasLocalNetworkPermission(context),
+        requestPermission = { localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION) },
+        testConnection = viewModel::testAiCoachConnection,
+    )
 
     LaunchedEffect(Unit) {
         viewModel.refreshStatus()
@@ -106,7 +107,7 @@ fun ProfileSettingsScreen(
 
     // A system/gesture back on an inner settings page returns to the hub instead
     // of popping the whole settings route.
-    BackHandler(enabled = subPage != null) { subPage = null }
+    SettingsBackHandler(subPage) { subPage = null }
 
     when (subPage) {
         SettingsSubPage.AiCoach -> AiCoachSettingsPage(
@@ -131,6 +132,16 @@ fun ProfileSettingsScreen(
             onSelectStepSource = viewModel::selectStepSource,
         )
 
+        SettingsSubPage.DataPrivacy -> DataPrivacySettingsPage(
+            accent = accent,
+            onBack = { subPage = null },
+            onOpenDataTransfer = {
+                context.startActivity(Intent(context, DataTransferActivity::class.java))
+            },
+            onDeleteAccount = { viewModel.openAccountErasure(AccountErasureScope.ActiveAccount) },
+            onDeleteAllData = { viewModel.openAccountErasure(AccountErasureScope.AllAccounts) },
+        )
+
         null -> SettingsHub(
             state = state,
             accent = accent,
@@ -152,7 +163,7 @@ fun ProfileSettingsScreen(
             onOpenAiCoach = { subPage = SettingsSubPage.AiCoach },
             onOpenHealthConnect = { subPage = SettingsSubPage.HealthConnect },
             onOpenDataTransfer = {
-                context.startActivity(Intent(context, DataTransferActivity::class.java))
+                subPage = SettingsSubPage.DataPrivacy
             },
             onIncludeBurnedCaloriesChange = viewModel::setIncludeBurnedCalories,
         )
@@ -183,6 +194,14 @@ fun ProfileSettingsScreen(
             onEmailChange = viewModel::onAccountEmailChanged,
             onDismiss = viewModel::closeAccountEditor,
             onSave = viewModel::saveAccount,
+        )
+    }
+    state.accountErasureScope?.let { scope ->
+        AccountErasureDialog(
+            state = state,
+            onDeleteAuthoredHealthRecordsChange = viewModel::setDeleteAuthoredHealthRecords,
+            onDismiss = viewModel::closeAccountErasure,
+            onConfirm = viewModel::confirmAccountErasure,
         )
     }
     if (state.aiCoachEditorOpen) {
@@ -219,6 +238,20 @@ fun ProfileSettingsScreen(
             onDismiss = viewModel::dismissGitHubDeviceCode,
         )
     }
+}
+
+@Composable
+private fun SettingsBackHandler(subPage: SettingsSubPage?, onBack: () -> Unit) {
+    BackHandler(enabled = subPage != null, onBack = onBack)
+}
+
+private fun aiCoachTestAction(
+    requiresPermission: Boolean,
+    permissionGranted: Boolean,
+    requestPermission: () -> Unit,
+    testConnection: () -> Unit,
+): () -> Unit = {
+    if (requiresPermission && !permissionGranted) requestPermission() else testConnection()
 }
 
 /**
@@ -266,7 +299,7 @@ internal fun SettingsHub(
             ProfileHubRow(
                 title = "Profile details",
                 subtitle = profileDetailsSummary(state.profile),
-                shape = groupedShape(0, 3),
+                shape = groupedShape(0, 4),
                 onClick = onOpenProfileDetails,
                 leading = {
                     ExpressiveBadge(
@@ -284,7 +317,7 @@ internal fun SettingsHub(
                 linked = state.account.providerLabel == "Google",
                 action = signInActions.google,
                 accent = accent,
-                shape = groupedShape(1, 3),
+                shape = groupedShape(1, 4),
                 badgeShape = ExpressiveBadgeShape.Circle,
                 badgeIcon = Icons.Outlined.Link,
                 linkedSubtitle = state.account.email ?: "Linked to this local account",
@@ -295,11 +328,18 @@ internal fun SettingsHub(
                 linked = state.account.providerLabel == "GitHub",
                 action = signInActions.github,
                 accent = accent,
-                shape = groupedShape(2, 3),
+                shape = groupedShape(2, 4),
                 badgeShape = ExpressiveBadgeShape.Squircle,
                 badgeIcon = Icons.Outlined.Code,
                 linkedSubtitle = state.account.email ?: "Linked to this local account",
                 onClick = onGitHubSignIn,
+            )
+            ProfileHubRow(
+                title = "Data & privacy",
+                subtitle = "Local storage, retention and erasure",
+                shape = groupedShape(3, 4),
+                onClick = onOpenDataTransfer,
+                leading = null,
             )
         }
 
@@ -474,13 +514,14 @@ private fun coachConnectionSummary(state: ProfileSettingsUiState): String {
     }
 }
 
-private fun healthConnectionSummary(state: ProfileSettingsUiState): String =
-    when {
-        state.requestablePermissionCount > 0 ->
-            "${state.grantedPermissionCount} of ${state.requestablePermissionCount} permissions"
-        state.availabilityLabel == "Unknown" -> "Checking availability…"
-        else -> state.availabilityLabel
-    }
+private fun healthConnectionSummary(state: ProfileSettingsUiState): String = when {
+    state.requestablePermissionCount > 0 ->
+        "${state.grantedPermissionCount} of ${state.requestablePermissionCount} permissions"
+
+    state.availabilityLabel == "Unknown" -> "Checking availability…"
+
+    else -> state.availabilityLabel
+}
 
 @Composable
 private fun GitHubDeviceCodeDialog(

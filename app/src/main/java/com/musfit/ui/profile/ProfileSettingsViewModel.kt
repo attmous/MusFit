@@ -3,6 +3,10 @@ package com.musfit.ui.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.AccountAuthProvider
+import com.musfit.data.repository.AccountErasureRepository
+import com.musfit.data.repository.AccountErasureRequest
+import com.musfit.data.repository.AccountErasureResult
+import com.musfit.data.repository.AccountErasureScope
 import com.musfit.data.repository.AccountRepository
 import com.musfit.data.repository.AiCoachApiKeyUpdate
 import com.musfit.data.repository.AiCoachChatRepository
@@ -71,6 +75,9 @@ data class ProfileSettingsUiState(
     val accountNameInput: String = "",
     val accountEmailInput: String = "",
     val accountErrorMessage: String? = null,
+    val accountErasureScope: AccountErasureScope? = null,
+    val deleteAuthoredHealthRecords: Boolean = false,
+    val isErasingAccountData: Boolean = false,
     val githubDeviceCode: GitHubDeviceAuthorization? = null,
     val githubSignInInProgress: Boolean = false,
     val isGitHubSignInConfigured: Boolean = false,
@@ -189,6 +196,12 @@ private data class AccountEditorState(
     val errorMessage: String? = null,
 )
 
+private data class AccountErasureState(
+    val scope: AccountErasureScope? = null,
+    val deleteAuthoredHealthRecords: Boolean = false,
+    val inProgress: Boolean = false,
+)
+
 private data class AiCoachEditorState(
     val open: Boolean = false,
     val providerKind: AiCoachProviderKind = AiCoachProviderKind.Disabled,
@@ -199,22 +212,39 @@ private data class AiCoachEditorState(
     val errorMessage: String? = null,
 )
 
+class AccountSettingsRepositories @Inject constructor(
+    val accounts: AccountRepository,
+    val erasure: AccountErasureRepository,
+)
+
+class ProfileSettingsRepositories @Inject constructor(
+    val profile: ProfileRepository,
+    val aiCoach: AiCoachRepository,
+    val aiCoachChat: AiCoachChatRepository,
+    val food: FoodRepository,
+)
+
 @HiltViewModel
 class ProfileSettingsViewModel @Inject constructor(
     private val healthRepository: HealthRepository,
-    private val accountRepository: AccountRepository,
-    private val profileRepository: ProfileRepository,
+    accountRepositories: AccountSettingsRepositories,
+    repositories: ProfileSettingsRepositories,
     private val externalAuthRepository: ExternalAuthRepository,
-    private val aiCoachRepository: AiCoachRepository,
-    private val aiCoachChatRepository: AiCoachChatRepository,
-    private val foodRepository: FoodRepository,
 ) : ViewModel() {
+    private val accountRepository = accountRepositories.accounts
+    private val accountErasureRepository = accountRepositories.erasure
+    private val profileRepository = repositories.profile
+    private val aiCoachRepository = repositories.aiCoach
+    private val aiCoachChatRepository = repositories.aiCoachChat
+    private val foodRepository = repositories.food
+
     // Health Connect fields live in this mutable base; account/profile fields are
     // layered on top of it in the combined [state] below.
     private val mutableState = MutableStateFlow(
         HealthConnectState(isGitHubSignInConfigured = externalAuthRepository.isGitHubConfigured),
     )
     private val accountEditorFlow = MutableStateFlow(AccountEditorState())
+    private val accountErasureFlow = MutableStateFlow(AccountErasureState())
     private val aiCoachEditorFlow = MutableStateFlow(AiCoachEditorState())
 
     init {
@@ -248,13 +278,19 @@ class ProfileSettingsViewModel @Inject constructor(
         aiCoachEditorFlow,
     ) { settings, editor -> settings.toUiState() to editor }
 
-    val state: StateFlow<ProfileSettingsUiState> = combine(
-        mutableState,
+    private val accountState = combine(
         accountRepository.observeActiveAccount(),
         accountEditorFlow,
+        accountErasureFlow,
+    ) { account, editor, erasure -> Triple(account, editor, erasure) }
+
+    val state: StateFlow<ProfileSettingsUiState> = combine(
+        mutableState,
+        accountState,
         profileState,
         aiCoachState,
-    ) { base, account, editor, profilePair, aiCoachPair ->
+    ) { base, accountTriple, profilePair, aiCoachPair ->
+        val (account, editor, erasure) = accountTriple
         val (profile, latestWeight) = profilePair
         val (aiCoach, aiCoachEditor) = aiCoachPair
         ProfileSettingsUiState(
@@ -273,6 +309,9 @@ class ProfileSettingsViewModel @Inject constructor(
             accountNameInput = editor.nameInput,
             accountEmailInput = editor.emailInput,
             accountErrorMessage = editor.errorMessage,
+            accountErasureScope = erasure.scope,
+            deleteAuthoredHealthRecords = erasure.deleteAuthoredHealthRecords,
+            isErasingAccountData = erasure.inProgress,
             githubDeviceCode = base.githubDeviceCode,
             githubSignInInProgress = base.githubSignInInProgress,
             isGitHubSignInConfigured = base.isGitHubSignInConfigured,
@@ -475,6 +514,57 @@ class ProfileSettingsViewModel @Inject constructor(
 
     fun closeAccountEditor() {
         accountEditorFlow.value = AccountEditorState()
+    }
+
+    fun openAccountErasure(scope: AccountErasureScope) {
+        accountErasureFlow.value = AccountErasureState(scope = scope)
+    }
+
+    fun closeAccountErasure() {
+        if (!accountErasureFlow.value.inProgress) {
+            accountErasureFlow.value = AccountErasureState()
+        }
+    }
+
+    fun setDeleteAuthoredHealthRecords(enabled: Boolean) {
+        accountErasureFlow.update { it.copy(deleteAuthoredHealthRecords = enabled) }
+    }
+
+    fun confirmAccountErasure() {
+        val pending = accountErasureFlow.value
+        val scope = pending.scope ?: return
+        if (pending.inProgress) return
+        accountErasureFlow.update { it.copy(inProgress = true) }
+        viewModelScope.launch {
+            val result = runCatching {
+                accountErasureRepository.erase(
+                    AccountErasureRequest(scope, pending.deleteAuthoredHealthRecords),
+                )
+            }.getOrElse { error ->
+                accountErasureFlow.update { it.copy(inProgress = false) }
+                mutableState.update { it.copy(message = error.message ?: "Data erasure failed.") }
+                return@launch
+            }
+            when (result) {
+                is AccountErasureResult.Complete -> {
+                    accountErasureFlow.value = AccountErasureState()
+                    mutableState.update {
+                        it.copy(
+                            message = if (scope == AccountErasureScope.AllAccounts) {
+                                "All local MusFit data was erased. A fresh local account is ready."
+                            } else {
+                                "The account and its local MusFit data were erased."
+                            },
+                        )
+                    }
+                }
+
+                is AccountErasureResult.HealthCleanupFailed -> {
+                    accountErasureFlow.update { it.copy(inProgress = false) }
+                    mutableState.update { it.copy(message = result.message) }
+                }
+            }
+        }
     }
 
     fun onAccountNameChanged(value: String) {

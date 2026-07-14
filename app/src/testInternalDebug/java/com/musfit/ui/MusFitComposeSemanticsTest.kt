@@ -308,8 +308,12 @@ class MusFitComposeSemanticsTest {
         compose.onNodeWithText("AI coach").performScrollTo().performClick()
         compose.onNodeWithText("Health Connect").performScrollTo().performClick()
         compose.onNodeWithText("Data transfer").performScrollTo().performClick()
+        compose.onNodeWithText("Data & privacy").performScrollTo().performClick()
 
-        assertEquals(listOf("profile", "coach", "health", "transfer"), actions)
+        assertEquals(
+            listOf("profile", "coach", "health", "transfer", "transfer"),
+            actions,
+        )
     }
 
     @Test

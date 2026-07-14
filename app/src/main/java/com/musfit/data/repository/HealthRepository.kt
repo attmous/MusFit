@@ -85,7 +85,7 @@ interface HealthRepository {
     suspend fun exportLatestWorkout(): String?
 
     /** Deletes only records allowlisted by MusFit's authored-export ledger. */
-    suspend fun deleteAuthoredRecords(): HealthConnectDeleteResult = HealthConnectDeleteResult.Failure("Health Connect authored-record deletion is not implemented.")
+    suspend fun deleteAuthoredRecords(accountId: String? = null): HealthConnectDeleteResult = HealthConnectDeleteResult.Failure("Health Connect authored-record deletion is not implemented.")
 
     fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> = flowOf(emptyList())
 
@@ -398,18 +398,18 @@ class LocalHealthRepository @Inject constructor(
         return recordId
     }
 
-    override suspend fun deleteAuthoredRecords(): HealthConnectDeleteResult {
-        val accountId = accountRepository.ensureActiveAccount().id
+    override suspend fun deleteAuthoredRecords(accountId: String?): HealthConnectDeleteResult {
+        val resolvedAccountId = accountId ?: accountRepository.ensureActiveAccount().id
         val ledgerRecords = listOf(
             HEALTH_EXPORT_TYPE_WORKOUT,
             HEALTH_EXPORT_TYPE_NUTRITION,
             HEALTH_EXPORT_TYPE_HYDRATION,
-        ).flatMap { recordType -> healthDao.getHealthConnectExportRecords(accountId, recordType) }
+        ).flatMap { recordType -> healthDao.getHealthConnectExportRecords(resolvedAccountId, recordType) }
         val authoredRecords = ledgerRecords.mapNotNullTo(linkedSetOf()) { it.toAuthoredRecordOrNull() }
         if (authoredRecords.isEmpty()) return HealthConnectDeleteResult.Complete(emptySet())
 
         val result = gateway.deleteAuthoredRecords(authoredRecords)
-        removeConfirmedAuthoredRecords(accountId, ledgerRecords, result.deletedRecords)
+        removeConfirmedAuthoredRecords(resolvedAccountId, ledgerRecords, result.deletedRecords)
         return result
     }
 

@@ -12,15 +12,6 @@ import com.musfit.data.local.MusFitDatabase
 import com.musfit.data.remote.coach.HermesCoachClient
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.InetAddress
-import java.net.ServerSocket
-import java.net.SocketTimeoutException
-import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
@@ -30,9 +21,37 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.SocketTimeoutException
+import java.security.KeyStore
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
 class AndroidKeyStoreAiCoachSecretStoreInstrumentationTest {
+    @Test
+    fun clearAll_removesEncryptedPreferencesAndSharedKeystoreEntry() = runBlocking {
+        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = AndroidKeyStoreAiCoachSecretStore(targetContext)
+        val first = "erase-all-first-${UUID.randomUUID()}"
+        val second = "erase-all-second-${UUID.randomUUID()}"
+
+        store.saveApiKey(first, "first-secret")
+        store.saveApiKey(second, "second-secret")
+        assertTrue(androidKeyStore().containsAlias(KEY_ALIAS))
+
+        store.clearAll(listOf(first, second))
+
+        assertNull(store.getApiKey(first))
+        assertNull(store.getApiKey(second))
+        assertFalse(androidKeyStore().containsAlias(KEY_ALIAS))
+    }
+
     @Test
     fun freshInstallHasNoImplicitHermesCredential() = runBlocking {
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
@@ -229,10 +248,16 @@ class AndroidKeyStoreAiCoachSecretStoreInstrumentationTest {
             aiCoachDao = database.aiCoachDao(),
             accountRepository = LocalAccountRepository(
                 accountDao = database.accountDao(),
-                clock = { clock += 1_000L; clock },
+                clock = {
+                    clock += 1_000L
+                    clock
+                },
             ),
             secretStore = secretStore,
-            clock = { clock += 1_000L; clock },
+            clock = {
+                clock += 1_000L
+                clock
+            },
         )
     }
 
@@ -286,5 +311,8 @@ class AndroidKeyStoreAiCoachSecretStoreInstrumentationTest {
     private companion object {
         const val DEFAULT_ACCOUNT_ID = "local-default"
         const val PREFERENCES_NAME = "ai_coach_secrets"
+        const val KEY_ALIAS = "musfit_ai_coach_api_key"
     }
+
+    private fun androidKeyStore(): KeyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 }
