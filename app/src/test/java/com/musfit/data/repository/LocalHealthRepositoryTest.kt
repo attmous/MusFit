@@ -68,8 +68,8 @@ class LocalHealthRepositoryTest {
 
         repository.importDailySummary(date)
 
-        val summary = database.healthDao().observeDailySummary(date.toEpochDay()).first()
-        val syncState = database.healthDao().observeHealthConnectSyncState().first()
+        val summary = database.healthDao().observeDailySummary(TEST_ACCOUNT_ID, date.toEpochDay()).first()
+        val syncState = database.healthDao().observeHealthConnectSyncState(TEST_ACCOUNT_ID).first()
 
         assertEquals(1234L, summary?.steps)
         assertEquals(250.0, summary?.activeCaloriesKcal ?: 0.0, 0.01)
@@ -83,8 +83,8 @@ class LocalHealthRepositoryTest {
         assertEquals(58L, summary?.restingHeartRateBpm)
         assertEquals(62.5, summary?.hrvRmssdMillis ?: 0.0, 0.01)
         assertEquals(1_000L, summary?.updatedAtEpochMillis)
-        val weights = database.healthDao().getBodyMetrics("weight", 0L)
-        val bodyFat = database.healthDao().getBodyMetrics("body_fat", 0L)
+        val weights = database.healthDao().getBodyMetrics(TEST_ACCOUNT_ID, "weight", 0L)
+        val bodyFat = database.healthDao().getBodyMetrics(TEST_ACCOUNT_ID, "body_fat", 0L)
         assertEquals(1, weights.size)
         assertEquals(82.5, weights.single().value, 0.01)
         assertEquals("health_connect", weights.single().source)
@@ -102,6 +102,7 @@ class LocalHealthRepositoryTest {
         val date = LocalDate.of(2026, 6, 20)
         database.healthDao().upsertDailySummary(
             DailyHealthSummaryEntity(
+                accountId = TEST_ACCOUNT_ID,
                 dateEpochDay = date.toEpochDay(),
                 steps = 7_800L,
                 activeCaloriesKcal = 360.0,
@@ -121,7 +122,7 @@ class LocalHealthRepositoryTest {
 
         repository.importDailySummary(date)
 
-        val summary = database.healthDao().observeDailySummary(date.toEpochDay()).first()
+        val summary = database.healthDao().observeDailySummary(TEST_ACCOUNT_ID, date.toEpochDay()).first()
         assertEquals(7_800L, summary?.steps)
         assertEquals(360.0, summary?.activeCaloriesKcal ?: 0.0, 0.01)
         assertEquals(2_150.0, summary?.totalCaloriesKcal ?: 0.0, 0.01)
@@ -197,7 +198,38 @@ class LocalHealthRepositoryTest {
         )
         assertEquals(7, result.importedDayCount)
         assertEquals(14, result.bodyMetricCount)
-        assertEquals(7, database.healthDao().observeDailySummariesInRange(anchor.minusDays(6).toEpochDay(), anchor.toEpochDay()).first().size)
+        assertEquals(
+            7,
+            database.healthDao().observeDailySummariesInRange(
+                TEST_ACCOUNT_ID,
+                anchor.minusDays(6).toEpochDay(),
+                anchor.toEpochDay(),
+            ).first().size,
+        )
+    }
+
+    @Test
+    fun healthState_followsActiveAccountWithoutCrossAccountLeakage() = runTest {
+        val date = LocalDate.of(2026, 6, 20)
+        val firstAccount = accountRepository.ensureActiveAccount()
+        repository.importDailySummary(date)
+        repository.setPreferredStepsPackage("com.samsung.health")
+
+        val secondAccountId = accountRepository.createAccount("Partner")
+        accountRepository.switchAccount(secondAccountId)
+
+        assertNull(repository.observeDailySummary(date).first())
+        assertEquals(emptyList<Any>(), repository.observeWeightSeries(0L).first())
+        assertNull(repository.observePreferredStepsPackage().first())
+        repository.setPreferredStepsPackage("com.google.android.apps.fitness")
+
+        accountRepository.switchAccount(firstAccount.id)
+        assertEquals(1234L, repository.observeDailySummary(date).first()?.steps)
+        assertEquals(1, repository.observeWeightSeries(0L).first().size)
+        assertEquals("com.samsung.health", repository.observePreferredStepsPackage().first())
+
+        accountRepository.switchAccount(secondAccountId)
+        assertEquals("com.google.android.apps.fitness", repository.observePreferredStepsPackage().first())
     }
 
     @Test
@@ -247,7 +279,7 @@ class LocalHealthRepositoryTest {
         val recordId = repository.exportLatestWorkout()
 
         val savedSession = database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-1")
-        val syncState = database.healthDao().observeHealthConnectSyncState().first()
+        val syncState = database.healthDao().observeHealthConnectSyncState(TEST_ACCOUNT_ID).first()
 
         assertEquals("record-id", recordId)
         assertEquals("session-1", gateway.exportedSession?.id)

@@ -69,6 +69,7 @@ object DatabaseModule {
                 MIGRATION_35_36,
                 MIGRATION_36_37,
                 MIGRATION_37_38,
+                MIGRATION_38_39,
             )
             .build()
     }
@@ -1478,6 +1479,149 @@ object DatabaseModule {
             }
         }
 
+    internal val MIGRATION_38_39 =
+        object : Migration(38, 39) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO accounts (
+                        id, displayName, email, remoteUserId, authProvider, avatarUrl,
+                        createdAtEpochMillis, updatedAtEpochMillis
+                    ) VALUES ('local-default', 'You', NULL, NULL, 'local', NULL, 0, 0)
+                    """.trimIndent(),
+                )
+
+                listOf(
+                    "body_metrics",
+                    "daily_health_summaries",
+                    "health_connect_sync_state",
+                    "coach_messages",
+                    "dashboard_pins",
+                ).forEach { table -> db.execSQL("ALTER TABLE `$table` RENAME TO `${table}_legacy`") }
+
+                db.execSQL(
+                    """
+                    CREATE TABLE body_metrics (
+                        accountId TEXT NOT NULL, id TEXT NOT NULL, type TEXT NOT NULL,
+                        value REAL NOT NULL, unit TEXT NOT NULL, measuredAtEpochMillis INTEGER NOT NULL,
+                        source TEXT NOT NULL, externalId TEXT, PRIMARY KEY(accountId, id),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE daily_health_summaries (
+                        accountId TEXT NOT NULL, dateEpochDay INTEGER NOT NULL, steps INTEGER,
+                        activeCaloriesKcal REAL, totalCaloriesKcal REAL, distanceMeters REAL,
+                        sleepMinutes INTEGER, exerciseMinutes INTEGER, exerciseSessionCount INTEGER,
+                        latestWeightKg REAL, latestBodyFatPercent REAL, restingHeartRateBpm INTEGER,
+                        hrvRmssdMillis REAL, updatedAtEpochMillis INTEGER NOT NULL,
+                        PRIMARY KEY(accountId, dateEpochDay),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE health_connect_sync_state (
+                        accountId TEXT NOT NULL, key TEXT NOT NULL, isAvailable INTEGER NOT NULL,
+                        grantedPermissionsCsv TEXT NOT NULL, lastImportAtEpochMillis INTEGER,
+                        lastExportAtEpochMillis INTEGER, lastFailureMessage TEXT,
+                        preferredStepsPackage TEXT, PRIMARY KEY(accountId, key),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE coach_messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, accountId TEXT NOT NULL,
+                        dayEpochDay INTEGER NOT NULL, ruleKey TEXT NOT NULL, category TEXT NOT NULL,
+                        title TEXT NOT NULL, body TEXT NOT NULL, actionType TEXT, actionData TEXT,
+                        firstSeenAtEpochMillis INTEGER NOT NULL, isRead INTEGER NOT NULL,
+                        isDismissed INTEGER NOT NULL, source TEXT NOT NULL,
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE dashboard_pins (
+                        accountId TEXT NOT NULL, metricId TEXT NOT NULL, position INTEGER NOT NULL,
+                        PRIMARY KEY(accountId, metricId),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+
+                db.execSQL(
+                    """
+                    INSERT INTO body_metrics (
+                        accountId, id, type, value, unit, measuredAtEpochMillis, source, externalId
+                    ) SELECT 'local-default', id, type, value, unit, measuredAtEpochMillis, source, externalId
+                    FROM body_metrics_legacy
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO daily_health_summaries (
+                        accountId, dateEpochDay, steps, activeCaloriesKcal, totalCaloriesKcal,
+                        distanceMeters, sleepMinutes, exerciseMinutes, exerciseSessionCount,
+                        latestWeightKg, latestBodyFatPercent, restingHeartRateBpm,
+                        hrvRmssdMillis, updatedAtEpochMillis
+                    ) SELECT 'local-default', dateEpochDay, steps, activeCaloriesKcal,
+                        totalCaloriesKcal, distanceMeters, sleepMinutes, exerciseMinutes,
+                        exerciseSessionCount, latestWeightKg, latestBodyFatPercent,
+                        restingHeartRateBpm, hrvRmssdMillis, updatedAtEpochMillis
+                    FROM daily_health_summaries_legacy
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO health_connect_sync_state (
+                        accountId, `key`, isAvailable, grantedPermissionsCsv,
+                        lastImportAtEpochMillis, lastExportAtEpochMillis, lastFailureMessage,
+                        preferredStepsPackage
+                    ) SELECT 'local-default', `key`, isAvailable, grantedPermissionsCsv,
+                        lastImportAtEpochMillis, lastExportAtEpochMillis, lastFailureMessage,
+                        preferredStepsPackage FROM health_connect_sync_state_legacy
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO coach_messages (
+                        id, accountId, dayEpochDay, ruleKey, category, title, body, actionType,
+                        actionData, firstSeenAtEpochMillis, isRead, isDismissed, source
+                    ) SELECT id, 'local-default', dayEpochDay, ruleKey, category, title, body,
+                        actionType, actionData, firstSeenAtEpochMillis, isRead, isDismissed, source
+                    FROM coach_messages_legacy
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO dashboard_pins(accountId, metricId, position)
+                    SELECT 'local-default', metricId, position FROM dashboard_pins_legacy
+                    """.trimIndent(),
+                )
+
+                listOf(
+                    "body_metrics",
+                    "daily_health_summaries",
+                    "health_connect_sync_state",
+                    "coach_messages",
+                    "dashboard_pins",
+                ).forEach { table -> db.execSQL("DROP TABLE `${table}_legacy`") }
+
+                listOf(
+                    "CREATE INDEX index_body_metrics_accountId_type_measuredAtEpochMillis ON body_metrics(accountId, type, measuredAtEpochMillis)",
+                    "CREATE UNIQUE INDEX index_coach_messages_accountId_dayEpochDay_ruleKey_source ON coach_messages(accountId, dayEpochDay, ruleKey, source)",
+                    "CREATE INDEX index_coach_messages_accountId_dayEpochDay_firstSeenAtEpochMillis ON coach_messages(accountId, dayEpochDay, firstSeenAtEpochMillis)",
+                    "CREATE INDEX index_dashboard_pins_accountId_position ON dashboard_pins(accountId, position)",
+                ).forEach(db::execSQL)
+            }
+        }
+
     /**
      * The exact migration instances registered by production, exposed for
      * framework-SQLite tests. Keep this ordered, gap-free, and synchronized
@@ -1522,5 +1666,6 @@ object DatabaseModule {
             MIGRATION_35_36,
             MIGRATION_36_37,
             MIGRATION_37_38,
+            MIGRATION_38_39,
         )
 }

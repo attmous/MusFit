@@ -10,6 +10,7 @@ import com.musfit.domain.coach.CoachMessageCandidate
 import com.musfit.domain.coach.CoachMessageCategory
 import com.musfit.domain.today.TodayMetric
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -25,6 +26,7 @@ import java.time.LocalDate
 class LocalCoachRepositoryTest {
     private lateinit var database: MusFitDatabase
     private lateinit var repository: LocalCoachRepository
+    private lateinit var accountRepository: LocalAccountRepository
     private var nowMillis = 1_000L
 
     @Before
@@ -33,7 +35,9 @@ class LocalCoachRepositoryTest {
         database = Room.inMemoryDatabaseBuilder(context, MusFitDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = LocalCoachRepository(database, database.coachDao()) { nowMillis }
+        accountRepository = LocalAccountRepository(database.accountDao(), clock = { nowMillis })
+        runBlocking { accountRepository.ensureActiveAccount() }
+        repository = LocalCoachRepository(database, database.coachDao(), accountRepository) { nowMillis }
     }
 
     @After
@@ -119,6 +123,7 @@ class LocalCoachRepositoryTest {
         val day = LocalDate.of(2026, 7, 1)
         database.coachDao().insert(
             CoachMessageEntity(
+                accountId = accountRepository.ensureActiveAccount().id,
                 dayEpochDay = day.toEpochDay(),
                 ruleKey = "protein_gap",
                 category = "Nutrition",
@@ -188,6 +193,33 @@ class LocalCoachRepositoryTest {
             listOf(TodayMetric.Water, TodayMetric.Steps),
             repository.observeDashboardPins().first(),
         )
+    }
+
+    @Test
+    fun feedAndPins_followActiveAccountAndRejectCrossAccountMutation() = runTest {
+        val day = LocalDate.of(2026, 7, 1)
+        val firstAccount = accountRepository.ensureActiveAccount()
+        repository.syncToday(day, listOf(candidate()))
+        repository.saveDashboardPins(listOf(TodayMetric.Weight, TodayMetric.Water))
+        val firstMessageId = repository.observeFeed().first().single().id
+
+        val secondAccountId = accountRepository.createAccount("Partner")
+        accountRepository.switchAccount(secondAccountId)
+
+        assertTrue(repository.observeFeed().first().isEmpty())
+        assertEquals(TodayMetric.DEFAULT_PINS, repository.observeDashboardPins().first())
+        repository.dismiss(firstMessageId)
+        repository.markAllRead()
+        repository.syncToday(day, listOf(candidate(ruleKey = "training_gap")))
+        repository.saveDashboardPins(listOf(TodayMetric.Steps))
+
+        accountRepository.switchAccount(firstAccount.id)
+        assertEquals(listOf("protein_gap"), repository.observeFeed().first().map { it.ruleKey })
+        assertEquals(listOf(TodayMetric.Weight, TodayMetric.Water), repository.observeDashboardPins().first())
+
+        accountRepository.switchAccount(secondAccountId)
+        assertEquals(listOf("training_gap"), repository.observeFeed().first().map { it.ruleKey })
+        assertEquals(listOf(TodayMetric.Steps), repository.observeDashboardPins().first())
     }
 
     @Test

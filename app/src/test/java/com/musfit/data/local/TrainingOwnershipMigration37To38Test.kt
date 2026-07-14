@@ -35,7 +35,7 @@ class TrainingOwnershipMigration37To38Test {
         createDatabaseFromExportedSchema(37) { database -> seedCompleteTrainingGraph(database) }
 
         val room = Room.databaseBuilder(context, MusFitDatabase::class.java, DATABASE_NAME)
-            .addMigrations(DatabaseModule.MIGRATION_37_38)
+            .addMigrations(DatabaseModule.MIGRATION_37_38, DatabaseModule.MIGRATION_38_39)
             .build()
         room.openHelper.writableDatabase
         room.close()

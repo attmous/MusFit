@@ -1,11 +1,25 @@
 package com.musfit.data.local.entity
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
+import androidx.room.ForeignKey
+import androidx.room.Index
 
-@Entity(tableName = "body_metrics")
+@Entity(
+    tableName = "body_metrics",
+    primaryKeys = ["accountId", "id"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["accountId", "type", "measuredAtEpochMillis"])],
+)
 data class BodyMetricEntity(
-    @PrimaryKey val id: String,
+    val accountId: String,
+    val id: String,
     val type: String,
     val value: Double,
     val unit: String,
@@ -14,9 +28,21 @@ data class BodyMetricEntity(
     val externalId: String?,
 )
 
-@Entity(tableName = "daily_health_summaries")
+@Entity(
+    tableName = "daily_health_summaries",
+    primaryKeys = ["accountId", "dateEpochDay"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
 data class DailyHealthSummaryEntity(
-    @PrimaryKey val dateEpochDay: Long,
+    val accountId: String,
+    val dateEpochDay: Long,
     val steps: Long?,
     val activeCaloriesKcal: Double?,
     val totalCaloriesKcal: Double?,
@@ -31,9 +57,21 @@ data class DailyHealthSummaryEntity(
     val updatedAtEpochMillis: Long,
 )
 
-@Entity(tableName = "health_connect_sync_state")
+@Entity(
+    tableName = "health_connect_sync_state",
+    primaryKeys = ["accountId", "key"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
 data class HealthConnectSyncStateEntity(
-    @PrimaryKey val key: String,
+    val accountId: String,
+    val key: String,
     val isAvailable: Boolean,
     val grantedPermissionsCsv: String,
     val lastImportAtEpochMillis: Long?,

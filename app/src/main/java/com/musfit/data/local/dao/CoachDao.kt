@@ -13,13 +13,13 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CoachDao {
     @Query(
-        "SELECT * FROM coach_messages WHERE isDismissed = 0 " +
+        "SELECT * FROM coach_messages WHERE accountId = :accountId AND isDismissed = 0 " +
             "ORDER BY dayEpochDay DESC, firstSeenAtEpochMillis DESC",
     )
-    fun observeFeed(): Flow<List<CoachMessageEntity>>
+    fun observeFeed(accountId: String): Flow<List<CoachMessageEntity>>
 
-    @Query("SELECT * FROM coach_messages WHERE dayEpochDay = :dayEpochDay AND source = :source")
-    suspend fun getMessagesForDay(dayEpochDay: Long, source: String): List<CoachMessageEntity>
+    @Query("SELECT * FROM coach_messages WHERE accountId = :accountId AND dayEpochDay = :dayEpochDay AND source = :source")
+    suspend fun getMessagesForDay(accountId: String, dayEpochDay: Long, source: String): List<CoachMessageEntity>
 
     @Insert
     suspend fun insert(entity: CoachMessageEntity): Long
@@ -27,20 +27,20 @@ interface CoachDao {
     @Update
     suspend fun update(entity: CoachMessageEntity)
 
-    @Query("UPDATE coach_messages SET isDismissed = 1 WHERE id = :id")
-    suspend fun dismiss(id: Long)
+    @Query("UPDATE coach_messages SET isDismissed = 1 WHERE accountId = :accountId AND id = :id")
+    suspend fun dismiss(accountId: String, id: Long)
 
-    @Query("UPDATE coach_messages SET isRead = 1 WHERE isRead = 0 AND isDismissed = 0")
-    suspend fun markAllRead()
+    @Query("UPDATE coach_messages SET isRead = 1 WHERE accountId = :accountId AND isRead = 0 AND isDismissed = 0")
+    suspend fun markAllRead(accountId: String)
 
-    @Query("DELETE FROM coach_messages WHERE dayEpochDay < :minDayEpochDay")
-    suspend fun prune(minDayEpochDay: Long)
+    @Query("DELETE FROM coach_messages WHERE accountId = :accountId AND dayEpochDay < :minDayEpochDay")
+    suspend fun prune(accountId: String, minDayEpochDay: Long)
 
-    @Query("SELECT * FROM dashboard_pins ORDER BY position ASC")
-    fun observePins(): Flow<List<DashboardPinEntity>>
+    @Query("SELECT * FROM dashboard_pins WHERE accountId = :accountId ORDER BY position ASC")
+    fun observePins(accountId: String): Flow<List<DashboardPinEntity>>
 
-    @Query("DELETE FROM dashboard_pins")
-    suspend fun clearPins()
+    @Query("DELETE FROM dashboard_pins WHERE accountId = :accountId")
+    suspend fun clearPins(accountId: String)
 
     // Intentional leaf replacement: dashboard_pins has no dependents or foreign keys, and
     // replacePins clears and rebuilds the complete ordered snapshot in one transaction.
@@ -48,8 +48,8 @@ interface CoachDao {
     suspend fun insertPins(pins: List<DashboardPinEntity>)
 
     @Transaction
-    suspend fun replacePins(pins: List<DashboardPinEntity>) {
-        clearPins()
+    suspend fun replacePins(accountId: String, pins: List<DashboardPinEntity>) {
+        clearPins(accountId)
         insertPins(pins)
     }
 }

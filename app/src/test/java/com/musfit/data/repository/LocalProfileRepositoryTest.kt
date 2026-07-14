@@ -34,13 +34,19 @@ class LocalProfileRepositoryTest {
             .build()
         accountRepository = LocalAccountRepository(
             accountDao = database.accountDao(),
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
         repository = LocalProfileRepository(
             profileDao = database.profileDao(),
             healthDao = database.healthDao(),
             accountRepository = accountRepository,
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
     }
 
@@ -202,5 +208,30 @@ class LocalProfileRepositoryTest {
 
         accountRepository.switchAccount(secondId)
         assertEquals(Sex.Female, repository.observeProfile().first().sex)
+    }
+
+    @Test
+    fun bodyMetrics_followActiveAccountAndRejectCrossAccountMutation() = runTest {
+        val firstAccount = accountRepository.ensureActiveAccount()
+        repository.logWeight(85.0)
+        repository.logMeasurement("waist", 84.0, "cm")
+        val firstWeightId = repository.observeWeightSeries(0L).first().single().id
+        val firstWaistId = repository.observeRecentMeasurements(0L).first().getValue("waist").single().id
+
+        val secondAccountId = accountRepository.createAccount("Partner")
+        accountRepository.switchAccount(secondAccountId)
+
+        assertNull(repository.observeLatestWeight().first())
+        assertTrue(repository.observeRecentMeasurements(0L).first().values.flatten().isEmpty())
+        repository.updateEntryValue(firstWeightId, 70.0)
+        repository.deleteEntry(firstWaistId)
+        repository.logWeight(65.0)
+
+        accountRepository.switchAccount(firstAccount.id)
+        assertEquals(85.0, repository.observeLatestWeight().first()!!.weightKg, 0.001)
+        assertEquals(84.0, repository.observeRecentMeasurements(0L).first().getValue("waist").single().value, 0.001)
+
+        accountRepository.switchAccount(secondAccountId)
+        assertEquals(65.0, repository.observeLatestWeight().first()!!.weightKg, 0.001)
     }
 }

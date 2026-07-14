@@ -9,7 +9,9 @@ import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCandidate
 import com.musfit.domain.coach.CoachMessageCategory
 import com.musfit.domain.today.TodayMetric
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import javax.inject.Inject
@@ -53,34 +55,40 @@ interface CoachRepository {
     suspend fun saveDashboardPins(ordered: List<TodayMetric>)
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LocalCoachRepository @Inject constructor(
     private val database: MusFitDatabase,
     private val coachDao: CoachDao,
+    private val accountRepository: AccountRepository,
 ) : CoachRepository {
     private var clock: () -> Long = { System.currentTimeMillis() }
 
     internal constructor(
         database: MusFitDatabase,
         coachDao: CoachDao,
+        accountRepository: AccountRepository,
         clock: () -> Long,
-    ) : this(database, coachDao) {
+    ) : this(database, coachDao, accountRepository) {
         this.clock = clock
     }
 
-    override fun observeFeed(): Flow<List<CoachMessage>> =
-        coachDao.observeFeed().map { rows -> rows.mapNotNull { it.toMessage() } }
+    override fun observeFeed(): Flow<List<CoachMessage>> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        coachDao.observeFeed(account.id).map { rows -> rows.mapNotNull { it.toMessage() } }
+    }
 
     override suspend fun syncToday(day: LocalDate, candidates: List<CoachMessageCandidate>) {
+        val accountId = accountRepository.ensureActiveAccount().id
         val dayEpochDay = day.toEpochDay()
         database.withTransaction {
             val existing =
-                coachDao.getMessagesForDay(dayEpochDay, COACH_SOURCE_RULES).associateBy { it.ruleKey }
+                coachDao.getMessagesForDay(accountId, dayEpochDay, COACH_SOURCE_RULES).associateBy { it.ruleKey }
             candidates.distinctBy { it.ruleKey }.forEach { candidate ->
                 val row = existing[candidate.ruleKey]
                 when {
                     row == null ->
                         coachDao.insert(
                             CoachMessageEntity(
+                                accountId = accountId,
                                 dayEpochDay = dayEpochDay,
                                 ruleKey = candidate.ruleKey,
                                 category = candidate.category.name,
@@ -94,7 +102,10 @@ class LocalCoachRepository @Inject constructor(
                                 source = COACH_SOURCE_RULES,
                             ),
                         )
-                    row.isDismissed -> Unit // tombstone: never resurrect
+
+                    row.isDismissed -> Unit
+
+                    // tombstone: never resurrect
                     else -> {
                         val refreshed = row.copy(
                             category = candidate.category.name,
@@ -107,23 +118,28 @@ class LocalCoachRepository @Inject constructor(
                     }
                 }
             }
-            coachDao.prune(dayEpochDay - COACH_RETENTION_DAYS)
+            coachDao.prune(accountId, dayEpochDay - COACH_RETENTION_DAYS)
         }
     }
 
-    override suspend fun dismiss(id: Long) = coachDao.dismiss(id)
+    override suspend fun dismiss(id: Long) = coachDao.dismiss(accountRepository.ensureActiveAccount().id, id)
 
-    override suspend fun markAllRead() = coachDao.markAllRead()
+    override suspend fun markAllRead() = coachDao.markAllRead(accountRepository.ensureActiveAccount().id)
 
-    override fun observeDashboardPins(): Flow<List<TodayMetric>> =
-        coachDao.observePins().map { rows ->
+    override fun observeDashboardPins(): Flow<List<TodayMetric>> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        coachDao.observePins(account.id).map { rows ->
             rows.mapNotNull { TodayMetric.fromId(it.metricId) }
                 .ifEmpty { TodayMetric.DEFAULT_PINS }
         }
+    }
 
     override suspend fun saveDashboardPins(ordered: List<TodayMetric>) {
+        val accountId = accountRepository.ensureActiveAccount().id
         val pins = ordered.ifEmpty { TodayMetric.DEFAULT_PINS }
-        coachDao.replacePins(pins.mapIndexed { index, metric -> DashboardPinEntity(metric.id, index) })
+        coachDao.replacePins(
+            accountId,
+            pins.mapIndexed { index, metric -> DashboardPinEntity(accountId, metric.id, index) },
+        )
     }
 }
 

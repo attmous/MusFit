@@ -1,6 +1,7 @@
 package com.musfit.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -10,13 +11,22 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "coach_messages",
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
     indices = [
-        Index(value = ["dayEpochDay", "ruleKey", "source"], unique = true),
-        Index(value = ["dayEpochDay"]),
+        Index(value = ["accountId", "dayEpochDay", "ruleKey", "source"], unique = true),
+        Index(value = ["accountId", "dayEpochDay", "firstSeenAtEpochMillis"]),
     ],
 )
 data class CoachMessageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val accountId: String,
     val dayEpochDay: Long,
     val ruleKey: String,
     val category: String,

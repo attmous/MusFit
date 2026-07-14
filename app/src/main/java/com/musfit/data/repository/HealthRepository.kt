@@ -11,7 +11,9 @@ import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.health.StepSource
 import com.musfit.integrations.healthconnect.HealthConnectGateway
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
@@ -49,6 +51,7 @@ interface HealthRepository {
     fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = flowOf(emptyList())
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LocalHealthRepository @Inject constructor(
     private val gateway: HealthConnectGateway,
     private val healthDao: HealthDao,
@@ -71,22 +74,32 @@ class LocalHealthRepository @Inject constructor(
 
     override suspend fun requestablePermissions(): Set<String> = gateway.requestablePermissions()
 
-    override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = healthDao.observeDailySummary(date.toEpochDay())
+    override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        healthDao.observeDailySummary(account.id, date.toEpochDay())
+    }
 
-    override fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> = healthDao.observeDailySummariesInRange(startDate.toEpochDay(), endDate.toEpochDay())
+    override fun observeDailySummaries(startDate: LocalDate, endDate: LocalDate): Flow<List<DailyHealthSummaryEntity>> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        healthDao.observeDailySummariesInRange(account.id, startDate.toEpochDay(), endDate.toEpochDay())
+    }
 
-    override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = healthDao.observeBodyMetrics(WEIGHT_METRIC_TYPE, fromEpochMillis)
+    override fun observeWeightSeries(fromEpochMillis: Long): Flow<List<BodyMetricEntity>> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        healthDao.observeBodyMetrics(account.id, WEIGHT_METRIC_TYPE, fromEpochMillis)
+    }
 
     override suspend fun readStepSources(date: LocalDate): List<StepSource> = gateway.readStepSources(date)
 
-    override fun observePreferredStepsPackage(): Flow<String?> = healthDao.observeHealthConnectSyncState().map { it?.preferredStepsPackage }
+    override fun observePreferredStepsPackage(): Flow<String?> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        healthDao.observeHealthConnectSyncState(account.id).map { it?.preferredStepsPackage }
+    }
 
     override suspend fun setPreferredStepsPackage(packageName: String?) {
-        val existing = healthDao.getHealthConnectSyncState()
+        val accountId = accountRepository.ensureActiveAccount().id
+        val existing = healthDao.getHealthConnectSyncState(accountId)
         if (existing == null) {
             val currentStatus = runCatching { gateway.status() }.getOrNull()
             healthDao.upsertHealthConnectSyncState(
                 HealthConnectSyncStateEntity(
+                    accountId = accountId,
                     key = SYNC_STATE_KEY,
                     isAvailable = currentStatus?.availability == HealthConnectAvailability.Available,
                     grantedPermissionsCsv = currentStatus?.grantedPermissions.orEmpty()
@@ -99,19 +112,21 @@ class LocalHealthRepository @Inject constructor(
                 ),
             )
         } else {
-            healthDao.updatePreferredStepsPackage(packageName)
+            healthDao.updatePreferredStepsPackage(accountId, packageName)
         }
     }
 
     override suspend fun importDailySummary(date: LocalDate): ImportedDailyHealthSummary {
-        val preferredStepsPackage = healthDao.getHealthConnectSyncState()?.preferredStepsPackage
+        val accountId = accountRepository.ensureActiveAccount().id
+        val preferredStepsPackage = healthDao.getHealthConnectSyncState(accountId)?.preferredStepsPackage
         val summary = gateway.readDailySummary(date, preferredStepsPackage)
         val now = clock()
         val dateEpochDay = date.toEpochDay()
-        val existingSummary = healthDao.getDailySummary(dateEpochDay)
+        val existingSummary = healthDao.getDailySummary(accountId, dateEpochDay)
         val bodyMetrics = summary.bodyMetrics
         healthDao.upsertDailySummary(
             DailyHealthSummaryEntity(
+                accountId = accountId,
                 dateEpochDay = dateEpochDay,
                 steps = summary.steps ?: existingSummary?.steps,
                 activeCaloriesKcal = summary.activeCaloriesKcal ?: existingSummary?.activeCaloriesKcal,
@@ -128,9 +143,10 @@ class LocalHealthRepository @Inject constructor(
             ),
         )
         bodyMetrics.forEach { metric ->
-            healthDao.upsertBodyMetric(metric.toBodyMetricEntity())
+            healthDao.upsertBodyMetric(metric.toBodyMetricEntity(accountId))
         }
         upsertSyncState(
+            accountId = accountId,
             lastImportAtEpochMillis = now,
             lastExportAtEpochMillis = null,
             lastFailureMessage = null,
@@ -168,6 +184,7 @@ class LocalHealthRepository @Inject constructor(
             trainingDao.updateWorkoutSession(updatedSession)
         }
         upsertSyncState(
+            accountId = accountId,
             lastImportAtEpochMillis = null,
             lastExportAtEpochMillis = now,
             lastFailureMessage = null,
@@ -176,15 +193,17 @@ class LocalHealthRepository @Inject constructor(
     }
 
     private suspend fun upsertSyncState(
+        accountId: String,
         lastImportAtEpochMillis: Long?,
         lastExportAtEpochMillis: Long?,
         lastFailureMessage: String?,
     ) {
-        val existing = healthDao.getHealthConnectSyncState()
+        val existing = healthDao.getHealthConnectSyncState(accountId)
         val currentStatus = runCatching { gateway.status() }.getOrNull()
         val grantedPermissions = currentStatus?.grantedPermissions.orEmpty()
         healthDao.upsertHealthConnectSyncState(
             HealthConnectSyncStateEntity(
+                accountId = accountId,
                 key = SYNC_STATE_KEY,
                 isAvailable = currentStatus?.availability == HealthConnectAvailability.Available,
                 grantedPermissionsCsv = grantedPermissions.sorted().joinToString(","),
@@ -202,9 +221,10 @@ class LocalHealthRepository @Inject constructor(
     }
 }
 
-private fun ImportedBodyMetric.toBodyMetricEntity(): BodyMetricEntity {
+private fun ImportedBodyMetric.toBodyMetricEntity(accountId: String): BodyMetricEntity {
     val externalToken = externalId?.takeIf { it.isNotBlank() } ?: measuredAtEpochMillis.toString()
     return BodyMetricEntity(
+        accountId = accountId,
         id = "health-connect-$type-$externalToken",
         type = type,
         value = value,

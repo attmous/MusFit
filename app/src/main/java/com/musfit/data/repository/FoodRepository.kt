@@ -1012,8 +1012,10 @@ class LocalFoodRepository @Inject constructor(
     // rather than ActiveCaloriesBurned. Many phones only record total calories, so
     // sourcing from active left this stuck at 0. Display-only: it does not change the
     // remaining-calorie math (remaining = goal - eaten).
-    override fun observeBurnedCalories(date: LocalDate): Flow<Double> = database.healthDao().observeDailySummary(date.toEpochDay())
-        .map { summary -> summary?.totalCaloriesKcal ?: 0.0 }
+    override fun observeBurnedCalories(date: LocalDate): Flow<Double> = activeAccountFlow { accountId ->
+        database.healthDao().observeDailySummary(accountId, date.toEpochDay())
+            .map { summary -> summary?.totalCaloriesKcal ?: 0.0 }
+    }
 
     override suspend fun logWater(input: WaterLogInput): String {
         input.requireValid()

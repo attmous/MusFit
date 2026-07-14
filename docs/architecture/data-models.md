@@ -56,34 +56,31 @@ describe current ownership without restating fields.
 | Account identity/session | `AccountDao`; `AccountEntities.kt` | `accounts`, `account_session` | `AccountRepository` owns local identities and the active-account pointer. `ExternalAuthRepository` obtains provider identity; it does not turn Room into a cloud-sync store. |
 | Food | `FoodDao`; `FoodEntities.kt` | `foods`, `food_servings`, `meals`, `meal_definitions`, `meal_items`, `barcode_products`, `food_goals`, `quick_calorie_presets`, `meal_templates`, `meal_template_items`, `recipes`, `recipe_ingredients`, `shopping_list_items`, `water_entries`, `food_health_connect_sync` | `FoodRepository` owns diary, saved-food, planning, recipe/template, shopping, water, goal, and Food Health Connect sync models. |
 | Training | `TrainingDao`; `TrainingEntities.kt` | `exercises`, `exercise_notes`, `routines`, `routine_folders`, `routine_exercises`, `routine_exercise_sets`, `workout_sessions`, `workout_sets`, `training_settings` | `TrainingRepository` owns exercise, routine, active-workout, history, progress, and settings models. Immutable bundled exercise definitions remain shared catalog rows; custom definitions and the separate notes overlay are active-account owned. `ExerciseDatasetProvider` is the exercise-catalog ingestion boundary. |
-| Health | `HealthDao`; `HealthEntities.kt` | `body_metrics`, `daily_health_summaries`, `health_connect_sync_state` | `HealthRepository` owns Health Connect refresh/export state. `ProfileRepository` also uses body metrics for profile trends. |
+| Health | `HealthDao`; `HealthEntities.kt` | `body_metrics`, `daily_health_summaries`, `health_connect_sync_state` | `HealthRepository` owns active-account Health Connect refresh/export state. `ProfileRepository` uses the same active-account body metrics for profile trends. |
 | Profile/settings | `ProfileDao`; `ProfileEntities.kt` | `user_profile`, `app_settings` | `ProfileRepository` owns account-reactive profile, body-goal, and app-setting models. |
 | Cross-cutting goals | `UserGoalsDao`; `UserGoalsEntity.kt` | `user_goals` | `GoalsRepository` owns Today goals that are separate from Food nutrition goals. |
 | AI coach settings | `AiCoachDao`; `AiCoachSettingsEntity.kt` | `ai_coach_settings` | `AiCoachRepository` owns provider/agent connection settings. `AiCoachSecretStore` owns the corresponding runtime credential outside Room. |
 | AI coach chat | `AiCoachChatDao`; `AiCoachChatEntities.kt` | `ai_coach_threads`, `ai_coach_chat_messages` | `AiCoachChatRepository` owns account/provider-scoped thread and message models and calls the remote `CoachCompletionClient`. |
-| Coach feed and Today pins | `CoachDao`; `CoachMessageEntity.kt`, `DashboardPinEntity.kt` | `coach_messages`, `dashboard_pins` | `CoachRepository` owns deterministic coach-feed messages, dismissal/read state, retention, and Today carousel pin order. |
+| Coach feed and Today pins | `CoachDao`; `CoachMessageEntity.kt`, `DashboardPinEntity.kt` | `coach_messages`, `dashboard_pins` | `CoachRepository` owns active-account deterministic coach-feed messages, dismissal/read state, retention, and Today carousel pin order. |
 
 DAO projection rows belong beside the SQL that produces them. They are read
 shapes, not additional tables and not stable repository APIs. Repositories must
 map them before exposing data to ViewModels.
 
-## Account Ownership Caveat
+## Account Ownership Contract
 
-Account support does not yet imply complete data isolation.
+All persisted user-specific feature data is scoped to the active account.
+Food, Training, Health summaries/body metrics/sync state, profile/settings,
+cross-cutting goals, AI settings/chat, coach-feed messages, and dashboard pins
+must be read and mutated through an explicit owner. AI secrets are keyed by
+account outside Room. Immutable bundled reference definitions may remain shared
+only where their repository and schema contract says so; Training's starter
+exercise definitions are the current shared example, while their notes and all
+user-created definitions remain account owned.
 
-Current source scopes Food, Training, profile/settings, cross-cutting goals, AI
-coach settings, and AI chat threads to the active account. AI secrets are also
-keyed by account outside Room. Training retains only immutable bundled exercise
-definitions as a shared catalog; custom exercises, notes, routines, workouts,
-history, and settings are isolated. Health, coach-feed messages, and dashboard
-pins do not yet have complete account ownership. Switching accounts can still
-expose or mutate those remaining shared surfaces until the next ownership
-package lands.
-
-Treat the architecture audit's account-isolation finding as the active contract:
-do not claim full isolation, and do not add ad hoc ownership to one table without
-the indexed migration, legacy-row mapping, repository scoping, deletion policy,
-and two-account tests required by the remediation package.
+Any new owned table requires an account-leading key or index, a legacy-row
+mapping, cascade/deletion policy, repository scoping, and two-account tests.
+Do not infer a shared contract merely because a row originated from seed data.
 
 ## Non-Room Model Boundaries
 
