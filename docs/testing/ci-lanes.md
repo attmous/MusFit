@@ -25,7 +25,7 @@ and on manual dispatch. Its jobs run in parallel on isolated runners:
 | Job | Matrix | Hard timeout | Retained evidence |
 | --- | --- | ---: | --- |
 | `migration-matrix` | API 28 and API 37, serialized per runner | 40 minutes | Managed-device reports, protobuf/XML results, additional output, migration metrics |
-| `critical-journeys` | API 28 and API 37, serialized per runner | 35 minutes | Managed-device reports, failure logcat, screenshots/additional output |
+| `critical-journeys` | API 28 and API 37, explicit per-device sequence | 55 minutes | Managed-device reports, failure logcat, screenshots/additional output, aggregate coverage |
 | `screenshots` | Deterministic 400/610/900 dp Roborazzi matrix | 12 minutes | HTML/JUnit reports and image diffs |
 
 `Android performance` also runs on every default-branch push, weekly, and on
@@ -33,6 +33,11 @@ manual dispatch with a 35-minute timeout. This guarantees every commit eligible
 for release has an exact-SHA performance/profile run, even when the commit did
 not touch a performance path. API 28 and API 37 execute serially on the hosted
 runner so their emulator VMs do not compete for memory after R8 packaging.
+
+The critical-journey job likewise invokes each managed-device task separately.
+Do not replace that sequence with the Gradle device-group task: the group can
+overlap both emulator setups on a hosted runner even when its device concurrency
+property is one, which can crash API 37 before instrumentation starts.
 
 ## Release promotion contract
 

@@ -38,6 +38,7 @@ import com.musfit.ui.theme.MusFitTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.FixMethodOrder
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
@@ -45,6 +46,7 @@ import org.junit.rules.TestRule
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 import org.junit.runner.RunWith
+import org.junit.runners.MethodSorters
 import org.junit.runners.model.Statement
 import java.io.File
 import java.io.FileOutputStream
@@ -56,6 +58,7 @@ import java.time.LocalDate
  * saved-instance-state boundaries on managed Android devices.
  */
 @RunWith(AndroidJUnit4::class)
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class MusFitCriticalJourneyInstrumentationTest {
 
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -208,7 +211,7 @@ class MusFitCriticalJourneyInstrumentationTest {
     }
 
     @Test
-    fun scannerDenialAndDeterministicReturn_coverPermissionAndOfflineSafeRoundTrip() {
+    fun cameraDenialAndDeterministicReturn_coverPermissionAndOfflineSafeRoundTrip() {
         if (Build.VERSION.SDK_INT > 28) {
             configureCameraDenial()
             compose.onNodeWithContentDescription("Food").performClick()
@@ -308,8 +311,7 @@ class MusFitCriticalJourneyInstrumentationTest {
     }
 
     private fun configureCameraDenial() {
-        // Orchestrator clears package data before every case, so CAMERA is already denied. Mark
-        // that denial fixed without revoking a live instrumentation process (which kills API 28).
+        // The suite's enforced name order runs this denial case before the only camera-grant case.
         runShellCommand(
             "pm set-permission-flags ${targetContext.packageName} ${Manifest.permission.CAMERA} user-set user-fixed",
         )

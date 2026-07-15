@@ -87,5 +87,7 @@ Run the API 28/37 lane with:
 ```
 
 The suite has no automatic retry: any failure is treated as real and its
-artifacts are reviewed. The CI budget is 16 minutes per device (32 minutes for
-the two-device lane); the local API 36 baseline is recorded in the PR evidence.
+artifacts are reviewed. Local use may invoke the group task above, but CI invokes
+the API 28 and API 37 tasks separately so their emulator processes cannot
+overlap. The CI budget is 16 minutes per device (32 minutes for the two-device
+lane); the local API 36 baseline is recorded in the PR evidence.

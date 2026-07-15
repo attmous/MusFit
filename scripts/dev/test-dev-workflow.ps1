@@ -599,10 +599,19 @@ Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^\s*schedule:'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^\s*workflow_dispatch:'
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" '(?m)^\s*pull_request:'
 Assert-FileContains ".github/workflows/device-ui.yml" 'migrationApi28And37GroupInternalDebugAndroidTest'
-Assert-FileContains ".github/workflows/device-ui.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
+$deviceUiWorkflow = Get-FileText ".github/workflows/device-ui.yml"
+Assert-Equal "Critical API 28 task references" 3 ([regex]::Matches($deviceUiWorkflow, ':app:musFitApi28InternalDebugAndroidTest').Count)
+Assert-Equal "Critical API 37 task references" 3 ([regex]::Matches($deviceUiWorkflow, ':app:musFitApi37InternalDebugAndroidTest').Count)
+Assert-Equal "Coverage clear-package exceptions" 2 ([regex]::Matches($deviceUiWorkflow, 'android\.testInstrumentationRunnerArguments\.clearPackageData=false').Count)
+Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
+Assert-FileContains ".github/workflows/device-ui.yml" '-x :app:musFitApi28InternalDebugAndroidTest -x :app:musFitApi37InternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?s)migrationApi28And37GroupInternalDebugAndroidTest.{0,500}android\.testInstrumentationRunnerArguments\.class=com\.musfit\.data\.local\.MusFitMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitRecentMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitLargeMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitFrameworkDaoInstrumentationTest'
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'android\.testInstrumentationRunnerArguments\.package=com\.musfit\.data\.local'
+Assert-FileContains "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" '@FixMethodOrder\(MethodSorters\.NAME_ASCENDING\)'
+Assert-FileContains "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'fun cameraDenialAndDeterministicReturn_coverPermissionAndOfflineSafeRoundTrip\(\)'
+Assert-FileDoesNotContain "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'revokeSelfPermissionOnKill\('
+Assert-FileDoesNotContain "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'pm revoke \$\{targetContext\.packageName\} \$\{Manifest\.permission\.CAMERA\}'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?s)critical-journeys:.{0,100}timeout-minutes:\s*55'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?s)Aggregate unit and managed-device coverage.{0,100}timeout-minutes:\s*15'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'
