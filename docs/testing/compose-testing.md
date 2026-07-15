@@ -70,7 +70,9 @@ seven orchestrated cases cover:
 
 The instrumentation-only seeder resets each isolated test process. External
 services and camera hardware are never required. Every wait is bounded to 15
-seconds. A failing case writes a UI hierarchy and screenshot to Gradle's
+seconds. Scanner rotations synchronize on a UI Automator window change instead
+of Compose idleness because the live CameraX preview continuously produces work.
+A failing case writes a UI hierarchy and screenshot to Gradle's
 additional-test-output directory on API 29+; Gradle does not support additional
 test output on API 28, where the managed-device runner still retains JUnit and
 logcat output.
@@ -85,5 +87,7 @@ Run the API 28/37 lane with:
 ```
 
 The suite has no automatic retry: any failure is treated as real and its
-artifacts are reviewed. The CI budget is 16 minutes per device (32 minutes for
-the two-device lane); the local API 36 baseline is recorded in the PR evidence.
+artifacts are reviewed. Local use may invoke the group task above, but CI invokes
+the API 28 and API 37 tasks separately so their emulator processes cannot
+overlap. The CI budget is 16 minutes per device (32 minutes for the two-device
+lane); the local API 36 baseline is recorded in the PR evidence.

@@ -52,12 +52,20 @@ aggregate. The managed-device workflow runs the existing API 28/API 37 critical
 journeys, creates the AGP managed-device report, adds the unit report, and uploads
 both original dashboards plus the aggregate JSON/Markdown summary.
 
+Both the ordinary journey pass and the isolated coverage rerun invoke the API 28
+and API 37 tasks sequentially. The report task then aggregates the two retained
+device outputs without rerunning either emulator. This keeps the hosted runner
+within its memory boundary while preserving coverage from both API levels.
+
 Coverage-producing Orchestrator runs pass
 `android.testInstrumentationRunnerArguments.clearPackageData=false`. Orchestrator
 otherwise removes the target package's coverage payload before AGP can collect
 it. This exception applies only to the isolated coverage rerun; ordinary
 instrumentation keeps `clearPackageData=true`, and the critical-journey tests
-continue to reset their own state.
+continue to reset their own state and permission preconditions. The
+critical-journey class enforces name ordering and names the camera-denial case
+before the only camera-grant case, so retained package data cannot make the
+denial assertion inherit a grant from the same run.
 
 Normal pull-request CI runs the unit report because the device matrix is a
 separate, serialized lane. Both workflows retain their reports; no coverage
