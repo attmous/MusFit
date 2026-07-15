@@ -74,8 +74,8 @@ The measured clean local unit report completed in 223.6 seconds for 814 tests;
 the warm report-only rerun completed in 16.6 seconds. The unit coverage step
 has a hard CI budget of **10 minutes**. Managed-device coverage reuses the
 already-required critical-journey execution and has an additional 15-minute
-reporting budget. The encompassing critical-journey job has a 45-minute budget
-so the 24-minute two-device journey allowance, coverage, and artifact retention
+reporting budget. The encompassing critical-journey job has a 55-minute budget
+so the 32-minute two-device journey allowance, coverage, and artifact retention
 can all complete.
 
 Do not lower a threshold or replace the baseline merely to make CI green. A
