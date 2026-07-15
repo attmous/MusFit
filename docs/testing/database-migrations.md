@@ -19,12 +19,17 @@ feedback, but they do not replace this device suite.
 ## Device matrix
 
 The Gradle-managed `migrationApi28And37` group runs the suite on API 28 using
-the AOSP x86 image and API 37 using Google's available 16 KB-page x86_64 image:
+the AOSP x86 image and API 37 using Google's available 16 KB-page x86_64 image.
+The explicit class list is intentional: package-based discovery repeatedly
+crashed the API 37 instrumentation process before any test started, while the
+equivalent class list completed on both devices. The main migration test is
+parameterized across every retained schema origin, so its single source method
+expands to many device cases; do not infer broad discovery from that count.
 
 ```powershell
 . .\scripts\android\android-env.ps1
 .\gradlew.bat migrationApi28And37GroupInternalDebugAndroidTest `
-  '-Pandroid.testInstrumentationRunnerArguments.package=com.musfit.data.local' `
+  '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.data.local.MusFitMigrationInstrumentationTest,com.musfit.data.local.MusFitRecentMigrationInstrumentationTest,com.musfit.data.local.MusFitLargeMigrationInstrumentationTest,com.musfit.data.local.MusFitFrameworkDaoInstrumentationTest' `
   --no-daemon --console=plain
 ```
 

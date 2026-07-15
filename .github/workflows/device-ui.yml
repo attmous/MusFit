@@ -56,7 +56,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run API 28 and API 37 migration matrix
-        run: ./gradlew migrationApi28And37GroupInternalDebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.package=com.musfit.data.local' --no-daemon --console=plain
+        run: ./gradlew migrationApi28And37GroupInternalDebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.data.local.MusFitMigrationInstrumentationTest,com.musfit.data.local.MusFitRecentMigrationInstrumentationTest,com.musfit.data.local.MusFitLargeMigrationInstrumentationTest,com.musfit.data.local.MusFitFrameworkDaoInstrumentationTest' --no-daemon --console=plain
 
       - name: Retain migration reports and device diagnostics
         if: always()
