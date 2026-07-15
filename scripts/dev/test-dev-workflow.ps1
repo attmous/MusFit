@@ -575,6 +575,12 @@ Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitComposeS
 Assert-FileContains "app/src/test/resources/robolectric.properties" '(?m)^sdk=35\r?$'
 Assert-FileContains "docs/testing/compose-testing.md" 'Managed-device journey layer'
 Assert-FileExists "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt"
+$criticalJourneyTestCount = [regex]::Matches(
+    (Get-FileText "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt"),
+    '(?m)^\s*@Test\s*$'
+).Count
+Assert-Equal "Managed-device critical journey count" 7 $criticalJourneyTestCount
+Assert-FileContains "docs/testing/compose-testing.md" 'seven orchestrated cases'
 Assert-FileContains "app/build.gradle.kts" 'execution\s*=\s*"ANDROIDX_TEST_ORCHESTRATOR"'
 Assert-FileContains "app/build.gradle.kts" 'create\("criticalJourneysApi28And37"\)'
 Assert-FileExists ".github/workflows/device-ui.yml"
@@ -594,7 +600,7 @@ Assert-FileContains ".github/workflows/device-ui.yml" 'migrationApi28And37GroupI
 Assert-FileContains ".github/workflows/device-ui.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?s)migrationApi28And37GroupInternalDebugAndroidTest.{0,300}android\.testInstrumentationRunnerArguments\.package=com\.musfit\.data\.local'
-Assert-FileContains ".github/workflows/device-ui.yml" '(?s)critical-journeys:.{0,100}timeout-minutes:\s*45'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?s)critical-journeys:.{0,100}timeout-minutes:\s*55'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?s)Aggregate unit and managed-device coverage.{0,100}timeout-minutes:\s*15'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'

@@ -53,9 +53,11 @@ Every UI test must name the user contract it protects. Add a new high-level
 journey only when a lower layer cannot provide equivalent confidence.
 
 `MusFitCriticalJourneyInstrumentationTest` is the managed-device layer. Its
-six orchestrated cases cover:
+seven orchestrated cases cover:
 
 - a real Hilt/Room Food quick log and persistence after Activity recreation;
+- Food database search-draft restoration after Activity recreation without a
+  database write;
 - the Room-owned active-workout set/rest lifecycle and leaving/re-entering the
   Training destination;
 - Profile preference persistence plus restored visit-order back navigation;
@@ -83,5 +85,5 @@ Run the API 28/37 lane with:
 ```
 
 The suite has no automatic retry: any failure is treated as real and its
-artifacts are reviewed. The CI budget is 12 minutes per device (24 minutes for
+artifacts are reviewed. The CI budget is 16 minutes per device (32 minutes for
 the two-device lane); the local API 36 baseline is recorded in the PR evidence.
