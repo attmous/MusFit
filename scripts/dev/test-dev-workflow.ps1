@@ -583,6 +583,15 @@ Assert-Equal "Managed-device critical journey count" 7 $criticalJourneyTestCount
 Assert-FileContains "docs/testing/compose-testing.md" 'seven orchestrated cases'
 Assert-FileContains "app/build.gradle.kts" 'execution\s*=\s*"ANDROIDX_TEST_ORCHESTRATOR"'
 Assert-FileContains "app/build.gradle.kts" 'create\("criticalJourneysApi28And37"\)'
+Assert-FileContains "app/build.gradle.kts" 'gradleProperty\("musfit\.testInstrumentationRunnerArguments\.class"\)'
+Assert-FileContains "app/build.gradle.kts" 'testInstrumentationRunnerArguments\["class"\]\s*=\s*it'
+Assert-FileContains "app/build.gradle.kts" 'gradleProperty\("musfit\.testInstrumentationRunnerArguments\.clearPackageData"\)'
+Assert-FileExists "app/src/androidTest/java/com/musfit/data/local/MusFitMigrationInstrumentationTest.kt"
+$migrationInstrumentationTestCount = [regex]::Matches(
+    (Get-FileText "app/src/androidTest/java/com/musfit/data/local/MusFitMigrationInstrumentationTest.kt"),
+    '(?m)^\s*@Test\s*$'
+).Count
+Assert-Equal "Managed-device migration test count" 5 $migrationInstrumentationTestCount
 Assert-FileExists ".github/workflows/device-ui.yml"
 Assert-FileExists "docs/testing/ci-lanes.md"
 Assert-FileContains ".github/workflows/android.yml" '(?m)^\s*pull_request:'
@@ -599,8 +608,10 @@ Assert-FileDoesNotContain ".github/workflows/device-ui.yml" '(?m)^\s*pull_reques
 Assert-FileContains ".github/workflows/device-ui.yml" 'migrationApi28And37GroupInternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
-Assert-FileContains ".github/workflows/device-ui.yml" '(?s)migrationApi28And37GroupInternalDebugAndroidTest.{0,500}android\.testInstrumentationRunnerArguments\.class=com\.musfit\.data\.local\.MusFitMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitRecentMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitLargeMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitFrameworkDaoInstrumentationTest'
-Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'android\.testInstrumentationRunnerArguments\.package=com\.musfit\.data\.local'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?s)migrationApi28And37GroupInternalDebugAndroidTest.{0,500}musfit\.testInstrumentationRunnerArguments\.class=com\.musfit\.data\.local\.MusFitMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitRecentMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitLargeMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitFrameworkDaoInstrumentationTest'
+Assert-FileContains ".github/workflows/device-ui.yml" 'musfit\.testInstrumentationRunnerArguments\.class=com\.musfit\.ui\.MusFitCriticalJourneyInstrumentationTest'
+Assert-FileContains ".github/workflows/device-ui.yml" 'musfit\.testInstrumentationRunnerArguments\.clearPackageData=false'
+Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'android\.testInstrumentationRunnerArguments\.(class|package|clearPackageData)='
 Assert-FileContains ".github/workflows/device-ui.yml" '(?s)critical-journeys:.{0,100}timeout-minutes:\s*55'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?s)Aggregate unit and managed-device coverage.{0,100}timeout-minutes:\s*15'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'

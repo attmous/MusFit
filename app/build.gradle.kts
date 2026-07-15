@@ -182,6 +182,16 @@ val musfitInternalHermesBaseUrl =
 val musfitInternalHermesModelName =
     localConfigValue("MUSFIT_DEBUG_HERMES_MODEL_NAME", "hermes-agent")
 
+// AGP's command-line runner-argument property is not propagated to this
+// project's Gradle-managed-device group tasks. Route CI's lane-specific values
+// through explicit project properties so they become variant configuration and
+// reach the instrumentation runner on every device in the group.
+val musfitInstrumentationTestClass =
+    providers.gradleProperty("musfit.testInstrumentationRunnerArguments.class")
+
+val musfitInstrumentationClearPackageData =
+    providers.gradleProperty("musfit.testInstrumentationRunnerArguments.clearPackageData")
+
 android {
     namespace = "com.musfit"
     compileSdk = 37
@@ -208,6 +218,12 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["clearPackageData"] = "true"
+        musfitInstrumentationTestClass.orNull?.takeIf(String::isNotBlank)?.let {
+            testInstrumentationRunnerArguments["class"] = it
+        }
+        musfitInstrumentationClearPackageData.orNull?.takeIf(String::isNotBlank)?.let {
+            testInstrumentationRunnerArguments["clearPackageData"] = it
+        }
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", musfitGoogleWebClientId.asBuildConfigString())
         buildConfigField("String", "GITHUB_OAUTH_CLIENT_ID", musfitGitHubOAuthClientId.asBuildConfigString())
         buildConfigField("String", "DEBUG_HERMES_BASE_URL", "".asBuildConfigString())

@@ -80,7 +80,7 @@ Run the API 28/37 lane with:
 ```powershell
 . .\scripts\android\android-env.ps1
 .\gradlew.bat criticalJourneysApi28And37GroupInternalDebugAndroidTest `
-  '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' `
+  '-Pmusfit.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' `
   --no-daemon --console=plain
 ```
 

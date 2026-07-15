@@ -56,7 +56,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run API 28 and API 37 migration matrix
-        run: ./gradlew migrationApi28And37GroupInternalDebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.data.local.MusFitMigrationInstrumentationTest,com.musfit.data.local.MusFitRecentMigrationInstrumentationTest,com.musfit.data.local.MusFitLargeMigrationInstrumentationTest,com.musfit.data.local.MusFitFrameworkDaoInstrumentationTest' --no-daemon --console=plain
+        run: ./gradlew migrationApi28And37GroupInternalDebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pmusfit.testInstrumentationRunnerArguments.class=com.musfit.data.local.MusFitMigrationInstrumentationTest,com.musfit.data.local.MusFitRecentMigrationInstrumentationTest,com.musfit.data.local.MusFitLargeMigrationInstrumentationTest,com.musfit.data.local.MusFitFrameworkDaoInstrumentationTest' --no-daemon --console=plain
 
       - name: Retain migration reports and device diagnostics
         if: always()
@@ -108,13 +108,13 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run API 28 and API 37 critical journeys
-        run: ./gradlew criticalJourneysApi28And37GroupInternalDebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
+        run: ./gradlew criticalJourneysApi28And37GroupInternalDebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pmusfit.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
 
       - name: Aggregate unit and managed-device coverage
         timeout-minutes: 15
         shell: pwsh
         run: |
-          ./gradlew :app:createInternalDebugUnitTestCoverageReport :app:createManagedDeviceInternalDebugAndroidTestCoverageReport '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
+          ./gradlew :app:createInternalDebugUnitTestCoverageReport :app:createManagedDeviceInternalDebugAndroidTestCoverageReport '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pmusfit.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pmusfit.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
           $reports = @(
             Get-ChildItem app/build/reports/coverage -Recurse -Filter report.xml -File |
               Select-Object -ExpandProperty FullName

@@ -52,8 +52,9 @@ aggregate. The managed-device workflow runs the existing API 28/API 37 critical
 journeys, creates the AGP managed-device report, adds the unit report, and uploads
 both original dashboards plus the aggregate JSON/Markdown summary.
 
-Coverage-producing Orchestrator runs pass
-`android.testInstrumentationRunnerArguments.clearPackageData=false`. Orchestrator
+Coverage-producing Orchestrator runs pass the MusFit-owned
+`musfit.testInstrumentationRunnerArguments.clearPackageData=false` project
+property, which is wired into the runner configuration. Orchestrator
 otherwise removes the target package's coverage payload before AGP can collect
 it. This exception applies only to the isolated coverage rerun; ordinary
 instrumentation keeps `clearPackageData=true`, and the critical-journey tests
