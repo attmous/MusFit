@@ -175,7 +175,7 @@ $seedOutput = & adb -s $DeviceSerial shell am instrument `
     -r `
     -e reset $resetValue `
     -e class com.musfit.debug.MusFitDebugSeedInstrumentationTest `
-    $testPackage/androidx.test.runner.AndroidJUnitRunner 2>&1
+    $testPackage/com.musfit.test.MusFitAndroidJUnitRunner 2>&1
 $seedExitCode = $LASTEXITCODE
 $seedOutput | ForEach-Object { Write-Host $_ }
 if ($seedExitCode -ne 0) {

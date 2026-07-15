@@ -15,7 +15,7 @@ class SeedHelperContractTest {
         assertTrue(helper.contains("app-internal-debug-androidTest.apk"))
         assertTrue(helper.contains("am instrument"))
         assertTrue(helper.contains("\$testPackage = \"com.musfit.internal.test\""))
-        assertTrue(helper.contains("\$testPackage/androidx.test.runner.AndroidJUnitRunner"))
+        assertTrue(helper.contains("\$testPackage/com.musfit.test.MusFitAndroidJUnitRunner"))
         assertTrue(helper.contains("\$mainComponent = \"com.musfit.internal/com.musfit.MainActivity\""))
         assertTrue(helper.contains("am start -W -n \$mainComponent"))
         assertFalse(helper.contains("am broadcast"))

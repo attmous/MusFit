@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <instrumentation android:name="com.musfit.test.MusFitAndroidJUnitRunner">
+        <meta-data
+            android:name="com.musfit.test.CLASS_FILTER"
+            android:value="${musfitInstrumentationTestClass}" />
+    </instrumentation>
+
+</manifest>

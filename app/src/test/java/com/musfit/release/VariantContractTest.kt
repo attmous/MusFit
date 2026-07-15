@@ -93,7 +93,7 @@ class VariantContractTest {
         assertEquals(INTERNAL_TEST_APPLICATION_ID, document.documentElement.getAttribute("package"))
         assertEquals(INTERNAL_APPLICATION_ID, instrumentation.androidAttribute("targetPackage"))
         assertEquals(
-            "androidx.test.runner.AndroidJUnitRunner",
+            "com.musfit.test.MusFitAndroidJUnitRunner",
             instrumentation.androidAttribute("name"),
         )
     }

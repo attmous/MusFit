@@ -182,12 +182,11 @@ val musfitInternalHermesBaseUrl =
 val musfitInternalHermesModelName =
     localConfigValue("MUSFIT_DEBUG_HERMES_MODEL_NAME", "hermes-agent")
 
-// AGP's command-line runner-argument property is not propagated to this
-// project's Gradle-managed-device group tasks. Route CI's lane-specific values
-// through explicit project properties so they become variant configuration and
-// reach the instrumentation runner on every device in the group.
+// AGP's managed-device group tasks do not propagate their class selector to the
+// orchestrated runner in this project. Embed the lane selector in the test APK;
+// MusFitAndroidJUnitRunner copies it into the runner arguments before discovery.
 val musfitInstrumentationTestClass =
-    providers.gradleProperty("musfit.testInstrumentationRunnerArguments.class")
+    providers.gradleProperty("musfit.testInstrumentationRunnerArguments.class").orElse("")
 
 val musfitInstrumentationClearPackageData =
     providers.gradleProperty("musfit.testInstrumentationRunnerArguments.clearPackageData")
@@ -216,11 +215,9 @@ android {
         versionCode = buildNumber
         versionName = "0.1.0.$buildNumber"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.musfit.test.MusFitAndroidJUnitRunner"
         testInstrumentationRunnerArguments["clearPackageData"] = "true"
-        musfitInstrumentationTestClass.orNull?.takeIf(String::isNotBlank)?.let {
-            testInstrumentationRunnerArguments["class"] = it
-        }
+        manifestPlaceholders["musfitInstrumentationTestClass"] = musfitInstrumentationTestClass.get()
         musfitInstrumentationClearPackageData.orNull?.takeIf(String::isNotBlank)?.let {
             testInstrumentationRunnerArguments["clearPackageData"] = it
         }

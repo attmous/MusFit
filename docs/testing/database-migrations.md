@@ -21,10 +21,11 @@ feedback, but they do not replace this device suite.
 The Gradle-managed `migrationApi28And37` group runs the suite on API 28 using
 the AOSP x86 image and API 37 using Google's available 16 KB-page x86_64 image.
 The explicit class list is intentional: command-line
-`android.testInstrumentationRunnerArguments` do not reach this project's
-managed-device group tasks and can execute the entire instrumentation suite.
-The MusFit-owned property is wired into `defaultConfig` so the runner receives
-the lane filter on both devices.
+`android.testInstrumentationRunnerArguments.class` does not reach this
+project's orchestrated managed-device group tasks and can execute the entire
+instrumentation suite. The MusFit-owned property is embedded as test-APK
+manifest metadata, and `MusFitAndroidJUnitRunner` applies it before discovery
+on both devices.
 
 ```powershell
 . .\scripts\android\android-env.ps1

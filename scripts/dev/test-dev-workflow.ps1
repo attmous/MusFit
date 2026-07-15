@@ -584,8 +584,15 @@ Assert-FileContains "docs/testing/compose-testing.md" 'seven orchestrated cases'
 Assert-FileContains "app/build.gradle.kts" 'execution\s*=\s*"ANDROIDX_TEST_ORCHESTRATOR"'
 Assert-FileContains "app/build.gradle.kts" 'create\("criticalJourneysApi28And37"\)'
 Assert-FileContains "app/build.gradle.kts" 'gradleProperty\("musfit\.testInstrumentationRunnerArguments\.class"\)'
-Assert-FileContains "app/build.gradle.kts" 'testInstrumentationRunnerArguments\["class"\]\s*=\s*it'
+Assert-FileContains "app/build.gradle.kts" 'testInstrumentationRunner\s*=\s*"com\.musfit\.test\.MusFitAndroidJUnitRunner"'
+Assert-FileContains "app/build.gradle.kts" 'manifestPlaceholders\["musfitInstrumentationTestClass"\]\s*=\s*musfitInstrumentationTestClass\.get\(\)'
 Assert-FileContains "app/build.gradle.kts" 'gradleProperty\("musfit\.testInstrumentationRunnerArguments\.clearPackageData"\)'
+Assert-FileExists "app/src/androidTest/AndroidManifest.xml"
+Assert-FileContains "app/src/androidTest/AndroidManifest.xml" 'android:name="com\.musfit\.test\.MusFitAndroidJUnitRunner"'
+Assert-FileContains "app/src/androidTest/AndroidManifest.xml" 'android:name="com\.musfit\.test\.CLASS_FILTER"'
+Assert-FileContains "app/src/androidTest/AndroidManifest.xml" 'android:value="\$\{musfitInstrumentationTestClass\}"'
+Assert-FileExists "app/src/androidTest/java/com/musfit/test/MusFitAndroidJUnitRunner.kt"
+Assert-FileContains "app/src/androidTest/java/com/musfit/test/MusFitAndroidJUnitRunner.kt" 'arguments\.putString\(CLASS_ARGUMENT, it\)'
 Assert-FileExists "app/src/androidTest/java/com/musfit/data/local/MusFitMigrationInstrumentationTest.kt"
 $migrationInstrumentationTestCount = [regex]::Matches(
     (Get-FileText "app/src/androidTest/java/com/musfit/data/local/MusFitMigrationInstrumentationTest.kt"),
