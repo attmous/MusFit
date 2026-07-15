@@ -581,6 +581,8 @@ $criticalJourneyTestCount = [regex]::Matches(
 ).Count
 Assert-Equal "Managed-device critical journey count" 7 $criticalJourneyTestCount
 Assert-FileContains "docs/testing/compose-testing.md" 'seven orchestrated cases'
+Assert-FileDoesNotContain "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'compose\.waitForIdle\(\)'
+Assert-FileContains "docs/testing/compose-testing.md" 'UI Automator window change'
 Assert-FileContains "app/build.gradle.kts" 'execution\s*=\s*"ANDROIDX_TEST_ORCHESTRATOR"'
 Assert-FileContains "app/build.gradle.kts" 'create\("criticalJourneysApi28And37"\)'
 Assert-FileExists ".github/workflows/device-ui.yml"

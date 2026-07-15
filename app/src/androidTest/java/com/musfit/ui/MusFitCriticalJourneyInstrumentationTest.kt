@@ -27,7 +27,9 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
 import com.musfit.MainActivity
 import com.musfit.core.di.DatabaseModule
 import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
@@ -248,18 +250,31 @@ class MusFitCriticalJourneyInstrumentationTest {
         runShellCommand("pm grant ${targetContext.packageName} ${Manifest.permission.CAMERA}")
         compose.onNodeWithContentDescription("Food").performClick()
         compose.onAllNodesWithContentDescription("Add to Breakfast").onFirst().performClick()
+        val device = UiDevice.getInstance(instrumentation)
 
         repeat(20) { cycle ->
             compose.onAllNodesWithContentDescription("Scan barcode").onFirst().performClick()
             compose.waitUntil(timeoutMillis = 15_000) {
                 compose.onAllNodesWithContentDescription("Close scanner").fetchSemanticsNodes().isNotEmpty()
             }
-            when (cycle) {
-                6 -> compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                13 -> compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            val requestedOrientation = when (cycle) {
+                6 -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                13 -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                else -> null
             }
-            compose.waitForIdle()
-            UiDevice.getInstance(instrumentation).pressBack()
+            if (requestedOrientation != null) {
+                val activityRecreated = device.performActionAndWait(
+                    { compose.activity.requestedOrientation = requestedOrientation },
+                    Until.newWindow(),
+                    15_000,
+                )
+                assertTrue("Scanner activity did not recreate after rotation", activityRecreated)
+                assertTrue(
+                    "Scanner controls did not return after rotation",
+                    device.wait(Until.hasObject(By.desc("Close scanner")), 15_000),
+                )
+            }
+            device.pressBack()
             compose.waitUntil(timeoutMillis = 15_000) {
                 compose.onAllNodesWithContentDescription("Scan barcode").fetchSemanticsNodes().isNotEmpty()
             }

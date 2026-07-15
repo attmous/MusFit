@@ -70,7 +70,9 @@ seven orchestrated cases cover:
 
 The instrumentation-only seeder resets each isolated test process. External
 services and camera hardware are never required. Every wait is bounded to 15
-seconds. A failing case writes a UI hierarchy and screenshot to Gradle's
+seconds. Scanner rotations synchronize on a UI Automator window change instead
+of Compose idleness because the live CameraX preview continuously produces work.
+A failing case writes a UI hierarchy and screenshot to Gradle's
 additional-test-output directory on API 29+; Gradle does not support additional
 test output on API 28, where the managed-device runner still retains JUnit and
 logcat output.
