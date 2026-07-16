@@ -921,6 +921,22 @@ class FoodViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
             initialValue = FoodPresentationReducers.trackers(mutableState.value),
         )
+    val addDatabaseState: StateFlow<FoodAddDatabaseUiState> = mutableState
+        .map(FoodPresentationReducers::addDatabase)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+            initialValue = FoodPresentationReducers.addDatabase(mutableState.value),
+        )
+    val editorPlanningState: StateFlow<FoodEditorPlanningUiState> = mutableState
+        .map(FoodPresentationReducers::editorPlanning)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+            initialValue = FoodPresentationReducers.editorPlanning(mutableState.value),
+        )
     private var lookupJob: Job? = null
     private var transientMessageJob: Job? = null
     private var currentDiary: FoodDiary = emptyFoodDiary()

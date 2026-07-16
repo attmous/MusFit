@@ -51,14 +51,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -94,6 +98,34 @@ class FoodViewModelTest {
         assertSame(diaryBefore, viewModel.diaryState.value)
         assertSame(trackersBefore, viewModel.trackerState.value)
         assertSame(routeBefore, viewModel.routeState.value)
+    }
+
+    @Test
+    fun destinationStateFlowsOnlyEmitForTheirOwnDomain() = runTest {
+        val viewModel = FoodViewModel(FakeProductProvider(), FakeFoodRepository())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.addDatabaseState.collect { }
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.editorPlanningState.collect { }
+        }
+        testScheduler.advanceUntilIdle()
+
+        val addBeforeDatabaseChange = viewModel.addDatabaseState.value
+        val editorBeforeDatabaseChange = viewModel.editorPlanningState.value
+        viewModel.onFoodDatabaseQueryChanged("oats")
+        testScheduler.advanceUntilIdle()
+
+        assertNotSame(addBeforeDatabaseChange, viewModel.addDatabaseState.value)
+        assertSame(editorBeforeDatabaseChange, viewModel.editorPlanningState.value)
+
+        val addBeforePlanningChange = viewModel.addDatabaseState.value
+        val editorBeforePlanningChange = viewModel.editorPlanningState.value
+        viewModel.onRecipeBrowserMealChanged("dinner")
+        testScheduler.advanceUntilIdle()
+
+        assertSame(addBeforePlanningChange, viewModel.addDatabaseState.value)
+        assertNotSame(editorBeforePlanningChange, viewModel.editorPlanningState.value)
     }
 
     @Test

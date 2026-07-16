@@ -103,4 +103,70 @@ class FoodPresentationReducersTest {
             FoodPresentationReducers.diary(trackerChange),
         )
     }
+
+    @Test
+    fun addDatabaseProjectionIgnoresEditorAndPlanningChanges() {
+        val baseline = FoodUiState(
+            foodDatabaseQuery = "oats",
+            productName = "Rolled oats",
+        )
+        val unrelated = baseline.copy(
+            recipeBrowserMealType = "dinner",
+            shoppingStartDateInput = "2026-07-20",
+            customMealNameInput = "Late snack",
+        )
+
+        assertEquals(
+            FoodPresentationReducers.addDatabase(baseline),
+            FoodPresentationReducers.addDatabase(unrelated),
+        )
+        assertNotEquals(
+            FoodPresentationReducers.addDatabase(baseline),
+            FoodPresentationReducers.addDatabase(baseline.copy(foodDatabaseQuery = "banana")),
+        )
+    }
+
+    @Test
+    fun editorPlanningProjectionIgnoresAddAndDatabaseChanges() {
+        val baseline = FoodUiState(
+            recipeBrowserMealType = "lunch",
+            shoppingStartDateInput = "2026-07-16",
+        )
+        val unrelated = baseline.copy(
+            foodDatabaseQuery = "banana",
+            barcode = "123456789",
+            aiLoggingText = "one banana",
+        )
+
+        assertEquals(
+            FoodPresentationReducers.editorPlanning(baseline),
+            FoodPresentationReducers.editorPlanning(unrelated),
+        )
+        assertNotEquals(
+            FoodPresentationReducers.editorPlanning(baseline),
+            FoodPresentationReducers.editorPlanning(baseline.copy(recipeBrowserMealType = "dinner")),
+        )
+    }
+
+    @Test
+    fun routeProjectionClassifiesDestinationLifetime() {
+        assertEquals(
+            FoodSurfaceGroup.AddDatabase,
+            FoodPresentationReducers.route(
+                FoodUiState(isAddPanelVisible = true, sheetMode = FoodSheetMode.FoodDatabase),
+            ).surfaceGroup,
+        )
+        assertEquals(
+            FoodSurfaceGroup.EditorPlanning,
+            FoodPresentationReducers.route(
+                FoodUiState(isAddPanelVisible = true, sheetMode = FoodSheetMode.RecipeEditor),
+            ).surfaceGroup,
+        )
+        assertEquals(
+            FoodSurfaceGroup.Tracker,
+            FoodPresentationReducers.route(
+                FoodUiState(isAddPanelVisible = true, sheetMode = FoodSheetMode.Water),
+            ).surfaceGroup,
+        )
+    }
 }
