@@ -4,10 +4,10 @@ import com.musfit.BuildConfig
 import com.musfit.data.remote.auth.GitHubAuthApi
 import com.musfit.data.remote.coach.CoachCompletionClient
 import com.musfit.data.remote.coach.HermesCoachClient
-import com.musfit.data.remote.food.FoodProductProvider
 import com.musfit.data.remote.food.OpenFoodFactsApi
 import com.musfit.data.remote.food.OpenFoodFactsProductProvider
 import com.musfit.data.repository.AuthConfig
+import com.musfit.data.repository.FoodProductProvider
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Binds
@@ -26,53 +26,48 @@ import javax.inject.Singleton
 object NetworkProvidesModule {
     @Provides
     @Singleton
-    fun provideMoshi(): Moshi =
-        Moshi.Builder()
-            .add(KotlinJsonAdapterFactory())
-            .build()
+    fun provideMoshi(): Moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build()
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient =
-        OkHttpClient.Builder()
-            .addInterceptor(
-                HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.NONE
-                },
-            )
-            .build()
-
-    @Provides
-    @Singleton
-    fun provideAuthConfig(): AuthConfig =
-        AuthConfig(
-            googleWebClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
-            githubOAuthClientId = BuildConfig.GITHUB_OAUTH_CLIENT_ID,
+    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(
+            HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.NONE
+            },
         )
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideAuthConfig(): AuthConfig = AuthConfig(
+        googleWebClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
+        githubOAuthClientId = BuildConfig.GITHUB_OAUTH_CLIENT_ID,
+    )
 
     @Provides
     @Singleton
     fun provideOpenFoodFactsApi(
         okHttpClient: OkHttpClient,
-    ): OpenFoodFactsApi =
-        Retrofit.Builder()
-            .baseUrl("https://world.openfoodfacts.org/")
-            .client(okHttpClient)
-            .build()
-            .create(OpenFoodFactsApi::class.java)
+    ): OpenFoodFactsApi = Retrofit.Builder()
+        .baseUrl("https://world.openfoodfacts.org/")
+        .client(okHttpClient)
+        .build()
+        .create(OpenFoodFactsApi::class.java)
 
     @Provides
     @Singleton
     fun provideGitHubAuthApi(
         okHttpClient: OkHttpClient,
         moshi: Moshi,
-    ): GitHubAuthApi =
-        Retrofit.Builder()
-            .baseUrl("https://github.com/")
-            .client(okHttpClient)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .build()
-            .create(GitHubAuthApi::class.java)
+    ): GitHubAuthApi = Retrofit.Builder()
+        .baseUrl("https://github.com/")
+        .client(okHttpClient)
+        .addConverterFactory(MoshiConverterFactory.create(moshi))
+        .build()
+        .create(GitHubAuthApi::class.java)
 }
 
 @Module

@@ -12,13 +12,11 @@ import com.musfit.data.local.entity.FoodServingEntity
 import com.musfit.data.local.entity.HealthConnectExportRecordEntity
 import com.musfit.data.local.entity.MealEntity
 import com.musfit.data.local.entity.MealItemEntity
-import com.musfit.data.remote.food.ProductDataQuality
-import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectDeleteResult
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecord
-import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
@@ -2426,8 +2424,8 @@ class LocalFoodRepositoryTest {
         )
 
         override suspend fun exportWorkout(
-            session: com.musfit.data.local.entity.WorkoutSessionEntity,
-            sets: List<com.musfit.data.local.entity.WorkoutSetEntity>,
+            workout: com.musfit.domain.health.HealthConnectWorkoutExport,
+            identity: com.musfit.domain.health.HealthConnectRecordIdentity,
         ): String? = null
 
         override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult {

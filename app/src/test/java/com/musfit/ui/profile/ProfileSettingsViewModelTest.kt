@@ -2,7 +2,6 @@ package com.musfit.ui.profile
 
 import androidx.lifecycle.SavedStateHandle
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
-import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.repository.Account
 import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountErasureRepository
@@ -34,6 +33,7 @@ import com.musfit.data.repository.GitHubDeviceAuthorization
 import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.LocalAgentKind
+import com.musfit.data.repository.ProductLookupResult
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.QuickCalorieLogInput
 import com.musfit.data.repository.SavedFoodItem

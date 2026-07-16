@@ -1,5 +1,8 @@
 package com.musfit.data.remote.food
 
+import com.musfit.data.repository.ProductDataQuality
+import com.musfit.data.repository.ProductLookupResult
+import com.musfit.data.repository.ProductSearchResult
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.CancellationException
@@ -8,8 +11,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
-import org.junit.Assert.fail
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class OpenFoodFactsProductProviderTest {
@@ -19,30 +22,30 @@ class OpenFoodFactsProductProviderTest {
             OpenFoodFactsResponse(
                 status = 1,
                 product =
-                    OpenFoodFactsProduct(
-                        productName = "Greek Yogurt",
-                        brands = "Example Dairy",
-                        servingQuantity = 170.0,
-                        nutriments =
-                            OpenFoodFactsNutriments(
-                                energyKcal100g = 59.0,
-                                proteins100g = 10.0,
-                                carbohydrates100g = 3.6,
-                                fat100g = 0.4,
-                                fiber100g = 0.2,
-                                sugars100g = 3.6,
-                                saturatedFat100g = 0.1,
-                                sodium100g = 0.036,
-                                potassium100g = 0.141,
-                                calcium100g = 0.12,
-                                iron100g = 0.0002,
-                                vitaminD100g = 0.000001,
-                                vitaminC100g = 0.002,
-                                magnesium100g = 0.011,
-                            ),
-                        categories = "Dairy",
-                        imageUrl = "https://images.openfoodfacts.org/yogurt.jpg",
+                OpenFoodFactsProduct(
+                    productName = "Greek Yogurt",
+                    brands = "Example Dairy",
+                    servingQuantity = 170.0,
+                    nutriments =
+                    OpenFoodFactsNutriments(
+                        energyKcal100g = 59.0,
+                        proteins100g = 10.0,
+                        carbohydrates100g = 3.6,
+                        fat100g = 0.4,
+                        fiber100g = 0.2,
+                        sugars100g = 3.6,
+                        saturatedFat100g = 0.1,
+                        sodium100g = 0.036,
+                        potassium100g = 0.141,
+                        calcium100g = 0.12,
+                        iron100g = 0.0002,
+                        vitaminD100g = 0.000001,
+                        vitaminC100g = 0.002,
+                        magnesium100g = 0.011,
                     ),
+                    categories = "Dairy",
+                    imageUrl = "https://images.openfoodfacts.org/yogurt.jpg",
+                ),
             )
 
         val result = OpenFoodFactsProductProvider.normalize(barcode = "1234567890123", response = response)
@@ -74,18 +77,18 @@ class OpenFoodFactsProductProviderTest {
             OpenFoodFactsResponse(
                 status = 1,
                 product =
-                    OpenFoodFactsProduct(
-                        productName = "Mystery Bar",
-                        brands = null,
-                        servingQuantity = null,
-                        nutriments =
-                            OpenFoodFactsNutriments(
-                                energyKcal100g = null,
-                                proteins100g = null,
-                                carbohydrates100g = null,
-                                fat100g = null,
-                            ),
+                OpenFoodFactsProduct(
+                    productName = "Mystery Bar",
+                    brands = null,
+                    servingQuantity = null,
+                    nutriments =
+                    OpenFoodFactsNutriments(
+                        energyKcal100g = null,
+                        proteins100g = null,
+                        carbohydrates100g = null,
+                        fat100g = null,
                     ),
+                ),
             )
 
         val result = OpenFoodFactsProductProvider.normalize(barcode = "4000000000000", response = response)
@@ -192,10 +195,9 @@ class OpenFoodFactsProductProviderTest {
         }
     }
 
-    private fun testMoshi(): Moshi =
-        Moshi.Builder()
-            .add(KotlinJsonAdapterFactory())
-            .build()
+    private fun testMoshi(): Moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build()
 
     private class FakeApi(
         private val rawJson: String? = null,

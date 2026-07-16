@@ -13,17 +13,18 @@ import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectDailyReadResult
+import com.musfit.domain.health.HealthConnectDeleteResult
 import com.musfit.domain.health.HealthConnectMetric
 import com.musfit.domain.health.HealthConnectMetricFailure
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.HealthConnectUnavailableReason
+import com.musfit.domain.health.HealthConnectWorkoutExport
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.health.StepSource
 import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecord
 import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecordType
 import com.musfit.integrations.healthconnect.HealthConnectDeleteFailure
-import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
 import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
 import com.musfit.integrations.healthconnect.HealthConnectGateway
@@ -584,7 +585,7 @@ class LocalHealthRepositoryTest {
         val syncState = database.healthDao().observeHealthConnectSyncState(TEST_ACCOUNT_ID).first()
 
         assertEquals("record-id", recordId)
-        assertEquals("session-1", gateway.exportedSession?.id)
+        assertEquals("session-1", gateway.exportedSession?.localSessionId)
         assertEquals(1, gateway.exportedSets.size)
         assertEquals("record-id", savedSession?.healthConnectRecordId)
         assertEquals(1_000L, savedSession?.healthConnectLastExportedAtEpochMillis)
@@ -802,8 +803,8 @@ class LocalHealthRepositoryTest {
         val recordId = repository.exportLatestWorkout()
 
         assertEquals("record-id", recordId)
-        assertEquals("session-completed", gateway.exportedSession?.id)
-        assertEquals(listOf("set-completed"), gateway.exportedSets.map { it.id })
+        assertEquals("session-completed", gateway.exportedSession?.localSessionId)
+        assertEquals(listOf("set-completed"), gateway.exportedSets.map { it.localSetId })
         assertNull(database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-active")?.healthConnectRecordId)
     }
 
@@ -870,7 +871,7 @@ class LocalHealthRepositoryTest {
 
         repository.exportLatestWorkout()
 
-        assertEquals(listOf("set-completed"), gateway.exportedSets.map { it.id })
+        assertEquals(listOf("set-completed"), gateway.exportedSets.map { it.localSetId })
     }
 
     @Test
@@ -951,8 +952,8 @@ class LocalHealthRepositoryTest {
         val recordId = repository.exportLatestWorkout()
 
         assertEquals("record-id", recordId)
-        assertEquals("session-older-completed", gateway.exportedSession?.id)
-        assertEquals(listOf("set-older-completed"), gateway.exportedSets.map { it.id })
+        assertEquals("session-older-completed", gateway.exportedSession?.localSessionId)
+        assertEquals(listOf("set-older-completed"), gateway.exportedSets.map { it.localSetId })
         assertNull(database.trainingDao().getWorkoutSession(TEST_ACCOUNT_ID, "session-newer-empty")?.healthConnectRecordId)
     }
 
@@ -1004,8 +1005,8 @@ class LocalHealthRepositoryTest {
     }
 
     private class FakeHealthConnectGateway : HealthConnectGateway {
-        var exportedSession: WorkoutSessionEntity? = null
-        var exportedSets: List<WorkoutSetEntity> = emptyList()
+        var exportedSession: HealthConnectWorkoutExport? = null
+        var exportedSets = emptyList<com.musfit.domain.health.HealthConnectWorkoutSetExport>()
         val exportedIdentities = mutableListOf<HealthConnectRecordIdentity>()
         val importedDates = mutableListOf<LocalDate>()
         val preferredStepsPackages = mutableListOf<String?>()
@@ -1099,21 +1100,13 @@ class LocalHealthRepositoryTest {
         }
 
         override suspend fun exportWorkout(
-            session: WorkoutSessionEntity,
-            sets: List<WorkoutSetEntity>,
-        ): String {
-            exportedSession = session
-            exportedSets = sets
-            return "record-id"
-        }
-
-        override suspend fun exportWorkout(
-            session: WorkoutSessionEntity,
-            sets: List<WorkoutSetEntity>,
+            workout: HealthConnectWorkoutExport,
             identity: HealthConnectRecordIdentity,
         ): String {
+            exportedSession = workout
+            exportedSets = workout.sets
             exportedIdentities += identity
-            return exportWorkout(session, sets)
+            return "record-id"
         }
 
         override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? = null

@@ -6,6 +6,7 @@ import androidx.health.connect.client.records.NutritionRecord
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectDeleteResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

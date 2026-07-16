@@ -7,20 +7,23 @@ import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.HealthConnectExportRecordEntity
 import com.musfit.data.local.entity.HealthConnectSyncStateEntity
 import com.musfit.data.local.entity.WorkoutSessionEntity
+import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.domain.health.HealthConnectAuthoredRecord
+import com.musfit.domain.health.HealthConnectAuthoredRecordType
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectDailyReadResult
+import com.musfit.domain.health.HealthConnectDeleteResult
+import com.musfit.domain.health.HealthConnectGateway
 import com.musfit.domain.health.HealthConnectMetric
 import com.musfit.domain.health.HealthConnectMetricFailure
+import com.musfit.domain.health.HealthConnectRecordIdentity
 import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.HealthConnectWorkoutExport
+import com.musfit.domain.health.HealthConnectWorkoutSetExport
 import com.musfit.domain.health.ImportedBodyMetric
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.domain.health.StepSource
-import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecord
-import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecordType
-import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
-import com.musfit.integrations.healthconnect.HealthConnectGateway
-import com.musfit.integrations.healthconnect.HealthConnectRecordIdentity
-import com.musfit.integrations.healthconnect.workoutExportFingerprint
+import com.musfit.domain.health.workoutExportFingerprint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -360,7 +363,8 @@ class LocalHealthRepository @Inject constructor(
         val sets = trainingDao.getCompletedWorkoutSets(accountId, session.id)
         if (sets.isEmpty()) return null
 
-        val fingerprint = workoutExportFingerprint(session, sets)
+        val workout = session.toHealthConnectExport(sets)
+        val fingerprint = workoutExportFingerprint(workout)
         val existing = healthDao.getHealthConnectExportRecord(accountId, HEALTH_EXPORT_TYPE_WORKOUT, session.id)
         if (existing?.payloadFingerprint == fingerprint) {
             return existing.providerRecordId
@@ -374,7 +378,7 @@ class LocalHealthRepository @Inject constructor(
             sessionId = session.id,
             version = existing?.clientRecordVersion?.plus(1) ?: 1,
         )
-        val recordId = gateway.exportWorkout(session, sets, identity) ?: return null
+        val recordId = gateway.exportWorkout(workout, identity) ?: return null
         val now = clock()
         persistWorkoutExportRecord(
             HealthConnectExportRecordEntity(
@@ -630,3 +634,31 @@ private fun ImportedBodyMetric.toBodyMetricEntity(accountId: String): BodyMetric
         externalId = externalId,
     )
 }
+
+private fun WorkoutSessionEntity.toHealthConnectExport(
+    sets: List<WorkoutSetEntity>,
+): HealthConnectWorkoutExport = HealthConnectWorkoutExport(
+    accountId = accountId,
+    localSessionId = id,
+    title = title,
+    startedAtEpochMillis = startedAtEpochMillis,
+    endedAtEpochMillis = endedAtEpochMillis,
+    notes = notes,
+    sets = sets.map { set ->
+        HealthConnectWorkoutSetExport(
+            localSetId = set.id,
+            exerciseId = set.exerciseId,
+            sortOrder = set.sortOrder,
+            setType = set.setType,
+            reps = set.reps,
+            weightKg = set.weightKg,
+            durationSeconds = set.durationSeconds,
+            distanceMeters = set.distanceMeters,
+            rpe = set.rpe,
+            notes = set.notes,
+            completed = set.completed,
+            supersetGroupId = set.supersetGroupId,
+            restSeconds = set.restSeconds,
+        )
+    },
+)

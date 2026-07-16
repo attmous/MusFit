@@ -10,11 +10,11 @@ import com.musfit.data.local.entity.AiCoachSettingsEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
 import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectDeleteResult
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedDailyHealthSummary
 import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecordType
 import com.musfit.integrations.healthconnect.HealthConnectDeleteFailure
-import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest

@@ -7,7 +7,7 @@ import com.musfit.data.local.entity.ACTIVE_ACCOUNT_SESSION_KEY
 import com.musfit.data.local.entity.AccountEntity
 import com.musfit.data.local.entity.AccountSessionEntity
 import com.musfit.data.local.entity.LOCAL_DEFAULT_ACCOUNT_ID
-import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
+import com.musfit.domain.health.HealthConnectDeleteResult
 import javax.inject.Inject
 import javax.inject.Singleton
 
