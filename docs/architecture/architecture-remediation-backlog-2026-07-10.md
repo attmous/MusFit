@@ -5,12 +5,14 @@
 This is the agent handoff for findings in the
 [full app architecture audit](app-architecture-audit-2026-07-10.md), pinned to
 commit `23e45544cef22c55d44959ad1abe5e808b565154`. Packages are ordered by
-dependency, not by perceived novelty. Each package ID is one agent and one PR;
-families such as `W4-MOD-F1` through `F4` are four separate packages/PRs.
+dependency, not by perceived novelty.
 
-No agent should combine packages merely because they are nearby. A package may
-be split further if its red test or file diff proves larger than estimated; it
-must not be silently expanded to another top-level feature.
+The package definitions and acceptance contracts below remain authoritative.
+For work after 2026-07-16, the
+[active remediation slice plan](architecture-remediation-slice-plan-2026-07-16.md)
+supersedes this document's original one-package-per-agent/PR execution rule.
+Package IDs remain independently traceable and must not be silently expanded
+outside their acceptance contracts.
 
 ## Revalidation status
 
