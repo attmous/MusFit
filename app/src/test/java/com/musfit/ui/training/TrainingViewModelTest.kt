@@ -37,13 +37,17 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -62,6 +66,34 @@ class TrainingViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun destinationStateFlowsOnlyEmitForTheirOwnDomain() = runTest {
+        val viewModel = TrainingViewModel(FakeTrainingRepository(), FakeGoalsRepository())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.routinesLibraryState.collect { }
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.activeHistoryState.collect { }
+        }
+        testScheduler.advanceUntilIdle()
+
+        val routinesBeforeActiveChange = viewModel.routinesLibraryState.value
+        val activeBeforeActiveChange = viewModel.activeHistoryState.value
+        viewModel.onActiveWorkoutNotesChanged("keep elbows tucked")
+        testScheduler.advanceUntilIdle()
+
+        assertSame(routinesBeforeActiveChange, viewModel.routinesLibraryState.value)
+        assertNotSame(activeBeforeActiveChange, viewModel.activeHistoryState.value)
+
+        val routinesBeforeLibraryChange = viewModel.routinesLibraryState.value
+        val activeBeforeLibraryChange = viewModel.activeHistoryState.value
+        viewModel.onRoutineExercisePickerSearchChanged("bench")
+        testScheduler.advanceUntilIdle()
+
+        assertNotSame(routinesBeforeLibraryChange, viewModel.routinesLibraryState.value)
+        assertSame(activeBeforeLibraryChange, viewModel.activeHistoryState.value)
     }
 
     @Test

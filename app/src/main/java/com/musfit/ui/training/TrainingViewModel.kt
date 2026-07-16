@@ -30,9 +30,13 @@ import com.musfit.domain.training.WarmupSetCalculator
 import com.musfit.domain.training.WorkoutCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -247,6 +251,30 @@ class TrainingViewModel @Inject constructor(
         ?.get<TrainingRestorationState>(TRAINING_RESTORATION_STATE_KEY)
     private val mutableState = MutableStateFlow(restoredState?.toTrainingUiState() ?: TrainingUiState())
     val state: StateFlow<TrainingUiState> = mutableState.asStateFlow()
+    val routeState: StateFlow<TrainingRouteUiState> = mutableState
+        .map(TrainingPresentationReducers::route)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = TrainingPresentationReducers.route(mutableState.value),
+        )
+    val routinesLibraryState: StateFlow<TrainingRoutinesLibraryUiState> = mutableState
+        .map(TrainingPresentationReducers::routinesLibrary)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = TrainingPresentationReducers.routinesLibrary(mutableState.value),
+        )
+    val activeHistoryState: StateFlow<TrainingActiveHistoryUiState> = mutableState
+        .map(TrainingPresentationReducers::activeHistory)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = TrainingPresentationReducers.activeHistory(mutableState.value),
+        )
 
     init {
         viewModelScope.launch {
