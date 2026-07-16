@@ -57,6 +57,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -115,6 +116,28 @@ import kotlin.math.roundToInt
  */
 private enum class FoodDiaryTab { Diary, Summary }
 
+@Immutable
+private data class FoodDiaryActions(
+    val onPreviousDay: () -> Unit,
+    val onNextDay: () -> Unit,
+    val onToday: () -> Unit,
+    val onOpenGoal: () -> Unit,
+    val onOpenMeals: () -> Unit,
+    val onOpenTemplates: () -> Unit,
+    val onOpenShopping: () -> Unit,
+    val onOpenRecipes: () -> Unit,
+    val onOpenFasting: () -> Unit,
+    val onOpenHealthConnect: () -> Unit,
+    val onOpenDatabase: () -> Unit,
+    val onCopyDayToTomorrow: () -> Unit,
+    val onOpenWater: () -> Unit,
+    val onQuickAddWater: () -> Unit,
+    val onQuickRemoveWater: () -> Unit,
+    val onUndoDelete: () -> Unit,
+    val onOpenMeal: (String) -> Unit,
+    val onAddFood: (String) -> Unit,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FoodScreen(
@@ -128,7 +151,6 @@ fun FoodScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val diaryState by viewModel.diaryState.collectAsState()
-    val trackerState by viewModel.trackerState.collectAsState()
     val accent = tabAccentFor(AppDestination.Food)
     val selectedMealDetail = state.selectedMealDetailForDisplay()
     val isRecipeFullScreen =
@@ -140,7 +162,28 @@ fun FoodScreen(
         state.isAddPanelVisible && state.sheetMode == FoodSheetMode.SavedFoodEditor
     val isGoalEditorFullScreen =
         state.isAddPanelVisible && state.sheetMode == FoodSheetMode.GoalEditor
-    var selectedDiaryTab by rememberSaveable { mutableStateOf(FoodDiaryTab.Diary) }
+    val diaryActions = remember(viewModel) {
+        FoodDiaryActions(
+            onPreviousDay = viewModel::goToPreviousDay,
+            onNextDay = viewModel::goToNextDay,
+            onToday = viewModel::goToToday,
+            onOpenGoal = viewModel::openGoalEditor,
+            onOpenMeals = viewModel::openMealSettings,
+            onOpenTemplates = viewModel::openMealTemplates,
+            onOpenShopping = viewModel::openShoppingList,
+            onOpenRecipes = viewModel::openRecipeBrowser,
+            onOpenFasting = viewModel::openFastingTimer,
+            onOpenHealthConnect = viewModel::openHealthConnectSheet,
+            onOpenDatabase = viewModel::openFoodDatabase,
+            onCopyDayToTomorrow = viewModel::copySelectedDayToTomorrow,
+            onOpenWater = viewModel::openWaterSheet,
+            onQuickAddWater = { viewModel.logQuickWater(WATER_QUICK_ADD_MILLILITERS) },
+            onQuickRemoveWater = { viewModel.removeQuickWater(WATER_QUICK_ADD_MILLILITERS) },
+            onUndoDelete = viewModel::undoDeleteDiaryEntry,
+            onOpenMeal = viewModel::openMealDetail,
+            onAddFood = viewModel::openAddFood,
+        )
+    }
     val foodHealthConnectPermissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract(),
     ) {
@@ -313,109 +356,7 @@ fun FoodScreen(
                 onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
             )
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                Column(
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                ) {
-                    MusFitScreenHeader(
-                        title = "Food",
-                        actions = {
-                            FoodDateChip(
-                                date = diaryState.selectedDate,
-                                onPreviousDayClick = viewModel::goToPreviousDay,
-                                onNextDayClick = viewModel::goToNextDay,
-                                onTodayClick = viewModel::goToToday,
-                            )
-                            FoodDiaryOverflowAction(
-                                isSaving = diaryState.isSaving,
-                                onGoalClick = viewModel::openGoalEditor,
-                                onMealsClick = viewModel::openMealSettings,
-                                onTemplatesClick = viewModel::openMealTemplates,
-                                onShoppingClick = viewModel::openShoppingList,
-                                onRecipesClick = viewModel::openRecipeBrowser,
-                                onFastingClick = viewModel::openFastingTimer,
-                                onHealthConnectClick = viewModel::openHealthConnectSheet,
-                                onFoodDatabaseClick = viewModel::openFoodDatabase,
-                                onCopyDayToTomorrowClick = viewModel::copySelectedDayToTomorrow,
-                            )
-                        },
-                    )
-                    FoodDiarySummaryCard(
-                        state = diaryState,
-                        accent = accent,
-                    )
-
-                    if (diaryState.macroProgress.isNotEmpty()) {
-                        MacroProgressRow(diaryState.macroProgress)
-                    }
-
-                    FoodWaterRow(
-                        consumedMilliliters = diaryState.waterConsumedMilliliters,
-                        goalMilliliters = diaryState.waterGoalMilliliters,
-                        onWaterClick = viewModel::openWaterSheet,
-                        onQuickAddClick = { viewModel.logQuickWater(WATER_QUICK_ADD_MILLILITERS) },
-                        onQuickRemoveClick = { viewModel.removeQuickWater(WATER_QUICK_ADD_MILLILITERS) },
-                    )
-
-                    MessageBanner(
-                        message = diaryState.message,
-                        canUndoDelete = diaryState.canUndoDelete,
-                        onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
-                    )
-
-                    // The meal diary, today's summary, and trends share this one
-                    // space; the segmented switcher swaps which is shown. The date
-                    // header, calorie card, and water row above stay pinned across tabs.
-                    MusFitSegmented(
-                        options = FoodDiaryTab.entries,
-                        selected = selectedDiaryTab,
-                        accent = accent,
-                        label = { it.name },
-                        onSelect = { selectedDiaryTab = it },
-                    )
-
-                    when (selectedDiaryTab) {
-                        FoodDiaryTab.Diary ->
-                            // Turn 8 (8b): the diary is one grouped list of meal
-                            // summary rows — item rows live on the meal detail page.
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                diaryState.mealSections.forEachIndexed { index, meal ->
-                                    MealSummaryRow(
-                                        meal = meal,
-                                        badgeShape = expressiveBadgeShapeFor(index),
-                                        shape = groupedShape(index, diaryState.mealSections.size),
-                                        // Tapping a meal opens its detail once it has logged
-                                        // items; an empty meal jumps straight to add-food.
-                                        // The + is always quick-add.
-                                        onMealClick = {
-                                            if (meal.entries.isNotEmpty()) {
-                                                viewModel.openMealDetail(meal.id)
-                                            } else {
-                                                viewModel.openAddFood(meal.id)
-                                            }
-                                        },
-                                        onAddClick = { viewModel.openAddFood(meal.id) },
-                                    )
-                                }
-                            }
-
-                        FoodDiaryTab.Summary -> {
-                            DayRatingCard(diaryState.dayRating)
-                            DailyInsightsSection(diaryState.dailyInsights)
-                            FoodHabitTrackerSection(diaryState.habitTrackers)
-                            AdvancedNutritionProgressRow(diaryState.advancedNutritionProgress)
-                            MicronutrientRow(diaryState.micronutrients)
-                        }
-                    }
-                }
-            }
+            FoodDiaryHome(state = diaryState, accent = accent, actions = diaryActions)
         }
     }
 
@@ -652,37 +593,143 @@ fun FoodScreen(
                     )
 
                 FoodSheetMode.Water ->
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        WaterTrackerCard(
-                            state = trackerState,
-                            onQuickWaterClick = viewModel::logQuickWater,
-                            onRemoveWaterClick = viewModel::removeQuickWater,
-                            onCustomAmountChanged = viewModel::onWaterCustomAmountChanged,
-                            onCustomAddClick = viewModel::logCustomWater,
-                            onCustomRemoveClick = viewModel::removeCustomWater,
-                            onGoalChanged = viewModel::onWaterGoalChanged,
-                            onGoalSaveClick = viewModel::saveWaterGoal,
-                        )
-                    }
+                    FoodWaterTrackerSheet(viewModel)
 
                 FoodSheetMode.HealthConnect ->
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        FoodHealthConnectSyncCard(
-                            state = trackerState,
-                            onEnabledChanged = viewModel::onFoodHealthConnectSyncEnabledChanged,
-                            onRequestPermissionsClick = {
-                                if (trackerState.foodHealthConnectCanRequestPermissions) {
-                                    foodHealthConnectPermissionLauncher.launch(
-                                        trackerState.foodHealthConnectRequestablePermissions,
-                                    )
-                                }
-                            },
-                            onRefreshClick = viewModel::refreshFoodHealthConnectSync,
-                            onSyncClick = viewModel::syncFoodToHealthConnect,
-                        )
-                    }
+                    FoodHealthConnectTrackerSheet(
+                        viewModel = viewModel,
+                        onRequestPermissions = foodHealthConnectPermissionLauncher::launch,
+                    )
             }
         }
+    }
+}
+
+@Composable
+@Suppress("LongMethod")
+private fun FoodDiaryHome(
+    state: FoodDiaryUiState,
+    accent: TabAccent,
+    actions: FoodDiaryActions,
+) {
+    var selectedDiaryTab by rememberSaveable { mutableStateOf(FoodDiaryTab.Diary) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            MusFitScreenHeader(
+                title = "Food",
+                actions = {
+                    FoodDateChip(
+                        date = state.selectedDate,
+                        onPreviousDayClick = actions.onPreviousDay,
+                        onNextDayClick = actions.onNextDay,
+                        onTodayClick = actions.onToday,
+                    )
+                    FoodDiaryOverflowAction(
+                        isSaving = state.isSaving,
+                        onGoalClick = actions.onOpenGoal,
+                        onMealsClick = actions.onOpenMeals,
+                        onTemplatesClick = actions.onOpenTemplates,
+                        onShoppingClick = actions.onOpenShopping,
+                        onRecipesClick = actions.onOpenRecipes,
+                        onFastingClick = actions.onOpenFasting,
+                        onHealthConnectClick = actions.onOpenHealthConnect,
+                        onFoodDatabaseClick = actions.onOpenDatabase,
+                        onCopyDayToTomorrowClick = actions.onCopyDayToTomorrow,
+                    )
+                },
+            )
+            FoodDiarySummaryCard(state = state, accent = accent)
+            if (state.macroProgress.isNotEmpty()) MacroProgressRow(state.macroProgress)
+            FoodWaterRow(
+                consumedMilliliters = state.waterConsumedMilliliters,
+                goalMilliliters = state.waterGoalMilliliters,
+                onWaterClick = actions.onOpenWater,
+                onQuickAddClick = actions.onQuickAddWater,
+                onQuickRemoveClick = actions.onQuickRemoveWater,
+            )
+            MessageBanner(
+                message = state.message,
+                canUndoDelete = state.canUndoDelete,
+                onUndoDeleteClick = actions.onUndoDelete,
+            )
+            MusFitSegmented(
+                options = FoodDiaryTab.entries,
+                selected = selectedDiaryTab,
+                accent = accent,
+                label = { it.name },
+                onSelect = { selectedDiaryTab = it },
+            )
+            when (selectedDiaryTab) {
+                FoodDiaryTab.Diary -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    state.mealSections.forEachIndexed { index, meal ->
+                        MealSummaryRow(
+                            meal = meal,
+                            badgeShape = expressiveBadgeShapeFor(index),
+                            shape = groupedShape(index, state.mealSections.size),
+                            onMealClick = {
+                                if (meal.entries.isNotEmpty()) actions.onOpenMeal(meal.id) else actions.onAddFood(meal.id)
+                            },
+                            onAddClick = { actions.onAddFood(meal.id) },
+                        )
+                    }
+                }
+
+                FoodDiaryTab.Summary -> {
+                    DayRatingCard(state.dayRating)
+                    DailyInsightsSection(state.dailyInsights)
+                    FoodHabitTrackerSection(state.habitTrackers)
+                    AdvancedNutritionProgressRow(state.advancedNutritionProgress)
+                    MicronutrientRow(state.micronutrients)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FoodWaterTrackerSheet(viewModel: FoodViewModel) {
+    val state by viewModel.trackerState.collectAsState()
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        WaterTrackerCard(
+            state = state,
+            onQuickWaterClick = viewModel::logQuickWater,
+            onRemoveWaterClick = viewModel::removeQuickWater,
+            onCustomAmountChanged = viewModel::onWaterCustomAmountChanged,
+            onCustomAddClick = viewModel::logCustomWater,
+            onCustomRemoveClick = viewModel::removeCustomWater,
+            onGoalChanged = viewModel::onWaterGoalChanged,
+            onGoalSaveClick = viewModel::saveWaterGoal,
+        )
+    }
+}
+
+@Composable
+private fun FoodHealthConnectTrackerSheet(
+    viewModel: FoodViewModel,
+    onRequestPermissions: (Set<String>) -> Unit,
+) {
+    val state by viewModel.trackerState.collectAsState()
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        FoodHealthConnectSyncCard(
+            state = state,
+            onEnabledChanged = viewModel::onFoodHealthConnectSyncEnabledChanged,
+            onRequestPermissionsClick = {
+                if (state.foodHealthConnectCanRequestPermissions) {
+                    onRequestPermissions(state.foodHealthConnectRequestablePermissions)
+                }
+            },
+            onRefreshClick = viewModel::refreshFoodHealthConnectSync,
+            onSyncClick = viewModel::syncFoodToHealthConnect,
+        )
     }
 }
 

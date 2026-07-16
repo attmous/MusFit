@@ -910,7 +910,7 @@ class FoodViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.Eagerly,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
             initialValue = FoodPresentationReducers.trackers(mutableState.value),
         )
     private var lookupJob: Job? = null

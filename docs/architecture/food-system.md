@@ -42,7 +42,9 @@ committed schema JSON.
 Food currently uses one route-coordinator ViewModel. The diary and water/Health
 Connect panels consume equality-stable `FoodDiaryUiState` and
 `FoodTrackerUiState` projections, so unrelated editor, search, recipe, or
-database changes do not emit into those collectors. The compatibility
+database changes do not emit into those collectors. The diary subtree is a
+stable skippable compositor, while tracker collection is active only for an
+open water or Health Connect sheet. The compatibility
 `FoodUiState` aggregate remains for Add/database/editor/planning routes pending
 their dedicated state slices. Preserve the established `FoodAddMode` /
 `FoodSheetMode` behavior for feature changes.

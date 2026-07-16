@@ -2,6 +2,7 @@
 
 package com.musfit.ui.food
 
+import androidx.compose.runtime.Immutable
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodDiaryEntryStatus
 import com.musfit.data.repository.FoodDiaryMeal
@@ -16,6 +17,7 @@ import java.time.LocalDate
  * Keeping this projection separate from [FoodUiState] prevents editor, search,
  * recipe, and database updates from invalidating the diary surface.
  */
+@Immutable
 data class FoodDiaryUiState(
     val selectedDate: LocalDate,
     val isSaving: Boolean,
@@ -37,6 +39,7 @@ data class FoodDiaryUiState(
 )
 
 /** State needed by the water and Health Connect tracker panels only. */
+@Immutable
 data class FoodTrackerUiState(
     val isSaving: Boolean,
     val waterConsumedMilliliters: Double,
