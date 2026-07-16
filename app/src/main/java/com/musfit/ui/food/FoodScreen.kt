@@ -1,11 +1,11 @@
 package com.musfit.ui.food
 
-import com.musfit.data.repository.FoodGoalMode
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,26 +26,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BreakfastDining
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.BreakfastDining
 import androidx.compose.material.icons.filled.DinnerDining
 import androidx.compose.material.icons.filled.Icecream
 import androidx.compose.material.icons.filled.LocalDining
@@ -59,8 +44,22 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -70,25 +69,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Color
-import com.musfit.ui.theme.MusFitTheme
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.compose.ui.graphics.vector.ImageVector
+import coil.compose.AsyncImage
+import com.musfit.data.repository.FoodGoalMode
 import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
@@ -104,6 +103,7 @@ import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
 import com.musfit.ui.theme.MusFitMotion
+import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
@@ -127,6 +127,8 @@ fun FoodScreen(
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val diaryState by viewModel.diaryState.collectAsState()
+    val trackerState by viewModel.trackerState.collectAsState()
     val accent = tabAccentFor(AppDestination.Food)
     val selectedMealDetail = state.selectedMealDetailForDisplay()
     val isRecipeFullScreen =
@@ -326,13 +328,13 @@ fun FoodScreen(
                         title = "Food",
                         actions = {
                             FoodDateChip(
-                                date = state.selectedDate,
+                                date = diaryState.selectedDate,
                                 onPreviousDayClick = viewModel::goToPreviousDay,
                                 onNextDayClick = viewModel::goToNextDay,
                                 onTodayClick = viewModel::goToToday,
                             )
                             FoodDiaryOverflowAction(
-                                state = state,
+                                isSaving = diaryState.isSaving,
                                 onGoalClick = viewModel::openGoalEditor,
                                 onMealsClick = viewModel::openMealSettings,
                                 onTemplatesClick = viewModel::openMealTemplates,
@@ -346,25 +348,25 @@ fun FoodScreen(
                         },
                     )
                     FoodDiarySummaryCard(
-                        state = state,
+                        state = diaryState,
                         accent = accent,
                     )
 
-                    if (state.macroProgress.isNotEmpty()) {
-                        MacroProgressRow(state.macroProgress)
+                    if (diaryState.macroProgress.isNotEmpty()) {
+                        MacroProgressRow(diaryState.macroProgress)
                     }
 
                     FoodWaterRow(
-                        consumedMilliliters = state.waterConsumedMilliliters,
-                        goalMilliliters = state.waterGoalMilliliters,
+                        consumedMilliliters = diaryState.waterConsumedMilliliters,
+                        goalMilliliters = diaryState.waterGoalMilliliters,
                         onWaterClick = viewModel::openWaterSheet,
                         onQuickAddClick = { viewModel.logQuickWater(WATER_QUICK_ADD_MILLILITERS) },
                         onQuickRemoveClick = { viewModel.removeQuickWater(WATER_QUICK_ADD_MILLILITERS) },
                     )
 
                     MessageBanner(
-                        message = state.message,
-                        canUndoDelete = state.lastDeletedDiaryEntry != null,
+                        message = diaryState.message,
+                        canUndoDelete = diaryState.canUndoDelete,
                         onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
                     )
 
@@ -384,11 +386,11 @@ fun FoodScreen(
                             // Turn 8 (8b): the diary is one grouped list of meal
                             // summary rows — item rows live on the meal detail page.
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                state.mealSections.forEachIndexed { index, meal ->
+                                diaryState.mealSections.forEachIndexed { index, meal ->
                                     MealSummaryRow(
                                         meal = meal,
                                         badgeShape = expressiveBadgeShapeFor(index),
-                                        shape = groupedShape(index, state.mealSections.size),
+                                        shape = groupedShape(index, diaryState.mealSections.size),
                                         // Tapping a meal opens its detail once it has logged
                                         // items; an empty meal jumps straight to add-food.
                                         // The + is always quick-add.
@@ -405,17 +407,16 @@ fun FoodScreen(
                             }
 
                         FoodDiaryTab.Summary -> {
-                            DayRatingCard(state.dayRating)
-                            DailyInsightsSection(state.dailyInsights)
-                            FoodHabitTrackerSection(state.habitTrackers)
-                            AdvancedNutritionProgressRow(state.advancedNutritionProgress)
-                            MicronutrientRow(state.micronutrients)
+                            DayRatingCard(diaryState.dayRating)
+                            DailyInsightsSection(diaryState.dailyInsights)
+                            FoodHabitTrackerSection(diaryState.habitTrackers)
+                            AdvancedNutritionProgressRow(diaryState.advancedNutritionProgress)
+                            MicronutrientRow(diaryState.micronutrients)
                         }
                     }
                 }
             }
         }
-
     }
 
     if (
@@ -653,7 +654,7 @@ fun FoodScreen(
                 FoodSheetMode.Water ->
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         WaterTrackerCard(
-                            state = state,
+                            state = trackerState,
                             onQuickWaterClick = viewModel::logQuickWater,
                             onRemoveWaterClick = viewModel::removeQuickWater,
                             onCustomAmountChanged = viewModel::onWaterCustomAmountChanged,
@@ -667,12 +668,12 @@ fun FoodScreen(
                 FoodSheetMode.HealthConnect ->
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         FoodHealthConnectSyncCard(
-                            state = state,
+                            state = trackerState,
                             onEnabledChanged = viewModel::onFoodHealthConnectSyncEnabledChanged,
                             onRequestPermissionsClick = {
-                                if (state.foodHealthConnectCanRequestPermissions) {
+                                if (trackerState.foodHealthConnectCanRequestPermissions) {
                                     foodHealthConnectPermissionLauncher.launch(
-                                        state.foodHealthConnectRequestablePermissions,
+                                        trackerState.foodHealthConnectRequestablePermissions,
                                     )
                                 }
                             },
@@ -870,15 +871,15 @@ internal val FoodUiState.foodEntryActionVerb: String
 internal val FoodUiState.foodEntryActionProgressLabel: String
     get() = if (isPlanningMode) "Planning" else "Logging"
 
-internal fun FoodUiState.foodEntryActionLabel(target: String): String =
-    "$foodEntryActionVerb $target"
+internal fun FoodUiState.foodEntryActionLabel(target: String): String = "$foodEntryActionVerb $target"
 
 internal val FoodUiState.saveAndFoodEntryActionLabel: String
     get() = if (isPlanningMode) "Save and plan" else "Save and log"
 
 @Composable
+@Suppress("LongParameterList")
 private fun FoodDiaryOverflowAction(
-    state: FoodUiState,
+    isSaving: Boolean,
     onGoalClick: () -> Unit,
     onMealsClick: () -> Unit,
     onTemplatesClick: () -> Unit,
@@ -894,18 +895,45 @@ private fun FoodDiaryOverflowAction(
         Icon(Icons.Filled.MoreVert, contentDescription = "More actions", tint = MusFitTheme.colors.onSurfaceVariant)
     }
     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-        DropdownMenuItem(text = { Text("Recipes") }, onClick = { menuOpen = false; onRecipesClick() })
-        DropdownMenuItem(text = { Text("Goals") }, onClick = { menuOpen = false; onGoalClick() })
-        DropdownMenuItem(text = { Text("Meals") }, onClick = { menuOpen = false; onMealsClick() })
-        DropdownMenuItem(text = { Text("Templates") }, onClick = { menuOpen = false; onTemplatesClick() })
-        DropdownMenuItem(text = { Text("Shopping list") }, onClick = { menuOpen = false; onShoppingClick() })
-        DropdownMenuItem(text = { Text("Fasting") }, onClick = { menuOpen = false; onFastingClick() })
-        DropdownMenuItem(text = { Text("Health Connect") }, onClick = { menuOpen = false; onHealthConnectClick() })
-        DropdownMenuItem(text = { Text("Food database") }, onClick = { menuOpen = false; onFoodDatabaseClick() })
+        DropdownMenuItem(text = { Text("Recipes") }, onClick = {
+            menuOpen = false
+            onRecipesClick()
+        })
+        DropdownMenuItem(text = { Text("Goals") }, onClick = {
+            menuOpen = false
+            onGoalClick()
+        })
+        DropdownMenuItem(text = { Text("Meals") }, onClick = {
+            menuOpen = false
+            onMealsClick()
+        })
+        DropdownMenuItem(text = { Text("Templates") }, onClick = {
+            menuOpen = false
+            onTemplatesClick()
+        })
+        DropdownMenuItem(text = { Text("Shopping list") }, onClick = {
+            menuOpen = false
+            onShoppingClick()
+        })
+        DropdownMenuItem(text = { Text("Fasting") }, onClick = {
+            menuOpen = false
+            onFastingClick()
+        })
+        DropdownMenuItem(text = { Text("Health Connect") }, onClick = {
+            menuOpen = false
+            onHealthConnectClick()
+        })
+        DropdownMenuItem(text = { Text("Food database") }, onClick = {
+            menuOpen = false
+            onFoodDatabaseClick()
+        })
         DropdownMenuItem(
             text = { Text("Copy day to tomorrow") },
-            enabled = !state.isSaving,
-            onClick = { menuOpen = false; onCopyDayToTomorrowClick() },
+            enabled = !isSaving,
+            onClick = {
+                menuOpen = false
+                onCopyDayToTomorrowClick()
+            },
         )
     }
 }
@@ -918,7 +946,7 @@ private fun FoodDiaryOverflowAction(
  */
 @Composable
 private fun FoodDiarySummaryCard(
-    state: FoodUiState,
+    state: FoodDiaryUiState,
     accent: TabAccent,
 ) {
     Surface(
@@ -1384,12 +1412,11 @@ private fun RatingPill(rating: FoodRatingUiState) {
 }
 
 @Composable
-internal fun FoodInsightTone.ratingColor(): Color =
-    when (this) {
-        FoodInsightTone.Positive -> MusFitTheme.colors.brand
-        FoodInsightTone.Warning -> MusFitTheme.colors.warning
-        FoodInsightTone.Neutral -> MusFitTheme.colors.onSurfaceVariant
-    }
+internal fun FoodInsightTone.ratingColor(): Color = when (this) {
+    FoodInsightTone.Positive -> MusFitTheme.colors.brand
+    FoodInsightTone.Warning -> MusFitTheme.colors.warning
+    FoodInsightTone.Neutral -> MusFitTheme.colors.onSurfaceVariant
+}
 
 private val FoodHabitStatus.label: String
     get() =
@@ -1741,15 +1768,24 @@ private fun MealDetailScreen(
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
                                 text = { Text("Copy yesterday") },
-                                onClick = { menuOpen = false; onCopyYesterdayClick() },
+                                onClick = {
+                                    menuOpen = false
+                                    onCopyYesterdayClick()
+                                },
                             )
                             DropdownMenuItem(
                                 text = { Text("Save as template") },
-                                onClick = { menuOpen = false; onSaveTemplateClick() },
+                                onClick = {
+                                    menuOpen = false
+                                    onSaveTemplateClick()
+                                },
                             )
                             DropdownMenuItem(
                                 text = { Text("Meal settings") },
-                                onClick = { menuOpen = false; onMealSettingsClick() },
+                                onClick = {
+                                    menuOpen = false
+                                    onMealSettingsClick()
+                                },
                             )
                         }
                     }
@@ -2228,4 +2264,3 @@ private val MealDetailSortMode.label: String
             MealDetailSortMode.Protein -> "Protein"
             MealDetailSortMode.Name -> "Name"
         }
-

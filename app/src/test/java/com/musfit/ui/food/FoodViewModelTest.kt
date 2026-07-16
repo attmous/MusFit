@@ -60,6 +60,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -77,6 +78,20 @@ class FoodViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun unrelatedEditorUpdateDoesNotEmitDiaryOrTrackerSlices() = runTest {
+        val viewModel = FoodViewModel(FakeProductProvider(), FakeFoodRepository())
+        testScheduler.advanceUntilIdle()
+        val diaryBefore = viewModel.diaryState.value
+        val trackersBefore = viewModel.trackerState.value
+
+        viewModel.onFoodDatabaseQueryChanged("oats")
+        testScheduler.advanceUntilIdle()
+
+        assertSame(diaryBefore, viewModel.diaryState.value)
+        assertSame(trackersBefore, viewModel.trackerState.value)
     }
 
     @Test

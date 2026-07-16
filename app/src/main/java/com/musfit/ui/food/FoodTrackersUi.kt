@@ -33,8 +33,9 @@ import kotlin.math.roundToInt
 // panels draw naked — no card chrome.
 
 @Composable
+@Suppress("LongMethod", "LongParameterList")
 internal fun WaterTrackerCard(
-    state: FoodUiState,
+    state: FoodTrackerUiState,
     onQuickWaterClick: (Double) -> Unit,
     onRemoveWaterClick: (Double) -> Unit,
     onCustomAmountChanged: (String) -> Unit,
@@ -179,8 +180,9 @@ private fun WaterQuickStepperRow(
 }
 
 @Composable
+@Suppress("LongMethod")
 internal fun FoodHealthConnectSyncCard(
-    state: FoodUiState,
+    state: FoodTrackerUiState,
     onEnabledChanged: (Boolean) -> Unit,
     onRequestPermissionsClick: () -> Unit,
     onRefreshClick: () -> Unit,

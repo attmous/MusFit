@@ -24,10 +24,11 @@ committed schema JSON.
 | `ui/food/FoodScreen.kt` | Diary screen, summary/header, meal detail, and the `FoodSheetMode` dispatch. |
 | `ui/food/FoodComponents.kt` | Shared leaf composables + formatters (`ProgressBar`, `FoodThumb`, `SectionTitle`, …). |
 | `ui/food/FoodTrackersUi.kt` | Water + Health Connect cards, shown as bottom-sheet content (Water via the quick-actions tile, Health Connect via the tools menu). |
+| `ui/food/FoodPresentationState.kt` | Pure diary/tracker state projections plus Food summary, rating, favorite, filter, and form reducers. |
 | `ui/food/FoodModalSheets.kt` | The `FoodSheetMode` panels (database, editors, goals, recipes, templates, shopping, barcode comparison, fasting timer). |
 | `ui/food/FoodAddPanelUi.kt` | The add-food panel and its entry-mode forms. |
 | `ui/food/AddFoodScreen.kt` | Full-screen add-food surface (the `AddFood` sheet mode). |
-| `ui/food/FoodViewModel.kt` | Single `@HiltViewModel`; owns `FoodUiState` and every Food action. |
+| `ui/food/FoodViewModel.kt` | Single route coordinator `@HiltViewModel`; owns Food actions and exposes the compatibility aggregate plus independently collected diary and tracker state slices. |
 | `ui/food/BarcodeScannerScreen.kt` | CameraX + ML Kit barcode capture route. |
 | `ui/food/NutritionLabelScannerScreen.kt` | CameraX + ML Kit OCR capture route. |
 | `ui/food/NutritionTrends.kt`, `NutritionTrendsViewModel.kt`, `NutritionTrendsScreen.kt` | Profile-owned nutrition trends route backed by Food range summaries. |
@@ -38,11 +39,13 @@ committed schema JSON.
 | `data/remote/food/` | Open Food Facts Retrofit adapter and transport DTOs behind `FoodProductProvider`. |
 | `domain/nutrition/`, `domain/food/` | Pure nutrition calculators and the OCR parser. |
 
-Food currently uses **one ViewModel and one broad UI state** for the diary, add
-flow, database, editors, and related panels. Preserve the established
-`FoodAddMode` / `FoodSheetMode` behavior for feature changes. Structural changes
-must follow the current remediation package rather than blindly growing or
-splitting this state machine.
+Food currently uses one route-coordinator ViewModel. The diary and water/Health
+Connect panels consume equality-stable `FoodDiaryUiState` and
+`FoodTrackerUiState` projections, so unrelated editor, search, recipe, or
+database changes do not emit into those collectors. The compatibility
+`FoodUiState` aggregate remains for Add/database/editor/planning routes pending
+their dedicated state slices. Preserve the established `FoodAddMode` /
+`FoodSheetMode` behavior for feature changes.
 
 ## Feature map
 
@@ -224,10 +227,10 @@ Pure, Android-free calculators (see [data-models.md](data-models.md#domain)):
 - `domain/food/NutritionLabelParser` — best-effort OCR parsing.
 - Parser output includes label calories, macros, selected advanced nutrients,
   parsed-field count, and a confidence label.
-- Daily insight, rating, and nutrient-progress presentation heuristics remain
-  coordinated by `FoodViewModel`. Weekly score/progress derivation lives in
-  `NutritionTrends.kt` and `NutritionTrendsViewModel`. Move either boundary only
-  through an explicitly scoped, regression-tested remediation package.
+- Daily insight, day-rating, nutrient-progress, favorites, database filtering,
+  and decimal-form presentation reducers live in `FoodPresentationState.kt` and
+  have direct pure unit tests. Weekly score/progress derivation remains in
+  `NutritionTrends.kt` and `NutritionTrendsViewModel`.
 
 ## Testing
 
@@ -261,13 +264,14 @@ assembleProductionRelease bundleProductionRelease`).
 - [x] Move the amount-preview math (`quantity × per-100 g ÷ 100`) into pure
   `NutritionCalculator.nutritionForAmount`; called from the add/preview path.
   (Done — with domain tests.)
-- [ ] Move macro / advanced-nutrient / micronutrient **progress accumulation**,
+- [x] Move macro / advanced-nutrient / micronutrient **progress accumulation**,
   `buildDailyInsights`, and `buildDayRating` out of the ViewModel.
   **Re-scoped:** these consume the repository `FoodDiary` model and produce
   `*UiState` types, so a pure-`domain/` home would force domain→repository and
   domain→UI dependencies. The honest target is a `ui/food` presentation-calculator
   file (e.g. `FoodSummaryCalculators.kt`) holding them as testable `internal`
-  functions — not `domain/`. Deferred.
+  functions — not `domain/`. Completed by `W4-STATE-F1` with byte-for-output
+  compatibility tests and independently collected diary/tracker projections.
 
 ### Tier 1b — editor sub-state objects — DONE
 
