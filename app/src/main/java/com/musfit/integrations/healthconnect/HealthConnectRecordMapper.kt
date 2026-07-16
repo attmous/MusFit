@@ -10,8 +10,7 @@ import androidx.health.connect.client.units.kilocalories
 import androidx.health.connect.client.units.micrograms
 import androidx.health.connect.client.units.milligrams
 import androidx.health.connect.client.units.milliliters
-import com.musfit.data.local.entity.WorkoutSessionEntity
-import com.musfit.data.local.entity.WorkoutSetEntity
+import com.musfit.domain.health.HealthConnectWorkoutExport
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -19,20 +18,19 @@ import java.time.ZoneId
 
 object HealthConnectRecordMapper {
     fun toExerciseSessionRecord(
-        session: WorkoutSessionEntity,
-        sets: List<WorkoutSetEntity>,
+        workout: HealthConnectWorkoutExport,
         zoneId: ZoneId = ZoneId.systemDefault(),
         identity: HealthConnectRecordIdentity = HealthConnectRecordIdentity.forWorkout(
-            accountId = session.accountId,
-            sessionId = session.id,
+            accountId = workout.accountId,
+            sessionId = workout.localSessionId,
             version = 1,
         ),
     ): ExerciseSessionRecord {
-        val startInstant = Instant.ofEpochMilli(session.startedAtEpochMillis)
+        val startInstant = Instant.ofEpochMilli(workout.startedAtEpochMillis)
         val endInstant = Instant.ofEpochMilli(
-            session.endedAtEpochMillis ?: (session.startedAtEpochMillis + 1),
+            workout.endedAtEpochMillis ?: (workout.startedAtEpochMillis + 1),
         )
-        val completedSetCount = sets.count { it.completed }
+        val completedSetCount = workout.sets.count { it.completed }
         return ExerciseSessionRecord(
             startTime = startInstant,
             startZoneOffset = zoneId.rules.getOffset(startInstant),
@@ -41,7 +39,7 @@ object HealthConnectRecordMapper {
             metadata = Metadata.manualEntry(identity.clientRecordId, identity.clientRecordVersion),
             exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
             title = "MusFit workout: $completedSetCount completed sets",
-            notes = session.notes,
+            notes = workout.notes,
         )
     }
 

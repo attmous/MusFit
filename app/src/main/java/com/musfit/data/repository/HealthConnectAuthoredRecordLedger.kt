@@ -1,8 +1,8 @@
 package com.musfit.data.repository
 
 import com.musfit.data.local.entity.HealthConnectExportRecordEntity
-import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecord
-import com.musfit.integrations.healthconnect.HealthConnectAuthoredRecordType
+import com.musfit.domain.health.HealthConnectAuthoredRecord
+import com.musfit.domain.health.HealthConnectAuthoredRecordType
 
 internal fun HealthConnectExportRecordEntity.toAuthoredRecordOrNull(): HealthConnectAuthoredRecord? {
     val type = when (recordType) {

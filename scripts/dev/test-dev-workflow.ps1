@@ -320,6 +320,11 @@ foreach ($doc in $liveArchitectureDocs) {
     Assert-FileDoesNotContain $doc 'AppDestination\.Health|route\s*=\s*"health"|\|\s*Health\s*\|\s*`health`'
     Assert-FileDoesNotContain $doc '(?i)\bschema\s+(?:version\s+|v)\d+\b|MusFitDatabase[^\r\n]{0,60}\bversion\s+\d+\b|(?m)^\s*-\s*Version:\s*\d+\s*$'
 }
+Assert-FileContains "docs/architecture/README.md" '(?s)<!-- source-derived-facts:start -->.+<!-- source-derived-facts:end -->'
+Assert-FileContains "docs/architecture/README.md" 'ArchitectureBoundaryTest'
+Assert-FileExists "app/src/test/java/com/musfit/architecture/ArchitectureBoundaryTest.kt"
+Assert-FileContains "app/src/test/java/com/musfit/architecture/ArchitectureBoundaryTest.kt" 'compiledProductionClasses_haveNoForbiddenArchitectureEdges'
+Assert-FileContains "app/src/test/java/com/musfit/architecture/ArchitectureBoundaryTest.kt" 'deliberateForbiddenEdges_areRejected'
 
 foreach ($doc in @("AGENTS.md", "README.md", "docs/ops/auto-update.md")) {
     Assert-FileDoesNotContain $doc '(?i)seed[- ]receiver[^\r\n]{0,100}(?:remains open|still exports)|still exports[^\r\n]{0,100}seed receiver|SEC-001[^\r\n]{0,100}remains open'

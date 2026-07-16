@@ -2,7 +2,6 @@ package com.musfit.ui.today
 
 import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
-import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.CoachMessage
@@ -19,6 +18,7 @@ import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.HealthConnectRefreshResult
 import com.musfit.data.repository.HealthRepository
 import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.ProductLookupResult
 import com.musfit.data.repository.ProfileRepository
 import com.musfit.data.repository.QuickCalorieLogInput
 import com.musfit.data.repository.RoutineDetail

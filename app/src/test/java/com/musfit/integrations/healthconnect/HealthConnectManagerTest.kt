@@ -20,6 +20,7 @@ import com.musfit.data.local.entity.WorkoutSessionEntity
 import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectDailyReadResult
+import com.musfit.domain.health.HealthConnectDeleteResult
 import com.musfit.domain.health.HealthConnectMetric
 import com.musfit.domain.health.HealthConnectStatus
 import com.musfit.domain.health.ImportedBodyMetric
@@ -498,7 +499,7 @@ class HealthConnectManagerTest {
             factory = factory,
         )
 
-        val exportedId = manager.exportWorkout(session = workoutSession(), sets = completedSets())
+        val exportedId = manager.exportWorkoutFixture(session = workoutSession(), sets = completedSets())
 
         assertNull(exportedId)
         assertEquals(0, factory.createCount)
@@ -512,7 +513,7 @@ class HealthConnectManagerTest {
             factory = factory,
         )
 
-        val exportedId = manager.exportWorkout(session = workoutSession(), sets = completedSets())
+        val exportedId = manager.exportWorkoutFixture(session = workoutSession(), sets = completedSets())
 
         assertNull(exportedId)
         assertEquals(0, factory.createCount)
@@ -530,7 +531,7 @@ class HealthConnectManagerTest {
             factory = factory,
         )
 
-        val exportedId = manager.exportWorkout(session = workoutSession(), sets = completedSets())
+        val exportedId = manager.exportWorkoutFixture(session = workoutSession(), sets = completedSets())
 
         assertEquals("health-connect-record-123", exportedId)
         assertEquals(1, factory.createCount)

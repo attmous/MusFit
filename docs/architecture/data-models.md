@@ -28,9 +28,9 @@ For exact truth, read:
 | Room storage | `data/local/entity` and `data/local/dao` | Persisted entities, SQL, transactions, and query-specific projection rows. These types are storage details. |
 | Repository | `data/repository` | Feature-facing inputs, outputs, enums, and interfaces consumed by ViewModels. Local implementations map storage, remote, domain, and integration models. |
 | UI | `ui/<feature>` | `*UiState`, editor state, presentation enums, formatted labels, and navigation-only state. UI models are not persistence contracts. |
-| Domain | `domain` | Android-free models, calculators, parsers, and deterministic rules. Domain code must not depend on Compose, Room, Retrofit, or Android integration types. |
-| Remote | `data/remote` | Wire DTOs, API interfaces, transport results, and provider/client implementations for Food, identity, and coach endpoints. Wire models should not leak into UI contracts. |
-| Integration | `integrations/healthconnect` | Health Connect gateway, platform record mapping, and import/export boundary models. Repositories decide how those results affect local state. |
+| Domain | `domain` | Android-free models, calculators, parsers, deterministic rules, and inward-facing integration ports. Domain code must not depend on Compose, Room, Retrofit, or Android integration types. |
+| Remote | `data/remote` | Wire DTOs, API interfaces, and provider/client implementations for Food, identity, and coach endpoints. Wire models do not leak into UI contracts. |
+| Integration | `integrations/healthconnect` | Android Health Connect adapter and platform record mapping. It implements neutral domain ports and never imports Room entities. |
 | Secrets | `AiCoachSecretStore` implementation | Account-keyed, runtime-entered AI credentials live outside Room in an Android-Keystore-backed store. Room stores connection metadata and a presence flag that is reconciled against the runtime store before display or use. No variant compiles an API-key field or fallback. |
 
 The intended conversion paths are:
@@ -39,7 +39,7 @@ The intended conversion paths are:
 Room entity / DAO projection -> repository model -> UI state
 remote DTO -> provider/client result -> repository model -> UI state
 repository or UI input -> pure domain logic -> repository/UI result
-Health Connect record <-> integration gateway <-> repository model
+Health Connect record <-> Android adapter <-> neutral domain port <-> repository model
 ```
 
 These are ownership targets, not a claim that every current dependency is
@@ -149,8 +149,8 @@ models independent of how data is stored, rendered, or transported.
 
 ### Remote
 
-- `data/remote/food` owns Open Food Facts API DTOs and the
-  `FoodProductProvider` transport boundary.
+- `data/remote/food` owns Open Food Facts API DTOs and the adapter that
+  implements the normalized `data/repository/FoodProductProvider` port.
 - `data/remote/auth` owns GitHub OAuth wire DTOs and API calls; repositories map
   provider identity into the local account contract.
 - `data/remote/coach` owns OpenAI-compatible/Hermes request-response DTOs and the
@@ -161,10 +161,12 @@ persistence or UI exposure.
 
 ### Health Connect integration
 
-`HealthConnectGateway`, its payload/result types, record mapper, and Android
-manager live under `integrations/healthconnect`. Repository models decide what
-the app stores and displays; platform record types should remain at the
-integration boundary. Daily reads return metric-aware complete, partial, empty,
+`HealthConnectGateway`, its neutral snapshots, and payload/result types live
+under `domain/health`. The record mapper and Android manager live under
+`integrations/healthconnect` and implement that inward-facing port. Repository
+models decide what the app stores and displays; Room entities are mapped before
+adapter dispatch, and platform record types remain at the integration boundary.
+Daily reads return metric-aware complete, partial, empty,
 unavailable, or failure results. `HealthRepository` uses the successful-metric
 set to clear confirmed-empty fields, preserve only failed/ungranted fields, and
 atomically persist summaries, body metrics, and sync state. Cancellation is

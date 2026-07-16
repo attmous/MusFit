@@ -1,6 +1,6 @@
 package com.musfit.core.di
 
-import com.musfit.integrations.healthconnect.HealthConnectGateway
+import com.musfit.domain.health.HealthConnectGateway
 import com.musfit.integrations.healthconnect.HealthConnectManager
 import dagger.Binds
 import dagger.Module

@@ -13,6 +13,15 @@ Related documents:
 - [Screen contracts](screen-contracts.md)
 - [Data models](data-models.md)
 
+<!-- source-derived-facts:start -->
+## Source-derived facts
+
+- The top-level destination names and routes in the table below are checked against `AppDestination`.
+- The Room version, newest exported schema, contiguous migrations, and documented table inventory are checked against source and schema JSON.
+- The bottom-navigation component name is derived from `AppNavGraph` and checked here.
+- The workflow and architecture-boundary checks run from `scripts/dev/test-dev-workflow.ps1` and `ArchitectureBoundaryTest`.
+<!-- source-derived-facts:end -->
+
 ## Product Shape
 
 MusFit is an Android-only, local-first fitness and nutrition tracker. The app is inspired by the information architecture of food trackers and training loggers, but uses original UI and app-specific models.
@@ -60,11 +69,11 @@ isolation is not implemented yet; see the architecture audit.
 | `app/src/main/java/com/musfit/ui/theme/` | Material 3 theme and MusFit semantic color, spacing, shape, and typography tokens. |
 | `app/src/main/java/com/musfit/data/repository/` | Feature repository interfaces, local implementations, and public repository data models. |
 | `app/src/main/java/com/musfit/data/local/` | Room database, DAOs, entities, and query projection rows. |
-| `app/src/main/java/com/musfit/data/remote/food/` | Open Food Facts provider interface and Retrofit implementation models. |
+| `app/src/main/java/com/musfit/data/remote/food/` | Open Food Facts Retrofit adapter and transport models; the normalized product port lives in `data/repository`. |
 | `app/src/main/java/com/musfit/data/remote/auth/` | GitHub OAuth device flow Retrofit API models. |
 | `app/src/main/java/com/musfit/data/remote/coach/` | OpenAI-compatible/Hermes coach transport and completion client. |
-| `app/src/main/java/com/musfit/domain/` | Pure Kotlin domain models and calculators. No Android, Compose, Retrofit, Room, or Health Connect dependencies. |
-| `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect gateway, record mapping, and permission rationale activity. |
+| `app/src/main/java/com/musfit/domain/` | Pure Kotlin domain models, calculators, and inward-facing ports. No Android, Compose, Retrofit, Room, or Android Health Connect SDK dependencies. |
+| `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect adapter, platform-record mapping, and permission rationale activity. |
 | `app/src/test/java/com/musfit/` | Unit tests for ViewModels, repositories, DAOs, domain calculators, and integration boundaries. |
 | `app/src/internal/` | Internal-only LAN manifest/resource surface and developer identity overrides. |
 | `app/src/androidTest/java/com/musfit/` | Device/instrumentation tests, including the non-distributed internal seed boundary. |
@@ -72,10 +81,11 @@ isolation is not implemented yet; see the architecture audit.
 
 ## Layering
 
-Dependencies are intended to flow inward from UI to data sources. Domain helpers
-stay pure and are used from repositories and ViewModels where appropriate. The
-July 2026 audit documents current cross-feature and integration leaks that still
-need remediation.
+Dependencies flow inward from UI to repository contracts and neutral domain
+ports, with transport, Room, and Android Health Connect types confined to their
+adapters. `ArchitectureBoundaryTest` rejects feature-to-feature UI imports,
+UI-to-remote imports, integration-to-Room imports, and data-to-concrete-adapter
+imports.
 
 ```mermaid
 flowchart TD
@@ -89,7 +99,8 @@ flowchart TD
     DB["Room database"]
     Remote["Remote providers and coach client"]
     AuthRemote["External identity APIs"]
-    Health["Health Connect gateway"]
+    HealthPort["Neutral Health Connect port"]
+    HealthAdapter["Android Health Connect adapter"]
     Domain["Pure domain calculators"]
 
     MainActivity --> Nav
@@ -101,7 +112,8 @@ flowchart TD
     LocalRepos --> DAOs
     LocalRepos --> Remote
     LocalRepos --> AuthRemote
-    LocalRepos --> Health
+    LocalRepos --> HealthPort
+    HealthAdapter --> HealthPort
     LocalRepos --> Domain
     DAOs --> DB
 ```
@@ -191,7 +203,7 @@ exact query-count, P90, storage, and write-fanout evidence lives in
 Training stores only local strength-training data. Exercise rows hold list metadata plus detail fields (`primaryMuscles`, `secondaryMuscles`, `instructions`, and `localNotes`). Routines store starter/custom status, optional `programName`, and CSV-backed tags, with ordered routine exercises in `routine_exercises`. Active and completed workouts use the same session/set tables, with session `status` separating active, completed, and discarded workouts. Completed workout recap data is derived from the session and completed set rows, including local session notes. Supersets are represented by a nullable `supersetGroupId` on workout sets and are derived into grouped UI models by the repository. Global Training tool settings live in `training_settings` for default rest duration, bar weight, and available plate inventory.
 
 Active-workout prior-set labels and PR baselines are loaded in one batched query
-for all displayed exercise IDs. Schema 42 replaces the redundant two-column
+for all displayed exercise IDs. The latest indexed schema migration replaces the redundant two-column
 history index with the measured account/exercise/completion/session/order index,
 and production database open installs the collation-aware exercise-name index
 after Room schema validation. Executable query-count, query-plan, P90, and
@@ -233,7 +245,9 @@ store.
 
 ### Health Connect
 
-Health Connect is behind `HealthConnectGateway`.
+Health Connect is behind the Android-free `domain/health/HealthConnectGateway`
+port. `HealthConnectManager` is the Android adapter; repositories map Room rows
+to neutral workout/food snapshots before dispatch.
 
 The app currently supports:
 

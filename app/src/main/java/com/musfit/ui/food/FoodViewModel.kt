@@ -3,9 +3,6 @@ package com.musfit.ui.food
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.musfit.data.remote.food.FoodProductProvider
-import com.musfit.data.remote.food.ProductLookupResult
-import com.musfit.data.remote.food.ProductSearchResult
 import com.musfit.data.repository.DiaryEntryUpdateInput
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.FoodDiaryEntry
@@ -19,6 +16,7 @@ import com.musfit.data.repository.FoodLogInput
 import com.musfit.data.repository.FoodMealDefinition
 import com.musfit.data.repository.FoodMealDefinitionInput
 import com.musfit.data.repository.FoodPlanDay
+import com.musfit.data.repository.FoodProductProvider
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodServingInput
 import com.musfit.data.repository.FoodWaterSummary
@@ -27,6 +25,8 @@ import com.musfit.data.repository.MealTemplate
 import com.musfit.data.repository.MealTemplateItemInput
 import com.musfit.data.repository.MealTemplateUpdateInput
 import com.musfit.data.repository.NutritionDetails
+import com.musfit.data.repository.ProductLookupResult
+import com.musfit.data.repository.ProductSearchResult
 import com.musfit.data.repository.QuickCalorieLogInput
 import com.musfit.data.repository.QuickCaloriePreset
 import com.musfit.data.repository.QuickCaloriePresetInput

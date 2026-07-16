@@ -25,23 +25,22 @@ import com.musfit.data.local.entity.RecipeEntity
 import com.musfit.data.local.entity.RecipeIngredientEntity
 import com.musfit.data.local.entity.ShoppingListItemEntity
 import com.musfit.data.local.entity.WaterEntryEntity
-import com.musfit.data.remote.food.ProductDataQuality
-import com.musfit.data.remote.food.ProductLookupResult
 import com.musfit.domain.health.HealthConnectAvailability
+import com.musfit.domain.health.HealthConnectDeleteResult
+import com.musfit.domain.health.HealthConnectFoodExportPayload
+import com.musfit.domain.health.HealthConnectFoodExportResult
+import com.musfit.domain.health.HealthConnectFoodMealExport
+import com.musfit.domain.health.HealthConnectGateway
+import com.musfit.domain.health.HealthConnectRecordIdentity
 import com.musfit.domain.health.HealthConnectStatus
+import com.musfit.domain.health.HealthConnectWorkoutExport
 import com.musfit.domain.health.ImportedDailyHealthSummary
+import com.musfit.domain.health.hydrationExportFingerprint
+import com.musfit.domain.health.nutritionExportFingerprint
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.MealItemInput
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.nutrition.NutritionCalculator
-import com.musfit.integrations.healthconnect.HealthConnectDeleteResult
-import com.musfit.integrations.healthconnect.HealthConnectFoodExportPayload
-import com.musfit.integrations.healthconnect.HealthConnectFoodExportResult
-import com.musfit.integrations.healthconnect.HealthConnectFoodMealExport
-import com.musfit.integrations.healthconnect.HealthConnectGateway
-import com.musfit.integrations.healthconnect.HealthConnectRecordIdentity
-import com.musfit.integrations.healthconnect.hydrationExportFingerprint
-import com.musfit.integrations.healthconnect.nutritionExportFingerprint
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -2298,8 +2297,8 @@ private object NoopHealthConnectGateway : HealthConnectGateway {
     )
 
     override suspend fun exportWorkout(
-        session: com.musfit.data.local.entity.WorkoutSessionEntity,
-        sets: List<com.musfit.data.local.entity.WorkoutSetEntity>,
+        workout: HealthConnectWorkoutExport,
+        identity: HealthConnectRecordIdentity,
     ): String? = null
 
     override suspend fun exportFood(payload: HealthConnectFoodExportPayload): HealthConnectFoodExportResult? = null

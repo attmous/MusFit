@@ -34,7 +34,8 @@ committed schema JSON.
 | `data/repository/FoodRepository.kt` | `FoodRepository` interface, `LocalFoodRepository`, and Food repo models. |
 | `data/local/dao/FoodDao.kt` | Room DAO + Food projection rows. |
 | `data/local/entity/FoodEntities.kt` | Food Room entities. |
-| `data/remote/food/` | Open Food Facts provider behind `FoodProductProvider`. |
+| `data/repository/FoodProductProvider.kt` | Normalized lookup/search port and transport-independent product results consumed by Food UI. |
+| `data/remote/food/` | Open Food Facts Retrofit adapter and transport DTOs behind `FoodProductProvider`. |
 | `domain/nutrition/`, `domain/food/` | Pure nutrition calculators and the OCR parser. |
 
 Food currently uses **one ViewModel and one broad UI state** for the diary, add
@@ -245,9 +246,9 @@ Run the focused Food suites:
 ## Historical Structure-Refactor Record
 
 This section records the earlier behavior-preserving Food cleanup. It is not the
-active architecture backlog. Current source has known boundary leaks and large
-state surfaces documented by the July 2026 audit. Use the remediation package
-for new extraction or state-ownership decisions.
+active architecture backlog. The broad Food state surface remains governed by
+the current remediation plan; transport and feature-boundary imports are
+enforced separately by `ArchitectureBoundaryTest`.
 
 Each item is behavior-preserving and gated on the full verification command
 (`verifyReleaseVariantMatrix testInternalDebugUnitTest

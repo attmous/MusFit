@@ -22,10 +22,9 @@ import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
-import com.musfit.data.local.entity.WorkoutSessionEntity
-import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectDailyReadResult
+import com.musfit.domain.health.HealthConnectDeleteResult
 import com.musfit.domain.health.HealthConnectMetric
 import com.musfit.domain.health.HealthConnectMetricFailure
 import com.musfit.domain.health.HealthConnectStatus
@@ -293,17 +292,7 @@ class HealthConnectManager @Inject constructor(
     }
 
     override suspend fun exportWorkout(
-        session: WorkoutSessionEntity,
-        sets: List<WorkoutSetEntity>,
-    ): String? = exportWorkout(
-        session = session,
-        sets = sets,
-        identity = HealthConnectRecordIdentity.forWorkout(session.accountId, session.id, version = 1),
-    )
-
-    override suspend fun exportWorkout(
-        session: WorkoutSessionEntity,
-        sets: List<WorkoutSetEntity>,
+        workout: HealthConnectWorkoutExport,
         identity: HealthConnectRecordIdentity,
     ): String? {
         val currentStatus = status()
@@ -316,7 +305,7 @@ class HealthConnectManager @Inject constructor(
 
         return healthConnectCatchingOrNull {
             clientFactory().insertExerciseSession(
-                HealthConnectRecordMapper.toExerciseSessionRecord(session, sets, identity = identity),
+                HealthConnectRecordMapper.toExerciseSessionRecord(workout, identity = identity),
             )
         }
     }
