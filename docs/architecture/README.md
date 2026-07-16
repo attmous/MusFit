@@ -7,6 +7,7 @@ deeper snapshot and the remediation backlog derived from it.
 
 Related documents:
 
+- [Active architecture remediation slice plan - 2026-07-16](architecture-remediation-slice-plan-2026-07-16.md)
 - [Full app architecture audit — 2026-07-10](app-architecture-audit-2026-07-10.md)
 - [Architecture remediation backlog — 2026-07-10](architecture-remediation-backlog-2026-07-10.md)
 - [Screen contracts](screen-contracts.md)
