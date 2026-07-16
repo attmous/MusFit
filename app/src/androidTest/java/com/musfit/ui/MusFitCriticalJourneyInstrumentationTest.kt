@@ -149,6 +149,7 @@ class MusFitCriticalJourneyInstrumentationTest {
         compose.activityRule.scenario.recreate()
         compose.waitForText("REST")
         assertEquals(true, activeBenchSetIsComplete())
+        val remainingBeforeLeaving = currentRestTimerSeconds()
 
         compose.onNodeWithContentDescription("Food").performClick()
         Thread.sleep(1_500)
@@ -157,6 +158,22 @@ class MusFitCriticalJourneyInstrumentationTest {
             compose.onNodeWithText("Resume").performClick()
         }
         compose.waitForText("REST")
+        assertEquals(remainingBeforeLeaving, currentRestTimerSeconds())
+        assertEquals(true, activeBenchSetIsComplete())
+    }
+
+    @Test
+    fun trainingRoutineDraft_restoresEditorRouteWithoutSavingDuringRecreation() {
+        compose.onNodeWithContentDescription("Training").performClick()
+        compose.waitForText("New routine")
+        compose.onNodeWithText("New routine").performClick()
+        compose.waitForText("Name your routine")
+        compose.onNodeWithText("Name your routine").performTextReplacement("Process-safe draft")
+
+        compose.activityRule.scenario.recreate()
+
+        compose.waitForText("Process-safe draft")
+        compose.onNodeWithText("Add at least one exercise to start this routine").assertIsDisplayed()
     }
 
     @Test
@@ -309,6 +326,12 @@ class MusFitCriticalJourneyInstrumentationTest {
             database.close()
         }
     }
+
+    private fun currentRestTimerSeconds(): Int = (0..300).firstOrNull { seconds ->
+        compose.onAllNodesWithContentDescription("Rest timer $seconds seconds remaining")
+            .fetchSemanticsNodes()
+            .isNotEmpty()
+    } ?: error("No visible rest-timer remaining-seconds semantics found")
 
     private fun configureCameraDenial() {
         // The suite's enforced name order runs this denial case before the only camera-grant case.

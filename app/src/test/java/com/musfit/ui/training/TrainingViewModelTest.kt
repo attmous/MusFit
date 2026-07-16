@@ -1,34 +1,35 @@
 package com.musfit.ui.training
 
-import com.musfit.data.repository.LoggedWorkoutSet
-import com.musfit.data.repository.LoggedWorkoutSetDetail
+import androidx.lifecycle.SavedStateHandle
 import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
-import com.musfit.data.repository.ExerciseInput
 import com.musfit.data.repository.ExerciseDetail
 import com.musfit.data.repository.ExerciseGrouping
+import com.musfit.data.repository.ExerciseInput
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.GoalsRepository
-import com.musfit.data.repository.RoutineSummary
+import com.musfit.data.repository.LoggedWorkoutSet
+import com.musfit.data.repository.LoggedWorkoutSetDetail
+import com.musfit.data.repository.MuscleGroupProgress
 import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineExerciseDetail
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineFolder
 import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.RoutineSetInput
+import com.musfit.data.repository.RoutineSummary
+import com.musfit.data.repository.TrainingProgressAnalytics
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSettings
 import com.musfit.data.repository.TrainingSettingsInput
-import com.musfit.data.repository.MuscleGroupProgress
 import com.musfit.data.repository.TrainingSummary
-import com.musfit.data.repository.TrainingProgressAnalytics
+import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.WeeklyTrainingVolume
 import com.musfit.data.repository.WorkoutExerciseBlock
+import com.musfit.data.repository.WorkoutForExport
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutSetInputData
-import com.musfit.data.repository.UserGoals
-import com.musfit.data.repository.WorkoutForExport
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.TrainingTrendPoint
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +62,86 @@ class TrainingViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun restoration_retainsRoutineRouteAndBoundedSetDraft() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val repository = FakeTrainingRepository()
+        val first = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        first.openRoutineLibraryPage()
+        first.openRoutineDetail("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        first.openRoutineEditor("routine-upper-a")
+        dispatcher.scheduler.advanceUntilIdle()
+        first.onRoutineNameChanged("Upper A restored")
+        first.onRoutineNotesChanged("Keep the paused draft")
+        first.onRoutineExerciseSetRepsChanged(exerciseIndex = 0, setIndex = 0, value = "6")
+        first.onRoutineExerciseSetWeightChanged(exerciseIndex = 0, setIndex = 0, value = "102.5")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val restored = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf(TrainingPage.RoutineLibrary, TrainingPage.RoutineDetail, TrainingPage.RoutineEditor),
+            restored.state.value.pageStack,
+        )
+        assertEquals("routine-upper-a", restored.state.value.selectedRoutineDetail?.id)
+        assertEquals("routine-upper-a", restored.state.value.routineEditor.routineId)
+        assertEquals("Upper A restored", restored.state.value.routineEditor.name)
+        assertEquals("Keep the paused draft", restored.state.value.routineEditor.notes)
+        assertEquals("6", restored.state.value.routineEditor.exercises.first().setPlans.first().targetReps)
+        assertEquals(102.5, restored.state.value.routineEditor.exercises.first().setPlans.first().targetWeightKg)
+        assertEquals(null, restored.state.value.message)
+    }
+
+    @Test
+    fun restoration_reopensRoomOwnedActiveWorkoutWithoutDuplicateSetOrTimerWork() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val repository = FakeTrainingRepository()
+        val first = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+        first.resumeActiveWorkout()
+        first.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(first.state.value.restTimer.isRunning)
+        val setCountBeforeRestore = repository.activeWorkoutDetail.value
+            ?.exerciseBlocks
+            ?.flatMap { it.sets }
+            ?.size
+
+        val restored = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(restored.state.value.activeWorkoutRouteOpen)
+        assertEquals("session-1", restored.state.value.activeWorkout?.sessionId)
+        assertEquals(
+            setCountBeforeRestore,
+            repository.activeWorkoutDetail.value?.exerciseBlocks?.flatMap { it.sets }?.size,
+        )
+        assertFalse(restored.state.value.restTimer.isVisible)
+        assertFalse(restored.state.value.restTimer.isRunning)
+        assertEquals(0, repository.startBlankWorkoutCalls)
+    }
+
+    @Test
+    fun closeActiveWorkoutRoute_stopsRestTimer() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.resumeActiveWorkout()
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.state.value.restTimer.isRunning)
+
+        viewModel.closeActiveWorkoutRoute()
+
+        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
+        assertFalse(viewModel.state.value.restTimer.isVisible)
+        assertFalse(viewModel.state.value.restTimer.isRunning)
     }
 
     @Test
@@ -1739,8 +1820,7 @@ class TrainingViewModelTest {
             return workoutHistoryDetails[sessionId]
         }
 
-        override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> =
-            flowOf(TrainingSummary())
+        override fun observeDailyTrainingSummary(date: LocalDate): Flow<TrainingSummary> = flowOf(TrainingSummary())
 
         override suspend fun createRoutine(input: RoutineInput): String {
             createdRoutineInput = input
@@ -1772,8 +1852,7 @@ class TrainingViewModelTest {
             return "custom-exercise-id"
         }
 
-        override suspend fun getExerciseDetail(exerciseId: String): ExerciseDetail? =
-            exerciseDetails[exerciseId]
+        override suspend fun getExerciseDetail(exerciseId: String): ExerciseDetail? = exerciseDetails[exerciseId]
 
         override suspend fun updateExerciseLocalNotes(exerciseId: String, notes: String?) {
             updatedExerciseNotesId = exerciseId
@@ -1923,13 +2002,12 @@ class TrainingViewModelTest {
         date: LocalDate,
         sets: Int,
         volume: Double,
-    ): WorkoutHistorySummary =
-        WorkoutHistorySummary(
-            sessionId = id,
-            title = id,
-            startedAtEpochMillis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-            endedAtEpochMillis = date.atStartOfDay(ZoneId.systemDefault()).plusHours(1).toInstant().toEpochMilli(),
-            completedSetCount = sets,
-            totalVolumeKg = volume,
-        )
+    ): WorkoutHistorySummary = WorkoutHistorySummary(
+        sessionId = id,
+        title = id,
+        startedAtEpochMillis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+        endedAtEpochMillis = date.atStartOfDay(ZoneId.systemDefault()).plusHours(1).toInstant().toEpochMilli(),
+        completedSetCount = sets,
+        totalVolumeKg = volume,
+    )
 }

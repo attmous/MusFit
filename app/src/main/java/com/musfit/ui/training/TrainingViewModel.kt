@@ -1,5 +1,6 @@
 package com.musfit.ui.training
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.ActiveWorkoutDetail
@@ -11,11 +12,10 @@ import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.LoggedWorkoutSetDetail
-import com.musfit.data.repository.WorkoutSetInputData
+import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineFolder
 import com.musfit.data.repository.RoutineInput
-import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.TrainingRepository
@@ -23,6 +23,7 @@ import com.musfit.data.repository.TrainingSettings
 import com.musfit.data.repository.TrainingSettingsInput
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
+import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.PlateCalculator
 import com.musfit.domain.training.WarmupSetCalculator
@@ -203,11 +204,9 @@ data class TrainingUiState(
     val activeWorkoutRouteOpen: Boolean
         get() = pageStack.lastOrNull() == TrainingPage.ActiveWorkout
 
-    fun pushPage(page: TrainingPage): TrainingUiState =
-        copy(pageStack = pageStack.filterNot { it == page } + page)
+    fun pushPage(page: TrainingPage): TrainingUiState = copy(pageStack = pageStack.filterNot { it == page } + page)
 
-    fun removePage(page: TrainingPage): TrainingUiState =
-        copy(pageStack = pageStack.filterNot { it == page })
+    fun removePage(page: TrainingPage): TrainingUiState = copy(pageStack = pageStack.filterNot { it == page })
 }
 
 private data class TrainingInitialStreams(
@@ -217,17 +216,51 @@ private data class TrainingInitialStreams(
     val activeWorkout: ActiveWorkoutSummary?,
 )
 
+private fun TrainingPage.isValidRestoredPage(
+    hasRoutineDetail: Boolean,
+    hasRoutineEditor: Boolean,
+    hasExerciseDetail: Boolean,
+    hasWorkoutDetail: Boolean,
+): Boolean = when (this) {
+    TrainingPage.RoutineDetail -> hasRoutineDetail
+
+    TrainingPage.RoutineEditor,
+    TrainingPage.ExercisePicker,
+    -> hasRoutineEditor
+
+    TrainingPage.ExerciseDetail -> hasExerciseDetail
+
+    TrainingPage.WorkoutHistoryDetail -> hasWorkoutDetail
+
+    TrainingPage.RoutineLibrary,
+    TrainingPage.ActiveWorkout,
+    -> true
+}
+
 @HiltViewModel
 class TrainingViewModel @Inject constructor(
     private val repository: TrainingRepository,
     goalsRepository: GoalsRepository,
+    private val savedStateHandle: SavedStateHandle? = null,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(TrainingUiState())
+    private val restoredState = savedStateHandle
+        ?.get<TrainingRestorationState>(TRAINING_RESTORATION_STATE_KEY)
+    private val mutableState = MutableStateFlow(restoredState?.toTrainingUiState() ?: TrainingUiState())
     val state: StateFlow<TrainingUiState> = mutableState.asStateFlow()
 
     init {
         viewModelScope.launch {
+            // Starter routine IDs must exist before restored page IDs are resolved. Beginning
+            // persistence only after resolution also prevents a transient empty snapshot from
+            // overwriting those IDs if the process is killed again during startup.
             repository.seedStarterTrainingData()
+            restoredState?.let { restoration -> restoreReferencedPages(restoration) }
+            mutableState.collect { currentState ->
+                savedStateHandle?.set(
+                    TRAINING_RESTORATION_STATE_KEY,
+                    currentState.toTrainingRestorationState(),
+                )
+            }
         }
         viewModelScope.launch {
             // The "This week" card measures against the same weekly session target
@@ -264,7 +297,7 @@ class TrainingViewModel @Inject constructor(
                     val shouldSyncNotes = activeWorkout == null ||
                         previousActiveWorkout?.sessionId != activeWorkout.sessionId ||
                         previousActiveWorkout.notes != activeWorkout.notes
-                    current.copy(
+                    val updated = current.copy(
                         activeWorkout = activeWorkout,
                         activeWorkoutNotesInput = if (shouldSyncNotes) {
                             activeWorkout?.notes.orEmpty()
@@ -272,6 +305,15 @@ class TrainingViewModel @Inject constructor(
                             current.activeWorkoutNotesInput
                         },
                     )
+                    if (activeWorkout == null && updated.activeWorkoutRouteOpen) {
+                        updated.removePage(TrainingPage.ActiveWorkout).copy(
+                            restTimer = RestTimerState(),
+                            finishConfirmationOpen = false,
+                            discardConfirmationOpen = false,
+                        )
+                    } else {
+                        updated
+                    }
                 }
             }
         }
@@ -356,7 +398,11 @@ class TrainingViewModel @Inject constructor(
 
     fun closeActiveWorkoutRoute() {
         mutableState.update {
-            val next = it.removePage(TrainingPage.ActiveWorkout)
+            val next = it.removePage(TrainingPage.ActiveWorkout).copy(
+                restTimer = RestTimerState(),
+                finishConfirmationOpen = false,
+                discardConfirmationOpen = false,
+            )
             // Only reset the section when back lands on the home scaffold; pages still on the
             // stack (library, routine detail) cover the sections entirely.
             if (next.pageStack.isEmpty()) {
@@ -364,6 +410,45 @@ class TrainingViewModel @Inject constructor(
             } else {
                 next
             }
+        }
+    }
+
+    private suspend fun restoreReferencedPages(restoration: TrainingRestorationState) {
+        val routineId = restoration.selectedRoutineDetailId?.boundedRestoredId()
+        val exerciseId = restoration.selectedExerciseDetailId?.boundedRestoredId()
+        val workoutId = restoration.selectedWorkoutDetailId?.boundedRestoredId()
+        val routineDetail = routineId?.let { repository.getRoutineDetail(it) }
+        val exerciseDetail = exerciseId?.let { repository.getExerciseDetail(it) }
+        val workoutDetail = workoutId?.let { repository.getWorkoutHistoryDetail(it) }
+        val restoredEditor = restoration.routineEditor?.toRoutineEditorState()
+        val existingEditorStillValid = restoredEditor?.routineId
+            ?.let { editorId ->
+                if (editorId == routineId) routineDetail else repository.getRoutineDetail(editorId)
+            } != null || restoredEditor?.routineId == null
+
+        mutableState.update { current ->
+            val hasRoutineEditor = restoredEditor?.isOpen == true && existingEditorStillValid
+            val validPages = current.pageStack.filter { page ->
+                page.isValidRestoredPage(
+                    hasRoutineDetail = routineDetail != null,
+                    hasRoutineEditor = hasRoutineEditor,
+                    hasExerciseDetail = exerciseDetail != null,
+                    hasWorkoutDetail = workoutDetail != null,
+                )
+            }
+            current.copy(
+                pageStack = validPages,
+                selectedRoutineDetail = routineDetail,
+                selectedExerciseDetail = exerciseDetail,
+                exerciseDetailNotesInput = exerciseDetail?.localNotes.orEmpty(),
+                exerciseDetailTarget = restoration.exerciseDetailTarget?.take(MAX_RESTORED_NAME_LENGTH),
+                selectedWorkoutDetail = workoutDetail,
+                routineEditor = if (existingEditorStillValid) {
+                    restoredEditor ?: RoutineEditorState()
+                } else {
+                    RoutineEditorState()
+                },
+            )
         }
     }
 
@@ -902,15 +987,13 @@ class TrainingViewModel @Inject constructor(
     }
 
     /** Opens the full-page exercise view from the library (switches to the Exercises section). */
-    fun openExerciseDetail(exerciseId: String) =
-        loadExerciseDetail(exerciseId, target = null, switchToExercises = true)
+    fun openExerciseDetail(exerciseId: String) = loadExerciseDetail(exerciseId, target = null, switchToExercises = true)
 
     /**
      * Opens the same exercise page from inside a routine, layered over the routine detail (no
      * section switch) and carrying the planned sets x reps so the page can show the target.
      */
-    fun openRoutineExerciseDetail(exerciseId: String, target: String?) =
-        loadExerciseDetail(exerciseId, target = target, switchToExercises = false)
+    fun openRoutineExerciseDetail(exerciseId: String, target: String?) = loadExerciseDetail(exerciseId, target = target, switchToExercises = false)
 
     private fun loadExerciseDetail(exerciseId: String, target: String?, switchToExercises: Boolean) {
         viewModelScope.launch {
@@ -1512,8 +1595,7 @@ class TrainingViewModel @Inject constructor(
         )
     }
 
-    private fun TrainingUiState.withDashboard(): TrainingUiState =
-        copy(dashboard = buildTrainingDashboard(homeRoutines, workoutHistory))
+    private fun TrainingUiState.withDashboard(): TrainingUiState = copy(dashboard = buildTrainingDashboard(homeRoutines, workoutHistory))
 
     private fun moveRoutineExercise(fromIndex: Int, toIndex: Int) {
         mutableState.update { current ->
@@ -1577,6 +1659,7 @@ class TrainingViewModel @Inject constructor(
         for (char in trimmed) {
             when {
                 char.isDigit() -> builder.append(char)
+
                 char == '.' && !dotSeen -> {
                     builder.append(char)
                     dotSeen = true
@@ -1587,36 +1670,31 @@ class TrainingViewModel @Inject constructor(
         return builder.toString()
     }
 
-    private fun String.parsePlateListInput(): List<Double> =
-        split(",")
-            .mapNotNull { it.trim().toDoubleOrNull() }
+    private fun String.parsePlateListInput(): List<Double> = split(",")
+        .mapNotNull { it.trim().toDoubleOrNull() }
+        .filter { it > 0.0 }
+        .distinct()
+        .sortedDescending()
+
+    private fun TrainingSettingsInput.normalized(): TrainingSettingsInput = copy(
+        defaultRestSeconds = defaultRestSeconds.coerceIn(15, 900),
+        barWeightKg = barWeightKg.takeIf { it > 0.0 } ?: 20.0,
+        availablePlatesKg = availablePlatesKg
             .filter { it > 0.0 }
             .distinct()
             .sortedDescending()
+            .ifEmpty { PlateCalculator.DEFAULT_PLATES },
+    )
 
-    private fun TrainingSettingsInput.normalized(): TrainingSettingsInput =
-        copy(
-            defaultRestSeconds = defaultRestSeconds.coerceIn(15, 900),
-            barWeightKg = barWeightKg.takeIf { it > 0.0 } ?: 20.0,
-            availablePlatesKg = availablePlatesKg
-                .filter { it > 0.0 }
-                .distinct()
-                .sortedDescending()
-                .ifEmpty { PlateCalculator.DEFAULT_PLATES },
-        )
+    private fun List<Double>.formatPlateListInput(): String = joinToString(", ") { it.formatSettingsNumber() }
 
-    private fun List<Double>.formatPlateListInput(): String =
-        joinToString(", ") { it.formatSettingsNumber() }
+    private fun Double.formatSettingsNumber(): String = if (this % 1.0 == 0.0) {
+        toInt().toString()
+    } else {
+        toString()
+    }
 
-    private fun Double.formatSettingsNumber(): String =
-        if (this % 1.0 == 0.0) {
-            toInt().toString()
-        } else {
-            toString()
-        }
-
-    private fun LoggedWorkoutSetDetail.isValidForCompletion(): Boolean =
-        (reps ?: 0) > 0 && (weightKg ?: 0.0) > 0.0
+    private fun LoggedWorkoutSetDetail.isValidForCompletion(): Boolean = (reps ?: 0) > 0 && (weightKg ?: 0.0) > 0.0
 
     private fun startRestTimer(setId: String) {
         mutableState.update { current ->
@@ -1638,40 +1716,38 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
-    private fun isStarterRoutine(routineId: String?): Boolean =
-        routineId != null && state.value.routines.any { it.id == routineId && it.isStarter }
+    private fun isStarterRoutine(routineId: String?): Boolean = routineId != null && state.value.routines.any { it.id == routineId && it.isStarter }
 
-    private fun Set<String>.toggled(value: String): Set<String> =
-        if (any { it.equals(value, ignoreCase = true) }) {
-            filterNot { it.equals(value, ignoreCase = true) }.toSet()
-        } else {
-            this + value
-        }
+    private fun Set<String>.toggled(value: String): Set<String> = if (any { it.equals(value, ignoreCase = true) }) {
+        filterNot { it.equals(value, ignoreCase = true) }.toSet()
+    } else {
+        this + value
+    }
 }
 
-private fun defaultSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> =
-    (0 until targetSets.coerceAtLeast(1)).map {
-        RoutineSetInput(setType = "working", targetReps = targetReps)
-    }
+private fun defaultSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> = (0 until targetSets.coerceAtLeast(1)).map {
+    RoutineSetInput(setType = "working", targetReps = targetReps)
+}
 
 private fun List<RoutineSetInput>.resizeSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> {
     val desiredSize = targetSets.coerceAtLeast(1)
     return when {
         size == desiredSize -> this
+
         size > desiredSize -> take(desiredSize)
+
         else -> this + List(desiredSize - size) {
             lastOrNull()?.copy(setType = "working") ?: RoutineSetInput(setType = "working", targetReps = targetReps)
         }
     }
 }
 
-private fun String.normalizedRoutineSetType(): String =
-    when (lowercase().trim()) {
-        "warmup", "warm-up", "warm_up" -> "warmup"
-        "drop", "drop-set", "drop_set" -> "drop"
-        "failure", "fail" -> "failure"
-        else -> "working"
-    }
+private fun String.normalizedRoutineSetType(): String = when (lowercase().trim()) {
+    "warmup", "warm-up", "warm_up" -> "warmup"
+    "drop", "drop-set", "drop_set" -> "drop"
+    "failure", "fail" -> "failure"
+    else -> "working"
+}
 
 internal fun buildTrainingHistoryOverview(
     history: List<WorkoutHistorySummary>,
@@ -1721,17 +1797,15 @@ internal fun buildTrainingHistoryOverview(
 internal fun buildTrainingDashboard(
     visibleRoutines: List<RoutineSummary>,
     history: List<WorkoutHistorySummary>,
-): TrainingDashboardState =
-    TrainingDashboardState(
-        nextSuggestedRoutine = visibleRoutines.firstOrNull(),
-        quickStartRoutines = visibleRoutines.take(3),
-        recentWorkout = history.maxByOrNull { it.startedAtEpochMillis },
-    )
+): TrainingDashboardState = TrainingDashboardState(
+    nextSuggestedRoutine = visibleRoutines.firstOrNull(),
+    quickStartRoutines = visibleRoutines.take(3),
+    recentWorkout = history.maxByOrNull { it.startedAtEpochMillis },
+)
 
-private fun WorkoutHistorySummary.trainingDate(): LocalDate =
-    Instant.ofEpochMilli(startedAtEpochMillis)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
+private fun WorkoutHistorySummary.trainingDate(): LocalDate = Instant.ofEpochMilli(startedAtEpochMillis)
+    .atZone(ZoneId.systemDefault())
+    .toLocalDate()
 
 private fun currentStreakDays(trainingDays: List<LocalDate>, today: LocalDate): Int {
     val daySet = trainingDays.toSet()

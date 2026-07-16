@@ -421,6 +421,11 @@ private fun RestTimerHero(
                         text = restTimer.remainingSeconds.toMinSec(),
                         style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
                         color = accent.onContainer,
+                        modifier = Modifier.semantics {
+                            contentDescription = restTimerRemainingContentDescription(
+                                restTimer.remainingSeconds,
+                            )
+                        },
                     )
                     Text(
                         text = "of ${restTimer.durationSeconds.toMinSec()}",
@@ -1632,6 +1637,8 @@ internal fun restTimerDisplayText(restTimer: RestTimerState): String = when {
     restTimer.isRunning -> "Rest Timer: ${restTimer.remainingSeconds.formatDuration()}"
     else -> "Rest Timer: Paused at ${restTimer.remainingSeconds.formatDuration()}"
 }
+
+internal fun restTimerRemainingContentDescription(remainingSeconds: Int): String = "Rest timer ${remainingSeconds.coerceAtLeast(0)} seconds remaining"
 
 private fun Double?.formatCompact(): String = when {
     this == null -> ""

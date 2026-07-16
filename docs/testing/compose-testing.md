@@ -53,13 +53,15 @@ Every UI test must name the user contract it protects. Add a new high-level
 journey only when a lower layer cannot provide equivalent confidence.
 
 `MusFitCriticalJourneyInstrumentationTest` is the managed-device layer. Its
-seven orchestrated cases cover:
+eight orchestrated cases cover:
 
 - a real Hilt/Room Food quick log and persistence after Activity recreation;
 - Food database search-draft restoration after Activity recreation without a
   database write;
 - the Room-owned active-workout set/rest lifecycle and leaving/re-entering the
-  Training destination;
+  Training destination without advancing the off-screen UI ticker;
+- unsaved Training routine-editor route and draft restoration across Activity
+  recreation without creating a routine;
 - Profile preference persistence plus restored visit-order back navigation;
 - unsaved Profile editor draft restoration across Activity recreation;
 - a deterministic scanner-result return on both devices, with fixed
