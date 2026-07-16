@@ -55,6 +55,24 @@ data class FoodTrackerUiState(
     val foodHealthConnectLastFailureMessage: String?,
 )
 
+/** Add-food, barcode, saved-food database, and saved-food editor state. */
+@Immutable
+data class FoodAddDatabaseUiState(
+    val content: FoodUiState,
+)
+
+/** Diary editors, goals, recipes, meal setup, and planning state. */
+@Immutable
+data class FoodEditorPlanningUiState(
+    val content: FoodUiState,
+)
+
+enum class FoodSurfaceGroup {
+    AddDatabase,
+    EditorPlanning,
+    Tracker,
+}
+
 /** Minimal route-coordinator state collected while the diary is visible. */
 @Immutable
 data class FoodRouteUiState(
@@ -64,7 +82,25 @@ data class FoodRouteUiState(
 ) {
     val hasActiveSurface: Boolean
         get() = isAddPanelVisible || selectedMealDetailId != null
+
+    val surfaceGroup: FoodSurfaceGroup?
+        get() = when {
+            selectedMealDetailId != null -> FoodSurfaceGroup.EditorPlanning
+            !isAddPanelVisible -> null
+            sheetMode == FoodSheetMode.Water || sheetMode == FoodSheetMode.HealthConnect -> FoodSurfaceGroup.Tracker
+            sheetMode in ADD_DATABASE_SHEET_MODES -> FoodSurfaceGroup.AddDatabase
+            else -> FoodSurfaceGroup.EditorPlanning
+        }
 }
+
+private val ADD_DATABASE_SHEET_MODES = setOf(
+    FoodSheetMode.AddFood,
+    FoodSheetMode.FoodDatabase,
+    FoodSheetMode.FoodDetail,
+    FoodSheetMode.SavedFoodEditor,
+    FoodSheetMode.NutritionLabelScan,
+    FoodSheetMode.BarcodeComparison,
+)
 
 internal object FoodPresentationReducers {
     fun diary(state: FoodUiState): FoodDiaryUiState = FoodDiaryUiState(
@@ -106,6 +142,126 @@ internal object FoodPresentationReducers {
         isAddPanelVisible = state.isAddPanelVisible,
         sheetMode = state.sheetMode,
         selectedMealDetailId = state.selectedMealDetailId,
+    )
+
+    @Suppress("LongMethod")
+    fun addDatabase(state: FoodUiState): FoodAddDatabaseUiState = FoodAddDatabaseUiState(
+        content = FoodUiState(
+            barcode = state.barcode,
+            selectedDate = state.selectedDate,
+            isLoading = state.isLoading,
+            isSaving = state.isSaving,
+            message = state.message,
+            productName = state.productName,
+            brand = state.brand,
+            caloriesPer100g = state.caloriesPer100g,
+            proteinPer100g = state.proteinPer100g,
+            carbsPer100g = state.carbsPer100g,
+            fatPer100g = state.fatPer100g,
+            fiberPer100g = state.fiberPer100g,
+            sugarPer100g = state.sugarPer100g,
+            saturatedFatPer100g = state.saturatedFatPer100g,
+            sodiumMgPer100g = state.sodiumMgPer100g,
+            mealType = state.mealType,
+            quantityGrams = state.quantityGrams,
+            amountNutritionPreview = state.amountNutritionPreview,
+            amountServingChoices = state.amountServingChoices,
+            lookupResult = state.lookupResult,
+            calorieGoalKcal = state.calorieGoalKcal,
+            eatenCaloriesKcal = state.eatenCaloriesKcal,
+            isPlanningMode = state.isPlanningMode,
+            mealDefinitions = state.mealDefinitions,
+            savedFoods = state.savedFoods,
+            visibleSavedFoods = state.visibleSavedFoods,
+            reportedSavedFoodIds = state.reportedSavedFoodIds,
+            duplicateFoodGroups = state.duplicateFoodGroups,
+            mealTemplates = state.mealTemplates,
+            recipes = state.recipes,
+            quickCaloriePresets = state.quickCaloriePresets,
+            onlineFoodResults = state.onlineFoodResults,
+            isSearchingFoods = state.isSearchingFoods,
+            barcodeComparison = state.barcodeComparison,
+            isAddPanelVisible = state.isAddPanelVisible,
+            sheetMode = state.sheetMode,
+            selectedMealTitle = state.selectedMealTitle,
+            addMode = state.addMode,
+            savedFoodQuantityGrams = state.savedFoodQuantityGrams,
+            selectedSavedFoodDetail = state.selectedSavedFoodDetail,
+            selectedSavedFoodServingGramsByFoodId = state.selectedSavedFoodServingGramsByFoodId,
+            quickCaloriesKcal = state.quickCaloriesKcal,
+            quickProteinGrams = state.quickProteinGrams,
+            quickCarbsGrams = state.quickCarbsGrams,
+            quickFatGrams = state.quickFatGrams,
+            aiLoggingText = state.aiLoggingText,
+            aiLoggingHasDraft = state.aiLoggingHasDraft,
+            aiLoggingDraftSourceLabel = state.aiLoggingDraftSourceLabel,
+            aiLoggingDraftReview = state.aiLoggingDraftReview,
+            nutritionLabelScanReview = state.nutritionLabelScanReview,
+            keepAddingFoods = state.keepAddingFoods,
+            foodDatabaseQuery = state.foodDatabaseQuery,
+            recentFoods = state.recentFoods,
+            sameAsYesterday = state.sameAsYesterday,
+            addTab = state.addTab,
+            savedFoodEditor = state.savedFoodEditor,
+            recipeServingsToLog = state.recipeServingsToLog,
+        ),
+    )
+
+    @Suppress("LongMethod")
+    fun editorPlanning(state: FoodUiState): FoodEditorPlanningUiState = FoodEditorPlanningUiState(
+        content = FoodUiState(
+            selectedDate = state.selectedDate,
+            isLoading = state.isLoading,
+            isSaving = state.isSaving,
+            message = state.message,
+            mealType = state.mealType,
+            calorieGoalKcal = state.calorieGoalKcal,
+            proteinGoalGrams = state.proteinGoalGrams,
+            carbsGoalGrams = state.carbsGoalGrams,
+            fatGoalGrams = state.fatGoalGrams,
+            fiberGoalGrams = state.fiberGoalGrams,
+            sugarGoalGrams = state.sugarGoalGrams,
+            saturatedFatGoalGrams = state.saturatedFatGoalGrams,
+            sodiumGoalMilligrams = state.sodiumGoalMilligrams,
+            goalMode = state.goalMode,
+            includeTrainingCalories = state.includeTrainingCalories,
+            useNetCarbs = state.useNetCarbs,
+            eatenCaloriesKcal = state.eatenCaloriesKcal,
+            burnedCaloriesKcal = state.burnedCaloriesKcal,
+            foodPrograms = state.foodPrograms,
+            mealSections = state.mealSections,
+            weeklyPlan = state.weeklyPlan,
+            isPlanningMode = state.isPlanningMode,
+            shoppingListGroups = state.shoppingListGroups,
+            shoppingStartDateInput = state.shoppingStartDateInput,
+            shoppingEndDateInput = state.shoppingEndDateInput,
+            manualShoppingNameInput = state.manualShoppingNameInput,
+            manualShoppingCategoryInput = state.manualShoppingCategoryInput,
+            manualShoppingQuantityInput = state.manualShoppingQuantityInput,
+            mealDefinitions = state.mealDefinitions,
+            selectedMealDetailId = state.selectedMealDetailId,
+            mealDetailSortMode = state.mealDetailSortMode,
+            savedFoods = state.savedFoods,
+            mealTemplates = state.mealTemplates,
+            recipes = state.recipes,
+            recipeDiscovery = state.recipeDiscovery,
+            recipeBrowserDate = state.recipeBrowserDate,
+            recipeBrowserMealType = state.recipeBrowserMealType,
+            fastingTimer = state.fastingTimer,
+            isAddPanelVisible = state.isAddPanelVisible,
+            sheetMode = state.sheetMode,
+            selectedMealTitle = state.selectedMealTitle,
+            recipeServingsToLog = state.recipeServingsToLog,
+            diaryEntryEditor = state.diaryEntryEditor,
+            mealTemplateEditor = state.mealTemplateEditor,
+            goalEditor = state.goalEditor,
+            recipeEditor = state.recipeEditor,
+            editingMealDefinitionId = state.editingMealDefinitionId,
+            customMealNameInput = state.customMealNameInput,
+            customMealTimeInput = state.customMealTimeInput,
+            customMealSortOrderInput = state.customMealSortOrderInput,
+            lastDeletedDiaryEntry = state.lastDeletedDiaryEntry,
+        ),
     )
 
     @Suppress("LongMethod")

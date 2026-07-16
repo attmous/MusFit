@@ -24,11 +24,11 @@ committed schema JSON.
 | `ui/food/FoodScreen.kt` | Diary screen, summary/header, meal detail, and the `FoodSheetMode` dispatch. |
 | `ui/food/FoodComponents.kt` | Shared leaf composables + formatters (`ProgressBar`, `FoodThumb`, `SectionTitle`, …). |
 | `ui/food/FoodTrackersUi.kt` | Water + Health Connect cards, shown as bottom-sheet content (Water via the quick-actions tile, Health Connect via the tools menu). |
-| `ui/food/FoodPresentationState.kt` | Pure diary/tracker/route state projections plus Food summary, rating, favorite, filter, and form reducers. |
+| `ui/food/FoodPresentationState.kt` | Pure diary, tracker, Add/database, editor/planning, and route projections plus Food summary, rating, favorite, filter, and form reducers. |
 | `ui/food/FoodModalSheets.kt` | The `FoodSheetMode` panels (database, editors, goals, recipes, templates, shopping, barcode comparison, fasting timer). |
 | `ui/food/FoodAddPanelUi.kt` | The add-food panel and its entry-mode forms. |
 | `ui/food/AddFoodScreen.kt` | Full-screen add-food surface (the `AddFood` sheet mode). |
-| `ui/food/FoodViewModel.kt` | Single route coordinator `@HiltViewModel`; owns Food actions and exposes the compatibility aggregate plus independently collected diary, tracker, and route state slices. |
+| `ui/food/FoodViewModel.kt` | Single route coordinator `@HiltViewModel`; owns Food actions and persistence while exposing independently collected destination-lifetime state slices. |
 | `ui/food/BarcodeScannerScreen.kt` | CameraX + ML Kit barcode capture route. |
 | `ui/food/NutritionLabelScannerScreen.kt` | CameraX + ML Kit OCR capture route. |
 | `ui/food/NutritionTrends.kt`, `NutritionTrendsViewModel.kt`, `NutritionTrendsScreen.kt` | Profile-owned nutrition trends route backed by Food range summaries. |
@@ -39,15 +39,15 @@ committed schema JSON.
 | `data/remote/food/` | Open Food Facts Retrofit adapter and transport DTOs behind `FoodProductProvider`. |
 | `domain/nutrition/`, `domain/food/` | Pure nutrition calculators and the OCR parser. |
 
-Food currently uses one route-coordinator ViewModel. The diary and water/Health
-Connect panels consume equality-stable `FoodDiaryUiState` and
-`FoodTrackerUiState` projections, while `FoodRouteUiState` carries only the
-active-surface key. Unrelated editor, search, recipe, or database changes do not
-emit into those collectors. The diary subtree does not collect the aggregate
-state; `FoodUiState` is collected only while an Add/database/editor/planning
-surface is active. Tracker collection is likewise active only for an open water
-or Health Connect sheet. The compatibility aggregate remains pending the
-dedicated S04 state slices. Preserve the established `FoodAddMode` /
+Food uses one route-coordinator ViewModel with destination-lifetime projections.
+The diary, water/Health Connect, Add/database, and editor/planning surfaces
+consume equality-stable `FoodDiaryUiState`, `FoodTrackerUiState`,
+`FoodAddDatabaseUiState`, and `FoodEditorPlanningUiState` flows.
+`FoodRouteUiState` carries only the active-surface key and classifies which one
+of those flows is collected. Unrelated changes do not emit into or recompose
+other surface groups, and no composable collects the compatibility aggregate.
+The aggregate remains internal to actions, saved-state restoration, and the
+repository coordinator. Preserve the established `FoodAddMode` /
 `FoodSheetMode` behavior for feature changes.
 
 ## Feature map
@@ -193,9 +193,10 @@ full-screen add surface, the full-screen recipe browser, the diary, or a
 
 ## `FoodUiState`
 
-`FoodUiState` is a broad route-level coordinator because one ViewModel backs
-every Food surface. Common diary/add/tracker state remains flat, while the major
-editors use dedicated sub-state objects. Its logical groups are:
+`FoodUiState` is the internal compatibility and restoration model because one
+ViewModel still coordinates repository mutations across Food. It is projected
+before presentation; UI routes never collect it directly. Major editors also
+retain dedicated sub-state objects. Its logical groups are:
 
 - Date / loading / message
 - Diary summary (eaten/remaining, macro + advanced + micronutrient progress,

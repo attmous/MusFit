@@ -197,6 +197,7 @@ fun FoodScreen(
     if (routeState.hasActiveSurface) {
         FoodActiveSurface(
             viewModel = viewModel,
+            routeState = routeState,
             onScanClick = onScanClick,
             onLabelScanClick = onLabelScanClick,
             onRequestFoodHealthConnectPermissions = foodHealthConnectPermissionLauncher::launch,
@@ -214,14 +215,86 @@ fun FoodScreen(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-@Suppress("LongMethod", "CyclomaticComplexMethod")
 private fun FoodActiveSurface(
     viewModel: FoodViewModel,
+    routeState: FoodRouteUiState,
     onScanClick: () -> Unit,
     onLabelScanClick: () -> Unit,
     onRequestFoodHealthConnectPermissions: (Set<String>) -> Unit,
 ) {
-    val state by viewModel.state.collectAsState()
+    when (routeState.surfaceGroup) {
+        FoodSurfaceGroup.AddDatabase -> {
+            val state by viewModel.addDatabaseState.collectAsState()
+            FoodProjectedSurface(
+                state = state.content,
+                viewModel = viewModel,
+                onScanClick = onScanClick,
+                onLabelScanClick = onLabelScanClick,
+            )
+        }
+
+        FoodSurfaceGroup.EditorPlanning -> {
+            val state by viewModel.editorPlanningState.collectAsState()
+            FoodProjectedSurface(
+                state = state.content,
+                viewModel = viewModel,
+                onScanClick = onScanClick,
+                onLabelScanClick = onLabelScanClick,
+            )
+        }
+
+        FoodSurfaceGroup.Tracker -> FoodTrackerSurface(
+            viewModel = viewModel,
+            sheetMode = routeState.sheetMode,
+            onRequestFoodHealthConnectPermissions = onRequestFoodHealthConnectPermissions,
+        )
+
+        null -> Unit
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun FoodTrackerSurface(
+    viewModel: FoodViewModel,
+    sheetMode: FoodSheetMode?,
+    onRequestFoodHealthConnectPermissions: (Set<String>) -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MusFitTheme.colors.background),
+    ) {
+        ModalBottomSheet(
+            onDismissRequest = viewModel::closeAddFood,
+            containerColor = MusFitTheme.colors.background,
+            dragHandle = {
+                SheetDragHandle(modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+            },
+        ) {
+            when (sheetMode) {
+                FoodSheetMode.Water -> FoodWaterTrackerSheet(viewModel)
+
+                FoodSheetMode.HealthConnect -> FoodHealthConnectTrackerSheet(
+                    viewModel = viewModel,
+                    onRequestPermissions = onRequestFoodHealthConnectPermissions,
+                )
+
+                else -> Unit
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+@Suppress("LongMethod", "CyclomaticComplexMethod")
+private fun FoodProjectedSurface(
+    state: FoodUiState,
+    viewModel: FoodViewModel,
+    onScanClick: () -> Unit,
+    onLabelScanClick: () -> Unit,
+) {
     val selectedMealDetail = state.selectedMealDetailForDisplay()
     val isRecipeFullScreen =
         state.isAddPanelVisible &&
@@ -619,14 +692,9 @@ private fun FoodActiveSurface(
                         onToggleItem = viewModel::toggleShoppingListItem,
                     )
 
-                FoodSheetMode.Water ->
-                    FoodWaterTrackerSheet(viewModel)
-
-                FoodSheetMode.HealthConnect ->
-                    FoodHealthConnectTrackerSheet(
-                        viewModel = viewModel,
-                        onRequestPermissions = onRequestFoodHealthConnectPermissions,
-                    )
+                FoodSheetMode.Water,
+                FoodSheetMode.HealthConnect,
+                -> Unit
             }
         }
     }
