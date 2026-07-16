@@ -149,19 +149,9 @@ fun FoodScreen(
     onScannedLabelConsumed: () -> Unit = {},
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val routeState by viewModel.routeState.collectAsState()
     val diaryState by viewModel.diaryState.collectAsState()
     val accent = tabAccentFor(AppDestination.Food)
-    val selectedMealDetail = state.selectedMealDetailForDisplay()
-    val isRecipeFullScreen =
-        state.isAddPanelVisible &&
-            (state.sheetMode == FoodSheetMode.RecipeBrowser || state.sheetMode == FoodSheetMode.RecipeEditor)
-    // Turn 9: the saved-food and goal editors graduate from sheets to full screens
-    // (same hosting pattern as the recipe browser).
-    val isSavedFoodEditorFullScreen =
-        state.isAddPanelVisible && state.sheetMode == FoodSheetMode.SavedFoodEditor
-    val isGoalEditorFullScreen =
-        state.isAddPanelVisible && state.sheetMode == FoodSheetMode.GoalEditor
     val diaryActions = remember(viewModel) {
         FoodDiaryActions(
             onPreviousDay = viewModel::goToPreviousDay,
@@ -203,6 +193,45 @@ fun FoodScreen(
             onScannedLabelConsumed()
         }
     }
+
+    if (routeState.hasActiveSurface) {
+        FoodActiveSurface(
+            viewModel = viewModel,
+            onScanClick = onScanClick,
+            onLabelScanClick = onLabelScanClick,
+            onRequestFoodHealthConnectPermissions = foodHealthConnectPermissionLauncher::launch,
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MusFitTheme.colors.background),
+        ) {
+            FoodDiaryHome(state = diaryState, accent = accent, actions = diaryActions)
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+@Suppress("LongMethod", "CyclomaticComplexMethod")
+private fun FoodActiveSurface(
+    viewModel: FoodViewModel,
+    onScanClick: () -> Unit,
+    onLabelScanClick: () -> Unit,
+    onRequestFoodHealthConnectPermissions: (Set<String>) -> Unit,
+) {
+    val state by viewModel.state.collectAsState()
+    val selectedMealDetail = state.selectedMealDetailForDisplay()
+    val isRecipeFullScreen =
+        state.isAddPanelVisible &&
+            (state.sheetMode == FoodSheetMode.RecipeBrowser || state.sheetMode == FoodSheetMode.RecipeEditor)
+    // Turn 9: the saved-food and goal editors graduate from sheets to full screens
+    // (same hosting pattern as the recipe browser).
+    val isSavedFoodEditorFullScreen =
+        state.isAddPanelVisible && state.sheetMode == FoodSheetMode.SavedFoodEditor
+    val isGoalEditorFullScreen =
+        state.isAddPanelVisible && state.sheetMode == FoodSheetMode.GoalEditor
 
     // A system/gesture back on a full-screen Food surface (meal detail or add-food)
     // closes it and returns to the diary, instead of falling through to the NavHost
@@ -355,8 +384,6 @@ fun FoodScreen(
                 onEntryClick = viewModel::openDiaryEntryEditor,
                 onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
             )
-        } else {
-            FoodDiaryHome(state = diaryState, accent = accent, actions = diaryActions)
         }
     }
 
@@ -598,7 +625,7 @@ fun FoodScreen(
                 FoodSheetMode.HealthConnect ->
                     FoodHealthConnectTrackerSheet(
                         viewModel = viewModel,
-                        onRequestPermissions = foodHealthConnectPermissionLauncher::launch,
+                        onRequestPermissions = onRequestFoodHealthConnectPermissions,
                     )
             }
         }

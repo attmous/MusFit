@@ -55,6 +55,17 @@ data class FoodTrackerUiState(
     val foodHealthConnectLastFailureMessage: String?,
 )
 
+/** Minimal route-coordinator state collected while the diary is visible. */
+@Immutable
+data class FoodRouteUiState(
+    val isAddPanelVisible: Boolean,
+    val sheetMode: FoodSheetMode?,
+    val selectedMealDetailId: String?,
+) {
+    val hasActiveSurface: Boolean
+        get() = isAddPanelVisible || selectedMealDetailId != null
+}
+
 internal object FoodPresentationReducers {
     fun diary(state: FoodUiState): FoodDiaryUiState = FoodDiaryUiState(
         selectedDate = state.selectedDate,
@@ -89,6 +100,12 @@ internal object FoodPresentationReducers {
         foodHealthConnectRequestablePermissions = state.foodHealthConnectRequestablePermissions,
         foodHealthConnectPermissionSummary = state.foodHealthConnectPermissionSummary,
         foodHealthConnectLastFailureMessage = state.foodHealthConnectLastFailureMessage,
+    )
+
+    fun route(state: FoodUiState): FoodRouteUiState = FoodRouteUiState(
+        isAddPanelVisible = state.isAddPanelVisible,
+        sheetMode = state.sheetMode,
+        selectedMealDetailId = state.selectedMealDetailId,
     )
 
     @Suppress("LongMethod")

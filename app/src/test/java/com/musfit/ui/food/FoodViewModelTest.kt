@@ -86,12 +86,14 @@ class FoodViewModelTest {
         testScheduler.advanceUntilIdle()
         val diaryBefore = viewModel.diaryState.value
         val trackersBefore = viewModel.trackerState.value
+        val routeBefore = viewModel.routeState.value
 
         viewModel.onFoodDatabaseQueryChanged("oats")
         testScheduler.advanceUntilIdle()
 
         assertSame(diaryBefore, viewModel.diaryState.value)
         assertSame(trackersBefore, viewModel.trackerState.value)
+        assertSame(routeBefore, viewModel.routeState.value)
     }
 
     @Test

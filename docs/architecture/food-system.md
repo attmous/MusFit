@@ -24,11 +24,11 @@ committed schema JSON.
 | `ui/food/FoodScreen.kt` | Diary screen, summary/header, meal detail, and the `FoodSheetMode` dispatch. |
 | `ui/food/FoodComponents.kt` | Shared leaf composables + formatters (`ProgressBar`, `FoodThumb`, `SectionTitle`, …). |
 | `ui/food/FoodTrackersUi.kt` | Water + Health Connect cards, shown as bottom-sheet content (Water via the quick-actions tile, Health Connect via the tools menu). |
-| `ui/food/FoodPresentationState.kt` | Pure diary/tracker state projections plus Food summary, rating, favorite, filter, and form reducers. |
+| `ui/food/FoodPresentationState.kt` | Pure diary/tracker/route state projections plus Food summary, rating, favorite, filter, and form reducers. |
 | `ui/food/FoodModalSheets.kt` | The `FoodSheetMode` panels (database, editors, goals, recipes, templates, shopping, barcode comparison, fasting timer). |
 | `ui/food/FoodAddPanelUi.kt` | The add-food panel and its entry-mode forms. |
 | `ui/food/AddFoodScreen.kt` | Full-screen add-food surface (the `AddFood` sheet mode). |
-| `ui/food/FoodViewModel.kt` | Single route coordinator `@HiltViewModel`; owns Food actions and exposes the compatibility aggregate plus independently collected diary and tracker state slices. |
+| `ui/food/FoodViewModel.kt` | Single route coordinator `@HiltViewModel`; owns Food actions and exposes the compatibility aggregate plus independently collected diary, tracker, and route state slices. |
 | `ui/food/BarcodeScannerScreen.kt` | CameraX + ML Kit barcode capture route. |
 | `ui/food/NutritionLabelScannerScreen.kt` | CameraX + ML Kit OCR capture route. |
 | `ui/food/NutritionTrends.kt`, `NutritionTrendsViewModel.kt`, `NutritionTrendsScreen.kt` | Profile-owned nutrition trends route backed by Food range summaries. |
@@ -41,12 +41,13 @@ committed schema JSON.
 
 Food currently uses one route-coordinator ViewModel. The diary and water/Health
 Connect panels consume equality-stable `FoodDiaryUiState` and
-`FoodTrackerUiState` projections, so unrelated editor, search, recipe, or
-database changes do not emit into those collectors. The diary subtree is a
-stable skippable compositor, while tracker collection is active only for an
-open water or Health Connect sheet. The compatibility
-`FoodUiState` aggregate remains for Add/database/editor/planning routes pending
-their dedicated state slices. Preserve the established `FoodAddMode` /
+`FoodTrackerUiState` projections, while `FoodRouteUiState` carries only the
+active-surface key. Unrelated editor, search, recipe, or database changes do not
+emit into those collectors. The diary subtree does not collect the aggregate
+state; `FoodUiState` is collected only while an Add/database/editor/planning
+surface is active. Tracker collection is likewise active only for an open water
+or Health Connect sheet. The compatibility aggregate remains pending the
+dedicated S04 state slices. Preserve the established `FoodAddMode` /
 `FoodSheetMode` behavior for feature changes.
 
 ## Feature map

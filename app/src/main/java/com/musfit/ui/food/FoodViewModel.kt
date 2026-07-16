@@ -905,6 +905,14 @@ class FoodViewModel @Inject constructor(
             started = SharingStarted.Eagerly,
             initialValue = FoodPresentationReducers.diary(mutableState.value),
         )
+    val routeState: StateFlow<FoodRouteUiState> = mutableState
+        .map(FoodPresentationReducers::route)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = FoodPresentationReducers.route(mutableState.value),
+        )
     val trackerState: StateFlow<FoodTrackerUiState> = mutableState
         .map(FoodPresentationReducers::trackers)
         .distinctUntilChanged()
