@@ -1,6 +1,5 @@
 package com.musfit.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -22,10 +21,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,10 +33,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodScreen
 import com.musfit.ui.food.NutritionLabelScannerScreen
@@ -87,10 +85,6 @@ internal object MusFitBottomNavMetrics {
 }
 
 @Composable
-internal fun rememberAppBackStackEntries(): MutableState<List<AppDestination>> =
-    rememberSaveable { mutableStateOf(listOf(AppDestination.Today)) }
-
-@Composable
 fun AppNavGraph(
     barcodeScannerContent: @Composable (
         onBarcodeDetected: (String) -> Unit,
@@ -102,42 +96,22 @@ fun AppNavGraph(
         )
     },
 ) {
-    val navController = rememberNavController()
+    val backStack = rememberNavBackStack(TodayNavKey)
     val destinations = AppDestination.entries
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = backStackEntry?.destination?.route ?: AppDestination.Today.route
-    val currentBottomRoute = bottomDestinationForRoute(currentRoute).route
-    var appBackStackEntries by rememberAppBackStackEntries()
-    val appBackStack = remember(appBackStackEntries) { AppNavigationStack(appBackStackEntries) }
     var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
     var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
     var chatPreviewVisible by rememberSaveable { mutableStateOf(false) }
-
-    fun navigateToBottomDestination(destination: AppDestination) {
-        navController.navigate(destination.route) {
-            popUpTo(AppDestination.Today.route) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
-        }
-    }
-
-    fun go(destination: AppDestination) {
-        AppNavigationStack(appBackStackEntries).also { stack ->
-            stack.select(destination)
-            appBackStackEntries = stack.entries
-        }
-        navigateToBottomDestination(destination)
-    }
-
-    fun popAppBackStack() {
-        AppNavigationStack(appBackStackEntries).also { stack ->
-            val previousDestination = stack.pop()
-            if (previousDestination != null) {
-                appBackStackEntries = stack.entries
-                navigateToBottomDestination(previousDestination)
+    val navigator = AppNavigator(
+        backStack = backStack,
+        onResult = { result ->
+            when (result) {
+                is AppNavigationResult.BarcodeDetected -> scannedBarcode = result.barcode
+                is AppNavigationResult.NutritionLabelCaptured -> scannedLabelText = result.text
             }
-        }
-    }
+        },
+        onOpenCoach = { chatPreviewVisible = true },
+    )
+    val currentBottomRoute = navigator.currentDestination.route
 
     Scaffold(
         containerColor = MusFitTheme.colors.background,
@@ -145,98 +119,99 @@ fun AppNavGraph(
             MusFitBottomNav(
                 destinations = destinations,
                 currentRoute = currentBottomRoute,
-                onSelect = { go(it) },
-                onCoachClick = { chatPreviewVisible = true },
+                onSelect = { navigator.navigate(AppNavigationAction.SelectTopLevel(it)) },
+                onCoachClick = { navigator.navigate(AppNavigationAction.OpenCoach) },
             )
         },
     ) { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = AppDestination.Today.route,
+        NavDisplay(
+            backStack = backStack,
             modifier = Modifier.padding(padding),
-        ) {
-            composable(AppDestination.Today.route) {
-                BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })
-                TodayScreen(
-                    onOpenFood = { go(AppDestination.Food) },
-                    onOpenTraining = { go(AppDestination.Training) },
-                    onOpenHealth = { go(AppDestination.Profile) },
-                )
-            }
-            composable(AppDestination.Food.route) {
-                BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })
-                FoodScreen(
-                    scannedBarcode = scannedBarcode,
-                    onScanClick = { navController.navigate(BARCODE_SCANNER_ROUTE) },
-                    onScannedBarcodeConsumed = { scannedBarcode = null },
-                    scannedLabelText = scannedLabelText,
-                    onLabelScanClick = { navController.navigate(NUTRITION_LABEL_SCANNER_ROUTE) },
-                    onScannedLabelConsumed = { scannedLabelText = null },
-                )
-            }
-            composable(AppDestination.Training.route) {
-                BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })
-                TrainingScreen(
-                    onOpenProgress = { navController.navigate(PROFILE_TRAINING_PROGRESS_ROUTE) },
-                    onOpenCoach = { chatPreviewVisible = true },
-                )
-            }
-            composable(AppDestination.Profile.route) {
-                BottomDestinationBackHandler(canPop = appBackStack.canPop, onBack = { popAppBackStack() })
-                ProfileScreen(
-                    onSettingsClick = { navController.navigate(PROFILE_SETTINGS_ROUTE) },
-                    onOpenFood = { go(AppDestination.Food) },
-                    onOpenTrainingProgress = { navController.navigate(PROFILE_TRAINING_PROGRESS_ROUTE) },
-                    onOpenNutritionTrends = { navController.navigate(PROFILE_NUTRITION_TRENDS_ROUTE) },
-                )
-            }
-            composable(PROFILE_SETTINGS_ROUTE) {
-                ProfileSettingsScreen(onBack = { navController.popBackStack() })
-            }
-            composable(PROFILE_TRAINING_PROGRESS_ROUTE) {
-                TrainingProgressScreen(onBack = { navController.popBackStack() })
-            }
-            composable(PROFILE_NUTRITION_TRENDS_ROUTE) {
-                NutritionTrendsScreen(onBack = { navController.popBackStack() })
-            }
-            composable(BARCODE_SCANNER_ROUTE) {
-                barcodeScannerContent(
-                    { barcode ->
-                        if (barcode.isNotBlank()) {
-                            scannedBarcode = barcode
-                            navController.popBackStack()
-                        }
-                    },
-                    { navController.popBackStack() },
-                )
-            }
-            composable(NUTRITION_LABEL_SCANNER_ROUTE) {
-                NutritionLabelScannerScreen(
-                    onLabelCaptured = { text ->
-                        if (text.isNotBlank()) {
-                            scannedLabelText = text
-                            navController.popBackStack()
-                        }
-                    },
-                )
-            }
-        }
+            onBack = { navigator.goBack() },
+            entryDecorators = listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator(),
+            ),
+            entryProvider = entryProvider {
+                entry<TodayNavKey> {
+                    TodayScreen(
+                        onOpenFood = {
+                            navigator.navigate(AppNavigationAction.SelectTopLevel(AppDestination.Food))
+                        },
+                        onOpenTraining = {
+                            navigator.navigate(AppNavigationAction.SelectTopLevel(AppDestination.Training))
+                        },
+                        onOpenHealth = {
+                            navigator.navigate(AppNavigationAction.SelectTopLevel(AppDestination.Profile))
+                        },
+                    )
+                }
+                entry<FoodNavKey> {
+                    FoodScreen(
+                        scannedBarcode = scannedBarcode,
+                        onScanClick = { navigator.navigate(AppNavigationAction.OpenBarcodeScanner) },
+                        onScannedBarcodeConsumed = { scannedBarcode = null },
+                        scannedLabelText = scannedLabelText,
+                        onLabelScanClick = { navigator.navigate(AppNavigationAction.OpenNutritionLabelScanner) },
+                        onScannedLabelConsumed = { scannedLabelText = null },
+                    )
+                }
+                entry<TrainingNavKey> {
+                    TrainingScreen(
+                        onOpenProgress = { navigator.navigate(AppNavigationAction.OpenTrainingProgress) },
+                        onOpenCoach = { navigator.navigate(AppNavigationAction.OpenCoach) },
+                    )
+                }
+                entry<ProfileNavKey> {
+                    ProfileScreen(
+                        onSettingsClick = { navigator.navigate(AppNavigationAction.OpenProfileSettings) },
+                        onOpenFood = {
+                            navigator.navigate(AppNavigationAction.SelectTopLevel(AppDestination.Food))
+                        },
+                        onOpenTrainingProgress = { navigator.navigate(AppNavigationAction.OpenTrainingProgress) },
+                        onOpenNutritionTrends = { navigator.navigate(AppNavigationAction.OpenNutritionTrends) },
+                    )
+                }
+                entry<ProfileSettingsNavKey> {
+                    ProfileSettingsScreen(onBack = { navigator.goBack() })
+                }
+                entry<TrainingProgressNavKey> {
+                    TrainingProgressScreen(onBack = { navigator.goBack() })
+                }
+                entry<NutritionTrendsNavKey> {
+                    NutritionTrendsScreen(onBack = { navigator.goBack() })
+                }
+                entry<BarcodeScannerNavKey> {
+                    barcodeScannerContent(
+                        { barcode ->
+                            if (barcode.isNotBlank()) {
+                                navigator.complete(AppNavigationResult.BarcodeDetected(barcode))
+                            }
+                        },
+                        { navigator.goBack() },
+                    )
+                }
+                entry<NutritionLabelScannerNavKey> {
+                    NutritionLabelScannerScreen(
+                        onLabelCaptured = { text ->
+                            if (text.isNotBlank()) {
+                                navigator.complete(AppNavigationResult.NutritionLabelCaptured(text))
+                            }
+                        },
+                    )
+                }
+            },
+        )
     }
 
     if (chatPreviewVisible) {
         ChatPreviewSheet(
             onDismiss = { chatPreviewVisible = false },
-            onConfigure = { go(AppDestination.Profile) },
+            onConfigure = {
+                navigator.navigate(AppNavigationAction.SelectTopLevel(AppDestination.Profile))
+            },
         )
     }
-}
-
-@Composable
-private fun BottomDestinationBackHandler(
-    canPop: Boolean,
-    onBack: () -> Unit,
-) {
-    BackHandler(enabled = canPop, onBack = onBack)
 }
 
 /**

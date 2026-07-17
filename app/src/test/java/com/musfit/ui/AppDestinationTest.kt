@@ -18,19 +18,23 @@ class AppDestinationTest {
     }
 
     @Test
-    fun barcodeScannerRoute_is_separate_from_bottom_navigation_routes() {
-        assertEquals("barcode-scanner", BARCODE_SCANNER_ROUTE)
-        assertEquals(false, AppDestination.entries.any { it.route == BARCODE_SCANNER_ROUTE })
+    fun navigationKeys_map_to_their_bottom_navigation_owner() {
+        assertEquals(AppDestination.Today, bottomDestinationForKey(TodayNavKey))
+        assertEquals(AppDestination.Food, bottomDestinationForKey(FoodNavKey))
+        assertEquals(AppDestination.Training, bottomDestinationForKey(TrainingNavKey))
+        assertEquals(AppDestination.Profile, bottomDestinationForKey(ProfileNavKey))
     }
 
     @Test
-    fun profileSettingsRoute_keeps_profile_tab_selected() {
-        assertEquals(AppDestination.Profile, bottomDestinationForRoute(PROFILE_SETTINGS_ROUTE))
+    fun profileAndProgressKeys_keep_profile_tab_selected() {
+        assertEquals(AppDestination.Profile, bottomDestinationForKey(ProfileSettingsNavKey))
+        assertEquals(AppDestination.Profile, bottomDestinationForKey(TrainingProgressNavKey))
+        assertEquals(AppDestination.Profile, bottomDestinationForKey(NutritionTrendsNavKey))
     }
 
     @Test
-    fun scannerRoutes_keep_food_tab_selected() {
-        assertEquals(AppDestination.Food, bottomDestinationForRoute(BARCODE_SCANNER_ROUTE))
-        assertEquals(AppDestination.Food, bottomDestinationForRoute(NUTRITION_LABEL_SCANNER_ROUTE))
+    fun scannerKeys_keep_food_tab_selected() {
+        assertEquals(AppDestination.Food, bottomDestinationForKey(BarcodeScannerNavKey))
+        assertEquals(AppDestination.Food, bottomDestinationForKey(NutritionLabelScannerNavKey))
     }
 }

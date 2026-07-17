@@ -17,7 +17,7 @@ Source:
 
 - `app/src/main/java/com/musfit/ui/AppDestination.kt`
 - `app/src/main/java/com/musfit/ui/AppNavGraph.kt`
-- `app/src/main/java/com/musfit/ui/AppNavigationStack.kt`
+- `app/src/main/java/com/musfit/ui/AppNavigationContract.kt`
 
 ### Top-Level Destinations
 
@@ -30,31 +30,33 @@ Source:
 | `Training` | `training` | Training | `TrainingScreen` |
 | `Profile` | `profile` | Profile | `ProfileScreen` |
 
-`AppNavGraph()` starts at `today`, renders the custom `MusFitBottomNav`, and
-uses `AppNavigationStack` to preserve visit-order back behavior between bottom
-destinations. A secondary route maps back to its owning bottom destination for
-bottom-bar selection.
+`AppNavGraph()` starts at `TodayNavKey`, renders the custom `MusFitBottomNav`,
+and uses a saveable Navigation 3 back stack plus `NavDisplay`. Re-selecting a
+previously visited tab moves its retained entry to the end of the visit order;
+there is never more than one ViewModel/collector owner for a top-level screen.
+`NavDisplay` owns system and predictive-back handling.
 
-### Secondary Routes
+### Typed Keys And Actions
 
-| Constant | Route | Owner | Entrypoint |
-| --- | --- | --- | --- |
-| `PROFILE_SETTINGS_ROUTE` | `profile-settings` | Profile | `ProfileSettingsScreen` |
-| `PROFILE_TRAINING_PROGRESS_ROUTE` | `profile-training-progress` | Profile | `TrainingProgressScreen` |
-| `PROFILE_NUTRITION_TRENDS_ROUTE` | `profile-nutrition-trends` | Profile | `NutritionTrendsScreen` |
-| `BARCODE_SCANNER_ROUTE` | `barcode-scanner` | Food | `BarcodeScannerScreen` |
-| `NUTRITION_LABEL_SCANNER_ROUTE` | `nutrition-label-scanner` | Food | `NutritionLabelScannerScreen` |
+| Key | Owner | Entrypoint |
+| --- | --- | --- |
+| `ProfileSettingsNavKey` | Profile | `ProfileSettingsScreen` |
+| `TrainingProgressNavKey` | Profile | `TrainingProgressScreen` |
+| `NutritionTrendsNavKey` | Profile | `NutritionTrendsScreen` |
+| `BarcodeScannerNavKey` | Food | `BarcodeScannerScreen` |
+| `NutritionLabelScannerNavKey` | Food | `NutritionLabelScannerScreen` |
 
-Profile secondary routes keep Profile selected. Scanner routes keep Food
-selected. Secondary screens return with `NavController.popBackStack()`; bottom
-destinations use the app-level visit-order stack.
+`AppNavigationAction` is the typed app-shell contract used by Today, Profile,
+Training, and Food callbacks. Profile keys keep Profile selected; scanner keys
+keep Food selected. Secondary screens return through `AppNavigator.goBack()`.
 
 ### Scanner Results
 
 `AppNavGraph` holds pending barcode and OCR text results as saveable strings.
-After a scanner emits a nonblank result, the graph pops the scanner route and
-passes the result into `FoodScreen`. Food forwards it to `FoodViewModel` and
-invokes the matching consumed callback so it is not processed twice.
+After a scanner emits a nonblank `AppNavigationResult`, the navigator delivers
+the typed result exactly once, pops the producer key, and passes the value into
+`FoodScreen`. Food forwards it to `FoodViewModel` and invokes the matching
+consumed callback so it is not processed twice.
 
 ## Global Coach Sheet
 
@@ -101,7 +103,7 @@ Source:
 - `app/src/main/java/com/musfit/ui/today/MetricCarouselUi.kt`
 - `app/src/main/java/com/musfit/ui/today/CoachFeedUi.kt`
 
-Route: `today`
+Key: `TodayNavKey`
 
 ```kotlin
 @Composable
@@ -120,8 +122,7 @@ data when it resumes.
 
 Navigation is callback-only: `onOpenFood` selects Food, `onOpenTraining`
 selects Training, and the legacy-named `onOpenHealth` selects Profile. Today
-does not own the global coach sheet or navigate directly through a
-`NavController`.
+does not own the global coach sheet or a navigation controller.
 
 ## Food
 
@@ -202,7 +203,7 @@ and restoration compatibility model; no Training composable collects it as one
 aggregate flow. Active workouts remain Room-owned, and closing the active-workout
 screen still clears the screen-scoped rest timer.
 
-`onOpenProgress` opens the Profile-owned `profile-training-progress` route.
+`onOpenProgress` dispatches the Profile-owned `TrainingProgressNavKey` action.
 `onOpenCoach` opens the same global coach sheet used by the bottom coach FAB.
 Training handles its in-feature back stack before back falls through to the
 app-level bottom-destination stack.
@@ -216,7 +217,7 @@ Source:
 - `app/src/main/java/com/musfit/ui/profile/ProfileSettingsScreen.kt`
 - `app/src/main/java/com/musfit/ui/profile/ProfileSettingsViewModel.kt`
 
-Route: `profile`
+Key: `ProfileNavKey`
 
 ```kotlin
 @Composable
