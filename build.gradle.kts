@@ -111,6 +111,7 @@ tasks.register("verifyCoreModules") {
         ":core:model:test",
         ":core:database:testDebugUnitTest",
         ":core:database:lintDebug",
+        ":core:database:assembleDebugAndroidTest",
         ":core:network:testInternalDebugUnitTest",
         ":core:network:testProductionDebugUnitTest",
         ":core:network:lintInternalDebug",
@@ -119,6 +120,7 @@ tasks.register("verifyCoreModules") {
         ":core:data:testProductionDebugUnitTest",
         ":core:data:lintInternalDebug",
         ":core:data:lintProductionRelease",
+        ":core:data:assembleInternalDebugAndroidTest",
         ":core:designsystem:testDebugUnitTest",
         ":core:testing:test",
     )

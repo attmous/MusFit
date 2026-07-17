@@ -242,24 +242,14 @@ class AndroidKeyStoreAiCoachSecretStoreInstrumentationTest {
     private fun localRepository(
         database: MusFitDatabase,
         secretStore: AiCoachSecretStore,
-    ): LocalAiCoachRepository {
-        var clock = 1_000L
-        return LocalAiCoachRepository(
-            aiCoachDao = database.aiCoachDao(),
-            accountRepository = LocalAccountRepository(
-                accountDao = database.accountDao(),
-                clock = {
-                    clock += 1_000L
-                    clock
-                },
-            ),
-            secretStore = secretStore,
-            clock = {
-                clock += 1_000L
-                clock
-            },
-        )
-    }
+    ): LocalAiCoachRepository = LocalAiCoachRepository(
+        aiCoachDao = database.aiCoachDao(),
+        accountRepository = LocalAccountRepository(
+            accountDao = database.accountDao(),
+        ),
+        secretStore = secretStore,
+        debugDefaults = AiCoachDebugDefaults(),
+    )
 
     private fun startSingleRequestListener(
         server: ServerSocket,
