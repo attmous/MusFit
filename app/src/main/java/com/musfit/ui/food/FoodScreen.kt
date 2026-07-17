@@ -140,6 +140,7 @@ private data class FoodDiaryActions(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("LongMethod", "LongParameterList")
 fun FoodScreen(
     scannedBarcode: String? = null,
     onScanClick: () -> Unit = {},
@@ -147,31 +148,65 @@ fun FoodScreen(
     scannedLabelText: String? = null,
     onLabelScanClick: () -> Unit = {},
     onScannedLabelConsumed: () -> Unit = {},
+    navigation: FoodNavigationActions = FoodNavigationActions(),
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
     val routeState by viewModel.routeState.collectAsState()
     val diaryState by viewModel.diaryState.collectAsState()
     val accent = tabAccentFor(AppDestination.Food)
-    val diaryActions = remember(viewModel) {
+    val diaryActions = remember(viewModel, navigation) {
         FoodDiaryActions(
             onPreviousDay = viewModel::goToPreviousDay,
             onNextDay = viewModel::goToNextDay,
             onToday = viewModel::goToToday,
-            onOpenGoal = viewModel::openGoalEditor,
-            onOpenMeals = viewModel::openMealSettings,
-            onOpenTemplates = viewModel::openMealTemplates,
-            onOpenShopping = viewModel::openShoppingList,
-            onOpenRecipes = viewModel::openRecipeBrowser,
-            onOpenFasting = viewModel::openFastingTimer,
-            onOpenHealthConnect = viewModel::openHealthConnectSheet,
-            onOpenDatabase = viewModel::openFoodDatabase,
+            onOpenGoal = {
+                viewModel.openGoalEditor()
+                navigation.open(FoodGoalEditorNavKey)
+            },
+            onOpenMeals = {
+                viewModel.openMealSettings()
+                navigation.open(FoodMealSettingsNavKey)
+            },
+            onOpenTemplates = {
+                viewModel.openMealTemplates()
+                navigation.open(FoodMealTemplatesNavKey)
+            },
+            onOpenShopping = {
+                viewModel.openShoppingList()
+                navigation.open(FoodShoppingListNavKey)
+            },
+            onOpenRecipes = {
+                viewModel.openRecipeBrowser()
+                navigation.open(FoodRecipeBrowserNavKey)
+            },
+            onOpenFasting = {
+                viewModel.openFastingTimer()
+                navigation.open(FoodFastingTimerNavKey)
+            },
+            onOpenHealthConnect = {
+                viewModel.openHealthConnectSheet()
+                navigation.open(FoodHealthConnectNavKey)
+            },
+            onOpenDatabase = {
+                viewModel.openFoodDatabase()
+                navigation.open(FoodDatabaseNavKey)
+            },
             onCopyDayToTomorrow = viewModel::copySelectedDayToTomorrow,
-            onOpenWater = viewModel::openWaterSheet,
+            onOpenWater = {
+                viewModel.openWaterSheet()
+                navigation.open(FoodWaterNavKey)
+            },
             onQuickAddWater = { viewModel.logQuickWater(WATER_QUICK_ADD_MILLILITERS) },
             onQuickRemoveWater = { viewModel.removeQuickWater(WATER_QUICK_ADD_MILLILITERS) },
             onUndoDelete = viewModel::undoDeleteDiaryEntry,
-            onOpenMeal = viewModel::openMealDetail,
-            onAddFood = viewModel::openAddFood,
+            onOpenMeal = { mealType ->
+                viewModel.openMealDetail(mealType)
+                navigation.open(FoodMealDetailNavKey(mealType))
+            },
+            onAddFood = { mealType ->
+                viewModel.openAddFood(mealType)
+                navigation.open(FoodAddNavKey(mealType))
+            },
         )
     }
     val foodHealthConnectPermissionLauncher = rememberLauncherForActivityResult(
@@ -201,6 +236,7 @@ fun FoodScreen(
             onScanClick = onScanClick,
             onLabelScanClick = onLabelScanClick,
             onRequestFoodHealthConnectPermissions = foodHealthConnectPermissionLauncher::launch,
+            navigation = navigation,
         )
     } else {
         Box(
@@ -215,12 +251,14 @@ fun FoodScreen(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("LongParameterList")
 private fun FoodActiveSurface(
     viewModel: FoodViewModel,
     routeState: FoodRouteUiState,
     onScanClick: () -> Unit,
     onLabelScanClick: () -> Unit,
     onRequestFoodHealthConnectPermissions: (Set<String>) -> Unit,
+    navigation: FoodNavigationActions,
 ) {
     when (routeState.surfaceGroup) {
         FoodSurfaceGroup.AddDatabase -> {
@@ -230,6 +268,7 @@ private fun FoodActiveSurface(
                 viewModel = viewModel,
                 onScanClick = onScanClick,
                 onLabelScanClick = onLabelScanClick,
+                navigation = navigation,
             )
         }
 
@@ -240,6 +279,7 @@ private fun FoodActiveSurface(
                 viewModel = viewModel,
                 onScanClick = onScanClick,
                 onLabelScanClick = onLabelScanClick,
+                navigation = navigation,
             )
         }
 
@@ -247,6 +287,7 @@ private fun FoodActiveSurface(
             viewModel = viewModel,
             sheetMode = routeState.sheetMode,
             onRequestFoodHealthConnectPermissions = onRequestFoodHealthConnectPermissions,
+            navigation = navigation,
         )
 
         null -> Unit
@@ -259,6 +300,7 @@ private fun FoodTrackerSurface(
     viewModel: FoodViewModel,
     sheetMode: FoodSheetMode?,
     onRequestFoodHealthConnectPermissions: (Set<String>) -> Unit,
+    navigation: FoodNavigationActions,
 ) {
     Box(
         modifier = Modifier
@@ -266,7 +308,7 @@ private fun FoodTrackerSurface(
             .background(MusFitTheme.colors.background),
     ) {
         ModalBottomSheet(
-            onDismissRequest = viewModel::closeAddFood,
+            onDismissRequest = navigation.back,
             containerColor = MusFitTheme.colors.background,
             dragHandle = {
                 SheetDragHandle(modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
@@ -294,6 +336,7 @@ private fun FoodProjectedSurface(
     viewModel: FoodViewModel,
     onScanClick: () -> Unit,
     onLabelScanClick: () -> Unit,
+    navigation: FoodNavigationActions,
 ) {
     val selectedMealDetail = state.selectedMealDetailForDisplay()
     val isRecipeFullScreen =
@@ -310,19 +353,20 @@ private fun FoodProjectedSurface(
     // closes it and returns to the diary, instead of falling through to the NavHost
     // and popping the whole Food tab out to Today. Only one is ever active at a time;
     // the modal sheets handle their own back.
-    BackHandler(enabled = selectedMealDetail != null) { viewModel.closeMealDetail() }
+    BackHandler(enabled = selectedMealDetail != null) { navigation.back() }
     BackHandler(
         enabled = state.isAddPanelVisible && state.sheetMode == FoodSheetMode.AddFood,
-    ) { viewModel.closeAddFood() }
+    ) { navigation.back() }
     BackHandler(enabled = isRecipeFullScreen) {
         if (state.sheetMode == FoodSheetMode.RecipeEditor) {
             viewModel.openRecipeBrowser()
+            navigation.replace(FoodRecipeBrowserNavKey)
         } else {
-            viewModel.closeAddFood()
+            navigation.back()
         }
     }
     BackHandler(enabled = isSavedFoodEditorFullScreen || isGoalEditorFullScreen) {
-        viewModel.closeAddFood()
+        navigation.back()
     }
 
     Box(
@@ -332,7 +376,7 @@ private fun FoodProjectedSurface(
     ) {
         if (isSavedFoodEditorFullScreen) {
             SavedFoodEditorScreen(
-                onBack = viewModel::closeAddFood,
+                onBack = navigation.back,
                 state = state,
                 onNameChanged = viewModel::onSavedFoodNameChanged,
                 onBrandChanged = viewModel::onSavedFoodBrandChanged,
@@ -361,7 +405,7 @@ private fun FoodProjectedSurface(
             )
         } else if (isGoalEditorFullScreen) {
             GoalEditorScreen(
-                onBack = viewModel::closeAddFood,
+                onBack = navigation.back,
                 state = state,
                 onCaloriesChanged = viewModel::onGoalCaloriesChanged,
                 onProteinChanged = viewModel::onGoalProteinChanged,
@@ -380,9 +424,15 @@ private fun FoodProjectedSurface(
         } else if (isRecipeFullScreen) {
             RecipeBrowserScreen(
                 state = state,
-                onCloseClick = viewModel::closeAddFood,
-                onForwardClick = { viewModel.openRecipeEditor(null) },
-                onHomeClick = viewModel::openRecipeBrowser,
+                onCloseClick = navigation.back,
+                onForwardClick = {
+                    viewModel.openRecipeEditor(null)
+                    navigation.open(FoodRecipeEditorNavKey())
+                },
+                onHomeClick = {
+                    viewModel.openRecipeBrowser()
+                    navigation.replace(FoodRecipeBrowserNavKey)
+                },
                 onPreviousDayClick = viewModel::goToPreviousRecipeBrowserDay,
                 onNextDayClick = viewModel::goToNextRecipeBrowserDay,
                 onTodayClick = viewModel::goToTodayRecipeBrowserDay,
@@ -397,7 +447,10 @@ private fun FoodProjectedSurface(
                 onIngredientServingChoiceSelected = viewModel::onRecipeIngredientServingChoiceSelected,
                 onIngredientQuantityChanged = viewModel::onRecipeIngredientQuantityChanged,
                 onAddIngredientClick = viewModel::addRecipeIngredient,
-                onEditRecipeClick = { recipeId -> viewModel.openRecipeEditor(recipeId) },
+                onEditRecipeClick = { recipeId ->
+                    viewModel.openRecipeEditor(recipeId)
+                    navigation.open(FoodRecipeEditorNavKey(recipeId))
+                },
                 onDuplicateRecipeClick = viewModel::duplicateRecipe,
                 onFavoriteClick = viewModel::toggleFavoriteRecipe,
                 onSearchQueryChanged = viewModel::onRecipeDiscoveryQueryChanged,
@@ -412,19 +465,28 @@ private fun FoodProjectedSurface(
         } else if (state.isAddPanelVisible && state.sheetMode == FoodSheetMode.AddFood) {
             AddFoodScreen(
                 state = state,
-                onBack = viewModel::closeAddFood,
+                onBack = navigation.back,
                 onQueryChange = viewModel::onFoodDatabaseQueryChanged,
                 onScanClick = onScanClick,
                 onTabSelected = viewModel::selectAddTab,
                 onFoodClick = viewModel::logSavedFood,
                 onModeSelected = viewModel::selectAddMode,
                 onMealRetarget = viewModel::onMealTypeChanged,
-                onOpenTemplates = viewModel::openMealTemplates,
-                onOpenRecipes = viewModel::openRecipeBrowser,
+                onOpenTemplates = {
+                    viewModel.openMealTemplates()
+                    navigation.open(FoodMealTemplatesNavKey)
+                },
+                onOpenRecipes = {
+                    viewModel.openRecipeBrowser()
+                    navigation.open(FoodRecipeBrowserNavKey)
+                },
                 onKeepAddingChanged = viewModel::onKeepAddingFoodsChanged,
                 onLogAllYesterday = viewModel::logSameAsYesterday,
                 onQuickTrack = { viewModel.selectAddMode(FoodAddMode.Quick) },
-                onAdjustGoals = viewModel::openGoalEditor,
+                onAdjustGoals = {
+                    viewModel.openGoalEditor()
+                    navigation.open(FoodGoalEditorNavKey)
+                },
                 onCopyYesterday = viewModel::copySelectedMealFromYesterday,
                 onSaveTemplate = { viewModel.saveSelectedMealAsTemplate("${state.selectedMealTitle} template") },
                 onScanLabel = onLabelScanClick,
@@ -438,7 +500,10 @@ private fun FoodProjectedSurface(
                 onFatChanged = viewModel::onFatChanged,
                 onSaveProduct = viewModel::saveScannedProductToDatabase,
                 onLogFood = viewModel::logFood,
-                onCreateRecipe = { viewModel.openRecipeEditor(null) },
+                onCreateRecipe = {
+                    viewModel.openRecipeEditor(null)
+                    navigation.open(FoodRecipeEditorNavKey())
+                },
             )
         } else if (selectedMealDetail != null) {
             MealDetailScreen(
@@ -448,13 +513,22 @@ private fun FoodProjectedSurface(
                 dayCalorieBudgetKcal = state.effectiveCalorieBudgetKcal,
                 message = state.message,
                 canUndoDelete = state.lastDeletedDiaryEntry != null,
-                onBackClick = viewModel::closeMealDetail,
-                onAddFoodClick = viewModel::openAddFoodFromMealDetail,
+                onBackClick = navigation.back,
+                onAddFoodClick = {
+                    viewModel.openAddFoodFromMealDetail()
+                    navigation.open(FoodAddNavKey(state.selectedMealDetailId.orEmpty()))
+                },
                 onCopyYesterdayClick = viewModel::copySelectedMealFromYesterday,
                 onSaveTemplateClick = { viewModel.saveSelectedMealAsTemplate("${selectedMealDetail.title} template") },
-                onMealSettingsClick = viewModel::openMealSettings,
+                onMealSettingsClick = {
+                    viewModel.openMealSettings()
+                    navigation.open(FoodMealSettingsNavKey)
+                },
                 onSortModeChanged = viewModel::onMealDetailSortChanged,
-                onEntryClick = viewModel::openDiaryEntryEditor,
+                onEntryClick = { entryId ->
+                    viewModel.openDiaryEntryEditor(entryId)
+                    navigation.open(FoodDiaryEntryEditorNavKey(entryId))
+                },
                 onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
             )
         }
@@ -475,7 +549,7 @@ private fun FoodProjectedSurface(
                 if (state.sheetMode == FoodSheetMode.AddFood) {
                     viewModel.selectAddMode(FoodAddMode.Saved)
                 } else {
-                    viewModel.closeAddFood()
+                    navigation.back()
                 }
             },
             containerColor = MusFitTheme.colors.background,
@@ -487,7 +561,7 @@ private fun FoodProjectedSurface(
                 FoodSheetMode.AddFood ->
                     AddFoodPanel(
                         state = state,
-                        onClose = viewModel::closeAddFood,
+                        onClose = navigation.back,
                         onMealTargetSelected = viewModel::onMealTypeChanged,
                         onModeSelected = viewModel::selectAddMode,
                         onSavedQuantityChanged = viewModel::onSavedFoodQuantityChanged,
@@ -510,7 +584,10 @@ private fun FoodProjectedSurface(
                         onBarcodeChanged = viewModel::onBarcodeChanged,
                         onLookupClick = viewModel::lookupBarcode,
                         onScanClick = onScanClick,
-                        onNutritionLabelScanClick = viewModel::openNutritionLabelScan,
+                        onNutritionLabelScanClick = {
+                            viewModel.openNutritionLabelScan()
+                            navigation.open(FoodNutritionLabelReviewNavKey)
+                        },
                         onAiTextChanged = viewModel::onAiLoggingTextChanged,
                         onAiTextDraftClick = viewModel::generateAiTextFoodDraft,
                         onAiVoiceClick = viewModel::startAiVoiceLoggingPlaceholder,
@@ -532,13 +609,28 @@ private fun FoodProjectedSurface(
                         state = state,
                         onSearchChanged = viewModel::onFoodDatabaseQueryChanged,
                         onSearchOnlineClick = viewModel::searchOnlineFoods,
-                        onNewFoodClick = viewModel::openNewSavedFoodEditor,
-                        onBarcodeCompareClick = viewModel::openBarcodeComparison,
-                        onOpenFoodDetailClick = viewModel::openSavedFoodDetail,
-                        onEditFoodClick = viewModel::openSavedFoodEditor,
+                        onNewFoodClick = {
+                            viewModel.openNewSavedFoodEditor()
+                            navigation.open(FoodSavedFoodEditorNavKey())
+                        },
+                        onBarcodeCompareClick = {
+                            viewModel.openBarcodeComparison()
+                            navigation.open(FoodBarcodeComparisonNavKey)
+                        },
+                        onOpenFoodDetailClick = { foodId ->
+                            viewModel.openSavedFoodDetail(foodId)
+                            navigation.open(FoodDetailNavKey(foodId))
+                        },
+                        onEditFoodClick = { foodId ->
+                            viewModel.openSavedFoodEditor(foodId)
+                            navigation.open(FoodSavedFoodEditorNavKey(foodId))
+                        },
                         onSaveOnlineFoodClick = viewModel::saveOnlineFoodResult,
                         onImportStarterFoodsClick = viewModel::seedStarterFoods,
-                        onNutritionLabelScanClick = viewModel::openNutritionLabelScan,
+                        onNutritionLabelScanClick = {
+                            viewModel.openNutritionLabelScan()
+                            navigation.open(FoodNutritionLabelReviewNavKey)
+                        },
                         onMergeDuplicateFoodsClick = viewModel::mergeDuplicateFoods,
                         onFavoriteClick = viewModel::toggleFavoriteFood,
                         onReportFoodClick = viewModel::reportSavedFoodForReview,
@@ -547,7 +639,12 @@ private fun FoodProjectedSurface(
                 FoodSheetMode.FoodDetail ->
                     FoodDetailPanel(
                         state = state,
-                        onEditClick = { state.selectedSavedFoodDetail?.id?.let(viewModel::openSavedFoodEditor) },
+                        onEditClick = {
+                            state.selectedSavedFoodDetail?.id?.let { foodId ->
+                                viewModel.openSavedFoodEditor(foodId)
+                                navigation.open(FoodSavedFoodEditorNavKey(foodId))
+                            }
+                        },
                         onLogClick = { state.selectedSavedFoodDetail?.id?.let(viewModel::logSavedFood) },
                         onFavoriteClick = {
                             state.selectedSavedFoodDetail?.let { food ->
@@ -641,7 +738,10 @@ private fun FoodProjectedSurface(
                         onIngredientServingChoiceSelected = viewModel::onRecipeIngredientServingChoiceSelected,
                         onIngredientQuantityChanged = viewModel::onRecipeIngredientQuantityChanged,
                         onAddIngredientClick = viewModel::addRecipeIngredient,
-                        onEditRecipeClick = { recipeId -> viewModel.openRecipeEditor(recipeId) },
+                        onEditRecipeClick = { recipeId ->
+                            viewModel.openRecipeEditor(recipeId)
+                            navigation.open(FoodRecipeEditorNavKey(recipeId))
+                        },
                         onDuplicateRecipeClick = viewModel::duplicateRecipe,
                         onFavoriteClick = viewModel::toggleFavoriteRecipe,
                         onDiscoveryFilterChanged = viewModel::selectRecipeDiscoveryFilter,
@@ -654,7 +754,10 @@ private fun FoodProjectedSurface(
                     MealTemplatesPanel(
                         state = state,
                         onTemplateClick = viewModel::logMealTemplate,
-                        onEditClick = viewModel::openMealTemplateEditor,
+                        onEditClick = { templateId ->
+                            viewModel.openMealTemplateEditor(templateId)
+                            navigation.open(FoodMealTemplateEditorNavKey(templateId))
+                        },
                         onDuplicateClick = viewModel::duplicateMealTemplate,
                         onDeleteClick = viewModel::deleteMealTemplate,
                         onFavoriteClick = viewModel::toggleFavoriteMealTemplate,
@@ -671,7 +774,10 @@ private fun FoodProjectedSurface(
                 FoodSheetMode.MealSettings ->
                     MealSettingsPanel(
                         state = state,
-                        onEditClick = viewModel::openMealDefinitionEditor,
+                        onEditClick = { mealId ->
+                            viewModel.openMealDefinitionEditor(mealId)
+                            navigation.open(FoodMealDefinitionEditorNavKey(mealId))
+                        },
                         onToggleHidden = viewModel::toggleMealHidden,
                         onNameChanged = viewModel::onCustomMealNameChanged,
                         onTimeChanged = viewModel::onCustomMealTimeChanged,

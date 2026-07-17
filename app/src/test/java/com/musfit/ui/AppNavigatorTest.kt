@@ -36,18 +36,6 @@ class AppNavigatorTest {
     }
 
     @Test
-    fun typedResult_isDeliveredOnce_thenPopsProducer() {
-        val results = mutableListOf<AppNavigationResult>()
-        val backStack = mutableListOf<NavKey>(TodayNavKey, FoodNavKey, BarcodeScannerNavKey)
-        val navigator = AppNavigator(backStack, onResult = results::add)
-
-        navigator.complete(AppNavigationResult.BarcodeDetected("900000000001"))
-
-        assertEquals(listOf(AppNavigationResult.BarcodeDetected("900000000001")), results)
-        assertEquals(listOf(TodayNavKey, FoodNavKey), backStack)
-    }
-
-    @Test
     fun backAtStart_isNotHandled() {
         val navigator = AppNavigator(mutableListOf<NavKey>(TodayNavKey))
 

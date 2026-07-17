@@ -39,8 +39,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.musfit.ui.food.BarcodeScannerScreen
-import com.musfit.ui.food.FoodScreen
-import com.musfit.ui.food.NutritionLabelScannerScreen
+import com.musfit.ui.food.FoodNavigation
 import com.musfit.ui.food.NutritionTrendsScreen
 import com.musfit.ui.profile.ProfileScreen
 import com.musfit.ui.profile.ProfileSettingsScreen
@@ -51,8 +50,8 @@ import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.today.ChatPreviewFab
 import com.musfit.ui.today.ChatPreviewSheet
 import com.musfit.ui.today.TodayScreen
+import com.musfit.ui.training.TrainingNavigation
 import com.musfit.ui.training.TrainingProgressScreen
-import com.musfit.ui.training.TrainingScreen
 
 /**
  * Metrics for the Material 3 Expressive bottom chrome: a floating white pill bar
@@ -98,17 +97,9 @@ fun AppNavGraph(
 ) {
     val backStack = rememberNavBackStack(TodayNavKey)
     val destinations = AppDestination.entries
-    var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
-    var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
     var chatPreviewVisible by rememberSaveable { mutableStateOf(false) }
     val navigator = AppNavigator(
         backStack = backStack,
-        onResult = { result ->
-            when (result) {
-                is AppNavigationResult.BarcodeDetected -> scannedBarcode = result.barcode
-                is AppNavigationResult.NutritionLabelCaptured -> scannedLabelText = result.text
-            }
-        },
         onOpenCoach = { chatPreviewVisible = true },
     )
     val currentBottomRoute = navigator.currentDestination.route
@@ -147,18 +138,10 @@ fun AppNavGraph(
                     )
                 }
                 entry<FoodNavKey> {
-                    FoodScreen(
-                        scannedBarcode = scannedBarcode,
-                        onScanClick = { navigator.navigate(AppNavigationAction.OpenBarcodeScanner) },
-                        onScannedBarcodeConsumed = { scannedBarcode = null },
-                        scannedLabelText = scannedLabelText,
-                        onLabelScanClick = { navigator.navigate(AppNavigationAction.OpenNutritionLabelScanner) },
-                        onScannedLabelConsumed = { scannedLabelText = null },
-                    )
+                    FoodNavigation(barcodeScannerContent = barcodeScannerContent)
                 }
                 entry<TrainingNavKey> {
-                    TrainingScreen(
-                        onOpenProgress = { navigator.navigate(AppNavigationAction.OpenTrainingProgress) },
+                    TrainingNavigation(
                         onOpenCoach = { navigator.navigate(AppNavigationAction.OpenCoach) },
                     )
                 }
@@ -180,25 +163,6 @@ fun AppNavGraph(
                 }
                 entry<NutritionTrendsNavKey> {
                     NutritionTrendsScreen(onBack = { navigator.goBack() })
-                }
-                entry<BarcodeScannerNavKey> {
-                    barcodeScannerContent(
-                        { barcode ->
-                            if (barcode.isNotBlank()) {
-                                navigator.complete(AppNavigationResult.BarcodeDetected(barcode))
-                            }
-                        },
-                        { navigator.goBack() },
-                    )
-                }
-                entry<NutritionLabelScannerNavKey> {
-                    NutritionLabelScannerScreen(
-                        onLabelCaptured = { text ->
-                            if (text.isNotBlank()) {
-                                navigator.complete(AppNavigationResult.NutritionLabelCaptured(text))
-                            }
-                        },
-                    )
                 }
             },
         )

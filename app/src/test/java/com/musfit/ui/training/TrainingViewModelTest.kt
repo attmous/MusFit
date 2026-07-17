@@ -117,10 +117,6 @@ class TrainingViewModelTest {
         val restored = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(
-            listOf(TrainingPage.RoutineLibrary, TrainingPage.RoutineDetail, TrainingPage.RoutineEditor),
-            restored.state.value.pageStack,
-        )
         assertEquals("routine-upper-a", restored.state.value.selectedRoutineDetail?.id)
         assertEquals("routine-upper-a", restored.state.value.routineEditor.routineId)
         assertEquals("Upper A restored", restored.state.value.routineEditor.name)
@@ -148,7 +144,6 @@ class TrainingViewModelTest {
         val restored = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(restored.state.value.activeWorkoutRouteOpen)
         assertEquals("session-1", restored.state.value.activeWorkout?.sessionId)
         assertEquals(
             setCountBeforeRestore,
@@ -171,7 +166,6 @@ class TrainingViewModelTest {
 
         viewModel.closeActiveWorkoutRoute()
 
-        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
         assertFalse(viewModel.state.value.restTimer.isVisible)
         assertFalse(viewModel.state.value.restTimer.isRunning)
     }
@@ -506,17 +500,17 @@ class TrainingViewModelTest {
         viewModel.startRoutine("routine-upper-a")
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
-        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
+        assertEquals("routine-upper-a", repository.startedRoutineId)
     }
 
     @Test
-    fun resumeActiveWorkout_updatesVisibleMessageState() = runTest {
+    fun resumeActiveWorkout_leavesRoomOwnedContentUnchanged() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
 
+        val before = viewModel.state.value.activeWorkout
         viewModel.resumeActiveWorkout()
-
-        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
+        assertEquals(before, viewModel.state.value.activeWorkout)
     }
 
     @Test
@@ -624,12 +618,10 @@ class TrainingViewModelTest {
 
         viewModel.openRoutineLibraryPage()
 
-        assertTrue(viewModel.state.value.routineLibraryPageOpen)
         assertEquals(TrainingSection.Routines, viewModel.state.value.selectedSection)
 
         viewModel.closeRoutineLibraryPage()
 
-        assertFalse(viewModel.state.value.routineLibraryPageOpen)
         assertEquals(null, viewModel.state.value.selectedRoutineDetail)
     }
 
@@ -718,13 +710,11 @@ class TrainingViewModelTest {
         viewModel.openRoutineExercisePicker()
         viewModel.toggleRoutineExercisePickerSelection("exercise-bench-press")
 
-        assertTrue(viewModel.state.value.routineExercisePickerOpen)
         assertTrue(viewModel.state.value.routineExercisePickerSelectedIds.contains("exercise-bench-press"))
         assertTrue(viewModel.state.value.routineEditor.exercises.isEmpty())
 
         viewModel.confirmRoutineExercisePicker()
 
-        assertFalse(viewModel.state.value.routineExercisePickerOpen)
         assertEquals(listOf("exercise-bench-press"), viewModel.state.value.routineEditor.exercises.map { it.exerciseId })
     }
 
@@ -775,19 +765,50 @@ class TrainingViewModelTest {
     }
 
     @Test
-    fun startRoutine_startsWorkoutAndOpensActiveWorkoutRoute() = runTest {
+    fun startRoutine_startsRoomOwnedWorkout() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        var destinationOpened = false
 
-        viewModel.startRoutine("routine-full-body-a")
+        viewModel.startRoutine("routine-full-body-a") { destinationOpened = true }
+        assertFalse(destinationOpened)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("routine-full-body-a", repository.startedRoutineId)
-        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
+        assertTrue(destinationOpened)
     }
 
     @Test
-    fun startBlankWorkout_startsWorkoutAndOpensActiveWorkoutRoute() = runTest {
+    fun missingTypedRoutineDestination_requestsPopAfterLookup() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        var destinationPopped = false
+
+        viewModel.openRoutineDetail("missing-routine") { destinationPopped = true }
+        assertFalse(destinationPopped)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(destinationPopped)
+        assertEquals("Routine not found.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun missingTypedRoutineEditorDestination_requestsPopWithoutOpeningEditor() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        var destinationPopped = false
+
+        viewModel.openRoutineEditor("missing-routine") { destinationPopped = true }
+        assertFalse(destinationPopped)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(destinationPopped)
+        assertFalse(viewModel.state.value.routineEditor.isOpen)
+        assertEquals("Routine not found.", viewModel.state.value.message)
+    }
+
+    @Test
+    fun startBlankWorkout_startsRoomOwnedWorkout() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
 
@@ -795,7 +816,6 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, repository.startBlankWorkoutCalls)
-        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
     }
 
     @Test
@@ -806,115 +826,7 @@ class TrainingViewModelTest {
         viewModel.resumeActiveWorkout()
         viewModel.closeActiveWorkoutRoute()
 
-        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
         assertEquals("Routines", viewModel.state.value.selectedSection.name)
-    }
-
-    @Test
-    fun navigateBack_popsPagesInReverseOrderOfOpening() = runTest {
-        val repository = FakeTrainingRepository()
-        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
-        dispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.openRoutineLibraryPage()
-        viewModel.openRoutineDetail("routine-upper-a")
-        dispatcher.scheduler.advanceUntilIdle()
-        viewModel.openRoutineEditor("routine-upper-a")
-        dispatcher.scheduler.advanceUntilIdle()
-
-        assertEquals(
-            listOf(TrainingPage.RoutineLibrary, TrainingPage.RoutineDetail, TrainingPage.RoutineEditor),
-            viewModel.state.value.pageStack,
-        )
-
-        viewModel.navigateBack()
-        assertFalse(viewModel.state.value.routineEditor.isOpen)
-        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
-        assertTrue(viewModel.state.value.routineLibraryPageOpen)
-
-        viewModel.navigateBack()
-        assertEquals(null, viewModel.state.value.selectedRoutineDetail)
-        assertTrue(viewModel.state.value.routineLibraryPageOpen)
-
-        viewModel.navigateBack()
-        assertFalse(viewModel.state.value.routineLibraryPageOpen)
-        assertTrue(viewModel.state.value.pageStack.isEmpty())
-
-        // With the stack empty, further backs are no-ops (system back then leaves the tab).
-        viewModel.navigateBack()
-        assertTrue(viewModel.state.value.pageStack.isEmpty())
-    }
-
-    @Test
-    fun navigateBack_closesRoutineEditorOpenedFromHome() = runTest {
-        val repository = FakeTrainingRepository()
-        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
-        dispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.openRoutineEditor(null)
-        dispatcher.scheduler.advanceUntilIdle()
-        assertTrue(viewModel.state.value.routineEditor.isOpen)
-        assertEquals(listOf(TrainingPage.RoutineEditor), viewModel.state.value.pageStack)
-
-        viewModel.navigateBack()
-
-        assertFalse(viewModel.state.value.routineEditor.isOpen)
-        assertTrue(viewModel.state.value.pageStack.isEmpty())
-    }
-
-    @Test
-    fun navigateBack_closesExercisePickerBeforeEditor() = runTest {
-        val repository = FakeTrainingRepository()
-        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
-        dispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.openRoutineEditor(null)
-        dispatcher.scheduler.advanceUntilIdle()
-        viewModel.openRoutineExercisePicker()
-        assertTrue(viewModel.state.value.routineExercisePickerOpen)
-
-        viewModel.navigateBack()
-
-        assertFalse(viewModel.state.value.routineExercisePickerOpen)
-        assertTrue(viewModel.state.value.routineEditor.isOpen)
-    }
-
-    @Test
-    fun navigateBack_fromActiveWorkout_returnsToRoutineDetail() = runTest {
-        val repository = FakeTrainingRepository()
-        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
-        dispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.openRoutineLibraryPage()
-        viewModel.openRoutineDetail("routine-upper-a")
-        dispatcher.scheduler.advanceUntilIdle()
-        viewModel.startRoutine("routine-upper-a")
-        dispatcher.scheduler.advanceUntilIdle()
-        assertTrue(viewModel.state.value.activeWorkoutRouteOpen)
-
-        viewModel.navigateBack()
-
-        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
-        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
-        assertTrue(viewModel.state.value.routineLibraryPageOpen)
-    }
-
-    @Test
-    fun navigateBack_closesExerciseDetailOpenedFromRoutineDetail() = runTest {
-        val repository = FakeTrainingRepository()
-        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
-        dispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.openRoutineDetail("routine-upper-a")
-        dispatcher.scheduler.advanceUntilIdle()
-        viewModel.openRoutineExerciseDetail("exercise-bench-press", target = "3 x 5")
-        dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("exercise-bench-press", viewModel.state.value.selectedExerciseDetail?.id)
-
-        viewModel.navigateBack()
-
-        assertEquals(null, viewModel.state.value.selectedExerciseDetail)
-        assertEquals("routine-upper-a", viewModel.state.value.selectedRoutineDetail?.id)
     }
 
     @Test
@@ -928,29 +840,30 @@ class TrainingViewModelTest {
         viewModel.openRoutineEditor("routine-upper-a")
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.onRoutineNameChanged("Upper A v2")
-        viewModel.saveRoutineEditor()
+        var destinationPopped = false
+        viewModel.saveRoutineEditor { destinationPopped = true }
+        assertFalse(destinationPopped)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertFalse(viewModel.state.value.routineEditor.isOpen)
-        assertEquals(listOf(TrainingPage.RoutineDetail), viewModel.state.value.pageStack)
         assertEquals("Upper A v2", viewModel.state.value.selectedRoutineDetail?.name)
+        assertTrue(destinationPopped)
     }
 
     @Test
-    fun finishActiveWorkout_backFromSummaryLandsOnHistory() = runTest {
+    fun finishActiveWorkout_loadsSummaryContentForHistoryDestination() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
-        viewModel.finishActiveWorkout()
+        var completedSessionId: String? = null
+        viewModel.finishActiveWorkout { completedSessionId = it }
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf(TrainingPage.WorkoutHistoryDetail), viewModel.state.value.pageStack)
-
-        viewModel.navigateBack()
-
-        assertTrue(viewModel.state.value.pageStack.isEmpty())
+        assertEquals("session-1", viewModel.state.value.selectedWorkoutDetail?.summary?.sessionId)
+        assertEquals("session-1", completedSessionId)
+        viewModel.closeWorkoutDetail()
         assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
         assertEquals(TrainingSection.History, viewModel.state.value.selectedSection)
     }
@@ -988,7 +901,6 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("session-1", repository.finishedSessionId)
-        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
         assertFalse(viewModel.state.value.finishConfirmationOpen)
         assertFalse(viewModel.state.value.restTimer.isVisible)
         assertEquals(TrainingSection.History, viewModel.state.value.selectedSection)
@@ -1006,15 +918,17 @@ class TrainingViewModelTest {
         viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.requestDiscardActiveWorkout()
-        viewModel.discardActiveWorkout()
+        var destinationReset = false
+        viewModel.discardActiveWorkout { destinationReset = true }
+        assertFalse(destinationReset)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("session-1", repository.discardedSessionId)
-        assertFalse(viewModel.state.value.activeWorkoutRouteOpen)
         assertFalse(viewModel.state.value.discardConfirmationOpen)
         assertFalse(viewModel.state.value.restTimer.isVisible)
         assertEquals("Routines", viewModel.state.value.selectedSection.name)
         assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
+        assertTrue(destinationReset)
     }
 
     @Test

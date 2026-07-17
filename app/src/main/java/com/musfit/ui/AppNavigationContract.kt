@@ -29,12 +29,6 @@ data object TrainingProgressNavKey : AppNavKey
 @Serializable
 data object NutritionTrendsNavKey : AppNavKey
 
-@Serializable
-data object BarcodeScannerNavKey : AppNavKey
-
-@Serializable
-data object NutritionLabelScannerNavKey : AppNavKey
-
 sealed interface AppNavigationAction {
     data class SelectTopLevel(val destination: AppDestination) : AppNavigationAction
 
@@ -44,22 +38,11 @@ sealed interface AppNavigationAction {
 
     data object OpenNutritionTrends : AppNavigationAction
 
-    data object OpenBarcodeScanner : AppNavigationAction
-
-    data object OpenNutritionLabelScanner : AppNavigationAction
-
     data object OpenCoach : AppNavigationAction
-}
-
-sealed interface AppNavigationResult {
-    data class BarcodeDetected(val barcode: String) : AppNavigationResult
-
-    data class NutritionLabelCaptured(val text: String) : AppNavigationResult
 }
 
 internal class AppNavigator(
     private val backStack: MutableList<NavKey>,
-    private val onResult: (AppNavigationResult) -> Unit = {},
     private val onOpenCoach: () -> Unit = {},
 ) {
     val currentDestination: AppDestination
@@ -71,15 +54,8 @@ internal class AppNavigator(
             AppNavigationAction.OpenProfileSettings -> backStack += ProfileSettingsNavKey
             AppNavigationAction.OpenTrainingProgress -> backStack += TrainingProgressNavKey
             AppNavigationAction.OpenNutritionTrends -> backStack += NutritionTrendsNavKey
-            AppNavigationAction.OpenBarcodeScanner -> backStack += BarcodeScannerNavKey
-            AppNavigationAction.OpenNutritionLabelScanner -> backStack += NutritionLabelScannerNavKey
             AppNavigationAction.OpenCoach -> onOpenCoach()
         }
-    }
-
-    fun complete(result: AppNavigationResult) {
-        onResult(result)
-        goBack()
     }
 
     fun goBack(): Boolean {
@@ -112,7 +88,7 @@ internal val AppDestination.navKey: AppTopLevelKey
     }
 
 internal fun bottomDestinationForKey(key: AppNavKey?): AppDestination = when (key) {
-    FoodNavKey, BarcodeScannerNavKey, NutritionLabelScannerNavKey -> AppDestination.Food
+    FoodNavKey -> AppDestination.Food
     TrainingNavKey -> AppDestination.Training
     ProfileNavKey, ProfileSettingsNavKey, TrainingProgressNavKey, NutritionTrendsNavKey -> AppDestination.Profile
     TodayNavKey, null -> AppDestination.Today
