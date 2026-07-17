@@ -36,6 +36,10 @@ function Get-RepoRelativePath([string] $Path) {
 
 function Get-CoverageSourceRoot([string] $ReportPath) {
     $relativeReportPath = Get-RepoRelativePath $ReportPath
+    if ($relativeReportPath -match '^integration/([^/]+)/build/') {
+        return "integration/$($Matches[1])/src/main/java"
+    }
+
     if ($relativeReportPath -match '^core/([^/]+)/build/') {
         $module = $Matches[1]
         $sourceLanguage = if ($module -eq "model") { "kotlin" } else { "java" }
@@ -105,7 +109,7 @@ function Assert-MinimumRatio([string] $Label, [object] $Stats, [double] $Minimum
 function Get-ChangedExecutableLines([hashtable] $LineMap, [string] $ComparisonRef) {
     $changed = @{}
     $currentPath = $null
-    $diff = & git -C $repoRoot diff --unified=0 --no-color "$ComparisonRef...HEAD" -- "app/src/main/java" "core/*/src/main/kotlin" 2>&1
+    $diff = & git -C $repoRoot diff --unified=0 --no-color "$ComparisonRef...HEAD" -- "app/src/main/java" "core/*/src/main/kotlin" "core/*/src/main/java" "integration/*/src/main/java" 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Could not derive changed coverage lines from '$ComparisonRef...HEAD': $($diff -join [Environment]::NewLine)"
     }
@@ -155,6 +159,10 @@ function Invoke-PolicySelfTest {
         }
         $emptyStats = Get-CoverageStats @($null)
         if ($emptyStats.Covered -ne 0 -or $emptyStats.Total -ne 0 -or $emptyStats.Ratio -ne 1.0) {
+        $integrationReportFixture = Join-Path $repoRoot "integration/scanner/build/reports/coverage/test/internal/debug/report.xml"
+        if ((Get-CoverageSourceRoot $integrationReportFixture) -ne "integration/scanner/src/main/java") {
+            throw "Self-test failed to map an integration module report to its Java source root."
+        }
             throw "Self-test failed to normalize an empty changed-line result."
         }
         $caught = $false
@@ -197,6 +205,10 @@ if ($ReportPath.Count -eq 0) {
         Get-ChildItem -LiteralPath (Join-Path $repoRoot "core/network/build/reports/coverage") -Recurse -Filter "report.xml" -File |
             Select-Object -ExpandProperty FullName
         Get-ChildItem -LiteralPath (Join-Path $repoRoot "core/data/build/reports/coverage") -Recurse -Filter "report.xml" -File |
+            Select-Object -ExpandProperty FullName
+        Get-ChildItem -LiteralPath (Join-Path $repoRoot "integration/healthconnect/build/reports/coverage") -Recurse -Filter "report.xml" -File |
+            Select-Object -ExpandProperty FullName
+        Get-ChildItem -LiteralPath (Join-Path $repoRoot "integration/scanner/build/reports/coverage") -Recurse -Filter "report.xml" -File |
             Select-Object -ExpandProperty FullName
     )
 }

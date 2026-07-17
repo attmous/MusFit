@@ -1,14 +1,5 @@
 package com.musfit.ui.food
 
-import androidx.annotation.OptIn
-import androidx.camera.core.Camera
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ExperimentalGetImage
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.Preview
-import androidx.camera.core.UseCase
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -44,22 +35,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
-import com.musfit.ui.components.PillButton
+import com.musfit.integrations.scanner.BarcodeScannerController
 import com.musfit.ui.theme.CameraSurface
 import com.musfit.ui.theme.CameraTranslucent
 import com.musfit.ui.theme.Cream
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.ViewfinderBracket
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 
-@OptIn(ExperimentalGetImage::class)
 @Composable
 fun BarcodeScannerScreen(
     onBarcodeDetected: (String) -> Unit,
@@ -67,90 +50,22 @@ fun BarcodeScannerScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val previewView = remember { PreviewView(context) }
-    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
-    val detectionHandled = remember { AtomicBoolean(false) }
-    var boundCamera by remember { mutableStateOf<Camera?>(null) }
-    var torchEnabled by remember { mutableStateOf(false) }
     val cameraPermission = rememberCameraPermissionAccess()
-    val scanner = remember {
-        BarcodeScanning.getClient(
-            BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(
-                    Barcode.FORMAT_EAN_8,
-                    Barcode.FORMAT_EAN_13,
-                    Barcode.FORMAT_UPC_A,
-                    Barcode.FORMAT_UPC_E,
-                )
-                .build(),
-        )
-    }
+    val controller = remember(cameraPermission.isGranted, lifecycleOwner) { BarcodeScannerController(context) }
+    var cameraReady by remember { mutableStateOf(false) }
 
-    DisposableEffect(scanner, analysisExecutor) {
-        onDispose {
-            scanner.close()
-            analysisExecutor.shutdown()
-        }
-    }
-
-    DisposableEffect(lifecycleOwner, cameraPermission.isGranted) {
+    DisposableEffect(controller, lifecycleOwner, cameraPermission.isGranted) {
         if (cameraPermission.isGranted) {
-            val executor = ContextCompat.getMainExecutor(context)
-            val preview = Preview.Builder().build().also { cameraPreview ->
-                cameraPreview.surfaceProvider = previewView.surfaceProvider
-            }
-            val analysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
-            val session = LifecycleSafeCameraSession<ProcessCameraProvider, UseCase, Camera>(
-                providerFuture = ProcessCameraProvider.getInstance(context),
-                callbackExecutor = executor,
-                bindUseCases = { provider, useCases ->
-                    provider.bindToLifecycle(
-                        lifecycleOwner,
-                        CameraSelector.DEFAULT_BACK_CAMERA,
-                        useCases[0],
-                        useCases[1],
-                    )
-                },
-                unbindUseCases = { provider, useCases -> provider.unbind(useCases[0], useCases[1]) },
-                onFailure = { boundCamera = null },
+            controller.start(
+                lifecycleOwner = lifecycleOwner,
+                onResult = { onBarcodeDetected(it.value) },
+                onCameraReady = { cameraReady = true },
+                onFailure = { cameraReady = false },
             )
-            analysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                if (detectionHandled.get()) {
-                    imageProxy.close()
-                    return@setAnalyzer
-                }
-
-                val mediaImage = imageProxy.image
-                if (mediaImage == null) {
-                    imageProxy.close()
-                    return@setAnalyzer
-                }
-
-                val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                scanner.process(image)
-                    .addOnSuccessListener { barcodes ->
-                        val barcode = barcodes.firstNotNullOfOrNull { it.rawValue?.trim()?.takeIf(String::isNotBlank) }
-                        if (barcode != null && detectionHandled.compareAndSet(false, true)) {
-                            analysis.clearAnalyzer()
-                            session.unbindOwned()
-                            onBarcodeDetected(barcode)
-                        }
-                    }
-                    .addOnCompleteListener {
-                        imageProxy.close()
-                    }
-            }
-            session.start(listOf(preview, analysis)) { camera -> boundCamera = camera }
-
-            onDispose {
-                boundCamera = null
-                analysis.clearAnalyzer()
-                session.close()
-            }
-        } else {
-            onDispose { }
+        }
+        onDispose {
+            cameraReady = false
+            controller.close()
         }
     }
 
@@ -163,27 +78,28 @@ fun BarcodeScannerScreen(
         return
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CameraSurface),
-    ) {
-        AndroidView(
-            factory = { previewView },
-            modifier = Modifier.fillMaxSize(),
-        )
+    BarcodeScannerCameraContent(
+        controller = controller,
+        cameraReady = cameraReady,
+        onClose = onClose,
+    )
+}
+
+@Composable
+private fun BarcodeScannerCameraContent(
+    controller: BarcodeScannerController,
+    cameraReady: Boolean,
+    onClose: () -> Unit,
+) {
+    var torchEnabled by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxSize().background(CameraSurface)) {
+        AndroidView(factory = { controller.previewView }, modifier = Modifier.fillMaxSize())
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
+            modifier = Modifier.fillMaxWidth().statusBarsPadding()
                 .padding(start = 20.dp, end = 20.dp, top = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CameraCircleButton(
-                onClick = onClose,
-                contentDescription = "Close scanner",
-                icon = Icons.Outlined.Close,
-            )
+            CameraCircleButton(onClose, "Close scanner", Icons.Outlined.Close)
             Text(
                 text = "Scan barcode",
                 style = MusFitTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
@@ -191,40 +107,34 @@ fun BarcodeScannerScreen(
                 modifier = Modifier.weight(1f),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
-            val camera = boundCamera
-            if (camera?.cameraInfo?.hasFlashUnit() == true) {
+            if (cameraReady && controller.hasFlashUnit) {
                 CameraCircleButton(
                     onClick = {
                         torchEnabled = !torchEnabled
-                        camera.cameraControl.enableTorch(torchEnabled)
+                        controller.setTorchEnabled(torchEnabled)
                     },
                     contentDescription = if (torchEnabled) "Turn flashlight off" else "Turn flashlight on",
                     icon = if (torchEnabled) Icons.Outlined.FlashlightOff else Icons.Outlined.FlashlightOn,
                 )
             } else {
-                // Keeps the title optically centered when no torch is available.
                 Box(modifier = Modifier.size(44.dp))
             }
         }
         ViewfinderBrackets(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(width = 250.dp, height = 160.dp),
+            modifier = Modifier.align(Alignment.Center).size(width = 250.dp, height = 160.dp),
         )
         Surface(
             onClick = onClose,
             shape = CircleShape,
             color = CameraTranslucent,
             contentColor = Cream,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 16.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 16.dp),
         ) {
             Text(
                 text = "Or enter the code manually",
                 style = MusFitTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+
             )
         }
     }
@@ -273,28 +183,24 @@ private fun ViewfinderBrackets(modifier: Modifier = Modifier) {
 
         fun bracket(builder: Path.() -> Unit) = drawPath(Path().apply(builder), ViewfinderBracket, style = stroke)
 
-        // Top-left
         bracket {
             moveTo(0f, arm)
             lineTo(0f, radius)
             arcTo(androidx.compose.ui.geometry.Rect(Offset.Zero, Size(radius * 2, radius * 2)), 180f, 90f, false)
             lineTo(arm, 0f)
         }
-        // Top-right
         bracket {
             moveTo(w - arm, 0f)
             lineTo(w - radius, 0f)
             arcTo(androidx.compose.ui.geometry.Rect(Offset(w - radius * 2, 0f), Size(radius * 2, radius * 2)), 270f, 90f, false)
             lineTo(w, arm)
         }
-        // Bottom-right
         bracket {
             moveTo(w, h - arm)
             lineTo(w, h - radius)
             arcTo(androidx.compose.ui.geometry.Rect(Offset(w - radius * 2, h - radius * 2), Size(radius * 2, radius * 2)), 0f, 90f, false)
             lineTo(w - arm, h)
         }
-        // Bottom-left
         bracket {
             moveTo(arm, h)
             lineTo(radius, h)

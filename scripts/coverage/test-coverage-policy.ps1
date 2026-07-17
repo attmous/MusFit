@@ -27,6 +27,8 @@ Assert-FileContains ".github/workflows/android.yml" 'createInternalDebugUnitTest
 Assert-FileContains ".github/workflows/android.yml" ':core:model:jacocoTestReport'
 Assert-FileContains ".github/workflows/android.yml" ':core:network:createInternalDebugUnitTestCoverageReport'
 Assert-FileContains ".github/workflows/android.yml" ':core:data:createInternalDebugUnitTestCoverageReport'
+Assert-FileContains ".github/workflows/android.yml" ':integration:healthconnect:createInternalDebugUnitTestCoverageReport'
+Assert-FileContains ".github/workflows/android.yml" ':integration:scanner:createInternalDebugUnitTestCoverageReport'
 Assert-FileContains ".github/workflows/android.yml" 'verify-coverage\.ps1'
 Assert-FileContains ".github/workflows/android.yml" 'musfit-coverage-'
 Assert-FileContains ".github/workflows/device-ui.yml" 'createManagedDeviceInternalDebugAndroidTestCoverageReport'
@@ -41,6 +43,8 @@ Assert-FileContains "scripts/coverage/verify-coverage.ps1" 'core/\(\[\^/\]\+\)/b
 $policyPath = Join-Path $repoRoot "config/coverage-policy.json"
 $policy = Get-Content -LiteralPath $policyPath -Raw | ConvertFrom-Json
 if ([int] $policy.schemaVersion -ne 1) {
+Assert-FileContains "config/coverage-policy.json" '\^integration/\(healthconnect\|scanner\)/src/main/java/'
+Assert-FileContains "scripts/coverage/verify-coverage.ps1" 'integration/\(\[\^/\]\+\)/build/'
     throw "Coverage policy schemaVersion must be 1."
 }
 if ([double] $policy.thresholds.changedBusinessLineRatio -lt 0.8) {

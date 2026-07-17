@@ -1,8 +1,6 @@
 package com.musfit.integrations.healthconnect
 
 import androidx.health.connect.client.records.MealType
-import com.musfit.data.local.entity.WorkoutSessionEntity
-import com.musfit.data.local.entity.WorkoutSetEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test

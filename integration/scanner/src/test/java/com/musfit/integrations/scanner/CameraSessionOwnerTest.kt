@@ -1,4 +1,4 @@
-package com.musfit.ui.food
+package com.musfit.integrations.scanner
 
 import com.google.common.util.concurrent.SettableFuture
 import org.junit.Assert.assertEquals
