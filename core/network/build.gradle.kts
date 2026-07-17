@@ -1,5 +1,6 @@
 plugins {
     id("musfit.android.library")
+    id("musfit.test")
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
@@ -19,6 +20,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            enableUnitTestCoverage = true
+        }
         create("benchmark") {
             initWith(getByName("release"))
             matchingFallbacks += "release"

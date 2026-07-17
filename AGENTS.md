@@ -26,7 +26,8 @@ The audit is a dated snapshot. Re-check a finding before implementing it.
 
 MusFit is an Android-only fitness and nutrition tracker. The installable app is
 `:app`; shared code lives in deliberately coarse `:core:model`,
-`:core:designsystem`, and `:core:testing` modules.
+`:core:database`, `:core:network`, `:core:data`, `:core:designsystem`, and
+`:core:testing` modules.
 The production application id is `com.musfit`; the side-by-side developer
 variant is `com.musfit.internal`. Top-level destinations are: Today, Food,
 Training, Profile.
@@ -120,10 +121,12 @@ The standard variant gate is:
 Generate and enforce the actionable unit-coverage report with:
 
 ```powershell
-.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport --no-daemon --console=plain
+.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
 $reports = @(
   "app\build\reports\coverage\test\internal\debug\report.xml"
   "core\model\build\reports\jacoco\test\jacocoTestReport.xml"
+  "core\network\build\reports\coverage\test\internal\debug\report.xml"
+  "core\data\build\reports\coverage\test\internal\debug\report.xml"
 )
 .\scripts\coverage\verify-coverage.ps1 `
   -ReportPath $reports `
@@ -208,7 +211,7 @@ than a claim that every file already complies.
   database. Migration tests are separate and must exercise the relevant schema
   transition.
 - For Room changes, derive the current version from
-  `app/src/main/java/com/musfit/data/local/MusFitDatabase.kt`, add and register
+  `core/database/src/main/java/com/musfit/data/local/MusFitDatabase.kt`, add and register
   the next migration in `core/di/DatabaseModule.kt`, and commit the exported
   schema JSON. There is no destructive-migration fallback.
 - For Food work, read `food-system.md` for the feature map and state conventions,

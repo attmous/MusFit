@@ -37,7 +37,9 @@ function Get-RepoRelativePath([string] $Path) {
 function Get-CoverageSourceRoot([string] $ReportPath) {
     $relativeReportPath = Get-RepoRelativePath $ReportPath
     if ($relativeReportPath -match '^core/([^/]+)/build/') {
-        return "core/$($Matches[1])/src/main/kotlin"
+        $module = $Matches[1]
+        $sourceLanguage = if ($module -eq "model") { "kotlin" } else { "java" }
+        return "core/$module/src/main/$sourceLanguage"
     }
     return "app/src/main/java"
 }
@@ -191,6 +193,10 @@ if ($ReportPath.Count -eq 0) {
         Get-ChildItem -LiteralPath (Join-Path $repoRoot "app/build/reports/coverage") -Recurse -Filter "report.xml" -File |
             Select-Object -ExpandProperty FullName
         Get-ChildItem -LiteralPath (Join-Path $repoRoot "core/model/build/reports/jacoco") -Recurse -Filter "*.xml" -File |
+            Select-Object -ExpandProperty FullName
+        Get-ChildItem -LiteralPath (Join-Path $repoRoot "core/network/build/reports/coverage") -Recurse -Filter "report.xml" -File |
+            Select-Object -ExpandProperty FullName
+        Get-ChildItem -LiteralPath (Join-Path $repoRoot "core/data/build/reports/coverage") -Recurse -Filter "report.xml" -File |
             Select-Object -ExpandProperty FullName
     )
 }

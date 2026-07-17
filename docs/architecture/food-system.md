@@ -14,7 +14,7 @@ It complements, and does not duplicate, the cross-cutting docs:
 - [Data models](data-models.md) — model ownership and source-of-truth map.
 
 Do not infer the live Room version from this feature document. Derive it from
-`app/src/main/java/com/musfit/data/local/MusFitDatabase.kt` and the newest
+`core/database/src/main/java/com/musfit/data/local/MusFitDatabase.kt` and the newest
 committed schema JSON.
 
 ## Where Food lives

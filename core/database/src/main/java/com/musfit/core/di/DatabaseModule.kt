@@ -1,5 +1,6 @@
 package com.musfit.core.di
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
@@ -111,6 +112,7 @@ object DatabaseModule {
     @Provides
     fun provideCoachDao(database: MusFitDatabase): CoachDao = database.coachDao()
 
+    @SuppressLint("UseKtx") // Keep the repair's explicit nested transaction and close sequencing unchanged.
     internal fun repairLegacyVersion28Database(context: Context, databaseName: String = MUSFIT_DATABASE_NAME) {
         val databaseFile = context.getDatabasePath(databaseName)
         if (!databaseFile.exists()) return

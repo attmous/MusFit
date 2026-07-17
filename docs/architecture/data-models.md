@@ -6,16 +6,16 @@ fields, indexes, foreign keys, repository method lists, or UI-state catalogs.
 
 For exact truth, read:
 
-- `app/src/main/java/com/musfit/data/local/MusFitDatabase.kt` for the registered
+- `core/database/src/main/java/com/musfit/data/local/MusFitDatabase.kt` for the registered
   entities, DAO accessors, and current database version;
-- `app/src/main/java/com/musfit/data/local/entity/` plus the newest JSON under
+- `core/database/src/main/java/com/musfit/data/local/entity/` plus the newest JSON under
   `app/schemas/com.musfit.data.local.MusFitDatabase/` for columns, indexes,
   foreign keys, defaults, and nullability;
-- `app/src/main/java/com/musfit/data/local/dao/` for SQL, transactions, and DAO
+- `core/database/src/main/java/com/musfit/data/local/dao/` for SQL, transactions, and DAO
   projection rows;
-- `app/src/main/java/com/musfit/data/repository/` for feature-facing data
+- `core/data/src/main/java/com/musfit/data/repository/` for feature-facing data
   contracts and persistence orchestration;
-- `app/src/main/java/com/musfit/core/di/DatabaseModule.kt` and the other
+- `core/database/src/main/java/com/musfit/core/di/DatabaseModule.kt` and the other
   `core/di` modules for migrations, construction, and boundary bindings;
 - the current [architecture audit](app-architecture-audit-2026-07-10.md) and
   [remediation backlog](architecture-remediation-backlog-2026-07-10.md) for

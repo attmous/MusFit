@@ -67,15 +67,13 @@ isolation is not implemented yet; see the architecture audit.
 | `app/src/main/java/com/musfit/MusFitApplication.kt` | Hilt application entrypoint. |
 | `app/src/main/java/com/musfit/ui/` | Compose screens, navigation, UI state, and ViewModels. |
 | `core/model/src/main/kotlin/com/musfit/domain/` | Android-free domain models, calculators, and inward-facing ports. |
+| `core/database/src/main/java/com/musfit/data/local/` | Room database, migrations, DAOs, entities, and query projection rows. |
+| `core/network/src/main/java/com/musfit/data/remote/` | Flavor-aware Open Food Facts, GitHub identity, and coach transport adapters. |
+| `core/data/src/main/java/com/musfit/data/repository/` | Feature repository contracts, local implementations, and repository data models. |
 | `core/designsystem/src/main/java/com/musfit/ui/` | Reusable Compose components plus Material 3 theme and MusFit semantic tokens. |
 | `core/testing/src/main/kotlin/com/musfit/core/testing/` | Shared JVM test fixtures, including the main-dispatcher rule. |
-| `app/src/main/java/com/musfit/data/repository/` | Feature repository interfaces, local implementations, and public repository data models. |
-| `app/src/main/java/com/musfit/data/local/` | Room database, DAOs, entities, and query projection rows. |
-| `app/src/main/java/com/musfit/data/remote/food/` | Open Food Facts Retrofit adapter and transport models; the normalized product port lives in `data/repository`. |
-| `app/src/main/java/com/musfit/data/remote/auth/` | GitHub OAuth device flow Retrofit API models. |
-| `app/src/main/java/com/musfit/data/remote/coach/` | OpenAI-compatible/Hermes coach transport and completion client. |
 | `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect adapter, platform-record mapping, and permission rationale activity. |
-| `app/src/test/java/com/musfit/` | Unit tests for ViewModels, repositories, DAOs, domain calculators, and integration boundaries. |
+| `app/src/test/java/com/musfit/` | App-owned unit tests for ViewModels, transfer, UI, and integration boundaries; core modules own their corresponding unit tests. |
 | `app/src/internal/` | Internal-only LAN manifest/resource surface and developer identity overrides. |
 | `app/src/androidTest/java/com/musfit/` | Device/instrumentation tests, including the non-distributed internal seed boundary. |
 | `app/schemas/com.musfit.data.local.MusFitDatabase/` | Contiguous exported Room schema JSON files through the version declared in `MusFitDatabase.kt`. |
@@ -182,7 +180,7 @@ Food and Today use date-scoped Flow collection. Food owns a `selectedDateFlow` a
 ## Persistence
 
 The database is `MusFitDatabase` with `exportSchema = true`. Derive its current
-version from `app/src/main/java/com/musfit/data/local/MusFitDatabase.kt`; the
+version from `core/database/src/main/java/com/musfit/data/local/MusFitDatabase.kt`; the
 newest committed schema file must match it.
 
 Major table groups:

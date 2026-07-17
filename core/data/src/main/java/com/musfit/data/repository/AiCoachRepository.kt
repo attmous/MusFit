@@ -241,9 +241,9 @@ class AndroidKeyStoreAiCoachSecretStore @Inject constructor(
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
         val encrypted = cipher.doFinal(apiKey.toByteArray(Charsets.UTF_8))
-        preferences.edit()
-            .putString(accountId.preferenceKey(), "${cipher.iv.base64()}:${encrypted.base64()}")
-            .apply()
+        preferences.edit {
+            putString(accountId.preferenceKey(), "${cipher.iv.base64()}:${encrypted.base64()}")
+        }
     }
 
     override suspend fun getApiKey(accountId: String): String? {
@@ -251,7 +251,7 @@ class AndroidKeyStoreAiCoachSecretStore @Inject constructor(
         val encoded = preferences.getString(preferenceKey, null) ?: return null
         val parts = encoded.split(":", limit = 2)
         if (parts.size != 2) {
-            preferences.edit().remove(preferenceKey).apply()
+            preferences.edit { remove(preferenceKey) }
             return null
         }
         return try {
@@ -261,20 +261,20 @@ class AndroidKeyStoreAiCoachSecretStore @Inject constructor(
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
             String(cipher.doFinal(ciphertext), Charsets.UTF_8).takeUnless(String::isBlank)
                 ?: run {
-                    preferences.edit().remove(preferenceKey).apply()
+                    preferences.edit { remove(preferenceKey) }
                     null
                 }
         } catch (_: GeneralSecurityException) {
-            preferences.edit().remove(preferenceKey).apply()
+            preferences.edit { remove(preferenceKey) }
             null
         } catch (_: IllegalArgumentException) {
-            preferences.edit().remove(preferenceKey).apply()
+            preferences.edit { remove(preferenceKey) }
             null
         }
     }
 
     override suspend fun clearApiKey(accountId: String) {
-        preferences.edit().remove(accountId.preferenceKey()).apply()
+        preferences.edit { remove(accountId.preferenceKey()) }
     }
 
     override suspend fun clearAll(accountIds: Collection<String>) {
