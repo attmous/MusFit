@@ -42,13 +42,11 @@ import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodNavigation
 import com.musfit.ui.food.NutritionTrendsScreen
 import com.musfit.ui.profile.ProfileScreen
-import com.musfit.ui.profile.ProfileSettingsScreen
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.today.ChatPreviewFab
-import com.musfit.ui.today.ChatPreviewSheet
 import com.musfit.ui.today.TodayScreen
 import com.musfit.ui.training.TrainingNavigation
 import com.musfit.ui.training.TrainingProgressScreen
@@ -156,7 +154,7 @@ fun AppNavGraph(
                     )
                 }
                 entry<ProfileSettingsNavKey> {
-                    ProfileSettingsScreen(onBack = { navigator.goBack() })
+                    ProfileSettingsEntry(onBack = { navigator.goBack() })
                 }
                 entry<TrainingProgressNavKey> {
                     TrainingProgressScreen(onBack = { navigator.goBack() })
@@ -169,7 +167,7 @@ fun AppNavGraph(
     }
 
     if (chatPreviewVisible) {
-        ChatPreviewSheet(
+        CoachChatEntry(
             onDismiss = { chatPreviewVisible = false },
             onConfigure = {
                 navigator.navigate(AppNavigationAction.SelectTopLevel(AppDestination.Profile))

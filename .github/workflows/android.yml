@@ -67,7 +67,7 @@ jobs:
         env:
           COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          ./gradlew :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport :feature:food:createInternalDebugUnitTestCoverageReport :feature:training:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
+          ./gradlew :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport :feature:food:createInternalDebugUnitTestCoverageReport :feature:training:createInternalDebugUnitTestCoverageReport :feature:profile:createInternalDebugUnitTestCoverageReport :feature:today:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
           $baseRef = $env:COVERAGE_BASE_REF
           if ([string]::IsNullOrWhiteSpace($baseRef) -or $baseRef -match '^0+$') {
             $baseRef = 'HEAD^'
@@ -81,6 +81,8 @@ jobs:
             'integration/scanner/build/reports/coverage/test/internal/debug/report.xml'
             'feature/food/build/reports/coverage/test/internal/debug/report.xml'
             'feature/training/build/reports/coverage/test/internal/debug/report.xml'
+            'feature/profile/build/reports/coverage/test/internal/debug/report.xml'
+            'feature/today/build/reports/coverage/test/internal/debug/report.xml'
           )
           ./scripts/coverage/verify-coverage.ps1 -ReportPath $reports -BaseRef $baseRef
 
@@ -93,6 +95,10 @@ jobs:
             app/build/reports/coverage/test/internal/debug/
             core/model/build/reports/jacoco/test/
             core/network/build/reports/coverage/test/internal/debug/
+            feature/food/build/reports/coverage/test/internal/debug/
+            feature/training/build/reports/coverage/test/internal/debug/
+            feature/profile/build/reports/coverage/test/internal/debug/
+            feature/today/build/reports/coverage/test/internal/debug/
             core/data/build/reports/coverage/test/internal/debug/
             build/reports/coverage-policy/
             integration/healthconnect/build/reports/coverage/test/internal/debug/

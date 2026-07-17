@@ -440,7 +440,13 @@ foreach ($relativeVariantFile in @(
     "ui/permissions/LocalNetworkPermission.kt",
     "ui/profile/AiCoachVariantCopy.kt"
 )) {
-    $variantRoot = if ($relativeVariantFile.StartsWith("data/remote/")) { "core/network/src" } else { "app/src" }
+    $variantRoot = if ($relativeVariantFile.StartsWith("data/remote/")) {
+        "core/network/src"
+    } elseif ($relativeVariantFile.StartsWith("ui/profile/")) {
+        "feature/profile/src"
+    } else {
+        "app/src"
+    }
     $productionVariantFile = "$variantRoot/production/java/com/musfit/$relativeVariantFile"
     $migrationVariantFile = "$variantRoot/legacyMigration/java/com/musfit/$relativeVariantFile"
     Assert-FileExists $migrationVariantFile
@@ -673,7 +679,12 @@ Assert-FileContains ".github/workflows/device-ui.yml" 'verifyRoborazziInternalDe
 Assert-FileContains ".github/workflows/device-ui.yml" 'musfit-screenshot-regression'
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'recordRoborazzi'
 
-$goldenCount = @(Get-ChildItem -LiteralPath (Get-RepoPath "app/src/testInternalDebug/screenshots") -Filter "*.png" -File).Count
+$goldenCount = @(
+    "app/src/testInternalDebug/screenshots",
+    "feature/profile/src/testInternalDebug/screenshots",
+    "feature/today/src/testInternalDebug/screenshots" |
+        ForEach-Object { Get-ChildItem -LiteralPath (Get-RepoPath $_) -Filter "*.png" -File }
+).Count
 Assert-Equal "Reviewed screenshot golden count" 7 $goldenCount
 
 # W2-PERF-01: production-shaped Macrobenchmark and app-owned Baseline Profile.

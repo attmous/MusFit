@@ -35,7 +35,7 @@ the policy against the branch diff:
 
 ```powershell
 . .\scripts\android\android-env.ps1
-.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport :feature:food:createInternalDebugUnitTestCoverageReport :feature:training:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
+.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport :feature:food:createInternalDebugUnitTestCoverageReport :feature:training:createInternalDebugUnitTestCoverageReport :feature:profile:createInternalDebugUnitTestCoverageReport :feature:today:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
 $reports = @(
   "app\build\reports\coverage\test\internal\debug\report.xml"
   "core\model\build\reports\jacoco\test\jacocoTestReport.xml"
@@ -45,6 +45,8 @@ $reports = @(
   "integration\scanner\build\reports\coverage\test\internal\debug\report.xml"
   "feature\food\build\reports\coverage\test\internal\debug\report.xml"
   "feature\training\build\reports\coverage\test\internal\debug\report.xml"
+  "feature\profile\build\reports\coverage\test\internal\debug\report.xml"
+  "feature\today\build\reports\coverage\test\internal\debug\report.xml"
 )
 .\scripts\coverage\verify-coverage.ps1 `
   -ReportPath $reports `
@@ -54,7 +56,7 @@ $reports = @(
 The browsable reports are written beneath
 `app/build/reports/coverage/test/internal/debug/` and
 `core/model/build/reports/jacoco/test/`, `core/network/build/reports/coverage/`,
-`core/data/build/reports/coverage/`, both integration modules', and both feature
+`core/data/build/reports/coverage/`, both integration modules', and all four feature
 modules' `build/reports/coverage/` directories. The aggregate machine and review
 summaries are written to `build/reports/coverage-policy/`.
 

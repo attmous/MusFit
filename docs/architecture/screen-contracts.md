@@ -54,10 +54,10 @@ primitive arguments; no Room entity, repository model, or transport DTO is
 stored in a key. A feature-home back falls through to the app-level visit-order
 stack, while feature subroutes consume back locally.
 
-The app shell composes the public `FoodNavigation` and `TrainingNavigation`
-entrypoints from `:feature:food` and `:feature:training`. Those modules export
-entry and callback/action contracts only; neither feature depends on `:app` or
-on the other feature's implementation.
+The app shell composes public entrypoints from `:feature:food`,
+`:feature:training`, `:feature:profile`, and `:feature:today`. Those modules
+export entry and callback/action contracts only; no feature depends on `:app`
+or on another feature's implementation.
 
 ### Scanner Results
 
@@ -73,8 +73,9 @@ processed twice.
 
 Source:
 
-- `app/src/main/java/com/musfit/ui/today/CoachFeedUi.kt`
-- `app/src/main/java/com/musfit/ui/today/CoachChatViewModel.kt`
+- `feature/today/src/main/java/com/musfit/ui/today/CoachFeedUi.kt`
+- `feature/today/src/main/java/com/musfit/ui/today/CoachChatViewModel.kt`
+- `app/src/main/java/com/musfit/ui/CoachChatEntry.kt`
 - `core/data/src/main/java/com/musfit/data/repository/AiCoachChatRepository.kt`
 - `core/network/src/main/java/com/musfit/data/remote/coach/HermesCoachClient.kt`
 
@@ -91,6 +92,7 @@ fun ChatPreviewFab(
 fun ChatPreviewSheet(
     onDismiss: () -> Unit,
     onConfigure: () -> Unit,
+    localNetworkConfig: TodayLocalNetworkConfig,
     viewModel: CoachChatViewModel = hiltViewModel(),
 )
 ```
@@ -109,10 +111,10 @@ log, edit, or delete tracker records.
 
 Source:
 
-- `app/src/main/java/com/musfit/ui/today/TodayScreen.kt`
-- `app/src/main/java/com/musfit/ui/today/TodayViewModel.kt`
-- `app/src/main/java/com/musfit/ui/today/MetricCarouselUi.kt`
-- `app/src/main/java/com/musfit/ui/today/CoachFeedUi.kt`
+- `feature/today/src/main/java/com/musfit/ui/today/TodayScreen.kt`
+- `feature/today/src/main/java/com/musfit/ui/today/TodayViewModel.kt`
+- `feature/today/src/main/java/com/musfit/ui/today/TodayVitalsUi.kt`
+- `feature/today/src/main/java/com/musfit/ui/today/CoachFeedUi.kt`
 
 Key: `TodayNavKey`
 
@@ -133,7 +135,9 @@ data when it resumes.
 
 Navigation is callback-only: `onOpenFood` selects Food, `onOpenTraining`
 selects Training, and the legacy-named `onOpenHealth` selects Profile. Today
-does not own the global coach sheet or a navigation controller.
+owns the coach-sheet implementation but not its global overlay state or a
+navigation controller. The app shell supplies the flavor-aware LAN-permission
+policy through `TodayLocalNetworkConfig`.
 
 ## Food
 
@@ -224,10 +228,11 @@ app-level bottom-destination stack.
 
 Source:
 
-- `app/src/main/java/com/musfit/ui/profile/ProfileScreen.kt`
-- `app/src/main/java/com/musfit/ui/profile/ProfileViewModel.kt`
-- `app/src/main/java/com/musfit/ui/profile/ProfileSettingsScreen.kt`
-- `app/src/main/java/com/musfit/ui/profile/ProfileSettingsViewModel.kt`
+- `feature/profile/src/main/java/com/musfit/ui/profile/ProfileScreen.kt`
+- `feature/profile/src/main/java/com/musfit/ui/profile/ProfileViewModel.kt`
+- `feature/profile/src/main/java/com/musfit/ui/profile/ProfileSettingsScreen.kt`
+- `feature/profile/src/main/java/com/musfit/ui/profile/ProfileSettingsViewModel.kt`
+- `app/src/main/java/com/musfit/ui/ProfileSettingsEntry.kt`
 
 Key: `ProfileNavKey`
 
@@ -254,6 +259,8 @@ Profile Settings is a secondary route:
 @Composable
 fun ProfileSettingsScreen(
     onBack: () -> Unit,
+    onOpenDataTransfer: () -> Unit,
+    entryConfig: ProfileSettingsEntryConfig,
     viewModel: ProfileSettingsViewModel = hiltViewModel(),
 )
 ```
@@ -263,7 +270,8 @@ linking, AI-coach provider configuration and connection testing, Health Connect
 permissions/import/export controls, step-source selection, and app preferences.
 Provider identity does not imply cloud synchronization of tracker data.
 
-Profile also owns two focused secondary screens:
+The app shell also exposes two Profile-selected secondary routes implemented by
+their owning features:
 
 ```kotlin
 @Composable
