@@ -12,8 +12,8 @@ data class WeeklyGoals(
     val targetWeightKg: Double?,
     // Per-day series for the Today charts. Defaults keep existing callsites/tests compiling unchanged.
     val caloriesPerDay: List<Double?> = emptyList(), // 7 entries Mon..Sun, null = untracked
-    val calorieGoalKcal: Double = 0.0,               // for the bar target line
-    val stepsPerDay: List<Long> = emptyList(),       // 7 entries Mon..Sun
+    val calorieGoalKcal: Double = 0.0, // for the bar target line
+    val stepsPerDay: List<Long> = emptyList(), // 7 entries Mon..Sun
     val stepGoal: Long = 0L,
     val weightPoints: List<WeightPoint> = emptyList(), // chronological, for the trend line
 )

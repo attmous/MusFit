@@ -444,6 +444,7 @@ ksp {
 }
 
 dependencies {
+    implementation(project(":core:model"))
     implementation(platform(libs.androidx.compose.bom))
     // Room's schema parser uses serialization 1.8.1. Align the app and
     // instrumentation classloaders so MigrationTestHelper cannot resolve the

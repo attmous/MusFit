@@ -23,6 +23,7 @@ spotless {
             "baselineprofile/src/**/*.kt",
             "benchmark/src/**/*.kt",
             "build-logic/src/**/*.kt",
+            "core/*/src/**/*.kt",
         )
         targetExclude("app/src/main/generated/**")
         ktlint("1.8.0").editorConfigOverride(
@@ -37,6 +38,7 @@ spotless {
             "benchmark/*.gradle.kts",
             "build-logic/*.gradle.kts",
             "build-logic/src/**/*.gradle.kts",
+            "core/*/*.gradle.kts",
         )
         ktlint("1.8.0")
     }
@@ -68,6 +70,7 @@ detekt {
             "app/src/internal/java",
             "benchmark/src/main/java",
             "baselineprofile/src/main/java",
+            "core/model/src/main/kotlin",
         ),
     )
     config.setFrom(files("config/detekt.yml"))

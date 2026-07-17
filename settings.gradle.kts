@@ -19,3 +19,4 @@ rootProject.name = "MusFit"
 include(":app")
 include(":benchmark")
 include(":baselineprofile")
+include(":core:model")

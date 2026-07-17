@@ -69,13 +69,19 @@ object NutritionLabelParser {
 
     /** Prefer the total-fat line over the "of which saturates / davon gesättigte" sub-line. */
     private fun totalFat(lines: List<String>): Double? {
-        val matches = lines.filter { val l = it.lowercase(); "fat" in l || "fett" in l }
+        val matches = lines.filter {
+            val l = it.lowercase()
+            "fat" in l || "fett" in l
+        }
         val total = matches.firstOrNull { line -> SATURATED_HINTS.none { it in line.lowercase() } }
         return (total ?: matches.firstOrNull())?.let { firstNumber(it) }
     }
 
     private fun firstNumberOnLineMatching(lines: List<String>, keywords: List<String>): Double? {
-        val line = lines.firstOrNull { val l = it.lowercase(); keywords.any { k -> k in l } } ?: return null
+        val line = lines.firstOrNull {
+            val l = it.lowercase()
+            keywords.any { k -> k in l }
+        } ?: return null
         return firstNumber(line)
     }
 

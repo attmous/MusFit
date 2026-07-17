@@ -12,6 +12,7 @@ class ModuleGraphRulesTest {
             ModuleGraphRules.violations(
                 mapOf(
                     ":app" to setOf(":core:model", ":core:designsystem"),
+                    ":core" to emptySet(),
                     ":core:model" to emptySet(),
                     ":core:designsystem" to setOf(":core:model"),
                     ":core:testing" to setOf(":core:model", ":core:designsystem"),

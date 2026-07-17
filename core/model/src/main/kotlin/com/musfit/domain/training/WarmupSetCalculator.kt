@@ -32,6 +32,5 @@ object WarmupSetCalculator {
             .distinctBy { it.weightKg }
     }
 
-    private fun roundToNearestPlateIncrement(weightKg: Double, barWeightKg: Double): Double =
-        round(weightKg.coerceAtLeast(barWeightKg) / 2.5) * 2.5
+    private fun roundToNearestPlateIncrement(weightKg: Double, barWeightKg: Double): Double = round(weightKg.coerceAtLeast(barWeightKg) / 2.5) * 2.5
 }

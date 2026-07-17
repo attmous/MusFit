@@ -1,19 +1,18 @@
 package com.musfit.domain.training
 
-import com.musfit.domain.model.PersonalRecords
 import com.musfit.domain.model.ExerciseBestSetSummary
+import com.musfit.domain.model.ExercisePrTimelineEntry
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.ExerciseProgressHistoryEntry
 import com.musfit.domain.model.ExerciseProgressSetInput
-import com.musfit.domain.model.ExercisePrTimelineEntry
+import com.musfit.domain.model.PersonalRecords
 import com.musfit.domain.model.TrainingTrendPoint
 import com.musfit.domain.model.WorkoutSetInput
 import java.util.Locale
 
 object WorkoutCalculator {
-    fun totalVolume(sets: List<WorkoutSetInput>): Double =
-        sets.filter { it.completed && it.reps > 0 && it.weightKg > 0.0 }
-            .sumOf { it.reps * it.weightKg }
+    fun totalVolume(sets: List<WorkoutSetInput>): Double = sets.filter { it.completed && it.reps > 0 && it.weightKg > 0.0 }
+        .sumOf { it.reps * it.weightKg }
 
     fun estimatedOneRepMax(weightKg: Double, reps: Int): Double {
         if (weightKg <= 0.0 || reps <= 0) return 0.0
@@ -99,28 +98,25 @@ object WorkoutCalculator {
         )
     }
 
-    private fun List<ExerciseProgressSetInput>.bestSetByDay(): List<ExerciseBestSetSummary> =
-        groupBy { it.dateEpochDay }
-            .toSortedMap()
-            .map { (dateEpochDay, daySets) ->
-                val bestSet = daySets.bestEstimatedOneRepMaxSet()
-                ExerciseBestSetSummary(
-                    dateEpochDay = dateEpochDay,
-                    reps = bestSet.reps,
-                    weightKg = bestSet.weightKg,
-                    estimatedOneRepMaxKg = estimatedOneRepMax(bestSet.weightKg, bestSet.reps).round2(),
-                )
-            }
+    private fun List<ExerciseProgressSetInput>.bestSetByDay(): List<ExerciseBestSetSummary> = groupBy { it.dateEpochDay }
+        .toSortedMap()
+        .map { (dateEpochDay, daySets) ->
+            val bestSet = daySets.bestEstimatedOneRepMaxSet()
+            ExerciseBestSetSummary(
+                dateEpochDay = dateEpochDay,
+                reps = bestSet.reps,
+                weightKg = bestSet.weightKg,
+                estimatedOneRepMaxKg = estimatedOneRepMax(bestSet.weightKg, bestSet.reps).round2(),
+            )
+        }
 
-    private fun List<ExerciseProgressSetInput>.bestEstimatedOneRepMaxSet(): ExerciseProgressSetInput =
-        maxBy { estimatedOneRepMax(it.weightKg, it.reps) }
+    private fun List<ExerciseProgressSetInput>.bestEstimatedOneRepMaxSet(): ExerciseProgressSetInput = maxBy { estimatedOneRepMax(it.weightKg, it.reps) }
 
     private fun Double.round2(): Double = kotlin.math.round(this * 100.0) / 100.0
 
-    private fun Double.formatCompactKg(): String =
-        if (this % 1.0 == 0.0) {
-            toInt().toString()
-        } else {
-            String.format(Locale.US, "%.1f", this)
-        }
+    private fun Double.formatCompactKg(): String = if (this % 1.0 == 0.0) {
+        toInt().toString()
+    } else {
+        String.format(Locale.US, "%.1f", this)
+    }
 }

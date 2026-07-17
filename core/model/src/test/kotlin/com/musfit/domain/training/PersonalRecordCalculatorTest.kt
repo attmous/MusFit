@@ -51,15 +51,13 @@ class PersonalRecordCalculatorTest {
         assertEquals(emptyList<PersonalRecordEvent>(), PersonalRecordCalculator.recentPersonalRecords(emptyList()))
     }
 
-    private fun squatSet(day: Long, reps: Int, weightKg: Double) =
-        set(exerciseId = "squat", name = "Back Squat", day = day, reps = reps, weightKg = weightKg)
+    private fun squatSet(day: Long, reps: Int, weightKg: Double) = set(exerciseId = "squat", name = "Back Squat", day = day, reps = reps, weightKg = weightKg)
 
-    private fun set(exerciseId: String, name: String, day: Long, reps: Int, weightKg: Double) =
-        PersonalRecordSetInput(
-            exerciseId = exerciseId,
-            exerciseName = name,
-            dateEpochDay = day,
-            reps = reps,
-            weightKg = weightKg,
-        )
+    private fun set(exerciseId: String, name: String, day: Long, reps: Int, weightKg: Double) = PersonalRecordSetInput(
+        exerciseId = exerciseId,
+        exerciseName = name,
+        dateEpochDay = day,
+        reps = reps,
+        weightKg = weightKg,
+    )
 }

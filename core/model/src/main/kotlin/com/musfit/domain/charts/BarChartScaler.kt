@@ -2,9 +2,9 @@ package com.musfit.domain.charts
 
 /** Normalised geometry for a small bar chart. Pure — no Android/Compose types. */
 data class BarChartGeometry(
-    val bars: List<Double?>,     // fraction in [0,1] per bar; null passes through (untracked)
+    val bars: List<Double?>, // fraction in [0,1] per bar; null passes through (untracked)
     val targetFraction: Double?, // fraction in [0,1] for the target line, or null
-    val maxValue: Double,        // the scaled max (with headroom) used for normalisation
+    val maxValue: Double, // the scaled max (with headroom) used for normalisation
 )
 
 /**

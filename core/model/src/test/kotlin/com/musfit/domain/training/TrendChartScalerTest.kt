@@ -13,8 +13,7 @@ class TrendChartScalerTest {
     private val padB = 18f
     private val plotH = height - padT - padB
 
-    private fun geom(values: List<Double>, tickCount: Int = 3) =
-        TrendChartScaler.computeChartGeometry(values, width, height, padL, padR, padT, padB, tickCount)
+    private fun geom(values: List<Double>, tickCount: Int = 3) = TrendChartScaler.computeChartGeometry(values, width, height, padL, padR, padT, padB, tickCount)
 
     @Test
     fun twoPoints_mapXAcrossPlotWidth() {

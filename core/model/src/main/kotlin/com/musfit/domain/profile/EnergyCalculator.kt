@@ -20,8 +20,7 @@ object EnergyCalculator {
         }
     }
 
-    fun totalDailyEnergyExpenditure(bmr: Double, activityLevel: ActivityLevel): Double =
-        bmr * activityLevel.factor
+    fun totalDailyEnergyExpenditure(bmr: Double, activityLevel: ActivityLevel): Double = bmr * activityLevel.factor
 
     fun recommendedTargets(
         sex: Sex,

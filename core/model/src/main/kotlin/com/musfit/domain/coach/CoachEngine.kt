@@ -111,6 +111,7 @@ object CoachEngine {
                 body = "About ${(remaining / 3.0).roundToInt()} kcal for your next meal keeps you on pace.",
                 action = CoachAction.OpenFood,
             )
+
             remaining < -100.0 -> CoachMessageCandidate(
                 ruleKey = "calorie_over",
                 category = CoachMessageCategory.Nutrition,
@@ -118,6 +119,7 @@ object CoachEngine {
                 body = "Ease up at the next meal — tomorrow resets the count.",
                 action = CoachAction.OpenFood,
             )
+
             else -> null
         }
     }
@@ -160,10 +162,15 @@ object CoachEngine {
     private fun weightTrendMessage(input: CoachInput): CoachMessageCandidate? {
         val delta = input.weightDeltaKg ?: return null
         val (title, body) = when {
-            abs(delta) < 0.05 -> "Weight is holding steady" to
-                (input.targetWeightKg?.let { "Flat this week — keep nudging toward ${it.formatMetric()} kg." }
-                    ?: "Flat this week.")
+            abs(delta) < 0.05 ->
+                "Weight is holding steady" to
+                    (
+                        input.targetWeightKg?.let { "Flat this week — keep nudging toward ${it.formatMetric()} kg." }
+                            ?: "Flat this week."
+                        )
+
             delta < 0.0 -> "Weight down ${abs(delta).format1()} kg this week" to "Nice trend — the routine is working."
+
             else -> "Weight up ${delta.format1()} kg this week" to "One week isn't a trend — watch the next few days."
         }
         return CoachMessageCandidate(
@@ -219,6 +226,5 @@ object CoachEngine {
 
     private fun Double.format1(): String = String.format(Locale.US, "%.1f", this)
 
-    private fun Double.formatMetric(): String =
-        if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)
+    private fun Double.formatMetric(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)
 }

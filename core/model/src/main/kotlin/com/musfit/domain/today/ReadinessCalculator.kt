@@ -54,8 +54,7 @@ object ReadinessCalculator {
         return ReadinessScore(score = score, level = score.toReadinessLevel())
     }
 
-    private fun recoveryRatioScore(ratio: Double): Double =
-        (50.0 + (ratio - 1.0) * 150.0).coerceIn(0.0, 100.0)
+    private fun recoveryRatioScore(ratio: Double): Double = (50.0 + (ratio - 1.0) * 150.0).coerceIn(0.0, 100.0)
 
     private fun Int.toReadinessLevel(): ReadinessLevel = when {
         this >= 65 -> ReadinessLevel.High
