@@ -222,19 +222,18 @@ class TrainingHistoryContentTest {
         totalVolumeKg: Double = 0.0,
         startedAtEpochMillis: Long = 1_000L,
         endedAtEpochMillis: Long? = 2_000L,
-    ): WorkoutHistoryDetail =
-        WorkoutHistoryDetail(
-            summary = WorkoutHistorySummary(
-                sessionId = "session-1",
-                title = "Upper",
-                startedAtEpochMillis = startedAtEpochMillis,
-                endedAtEpochMillis = endedAtEpochMillis,
-                completedSetCount = completedSetCount,
-                totalVolumeKg = totalVolumeKg,
-            ),
-            exerciseBlocks = blocks,
-            exerciseGroupings = groupings,
-        )
+    ): WorkoutHistoryDetail = WorkoutHistoryDetail(
+        summary = WorkoutHistorySummary(
+            sessionId = "session-1",
+            title = "Upper",
+            startedAtEpochMillis = startedAtEpochMillis,
+            endedAtEpochMillis = endedAtEpochMillis,
+            completedSetCount = completedSetCount,
+            totalVolumeKg = totalVolumeKg,
+        ),
+        exerciseBlocks = blocks,
+        exerciseGroupings = groupings,
+    )
 
     private fun block(
         id: String,
@@ -242,53 +241,50 @@ class TrainingHistoryContentTest {
         groupId: String? = null,
         priorBest: Double = 0.0,
         sets: List<LoggedWorkoutSetDetail> = emptyList(),
-    ): WorkoutExerciseBlock =
-        WorkoutExerciseBlock(
-            exercise = ExerciseSummary(
-                id = id,
-                name = id,
-                category = "strength",
-                equipment = null,
-                targetMuscles = "x",
-                isCustom = false,
-            ),
-            targetReps = null,
-            priorBestEstimatedOneRepMaxKg = priorBest,
-            sets = sets,
-            supersetGroupId = groupId,
-            supersetLabel = label,
-        )
+    ): WorkoutExerciseBlock = WorkoutExerciseBlock(
+        exercise = ExerciseSummary(
+            id = id,
+            name = id,
+            category = "strength",
+            equipment = null,
+            targetMuscles = "x",
+            isCustom = false,
+        ),
+        targetReps = null,
+        priorBestEstimatedOneRepMaxKg = priorBest,
+        sets = sets,
+        supersetGroupId = groupId,
+        supersetLabel = label,
+    )
 
     private fun completedSet(
         id: String,
         setType: String = "working",
         reps: Int,
         weightKg: Double,
-    ): LoggedWorkoutSetDetail =
-        LoggedWorkoutSetDetail(
-            id = id,
-            exerciseId = "exercise",
-            setType = setType,
-            reps = reps,
-            weightKg = weightKg,
-            rpe = null,
-            notes = null,
-            completed = true,
-            previousLabel = null,
-        )
+    ): LoggedWorkoutSetDetail = LoggedWorkoutSetDetail(
+        id = id,
+        exerciseId = "exercise",
+        setType = setType,
+        reps = reps,
+        weightKg = weightKg,
+        rpe = null,
+        notes = null,
+        completed = true,
+        previousLabel = null,
+    )
 
     private fun summary(
         sessionId: String,
         startedAtEpochMillis: Long,
         endedAtEpochMillis: Long? = null,
         totalVolumeKg: Double = 0.0,
-    ): WorkoutHistorySummary =
-        WorkoutHistorySummary(
-            sessionId = sessionId,
-            title = "Workout",
-            startedAtEpochMillis = startedAtEpochMillis,
-            endedAtEpochMillis = endedAtEpochMillis,
-            completedSetCount = 0,
-            totalVolumeKg = totalVolumeKg,
-        )
+    ): WorkoutHistorySummary = WorkoutHistorySummary(
+        sessionId = sessionId,
+        title = "Workout",
+        startedAtEpochMillis = startedAtEpochMillis,
+        endedAtEpochMillis = endedAtEpochMillis,
+        completedSetCount = 0,
+        totalVolumeKg = totalVolumeKg,
+    )
 }

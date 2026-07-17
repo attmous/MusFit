@@ -54,6 +54,11 @@ primitive arguments; no Room entity, repository model, or transport DTO is
 stored in a key. A feature-home back falls through to the app-level visit-order
 stack, while feature subroutes consume back locally.
 
+The app shell composes the public `FoodNavigation` and `TrainingNavigation`
+entrypoints from `:feature:food` and `:feature:training`. Those modules export
+entry and callback/action contracts only; neither feature depends on `:app` or
+on the other feature's implementation.
+
 ### Scanner Results
 
 `FoodNavigation` owns `FoodBarcodeScannerNavKey` and
@@ -134,13 +139,13 @@ does not own the global coach sheet or a navigation controller.
 
 Source:
 
-- `app/src/main/java/com/musfit/ui/food/FoodScreen.kt`
-- `app/src/main/java/com/musfit/ui/food/FoodNavigation.kt`
-- `app/src/main/java/com/musfit/ui/food/FoodNavigationContract.kt`
-- `app/src/main/java/com/musfit/ui/food/FoodViewModel.kt`
-- `app/src/main/java/com/musfit/ui/food/FoodAddPanelUi.kt`
-- `app/src/main/java/com/musfit/ui/food/FoodModalSheets.kt`
-- `app/src/main/java/com/musfit/ui/food/FoodTrackersUi.kt`
+- `feature/food/src/main/java/com/musfit/ui/food/FoodScreen.kt`
+- `feature/food/src/main/java/com/musfit/ui/food/FoodNavigation.kt`
+- `feature/food/src/main/java/com/musfit/ui/food/FoodNavigationContract.kt`
+- `feature/food/src/main/java/com/musfit/ui/food/FoodViewModel.kt`
+- `feature/food/src/main/java/com/musfit/ui/food/FoodAddPanelUi.kt`
+- `feature/food/src/main/java/com/musfit/ui/food/FoodModalSheets.kt`
+- `feature/food/src/main/java/com/musfit/ui/food/FoodTrackersUi.kt`
 - `core/data/src/main/java/com/musfit/data/repository/FoodRepository.kt`
 
 Top-level key: `FoodNavKey`
@@ -175,13 +180,13 @@ this screen contract.
 
 Source:
 
-- `app/src/main/java/com/musfit/ui/training/TrainingScreen.kt`
-- `app/src/main/java/com/musfit/ui/training/TrainingNavigation.kt`
-- `app/src/main/java/com/musfit/ui/training/TrainingNavigationContract.kt`
-- `app/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`
-- `app/src/main/java/com/musfit/ui/training/TrainingRoutineContent.kt`
-- `app/src/main/java/com/musfit/ui/training/TrainingActiveWorkoutContent.kt`
-- `app/src/main/java/com/musfit/ui/training/TrainingHistoryContent.kt`
+- `feature/training/src/main/java/com/musfit/ui/training/TrainingScreen.kt`
+- `feature/training/src/main/java/com/musfit/ui/training/TrainingNavigation.kt`
+- `feature/training/src/main/java/com/musfit/ui/training/TrainingNavigationContract.kt`
+- `feature/training/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`
+- `feature/training/src/main/java/com/musfit/ui/training/TrainingRoutineContent.kt`
+- `feature/training/src/main/java/com/musfit/ui/training/TrainingActiveWorkoutContent.kt`
+- `feature/training/src/main/java/com/musfit/ui/training/TrainingHistoryContent.kt`
 - `core/data/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
 
 Top-level key: `TrainingNavKey`

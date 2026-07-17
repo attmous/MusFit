@@ -63,7 +63,6 @@ import com.musfit.data.repository.ExerciseDetail
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.training.RoutineDisplayCalculator
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenHeader
@@ -75,6 +74,7 @@ import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 import java.time.Instant
 import java.time.LocalDate
@@ -127,7 +127,7 @@ private fun TrainingProjectedSurface(
     onOpenCoach: () -> Unit,
 ) {
     val activeWorkout = state.activeWorkout
-    val accent = tabAccentFor(AppDestination.Training)
+    val accent = tabAccentFor(TabAccentRole.Training)
     val finishActiveWorkout = {
         viewModel.finishActiveWorkout { sessionId ->
             navigation.resetTo(

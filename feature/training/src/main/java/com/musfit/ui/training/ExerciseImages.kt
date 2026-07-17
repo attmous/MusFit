@@ -148,14 +148,13 @@ fun ExerciseGif(
 }
 
 @Composable
-private fun rememberExerciseMediaImageLoader(context: Context, animateGif: Boolean = true): ImageLoader =
-    remember(context, animateGif) {
-        val builder = ImageLoader.Builder(context)
-        if (animateGif) {
-            builder.components { add(ImageDecoderDecoder.Factory()) }
-        }
-        builder.build()
+private fun rememberExerciseMediaImageLoader(context: Context, animateGif: Boolean = true): ImageLoader = remember(context, animateGif) {
+    val builder = ImageLoader.Builder(context)
+    if (animateGif) {
+        builder.components { add(ImageDecoderDecoder.Factory()) }
     }
+    builder.build()
+}
 
 @Composable
 private fun ExerciseMediaPlaceholder(

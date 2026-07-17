@@ -28,6 +28,12 @@ class ModuleGraphRulesTest {
                         ":core:testing",
                         ":integration:scanner",
                     ),
+                    ":feature:training" to setOf(
+                        ":core:model",
+                        ":core:data",
+                        ":core:designsystem",
+                        ":core:testing",
+                    ),
                     ":core:designsystem" to setOf(":core:model"),
                     ":core:testing" to setOf(":core:model", ":core:designsystem"),
                 ),

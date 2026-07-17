@@ -297,37 +297,34 @@ class TrainingActiveWorkoutContentTest {
         weightKg: Double?,
         rpe: Double? = null,
         completed: Boolean = false,
-    ): LoggedWorkoutSetDetail =
-        LoggedWorkoutSetDetail(
-            id = id,
-            exerciseId = "exercise-bench",
-            setType = setType,
-            reps = reps,
-            weightKg = weightKg,
-            rpe = rpe,
-            notes = null,
-            completed = completed,
-            previousLabel = previousLabel,
-        )
+    ): LoggedWorkoutSetDetail = LoggedWorkoutSetDetail(
+        id = id,
+        exerciseId = "exercise-bench",
+        setType = setType,
+        reps = reps,
+        weightKg = weightKg,
+        rpe = rpe,
+        notes = null,
+        completed = completed,
+        previousLabel = previousLabel,
+    )
 
-    private fun exercise(id: String, name: String): ExerciseSummary =
-        ExerciseSummary(
-            id = id,
-            name = name,
-            category = "Strength",
-            equipment = null,
-            targetMuscles = "Full body",
-            isCustom = false,
-        )
+    private fun exercise(id: String, name: String): ExerciseSummary = ExerciseSummary(
+        id = id,
+        name = name,
+        category = "Strength",
+        equipment = null,
+        targetMuscles = "Full body",
+        isCustom = false,
+    )
 
     private fun block(
         exerciseId: String,
         targetReps: String? = null,
         sets: List<LoggedWorkoutSetDetail> = emptyList(),
-    ): WorkoutExerciseBlock =
-        WorkoutExerciseBlock(
-            exercise = exercise(id = exerciseId, name = exerciseId.replaceFirstChar { it.uppercase() }),
-            targetReps = targetReps,
-            sets = sets,
-        )
+    ): WorkoutExerciseBlock = WorkoutExerciseBlock(
+        exercise = exercise(id = exerciseId, name = exerciseId.replaceFirstChar { it.uppercase() }),
+        targetReps = targetReps,
+        sets = sets,
+    )
 }

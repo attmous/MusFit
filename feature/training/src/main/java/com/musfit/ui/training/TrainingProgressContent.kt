@@ -402,11 +402,10 @@ private fun RecentPrsSection(
 // --- Display helpers (pure, unit-tested) ---
 
 /** "BACK SQUAT · ESTIMATED 1RM" — the e1RM hero overline. */
-internal fun progressHeroOverline(exerciseName: String?): String =
-    listOfNotNull(
-        exerciseName?.trim()?.takeIf(String::isNotBlank)?.uppercase(Locale.US),
-        "ESTIMATED 1RM",
-    ).joinToString(" · ")
+internal fun progressHeroOverline(exerciseName: String?): String = listOfNotNull(
+    exerciseName?.trim()?.takeIf(String::isNotBlank)?.uppercase(Locale.US),
+    "ESTIMATED 1RM",
+).joinToString(" · ")
 
 internal fun filterTrendByPeriod(
     trend: List<TrainingTrendPoint>,
@@ -455,13 +454,12 @@ internal fun weekLabel(weekStartEpochDay: Long): String {
 }
 
 /** "11.2 t" above a tonne, otherwise "840 kg". */
-internal fun volumeTonsLabel(volumeKg: Double): String =
-    if (volumeKg >= 1000.0) {
-        val tons = volumeKg / 1000.0
-        if (tons % 1.0 == 0.0) "${tons.toInt()} t" else String.format(Locale.US, "%.1f t", tons)
-    } else {
-        "${Math.round(volumeKg)} kg"
-    }
+internal fun volumeTonsLabel(volumeKg: Double): String = if (volumeKg >= 1000.0) {
+    val tons = volumeKg / 1000.0
+    if (tons % 1.0 == 0.0) "${tons.toInt()} t" else String.format(Locale.US, "%.1f t", tons)
+} else {
+    "${Math.round(volumeKg)} kg"
+}
 
 /** PR row meta (mock 5b): "107.5 kg × 5 · Wed". */
 internal fun prMetaLabel(pr: TrainingPrRecord, today: LocalDate): String {
@@ -475,12 +473,11 @@ internal fun prMetaLabel(pr: TrainingPrRecord, today: LocalDate): String {
     return "${pr.weightKg.formatE1rm()} kg × ${pr.reps} · $dateLabel"
 }
 
-internal fun Double.formatE1rm(): String =
-    if (this % 1.0 == 0.0) {
-        toInt().toString()
-    } else {
-        String.format(Locale.US, "%.1f", this)
-    }
+internal fun Double.formatE1rm(): String = if (this % 1.0 == 0.0) {
+    toInt().toString()
+} else {
+    String.format(Locale.US, "%.1f", this)
+}
 
 private const val VOLUME_WEEK_COUNT = 6
 private const val RECENT_PR_COUNT = 5

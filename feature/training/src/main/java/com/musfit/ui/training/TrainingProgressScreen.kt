@@ -46,10 +46,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.data.repository.ExerciseSummary
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 
 /**
@@ -62,7 +62,7 @@ fun TrainingProgressScreen(
     viewModel: TrainingProgressViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
-    val accent = tabAccentFor(AppDestination.Training)
+    val accent = tabAccentFor(TabAccentRole.Training)
 
     Scaffold(
         containerColor = MusFitTheme.colors.background,

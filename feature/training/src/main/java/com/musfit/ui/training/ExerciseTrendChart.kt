@@ -97,7 +97,13 @@ fun ExerciseTrendChart(
             detectTapGestures { offset ->
                 if (values.isEmpty()) return@detectTapGestures
                 val geometry = TrendChartScaler.computeChartGeometry(
-                    values, size.width.toFloat(), size.height.toFloat(), padL, padR, padT, padB,
+                    values,
+                    size.width.toFloat(),
+                    size.height.toFloat(),
+                    padL,
+                    padR,
+                    padT,
+                    padB,
                 )
                 selectedIndex = TrendChartScaler.nearestIndex(offset.x, geometry.points.map { it.x })
             }
@@ -191,16 +197,13 @@ fun ExerciseTrendChart(
     }
 }
 
-private fun formatAxisValue(value: Double, metric: TrendMetric): String =
-    if (metric == TrendMetric.Volume) compactK(value) else value.formatKgValue()
+private fun formatAxisValue(value: Double, metric: TrendMetric): String = if (metric == TrendMetric.Volume) compactK(value) else value.formatKgValue()
 
-private fun compactK(value: Double): String =
-    if (value >= 1000.0) {
-        val k = value / 1000.0
-        if (k % 1.0 == 0.0) "${k.toInt()}k" else String.format(Locale.US, "%.1fk", k)
-    } else {
-        value.formatKgValue()
-    }
+private fun compactK(value: Double): String = if (value >= 1000.0) {
+    val k = value / 1000.0
+    if (k % 1.0 == 0.0) "${k.toInt()}k" else String.format(Locale.US, "%.1fk", k)
+} else {
+    value.formatKgValue()
+}
 
-private fun Double.formatKgValue(): String =
-    if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)
+private fun Double.formatKgValue(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)

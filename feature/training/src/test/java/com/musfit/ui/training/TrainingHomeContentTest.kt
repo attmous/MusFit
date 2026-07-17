@@ -1,12 +1,12 @@
 package com.musfit.ui.training
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineFolder
-import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.RoutineSetInput
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
+import com.musfit.data.repository.RoutineSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -426,29 +426,27 @@ class TrainingHomeContentTest {
         name: String,
         folderName: String?,
         notes: String? = null,
-    ): RoutineSummary =
-        RoutineSummary(
-            id = id,
-            name = name,
-            notes = notes,
-            exerciseCount = 4,
-            targetSetCount = 12,
-            isStarter = folderName != null,
-            folderName = folderName,
-        )
+    ): RoutineSummary = RoutineSummary(
+        id = id,
+        name = name,
+        notes = notes,
+        exerciseCount = 4,
+        targetSetCount = 12,
+        isStarter = folderName != null,
+        folderName = folderName,
+    )
 
     private fun exercise(
         id: String,
         name: String,
         equipment: String? = null,
         targetMuscles: String = "full body",
-    ): ExerciseSummary =
-        ExerciseSummary(
-            id = id,
-            name = name,
-            category = "strength",
-            equipment = equipment,
-            targetMuscles = targetMuscles,
-            isCustom = false,
-        )
+    ): ExerciseSummary = ExerciseSummary(
+        id = id,
+        name = name,
+        category = "strength",
+        equipment = equipment,
+        targetMuscles = targetMuscles,
+        isCustom = false,
+    )
 }

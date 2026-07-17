@@ -2,10 +2,10 @@ package com.musfit.ui.training
 
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.WorkoutHistorySummary
-import java.time.LocalDate
-import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneId
 
 class TrainingDashboardDisplayTest {
     // Wednesday 8 Jul 2026.
@@ -158,24 +158,22 @@ class TrainingDashboardDisplayTest {
         exerciseCount: Int = 5,
         targetSetCount: Int = 13,
         muscleGroups: List<String> = emptyList(),
-    ): RoutineSummary =
-        RoutineSummary(
-            id = name.lowercase().replace(' ', '-'),
-            name = name,
-            notes = null,
-            exerciseCount = exerciseCount,
-            targetSetCount = targetSetCount,
-            isStarter = false,
-            muscleGroups = muscleGroups,
-        )
+    ): RoutineSummary = RoutineSummary(
+        id = name.lowercase().replace(' ', '-'),
+        name = name,
+        notes = null,
+        exerciseCount = exerciseCount,
+        targetSetCount = targetSetCount,
+        isStarter = false,
+        muscleGroups = muscleGroups,
+    )
 
-    private fun workout(title: String, date: LocalDate): WorkoutHistorySummary =
-        WorkoutHistorySummary(
-            sessionId = "$title-$date",
-            title = title,
-            startedAtEpochMillis = date.atStartOfDay(ZoneId.systemDefault()).plusHours(10).toInstant().toEpochMilli(),
-            endedAtEpochMillis = null,
-            completedSetCount = 10,
-            totalVolumeKg = 1000.0,
-        )
+    private fun workout(title: String, date: LocalDate): WorkoutHistorySummary = WorkoutHistorySummary(
+        sessionId = "$title-$date",
+        title = title,
+        startedAtEpochMillis = date.atStartOfDay(ZoneId.systemDefault()).plusHours(10).toInstant().toEpochMilli(),
+        endedAtEpochMillis = null,
+        completedSetCount = 10,
+        totalVolumeKg = 1000.0,
+    )
 }

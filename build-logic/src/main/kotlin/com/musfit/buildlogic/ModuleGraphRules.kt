@@ -20,6 +20,12 @@ internal object ModuleGraphRules {
             ":core:testing",
             ":integration:scanner",
         ),
+        ":feature:training" to setOf(
+            ":core:model",
+            ":core:data",
+            ":core:designsystem",
+            ":core:testing",
+        ),
         ":benchmark" to setOf(":app"),
         ":baselineprofile" to setOf(":app"),
     )

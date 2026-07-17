@@ -2,9 +2,9 @@ package com.musfit.ui.training
 
 import com.musfit.data.repository.TrainingPrRecord
 import com.musfit.domain.model.TrainingTrendPoint
-import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.LocalDate
 
 class TrainingProgressDisplayTest {
     private val today: LocalDate = LocalDate.of(2026, 7, 8)
@@ -83,20 +83,18 @@ class TrainingProgressDisplayTest {
         )
     }
 
-    private fun point(daysAgo: Long, e1rm: Double): TrainingTrendPoint =
-        TrainingTrendPoint(
-            dateEpochDay = today.minusDays(daysAgo).toEpochDay(),
-            volumeKg = 1000.0,
-            bestEstimatedOneRepMaxKg = e1rm,
-        )
+    private fun point(daysAgo: Long, e1rm: Double): TrainingTrendPoint = TrainingTrendPoint(
+        dateEpochDay = today.minusDays(daysAgo).toEpochDay(),
+        volumeKg = 1000.0,
+        bestEstimatedOneRepMaxKg = e1rm,
+    )
 
-    private fun pr(date: LocalDate, reps: Int, weightKg: Double): TrainingPrRecord =
-        TrainingPrRecord(
-            exerciseId = "squat",
-            exerciseName = "Back Squat",
-            dateEpochDay = date.toEpochDay(),
-            reps = reps,
-            weightKg = weightKg,
-            estimatedOneRepMaxKg = 128.0,
-        )
+    private fun pr(date: LocalDate, reps: Int, weightKg: Double): TrainingPrRecord = TrainingPrRecord(
+        exerciseId = "squat",
+        exerciseName = "Back Squat",
+        dateEpochDay = date.toEpochDay(),
+        reps = reps,
+        weightKg = weightKg,
+        estimatedOneRepMaxKg = 128.0,
+    )
 }
