@@ -502,6 +502,7 @@ dependencies {
     androidTestUtil(libs.androidx.test.orchestrator)
 
     testImplementation(libs.junit)
+    testImplementation(project(":core:testing"))
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
