@@ -1,6 +1,7 @@
 import io.gitlab.arturbosch.detekt.Detekt
 
 plugins {
+    id("musfit.architecture")
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.compose.compiler) apply false
@@ -21,6 +22,7 @@ spotless {
             "app/src/**/*.kt",
             "baselineprofile/src/**/*.kt",
             "benchmark/src/**/*.kt",
+            "build-logic/src/**/*.kt",
         )
         targetExclude("app/src/main/generated/**")
         ktlint("1.8.0").editorConfigOverride(
@@ -33,6 +35,8 @@ spotless {
             "app/*.gradle.kts",
             "baselineprofile/*.gradle.kts",
             "benchmark/*.gradle.kts",
+            "build-logic/*.gradle.kts",
+            "build-logic/src/**/*.gradle.kts",
         )
         ktlint("1.8.0")
     }
