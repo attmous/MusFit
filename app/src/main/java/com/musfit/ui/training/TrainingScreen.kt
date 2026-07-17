@@ -89,7 +89,38 @@ fun TrainingScreen(
     onOpenProgress: () -> Unit = {},
     onOpenCoach: () -> Unit = {},
 ) {
-    val state by viewModel.state.collectAsState()
+    val routeState by viewModel.routeState.collectAsState()
+    when (routeState.surfaceGroup) {
+        TrainingSurfaceGroup.RoutinesLibrary -> {
+            val state by viewModel.routinesLibraryState.collectAsState()
+            TrainingProjectedSurface(
+                state = state.content,
+                viewModel = viewModel,
+                onOpenProgress = onOpenProgress,
+                onOpenCoach = onOpenCoach,
+            )
+        }
+
+        TrainingSurfaceGroup.ActiveHistory -> {
+            val state by viewModel.activeHistoryState.collectAsState()
+            TrainingProjectedSurface(
+                state = state.content,
+                viewModel = viewModel,
+                onOpenProgress = onOpenProgress,
+                onOpenCoach = onOpenCoach,
+            )
+        }
+    }
+}
+
+@Composable
+@Suppress("LongMethod", "ReturnCount")
+private fun TrainingProjectedSurface(
+    state: TrainingUiState,
+    viewModel: TrainingViewModel,
+    onOpenProgress: () -> Unit,
+    onOpenCoach: () -> Unit,
+) {
     val activeWorkout = state.activeWorkout
     val accent = tabAccentFor(AppDestination.Training)
 
@@ -534,8 +565,14 @@ private fun TrainingResumeSplitButton(
                 }
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(text = { Text("View details") }, onClick = { menuOpen = false; onResume() })
-                DropdownMenuItem(text = { Text("Discard") }, onClick = { menuOpen = false; onDiscard() })
+                DropdownMenuItem(text = { Text("View details") }, onClick = {
+                    menuOpen = false
+                    onResume()
+                })
+                DropdownMenuItem(text = { Text("Discard") }, onClick = {
+                    menuOpen = false
+                    onDiscard()
+                })
             }
         }
     }
@@ -593,29 +630,27 @@ private fun TrainingWeekCard(
 
 /** "2 of 3 sessions · 3.8 t volume" with the numbers in emphasized ink. */
 @Composable
-private fun trainingWeekHeaderMeta(overview: TrainingHistoryOverview, weeklyTarget: Int) =
-    buildAnnotatedString {
-        val emphasized = SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface)
-        withStyle(emphasized) {
-            append(
-                if (weeklyTarget > 0) {
-                    "${overview.currentWeekWorkoutCount} of $weeklyTarget"
-                } else {
-                    "${overview.currentWeekWorkoutCount}"
-                },
-            )
-        }
-        append(if (overview.currentWeekWorkoutCount == 1 && weeklyTarget <= 0) " session · " else " sessions · ")
-        withStyle(emphasized) { append(trainingWeekVolumeFigure(overview.currentWeekVolumeKg)) }
-        append(" volume")
+private fun trainingWeekHeaderMeta(overview: TrainingHistoryOverview, weeklyTarget: Int) = buildAnnotatedString {
+    val emphasized = SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface)
+    withStyle(emphasized) {
+        append(
+            if (weeklyTarget > 0) {
+                "${overview.currentWeekWorkoutCount} of $weeklyTarget"
+            } else {
+                "${overview.currentWeekWorkoutCount}"
+            },
+        )
     }
+    append(if (overview.currentWeekWorkoutCount == 1 && weeklyTarget <= 0) " session · " else " sessions · ")
+    withStyle(emphasized) { append(trainingWeekVolumeFigure(overview.currentWeekVolumeKg)) }
+    append(" volume")
+}
 
-internal fun trainingWeekVolumeFigure(volumeKg: Double): String =
-    if (volumeKg >= 1000.0) {
-        String.format(Locale.US, "%.1f t", volumeKg / 1000.0)
-    } else {
-        "${volumeKg.formatKg()} kg"
-    }
+internal fun trainingWeekVolumeFigure(volumeKg: Double): String = if (volumeKg >= 1000.0) {
+    String.format(Locale.US, "%.1f t", volumeKg / 1000.0)
+} else {
+    "${volumeKg.formatKg()} kg"
+}
 
 @Composable
 private fun TrainingWeekDayCircle(day: TrainingWeekDay, accent: TabAccent) {
@@ -632,6 +667,7 @@ private fun TrainingWeekDayCircle(day: TrainingWeekDay, accent: TabAccent) {
                 size = 36.dp,
                 iconSize = 16.dp,
             )
+
             day.isPlanned -> {
                 val dashColor = accent.color
                 Box(
@@ -651,6 +687,7 @@ private fun TrainingWeekDayCircle(day: TrainingWeekDay, accent: TabAccent) {
                         },
                 )
             }
+
             else -> Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -1240,12 +1277,14 @@ internal fun trainingCoachCue(
     return when {
         done >= goal ->
             "Weekly goal done — $done of $goal sessions. Recovery counts too."
+
         done == 0 ->
             if (nextRoutineName != null) {
                 "No sessions yet this week — $nextRoutineName would be a good start."
             } else {
                 "No sessions yet this week — start with an empty workout."
             }
+
         else ->
             if (nextRoutineName != null) {
                 "$done of $goal sessions this week — $nextRoutineName is up next."
@@ -1255,9 +1294,8 @@ internal fun trainingCoachCue(
     }
 }
 
-private fun Double.formatKg(): String =
-    if (this % 1.0 == 0.0) {
-        toInt().toString()
-    } else {
-        String.format(Locale.US, "%.1f", this)
-    }
+private fun Double.formatKg(): String = if (this % 1.0 == 0.0) {
+    toInt().toString()
+} else {
+    String.format(Locale.US, "%.1f", this)
+}

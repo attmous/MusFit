@@ -194,6 +194,14 @@ are coordinated through `TrainingPage`; `TrainingSection.Exercises` remains only
 as a legacy state marker while opening exercise detail. These are not separate
 app-shell routes.
 
+The screen selects a destination-lifetime projection through
+`TrainingRouteUiState`: routines, the exercise library, and their editors collect
+`TrainingRoutinesLibraryUiState`, while active workout and history collect
+`TrainingActiveHistoryUiState`. `TrainingUiState` remains the internal mutation
+and restoration compatibility model; no Training composable collects it as one
+aggregate flow. Active workouts remain Room-owned, and closing the active-workout
+screen still clears the screen-scoped rest timer.
+
 `onOpenProgress` opens the Profile-owned `profile-training-progress` route.
 `onOpenCoach` opens the same global coach sheet used by the bottom coach FAB.
 Training handles its in-feature back stack before back falls through to the
