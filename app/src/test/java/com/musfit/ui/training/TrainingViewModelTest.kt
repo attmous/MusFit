@@ -793,6 +793,21 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun missingTypedRoutineEditorDestination_requestsPopWithoutOpeningEditor() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        var destinationPopped = false
+
+        viewModel.openRoutineEditor("missing-routine") { destinationPopped = true }
+        assertFalse(destinationPopped)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(destinationPopped)
+        assertFalse(viewModel.state.value.routineEditor.isOpen)
+        assertEquals("Routine not found.", viewModel.state.value.message)
+    }
+
+    @Test
     fun startBlankWorkout_startsRoomOwnedWorkout() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
