@@ -21,18 +21,6 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 
-enum class AiCoachProviderKind {
-    Disabled,
-    OpenAiCompatible,
-    LocalAgent,
-}
-
-enum class LocalAgentKind {
-    OpenClaw,
-    HermesAgent,
-    Custom,
-}
-
 data class AiCoachSettings(
     val providerKind: AiCoachProviderKind = AiCoachProviderKind.Disabled,
     val baseUrl: String = "",
@@ -55,14 +43,6 @@ sealed interface AiCoachApiKeyUpdate {
     data class Replace(val value: String) : AiCoachApiKeyUpdate
     object Clear : AiCoachApiKeyUpdate
 }
-
-data class AiCoachConnection(
-    val providerKind: AiCoachProviderKind,
-    val baseUrl: String,
-    val modelName: String,
-    val localAgentKind: LocalAgentKind,
-    val apiKey: String?,
-)
 
 data class AiCoachDebugDefaults(
     val hermesBaseUrl: String = "",

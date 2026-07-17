@@ -5,6 +5,7 @@ internal object ModuleGraphRules {
         ":core" to emptySet(),
         ":core:model" to emptySet(),
         ":core:database" to emptySet(),
+        ":core:network" to setOf(":core:model"),
         ":core:designsystem" to setOf(":core:model"),
         ":core:testing" to setOf(":core:model", ":core:designsystem"),
         ":benchmark" to setOf(":app"),

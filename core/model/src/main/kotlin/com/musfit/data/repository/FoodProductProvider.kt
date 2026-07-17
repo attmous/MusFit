@@ -2,6 +2,19 @@ package com.musfit.data.repository
 
 import com.musfit.domain.model.FoodNutrition
 
+data class NutritionDetails(
+    val fiberGrams: Double = 0.0,
+    val sugarGrams: Double = 0.0,
+    val saturatedFatGrams: Double = 0.0,
+    val sodiumMilligrams: Double = 0.0,
+    val potassiumMilligrams: Double = 0.0,
+    val calciumMilligrams: Double = 0.0,
+    val ironMilligrams: Double = 0.0,
+    val vitaminDMicrograms: Double = 0.0,
+    val vitaminCMilligrams: Double = 0.0,
+    val magnesiumMilligrams: Double = 0.0,
+)
+
 /** Normalized product lookup port. Transport DTOs remain inside the remote adapter. */
 interface FoodProductProvider {
     suspend fun lookupBarcode(barcode: String): ProductLookupResult

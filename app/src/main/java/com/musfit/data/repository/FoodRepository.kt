@@ -63,19 +63,6 @@ private data class PreparedFoodHealthExport(
     val staleLedgerRecords: List<HealthConnectExportRecordEntity>,
 )
 
-data class NutritionDetails(
-    val fiberGrams: Double = 0.0,
-    val sugarGrams: Double = 0.0,
-    val saturatedFatGrams: Double = 0.0,
-    val sodiumMilligrams: Double = 0.0,
-    val potassiumMilligrams: Double = 0.0,
-    val calciumMilligrams: Double = 0.0,
-    val ironMilligrams: Double = 0.0,
-    val vitaminDMicrograms: Double = 0.0,
-    val vitaminCMilligrams: Double = 0.0,
-    val magnesiumMilligrams: Double = 0.0,
-)
-
 data class FoodServingInput(
     val label: String,
     val grams: Double,

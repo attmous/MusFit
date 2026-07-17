@@ -446,6 +446,7 @@ ksp {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:database"))
+    implementation(project(":core:network"))
     implementation(project(":core:designsystem"))
     implementation(platform(libs.androidx.compose.bom))
     // Room's schema parser uses serialization 1.8.1. Align the app and

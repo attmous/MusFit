@@ -1,13 +1,12 @@
 package com.musfit.data.remote.coach
 
-import com.musfit.BuildConfig
-import java.net.URI
+import okhttp3.Request
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
-import okhttp3.Request
+import java.net.URI
 
 class AiCoachEndpointPolicyTest {
     @Test
@@ -48,7 +47,7 @@ class AiCoachEndpointPolicyTest {
         )
 
         internalAllowed.forEach { (url, expectedRoute) ->
-            if (isInternal) {
+            if (IS_INTERNAL) {
                 assertEquals(expectedRoute, AiCoachEndpointPolicy.requireAllowed(url).route)
             } else {
                 assertRejected(url)
@@ -123,7 +122,7 @@ class AiCoachEndpointPolicyTest {
         assertFalse(AiCoachEndpointPolicy.requiresPrivateLanRouting("https://api.example.com/v1/"))
         assertFalse(AiCoachEndpointPolicy.requiresPrivateLanRouting("https://localhost:8443/v1/"))
         assertEquals(
-            isInternal,
+            IS_INTERNAL,
             AiCoachEndpointPolicy.requiresPrivateLanRouting("https://192.168.1.8:8443/v1/"),
         )
         assertFalse(AiCoachEndpointPolicy.requiresPrivateLanRouting("http://coach.local/v1/"))
@@ -239,6 +238,6 @@ class AiCoachEndpointPolicyTest {
     }
 
     private companion object {
-        val isInternal: Boolean = BuildConfig.APPLICATION_ID == "com.musfit.internal"
+        const val IS_INTERNAL: Boolean = AI_COACH_PRIVATE_HTTP_ENABLED
     }
 }

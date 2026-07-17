@@ -3,13 +3,13 @@ package com.musfit.data.remote.coach
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
-internal enum class AiCoachEndpointRoute {
+enum class AiCoachEndpointRoute {
     Default,
     Loopback,
     PrivateLan,
 }
 
-internal data class ValidatedAiCoachEndpoint(
+data class ValidatedAiCoachEndpoint(
     val baseUrl: HttpUrl,
     val normalizedBaseUrl: String,
     val route: AiCoachEndpointRoute,
@@ -32,7 +32,7 @@ internal data class ValidatedAiCoachEndpoint(
  * CIDRs, so the internal variant's broad platform cleartext opt-in is safe only
  * in combination with this request-boundary gate.
  */
-internal object AiCoachEndpointPolicy {
+object AiCoachEndpointPolicy {
     fun requireAllowed(rawBaseUrl: String): ValidatedAiCoachEndpoint {
         val trimmed = rawBaseUrl.trim()
         val raw = parseStrictUrl(trimmed)
@@ -64,13 +64,11 @@ internal object AiCoachEndpointPolicy {
         )
     }
 
-    fun normalizedBaseUrlOrNull(rawBaseUrl: String): String? =
-        runCatching { requireAllowed(rawBaseUrl).normalizedBaseUrl }.getOrNull()
+    fun normalizedBaseUrlOrNull(rawBaseUrl: String): String? = runCatching { requireAllowed(rawBaseUrl).normalizedBaseUrl }.getOrNull()
 
-    fun requiresPrivateLanRouting(rawBaseUrl: String): Boolean =
-        AI_COACH_PRIVATE_ENDPOINT_ROUTING_ENABLED &&
-            runCatching { requireAllowed(rawBaseUrl).route == AiCoachEndpointRoute.PrivateLan }
-                .getOrDefault(false)
+    fun requiresPrivateLanRouting(rawBaseUrl: String): Boolean = AI_COACH_PRIVATE_ENDPOINT_ROUTING_ENABLED &&
+        runCatching { requireAllowed(rawBaseUrl).route == AiCoachEndpointRoute.PrivateLan }
+            .getOrDefault(false)
 
     private fun parseStrictUrl(value: String): StrictUrl {
         if (value.isBlank() || value.any(Char::isWhitespace)) invalidUrl()
@@ -196,8 +194,7 @@ internal object AiCoachEndpointPolicy {
         }
     }
 
-    private fun ByteArray.isIpv4Mapped(): Boolean =
-        take(10).all { it == 0.toByte() } && this[10] == 0xff.toByte() && this[11] == 0xff.toByte()
+    private fun ByteArray.isIpv4Mapped(): Boolean = take(10).all { it == 0.toByte() } && this[10] == 0xff.toByte() && this[11] == 0xff.toByte()
 
     private data class StrictUrl(
         val scheme: String,
@@ -205,6 +202,5 @@ internal object AiCoachEndpointPolicy {
         val parsed: HttpUrl,
     )
 
-    private fun invalidUrl(): Nothing =
-        throw IllegalArgumentException("Enter a valid http(s) base URL.")
+    private fun invalidUrl(): Nothing = throw IllegalArgumentException("Enter a valid http(s) base URL.")
 }

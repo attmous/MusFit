@@ -2,7 +2,6 @@ package com.musfit.data.remote.coach
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.musfit.BuildConfig
 import com.musfit.data.repository.AiCoachConnection
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.LocalAgentKind
@@ -104,7 +103,7 @@ class HermesCoachClientTest {
 
     @Test
     fun privateLanRequestFailsClosedWhenNoWifiOrEthernetExists() = runTest {
-        assumeTrue(isInternal)
+        assumeTrue(IS_INTERNAL)
         val dispatches = AtomicInteger()
         val completionClient = HermesCoachClient(
             clientWithResponse(dispatches, "{}"),
@@ -129,7 +128,7 @@ class HermesCoachClientTest {
 
     @Test
     fun loopbackRequestRemainsUnboundAndCanDispatchInternally() = runTest {
-        assumeTrue(isInternal)
+        assumeTrue(IS_INTERNAL)
         val dispatches = AtomicInteger()
         val completionClient = HermesCoachClient(
             clientWithResponse(dispatches, "{}"),
@@ -182,7 +181,7 @@ class HermesCoachClientTest {
 
     @Test
     fun redirectResponseCannotCarryBearerOrChatBodyToASecondEndpoint() = runTest {
-        assumeTrue(isInternal)
+        assumeTrue(IS_INTERNAL)
         val loopback = InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1))
         val secondHopCount = AtomicInteger()
         val secondHopAuthorization = AtomicReference<String?>()
@@ -254,7 +253,7 @@ class HermesCoachClientTest {
         )
         val loopbackConnection = connection("https://127.0.0.1:8443/v1/")
 
-        assertEquals(isInternal, privateConnection.shouldPreferLocalNetwork())
+        assertEquals(IS_INTERNAL, privateConnection.shouldPreferLocalNetwork())
         assertFalse(loopbackConnection.shouldPreferLocalNetwork())
     }
 
@@ -288,6 +287,6 @@ class HermesCoachClientTest {
     private companion object {
         const val OPEN_AI_RESPONSE =
             "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Safe response\"}}]}"
-        val isInternal: Boolean = BuildConfig.APPLICATION_ID == "com.musfit.internal"
+        const val IS_INTERNAL: Boolean = AI_COACH_PRIVATE_HTTP_ENABLED
     }
 }

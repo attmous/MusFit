@@ -1,12 +1,10 @@
 package com.musfit.core.di
 
-import com.musfit.BuildConfig
 import com.musfit.data.remote.auth.GitHubAuthApi
 import com.musfit.data.remote.coach.CoachCompletionClient
 import com.musfit.data.remote.coach.HermesCoachClient
 import com.musfit.data.remote.food.OpenFoodFactsApi
 import com.musfit.data.remote.food.OpenFoodFactsProductProvider
-import com.musfit.data.repository.AuthConfig
 import com.musfit.data.repository.FoodProductProvider
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -39,13 +37,6 @@ object NetworkProvidesModule {
             },
         )
         .build()
-
-    @Provides
-    @Singleton
-    fun provideAuthConfig(): AuthConfig = AuthConfig(
-        googleWebClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
-        githubOAuthClientId = BuildConfig.GITHUB_OAUTH_CLIENT_ID,
-    )
 
     @Provides
     @Singleton

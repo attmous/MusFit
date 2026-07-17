@@ -6,14 +6,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import javax.inject.Inject
 
-data class AuthConfig(
-    val googleWebClientId: String,
-    val githubOAuthClientId: String,
-) {
-    val isGoogleConfigured: Boolean = googleWebClientId.isNotBlank()
-    val isGitHubConfigured: Boolean = githubOAuthClientId.isNotBlank()
-}
-
 data class GitHubDeviceAuthorization(
     val userCode: String,
     val verificationUri: String,
