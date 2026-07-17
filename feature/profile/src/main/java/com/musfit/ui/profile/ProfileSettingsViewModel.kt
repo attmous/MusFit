@@ -29,7 +29,6 @@ import com.musfit.data.repository.UserProfile
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.StepSource
 import com.musfit.domain.profile.RecommendedTargets
-import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -867,9 +866,9 @@ class ProfileSettingsViewModel @Inject constructor(
         }
     }
 
-    fun reportAiCoachLocalNetworkPermissionDenied() {
+    fun reportAiCoachLocalNetworkPermissionDenied(message: String) {
         mutableState.update {
-            it.copy(aiCoachMessage = LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE)
+            it.copy(aiCoachMessage = message)
         }
     }
 

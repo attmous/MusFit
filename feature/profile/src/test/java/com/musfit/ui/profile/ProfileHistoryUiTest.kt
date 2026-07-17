@@ -1,10 +1,10 @@
 package com.musfit.ui.profile
 
-import java.time.LocalDate
-import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneId
 
 class ProfileHistoryUiTest {
     private val zone = ZoneId.of("UTC")

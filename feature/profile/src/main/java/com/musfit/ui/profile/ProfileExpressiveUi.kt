@@ -12,8 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +23,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -427,6 +427,7 @@ internal fun <T> ConnectedSegmentRow(
                             )
                             Spacer(Modifier.width(5.dp))
                         }
+
                         active && !equalWidths -> {
                             Icon(
                                 Icons.Outlined.Check,
@@ -622,12 +623,11 @@ internal fun ProfileTrendChart(
         val max = maxOf(values.max(), goalValue ?: values.max())
         val plotW = size.width - padX * 2f
         val plotH = size.height - padY * 2f
-        fun yFor(value: Double): Float =
-            if (max == min) {
-                size.height / 2f
-            } else {
-                padY + plotH * (1f - ((value - min) / (max - min)).toFloat())
-            }
+        fun yFor(value: Double): Float = if (max == min) {
+            size.height / 2f
+        } else {
+            padY + plotH * (1f - ((value - min) / (max - min)).toFloat())
+        }
 
         if (goalValue != null) {
             drawLine(

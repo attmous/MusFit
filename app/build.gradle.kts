@@ -449,6 +449,7 @@ dependencies {
     implementation(project(":integration:scanner"))
     implementation(project(":feature:food"))
     implementation(project(":feature:training"))
+    implementation(project(":feature:profile"))
     implementation(platform(libs.androidx.compose.bom))
     // Room's schema parser uses serialization 1.8.1. Align the app and
     // instrumentation classloaders so MigrationTestHelper cannot resolve the

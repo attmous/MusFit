@@ -1,7 +1,7 @@
 package com.musfit.ui.profile
 
+import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,24 +45,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.musfit.BuildConfig
 import com.musfit.data.repository.AccountErasureScope
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.UserProfile
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.groupedShape
-import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION
-import com.musfit.ui.permissions.hasLocalNetworkPermission
-import com.musfit.ui.permissions.requiresLocalNetworkPermission
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
-import com.musfit.ui.transfer.DataTransferActivity
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.Period
@@ -70,13 +66,24 @@ import java.time.Period
 /** Inner settings surfaces reached from the 11b hub. */
 private enum class SettingsSubPage { AiCoach, HealthConnect, DataPrivacy }
 
+data class ProfileSettingsEntryConfig(
+    val googleWebClientId: String,
+    val versionName: String,
+    val localNetworkPermission: String,
+    val localNetworkPermissionDeniedMessage: String,
+    val requiresLocalNetworkPermission: (String) -> Boolean,
+    val hasLocalNetworkPermission: (Context) -> Boolean,
+)
+
 @Composable
 fun ProfileSettingsScreen(
     onBack: () -> Unit,
+    onOpenDataTransfer: () -> Unit,
+    entryConfig: ProfileSettingsEntryConfig,
     viewModel: ProfileSettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
-    val accent = tabAccentFor(AppDestination.Profile)
+    val accent = tabAccentFor(TabAccentRole.Profile)
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var subPage by rememberSaveable { mutableStateOf<SettingsSubPage?>(null) }
@@ -90,13 +97,13 @@ fun ProfileSettingsScreen(
         if (granted) {
             viewModel.testAiCoachConnection()
         } else {
-            viewModel.reportAiCoachLocalNetworkPermissionDenied()
+            viewModel.reportAiCoachLocalNetworkPermissionDenied(entryConfig.localNetworkPermissionDeniedMessage)
         }
     }
     val onTestAiCoach = aiCoachTestAction(
-        requiresPermission = requiresLocalNetworkPermission(state.aiCoach.baseUrl),
-        permissionGranted = hasLocalNetworkPermission(context),
-        requestPermission = { localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION) },
+        requiresPermission = entryConfig.requiresLocalNetworkPermission(state.aiCoach.baseUrl),
+        permissionGranted = entryConfig.hasLocalNetworkPermission(context),
+        requestPermission = { localNetworkPermissionLauncher.launch(entryConfig.localNetworkPermission) },
         testConnection = viewModel::testAiCoachConnection,
     )
 
@@ -135,9 +142,7 @@ fun ProfileSettingsScreen(
         SettingsSubPage.DataPrivacy -> DataPrivacySettingsPage(
             accent = accent,
             onBack = { subPage = null },
-            onOpenDataTransfer = {
-                context.startActivity(Intent(context, DataTransferActivity::class.java))
-            },
+            onOpenDataTransfer = onOpenDataTransfer,
             onDeleteAccount = { viewModel.openAccountErasure(AccountErasureScope.ActiveAccount) },
             onDeleteAllData = { viewModel.openAccountErasure(AccountErasureScope.AllAccounts) },
         )
@@ -153,7 +158,7 @@ fun ProfileSettingsScreen(
                     runCatching {
                         signInWithGoogle(
                             context = context,
-                            googleWebClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
+                            googleWebClientId = entryConfig.googleWebClientId,
                         )
                     }.onSuccess(viewModel::signInWithProvider)
                         .onFailure { viewModel.reportExternalSignInFailure("Google", it) }
@@ -166,6 +171,8 @@ fun ProfileSettingsScreen(
                 subPage = SettingsSubPage.DataPrivacy
             },
             onIncludeBurnedCaloriesChange = viewModel::setIncludeBurnedCalories,
+            googleSignInConfigured = entryConfig.googleWebClientId.isNotBlank(),
+            versionName = entryConfig.versionName,
         )
     }
 
@@ -231,7 +238,7 @@ fun ProfileSettingsScreen(
             onOpen = {
                 runCatching {
                     context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(githubDeviceCode.verificationUri)),
+                        Intent(Intent.ACTION_VIEW, githubDeviceCode.verificationUri.toUri()),
                     )
                 }.onFailure { viewModel.reportExternalSignInFailure("GitHub", it) }
             },
@@ -272,9 +279,11 @@ internal fun SettingsHub(
     onOpenHealthConnect: () -> Unit,
     onOpenDataTransfer: () -> Unit,
     onIncludeBurnedCaloriesChange: (Boolean) -> Unit,
+    googleSignInConfigured: Boolean,
+    versionName: String,
 ) {
     val signInActions = providerSignInActions(
-        googleConfigured = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank(),
+        googleConfigured = googleSignInConfigured,
         githubConfigured = state.isGitHubSignInConfigured,
         githubBusy = state.githubSignInInProgress,
     )
@@ -429,7 +438,7 @@ internal fun SettingsHub(
         GroupLabel("About")
         CompactValueRow(
             title = "MusFit",
-            value = BuildConfig.VERSION_NAME,
+            value = versionName,
             shape = RoundedCornerShape(24.dp),
         )
     }

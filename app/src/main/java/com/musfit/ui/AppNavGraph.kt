@@ -42,7 +42,6 @@ import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodNavigation
 import com.musfit.ui.food.NutritionTrendsScreen
 import com.musfit.ui.profile.ProfileScreen
-import com.musfit.ui.profile.ProfileSettingsScreen
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
@@ -156,7 +155,7 @@ fun AppNavGraph(
                     )
                 }
                 entry<ProfileSettingsNavKey> {
-                    ProfileSettingsScreen(onBack = { navigator.goBack() })
+                    ProfileSettingsEntry(onBack = { navigator.goBack() })
                 }
                 entry<TrainingProgressNavKey> {
                     TrainingProgressScreen(onBack = { navigator.goBack() })

@@ -10,8 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,8 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.password
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -166,10 +166,14 @@ private fun AiCoachStatusLine(state: ProfileSettingsUiState, accent: TabAccent) 
     val disabled = state.aiCoach.providerKind == AiCoachProviderKind.Disabled
     val (dotColor, label) = when {
         disabled -> MusFitTheme.colors.onSurfaceFaint to "Off"
+
         state.aiCoachTestState == AiCoachTestState.Testing -> accent.onContainerVariant to "Testing…"
+
         state.aiCoachTestState == AiCoachTestState.Success -> accent.color to "Connected"
+
         state.aiCoachTestState == AiCoachTestState.Failure ->
             MusFitTheme.colors.onDestructiveContainer to "Not reachable"
+
         else -> accent.onContainerVariant to "Not tested yet"
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -464,12 +468,11 @@ private fun LocalAgentKind.shortLabel(): String = when (this) {
     LocalAgentKind.Custom -> "Custom"
 }
 
-private fun apiKeyFieldLabel(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String =
-    if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
-        "API_SERVER_KEY"
-    } else {
-        "API key (optional)"
-    }
+private fun apiKeyFieldLabel(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String = if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
+    "API_SERVER_KEY"
+} else {
+    "API key (optional)"
+}
 
 private fun apiKeySupportingText(
     provider: AiCoachProviderKind,
@@ -485,9 +488,8 @@ private fun apiKeySupportingText(
     }
 }
 
-private fun aiCoachSecurityNote(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String =
-    if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
-        "Hermes requires the API_SERVER_KEY bearer token from ~/.hermes/.env. $AI_COACH_ENDPOINT_POLICY_NOTE"
-    } else {
-        "Keys stay encrypted on this device. $AI_COACH_ENDPOINT_POLICY_NOTE"
-    }
+private fun aiCoachSecurityNote(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String = if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
+    "Hermes requires the API_SERVER_KEY bearer token from ~/.hermes/.env. $AI_COACH_ENDPOINT_POLICY_NOTE"
+} else {
+    "Keys stay encrypted on this device. $AI_COACH_ENDPOINT_POLICY_NOTE"
+}

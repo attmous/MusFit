@@ -4,14 +4,10 @@ import android.content.Context
 import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.BuildConfig
-import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
 import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION
+import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
 import com.musfit.ui.permissions.hasLocalNetworkPermission
 import com.musfit.ui.permissions.requiresLocalNetworkPermission
-import com.musfit.ui.profile.AI_COACH_BASE_URL_PLACEHOLDER
-import com.musfit.ui.profile.AI_COACH_ENDPOINT_POLICY_NOTE
-import com.musfit.ui.profile.AI_COACH_LOCAL_AGENT_SUMMARY
-import com.musfit.ui.profile.HERMES_DEFAULT_BASE_URL
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -46,18 +42,10 @@ class LocalNetworkVariantContractTest {
     }
 
     @Test
-    fun endpointDefaultsAndHelpCopyMatchTheCurrentVariantPolicy() {
+    fun permissionHelpCopyMatchesTheCurrentVariantPolicy() {
         if (BuildConfig.APPLICATION_ID == INTERNAL_APPLICATION_ID) {
-            assertEquals("http://10.0.2.2:8080/v1/", HERMES_DEFAULT_BASE_URL)
-            assertTrue(AI_COACH_BASE_URL_PLACEHOLDER.startsWith("http://10.0.2.2"))
-            assertTrue(AI_COACH_LOCAL_AGENT_SUMMARY.contains("private LAN"))
-            assertTrue(AI_COACH_ENDPOINT_POLICY_NOTE.contains("private IP"))
             assertTrue(LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE.contains("Local Network"))
         } else {
-            assertTrue(HERMES_DEFAULT_BASE_URL.isBlank())
-            assertTrue(AI_COACH_BASE_URL_PLACEHOLDER.startsWith("https://"))
-            assertTrue(AI_COACH_LOCAL_AGENT_SUMMARY.contains("HTTPS"))
-            assertTrue(AI_COACH_ENDPOINT_POLICY_NOTE.contains("HTTPS"))
             assertFalse(LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE.contains("LAN", ignoreCase = true))
         }
     }

@@ -50,21 +50,19 @@ data class AccountUiState(
     val avatarUrl: String? = null,
 )
 
-internal fun Account.toUiState() =
-    AccountUiState(
-        displayName = displayName,
-        email = email,
-        providerLabel = authProvider.displayName,
-        avatarUrl = avatarUrl,
-    )
+internal fun Account.toUiState() = AccountUiState(
+    displayName = displayName,
+    email = email,
+    providerLabel = authProvider.displayName,
+    avatarUrl = avatarUrl,
+)
 
 /** Initials monogram: first letters of the first two words ("Max Berger" → "MB"). */
-internal fun String.accountInitials(): String =
-    trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        .take(2)
-        .mapNotNull { it.firstOrNull()?.uppercaseChar() }
-        .joinToString("")
-        .ifEmpty { "Y" }
+internal fun String.accountInitials(): String = trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    .take(2)
+    .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+    .joinToString("")
+    .ifEmpty { "Y" }
 
 /**
  * The 11b local-account hero: tonal container with a white initials circle,

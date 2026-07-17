@@ -52,7 +52,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.MusFitScreenHeader
@@ -68,6 +67,7 @@ import com.musfit.ui.theme.LavenderInk
 import com.musfit.ui.theme.LavenderInkDark
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 import java.util.Locale
 import kotlin.math.abs
@@ -85,7 +85,7 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
-    val accent = tabAccentFor(AppDestination.Profile)
+    val accent = tabAccentFor(TabAccentRole.Profile)
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -330,12 +330,14 @@ private fun WeightHeroCard(
                             color = accent.color,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                         )
+
                     hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
                         Text(
                             "No entries in the last 30 days.",
                             style = MusFitTheme.typography.bodySmall,
                             color = accent.onContainerVariant,
                         )
+
                     else -> // exactly one point in the window — a chart or "no entries" text would both mislead
                         Text(
                             "Log again to see a trend.",
@@ -555,9 +557,9 @@ private fun PlansAndProgressList(
     onOpenTrainingProgress: () -> Unit,
     onOpenNutritionTrends: () -> Unit,
 ) {
-    val profileAccent = tabAccentFor(AppDestination.Profile)
-    val trainingAccent = tabAccentFor(AppDestination.Training)
-    val foodAccent = tabAccentFor(AppDestination.Food)
+    val profileAccent = tabAccentFor(TabAccentRole.Profile)
+    val trainingAccent = tabAccentFor(TabAccentRole.Training)
+    val foodAccent = tabAccentFor(TabAccentRole.Food)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ProfileHubRow(
             title = "Goals & programs",
@@ -612,12 +614,15 @@ private fun PlansAndProgressList(
 }
 
 internal val MEASUREMENT_SHEET_LABELS = mapOf(
-    "waist" to "Waist", "chest" to "Chest", "arms" to "Arms",
-    "thighs" to "Thighs", "hips" to "Hips", "body_fat" to "Body fat",
+    "waist" to "Waist",
+    "chest" to "Chest",
+    "arms" to "Arms",
+    "thighs" to "Thighs",
+    "hips" to "Hips",
+    "body_fat" to "Body fat",
 )
 
-internal fun Double.format1(): String =
-    if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)
+internal fun Double.format1(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)
 
 internal fun com.musfit.domain.profile.ActivityLevel.label(): String = when (this) {
     com.musfit.domain.profile.ActivityLevel.Sedentary -> "Sedentary"

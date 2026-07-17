@@ -23,8 +23,6 @@ import com.musfit.domain.today.TodayMetric
 import com.musfit.ui.food.AddFoodScreen
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodUiState
-import com.musfit.ui.profile.ProfileSettingsUiState
-import com.musfit.ui.profile.SettingsHub
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.today.MetricCardUiState
@@ -75,19 +73,6 @@ class MusFitScreenshotRegressionTest {
                 onOpenLibrary = {},
             )
         }
-    }
-
-    @Test
-    @Config(qualifiers = "w610dp-h900dp-mdpi")
-    fun profile_foldable_light_ltr() = capture("profile-foldable-light-ltr.png", dark = false) {
-        SettingsHub(
-            state = ProfileSettingsUiState(),
-            accent = tabAccentFor(AppDestination.Profile),
-            onBack = {}, onEditAccount = {}, onOpenProfileDetails = {}, onGoogleSignIn = {},
-            onGitHubSignIn = {}, onOpenAiCoach = {}, onOpenHealthConnect = {},
-            onOpenDataTransfer = {},
-            onIncludeBurnedCaloriesChange = {},
-        )
     }
 
     @Test

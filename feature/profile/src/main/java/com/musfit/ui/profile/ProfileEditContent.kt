@@ -62,7 +62,6 @@ import com.musfit.domain.profile.EnergyCalculator
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.SheetDragHandle
 import com.musfit.ui.theme.LavenderBody
@@ -73,6 +72,7 @@ import com.musfit.ui.theme.LavenderInk
 import com.musfit.ui.theme.LavenderInkDark
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 import java.time.LocalDate
 import java.time.Period
@@ -108,7 +108,7 @@ fun ProfileEditSheet(
     onSave: (UserProfile, Double?) -> Unit,
     onApplyTargets: ((RecommendedTargets) -> Unit)? = null,
 ) {
-    val accent = tabAccentFor(AppDestination.Profile)
+    val accent = tabAccentFor(TabAccentRole.Profile)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var sexName by rememberSaveable { mutableStateOf(initial.sex?.name) }

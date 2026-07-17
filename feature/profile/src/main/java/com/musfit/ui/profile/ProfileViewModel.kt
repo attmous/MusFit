@@ -72,8 +72,12 @@ data class ProfileUiState(
 )
 
 private val MEASUREMENT_LABELS = mapOf(
-    "waist" to "Waist", "chest" to "Chest", "arms" to "Arms",
-    "thighs" to "Thighs", "hips" to "Hips", "body_fat" to "Body fat",
+    "waist" to "Waist",
+    "chest" to "Chest",
+    "arms" to "Arms",
+    "thighs" to "Thighs",
+    "hips" to "Hips",
+    "body_fat" to "Body fat",
 )
 
 private fun defaultUnitFor(type: String) = if (type == "body_fat") "%" else "cm"
@@ -324,6 +328,7 @@ internal fun buildPlansSummary(
     val dietFigure = when (goal.mode) {
         FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain ->
             "${goal.proteinGrams.roundToInt()} g protein"
+
         else -> String.format(Locale.US, "%,d kcal", goal.dailyCaloriesKcal.roundToInt())
     }
     val routine = routines.firstOrNull() // the coach's existing "next routine" convention

@@ -72,11 +72,9 @@ internal enum class HistoryRange(val chipLabel: String, val title: String, val d
 private val ENTRY_DATE_FORMAT = DateTimeFormatter.ofPattern("EEE d MMM · HH:mm", Locale.ENGLISH)
 private val AXIS_DATE_FORMAT = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
 
-private fun formatEntryTimestamp(epochMillis: Long): String =
-    Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(ENTRY_DATE_FORMAT)
+private fun formatEntryTimestamp(epochMillis: Long): String = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(ENTRY_DATE_FORMAT)
 
-private fun formatAxisDate(epochMillis: Long): String =
-    Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(AXIS_DATE_FORMAT)
+private fun formatAxisDate(epochMillis: Long): String = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(AXIS_DATE_FORMAT)
 
 internal fun historyRangeStartEpochMillis(
     range: HistoryRange,
@@ -471,9 +469,8 @@ private fun EditHistoryValueDialog(
     )
 }
 
-internal fun Double.signedFormat1(): String =
-    when {
-        this > 0 -> "+${format1()}"
-        this < 0 -> "−${abs(this).format1()}"
-        else -> "0.0"
-    }
+internal fun Double.signedFormat1(): String = when {
+    this > 0 -> "+${format1()}"
+    this < 0 -> "−${abs(this).format1()}"
+    else -> "0.0"
+}

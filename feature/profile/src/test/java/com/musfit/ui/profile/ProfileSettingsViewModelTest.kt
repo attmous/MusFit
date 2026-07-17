@@ -51,7 +51,6 @@ import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
 import com.musfit.testing.MainDispatcherRule
-import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -853,14 +852,15 @@ class ProfileSettingsViewModelTest {
 
     @Test
     fun reportAiCoachLocalNetworkPermissionDenied_updatesAiCoachMessage() = runTest {
+        val deniedMessage = "Allow Local Network access."
         val viewModel = settingsViewModel()
         dispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.reportAiCoachLocalNetworkPermissionDenied()
+        viewModel.reportAiCoachLocalNetworkPermissionDenied(deniedMessage)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(
-            LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE,
+            deniedMessage,
             viewModel.state.value.aiCoachMessage,
         )
     }
