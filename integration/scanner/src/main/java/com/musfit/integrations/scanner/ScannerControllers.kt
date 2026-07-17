@@ -73,7 +73,7 @@ class BarcodeScannerController(context: Context) : AutoCloseable {
                     useCases[1],
                 )
             },
-            unbindUseCases = { provider, useCases -> provider.unbind(*useCases.toTypedArray()) },
+            unbindUseCases = { provider, useCases -> provider.unbind(useCases[0], useCases[1]) },
             onFailure = onFailure,
         )
         session = owner
@@ -154,7 +154,7 @@ class NutritionLabelScannerController(context: Context) : AutoCloseable {
                     useCases[1],
                 )
             },
-            unbindUseCases = { provider, useCases -> provider.unbind(*useCases.toTypedArray()) },
+            unbindUseCases = { provider, useCases -> provider.unbind(useCases[0], useCases[1]) },
             onFailure = onFailure,
         )
         session = owner

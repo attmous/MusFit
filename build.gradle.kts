@@ -24,6 +24,8 @@ spotless {
             "benchmark/src/**/*.kt",
             "build-logic/src/**/*.kt",
             "core/*/src/**/*.kt",
+            "integration/*/src/**/*.kt",
+            "feature/*/src/**/*.kt",
         )
         targetExclude("app/src/main/generated/**")
         ktlint("1.8.0").editorConfigOverride(
@@ -39,6 +41,8 @@ spotless {
             "build-logic/*.gradle.kts",
             "build-logic/src/**/*.gradle.kts",
             "core/*/*.gradle.kts",
+            "integration/*/*.gradle.kts",
+            "feature/*/*.gradle.kts",
         )
         ktlint("1.8.0")
     }
@@ -76,6 +80,10 @@ detekt {
             "core/data/src/main/java",
             "core/designsystem/src/main/kotlin",
             "core/testing/src/main/kotlin",
+            "integration/healthconnect/src/main/java",
+            "integration/scanner/src/main/java",
+            "feature/food/src/main/java",
+            "feature/training/src/main/java",
         ),
     )
     config.setFrom(files("config/detekt.yml"))
@@ -130,6 +138,14 @@ tasks.register("verifyCoreModules") {
         ":integration:scanner:lintProductionRelease",
         ":integration:scanner:assembleInternalDebugAndroidTest",
         ":integration:healthconnect:assembleInternalDebugAndroidTest",
+        ":feature:food:testInternalDebugUnitTest",
+        ":feature:food:testProductionDebugUnitTest",
+        ":feature:food:lintInternalDebug",
+        ":feature:food:lintProductionRelease",
+        ":feature:training:testInternalDebugUnitTest",
+        ":feature:training:testProductionDebugUnitTest",
+        ":feature:training:lintInternalDebug",
+        ":feature:training:lintProductionRelease",
         ":core:data:assembleInternalDebugAndroidTest",
         ":core:designsystem:testDebugUnitTest",
         ":core:testing:test",

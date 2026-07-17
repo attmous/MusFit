@@ -8,6 +8,7 @@
     "^app/src/main/java/com/musfit/data/transfer/",
     "^app/src/main/java/com/musfit/integrations/",
     "^integration/(healthconnect|scanner)/src/main/java/com/musfit/integrations/",
+    "^feature/(food|training)/src/main/java/com/musfit/ui/.+ViewModel\\.kt$",
     "^app/src/main/java/com/musfit/ui/.+ViewModel\\.kt$",
     "^app/src/main/java/com/musfit/ui/App(?:Destination|NavigationStack)\\.kt$"
   ],

@@ -12,7 +12,7 @@ The policy in `config/coverage-policy.json` includes executable lines from:
 - domain logic;
 - repositories and remote/transfer boundaries;
 - Health Connect integrations;
-- ViewModels and the typed navigation state boundary.
+- ViewModels and the typed navigation state boundary, including coarse feature modules.
 
 Generated Hilt code, Room declarations/entities, dependency-injection wiring,
 and Compose rendering boilerplate are excluded. The baseline at commit
@@ -35,15 +35,17 @@ the policy against the branch diff:
 
 ```powershell
 . .\scripts\android\android-env.ps1
-.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
+.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport :feature:food:createInternalDebugUnitTestCoverageReport :feature:training:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
 $reports = @(
   "app\build\reports\coverage\test\internal\debug\report.xml"
   "core\model\build\reports\jacoco\test\jacocoTestReport.xml"
   "core\network\build\reports\coverage\test\internal\debug\report.xml"
   "core\data\build\reports\coverage\test\internal\debug\report.xml"
-)
   "integration\healthconnect\build\reports\coverage\test\internal\debug\report.xml"
   "integration\scanner\build\reports\coverage\test\internal\debug\report.xml"
+  "feature\food\build\reports\coverage\test\internal\debug\report.xml"
+  "feature\training\build\reports\coverage\test\internal\debug\report.xml"
+)
 .\scripts\coverage\verify-coverage.ps1 `
   -ReportPath $reports `
   -BaseRef origin/master
@@ -52,8 +54,8 @@ $reports = @(
 The browsable reports are written beneath
 `app/build/reports/coverage/test/internal/debug/` and
 `core/model/build/reports/jacoco/test/`, `core/network/build/reports/coverage/`,
-`core/data/build/reports/coverage/`, and both integration modules'
-`build/reports/coverage/` directories. The aggregate machine and review
+`core/data/build/reports/coverage/`, both integration modules', and both feature
+modules' `build/reports/coverage/` directories. The aggregate machine and review
 summaries are written to `build/reports/coverage-policy/`.
 
 ## Unit and instrumented aggregation

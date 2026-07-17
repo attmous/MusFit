@@ -20,6 +20,20 @@ class ModuleGraphRulesTest {
                     ":integration" to emptySet(),
                     ":integration:healthconnect" to setOf(":core:model"),
                     ":integration:scanner" to emptySet(),
+                    ":feature" to emptySet(),
+                    ":feature:food" to setOf(
+                        ":core:model",
+                        ":core:data",
+                        ":core:designsystem",
+                        ":core:testing",
+                        ":integration:scanner",
+                    ),
+                    ":feature:training" to setOf(
+                        ":core:model",
+                        ":core:data",
+                        ":core:designsystem",
+                        ":core:testing",
+                    ),
                     ":core:designsystem" to setOf(":core:model"),
                     ":core:testing" to setOf(":core:model", ":core:designsystem"),
                 ),
@@ -55,5 +69,18 @@ class ModuleGraphRulesTest {
         assertEquals(2, violations.size)
         assertTrue(violations.any { it.contains(":integration:healthconnect must not depend on :core:database") })
         assertTrue(violations.any { it.contains(":integration:scanner must not depend on :app") })
+    }
+
+    @Test
+    fun featureImplementation_cannotDependOnAppOrAnotherFeatureImplementation() {
+        val violations = ModuleGraphRules.violations(
+            mapOf(
+                ":feature:food" to setOf(":core:data", ":app", ":feature:training"),
+            ),
+        )
+
+        assertEquals(2, violations.size)
+        assertTrue(violations.any { it.contains(":feature:food must not depend on :app") })
+        assertTrue(violations.any { it.contains(":feature:food must not depend on :feature:training") })
     }
 }

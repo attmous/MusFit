@@ -118,7 +118,7 @@ jobs:
         run: |
           ./gradlew :app:musFitApi28InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
           ./gradlew :app:musFitApi37InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
-          ./gradlew :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport :app:createManagedDeviceInternalDebugAndroidTestCoverageReport -x :app:musFitApi28InternalDebugAndroidTest -x :app:musFitApi37InternalDebugAndroidTest --no-daemon --console=plain
+          ./gradlew :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport :feature:food:createInternalDebugUnitTestCoverageReport :feature:training:createInternalDebugUnitTestCoverageReport :app:createManagedDeviceInternalDebugAndroidTestCoverageReport -x :app:musFitApi28InternalDebugAndroidTest -x :app:musFitApi37InternalDebugAndroidTest --no-daemon --console=plain
           $reports = @(
             Get-ChildItem app/build/reports/coverage -Recurse -Filter report.xml -File |
               Select-Object -ExpandProperty FullName
@@ -131,6 +131,10 @@ jobs:
             Get-Item integration/healthconnect/build/reports/coverage/test/internal/debug/report.xml |
               Select-Object -ExpandProperty FullName
             Get-Item integration/scanner/build/reports/coverage/test/internal/debug/report.xml |
+              Select-Object -ExpandProperty FullName
+            Get-Item feature/food/build/reports/coverage/test/internal/debug/report.xml |
+              Select-Object -ExpandProperty FullName
+            Get-Item feature/training/build/reports/coverage/test/internal/debug/report.xml |
               Select-Object -ExpandProperty FullName
           )
           ./scripts/coverage/verify-coverage.ps1 -ReportPath $reports -BaseRef HEAD^
@@ -150,6 +154,8 @@ jobs:
             core/data/build/reports/coverage/test/internal/debug/
             integration/healthconnect/build/reports/coverage/test/internal/debug/
             integration/scanner/build/reports/coverage/test/internal/debug/
+            feature/food/build/reports/coverage/test/internal/debug/
+            feature/training/build/reports/coverage/test/internal/debug/
             build/reports/coverage-policy/
           if-no-files-found: warn
           retention-days: 14
