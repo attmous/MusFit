@@ -89,7 +89,6 @@ import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.musfit.data.repository.FoodGoalMode
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.HeroNumberMediumStyle
@@ -106,6 +105,7 @@ import com.musfit.ui.components.groupedShape
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
 
@@ -153,7 +153,7 @@ fun FoodScreen(
 ) {
     val routeState by viewModel.routeState.collectAsState()
     val diaryState by viewModel.diaryState.collectAsState()
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     val diaryActions = remember(viewModel, navigation) {
         FoodDiaryActions(
             onPreviousDay = viewModel::goToPreviousDay,
@@ -950,7 +950,7 @@ private fun FoodDateChip(
     onNextDayClick: () -> Unit,
     onTodayClick: () -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     Surface(
         color = MusFitTheme.colors.surface,
         shape = CircleShape,
@@ -1986,7 +1986,7 @@ private fun MealDetailScreen(
     onEntryClick: (String) -> Unit,
     onUndoDeleteClick: () -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     var detailExpanded by rememberSaveable(meal.id) { mutableStateOf(false) }
     val hasDetail = meal.rating?.factors?.isNotEmpty() == true ||
         meal.advancedNutritionProgress.isNotEmpty() ||
@@ -2403,7 +2403,7 @@ private fun MealSummaryRow(
     onMealClick: () -> Unit,
     onAddClick: () -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     val summary = meal.mealDiarySummary()
     Surface(
         onClick = onMealClick,

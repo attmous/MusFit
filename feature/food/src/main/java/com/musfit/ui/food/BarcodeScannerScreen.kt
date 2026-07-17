@@ -49,25 +49,7 @@ fun BarcodeScannerScreen(
     onClose: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val cameraPermission = rememberCameraPermissionAccess()
-    val controller = remember(cameraPermission.isGranted, lifecycleOwner) { BarcodeScannerController(context) }
-    var cameraReady by remember { mutableStateOf(false) }
-
-    DisposableEffect(controller, lifecycleOwner, cameraPermission.isGranted) {
-        if (cameraPermission.isGranted) {
-            controller.start(
-                lifecycleOwner = lifecycleOwner,
-                onResult = { onBarcodeDetected(it.value) },
-                onCameraReady = { cameraReady = true },
-                onFailure = { cameraReady = false },
-            )
-        }
-        onDispose {
-            cameraReady = false
-            controller.close()
-        }
-    }
 
     if (!cameraPermission.isGranted) {
         CameraPermissionDeniedContent(
@@ -76,6 +58,23 @@ fun BarcodeScannerScreen(
             onAction = cameraPermission.performAction,
         )
         return
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val controller = remember(lifecycleOwner) { BarcodeScannerController(context) }
+    var cameraReady by remember { mutableStateOf(false) }
+
+    DisposableEffect(controller, lifecycleOwner) {
+        controller.start(
+            lifecycleOwner = lifecycleOwner,
+            onResult = { onBarcodeDetected(it.value) },
+            onCameraReady = { cameraReady = true },
+            onFailure = { cameraReady = false },
+        )
+        onDispose {
+            cameraReady = false
+            controller.close()
+        }
     }
 
     BarcodeScannerCameraContent(

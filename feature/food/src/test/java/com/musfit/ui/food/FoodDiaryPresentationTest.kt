@@ -52,7 +52,6 @@ class FoodDiaryPresentationTest {
         assertEquals(MealDiarySummary("", "245 kcal", " planned"), plannedMeal.mealDiarySummary())
         assertEquals(MealDiarySummary("No items yet", "", ""), emptyMeal.mealDiarySummary())
     }
-
 }
 
 private fun foodMealSection(
@@ -60,26 +59,24 @@ private fun foodMealSection(
     plannedCaloriesKcal: Double = 0.0,
     entries: List<FoodMealEntryUiState> = emptyList(),
     rating: FoodRatingUiState? = null,
-): FoodMealSectionUiState =
-    FoodMealSectionUiState(
-        id = "breakfast",
-        title = "Breakfast",
-        recommendation = "Recommended 417 - 625 kcal",
-        caloriesKcal = caloriesKcal,
-        calorieTargetKcal = 625.0,
-        calorieProgress = 0.0,
-        plannedCaloriesKcal = plannedCaloriesKcal,
-        rating = rating,
-        entries = entries,
-    )
+): FoodMealSectionUiState = FoodMealSectionUiState(
+    id = "breakfast",
+    title = "Breakfast",
+    recommendation = "Recommended 417 - 625 kcal",
+    caloriesKcal = caloriesKcal,
+    calorieTargetKcal = 625.0,
+    calorieProgress = 0.0,
+    plannedCaloriesKcal = plannedCaloriesKcal,
+    rating = rating,
+    entries = entries,
+)
 
-private fun rating(label: String): FoodRatingUiState =
-    FoodRatingUiState(
-        label = label,
-        reason = "On plan",
-        suggestion = "Keep going",
-        tone = FoodInsightTone.Positive,
-    )
+private fun rating(label: String): FoodRatingUiState = FoodRatingUiState(
+    label = label,
+    reason = "On plan",
+    suggestion = "Keep going",
+    tone = FoodInsightTone.Positive,
+)
 
 private fun foodMealEntry(
     name: String,
@@ -89,16 +86,15 @@ private fun foodMealEntry(
     carbsGrams: Double = 0.0,
     fatGrams: Double = 0.0,
     isPlanned: Boolean = false,
-): FoodMealEntryUiState =
-    FoodMealEntryUiState(
-        id = "entry-1",
-        foodId = "food-1",
-        name = name,
-        brand = "Kitchen",
-        quantityGrams = quantityGrams,
-        caloriesKcal = caloriesKcal,
-        proteinGrams = proteinGrams,
-        carbsGrams = carbsGrams,
-        fatGrams = fatGrams,
-        isPlanned = isPlanned,
-    )
+): FoodMealEntryUiState = FoodMealEntryUiState(
+    id = "entry-1",
+    foodId = "food-1",
+    name = name,
+    brand = "Kitchen",
+    quantityGrams = quantityGrams,
+    caloriesKcal = caloriesKcal,
+    proteinGrams = proteinGrams,
+    carbsGrams = carbsGrams,
+    fatGrams = fatGrams,
+    isPlanned = isPlanned,
+)

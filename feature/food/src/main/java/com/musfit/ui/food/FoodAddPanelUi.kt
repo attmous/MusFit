@@ -60,7 +60,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.SectionOverline
@@ -69,6 +68,7 @@ import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
 
@@ -687,7 +687,7 @@ private fun AiLoggingForm(
     onCarbsChanged: (String) -> Unit,
     onFatChanged: (String) -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -932,7 +932,7 @@ private fun BarcodeFoodForm(
     onFatChanged: (String) -> Unit,
     onSaveProductClick: () -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     var editDetails by rememberSaveable(state.lookupResult == null) {
         mutableStateOf(state.lookupResult == null)
     }
@@ -1026,7 +1026,7 @@ private fun BarcodeFoodForm(
 private fun BarcodeLookupSummary(
     state: FoodUiState,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     val servingGrams = state.lookupResult?.servingQuantityGrams
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Surface(
@@ -1138,8 +1138,7 @@ private fun BarcodeLookupSummary(
     }
 }
 
-private fun statTileGrams(raw: String): String =
-    raw.takeIf { it.isNotBlank() }?.let { "$it g" } ?: "—"
+private fun statTileGrams(raw: String): String = raw.takeIf { it.isNotBlank() }?.let { "$it g" } ?: "—"
 
 @Composable
 private fun NutritionLabelScanReview(
@@ -1201,7 +1200,7 @@ internal fun CreateFoodForm(
     onLogFood: () -> Unit,
     onCreateRecipe: () -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     var editDetails by rememberSaveable(state.lookupResult == null) {
         mutableStateOf(state.lookupResult == null)
     }
@@ -1451,7 +1450,7 @@ private fun NutritionFields(
 private fun AmountNutritionPreview(
     preview: FoodAmountNutritionPreviewUiState,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -1489,11 +1488,10 @@ private fun AmountNutritionPreview(
     }
 }
 
-private fun quickInputsMatchPreset(state: FoodUiState, preset: QuickCaloriePresetUiState): Boolean =
-    state.quickCaloriesKcal.toDoubleOrNull() == preset.caloriesKcal &&
-        state.quickProteinGrams.toDoubleOrNull() == preset.proteinGrams &&
-        state.quickCarbsGrams.toDoubleOrNull() == preset.carbsGrams &&
-        state.quickFatGrams.toDoubleOrNull() == preset.fatGrams
+private fun quickInputsMatchPreset(state: FoodUiState, preset: QuickCaloriePresetUiState): Boolean = state.quickCaloriesKcal.toDoubleOrNull() == preset.caloriesKcal &&
+    state.quickProteinGrams.toDoubleOrNull() == preset.proteinGrams &&
+    state.quickCarbsGrams.toDoubleOrNull() == preset.carbsGrams &&
+    state.quickFatGrams.toDoubleOrNull() == preset.fatGrams
 
 /**
  * 9f — Quick calories: big ±25 stepper hero, favorite preset chips (tap fills

@@ -151,17 +151,14 @@ private fun List<FoodWeeklyDaySummary>.trendLabelForCalories(): String {
     }
 }
 
-private fun List<Double>.averageOrZero(): Double =
-    averageOrNull() ?: 0.0
+private fun List<Double>.averageOrZero(): Double = averageOrNull() ?: 0.0
 
-private fun List<Double>.averageOrNull(): Double? =
-    if (isEmpty()) null else average()
+private fun List<Double>.averageOrNull(): Double? = if (isEmpty()) null else average()
 
-private fun FoodDiary.hasTrackedNutrition(): Boolean =
-    totals.caloriesKcal > 0.0 ||
-        meals
-            .flatMap { meal -> meal.entries }
-            .any { entry -> entry.status == FoodDiaryEntryStatus.Logged }
+private fun FoodDiary.hasTrackedNutrition(): Boolean = totals.caloriesKcal > 0.0 ||
+    meals
+        .flatMap { meal -> meal.entries }
+        .any { entry -> entry.status == FoodDiaryEntryStatus.Logged }
 
 private fun buildWeeklyNutritionFactor(days: List<FoodWeeklyDaySummary>, goal: FoodGoal): WeeklyScoreFactor {
     if (days.isEmpty()) {
@@ -253,8 +250,7 @@ private fun buildWeeklyHabitFactor(days: List<FoodWeeklyDaySummary>): WeeklyScor
     )
 }
 
-private fun List<FoodDiaryEntry>.anyHabitKeyword(keywords: Set<String>): Boolean =
-    any { entry -> entry.matchesHabitKeyword(keywords) }
+private fun List<FoodDiaryEntry>.anyHabitKeyword(keywords: Set<String>): Boolean = any { entry -> entry.matchesHabitKeyword(keywords) }
 
 private fun Double.weeklyRangeScore(goal: Double, low: Double, high: Double): Double {
     if (!isFinite() || !goal.isFinite() || goal <= 0.0) {
@@ -292,47 +288,42 @@ private fun Double.weeklyLimitScore(goal: Double, soft: Double, high: Double): D
     }
 }
 
-private fun weeklyScoreSuggestion(nutritionScore: Int, hydrationScore: Int, habitScore: Int): String =
-    when {
-        hydrationScore < 80 -> "Raise water consistency on tracked days first."
-        nutritionScore < 80 -> "Anchor the week with protein, fiber, and calmer sodium."
-        habitScore < 67 -> "Plan fruit, vegetables, and one fish meal into the week."
-        else -> "Keep this pattern and repeat the strongest logged days."
-    }
+private fun weeklyScoreSuggestion(nutritionScore: Int, hydrationScore: Int, habitScore: Int): String = when {
+    hydrationScore < 80 -> "Raise water consistency on tracked days first."
+    nutritionScore < 80 -> "Anchor the week with protein, fiber, and calmer sodium."
+    habitScore < 67 -> "Plan fruit, vegetables, and one fish meal into the week."
+    else -> "Keep this pattern and repeat the strongest logged days."
+}
 
-private fun Int.toWeeklyScoreTone(): FoodInsightTone =
-    when {
-        this >= 80 -> FoodInsightTone.Positive
-        this >= 50 -> FoodInsightTone.Neutral
-        else -> FoodInsightTone.Warning
-    }
+private fun Int.toWeeklyScoreTone(): FoodInsightTone = when {
+    this >= 80 -> FoodInsightTone.Positive
+    this >= 50 -> FoodInsightTone.Neutral
+    else -> FoodInsightTone.Warning
+}
 
-internal fun emptyWeeklyScore(): FoodWeeklyScoreUiState =
-    FoodWeeklyScoreUiState(
-        title = "Weekly MusFit score",
-        score = 0,
-        summary = "Log food to build a weekly score.",
-        suggestion = "Track a few meals and water to see weekly patterns.",
-        tone = FoodInsightTone.Neutral,
-        factors = emptyList(),
-    )
+internal fun emptyWeeklyScore(): FoodWeeklyScoreUiState = FoodWeeklyScoreUiState(
+    title = "Weekly MusFit score",
+    score = 0,
+    summary = "Log food to build a weekly score.",
+    suggestion = "Track a few meals and water to see weekly patterns.",
+    tone = FoodInsightTone.Neutral,
+    factors = emptyList(),
+)
 
-internal fun emptyProgressStats(): FoodProgressStatsUiState =
-    FoodProgressStatsUiState(
-        weekly = emptyProgressPeriod("Last 7 days"),
-        monthly = emptyProgressPeriod("Last 28 days"),
-    )
+internal fun emptyProgressStats(): FoodProgressStatsUiState = FoodProgressStatsUiState(
+    weekly = emptyProgressPeriod("Last 7 days"),
+    monthly = emptyProgressPeriod("Last 28 days"),
+)
 
-private fun emptyProgressPeriod(title: String): FoodProgressPeriodUiState =
-    FoodProgressPeriodUiState(
-        title = title,
-        trackedDaysLabel = "0 tracked days",
-        metrics = listOf(
-            FoodProgressMetricUiState("Avg calories", "0 kcal"),
-            FoodProgressMetricUiState("Avg protein", "0 g"),
-            FoodProgressMetricUiState("Calorie target", "0/0 days"),
-            FoodProgressMetricUiState("Hydration", "0/0 days"),
-            FoodProgressMetricUiState("Habit days", "0/0"),
-        ),
-        trendLabel = "Trend needs more tracked days",
-    )
+private fun emptyProgressPeriod(title: String): FoodProgressPeriodUiState = FoodProgressPeriodUiState(
+    title = title,
+    trackedDaysLabel = "0 tracked days",
+    metrics = listOf(
+        FoodProgressMetricUiState("Avg calories", "0 kcal"),
+        FoodProgressMetricUiState("Avg protein", "0 g"),
+        FoodProgressMetricUiState("Calorie target", "0/0 days"),
+        FoodProgressMetricUiState("Hydration", "0/0 days"),
+        FoodProgressMetricUiState("Habit days", "0/0"),
+    ),
+    trendLabel = "Trend needs more tracked days",
+)

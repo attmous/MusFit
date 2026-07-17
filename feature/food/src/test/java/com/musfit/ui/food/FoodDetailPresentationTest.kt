@@ -23,7 +23,7 @@ class FoodDetailPresentationTest {
     }
 
     @Test
-    fun gramsStepperTreatsUnparsableInputAsZero()  {
+    fun gramsStepperTreatsUnparsableInputAsZero() {
         assertEquals("10", steppedGramsInput("abc", 10.0))
         assertEquals("1", steppedGramsInput("", -10.0))
     }

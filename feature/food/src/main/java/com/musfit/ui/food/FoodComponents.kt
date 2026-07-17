@@ -229,12 +229,11 @@ internal fun Double.formatNutritionDisplay(): String {
     }
 }
 
-internal fun Double.formatMicronutrientDisplay(): String =
-    if (this < 10.0 && this != roundToInt().toDouble()) {
-        formatNutritionDisplay()
-    } else {
-        roundToInt().toString()
-    }
+internal fun Double.formatMicronutrientDisplay(): String = if (this < 10.0 && this != roundToInt().toDouble()) {
+    formatNutritionDisplay()
+} else {
+    roundToInt().toString()
+}
 
 /**
  * The summarized diary row's sub line (Turn 8 8b), split so the UI can render
@@ -257,12 +256,15 @@ internal fun FoodMealSectionUiState.mealDiarySummary(): MealDiarySummary {
             qualifier = when {
                 // Pending planned items outrank the rating: the meal is still open.
                 plannedCalories > 0 -> " · so far"
+
                 rating != null -> " · ${rating.label.lowercase()}"
+
                 else -> ""
             },
         )
+
         plannedCalories > 0 -> MealDiarySummary(prefix = "", kcal = "$plannedCalories kcal", qualifier = " planned")
+
         else -> MealDiarySummary(prefix = "No items yet", kcal = "", qualifier = "")
     }
 }
-

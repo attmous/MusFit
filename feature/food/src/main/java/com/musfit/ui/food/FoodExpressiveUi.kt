@@ -50,7 +50,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
@@ -60,6 +59,7 @@ import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.NeutralOutline
 import com.musfit.ui.theme.NeutralOutlineDark
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 
 // Shared Food-package building blocks for the Turn 9 inner-screen restyle:
@@ -122,7 +122,7 @@ internal fun MealTargetChip(
     onMealSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
         Surface(
@@ -296,7 +296,7 @@ internal fun FoodAddModeRow(
     onSelect: (FoodAddMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     val modes = FoodAddMode.entries
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -429,7 +429,7 @@ internal fun FoodListItemRow(
     trailingSub: String? = null,
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     val shape = groupedShape(index, count)
     val rowContent: @Composable () -> Unit = {
         Row(

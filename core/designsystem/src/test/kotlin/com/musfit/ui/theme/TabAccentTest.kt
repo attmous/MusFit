@@ -2,7 +2,6 @@ package com.musfit.ui.theme
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import com.musfit.ui.AppDestination
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,25 +11,25 @@ class TabAccentTest {
     fun eachDestinationMapsToItsLightAccentColor() {
         // The M3 Expressive quad — coral/green/indigo/teal; amber is reserved
         // for warning semantics, not a tab accent.
-        assertEquals(Coral, tabAccentForLight(AppDestination.Today).color)
-        assertEquals(Green, tabAccentForLight(AppDestination.Food).color)
-        assertEquals(Indigo, tabAccentForLight(AppDestination.Training).color)
-        assertEquals(Teal, tabAccentForLight(AppDestination.Profile).color)
+        assertEquals(Coral, tabAccentForLight(TabAccentRole.Today).color)
+        assertEquals(Green, tabAccentForLight(TabAccentRole.Food).color)
+        assertEquals(Indigo, tabAccentForLight(TabAccentRole.Training).color)
+        assertEquals(Teal, tabAccentForLight(TabAccentRole.Profile).color)
     }
 
     @Test
     fun eachDestinationMapsToItsDarkAccentColor() {
-        assertEquals(CoralBright, tabAccentForDark(AppDestination.Today).color)
-        assertEquals(GreenBright, tabAccentForDark(AppDestination.Food).color)
-        assertEquals(IndigoBright, tabAccentForDark(AppDestination.Training).color)
-        assertEquals(TealBright, tabAccentForDark(AppDestination.Profile).color)
+        assertEquals(CoralBright, tabAccentForDark(TabAccentRole.Today).color)
+        assertEquals(GreenBright, tabAccentForDark(TabAccentRole.Food).color)
+        assertEquals(IndigoBright, tabAccentForDark(TabAccentRole.Training).color)
+        assertEquals(TealBright, tabAccentForDark(TabAccentRole.Profile).color)
     }
 
     // Accent-filled primary buttons render onColor text on a color fill; button labels are
     // labelLarge (normal text), so every pair must meet WCAG AA 4.5:1 in both modes.
     @Test
     fun accentFillOnColorPairsMeetWcagAaInLightMode() {
-        AppDestination.entries.forEach { destination ->
+        TabAccentRole.entries.forEach { destination ->
             val accent = tabAccentForLight(destination)
             val ratio = contrastRatio(accent.color, accent.onColor)
             assertTrue(
@@ -42,7 +41,7 @@ class TabAccentTest {
 
     @Test
     fun accentFillOnColorPairsMeetWcagAaInDarkMode() {
-        AppDestination.entries.forEach { destination ->
+        TabAccentRole.entries.forEach { destination ->
             val accent = tabAccentForDark(destination)
             val ratio = contrastRatio(accent.color, accent.onColor)
             assertTrue(
@@ -56,7 +55,7 @@ class TabAccentTest {
     // stay readable in both modes.
     @Test
     fun containerInkPairsMeetWcagAaInBothModes() {
-        AppDestination.entries.forEach { destination ->
+        TabAccentRole.entries.forEach { destination ->
             listOf(
                 "light" to tabAccentForLight(destination),
                 "dark" to tabAccentForDark(destination),

@@ -12,6 +12,14 @@ internal object ModuleGraphRules {
         ":integration:healthconnect" to setOf(":core:model"),
         ":integration:scanner" to emptySet(),
         ":integration" to emptySet(),
+        ":feature" to emptySet(),
+        ":feature:food" to setOf(
+            ":core:model",
+            ":core:data",
+            ":core:designsystem",
+            ":core:testing",
+            ":integration:scanner",
+        ),
         ":benchmark" to setOf(":app"),
         ":baselineprofile" to setOf(":app"),
     )

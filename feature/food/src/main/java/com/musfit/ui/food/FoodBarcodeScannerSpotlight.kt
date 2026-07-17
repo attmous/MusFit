@@ -11,7 +11,7 @@ import androidx.compose.runtime.State
 import kotlin.math.PI
 import kotlin.math.sin
 
-private const val FoodBarcodeScannerSpotlightDurationMillis = 1600
+private const val FOOD_BARCODE_SCANNER_SPOTLIGHT_DURATION_MILLIS = 1600
 
 internal data class FoodBarcodeScannerSpotlightTransform(
     val containerScale: Float,
@@ -28,7 +28,7 @@ internal fun rememberFoodBarcodeScannerSpotlightProgress(): State<Float> {
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = FoodBarcodeScannerSpotlightDurationMillis,
+                durationMillis = FOOD_BARCODE_SCANNER_SPOTLIGHT_DURATION_MILLIS,
                 easing = LinearEasing,
             ),
             repeatMode = RepeatMode.Restart,

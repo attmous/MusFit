@@ -447,6 +447,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":integration:healthconnect"))
     implementation(project(":integration:scanner"))
+    implementation(project(":feature:food"))
     implementation(platform(libs.androidx.compose.bom))
     // Room's schema parser uses serialization 1.8.1. Align the app and
     // instrumentation classloaders so MigrationTestHelper cannot resolve the

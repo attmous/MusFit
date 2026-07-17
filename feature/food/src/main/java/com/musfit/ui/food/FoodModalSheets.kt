@@ -2,12 +2,13 @@
 
 package com.musfit.ui.food
 
-import com.musfit.data.repository.FoodGoalMode
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,31 +19,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -52,26 +39,60 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.RiceBowl
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.BakeryDining
+import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Cookie
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DinnerDining
 import androidx.compose.material.icons.outlined.DocumentScanner
+import androidx.compose.material.icons.outlined.Eco
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.LunchDining
 import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Verified
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -80,48 +101,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.musfit.ui.theme.MusFitTheme
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.RiceBowl
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Bookmark
-import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Eco
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.FitnessCenter
-import androidx.compose.material.icons.outlined.LocalFireDepartment
-import androidx.compose.material.icons.outlined.Remove
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Verified
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.musfit.data.repository.FoodGoalMode
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.nutrition.NutritionCalculator
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.HairlineDetailRow
 import com.musfit.ui.components.HeroNumberMediumStyle
@@ -135,8 +133,10 @@ import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.NeutralOutline
 import com.musfit.ui.theme.NeutralOutlineDark
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
@@ -799,19 +799,17 @@ internal fun steppedCaloriesInput(current: String, deltaKcal: Int): String {
 }
 
 /** "% of day" chip label, or null when no positive day budget exists. */
-internal fun percentOfDayLabel(amountKcal: Double, dayBudgetKcal: Double): String? =
-    if (dayBudgetKcal > 0.0) "${(amountKcal / dayBudgetKcal * 100).roundToInt()}% of day" else null
+internal fun percentOfDayLabel(amountKcal: Double, dayBudgetKcal: Double): String? = if (dayBudgetKcal > 0.0) "${(amountKcal / dayBudgetKcal * 100).roundToInt()}% of day" else null
 
 /**
  * Wavy-bar fill for a macro amount: fraction of the daily gram target when one
  * is set; otherwise capped against a 100 g reference so the bar stays honest.
  */
-internal fun macroFillFraction(amountGrams: Double, dayGoalGrams: Double): Float =
-    if (dayGoalGrams > 0.0) {
-        (amountGrams / dayGoalGrams).toFloat().coerceIn(0f, 1f)
-    } else {
-        (amountGrams / 100.0).toFloat().coerceIn(0f, 1f)
-    }
+internal fun macroFillFraction(amountGrams: Double, dayGoalGrams: Double): Float = if (dayGoalGrams > 0.0) {
+    (amountGrams / dayGoalGrams).toFloat().coerceIn(0f, 1f)
+} else {
+    (amountGrams / 100.0).toFloat().coerceIn(0f, 1f)
+}
 
 /**
  * Macro split (carbs %, protein %, fat %) of the calories the macro gram
@@ -838,8 +836,7 @@ internal fun macroSplitPercents(
 }
 
 /** The meal the add/detail flows currently target, lowercased for pill copy. */
-private fun FoodUiState.detailTargetMealLabel(): String =
-    (visibleMealDefinitions.firstOrNull { it.id == mealType }?.title ?: selectedMealTitle).lowercase()
+private fun FoodUiState.detailTargetMealLabel(): String = (visibleMealDefinitions.firstOrNull { it.id == mealType }?.title ?: selectedMealTitle).lowercase()
 
 @Composable
 internal fun FoodDetailPanel(
@@ -923,7 +920,7 @@ internal fun FoodDetailPanel(
 
 @Composable
 private fun FoodDetailHeader(food: SavedFoodUiState, onFavoriteClick: () -> Unit) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(13.dp),
@@ -985,8 +982,10 @@ private fun FoodDetailTrustRow(
         when (food.trust.level) {
             FoodTrustLevel.Imported ->
                 FoodTrustChip(Icons.Outlined.Verified, MusFitTheme.colors.brand, food.sourceLabel)
+
             FoodTrustLevel.Manual ->
                 FoodTrustChip(Icons.Outlined.Edit, MusFitTheme.colors.onSurfaceVariant, "Edited by you")
+
             FoodTrustLevel.NeedsReview ->
                 FoodTrustChip(Icons.Outlined.ErrorOutline, MusFitTheme.colors.warning, food.trust.label)
         }
@@ -1101,7 +1100,7 @@ private fun FoodDetailPreviewHero(
     amountKcal: Double,
     dayBudgetKcal: Double,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     Surface(color = accent.container, shape = RoundedCornerShape(28.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1294,7 +1293,7 @@ internal fun DiaryEntryEditorPanel(
 ) {
     val editor = state.diaryEntryEditor ?: return
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1713,8 +1712,10 @@ internal fun SavedFoodEditorScreen(
                 when (savedSource.trust.level) {
                     FoodTrustLevel.Imported ->
                         FoodTrustChip(Icons.Outlined.Verified, MusFitTheme.colors.brand, savedSource.sourceLabel)
+
                     FoodTrustLevel.Manual ->
                         FoodTrustChip(Icons.Outlined.Edit, MusFitTheme.colors.onSurfaceVariant, savedSource.trust.label)
+
                     FoodTrustLevel.NeedsReview ->
                         FoodTrustChip(Icons.Outlined.ErrorOutline, MusFitTheme.colors.warning, savedSource.trust.label)
                 }
@@ -2208,7 +2209,7 @@ internal fun GoalEditorScreen(
     onSaveClick: () -> Unit,
 ) {
     val editor = state.goalEditor
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     val colors = MusFitTheme.colors
     var showAllPrograms by rememberSaveable { mutableStateOf(false) }
     Column(
@@ -2516,7 +2517,7 @@ private fun GoalProgramRow(
     onApply: () -> Unit,
 ) {
     val colors = MusFitTheme.colors
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     // Badge palette cycles rose → water → amber → green down the list.
     val (badgeContainer, badgeInk) = when (index % 4) {
         0 -> colors.destructiveContainer to colors.onDestructiveContainer
@@ -2672,8 +2673,7 @@ internal fun RecipeBrowserScreen(
     }
 }
 
-private fun RecipeDiscoveryFilter.chipLabel(): String =
-    if (this == RecipeDiscoveryFilter.All) "For you" else label
+private fun RecipeDiscoveryFilter.chipLabel(): String = if (this == RecipeDiscoveryFilter.All) "For you" else label
 
 @Composable
 private fun RecipeBrowserHome(
@@ -2695,7 +2695,7 @@ private fun RecipeBrowserHome(
     onFavoriteClick: (String, Boolean) -> Unit,
     onCreateClick: () -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     val colors = MusFitTheme.colors
     var searchVisible by rememberSaveable { mutableStateOf(state.recipeDiscovery.query.isNotBlank()) }
     var showMyRecipes by rememberSaveable { mutableStateOf(false) }
@@ -2975,7 +2975,7 @@ private fun RecipeFeaturedCard(
     onPlanClick: (String) -> Unit,
     onReviewClick: (String) -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     Surface(color = accent.container, shape = RoundedCornerShape(28.dp)) {
         Column {
             RecipeBrowserThumbnail(
@@ -3343,11 +3343,10 @@ internal data class RecipeBrowserSections(
     val recipeIdeas: List<RecipeDiscoveryItemUiState>,
 )
 
-internal fun sectionRecipeBrowserItems(items: List<RecipeDiscoveryItemUiState>): RecipeBrowserSections =
-    RecipeBrowserSections(
-        savedRecipes = items.filter { it.isSavedRecipe && it.sourceRecipeId != null },
-        recipeIdeas = items.filterNot { it.isSavedRecipe && it.sourceRecipeId != null },
-    )
+internal fun sectionRecipeBrowserItems(items: List<RecipeDiscoveryItemUiState>): RecipeBrowserSections = RecipeBrowserSections(
+    savedRecipes = items.filter { it.isSavedRecipe && it.sourceRecipeId != null },
+    recipeIdeas = items.filterNot { it.isSavedRecipe && it.sourceRecipeId != null },
+)
 
 internal data class RecipeBrowserLane(
     val id: String,
@@ -3385,7 +3384,7 @@ private fun RecipeBrowserThumbnail(
     key: String,
     modifier: Modifier = Modifier,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     val base = accent.container
     val stripe = MusFitTheme.colors.surfaceVariant
     val phase = (key.hashCode().absoluteValue % 3) * 7f

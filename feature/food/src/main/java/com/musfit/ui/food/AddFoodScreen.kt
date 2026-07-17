@@ -47,11 +47,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.SectionOverline
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.roundToInt
 
@@ -120,10 +120,22 @@ fun AddFoodScreen(
                     onClick = { menuOpen = true },
                 )
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("Quick track") }, onClick = { menuOpen = false; onQuickTrack() })
-                    DropdownMenuItem(text = { Text("Copy yesterday") }, onClick = { menuOpen = false; onCopyYesterday() })
-                    DropdownMenuItem(text = { Text("Save as template") }, onClick = { menuOpen = false; onSaveTemplate() })
-                    DropdownMenuItem(text = { Text("Adjust goals") }, onClick = { menuOpen = false; onAdjustGoals() })
+                    DropdownMenuItem(text = { Text("Quick track") }, onClick = {
+                        menuOpen = false
+                        onQuickTrack()
+                    })
+                    DropdownMenuItem(text = { Text("Copy yesterday") }, onClick = {
+                        menuOpen = false
+                        onCopyYesterday()
+                    })
+                    DropdownMenuItem(text = { Text("Save as template") }, onClick = {
+                        menuOpen = false
+                        onSaveTemplate()
+                    })
+                    DropdownMenuItem(text = { Text("Adjust goals") }, onClick = {
+                        menuOpen = false
+                        onAdjustGoals()
+                    })
                 }
             }
         }
@@ -351,7 +363,7 @@ private fun SameAsYesterdayCard(
     actionVerb: String,
     onLogAll: () -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     val totalKcal = items.sumOf { it.caloriesPerServingKcal }.roundToInt()
     Surface(
         color = accent.container,
@@ -418,7 +430,7 @@ private fun AddFoodList(
     actionVerb: String,
     onFoodClick: (String) -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         foods.forEachIndexed { index, food ->
             val kcal = food.caloriesPerServingKcal.roundToInt()
@@ -458,7 +470,7 @@ private fun AddFoodList(
 /** Slim tonal replacement for the old DailyIntakeCard — quiet day context. */
 @Composable
 private fun DailyIntakeStrip(state: FoodUiState) {
-    val accent = tabAccentFor(AppDestination.Food)
+    val accent = tabAccentFor(TabAccentRole.Food)
     Surface(
         color = accent.container,
         shape = RoundedCornerShape(99.dp),

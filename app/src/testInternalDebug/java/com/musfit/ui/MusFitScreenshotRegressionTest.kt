@@ -21,7 +21,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
 import com.musfit.ui.food.AddFoodScreen
-import com.musfit.ui.food.BarcodeScannerPermissionDeniedContent
+import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodUiState
 import com.musfit.ui.profile.ProfileSettingsUiState
 import com.musfit.ui.profile.SettingsHub
@@ -115,7 +115,7 @@ class MusFitScreenshotRegressionTest {
         rtl = true,
         fontScale = 1.5f,
     ) {
-        BarcodeScannerPermissionDeniedContent(onGrantCameraAccess = {})
+        BarcodeScannerScreen(onBarcodeDetected = {}, onClose = {})
     }
 
     @Test
