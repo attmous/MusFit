@@ -18,15 +18,11 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
-import com.musfit.domain.today.MetricValue
-import com.musfit.domain.today.TodayMetric
 import com.musfit.ui.food.AddFoodScreen
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodUiState
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.tabAccentFor
-import com.musfit.ui.today.MetricCardUiState
-import com.musfit.ui.today.TodayVitalsGrid
 import com.musfit.ui.training.TrainingHomeContent
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -113,22 +109,6 @@ class MusFitScreenshotRegressionTest {
                 onStartBlankWorkout = {},
                 onNewRoutine = {},
                 onOpenLibrary = {},
-            )
-        }
-    }
-
-    @Test
-    @Config(qualifiers = "w900dp-h700dp-mdpi")
-    fun today_tablet_dark_ltr() = capture("today-tablet-dark-ltr.png", dark = true) {
-        Box(Modifier.fillMaxSize().padding(32.dp)) {
-            TodayVitalsGrid(
-                vitals = listOf(
-                    MetricCardUiState(TodayMetric.Calories, "EATEN", MetricValue.WithGoal("1,443", "of 2,450 kcal · 59%", 0.59f)),
-                    MetricCardUiState(TodayMetric.Steps, "STEPS", MetricValue.WithGoal("7,800", "of 10,000 · 78%", 0.78f)),
-                    MetricCardUiState(TodayMetric.Protein, "PROTEIN", MetricValue.WithGoal("118 g", "of 180 g · 66%", 0.66f)),
-                    MetricCardUiState(TodayMetric.Water, "WATER", MetricValue.WithGoal("1.8 L", "of 2.6 L · 67%", 0.67f)),
-                ),
-                onMetricClick = {},
             )
         }
     }

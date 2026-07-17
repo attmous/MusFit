@@ -1,8 +1,11 @@
 # Screenshot regression testing
 
 MusFit uses Roborazzi with Robolectric native graphics for deterministic JVM
-goldens. The reviewed references live in `app/src/testInternalDebug/screenshots`;
-CI verifies them and never records or replaces them.
+goldens. The reviewed references live beside their owning tests under
+`app/src/testInternalDebug/screenshots`,
+`feature/profile/src/testInternalDebug/screenshots`, and
+`feature/today/src/testInternalDebug/screenshots`; CI verifies them and never
+records or replaces them.
 
 The bounded matrix covers 400 × 800 dp phones, 610 × 900 dp foldable-sized
 windows, and 900 × 700 dp tablet/desktop-sized windows. Across the seven

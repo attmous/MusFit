@@ -6,6 +6,7 @@ import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.AiCoachChatMessage
 import com.musfit.data.repository.AiCoachChatRepository
 import com.musfit.data.repository.AiCoachProviderKind
+import com.musfit.data.repository.AiCoachRepository
 import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodRepository
 import com.musfit.data.repository.FoodWaterSummary
@@ -18,14 +19,8 @@ import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.UserProfile
 import com.musfit.data.repository.WorkoutHistorySummary
-import com.musfit.data.repository.AiCoachRepository
 import com.musfit.domain.model.NutritionTotals
-import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
-import com.musfit.ui.permissions.requiresLocalNetworkPermission
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.LocalDate
-import java.util.Locale
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +29,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.util.Locale
+import javax.inject.Inject
 import kotlin.math.roundToInt
 
 data class CoachChatUiState(
@@ -42,7 +40,7 @@ data class CoachChatUiState(
     val isSending: Boolean = false,
     val isConfigured: Boolean = false,
     val providerLabel: String = "Off",
-    val requiresLocalNetworkPermission: Boolean = false,
+    val baseUrl: String = "",
     val errorMessage: String? = null,
 )
 
@@ -67,7 +65,7 @@ class CoachChatViewModel @Inject constructor(
             messages = messages,
             isConfigured = settings.providerKind != AiCoachProviderKind.Disabled,
             providerLabel = settings.providerKind.chatLabel(settings.localAgentKind),
-            requiresLocalNetworkPermission = requiresLocalNetworkPermission(settings.baseUrl),
+            baseUrl = settings.baseUrl,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, CoachChatUiState())
 
@@ -100,9 +98,9 @@ class CoachChatViewModel @Inject constructor(
         }
     }
 
-    fun reportLocalNetworkPermissionDenied() {
+    fun reportLocalNetworkPermissionDenied(message: String) {
         mutableState.update {
-            it.copy(errorMessage = LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE)
+            it.copy(errorMessage = message)
         }
     }
 
@@ -178,7 +176,9 @@ internal fun coachSystemPrompt(
 
 private fun AiCoachProviderKind.chatLabel(localAgentKind: LocalAgentKind): String = when (this) {
     AiCoachProviderKind.Disabled -> "Off"
+
     AiCoachProviderKind.OpenAiCompatible -> "API coach"
+
     AiCoachProviderKind.LocalAgent -> when (localAgentKind) {
         LocalAgentKind.HermesAgent -> "Hermes"
         LocalAgentKind.OpenClaw -> "OpenClaw"

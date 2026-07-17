@@ -41,6 +41,13 @@ class ModuleGraphRulesTest {
                         ":core:designsystem",
                         ":core:testing",
                     ),
+                    ":feature:today" to setOf(
+                        ":core:model",
+                        ":core:database",
+                        ":core:data",
+                        ":core:designsystem",
+                        ":core:testing",
+                    ),
                     ":core:designsystem" to setOf(":core:model"),
                     ":core:testing" to setOf(":core:model", ":core:designsystem"),
                 ),

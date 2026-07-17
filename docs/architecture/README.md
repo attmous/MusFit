@@ -65,9 +65,11 @@ isolation is not implemented yet; see the architecture audit.
 | --- | --- |
 | `app/src/main/java/com/musfit/MainActivity.kt` | Single Android entry activity. Applies `MusFitTheme` and hosts `AppNavGraph`. |
 | `app/src/main/java/com/musfit/MusFitApplication.kt` | Hilt application entrypoint. |
-| `app/src/main/java/com/musfit/ui/` | App-shell composition, Today/Profile presentation, global navigation, and app-owned integration rationale UI. |
+| `app/src/main/java/com/musfit/ui/` | App-shell composition, global navigation, feature entry adapters, and app-owned integration rationale UI. |
 | `feature/food/src/main/java/com/musfit/ui/food/` | Food presentation, its retained nested navigator, UI state, ViewModel, and scanner entry wiring. |
 | `feature/training/src/main/java/com/musfit/ui/training/` | Training presentation, its retained nested navigator, UI state, and ViewModels. |
+| `feature/profile/src/main/java/com/musfit/ui/profile/` | Profile presentation, settings surfaces, UI state, ViewModels, and app-supplied entry configuration contract. |
+| `feature/today/src/main/java/com/musfit/ui/today/` | Today dashboard and coach presentation, UI state, ViewModels, callback navigation, and app-supplied LAN-policy contract. |
 | `core/model/src/main/kotlin/com/musfit/domain/` | Android-free domain models, calculators, and inward-facing ports. |
 | `core/database/src/main/java/com/musfit/data/local/` | Room database, migrations, DAOs, entities, and query projection rows. |
 | `core/network/src/main/java/com/musfit/data/remote/` | Flavor-aware Open Food Facts, GitHub identity, and coach transport adapters. |
@@ -77,13 +79,13 @@ isolation is not implemented yet; see the architecture audit.
 | `integration/healthconnect/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect adapter, platform-record mapping, and permission inventory; depends only on the neutral `:core:model` port. |
 | `integration/scanner/src/main/java/com/musfit/integrations/scanner/` | CameraX lifecycle ownership plus ML Kit barcode/OCR adapters with typed scan results and no Food UI state. |
 | `app/src/main/java/com/musfit/integrations/healthconnect/` | App-owned Health permission-rationale presentation. |
-| `app/src/test/java/com/musfit/` | App-shell, Today/Profile, transfer, cross-feature contract, and architecture tests; feature, shared, and integration modules own their corresponding unit tests. |
+| `app/src/test/java/com/musfit/` | App-shell, transfer, cross-feature contract, and architecture tests; feature, shared, and integration modules own their corresponding unit and UI regression tests. |
 | `app/src/internal/` | Internal-only LAN manifest/resource surface and developer identity overrides. |
 | `app/src/androidTest/java/com/musfit/` | Device/instrumentation tests, including the non-distributed internal seed boundary. |
 | `app/schemas/com.musfit.data.local.MusFitDatabase/` | Contiguous exported Room schema JSON files through the version declared in `MusFitDatabase.kt`. |
 
-The app shell depends on `:feature:food` and `:feature:training` through their
-public navigation entrypoints and callback/action contracts. Feature modules do
+The app shell depends on `:feature:food`, `:feature:training`, `:feature:profile`,
+and `:feature:today` through their public entrypoints and callback/action contracts. Feature modules do
 not depend on `:app` or on one another. The root `verifyModuleGraph` task
 enforces those edges. Convention
 plugins in `build-logic` own the common Kotlin, Android library, Compose, and

@@ -45,13 +45,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.musfit.domain.coach.CoachAction
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.EmptyState
 import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
+
+internal enum class TodayNavigationTarget { Food, Training, Profile }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,17 +78,16 @@ fun TodayScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val navigateTo: (AppDestination) -> Unit = { destination ->
+    val navigateTo: (TodayNavigationTarget) -> Unit = { destination ->
         when (destination) {
-            AppDestination.Food -> onOpenFood()
-            AppDestination.Training -> onOpenTraining()
-            AppDestination.Profile -> onOpenHealth()
-            else -> Unit
+            TodayNavigationTarget.Food -> onOpenFood()
+            TodayNavigationTarget.Training -> onOpenTraining()
+            TodayNavigationTarget.Profile -> onOpenHealth()
         }
     }
     val onCoachAction: (CoachAction) -> Unit = { action -> navigateTo(coachActionDestination(action)) }
-    val todayAccent = tabAccentFor(AppDestination.Today)
-    val healthAccent = tabAccentFor(AppDestination.Profile)
+    val todayAccent = tabAccentFor(TabAccentRole.Today)
+    val healthAccent = tabAccentFor(TabAccentRole.Profile)
     val pullRefreshState = rememberPullToRefreshState()
 
     Box(
@@ -189,8 +190,7 @@ fun TodayScreen(
 }
 
 /** The header's quiet date line under the emphasized "Today" title. */
-internal fun todayHeaderDate(date: java.time.LocalDate): String =
-    date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM"))
+internal fun todayHeaderDate(date: java.time.LocalDate): String = date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM"))
 
 /** "Coach" section header with the 7dp coral unread dot from the mock. */
 @Composable
@@ -256,12 +256,13 @@ internal data class TodayRefreshIndicatorUiState(
 internal fun todayRefreshIndicatorUiState(
     isRefreshing: Boolean,
     pullDistanceFraction: Float,
-): TodayRefreshIndicatorUiState =
-    when {
-        isRefreshing -> TodayRefreshIndicatorUiState(isVisible = true, progress = null)
-        pullDistanceFraction > 0f -> TodayRefreshIndicatorUiState(
-            isVisible = true,
-            progress = pullDistanceFraction.coerceIn(0f, 1f),
-        )
-        else -> TodayRefreshIndicatorUiState(isVisible = false, progress = null)
-    }
+): TodayRefreshIndicatorUiState = when {
+    isRefreshing -> TodayRefreshIndicatorUiState(isVisible = true, progress = null)
+
+    pullDistanceFraction > 0f -> TodayRefreshIndicatorUiState(
+        isVisible = true,
+        progress = pullDistanceFraction.coerceIn(0f, 1f),
+    )
+
+    else -> TodayRefreshIndicatorUiState(isVisible = false, progress = null)
+}

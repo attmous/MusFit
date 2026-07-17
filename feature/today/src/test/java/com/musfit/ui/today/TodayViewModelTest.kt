@@ -48,7 +48,6 @@ import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
 import com.musfit.testing.MainDispatcherRule
-import com.musfit.ui.AppDestination
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -479,23 +478,23 @@ class TodayViewModelTest {
 
     @Test
     fun metricDestination_mapsEveryMetricToItsHomeTab() {
-        assertEquals(AppDestination.Food, metricDestination(TodayMetric.Calories))
-        assertEquals(AppDestination.Food, metricDestination(TodayMetric.Water))
-        assertEquals(AppDestination.Training, metricDestination(TodayMetric.Sessions))
-        assertEquals(AppDestination.Training, metricDestination(TodayMetric.Exercise))
-        assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Steps))
-        assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Sleep))
-        assertEquals(AppDestination.Profile, metricDestination(TodayMetric.Weight))
-        assertEquals(AppDestination.Profile, metricDestination(TodayMetric.RestingHeartRate))
+        assertEquals(TodayNavigationTarget.Food, metricDestination(TodayMetric.Calories))
+        assertEquals(TodayNavigationTarget.Food, metricDestination(TodayMetric.Water))
+        assertEquals(TodayNavigationTarget.Training, metricDestination(TodayMetric.Sessions))
+        assertEquals(TodayNavigationTarget.Training, metricDestination(TodayMetric.Exercise))
+        assertEquals(TodayNavigationTarget.Profile, metricDestination(TodayMetric.Steps))
+        assertEquals(TodayNavigationTarget.Profile, metricDestination(TodayMetric.Sleep))
+        assertEquals(TodayNavigationTarget.Profile, metricDestination(TodayMetric.Weight))
+        assertEquals(TodayNavigationTarget.Profile, metricDestination(TodayMetric.RestingHeartRate))
     }
 
     @Test
     fun coachActionDestination_mapsAllActionsIncludingDeletedRoutineFallback() {
-        assertEquals(AppDestination.Food, coachActionDestination(CoachAction.OpenFood))
-        assertEquals(AppDestination.Training, coachActionDestination(CoachAction.OpenTraining))
-        assertEquals(AppDestination.Profile, coachActionDestination(CoachAction.OpenHealth))
+        assertEquals(TodayNavigationTarget.Food, coachActionDestination(CoachAction.OpenFood))
+        assertEquals(TodayNavigationTarget.Training, coachActionDestination(CoachAction.OpenTraining))
+        assertEquals(TodayNavigationTarget.Profile, coachActionDestination(CoachAction.OpenHealth))
         // Deleted or live, StartRoutine lands on the Training tab in v1 (spec non-goal: no sub-route anchors).
-        assertEquals(AppDestination.Training, coachActionDestination(CoachAction.StartRoutine("deleted-routine")))
+        assertEquals(TodayNavigationTarget.Training, coachActionDestination(CoachAction.StartRoutine("deleted-routine")))
     }
 
     private fun todayViewModel(

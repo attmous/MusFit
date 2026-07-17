@@ -221,6 +221,10 @@ if ($ReportPath.Count -eq 0) {
             Select-Object -ExpandProperty FullName
         Get-ChildItem -LiteralPath (Join-Path $repoRoot "feature/training/build/reports/coverage") -Recurse -Filter "report.xml" -File |
             Select-Object -ExpandProperty FullName
+        Get-ChildItem -LiteralPath (Join-Path $repoRoot "feature/profile/build/reports/coverage") -Recurse -Filter "report.xml" -File |
+            Select-Object -ExpandProperty FullName
+        Get-ChildItem -LiteralPath (Join-Path $repoRoot "feature/today/build/reports/coverage") -Recurse -Filter "report.xml" -File |
+            Select-Object -ExpandProperty FullName
     )
 }
 $resolvedReports = @(

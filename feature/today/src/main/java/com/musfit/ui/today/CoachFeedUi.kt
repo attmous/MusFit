@@ -1,5 +1,6 @@
 package com.musfit.ui.today
 
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -72,10 +73,7 @@ import com.musfit.data.repository.AiCoachChatRole
 import com.musfit.data.repository.CoachMessage
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCategory
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.groupedShape
-import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION
-import com.musfit.ui.permissions.hasLocalNetworkPermission
 import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitTheme
 import java.time.Instant
@@ -242,11 +240,11 @@ internal fun coachActionLabel(action: CoachAction): String = when (action) {
  * StartRoutine intentionally maps to Training for ALL routines (deleted or live) —
  * the spec's "no sub-route anchors" non-goal; see the plan's recorded deviations.
  */
-internal fun coachActionDestination(action: CoachAction): AppDestination = when (action) {
-    CoachAction.OpenFood -> AppDestination.Food
-    CoachAction.OpenTraining -> AppDestination.Training
-    CoachAction.OpenHealth -> AppDestination.Profile
-    is CoachAction.StartRoutine -> AppDestination.Training
+internal fun coachActionDestination(action: CoachAction): TodayNavigationTarget = when (action) {
+    CoachAction.OpenFood -> TodayNavigationTarget.Food
+    CoachAction.OpenTraining -> TodayNavigationTarget.Training
+    CoachAction.OpenHealth -> TodayNavigationTarget.Profile
+    is CoachAction.StartRoutine -> TodayNavigationTarget.Training
 }
 
 private fun CoachMessageCategory.displayLabel(): String = when (this) {
@@ -314,11 +312,19 @@ fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+data class TodayLocalNetworkConfig(
+    val permission: String,
+    val permissionDeniedMessage: String,
+    val requiresPermission: (String) -> Boolean,
+    val hasPermission: (Context) -> Boolean,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatPreviewSheet(
     onDismiss: () -> Unit,
     onConfigure: () -> Unit,
+    localNetworkConfig: TodayLocalNetworkConfig,
     viewModel: CoachChatViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -332,13 +338,13 @@ fun ChatPreviewSheet(
         if (granted && action != null) {
             action()
         } else if (!granted) {
-            viewModel.reportLocalNetworkPermissionDenied()
+            viewModel.reportLocalNetworkPermissionDenied(localNetworkConfig.permissionDeniedMessage)
         }
     }
     fun runWithLocalNetworkPermission(action: () -> Unit) {
-        if (state.requiresLocalNetworkPermission && !hasLocalNetworkPermission(context)) {
+        if (localNetworkConfig.requiresPermission(state.baseUrl) && !localNetworkConfig.hasPermission(context)) {
             pendingLocalNetworkAction = action
-            localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION)
+            localNetworkPermissionLauncher.launch(localNetworkConfig.permission)
         } else {
             action()
         }

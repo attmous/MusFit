@@ -33,6 +33,13 @@ internal object ModuleGraphRules {
             ":core:designsystem",
             ":core:testing",
         ),
+        ":feature:today" to setOf(
+            ":core:model",
+            ":core:database",
+            ":core:data",
+            ":core:designsystem",
+            ":core:testing",
+        ),
         ":benchmark" to setOf(":app"),
         ":baselineprofile" to setOf(":app"),
     )

@@ -47,7 +47,6 @@ import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.today.ChatPreviewFab
-import com.musfit.ui.today.ChatPreviewSheet
 import com.musfit.ui.today.TodayScreen
 import com.musfit.ui.training.TrainingNavigation
 import com.musfit.ui.training.TrainingProgressScreen
@@ -168,7 +167,7 @@ fun AppNavGraph(
     }
 
     if (chatPreviewVisible) {
-        ChatPreviewSheet(
+        CoachChatEntry(
             onDismiss = { chatPreviewVisible = false },
             onConfigure = {
                 navigator.navigate(AppNavigationAction.SelectTopLevel(AppDestination.Profile))

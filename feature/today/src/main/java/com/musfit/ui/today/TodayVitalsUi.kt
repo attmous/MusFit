@@ -19,8 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.Balance
 import androidx.compose.material.icons.filled.BakeryDining
+import androidx.compose.material.icons.filled.Balance
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Egg
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -59,7 +59,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
-import com.musfit.ui.AppDestination
 import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.theme.AmberBright
@@ -74,6 +73,7 @@ import com.musfit.ui.theme.IndigoInkDark
 import com.musfit.ui.theme.MacroProtein
 import com.musfit.ui.theme.MacroProteinDark
 import com.musfit.ui.theme.MusFitTheme
+import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.VitalsAmber
 import com.musfit.ui.theme.VitalsAmberContainer
 import com.musfit.ui.theme.VitalsAmberDisplay
@@ -236,9 +236,12 @@ private fun vitalsPaletteFor(metric: TodayMetric): VitalsPalette = when (metric)
     TodayMetric.Calories, TodayMetric.Carbs, TodayMetric.Fat,
     TodayMetric.ActiveCalories, TodayMetric.CalorieBalance, TodayMetric.LoggingStreak,
     -> VitalsPalette.Amber
+
     TodayMetric.Steps, TodayMetric.Sessions, TodayMetric.Exercise -> VitalsPalette.Indigo
+
     TodayMetric.Protein, TodayMetric.Weight, TodayMetric.BodyFat, TodayMetric.RestingHeartRate,
     -> VitalsPalette.Rose
+
     TodayMetric.Water, TodayMetric.Sleep -> VitalsPalette.Water
 }
 
@@ -252,16 +255,19 @@ internal fun vitalsFamilyFor(metric: TodayMetric): VitalsTileFamily {
         } else {
             VitalsTileFamily(VitalsAmberContainer, VitalsAmberOn, VitalsAmberDisplay, VitalsAmber, track)
         }
+
         VitalsPalette.Indigo -> if (dark) {
             VitalsTileFamily(IndigoContainerDark, IndigoInkDark, VitalsIndigoDisplayDark, IndigoBright, track)
         } else {
             VitalsTileFamily(IndigoContainer, IndigoInk, VitalsIndigoDisplay, Indigo, track)
         }
+
         VitalsPalette.Rose -> if (dark) {
             VitalsTileFamily(VitalsRoseContainerDark, VitalsRoseOnDark, VitalsRoseDisplayDark, MacroProteinDark, track)
         } else {
             VitalsTileFamily(VitalsRoseContainer, VitalsRoseOn, VitalsRoseDisplay, MacroProtein, track)
         }
+
         VitalsPalette.Water -> if (dark) {
             VitalsTileFamily(WaterFillDark, VitalsWaterOnDark, VitalsWaterDisplayDark, WaterDark, track)
         } else {
@@ -305,14 +311,16 @@ internal fun metricIcon(metric: TodayMetric): ImageVector = when (metric) {
 }
 
 /** Spec §1 metric-pool deep-link table: each metric's home tab. */
-internal fun metricDestination(metric: TodayMetric): AppDestination = when (metric) {
+internal fun metricDestination(metric: TodayMetric): TodayNavigationTarget = when (metric) {
     TodayMetric.Calories, TodayMetric.Protein, TodayMetric.Carbs, TodayMetric.Fat,
     TodayMetric.Water, TodayMetric.CalorieBalance, TodayMetric.LoggingStreak,
-    -> AppDestination.Food
-    TodayMetric.Sessions, TodayMetric.Exercise -> AppDestination.Training
+    -> TodayNavigationTarget.Food
+
+    TodayMetric.Sessions, TodayMetric.Exercise -> TodayNavigationTarget.Training
+
     TodayMetric.Steps, TodayMetric.Weight, TodayMetric.BodyFat,
     TodayMetric.Sleep, TodayMetric.ActiveCalories, TodayMetric.RestingHeartRate,
-    -> AppDestination.Profile
+    -> TodayNavigationTarget.Profile
 }
 
 /** Edit sheet — the vitals-grid tile library: pin/order metrics + the Goals section. */
@@ -327,7 +335,7 @@ fun DashboardEditSheet(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val accent = tabAccentFor(AppDestination.Today)
+    val accent = tabAccentFor(TabAccentRole.Today)
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MusFitTheme.colors.surface) {
         Column(
             modifier = Modifier

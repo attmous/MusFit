@@ -85,6 +85,7 @@ detekt {
             "feature/food/src/main/java",
             "feature/training/src/main/java",
             "feature/profile/src/main/java",
+            "feature/today/src/main/java",
         ),
     )
     config.setFrom(files("config/detekt.yml"))
@@ -151,6 +152,10 @@ tasks.register("verifyCoreModules") {
         ":feature:profile:testProductionDebugUnitTest",
         ":feature:profile:lintInternalDebug",
         ":feature:profile:lintProductionRelease",
+        ":feature:today:testInternalDebugUnitTest",
+        ":feature:today:testProductionDebugUnitTest",
+        ":feature:today:lintInternalDebug",
+        ":feature:today:lintProductionRelease",
         ":core:data:assembleInternalDebugAndroidTest",
         ":core:designsystem:testDebugUnitTest",
         ":core:testing:test",
