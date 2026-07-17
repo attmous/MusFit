@@ -34,6 +34,14 @@ function Get-RepoRelativePath([string] $Path) {
     return $fullPath.Replace([char] 92, [char] 47)
 }
 
+function Get-CoverageSourceRoot([string] $ReportPath) {
+    $relativeReportPath = Get-RepoRelativePath $ReportPath
+    if ($relativeReportPath -match '^core/([^/]+)/build/') {
+        return "core/$($Matches[1])/src/main/kotlin"
+    }
+    return "app/src/main/java"
+}
+
 function Get-AggregatedLineMap([string[]] $Paths, [object] $Policy) {
     $lineMap = @{}
     foreach ($path in $Paths) {
@@ -41,10 +49,11 @@ function Get-AggregatedLineMap([string[]] $Paths, [object] $Policy) {
             throw "Coverage report does not exist: $path"
         }
         [xml] $report = Get-Content -LiteralPath $path -Raw
+        $sourceRoot = Get-CoverageSourceRoot $path
         foreach ($package in @($report.report.package)) {
             $packagePath = [string] $package.name
             foreach ($sourceFile in @($package.sourcefile)) {
-                $repoPath = "app/src/main/java/$packagePath/$($sourceFile.name)"
+                $repoPath = "$sourceRoot/$packagePath/$($sourceFile.name)"
                 if (-not (Test-BusinessPath $repoPath $Policy)) {
                     continue
                 }
@@ -94,7 +103,7 @@ function Assert-MinimumRatio([string] $Label, [object] $Stats, [double] $Minimum
 function Get-ChangedExecutableLines([hashtable] $LineMap, [string] $ComparisonRef) {
     $changed = @{}
     $currentPath = $null
-    $diff = & git -C $repoRoot diff --unified=0 --no-color "$ComparisonRef...HEAD" -- app/src/main/java 2>&1
+    $diff = & git -C $repoRoot diff --unified=0 --no-color "$ComparisonRef...HEAD" -- "app/src/main/java" "core/*/src/main/kotlin" 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Could not derive changed coverage lines from '$ComparisonRef...HEAD': $($diff -join [Environment]::NewLine)"
     }
@@ -138,6 +147,10 @@ function Invoke-PolicySelfTest {
         if ($stats.Covered -ne 2 -or $stats.Total -ne 2) {
             throw "Self-test failed to merge unit/instrumented coverage: $($stats.Covered)/$($stats.Total)."
         }
+        $coreReportFixture = Join-Path $repoRoot "core/model/build/reports/jacoco/test/jacocoTestReport.xml"
+        if ((Get-CoverageSourceRoot $coreReportFixture) -ne "core/model/src/main/kotlin") {
+            throw "Self-test failed to map a core module JaCoCo report to its Kotlin source root."
+        }
         $emptyStats = Get-CoverageStats @($null)
         if ($emptyStats.Covered -ne 0 -or $emptyStats.Total -ne 0 -or $emptyStats.Ratio -ne 1.0) {
             throw "Self-test failed to normalize an empty changed-line result."
@@ -176,6 +189,8 @@ if ([int] $policy.schemaVersion -ne 1) {
 if ($ReportPath.Count -eq 0) {
     $ReportPath = @(
         Get-ChildItem -LiteralPath (Join-Path $repoRoot "app/build/reports/coverage") -Recurse -Filter "report.xml" -File |
+            Select-Object -ExpandProperty FullName
+        Get-ChildItem -LiteralPath (Join-Path $repoRoot "core/model/build/reports/jacoco") -Recurse -Filter "*.xml" -File |
             Select-Object -ExpandProperty FullName
     )
 }

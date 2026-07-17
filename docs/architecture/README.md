@@ -66,18 +66,24 @@ isolation is not implemented yet; see the architecture audit.
 | `app/src/main/java/com/musfit/MainActivity.kt` | Single Android entry activity. Applies `MusFitTheme` and hosts `AppNavGraph`. |
 | `app/src/main/java/com/musfit/MusFitApplication.kt` | Hilt application entrypoint. |
 | `app/src/main/java/com/musfit/ui/` | Compose screens, navigation, UI state, and ViewModels. |
-| `app/src/main/java/com/musfit/ui/theme/` | Material 3 theme and MusFit semantic color, spacing, shape, and typography tokens. |
+| `core/model/src/main/kotlin/com/musfit/domain/` | Android-free domain models, calculators, and inward-facing ports. |
+| `core/designsystem/src/main/java/com/musfit/ui/` | Reusable Compose components plus Material 3 theme and MusFit semantic tokens. |
+| `core/testing/src/main/kotlin/com/musfit/core/testing/` | Shared JVM test fixtures, including the main-dispatcher rule. |
 | `app/src/main/java/com/musfit/data/repository/` | Feature repository interfaces, local implementations, and public repository data models. |
 | `app/src/main/java/com/musfit/data/local/` | Room database, DAOs, entities, and query projection rows. |
 | `app/src/main/java/com/musfit/data/remote/food/` | Open Food Facts Retrofit adapter and transport models; the normalized product port lives in `data/repository`. |
 | `app/src/main/java/com/musfit/data/remote/auth/` | GitHub OAuth device flow Retrofit API models. |
 | `app/src/main/java/com/musfit/data/remote/coach/` | OpenAI-compatible/Hermes coach transport and completion client. |
-| `app/src/main/java/com/musfit/domain/` | Pure Kotlin domain models, calculators, and inward-facing ports. No Android, Compose, Retrofit, Room, or Android Health Connect SDK dependencies. |
 | `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect adapter, platform-record mapping, and permission rationale activity. |
 | `app/src/test/java/com/musfit/` | Unit tests for ViewModels, repositories, DAOs, domain calculators, and integration boundaries. |
 | `app/src/internal/` | Internal-only LAN manifest/resource surface and developer identity overrides. |
 | `app/src/androidTest/java/com/musfit/` | Device/instrumentation tests, including the non-distributed internal seed boundary. |
 | `app/schemas/com.musfit.data.local.MusFitDatabase/` | Contiguous exported Room schema JSON files through the version declared in `MusFitDatabase.kt`. |
+
+The root `verifyModuleGraph` task enforces the allowed project edges. Convention
+plugins in `build-logic` own the common Kotlin, Android library, Compose, and
+test configuration; `verifyCoreModules` tests those plugins, the graph rules,
+and all shared modules.
 
 ## Layering
 
@@ -315,7 +321,7 @@ UI direction:
 | Repository tests | `app/src/test/java/com/musfit/data/repository/...` | Local repository behavior against current-schema in-memory Room. |
 | DAO/database tests | `app/src/test/java/com/musfit/data/local/...` | Current-schema queries, transactions, and persistence behavior. |
 | Migration tests | `app/src/test/java/com/musfit/data/local/*Migration*Test.kt` | Selected exported-schema transitions and migration regressions. |
-| Domain tests | `app/src/test/java/com/musfit/domain/...` | Pure calculator and parser behavior. |
+| Domain tests | `core/model/src/test/kotlin/com/musfit/domain/...` | Pure calculator and parser behavior. |
 | Integration-boundary tests | `app/src/test/java/com/musfit/integrations/...` | Health Connect mapping and gateway assumptions. |
 | Instrumentation tests | `app/src/androidTest/java/com/musfit/...` | Device-only contracts and approved internal-app emulator seeding; compiled by the full gate but not distributed by CI. |
 
@@ -323,7 +329,7 @@ Windows verification command:
 
 ```powershell
 . .\scripts\android\android-env.ps1
-.\gradlew.bat verifyReleaseVariantMatrix testInternalDebugUnitTest testProductionReleaseUnitTest lintInternalDebug lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
+.\gradlew.bat verifyCoreModules verifyReleaseVariantMatrix testInternalDebugUnitTest testProductionReleaseUnitTest lintInternalDebug lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
 ```
 
 ## Architectural Decisions

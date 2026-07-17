@@ -4,8 +4,9 @@ This document is MusFit's local working reference for Material 3 Expressive
 (M3E). It is not a copy of Google's docs. It translates the official guidance
 into stable rules for this Android app.
 
-Exact tokens live under `app/src/main/java/com/musfit/ui/theme/` and are not
-duplicated here. See the source-owned
+Exact tokens live under
+`core/designsystem/src/main/kotlin/com/musfit/ui/theme/` and are not duplicated
+here. See the source-owned
 [`musfit-design-system.md`](musfit-design-system.md) map.
 
 ## Official Sources
@@ -195,4 +196,3 @@ Run this checklist for any M3E-related UI change:
 - Forms remain usable with the keyboard open.
 - Repeated workflows are still fast.
 - The screen has one clear visual priority.
-

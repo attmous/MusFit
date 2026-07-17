@@ -71,6 +71,8 @@ detekt {
             "benchmark/src/main/java",
             "baselineprofile/src/main/java",
             "core/model/src/main/kotlin",
+            "core/designsystem/src/main/kotlin",
+            "core/testing/src/main/kotlin",
         ),
     )
     config.setFrom(files("config/detekt.yml"))
@@ -88,4 +90,23 @@ tasks.withType<Detekt>().configureEach {
         sarif.required.set(true)
         md.required.set(false)
     }
+}
+
+val verifyBuildLogic =
+    tasks.register("verifyBuildLogic") {
+        group = "verification"
+        description = "Runs the convention plugin and module-graph test suite."
+        dependsOn(gradle.includedBuild("build-logic").task(":test"))
+    }
+
+tasks.register("verifyCoreModules") {
+    group = "verification"
+    description = "Verifies build logic, module edges, and every shared core module."
+    dependsOn(
+        verifyBuildLogic,
+        "verifyModuleGraph",
+        ":core:model:test",
+        ":core:designsystem:testDebugUnitTest",
+        ":core:testing:test",
+    )
 }

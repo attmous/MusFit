@@ -1,6 +1,7 @@
 # Actionable coverage
 
-MusFit uses the stable JaCoCo integration provided by the Android Gradle plugin.
+MusFit uses the stable JaCoCo integrations provided by the Android and JVM
+Gradle plugins.
 Coverage is a review signal and change ratchet; it does not replace focused
 behavior, migration, Compose, screenshot, or managed-device tests.
 
@@ -34,15 +35,20 @@ the policy against the branch diff:
 
 ```powershell
 . .\scripts\android\android-env.ps1
-.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
+.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport --no-daemon --console=plain
+$reports = @(
+  "app\build\reports\coverage\test\internal\debug\report.xml"
+  "core\model\build\reports\jacoco\test\jacocoTestReport.xml"
+)
 .\scripts\coverage\verify-coverage.ps1 `
-  -ReportPath app\build\reports\coverage\test\internal\debug\report.xml `
+  -ReportPath $reports `
   -BaseRef origin/master
 ```
 
-The browsable report is written beneath
-`app/build/reports/coverage/test/internal/debug/`. The aggregate machine and
-review summaries are written to `build/reports/coverage-policy/`.
+The browsable reports are written beneath
+`app/build/reports/coverage/test/internal/debug/` and
+`core/model/build/reports/jacoco/test/`. The aggregate machine and review
+summaries are written to `build/reports/coverage-policy/`.
 
 ## Unit and instrumented aggregation
 

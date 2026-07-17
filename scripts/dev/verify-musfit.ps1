@@ -80,6 +80,7 @@ if ($Tests.Count -gt 0) {
             $gradleArgs = @(
                 "spotlessCheck",
                 "detekt",
+                "verifyCoreModules",
                 "verifyReleaseVariantMatrix",
                 "testInternalDebugUnitTest",
                 "testProductionReleaseUnitTest",
@@ -94,7 +95,14 @@ if ($Tests.Count -gt 0) {
                 "bundleProductionRelease"
             )
         }
-        "Unit" { $gradleArgs = @("testInternalDebugUnitTest", "testProductionReleaseUnitTest", "testLegacyMigrationReleaseUnitTest") }
+        "Unit" {
+            $gradleArgs = @(
+                "verifyCoreModules",
+                "testInternalDebugUnitTest",
+                "testProductionReleaseUnitTest",
+                "testLegacyMigrationReleaseUnitTest"
+            )
+        }
         "Food" {
             $gradleArgs = @(
                 "testInternalDebugUnitTest",

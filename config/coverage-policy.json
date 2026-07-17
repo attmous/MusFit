@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "baselineCommit": "c754f7595f2b32a510ac2a5db79ac5a046fdeae5",
   "businessPathPatterns": [
-    "^app/src/main/java/com/musfit/domain/",
+    "^core/model/src/main/kotlin/com/musfit/domain/",
     "^app/src/main/java/com/musfit/data/repository/",
     "^app/src/main/java/com/musfit/data/remote/",
     "^app/src/main/java/com/musfit/data/transfer/",
@@ -11,7 +11,7 @@
     "^app/src/main/java/com/musfit/ui/App(?:Destination|NavigationStack)\\.kt$"
   ],
   "criticalPathPatterns": [
-    "^app/src/main/java/com/musfit/domain/",
+    "^core/model/src/main/kotlin/com/musfit/domain/",
     "^app/src/main/java/com/musfit/data/repository/"
   ],
   "excludedPathPatterns": [
