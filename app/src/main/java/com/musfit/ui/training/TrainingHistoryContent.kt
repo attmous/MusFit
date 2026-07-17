@@ -623,10 +623,9 @@ private fun HistoryExerciseBlockSection(
 
 // --- Display helpers (pure, unit-tested) ---
 
-internal fun historyDetailGroupingsForDisplay(detail: WorkoutHistoryDetail): List<ExerciseGrouping> =
-    detail.exerciseGroupings.ifEmpty {
-        detail.exerciseBlocks.map { ExerciseGrouping.Single(it) }
-    }
+internal fun historyDetailGroupingsForDisplay(detail: WorkoutHistoryDetail): List<ExerciseGrouping> = detail.exerciseGroupings.ifEmpty {
+    detail.exerciseBlocks.map { ExerciseGrouping.Single(it) }
+}
 
 /** "Thu 2 Jul · Full Body A" under the Workout complete title. */
 internal fun workoutCompleteSubtitle(summary: WorkoutHistorySummary): String {
@@ -638,12 +637,10 @@ internal fun workoutCompleteSubtitle(summary: WorkoutHistorySummary): String {
 }
 
 /** Whole minutes for the duration hero; a sub-minute session still reads "1". */
-internal fun workoutDurationMinutes(durationSeconds: Int): Int =
-    if (durationSeconds <= 0) 0 else (durationSeconds / 60).coerceAtLeast(1)
+internal fun workoutDurationMinutes(durationSeconds: Int): Int = if (durationSeconds <= 0) 0 else (durationSeconds / 60).coerceAtLeast(1)
 
 /** "4,120" — grouped kilogram figure for the volume stat chip. */
-internal fun workoutVolumeChipFigure(volumeKg: Double): String =
-    String.format(Locale.US, "%,d", Math.round(volumeKg))
+internal fun workoutVolumeChipFigure(volumeKg: Double): String = String.format(Locale.US, "%,d", Math.round(volumeKg))
 
 internal data class WorkoutPrDisplay(
     val exerciseName: String,
@@ -658,27 +655,27 @@ internal data class WorkoutPrDisplay(
  * beats the pre-session best e1RM, the winning set and the improvement.
  * Mirrors the recap's [personalRecordCount] rule (warm-ups and drops excluded).
  */
-internal fun workoutPrDisplays(detail: WorkoutHistoryDetail): List<WorkoutPrDisplay> =
-    detail.exerciseBlocks.mapNotNull { block ->
-        val best = block.sets
-            .filter { set ->
-                val type = set.setType.lowercase(Locale.US)
-                set.completed &&
-                    type != "warmup" && type != "warm-up" && type != "drop" &&
-                    set.reps != null && set.weightKg != null
-            }
-            .maxByOrNull { set -> WorkoutCalculator.estimatedOneRepMax(set.weightKg!!, set.reps!!) }
-            ?: return@mapNotNull null
-        val bestE1rm = WorkoutCalculator.estimatedOneRepMax(best.weightKg!!, best.reps!!)
-        val prior = block.priorBestEstimatedOneRepMaxKg
-        if (bestE1rm <= prior + 1e-6) return@mapNotNull null
-        WorkoutPrDisplay(
-            exerciseName = block.exercise.name,
-            meta = "${best.weightKg.formatKg()} kg × ${best.reps} · e1RM ${bestE1rm.formatKg()} kg",
-            // A first-ever lift has no prior best — "+128 kg" would be noise.
-            deltaLabel = if (prior > 0.0) "+${(bestE1rm - prior).formatKg()} kg" else "New PR",
-        )
-    }
+internal fun workoutPrDisplays(detail: WorkoutHistoryDetail): List<WorkoutPrDisplay> = detail.exerciseBlocks.mapNotNull { block ->
+    val best = block.sets
+        .filter { set ->
+            val type = set.setType.lowercase(Locale.US)
+            set.completed &&
+                type != "warmup" && type != "warm-up" && type != "drop" &&
+                set.reps != null && set.weightKg != null
+        }
+        .maxByOrNull { set -> WorkoutCalculator.estimatedOneRepMax(set.weightKg!!, set.reps!!) }
+        ?: return@mapNotNull null
+    val bestE1rm = WorkoutCalculator.estimatedOneRepMax(best.weightKg!!, best.reps!!)
+    val bestWeightKg = best.weightKg ?: return@mapNotNull null
+    val prior = block.priorBestEstimatedOneRepMaxKg
+    if (bestE1rm <= prior + 1e-6) return@mapNotNull null
+    WorkoutPrDisplay(
+        exerciseName = block.exercise.name,
+        meta = "${bestWeightKg.formatKg()} kg × ${best.reps} · e1RM ${bestE1rm.formatKg()} kg",
+        // A first-ever lift has no prior best — "+128 kg" would be noise.
+        deltaLabel = if (prior > 0.0) "+${(bestE1rm - prior).formatKg()} kg" else "New PR",
+    )
+}
 
 /** One deterministic coach sentence for the finished session — no prose engine. */
 internal fun workoutCompleteCoachNote(recap: WorkoutRecapSummary): String {
@@ -688,8 +685,10 @@ internal fun workoutCompleteCoachNote(recap: WorkoutRecapSummary): String {
             "Strong session — ${recap.personalRecordCount} " +
                 "${if (recap.personalRecordCount == 1) "personal record" else "personal records"}. " +
                 "Recover well and repeat the pattern."
+
         recap.completedSetCount > 0 ->
             "Solid work — ${recap.completedSetCount} sets in $minutes min. Consistency beats intensity."
+
         else ->
             "Session logged. Even a short visit keeps the habit alive."
     }
@@ -757,44 +756,40 @@ internal fun historyRowMeta(summary: WorkoutHistorySummary): HistoryRowMeta {
     )
 }
 
-internal fun WorkoutHistoryDetail.effectiveRecap(): WorkoutRecapSummary =
-    if (recap.hasVisibleData()) {
-        recap
-    } else {
-        WorkoutRecapSummary(
-            durationSeconds = summary.durationSeconds(),
-            exerciseCount = exerciseBlocks.size,
-            completedSetCount = summary.completedSetCount,
-            totalVolumeKg = summary.totalVolumeKg,
-            personalRecordCount = 0,
-            notes = null,
-        )
-    }
+internal fun WorkoutHistoryDetail.effectiveRecap(): WorkoutRecapSummary = if (recap.hasVisibleData()) {
+    recap
+} else {
+    WorkoutRecapSummary(
+        durationSeconds = summary.durationSeconds(),
+        exerciseCount = exerciseBlocks.size,
+        completedSetCount = summary.completedSetCount,
+        totalVolumeKg = summary.totalVolumeKg,
+        personalRecordCount = 0,
+        notes = null,
+    )
+}
 
-private fun WorkoutRecapSummary.hasVisibleData(): Boolean =
-    durationSeconds > 0 ||
-        exerciseCount > 0 ||
-        completedSetCount > 0 ||
-        totalVolumeKg > 0.0 ||
-        personalRecordCount > 0 ||
-        !notes.isNullOrBlank()
+private fun WorkoutRecapSummary.hasVisibleData(): Boolean = durationSeconds > 0 ||
+    exerciseCount > 0 ||
+    completedSetCount > 0 ||
+    totalVolumeKg > 0.0 ||
+    personalRecordCount > 0 ||
+    !notes.isNullOrBlank()
 
 private fun WorkoutHistorySummary.durationSeconds(): Int {
     val endedAt = endedAtEpochMillis ?: startedAtEpochMillis
     return ((endedAt - startedAtEpochMillis).coerceAtLeast(0L) / 1000L).toInt()
 }
 
-private fun historySetLabel(index: Int, setType: String): String =
-    when (setType.lowercase()) {
-        "warmup" -> "W"
-        "drop" -> "D"
-        "failure" -> "F"
-        else -> "${index + 1}"
-    }
+private fun historySetLabel(index: Int, setType: String): String = when (setType.lowercase()) {
+    "warmup" -> "W"
+    "drop" -> "D"
+    "failure" -> "F"
+    else -> "${index + 1}"
+}
 
-private fun Double.formatKg(): String =
-    if (this % 1.0 == 0.0) {
-        toInt().toString()
-    } else {
-        String.format(Locale.US, "%.1f", this)
-    }
+private fun Double.formatKg(): String = if (this % 1.0 == 0.0) {
+    toInt().toString()
+} else {
+    String.format(Locale.US, "%.1f", this)
+}

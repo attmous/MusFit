@@ -25,6 +25,8 @@ Assert-FileContains "app/build.gradle.kts" 'isIncludeNoLocationClasses\s*=\s*tru
 Assert-FileContains "app/build.gradle.kts" 'jdk\.internal\.\*'
 Assert-FileContains ".github/workflows/android.yml" 'createInternalDebugUnitTestCoverageReport'
 Assert-FileContains ".github/workflows/android.yml" ':core:model:jacocoTestReport'
+Assert-FileContains ".github/workflows/android.yml" ':core:network:createInternalDebugUnitTestCoverageReport'
+Assert-FileContains ".github/workflows/android.yml" ':core:data:createInternalDebugUnitTestCoverageReport'
 Assert-FileContains ".github/workflows/android.yml" 'verify-coverage\.ps1'
 Assert-FileContains ".github/workflows/android.yml" 'musfit-coverage-'
 Assert-FileContains ".github/workflows/device-ui.yml" 'createManagedDeviceInternalDebugAndroidTestCoverageReport'
@@ -33,6 +35,7 @@ Assert-FileContains "docs/testing/coverage.md" '57\.8316%'
 Assert-FileContains "docs/testing/coverage.md" '10 minutes'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-coverage-policy\.ps1'
 Assert-FileContains "config/coverage-policy.json" '\^core/model/src/main/kotlin/com/musfit/domain/'
+Assert-FileContains "config/coverage-policy.json" '\^core/data/src/main/java/com/musfit/data/repository/'
 Assert-FileContains "scripts/coverage/verify-coverage.ps1" 'core/\(\[\^/\]\+\)/build/'
 
 $policyPath = Join-Path $repoRoot "config/coverage-policy.json"

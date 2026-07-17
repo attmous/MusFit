@@ -104,10 +104,14 @@ if ($Tests.Count -gt 0) {
             )
         }
         "Food" {
+            Invoke-Gradle @(
+                ":core:data:testInternalDebugUnitTest",
+                "--tests", "com.musfit.data.repository.LocalFoodRepositoryTest",
+                "--no-daemon", "--console=plain"
+            )
             $gradleArgs = @(
                 "testInternalDebugUnitTest",
-                "--tests", "com.musfit.ui.food.FoodViewModelTest",
-                "--tests", "com.musfit.data.repository.LocalFoodRepositoryTest"
+                "--tests", "com.musfit.ui.food.FoodViewModelTest"
             )
         }
         "Assemble" {

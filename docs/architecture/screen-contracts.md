@@ -70,8 +70,8 @@ Source:
 
 - `app/src/main/java/com/musfit/ui/today/CoachFeedUi.kt`
 - `app/src/main/java/com/musfit/ui/today/CoachChatViewModel.kt`
-- `app/src/main/java/com/musfit/data/repository/AiCoachChatRepository.kt`
-- `app/src/main/java/com/musfit/data/remote/coach/HermesCoachClient.kt`
+- `core/data/src/main/java/com/musfit/data/repository/AiCoachChatRepository.kt`
+- `core/network/src/main/java/com/musfit/data/remote/coach/HermesCoachClient.kt`
 
 Stable entrypoints:
 
@@ -141,7 +141,7 @@ Source:
 - `app/src/main/java/com/musfit/ui/food/FoodAddPanelUi.kt`
 - `app/src/main/java/com/musfit/ui/food/FoodModalSheets.kt`
 - `app/src/main/java/com/musfit/ui/food/FoodTrackersUi.kt`
-- `app/src/main/java/com/musfit/data/repository/FoodRepository.kt`
+- `core/data/src/main/java/com/musfit/data/repository/FoodRepository.kt`
 
 Top-level key: `FoodNavKey`
 
@@ -182,7 +182,7 @@ Source:
 - `app/src/main/java/com/musfit/ui/training/TrainingRoutineContent.kt`
 - `app/src/main/java/com/musfit/ui/training/TrainingActiveWorkoutContent.kt`
 - `app/src/main/java/com/musfit/ui/training/TrainingHistoryContent.kt`
-- `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
+- `core/data/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
 
 Top-level key: `TrainingNavKey`
 

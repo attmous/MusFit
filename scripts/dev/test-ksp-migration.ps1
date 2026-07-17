@@ -4,6 +4,7 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
 $catalog = Get-Content -LiteralPath (Join-Path $repoRoot "gradle\libs.versions.toml") -Raw
 $rootBuild = Get-Content -LiteralPath (Join-Path $repoRoot "build.gradle.kts") -Raw
 $appBuild = Get-Content -LiteralPath (Join-Path $repoRoot "app\build.gradle.kts") -Raw
+$databaseBuild = Get-Content -LiteralPath (Join-Path $repoRoot "core\database\build.gradle.kts") -Raw
 
 function Assert-Match([string] $Label, [string] $Content, [string] $Pattern) {
     if ($Content -notmatch $Pattern) {
@@ -24,8 +25,8 @@ Assert-Match "Root build" $rootBuild 'alias\(libs\.plugins\.ksp\)\s+apply false'
 Assert-NoMatch "Root build" $rootBuild 'android\.legacy\.kapt'
 Assert-Match "App build" $appBuild 'alias\(libs\.plugins\.ksp\)'
 Assert-Match "App build" $appBuild 'ksp\s*\(libs\.hilt\.compiler\)'
-Assert-Match "App build" $appBuild 'ksp\s*\(libs\.androidx\.room\.compiler\)'
-Assert-Match "App build" $appBuild 'arg\("room\.schemaLocation",\s*"\$projectDir/schemas"\)'
+Assert-Match "Database build" $databaseBuild 'ksp\s*\(libs\.androidx\.room\.compiler\)'
+Assert-Match "Database build" $databaseBuild 'arg\("room\.schemaLocation",\s*rootProject\.file\("app/schemas"\)\.path\)'
 Assert-NoMatch "App build" $appBuild '(?m)^\s*kapt\s*\{'
 Assert-NoMatch "App build" $appBuild 'kapt\s*\('
 Assert-NoMatch "App build" $appBuild 'android\.legacy\.kapt'
@@ -41,5 +42,14 @@ if ($exitCode -ne 0) {
 $tasks = $taskOutput -join "`n"
 Assert-Match "App task graph" $tasks '(?m)^kspInternalDebugKotlin\b'
 Assert-NoMatch "App task graph" $tasks '(?m)^kapt(?:GenerateStubs)?\w*'
+
+$databaseTaskOutput = & $gradleWrapper :core:database:tasks --all --no-daemon --console=plain 2>&1
+if ($LASTEXITCODE -ne 0) {
+    $databaseTaskOutput | ForEach-Object { Write-Host $_ }
+    throw "Could not inspect the database task graph (exit $LASTEXITCODE)."
+}
+$databaseTasks = $databaseTaskOutput -join "`n"
+Assert-Match "Database task graph" $databaseTasks '(?m)^kspDebugKotlin\b'
+Assert-NoMatch "Database task graph" $databaseTasks '(?m)^kapt(?:GenerateStubs)?\w*'
 
 Write-Host "KSP migration checks passed with no kapt tasks."

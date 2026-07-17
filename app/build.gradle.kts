@@ -276,10 +276,6 @@ android {
         }
     }
 
-    sourceSets {
-        getByName("androidTest").assets.directories.add("$projectDir/schemas")
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -445,6 +441,9 @@ ksp {
 
 dependencies {
     implementation(project(":core:model"))
+    implementation(project(":core:database"))
+    implementation(project(":core:network"))
+    implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
     implementation(platform(libs.androidx.compose.bom))
     // Room's schema parser uses serialization 1.8.1. Align the app and
@@ -465,8 +464,6 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.health.connect)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
@@ -487,7 +484,6 @@ dependencies {
     implementation(libs.androidx.profileinstaller)
 
     ksp(libs.hilt.compiler)
-    ksp(libs.androidx.room.compiler)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

@@ -101,7 +101,7 @@ function Assert-DatabaseSchemaContract([int] $SourceVersion, [int[]] $SchemaVers
 }
 
 function Get-DatabaseVersion {
-    $databaseText = Get-FileText "app/src/main/java/com/musfit/data/local/MusFitDatabase.kt"
+    $databaseText = Get-FileText "core/database/src/main/java/com/musfit/data/local/MusFitDatabase.kt"
     $match = [regex]::Match($databaseText, '(?m)^\s*version\s*=\s*(\d+)\s*,?\s*$')
     if (-not $match.Success) {
         throw "Could not derive the Room version from MusFitDatabase.kt."
@@ -141,7 +141,7 @@ function Assert-RegisteredSequentialMigrations([int] $SourceVersion) {
         return
     }
 
-    $moduleText = Get-FileText "app/src/main/java/com/musfit/core/di/DatabaseModule.kt"
+    $moduleText = Get-FileText "core/database/src/main/java/com/musfit/core/di/DatabaseModule.kt"
     $callMatch = [regex]::Match($moduleText, '\.addMigrations\s*\(')
     if (-not $callMatch.Success) {
         throw "Could not find the Room addMigrations registration."
@@ -339,7 +339,7 @@ Assert-FileContains "docs/architecture/README.md" "app/src/androidTest/java/com/
 Assert-FileDoesNotContain "AGENTS.md" '(?m)^\.\\scripts\\dev\\verify-musfit\.ps1[^\r\n]*-InstallSeed[^\r\n]*-DeviceSerial'
 
 $databaseVersion = Get-DatabaseVersion
-Assert-FileContains "app/src/main/java/com/musfit/data/local/MusFitDatabase.kt" "MUSFIT_DATABASE_VERSION\s*=\s*$databaseVersion"
+Assert-FileContains "core/database/src/main/java/com/musfit/data/local/MusFitDatabase.kt" "MUSFIT_DATABASE_VERSION\s*=\s*$databaseVersion"
 $schemaDirectory = Get-RepoPath "app/schemas/com.musfit.data.local.MusFitDatabase"
 if (-not (Test-Path -LiteralPath $schemaDirectory -PathType Container)) {
     throw "Expected exported Room schema directory: $schemaDirectory"
@@ -440,8 +440,9 @@ foreach ($relativeVariantFile in @(
     "ui/permissions/LocalNetworkPermission.kt",
     "ui/profile/AiCoachVariantCopy.kt"
 )) {
-    $productionVariantFile = "app/src/production/java/com/musfit/$relativeVariantFile"
-    $migrationVariantFile = "app/src/legacyMigration/java/com/musfit/$relativeVariantFile"
+    $variantRoot = if ($relativeVariantFile.StartsWith("data/remote/")) { "core/network/src" } else { "app/src" }
+    $productionVariantFile = "$variantRoot/production/java/com/musfit/$relativeVariantFile"
+    $migrationVariantFile = "$variantRoot/legacyMigration/java/com/musfit/$relativeVariantFile"
     Assert-FileExists $migrationVariantFile
     $productionVariantText = (Get-FileText $productionVariantFile) -replace "`r`n", "`n"
     $migrationVariantText = (Get-FileText $migrationVariantFile) -replace "`r`n", "`n"
