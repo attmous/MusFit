@@ -59,7 +59,7 @@ jobs:
         run: ./scripts/dev/test-configuration-cache.ps1 -SelfTest
 
       - name: Verify internal, migration bridge, and production-shaped builds
-        run: ./gradlew spotlessCheck detekt verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
+        run: ./gradlew spotlessCheck detekt verifyCoreModules verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease --no-daemon --console=plain
 
       - name: Generate and enforce actionable unit coverage
         timeout-minutes: 10
@@ -67,14 +67,16 @@ jobs:
         env:
           COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          ./gradlew :app:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
+          ./gradlew :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport --no-daemon --console=plain
           $baseRef = $env:COVERAGE_BASE_REF
           if ([string]::IsNullOrWhiteSpace($baseRef) -or $baseRef -match '^0+$') {
             $baseRef = 'HEAD^'
           }
-          ./scripts/coverage/verify-coverage.ps1 `
-            -ReportPath app/build/reports/coverage/test/internal/debug/report.xml `
-            -BaseRef $baseRef
+          $reports = @(
+            'app/build/reports/coverage/test/internal/debug/report.xml'
+            'core/model/build/reports/jacoco/test/jacocoTestReport.xml'
+          )
+          ./scripts/coverage/verify-coverage.ps1 -ReportPath $reports -BaseRef $baseRef
 
       - name: Retain actionable coverage report
         if: always()
@@ -83,6 +85,7 @@ jobs:
           name: musfit-coverage-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             app/build/reports/coverage/test/internal/debug/
+            core/model/build/reports/jacoco/test/
             build/reports/coverage-policy/
           if-no-files-found: error
           retention-days: 30

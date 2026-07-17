@@ -372,7 +372,7 @@ $bottomBarComponent = $bottomBarMatch.Groups[1].Value
 Assert-FileContains "CLAUDE.md" ([regex]::Escape($bottomBarComponent))
 Assert-FileContains "docs/architecture/README.md" ([regex]::Escape($bottomBarComponent))
 
-$typeText = Get-FileText "app/src/main/java/com/musfit/ui/theme/Type.kt"
+$typeText = Get-FileText "core/designsystem/src/main/kotlin/com/musfit/ui/theme/Type.kt"
 $fontMatch = [regex]::Match($typeText, '\bR\.font\.([a-z0-9_]+)_regular\b')
 if (-not $fontMatch.Success) {
     throw "Could not derive the app font family from the regular font resource in Type.kt."
@@ -454,7 +454,7 @@ Assert-FileContains "app/src/main/AndroidManifest.xml" 'android:enabled="\$\{leg
 
 Assert-FileContains "scripts/dev/clean-generated.ps1" "Remove-Item"
 Assert-FileContains "scripts/dev/verify-musfit.ps1" "RetryOnGeneratedOutputIssue"
-Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)"Full"\s*\{.{0,300}"verifyReleaseVariantMatrix".{0,300}"testInternalDebugUnitTest".{0,200}"testProductionReleaseUnitTest".{0,300}"testLegacyMigrationReleaseUnitTest".{0,500}"assembleInternalDebugAndroidTest".{0,300}"assembleLegacyMigrationRelease".{0,300}"bundleProductionRelease"'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)"Full"\s*\{.{0,300}"verifyCoreModules".{0,100}"verifyReleaseVariantMatrix".{0,300}"testInternalDebugUnitTest".{0,200}"testProductionReleaseUnitTest".{0,300}"testLegacyMigrationReleaseUnitTest".{0,500}"assembleInternalDebugAndroidTest".{0,300}"assembleLegacyMigrationRelease".{0,300}"bundleProductionRelease"'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$InstallSeed\)\s*\{.{0,500}"assembleInternalDebug".{0,200}"assembleInternalDebugAndroidTest"'
 Assert-FileContains "scripts/dev/new-task-branch.ps1" "origin/master"
 Assert-FileContains "scripts/dev/new-task-branch.ps1" "DryRun"
@@ -462,8 +462,9 @@ Assert-FileContains "scripts/dev/new-task-branch.ps1" "DryRun"
 Assert-FileContains ".github/workflows/android.yml" "concurrency:"
 Assert-FileContains ".github/workflows/android.yml" "permissions:"
 Assert-FileContains ".github/workflows/android.yml" "test-dev-workflow\.ps1"
-Assert-FileContains ".github/workflows/android.yml" "spotlessCheck detekt verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease"
+Assert-FileContains ".github/workflows/android.yml" "spotlessCheck detekt verifyCoreModules verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease"
 Assert-FileContains ".github/workflows/android.yml" "app/build/outputs/apk/internal/debug/app-internal-debug\.apk"
+Assert-FileContains "benchmark/build.gradle.kts" '(?s)create\("benchmark"\).{0,200}matchingFallbacks\s*\+=\s*"release"'
 Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/mapping/productionRelease/mapping\.txt'
 Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/r8Reports/productionRelease/usage\.txt'
 Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/r8Reports/productionRelease/seeds\.txt'

@@ -24,7 +24,9 @@ The audit is a dated snapshot. Re-check a finding before implementing it.
 
 ## Product Boundary
 
-MusFit is an Android-only, single-module (`:app`) fitness and nutrition tracker.
+MusFit is an Android-only fitness and nutrition tracker. The installable app is
+`:app`; shared code lives in deliberately coarse `:core:model`,
+`:core:designsystem`, and `:core:testing` modules.
 The production application id is `com.musfit`; the side-by-side developer
 variant is `com.musfit.internal`. Top-level destinations are: Today, Food,
 Training, Profile.
@@ -118,9 +120,13 @@ The standard variant gate is:
 Generate and enforce the actionable unit-coverage report with:
 
 ```powershell
-.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
+.\gradlew.bat :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport --no-daemon --console=plain
+$reports = @(
+  "app\build\reports\coverage\test\internal\debug\report.xml"
+  "core\model\build\reports\jacoco\test\jacocoTestReport.xml"
+)
 .\scripts\coverage\verify-coverage.ps1 `
-  -ReportPath app\build\reports\coverage\test\internal\debug\report.xml `
+  -ReportPath $reports `
   -BaseRef origin/master
 ```
 

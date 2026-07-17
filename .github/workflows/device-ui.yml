@@ -118,9 +118,11 @@ jobs:
         run: |
           ./gradlew :app:musFitApi28InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
           ./gradlew :app:musFitApi37InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
-          ./gradlew :app:createInternalDebugUnitTestCoverageReport :app:createManagedDeviceInternalDebugAndroidTestCoverageReport -x :app:musFitApi28InternalDebugAndroidTest -x :app:musFitApi37InternalDebugAndroidTest --no-daemon --console=plain
+          ./gradlew :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :app:createManagedDeviceInternalDebugAndroidTestCoverageReport -x :app:musFitApi28InternalDebugAndroidTest -x :app:musFitApi37InternalDebugAndroidTest --no-daemon --console=plain
           $reports = @(
             Get-ChildItem app/build/reports/coverage -Recurse -Filter report.xml -File |
+              Select-Object -ExpandProperty FullName
+            Get-Item core/model/build/reports/jacoco/test/jacocoTestReport.xml |
               Select-Object -ExpandProperty FullName
           )
           ./scripts/coverage/verify-coverage.ps1 -ReportPath $reports -BaseRef HEAD^
@@ -135,6 +137,7 @@ jobs:
             app/build/outputs/androidTest-results/managedDevice/
             app/build/outputs/managed_device_android_test_additional_output/
             app/build/reports/coverage/
+            core/model/build/reports/jacoco/test/
             build/reports/coverage-policy/
           if-no-files-found: warn
           retention-days: 14

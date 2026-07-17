@@ -2,8 +2,8 @@
 
 This is the low-drift design contract for MusFit. Exact color values, radii,
 spacing values, typography sizes, and motion parameters live in source under
-`app/src/main/java/com/musfit/ui/theme/`; do not duplicate those volatile values
-here.
+`core/designsystem/src/main/kotlin/com/musfit/ui/theme/`; do not duplicate those
+volatile values here.
 
 Related guidance:
 
@@ -36,8 +36,8 @@ Priorities:
 | `Type.kt` | Bundled Roboto Flex type scale for display, headline, title, body, and label roles. |
 | `Shape.kt` | Material 3 shape-role radii. |
 | `Spacing.kt` | Shared spacing scale. |
-| `Motion.kt` | Compose spring specifications. |
-| `TabAccent.kt` | Destination-owned light/dark accents. |
+| `MusFitMotion.kt` | Compose spring specifications. |
+| `TabAccent.kt` | Reusable light/dark accent values; app destination mapping remains app-owned. |
 
 When a token changes, source and visual tests/screenshots are authoritative.
 Update prose only when the design rule changes, not when a literal value changes.

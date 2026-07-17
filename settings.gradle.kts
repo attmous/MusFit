@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         google()
         mavenCentral()
@@ -18,3 +19,6 @@ rootProject.name = "MusFit"
 include(":app")
 include(":benchmark")
 include(":baselineprofile")
+include(":core:model")
+include(":core:designsystem")
+include(":core:testing")

@@ -1,6 +1,7 @@
 import io.gitlab.arturbosch.detekt.Detekt
 
 plugins {
+    id("musfit.architecture")
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.compose.compiler) apply false
@@ -21,6 +22,8 @@ spotless {
             "app/src/**/*.kt",
             "baselineprofile/src/**/*.kt",
             "benchmark/src/**/*.kt",
+            "build-logic/src/**/*.kt",
+            "core/*/src/**/*.kt",
         )
         targetExclude("app/src/main/generated/**")
         ktlint("1.8.0").editorConfigOverride(
@@ -33,6 +36,9 @@ spotless {
             "app/*.gradle.kts",
             "baselineprofile/*.gradle.kts",
             "benchmark/*.gradle.kts",
+            "build-logic/*.gradle.kts",
+            "build-logic/src/**/*.gradle.kts",
+            "core/*/*.gradle.kts",
         )
         ktlint("1.8.0")
     }
@@ -64,6 +70,9 @@ detekt {
             "app/src/internal/java",
             "benchmark/src/main/java",
             "baselineprofile/src/main/java",
+            "core/model/src/main/kotlin",
+            "core/designsystem/src/main/kotlin",
+            "core/testing/src/main/kotlin",
         ),
     )
     config.setFrom(files("config/detekt.yml"))
@@ -81,4 +90,23 @@ tasks.withType<Detekt>().configureEach {
         sarif.required.set(true)
         md.required.set(false)
     }
+}
+
+val verifyBuildLogic =
+    tasks.register("verifyBuildLogic") {
+        group = "verification"
+        description = "Runs the convention plugin and module-graph test suite."
+        dependsOn(gradle.includedBuild("build-logic").task(":test"))
+    }
+
+tasks.register("verifyCoreModules") {
+    group = "verification"
+    description = "Verifies build logic, module edges, and every shared core module."
+    dependsOn(
+        verifyBuildLogic,
+        "verifyModuleGraph",
+        ":core:model:test",
+        ":core:designsystem:testDebugUnitTest",
+        ":core:testing:test",
+    )
 }

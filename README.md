@@ -198,8 +198,9 @@ sparklines, goal and target-weight management, plan launchers, and app settings.
 
 ## How it's built
 
-Single-module Android app (`:app`) with production id `com.musfit` and a
-side-by-side internal id `com.musfit.internal`. It follows this intended
+Android app (`:app`) with coarse shared `:core:model`, `:core:designsystem`, and
+`:core:testing` modules, production id `com.musfit`, and a side-by-side internal
+id `com.musfit.internal`. It follows this intended
 dependency direction; the architecture audit tracks current boundary leaks:
 
 ```text

@@ -39,26 +39,24 @@ import com.musfit.domain.profile.ActivityLevel
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
-import kotlinx.coroutines.Dispatchers
+import com.musfit.testing.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModelTest {
-    private val dispatcher = StandardTestDispatcher()
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+    private val dispatcher get() = mainDispatcherRule.dispatcher
 
     // UTC epoch-day anchors: the ViewModel's window math is epoch-day based, so
     // local-zone times would flake in far-west zones.
@@ -81,12 +79,6 @@ class ProfileViewModelTest {
         goalsRepository = goalsRepository,
         dateProvider = dateProvider,
     )
-
-    @Before
-    fun setUp() = Dispatchers.setMain(dispatcher)
-
-    @After
-    fun tearDown() = Dispatchers.resetMain()
 
     @Test
     fun incompleteProfile_hidesRecommendation() = runTest {

@@ -444,6 +444,8 @@ ksp {
 }
 
 dependencies {
+    implementation(project(":core:model"))
+    implementation(project(":core:designsystem"))
     implementation(platform(libs.androidx.compose.bom))
     // Room's schema parser uses serialization 1.8.1. Align the app and
     // instrumentation classloaders so MigrationTestHelper cannot resolve the
@@ -500,6 +502,7 @@ dependencies {
     androidTestUtil(libs.androidx.test.orchestrator)
 
     testImplementation(libs.junit)
+    testImplementation(project(":core:testing"))
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
