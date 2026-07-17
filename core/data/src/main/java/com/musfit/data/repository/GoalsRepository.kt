@@ -36,12 +36,11 @@ class LocalGoalsRepository @Inject constructor(
         this.clock = clock
     }
 
-    override fun observeUserGoals(): Flow<UserGoals> =
-        accountRepository.observeActiveAccount().flatMapLatest { account ->
-            userGoalsDao.observeUserGoals(account.id).map { entity ->
-                entity?.let { UserGoals(it.stepGoal, it.weeklySessionTarget, it.targetWeightKg) } ?: UserGoals()
-            }
+    override fun observeUserGoals(): Flow<UserGoals> = accountRepository.observeActiveAccount().flatMapLatest { account ->
+        userGoalsDao.observeUserGoals(account.id).map { entity ->
+            entity?.let { UserGoals(it.stepGoal, it.weeklySessionTarget, it.targetWeightKg) } ?: UserGoals()
         }
+    }
 
     override suspend fun updateUserGoals(goals: UserGoals) {
         val account = accountRepository.ensureActiveAccount()

@@ -16,6 +16,7 @@ class ModuleGraphRulesTest {
                     ":core:model" to emptySet(),
                     ":core:database" to emptySet(),
                     ":core:network" to setOf(":core:model"),
+                    ":core:data" to setOf(":core:model", ":core:database", ":core:network"),
                     ":core:designsystem" to setOf(":core:model"),
                     ":core:testing" to setOf(":core:model", ":core:designsystem"),
                 ),

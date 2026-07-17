@@ -29,8 +29,7 @@ enum class AccountAuthProvider(
     ;
 
     companion object {
-        fun fromStorage(value: String?): AccountAuthProvider =
-            entries.firstOrNull { it.storageValue == value } ?: Local
+        fun fromStorage(value: String?): AccountAuthProvider = entries.firstOrNull { it.storageValue == value } ?: Local
     }
 }
 
@@ -70,11 +69,9 @@ class LocalAccountRepository @Inject constructor(
         this.clock = clock
     }
 
-    override fun observeActiveAccount(): Flow<Account> =
-        accountDao.observeActiveAccount().map { entity -> entity?.toAccount() ?: DEFAULT_LOCAL_ACCOUNT }
+    override fun observeActiveAccount(): Flow<Account> = accountDao.observeActiveAccount().map { entity -> entity?.toAccount() ?: DEFAULT_LOCAL_ACCOUNT }
 
-    override fun observeAccounts(): Flow<List<Account>> =
-        accountDao.observeAccounts().map { rows -> rows.map { it.toAccount() } }
+    override fun observeAccounts(): Flow<List<Account>> = accountDao.observeAccounts().map { rows -> rows.map { it.toAccount() } }
 
     override suspend fun ensureActiveAccount(): Account {
         accountDao.getActiveAccount()?.let { return it.toAccount() }
@@ -207,24 +204,20 @@ class LocalAccountRepository @Inject constructor(
     }
 }
 
-private fun AccountEntity.toAccount(): Account =
-    Account(
-        id = id,
-        displayName = displayName,
-        email = email,
-        remoteUserId = remoteUserId,
-        authProvider = AccountAuthProvider.fromStorage(authProvider),
-        avatarUrl = avatarUrl,
-    )
+private fun AccountEntity.toAccount(): Account = Account(
+    id = id,
+    displayName = displayName,
+    email = email,
+    remoteUserId = remoteUserId,
+    authProvider = AccountAuthProvider.fromStorage(authProvider),
+    avatarUrl = avatarUrl,
+)
 
-private fun String.normalizedDisplayName(): String =
-    trim().takeIf { it.isNotBlank() } ?: throw IllegalArgumentException("Account name is required.")
+private fun String.normalizedDisplayName(): String = trim().takeIf { it.isNotBlank() } ?: throw IllegalArgumentException("Account name is required.")
 
-private fun String?.normalizedEmail(): String? =
-    this?.trim()?.takeIf { it.isNotBlank() }
+private fun String?.normalizedEmail(): String? = this?.trim()?.takeIf { it.isNotBlank() }
 
-private fun String?.normalizedOptionalText(): String? =
-    this?.trim()?.takeIf { it.isNotBlank() }
+private fun String?.normalizedOptionalText(): String? = this?.trim()?.takeIf { it.isNotBlank() }
 
 private fun ExternalAccountProfile.scopedRemoteUserId(): String {
     val normalizedProviderUserId = this.providerUserId.normalizedOptionalText()

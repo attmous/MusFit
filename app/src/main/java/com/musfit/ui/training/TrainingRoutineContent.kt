@@ -22,13 +22,14 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -79,7 +80,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -767,8 +767,8 @@ fun RoutineDetailContent(
                 muscles.forEach { muscle -> RoutineMuscleChip(muscle) }
             }
         }
-        if (detail.notes?.isNotBlank() == true) {
-            Text(detail.notes, style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
+        detail.notes?.takeIf(String::isNotBlank)?.let { notes ->
+            Text(notes, style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
         }
         if (detail.exercises.isEmpty()) {
             Text(
@@ -1012,14 +1012,12 @@ private data class RoutineDragState(
 internal fun routineFolderDropTargetAt(
     position: Offset,
     targetBounds: Map<String?, Rect>,
-): RoutineFolderDropTarget? =
-    targetBounds.entries
-        .firstOrNull { (_, bounds) -> bounds.contains(position) }
-        ?.let { (folderId, _) -> RoutineFolderDropTarget(folderId) }
+): RoutineFolderDropTarget? = targetBounds.entries
+    .firstOrNull { (_, bounds) -> bounds.contains(position) }
+    ?.let { (folderId, _) -> RoutineFolderDropTarget(folderId) }
 
-internal fun routineFolderMoveTargets(folders: List<RoutineFolder>): List<RoutineFolderMoveTarget> =
-    listOf(RoutineFolderMoveTarget(folderId = null, label = "My routines")) +
-        folders.map { folder -> RoutineFolderMoveTarget(folderId = folder.id, label = folder.name) }
+internal fun routineFolderMoveTargets(folders: List<RoutineFolder>): List<RoutineFolderMoveTarget> = listOf(RoutineFolderMoveTarget(folderId = null, label = "My routines")) +
+    folders.map { folder -> RoutineFolderMoveTarget(folderId = folder.id, label = folder.name) }
 
 internal fun groupRoutineSummariesByFolder(
     routines: List<RoutineSummary>,
@@ -1069,16 +1067,14 @@ private fun RoutineSummary.belongsToFolder(folder: RoutineFolder): Boolean {
         normalizedRoutineFolderName?.equals(normalizedFolderName, ignoreCase = true) == true
 }
 
-internal fun routineCardActions(isStarter: Boolean): List<String> =
-    if (isStarter) {
-        listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_EDIT, ROUTINE_ACTION_DUPLICATE)
-    } else {
-        listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_EDIT, ROUTINE_ACTION_DUPLICATE, ROUTINE_ACTION_DELETE)
-    }
+internal fun routineCardActions(isStarter: Boolean): List<String> = if (isStarter) {
+    listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_EDIT, ROUTINE_ACTION_DUPLICATE)
+} else {
+    listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_EDIT, ROUTINE_ACTION_DUPLICATE, ROUTINE_ACTION_DELETE)
+}
 
-internal fun routineDescription(routine: RoutineSummary): String? =
-    routine.notes?.trim()?.takeIf(String::isNotBlank)
-        ?: if (routine.isStarter) "Pre-saved routine" else null
+internal fun routineDescription(routine: RoutineSummary): String? = routine.notes?.trim()?.takeIf(String::isNotBlank)
+    ?: if (routine.isStarter) "Pre-saved routine" else null
 
 private const val ROUTINE_ACTION_START = "Start"
 private const val ROUTINE_ACTION_EDIT = "Edit"
@@ -1169,9 +1165,10 @@ internal fun routineEditorCanSave(name: String, exercises: List<RoutineExerciseI
             restValid &&
             setPlans.isNotEmpty() &&
             setPlans.all { setPlan ->
+                val targetWeightKg = setPlan.targetWeightKg
                 setPlan.setType.lowercase() in setOf("warmup", "working", "failure", "drop") &&
                     validateTargetReps(setPlan.targetReps.orEmpty()) is TargetFieldResult.Valid &&
-                    (setPlan.targetWeightKg == null || setPlan.targetWeightKg > 0.0)
+                    (targetWeightKg == null || targetWeightKg > 0.0)
             }
     }
 }
@@ -2599,8 +2596,7 @@ private fun PickerExerciseThumb(
 }
 
 @Composable
-internal fun pickerOutlineColor(): Color =
-    if (isSystemInDarkTheme()) NeutralOutlineDark else NeutralOutline
+internal fun pickerOutlineColor(): Color = if (isSystemInDarkTheme()) NeutralOutlineDark else NeutralOutline
 
 @Composable
 private fun RoutineEditorSetRow(
@@ -2665,15 +2661,14 @@ internal data class RoutineExercisePickerOptions(
     val muscles: List<String>,
 )
 
-internal fun routineExercisePickerOptions(exercises: List<ExerciseSummary>): RoutineExercisePickerOptions =
-    RoutineExercisePickerOptions(
-        equipment = exercises.mapNotNull { it.equipment?.trim()?.takeIf(String::isNotBlank) }
-            .distinctBy { it.lowercase() }
-            .sortedBy { it.lowercase() },
-        muscles = exercises.flatMap { it.pickerMuscles() }
-            .distinctBy { it.lowercase() }
-            .sortedBy { it.lowercase() },
-    )
+internal fun routineExercisePickerOptions(exercises: List<ExerciseSummary>): RoutineExercisePickerOptions = RoutineExercisePickerOptions(
+    equipment = exercises.mapNotNull { it.equipment?.trim()?.takeIf(String::isNotBlank) }
+        .distinctBy { it.lowercase() }
+        .sortedBy { it.lowercase() },
+    muscles = exercises.flatMap { it.pickerMuscles() }
+        .distinctBy { it.lowercase() }
+        .sortedBy { it.lowercase() },
+)
 
 internal fun routineExercisePickerSuggestions(
     exercises: List<ExerciseSummary>,
@@ -2688,11 +2683,11 @@ internal fun routineExercisePickerSuggestions(
     val filtered = available.filter { exercise ->
         val matchesQuery = trimmedQuery.isBlank() ||
             exercise.name.contains(trimmedQuery, ignoreCase = true) ||
-                exercise.category.contains(trimmedQuery, ignoreCase = true) ||
-                exercise.equipment.orEmpty().contains(trimmedQuery, ignoreCase = true) ||
-                exercise.targetMuscles.contains(trimmedQuery, ignoreCase = true) ||
-                exercise.primaryMuscles.contains(trimmedQuery, ignoreCase = true) ||
-                exercise.secondaryMuscles.contains(trimmedQuery, ignoreCase = true)
+            exercise.category.contains(trimmedQuery, ignoreCase = true) ||
+            exercise.equipment.orEmpty().contains(trimmedQuery, ignoreCase = true) ||
+            exercise.targetMuscles.contains(trimmedQuery, ignoreCase = true) ||
+            exercise.primaryMuscles.contains(trimmedQuery, ignoreCase = true) ||
+            exercise.secondaryMuscles.contains(trimmedQuery, ignoreCase = true)
         val matchesEquipment = filters.equipment.isEmpty() ||
             filters.equipment.any { exercise.equipment.equals(it, ignoreCase = true) }
         val matchesMuscle = filters.muscles.isEmpty() ||
@@ -2707,12 +2702,11 @@ internal fun routineExercisePickerSuggestions(
 }
 
 /** "Barbell · Quads" — title-cased active filters for the picker's summary line. */
-internal fun pickerFilterSummary(filters: TrainingPickerFilters): String =
-    buildList {
-        addAll(filters.equipment.map { it.displayExerciseToken() })
-        addAll(filters.muscles.map { it.displayExerciseToken() })
-        if (filters.onlyDone) add("Done before")
-    }.joinToString(" · ")
+internal fun pickerFilterSummary(filters: TrainingPickerFilters): String = buildList {
+    addAll(filters.equipment.map { it.displayExerciseToken() })
+    addAll(filters.muscles.map { it.displayExerciseToken() })
+    if (filters.onlyDone) add("Done before")
+}.joinToString(" · ")
 
 internal fun pickerConfirmLabel(selectedCount: Int): String = when (selectedCount) {
     0 -> "Add exercises"
@@ -2721,18 +2715,16 @@ internal fun pickerConfirmLabel(selectedCount: Int): String = when (selectedCoun
 }
 
 /** Picker row subline (10c): "Quads · barbell" — lead muscle + equipment. */
-internal fun pickerRowSubline(exercise: ExerciseSummary): String =
-    listOfNotNull(
-        exercise.pickerMuscles().firstOrNull()?.displayExerciseToken(),
-        exercise.equipment?.trim()?.takeIf(String::isNotBlank)?.lowercase(),
-    ).joinToString(" · ")
+internal fun pickerRowSubline(exercise: ExerciseSummary): String = listOfNotNull(
+    exercise.pickerMuscles().firstOrNull()?.displayExerciseToken(),
+    exercise.equipment?.trim()?.takeIf(String::isNotBlank)?.lowercase(),
+).joinToString(" · ")
 
 /** Exercises per muscle (lowercase key) — the counts on the filter sheet's rows. */
-internal fun pickerMuscleCounts(exercises: List<ExerciseSummary>): Map<String, Int> =
-    exercises
-        .flatMap { exercise -> exercise.pickerMuscles().map { it.lowercase() }.distinct() }
-        .groupingBy { it }
-        .eachCount()
+internal fun pickerMuscleCounts(exercises: List<ExerciseSummary>): Map<String, Int> = exercises
+    .flatMap { exercise -> exercise.pickerMuscles().map { it.lowercase() }.distinct() }
+    .groupingBy { it }
+    .eachCount()
 
 /** Two-letter monogram badge text ("quads" → "Qu") — a muscle-art stand-in. */
 internal fun muscleMonogram(muscle: String): String {
@@ -2742,24 +2734,22 @@ internal fun muscleMonogram(muscle: String): String {
 }
 
 /** The filter sheet's muscle pills: the catalog's most common muscles, not an alphabetical slice. */
-internal fun topPickerMuscles(exercises: List<ExerciseSummary>, limit: Int): List<String> =
-    exercises.flatMap { it.pickerMuscles().map { muscle -> muscle.lowercase() }.distinct() }
-        .groupingBy { it }
-        .eachCount()
-        .entries
-        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
-        .take(limit)
-        .map { it.key }
+internal fun topPickerMuscles(exercises: List<ExerciseSummary>, limit: Int): List<String> = exercises.flatMap { it.pickerMuscles().map { muscle -> muscle.lowercase() }.distinct() }
+    .groupingBy { it }
+    .eachCount()
+    .entries
+    .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+    .take(limit)
+    .map { it.key }
 
 /** The filter sheet's equipment pills, ranked by how much of the catalog each covers. */
-internal fun topPickerEquipment(exercises: List<ExerciseSummary>, limit: Int): List<String> =
-    exercises.mapNotNull { it.equipment?.trim()?.takeIf(String::isNotBlank)?.lowercase() }
-        .groupingBy { it }
-        .eachCount()
-        .entries
-        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
-        .take(limit)
-        .map { it.key }
+internal fun topPickerEquipment(exercises: List<ExerciseSummary>, limit: Int): List<String> = exercises.mapNotNull { it.equipment?.trim()?.takeIf(String::isNotBlank)?.lowercase() }
+    .groupingBy { it }
+    .eachCount()
+    .entries
+    .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+    .take(limit)
+    .map { it.key }
 
 // Grid capacities per the 10d sheet: a 3×2 equipment tile grid and a 2×4
 // muscle-row grid.
@@ -2775,68 +2765,63 @@ internal fun equipmentGlyphFor(equipment: String): ImageVector {
     val token = equipment.lowercase(java.util.Locale.US)
     return when {
         token.contains("cable") || token.contains("band") || token.contains("rope") -> Icons.Outlined.Cable
+
         token.contains("machine") || token.contains("smith") || token.contains("sled") ||
             token.contains("leverage") -> Icons.Outlined.PrecisionManufacturing
+
         token.contains("body") || token.contains("assisted") -> Icons.Outlined.SportsGymnastics
+
         else -> Icons.Outlined.FitnessCenter
     }
 }
 
-internal fun defaultRoutineEditorSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> =
-    (0 until targetSets.coerceAtLeast(1)).map {
-        RoutineSetInput(setType = "working", targetReps = targetReps)
+internal fun defaultRoutineEditorSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> = (0 until targetSets.coerceAtLeast(1)).map {
+    RoutineSetInput(setType = "working", targetReps = targetReps)
+}
+
+private fun nextRoutineSetType(current: String): String = when (current.lowercase()) {
+    "warmup" -> "working"
+    "working" -> "failure"
+    "failure" -> "drop"
+    "drop" -> "warmup"
+    else -> "working"
+}
+
+private fun routineSetTypeToken(setType: String, setIndex: Int): String = when (setType.lowercase()) {
+    "warmup" -> "W"
+    "failure" -> "F"
+    "drop" -> "D"
+    else -> (setIndex + 1).toString()
+}
+
+private fun routineSetTypeColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color = when (setType.lowercase()) {
+    "warmup" -> androidx.compose.ui.graphics.Color(0xFFFFF3CD)
+    "failure" -> androidx.compose.ui.graphics.Color(0xFFFFE1DD)
+    "drop" -> androidx.compose.ui.graphics.Color(0xFFE0F2FE)
+    else -> accent.container
+}
+
+private fun routineSetTypeContentColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color = when (setType.lowercase()) {
+    "warmup" -> androidx.compose.ui.graphics.Color(0xFF9A6700)
+    "failure" -> androidx.compose.ui.graphics.Color(0xFFB42318)
+    "drop" -> androidx.compose.ui.graphics.Color(0xFF0277BD)
+    else -> accent.onContainer
+}
+
+private fun Double.formatRoutineWeight(): String = if (this % 1.0 == 0.0) {
+    toInt().toString()
+} else {
+    toString().trimEnd('0').trimEnd('.')
+}
+
+private fun ExerciseSummary.pickerMuscles(): List<String> = listOf(targetMuscles, primaryMuscles, secondaryMuscles)
+    .flatMap { raw -> raw.split(',', '/', ';') }
+    .map { it.trim() }
+    .filter { it.isNotBlank() }
+
+private fun String.displayExerciseToken(): String = trim()
+    .splitToSequence(' ', '-', '_')
+    .filter { it.isNotBlank() }
+    .joinToString(" ") { token ->
+        token.replaceFirstChar { char -> char.titlecase() }
     }
-
-private fun nextRoutineSetType(current: String): String =
-    when (current.lowercase()) {
-        "warmup" -> "working"
-        "working" -> "failure"
-        "failure" -> "drop"
-        "drop" -> "warmup"
-        else -> "working"
-    }
-
-private fun routineSetTypeToken(setType: String, setIndex: Int): String =
-    when (setType.lowercase()) {
-        "warmup" -> "W"
-        "failure" -> "F"
-        "drop" -> "D"
-        else -> (setIndex + 1).toString()
-    }
-
-private fun routineSetTypeColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color =
-    when (setType.lowercase()) {
-        "warmup" -> androidx.compose.ui.graphics.Color(0xFFFFF3CD)
-        "failure" -> androidx.compose.ui.graphics.Color(0xFFFFE1DD)
-        "drop" -> androidx.compose.ui.graphics.Color(0xFFE0F2FE)
-        else -> accent.container
-    }
-
-private fun routineSetTypeContentColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color =
-    when (setType.lowercase()) {
-        "warmup" -> androidx.compose.ui.graphics.Color(0xFF9A6700)
-        "failure" -> androidx.compose.ui.graphics.Color(0xFFB42318)
-        "drop" -> androidx.compose.ui.graphics.Color(0xFF0277BD)
-        else -> accent.onContainer
-    }
-
-private fun Double.formatRoutineWeight(): String =
-    if (this % 1.0 == 0.0) {
-        toInt().toString()
-    } else {
-        toString().trimEnd('0').trimEnd('.')
-    }
-
-private fun ExerciseSummary.pickerMuscles(): List<String> =
-    listOf(targetMuscles, primaryMuscles, secondaryMuscles)
-        .flatMap { raw -> raw.split(',', '/', ';') }
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
-
-private fun String.displayExerciseToken(): String =
-    trim()
-        .splitToSequence(' ', '-', '_')
-        .filter { it.isNotBlank() }
-        .joinToString(" ") { token ->
-            token.replaceFirstChar { char -> char.titlecase() }
-        }

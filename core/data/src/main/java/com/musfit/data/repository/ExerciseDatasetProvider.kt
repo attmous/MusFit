@@ -74,8 +74,7 @@ fun exerciseMediaUrl(pathOrUrl: String): String? {
     return value.takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
 }
 
-private fun String.removePrefixIgnoringCase(prefix: String): String =
-    if (startsWith(prefix, ignoreCase = true)) substring(prefix.length) else this
+private fun String.removePrefixIgnoringCase(prefix: String): String = if (startsWith(prefix, ignoreCase = true)) substring(prefix.length) else this
 
 private fun String.exerciseDbMediaId(): String? {
     val filename = substringAfterLast('/').substringBeforeLast('.')
@@ -87,20 +86,19 @@ private fun String.exerciseDbMediaId(): String? {
 }
 
 /** Maps a dataset record to a library [ExerciseEntity] (namespaced id + absolute CDN media URLs). */
-fun ExerciseDatasetRecord.toExerciseEntity(): ExerciseEntity =
-    ExerciseEntity(
-        id = "$EXERCISE_DATASET_ID_PREFIX$id",
-        name = name,
-        category = category.ifBlank { "general" },
-        equipment = equipment.takeIf { it.isNotBlank() },
-        targetMuscles = target,
-        isCustom = false,
-        primaryMuscles = target,
-        secondaryMuscles = secondary,
-        instructions = instructions.takeIf { it.isNotBlank() },
-        imageUrl = exerciseMediaUrl(image),
-        gifUrl = exerciseMediaUrl(gif),
-    )
+fun ExerciseDatasetRecord.toExerciseEntity(): ExerciseEntity = ExerciseEntity(
+    id = "$EXERCISE_DATASET_ID_PREFIX$id",
+    name = name,
+    category = category.ifBlank { "general" },
+    equipment = equipment.takeIf { it.isNotBlank() },
+    targetMuscles = target,
+    isCustom = false,
+    primaryMuscles = target,
+    secondaryMuscles = secondary,
+    instructions = instructions.takeIf { it.isNotBlank() },
+    imageUrl = exerciseMediaUrl(image),
+    gifUrl = exerciseMediaUrl(gif),
+)
 
 /**
  * Curated map from a built-in starter exercise name to the dataset id whose media best represents

@@ -524,13 +524,15 @@ private fun CoachChatBubble(message: AiCoachChatMessage) {
                     },
                     style = MusFitTheme.typography.bodyMedium,
                 )
-                if (message.status == AiCoachChatMessageStatus.Failed && message.errorMessage != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = message.errorMessage,
-                        style = MusFitTheme.typography.bodySmall,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                    )
+                if (message.status == AiCoachChatMessageStatus.Failed) {
+                    message.errorMessage?.let { errorMessage ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = errorMessage,
+                            style = MusFitTheme.typography.bodySmall,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

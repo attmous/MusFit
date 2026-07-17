@@ -31,7 +31,10 @@ class LocalAccountRepositoryTest {
             .build()
         repository = LocalAccountRepository(
             accountDao = database.accountDao(),
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
     }
 

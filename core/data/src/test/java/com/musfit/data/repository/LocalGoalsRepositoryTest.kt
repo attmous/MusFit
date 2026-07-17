@@ -28,12 +28,18 @@ class LocalGoalsRepositoryTest {
             .build()
         accountRepository = LocalAccountRepository(
             accountDao = database.accountDao(),
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
         repository = LocalGoalsRepository(
             userGoalsDao = database.userGoalsDao(),
             accountRepository = accountRepository,
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
     }
 

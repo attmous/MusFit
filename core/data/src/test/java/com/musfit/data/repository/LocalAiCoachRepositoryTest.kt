@@ -34,14 +34,20 @@ class LocalAiCoachRepositoryTest {
             .build()
         accountRepository = LocalAccountRepository(
             accountDao = database.accountDao(),
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
         secretStore = FakeAiCoachSecretStore()
         repository = LocalAiCoachRepository(
             aiCoachDao = database.aiCoachDao(),
             accountRepository = accountRepository,
             secretStore = secretStore,
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
     }
 
@@ -71,7 +77,10 @@ class LocalAiCoachRepositoryTest {
                 hermesBaseUrl = "https://192.168.178.113:8443/v1",
                 hermesModelName = "hermes-agent",
             ),
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
 
         val settings = repository.observeSettings().first()
@@ -169,7 +178,10 @@ class LocalAiCoachRepositoryTest {
                 hermesBaseUrl = "https://192.168.178.113:8443/v1",
                 hermesModelName = "hermes-agent",
             ),
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
 
         try {
@@ -558,7 +570,10 @@ class LocalAiCoachRepositoryTest {
                 hermesBaseUrl = "http://api.example.com/v1/",
                 hermesModelName = "hermes-agent",
             ),
-            clock = { clockMillis += 1_000L; clockMillis },
+            clock = {
+                clockMillis += 1_000L
+                clockMillis
+            },
         )
 
         assertEquals(AiCoachProviderKind.Disabled, repository.observeSettings().first().providerKind)
