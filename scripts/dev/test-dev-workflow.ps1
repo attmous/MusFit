@@ -464,6 +464,7 @@ Assert-FileContains ".github/workflows/android.yml" "permissions:"
 Assert-FileContains ".github/workflows/android.yml" "test-dev-workflow\.ps1"
 Assert-FileContains ".github/workflows/android.yml" "spotlessCheck detekt verifyCoreModules verifyReleaseVariantMatrix testInternalDebugUnitTest testLegacyMigrationReleaseUnitTest testProductionReleaseUnitTest lintInternalDebug lintLegacyMigrationRelease lintProductionRelease assembleInternalDebug assembleInternalDebugAndroidTest assembleLegacyMigrationRelease assembleProductionRelease bundleProductionRelease"
 Assert-FileContains ".github/workflows/android.yml" "app/build/outputs/apk/internal/debug/app-internal-debug\.apk"
+Assert-FileContains "benchmark/build.gradle.kts" '(?s)create\("benchmark"\).{0,200}matchingFallbacks\s*\+=\s*"release"'
 Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/mapping/productionRelease/mapping\.txt'
 Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/r8Reports/productionRelease/usage\.txt'
 Assert-FileContains ".github/workflows/android.yml" 'app/build/outputs/r8Reports/productionRelease/seeds\.txt'
