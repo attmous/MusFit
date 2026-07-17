@@ -6,6 +6,9 @@ import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Environment
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.activity.compose.setContent
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -177,6 +180,20 @@ class MusFitCriticalJourneyInstrumentationTest {
     }
 
     @Test
+    fun todayShortcuts_requestTypedTopLevelActions_andBackToToday() {
+        compose.onAllNodesWithText("Open Food").onFirst().performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Food").assertIsSelected()
+
+        UiDevice.getInstance(instrumentation).pressBack()
+        compose.onNodeWithContentDescription("Today").assertIsSelected()
+        compose.onAllNodesWithText("Open Profile").onFirst().performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Profile").assertIsSelected()
+
+        UiDevice.getInstance(instrumentation).pressBack()
+        compose.onNodeWithContentDescription("Today").assertIsSelected()
+    }
+
+    @Test
     fun profileSettingAndVisitOrder_persistAcrossRecreationAndBack() {
         compose.onNodeWithContentDescription("Food").performClick()
         compose.onNodeWithContentDescription("Training").performClick()
@@ -225,6 +242,29 @@ class MusFitCriticalJourneyInstrumentationTest {
 
         compose.waitForText("Your profile")
         compose.onNodeWithContentDescription("Height, cm").assertTextEquals("181")
+    }
+
+    @Test
+    fun predictiveBack_previewCancelAndCommit_preserveVisitOrder() {
+        compose.onNodeWithContentDescription("Food").performClick()
+        compose.onNodeWithContentDescription("Training").performClick()
+        compose.onNodeWithContentDescription("Profile").performClick()
+
+        val cancelledGesture = beginPredictiveBackGesture()
+        instrumentation.waitForIdleSync()
+        compose.onNodeWithContentDescription("Profile").assertIsSelected()
+        finishPredictiveBackGesture(cancelledGesture, commit = false)
+        instrumentation.waitForIdleSync()
+        compose.onNodeWithContentDescription("Profile").assertIsSelected()
+
+        val committedGesture = beginPredictiveBackGesture()
+        finishPredictiveBackGesture(committedGesture, commit = true)
+        compose.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                compose.onNodeWithContentDescription("Training").assertIsSelected()
+                true
+            }.getOrDefault(false)
+        }
     }
 
     @Test
@@ -338,6 +378,45 @@ class MusFitCriticalJourneyInstrumentationTest {
         runShellCommand(
             "pm set-permission-flags ${targetContext.packageName} ${Manifest.permission.CAMERA} user-set user-fixed",
         )
+    }
+
+    private fun beginPredictiveBackGesture(): Long {
+        val downTime = SystemClock.uptimeMillis()
+        injectMotionEvent(downTime, downTime, MotionEvent.ACTION_DOWN, x = 1f)
+        injectMotionEvent(downTime, downTime + 80, MotionEvent.ACTION_MOVE, x = 180f)
+        injectMotionEvent(downTime, downTime + 160, MotionEvent.ACTION_MOVE, x = 360f)
+        return downTime
+    }
+
+    private fun finishPredictiveBackGesture(
+        downTime: Long,
+        commit: Boolean,
+    ) {
+        val action = if (commit) MotionEvent.ACTION_UP else MotionEvent.ACTION_CANCEL
+        val x = if (commit) 720f else 360f
+        injectMotionEvent(downTime, downTime + 240, action, x)
+    }
+
+    private fun injectMotionEvent(
+        downTime: Long,
+        eventTime: Long,
+        action: Int,
+        x: Float,
+    ) {
+        MotionEvent.obtain(
+            downTime,
+            eventTime,
+            action,
+            x,
+            1_200f,
+            0,
+        ).also { event ->
+            event.source = InputDevice.SOURCE_TOUCHSCREEN
+            check(instrumentation.uiAutomation.injectInputEvent(event, true)) {
+                "Predictive-back motion event was not injected"
+            }
+            event.recycle()
+        }
     }
 
     private fun setAirplaneMode(enabled: Boolean) {

@@ -1,6 +1,5 @@
 package com.musfit.ui
 
-import androidx.compose.runtime.MutableState
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -16,6 +15,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.rememberNavBackStack
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LocalAgentKind
@@ -319,21 +320,21 @@ class MusFitComposeSemanticsTest {
     @Test
     fun visitOrder_survivesSavedInstanceStateRestoration() {
         val restoration = StateRestorationTester(compose)
-        lateinit var entries: MutableState<List<AppDestination>>
+        lateinit var entries: MutableList<NavKey>
         restoration.setContent {
-            entries = rememberAppBackStackEntries()
+            entries = rememberNavBackStack(TodayNavKey)
         }
 
         compose.runOnIdle {
-            entries.value = listOf(AppDestination.Today, AppDestination.Food, AppDestination.Training)
+            entries += listOf(FoodNavKey, ProfileNavKey, ProfileSettingsNavKey)
         }
 
         restoration.emulateSavedInstanceStateRestore()
 
         compose.runOnIdle {
             assertEquals(
-                listOf(AppDestination.Today, AppDestination.Food, AppDestination.Training),
-                entries.value,
+                listOf(TodayNavKey, FoodNavKey, ProfileNavKey, ProfileSettingsNavKey),
+                entries,
             )
         }
     }
