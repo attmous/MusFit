@@ -17,6 +17,7 @@ class MusFitArchitecturePlugin : Plugin<Project> {
                 subproject.path to subproject.configurations
                     .flatMap { configuration -> configuration.dependencies.withType(ProjectDependency::class.java) }
                     .map { dependency -> dependency.path }
+                    .filterNot(subproject.path::equals)
                     .toSet()
             }
             verify.configure { edges.set(graph) }

@@ -36,9 +36,11 @@ val Indigo = Color(0xFF3D5AF1)
 val IndigoContainer = Color(0xFFDEE1FF)
 val IndigoInk = Color(0xFF1B2A80)
 val IndigoTrack = Color(0xFFC2C8F9)
+
 // Resting outline for selection circles and drag handles (Training pickers/editor).
 val NeutralOutline = Color(0xFFCBC3B4)
 val NeutralOutlineDark = Color(0xFF4A443A)
+
 // Unselected radio ring (Turn 11 grouped radio rows) — darker than NeutralOutline
 // so the empty ring reads as an affordance on white rows.
 val RadioOutline = Color(0xFFA79C8E)
@@ -80,6 +82,7 @@ val OnChipDark = Color(0xFFFBF7F1)
 // themes; the camera surface is dark by nature.
 val CameraSurface = Color(0xFF1B1813)
 val ViewfinderBracket = Color(0xFF7BC98F)
+
 // Translucent circles/pills floated over the camera preview (cream @15%).
 val CameraTranslucent = Color(0xFFF8F2E9).copy(alpha = 0.15f)
 

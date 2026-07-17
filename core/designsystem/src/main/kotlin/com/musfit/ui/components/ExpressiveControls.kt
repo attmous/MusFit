@@ -249,13 +249,12 @@ fun SheetDragHandle(modifier: Modifier = Modifier) {
  * Horizontal group where only the TOP outer corners get the large radius
  * (9b mode row, 9d stat tiles): bottoms stay [inner] on every cell.
  */
-fun topGroupShape(index: Int, count: Int, outer: Dp = 18.dp, inner: Dp = 8.dp): RoundedCornerShape =
-    RoundedCornerShape(
-        topStart = if (index == 0) outer else inner,
-        topEnd = if (index == count - 1) outer else inner,
-        bottomStart = inner,
-        bottomEnd = inner,
-    )
+fun topGroupShape(index: Int, count: Int, outer: Dp = 18.dp, inner: Dp = 8.dp): RoundedCornerShape = RoundedCornerShape(
+    topStart = if (index == 0) outer else inner,
+    topEnd = if (index == count - 1) outer else inner,
+    bottomStart = inner,
+    bottomEnd = inner,
+)
 
 /** Dense 13sp label/value row with a bottom hairline (nutrition detail lists). */
 @Composable

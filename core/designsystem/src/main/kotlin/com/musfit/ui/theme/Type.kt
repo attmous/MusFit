@@ -6,7 +6,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.musfit.R
+import com.musfit.core.designsystem.R
 
 /** Roboto Flex (bundled static instances of the variable font, 400–800). */
 private val RobotoFlex = FontFamily(

@@ -215,8 +215,7 @@ fun CircularWavyRing(
 enum class ExpressiveBadgeShape { Sunny, Circle, Squircle }
 
 /** Cycle for row [index] in a list: sunny, circle, squircle, sunny, … */
-fun expressiveBadgeShapeFor(index: Int): ExpressiveBadgeShape =
-    ExpressiveBadgeShape.entries[index % ExpressiveBadgeShape.entries.size]
+fun expressiveBadgeShapeFor(index: Int): ExpressiveBadgeShape = ExpressiveBadgeShape.entries[index % ExpressiveBadgeShape.entries.size]
 
 /**
  * The "sunny" flower: two superimposed squares with 38% corner radius, one
@@ -242,7 +241,13 @@ object SunnyShape : Shape {
             )
         }
         val rotated = square().apply {
-            transform(Matrix().apply { translate(cx, cy); rotateZ(45f); translate(-cx, -cy) })
+            transform(
+                Matrix().apply {
+                    translate(cx, cy)
+                    rotateZ(45f)
+                    translate(-cx, -cy)
+                },
+            )
         }
         val union = Path.combine(PathOperation.Union, square(), rotated)
         return Outline.Generic(union)
@@ -306,8 +311,7 @@ fun gridGroupShape(
 }
 
 /** Horizontal variant: cells side by side in one row (Training stats row). */
-fun rowGroupShape(index: Int, count: Int, outer: Dp = 24.dp, inner: Dp = 8.dp): RoundedCornerShape =
-    gridGroupShape(row = 0, rowCount = 1, column = index, columnCount = count, outer = outer, inner = inner)
+fun rowGroupShape(index: Int, count: Int, outer: Dp = 24.dp, inner: Dp = 8.dp): RoundedCornerShape = gridGroupShape(row = 0, rowCount = 1, column = index, columnCount = count, outer = outer, inner = inner)
 
 /**
  * The shared 44dp circular tonal icon button used by every tab header

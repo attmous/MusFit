@@ -42,8 +42,10 @@ class MusFitColorsTest {
 
     @Test
     fun darkPaletteIsActuallyDark_andDiffersFromLight() {
-        assertTrue("dark background must be darker than light",
-            darkMusFitColors.background.luminance() < lightMusFitColors.background.luminance())
+        assertTrue(
+            "dark background must be darker than light",
+            darkMusFitColors.background.luminance() < lightMusFitColors.background.luminance(),
+        )
         assertTrue("dark surface must be dark", darkMusFitColors.surface.luminance() < 0.2f)
         assertTrue("light surface must be light", lightMusFitColors.surface.luminance() > 0.8f)
     }
