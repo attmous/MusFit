@@ -297,9 +297,10 @@ fun NutritionLabelScannerScreen(
 )
 ```
 
-Both scanner screens own camera permission and CameraX lifecycle work. Barcode
-capture uses ML Kit barcode recognition and emits one detected value. Label
-capture uses ML Kit text recognition and emits raw OCR text; Food performs the
+Both scanner screens own camera permission and presentation. The
+`:integration:scanner` controllers own CameraX lifecycle and ML Kit resources,
+returning typed barcode or nutrition-label results without depending on Food UI
+state. Food maps those results to its route contract and performs the
 best-effort parse and review-before-save flow after the route returns.
 
 ## Contract Change Checklist

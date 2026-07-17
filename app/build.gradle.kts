@@ -445,6 +445,8 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
+    implementation(project(":integration:healthconnect"))
+    implementation(project(":integration:scanner"))
     implementation(platform(libs.androidx.compose.bom))
     // Room's schema parser uses serialization 1.8.1. Align the app and
     // instrumentation classloaders so MigrationTestHelper cannot resolve the
@@ -468,12 +470,6 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
-    implementation(libs.androidx.camera.camera2)
-    implementation(libs.androidx.camera.lifecycle)
-    implementation(libs.androidx.camera.view)
-    implementation(libs.androidx.camera.mlkit)
-    implementation(libs.mlkit.barcode)
-    implementation(libs.mlkit.text)
     implementation(libs.hilt.android)
     implementation(libs.retrofit)
     implementation(libs.retrofit.moshi)

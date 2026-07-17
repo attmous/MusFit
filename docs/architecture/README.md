@@ -72,8 +72,10 @@ isolation is not implemented yet; see the architecture audit.
 | `core/data/src/main/java/com/musfit/data/repository/` | Feature repository contracts, local implementations, and repository data models. |
 | `core/designsystem/src/main/java/com/musfit/ui/` | Reusable Compose components plus Material 3 theme and MusFit semantic tokens. |
 | `core/testing/src/main/kotlin/com/musfit/core/testing/` | Shared JVM test fixtures, including the main-dispatcher rule. |
-| `app/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect adapter, platform-record mapping, and permission rationale activity. |
-| `app/src/test/java/com/musfit/` | App-owned unit tests for ViewModels, transfer, UI, and integration boundaries; core modules own their corresponding unit tests. |
+| `integration/healthconnect/src/main/java/com/musfit/integrations/healthconnect/` | Android Health Connect adapter, platform-record mapping, and permission inventory; depends only on the neutral `:core:model` port. |
+| `integration/scanner/src/main/java/com/musfit/integrations/scanner/` | CameraX lifecycle ownership plus ML Kit barcode/OCR adapters with typed scan results and no Food UI state. |
+| `app/src/main/java/com/musfit/integrations/healthconnect/` | App-owned Health permission-rationale presentation. |
+| `app/src/test/java/com/musfit/` | App-owned unit tests for ViewModels, transfer, and UI; shared and integration modules own their corresponding unit tests. |
 | `app/src/internal/` | Internal-only LAN manifest/resource surface and developer identity overrides. |
 | `app/src/androidTest/java/com/musfit/` | Device/instrumentation tests, including the non-distributed internal seed boundary. |
 | `app/schemas/com.musfit.data.local.MusFitDatabase/` | Contiguous exported Room schema JSON files through the version declared in `MusFitDatabase.kt`. |
@@ -86,7 +88,7 @@ and all shared modules.
 ## Layering
 
 Dependencies flow inward from UI to repository contracts and neutral domain
-ports, with transport, Room, and Android Health Connect types confined to their
+ports, with transport, Room, Health Connect, CameraX, and ML Kit types confined to their
 adapters. `ArchitectureBoundaryTest` rejects feature-to-feature UI imports,
 UI-to-remote imports, integration-to-Room imports, and data-to-concrete-adapter
 imports.
@@ -250,8 +252,9 @@ store.
 ### Health Connect
 
 Health Connect is behind the Android-free `domain/health/HealthConnectGateway`
-port. `HealthConnectManager` is the Android adapter; repositories map Room rows
-to neutral workout/food snapshots before dispatch.
+port. `HealthConnectManager` is the Android adapter in
+`:integration:healthconnect`; repositories map Room rows to neutral workout/food
+snapshots before dispatch.
 
 The app currently supports:
 
@@ -320,7 +323,7 @@ UI direction:
 | DAO/database tests | `app/src/test/java/com/musfit/data/local/...` | Current-schema queries, transactions, and persistence behavior. |
 | Migration tests | `app/src/test/java/com/musfit/data/local/*Migration*Test.kt` | Selected exported-schema transitions and migration regressions. |
 | Domain tests | `core/model/src/test/kotlin/com/musfit/domain/...` | Pure calculator and parser behavior. |
-| Integration-boundary tests | `app/src/test/java/com/musfit/integrations/...` | Health Connect mapping and gateway assumptions. |
+| Integration-boundary tests | `integration/*/src/test/...` | Health Connect mapping/gateway behavior and scanner lifecycle ownership. |
 | Instrumentation tests | `app/src/androidTest/java/com/musfit/...` | Device-only contracts and approved internal-app emulator seeding; compiled by the full gate but not distributed by CI. |
 
 Windows verification command:

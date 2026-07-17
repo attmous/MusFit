@@ -7,6 +7,7 @@
     "^core/network/src/main/java/com/musfit/data/remote/",
     "^app/src/main/java/com/musfit/data/transfer/",
     "^app/src/main/java/com/musfit/integrations/",
+    "^integration/(healthconnect|scanner)/src/main/java/com/musfit/integrations/",
     "^app/src/main/java/com/musfit/ui/.+ViewModel\\.kt$",
     "^app/src/main/java/com/musfit/ui/App(?:Destination|NavigationStack)\\.kt$"
   ],
@@ -17,6 +18,7 @@
   "excludedPathPatterns": [
     "_Factory\\.java$",
     "_MembersInjector\\.java$",
+    "^integration/scanner/src/main/java/com/musfit/integrations/scanner/ScannerControllers\\.kt$",
     "^app/src/main/java/hilt_",
     "^app/src/main/java/dagger/"
   ],

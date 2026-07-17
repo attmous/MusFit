@@ -9,6 +9,9 @@ internal object ModuleGraphRules {
         ":core:data" to setOf(":core:model", ":core:database", ":core:network"),
         ":core:designsystem" to setOf(":core:model"),
         ":core:testing" to setOf(":core:model", ":core:designsystem"),
+        ":integration:healthconnect" to setOf(":core:model"),
+        ":integration:scanner" to emptySet(),
+        ":integration" to emptySet(),
         ":benchmark" to setOf(":app"),
         ":baselineprofile" to setOf(":app"),
     )

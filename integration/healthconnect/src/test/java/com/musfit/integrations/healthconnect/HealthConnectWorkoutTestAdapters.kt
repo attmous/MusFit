@@ -1,7 +1,5 @@
 package com.musfit.integrations.healthconnect
 
-import com.musfit.data.local.entity.WorkoutSessionEntity
-import com.musfit.data.local.entity.WorkoutSetEntity
 import java.time.ZoneId
 
 internal suspend fun HealthConnectGateway.exportWorkoutFixture(
@@ -48,4 +46,33 @@ private fun WorkoutSessionEntity.toHealthConnectWorkoutExport(
             restSeconds = set.restSeconds,
         )
     },
+)
+internal data class WorkoutSessionEntity(
+    val accountId: String,
+    val id: String,
+    val routineId: String?,
+    val title: String? = null,
+    val startedAtEpochMillis: Long,
+    val endedAtEpochMillis: Long?,
+    val notes: String?,
+    val healthConnectRecordId: String?,
+    val healthConnectLastExportedAtEpochMillis: Long?,
+)
+
+internal data class WorkoutSetEntity(
+    val accountId: String,
+    val id: String,
+    val sessionId: String,
+    val exerciseId: String,
+    val sortOrder: Int,
+    val setType: String = "normal",
+    val reps: Int?,
+    val weightKg: Double?,
+    val durationSeconds: Long?,
+    val distanceMeters: Double?,
+    val rpe: Double?,
+    val notes: String?,
+    val completed: Boolean,
+    val supersetGroupId: String? = null,
+    val restSeconds: Int? = null,
 )

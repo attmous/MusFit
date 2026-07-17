@@ -6,7 +6,7 @@ import org.junit.Test
 
 class ModuleGraphRulesTest {
     @Test
-    fun intendedCoreGraph_isAccepted() {
+    fun intendedModuleGraph_isAccepted() {
         assertEquals(
             emptyList<String>(),
             ModuleGraphRules.violations(
@@ -17,6 +17,9 @@ class ModuleGraphRulesTest {
                     ":core:database" to emptySet(),
                     ":core:network" to setOf(":core:model"),
                     ":core:data" to setOf(":core:model", ":core:database", ":core:network"),
+                    ":integration" to emptySet(),
+                    ":integration:healthconnect" to setOf(":core:model"),
+                    ":integration:scanner" to emptySet(),
                     ":core:designsystem" to setOf(":core:model"),
                     ":core:testing" to setOf(":core:model", ":core:designsystem"),
                 ),
@@ -38,5 +41,19 @@ class ModuleGraphRulesTest {
         assertTrue(violations.any { it.contains(":core:model must not depend on :app") })
         assertTrue(violations.any { it.contains(":core:designsystem must not depend on :app") })
         assertTrue(violations.any { it.contains(":unregistered is not registered") })
+    }
+
+    @Test
+    fun integrationAdapters_cannotDependOnRoomOrAppPresentation() {
+        val violations = ModuleGraphRules.violations(
+            mapOf(
+                ":integration:healthconnect" to setOf(":core:model", ":core:database"),
+                ":integration:scanner" to setOf(":app"),
+            ),
+        )
+
+        assertEquals(2, violations.size)
+        assertTrue(violations.any { it.contains(":integration:healthconnect must not depend on :core:database") })
+        assertTrue(violations.any { it.contains(":integration:scanner must not depend on :app") })
     }
 }

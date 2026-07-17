@@ -16,8 +16,6 @@ import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.test.core.app.ApplicationProvider
-import com.musfit.data.local.entity.WorkoutSessionEntity
-import com.musfit.data.local.entity.WorkoutSetEntity
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.HealthConnectDailyReadResult
 import com.musfit.domain.health.HealthConnectDeleteResult
@@ -32,11 +30,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.Duration
+import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.CancellationException
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class HealthConnectManagerTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 

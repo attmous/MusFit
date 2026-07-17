@@ -67,7 +67,7 @@ jobs:
         env:
           COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          ./gradlew :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
+          ./gradlew :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport --no-daemon --console=plain
           $baseRef = $env:COVERAGE_BASE_REF
           if ([string]::IsNullOrWhiteSpace($baseRef) -or $baseRef -match '^0+$') {
             $baseRef = 'HEAD^'
@@ -77,6 +77,8 @@ jobs:
             'core/model/build/reports/jacoco/test/jacocoTestReport.xml'
             'core/network/build/reports/coverage/test/internal/debug/report.xml'
             'core/data/build/reports/coverage/test/internal/debug/report.xml'
+            'integration/healthconnect/build/reports/coverage/test/internal/debug/report.xml'
+            'integration/scanner/build/reports/coverage/test/internal/debug/report.xml'
           )
           ./scripts/coverage/verify-coverage.ps1 -ReportPath $reports -BaseRef $baseRef
 
@@ -91,6 +93,8 @@ jobs:
             core/network/build/reports/coverage/test/internal/debug/
             core/data/build/reports/coverage/test/internal/debug/
             build/reports/coverage-policy/
+            integration/healthconnect/build/reports/coverage/test/internal/debug/
+            integration/scanner/build/reports/coverage/test/internal/debug/
           if-no-files-found: error
           retention-days: 30
 

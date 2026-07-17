@@ -14,7 +14,7 @@ import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
 
-internal enum class HealthPermissionAccess {
+enum class HealthPermissionAccess {
     Read,
     Write,
 }
@@ -24,7 +24,7 @@ internal enum class HealthPermissionRequestGroup {
     Food,
 }
 
-internal data class HealthPermissionRationaleItem(
+class HealthPermissionRationaleItem internal constructor(
     val permission: String,
     val access: HealthPermissionAccess,
     val label: String,
@@ -34,7 +34,7 @@ internal data class HealthPermissionRationaleItem(
     internal fun belongsTo(group: HealthPermissionRequestGroup): Boolean = requestGroup == group
 }
 
-internal object HealthPermissionInventory {
+object HealthPermissionInventory {
     val readStepsPermission = HealthPermission.getReadPermission(StepsRecord::class)
     val readActiveCaloriesPermission =
         HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
