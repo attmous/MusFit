@@ -31,10 +31,4 @@ class AppDestinationTest {
         assertEquals(AppDestination.Profile, bottomDestinationForKey(TrainingProgressNavKey))
         assertEquals(AppDestination.Profile, bottomDestinationForKey(NutritionTrendsNavKey))
     }
-
-    @Test
-    fun scannerKeys_keep_food_tab_selected() {
-        assertEquals(AppDestination.Food, bottomDestinationForKey(BarcodeScannerNavKey))
-        assertEquals(AppDestination.Food, bottomDestinationForKey(NutritionLabelScannerNavKey))
-    }
 }

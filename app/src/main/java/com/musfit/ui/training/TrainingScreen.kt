@@ -1,6 +1,5 @@
 package com.musfit.ui.training
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -85,28 +84,33 @@ import java.util.Locale
 
 @Composable
 fun TrainingScreen(
+    routeKey: TrainingNavKey = TrainingHomeNavKey,
+    navigation: TrainingNavigationActions = TrainingNavigationActions(),
     viewModel: TrainingViewModel = hiltViewModel(),
-    onOpenProgress: () -> Unit = {},
     onOpenCoach: () -> Unit = {},
 ) {
-    val routeState by viewModel.routeState.collectAsState()
-    when (routeState.surfaceGroup) {
-        TrainingSurfaceGroup.RoutinesLibrary -> {
-            val state by viewModel.routinesLibraryState.collectAsState()
+    when (routeKey) {
+        TrainingActiveWorkoutNavKey,
+        TrainingHistoryNavKey,
+        is TrainingWorkoutHistoryDetailNavKey,
+        -> {
+            val state by viewModel.activeHistoryState.collectAsState()
             TrainingProjectedSurface(
+                routeKey = routeKey,
                 state = state.content,
                 viewModel = viewModel,
-                onOpenProgress = onOpenProgress,
+                navigation = navigation,
                 onOpenCoach = onOpenCoach,
             )
         }
 
-        TrainingSurfaceGroup.ActiveHistory -> {
-            val state by viewModel.activeHistoryState.collectAsState()
+        else -> {
+            val state by viewModel.routinesLibraryState.collectAsState()
             TrainingProjectedSurface(
+                routeKey = routeKey,
                 state = state.content,
                 viewModel = viewModel,
-                onOpenProgress = onOpenProgress,
+                navigation = navigation,
                 onOpenCoach = onOpenCoach,
             )
         }
@@ -114,34 +118,31 @@ fun TrainingScreen(
 }
 
 @Composable
-@Suppress("LongMethod", "ReturnCount")
+@Suppress("LongMethod", "ReturnCount", "CyclomaticComplexMethod")
 private fun TrainingProjectedSurface(
+    routeKey: TrainingNavKey,
     state: TrainingUiState,
     viewModel: TrainingViewModel,
-    onOpenProgress: () -> Unit,
+    navigation: TrainingNavigationActions,
     onOpenCoach: () -> Unit,
 ) {
     val activeWorkout = state.activeWorkout
     val accent = tabAccentFor(AppDestination.Training)
-
-    // One back handler for the whole miniapp: pop exactly the top page of the Training page
-    // stack. Dialogs (finish/discard confirmation, replace-exercise picker) own back themselves,
-    // and once the stack is empty back falls through to tab-level navigation in AppNavGraph.
-    BackHandler(
-        enabled = state.pageStack.isNotEmpty() &&
-            !state.finishConfirmationOpen &&
-            !state.discardConfirmationOpen &&
-            state.replaceExerciseTargetId == null,
-    ) {
-        viewModel.navigateBack()
+    val finishActiveWorkout = {
+        viewModel.finishActiveWorkout { sessionId ->
+            navigation.resetTo(
+                buildList {
+                    add(TrainingHistoryNavKey)
+                    if (sessionId != null) add(TrainingWorkoutHistoryDetailNavKey(sessionId))
+                },
+            )
+        }
     }
-    // With the section chips gone, History is a page opened from the calendar icon; back returns
-    // to the dashboard instead of leaving the tab.
-    BackHandler(enabled = state.pageStack.isEmpty() && state.selectedSection != TrainingSection.Routines) {
-        viewModel.selectSection(TrainingSection.Routines)
+    val discardActiveWorkout = {
+        viewModel.discardActiveWorkout { navigation.resetTo(emptyList()) }
     }
 
-    if (state.activeWorkoutRouteOpen && activeWorkout != null) {
+    if (routeKey == TrainingActiveWorkoutNavKey && activeWorkout != null) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -183,29 +184,29 @@ private fun TrainingProjectedSurface(
                 onReplacePick = viewModel::replaceActiveWorkoutExercise,
                 onReplaceDismiss = viewModel::closeReplaceExercisePicker,
                 onOpenCoach = onOpenCoach,
-                onClose = viewModel::closeActiveWorkoutRoute,
+                onClose = navigation.back,
                 onFinish = viewModel::requestFinishActiveWorkout,
                 onDiscard = viewModel::requestDiscardActiveWorkout,
             )
             ActiveWorkoutConfirmationDialogs(
                 state = state,
-                onConfirmFinish = viewModel::finishActiveWorkout,
+                onConfirmFinish = finishActiveWorkout,
                 onCancelFinish = viewModel::cancelFinishActiveWorkout,
-                onConfirmDiscard = viewModel::discardActiveWorkout,
+                onConfirmDiscard = discardActiveWorkout,
                 onCancelDiscard = viewModel::cancelDiscardActiveWorkout,
             )
         }
         return
     }
 
-    if (state.activeWorkoutRouteOpen) {
-        ActiveWorkoutPlaceholder(state = state, onBack = viewModel::closeActiveWorkoutRoute)
+    if (routeKey == TrainingActiveWorkoutNavKey) {
+        ActiveWorkoutPlaceholder(state = state, onBack = navigation.back)
         return
     }
 
-    if (state.routineExercisePickerOpen) {
+    if (routeKey == TrainingExercisePickerNavKey) {
         Dialog(
-            onDismissRequest = viewModel::closeRoutineExercisePicker,
+            onDismissRequest = navigation.back,
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 decorFitsSystemWindows = false,
@@ -241,16 +242,18 @@ private fun TrainingProjectedSurface(
                     onCustomExerciseEquipmentChange = viewModel::onCustomExerciseEquipmentChanged,
                     onCustomExerciseTargetMusclesChange = viewModel::onCustomExerciseTargetMusclesChanged,
                     onSaveCustomExercise = viewModel::saveCustomExercise,
-                    onCancel = viewModel::closeRoutineExercisePicker,
-                    onConfirm = viewModel::confirmRoutineExercisePicker,
+                    onCancel = navigation.back,
+                    onConfirm = {
+                        viewModel.confirmRoutineExercisePicker()
+                        navigation.back()
+                    },
                 )
             }
         }
         return
     }
 
-    // Full-page overlays layered by the page stack: editor above detail, details above lists.
-    if (state.routineEditor.isOpen) {
+    if (routeKey is TrainingRoutineEditorNavKey && state.routineEditor.isOpen) {
         TrainingPageContainer {
             TrainingRoutineEditor(
                 editor = state.routineEditor,
@@ -258,7 +261,9 @@ private fun TrainingProjectedSurface(
                 accent = accent,
                 onNameChange = viewModel::onRoutineNameChanged,
                 onNotesChange = viewModel::onRoutineNotesChanged,
-                onOpenExercisePicker = viewModel::openRoutineExercisePicker,
+                onOpenExercisePicker = {
+                    navigation.open(TrainingExercisePickerNavKey)
+                },
                 onRemoveExercise = viewModel::removeRoutineExercise,
                 onMoveExerciseUp = viewModel::moveRoutineExerciseUp,
                 onMoveExerciseDown = viewModel::moveRoutineExerciseDown,
@@ -270,17 +275,25 @@ private fun TrainingProjectedSurface(
                 onSetTypeChange = viewModel::onRoutineExerciseSetTypeChanged,
                 onSetRepsChange = viewModel::onRoutineExerciseSetRepsChanged,
                 onSetWeightChange = viewModel::onRoutineExerciseSetWeightChanged,
-                onSave = viewModel::saveRoutineEditor,
-                onCancel = viewModel::closeRoutineEditor,
+                onSave = {
+                    viewModel.saveRoutineEditor(navigation.back)
+                },
+                onCancel = navigation.back,
                 onDuplicate = viewModel::duplicateRoutine,
-                onDelete = viewModel::deleteRoutine,
+                onDelete = { routineId ->
+                    viewModel.deleteRoutine(routineId, navigation.back)
+                },
             )
         }
         return
     }
+    if (routeKey is TrainingRoutineEditorNavKey) {
+        TrainingRoutePlaceholder("Routine editor", state.message ?: "Loading routine...", navigation.back)
+        return
+    }
 
     val exerciseDetail = state.selectedExerciseDetail
-    if (exerciseDetail != null) {
+    if (routeKey is TrainingExerciseDetailNavKey && exerciseDetail != null) {
         TrainingPageContainer {
             ExerciseDetailPage(
                 detail = exerciseDetail,
@@ -289,47 +302,76 @@ private fun TrainingProjectedSurface(
                 accent = accent,
                 onNotesChange = viewModel::onExerciseDetailNotesChanged,
                 onSaveNotes = viewModel::saveExerciseDetailNotes,
-                onClose = viewModel::closeExerciseDetail,
+                onClose = navigation.back,
             )
         }
+        return
+    }
+    if (routeKey is TrainingExerciseDetailNavKey) {
+        TrainingRoutePlaceholder("Exercise", state.message ?: "Loading exercise...", navigation.back)
         return
     }
 
     val routineDetail = state.selectedRoutineDetail
-    if (routineDetail != null) {
+    if (routeKey is TrainingRoutineDetailNavKey && routineDetail != null) {
         TrainingPageContainer {
             RoutineDetailContent(
                 detail = routineDetail,
                 accent = accent,
-                onStart = { viewModel.startRoutine(routineDetail.id) },
-                onEdit = { viewModel.openRoutineEditor(routineDetail.id) },
-                onOpenExercise = viewModel::openRoutineExerciseDetail,
+                onStart = {
+                    viewModel.startRoutine(routineDetail.id) {
+                        navigation.open(TrainingActiveWorkoutNavKey)
+                    }
+                },
+                onEdit = {
+                    navigation.open(TrainingRoutineEditorNavKey(routineDetail.id))
+                },
+                onOpenExercise = { exerciseId, target ->
+                    navigation.open(TrainingExerciseDetailNavKey(exerciseId, target))
+                },
                 onDuplicate = {
                     viewModel.closeRoutineDetail()
                     viewModel.duplicateRoutine(routineDetail.id)
+                    navigation.back()
                 },
                 onDelete = {
-                    viewModel.closeRoutineDetail()
-                    viewModel.deleteRoutine(routineDetail.id)
+                    viewModel.deleteRoutine(routineDetail.id, navigation.back)
                 },
-                onClose = viewModel::closeRoutineDetail,
+                onClose = navigation.back,
             )
         }
         return
     }
-
-    if (state.routineLibraryPageOpen) {
-        RoutineLibraryPage(state = state, accent = accent, viewModel = viewModel, onBack = viewModel::navigateBack)
+    if (routeKey is TrainingRoutineDetailNavKey) {
+        TrainingRoutePlaceholder("Routine", state.message ?: "Loading routine...", navigation.back)
         return
     }
 
-    if (state.selectedSection == TrainingSection.History) {
+    if (routeKey == TrainingRoutineLibraryNavKey) {
+        RoutineLibraryPage(
+            state = state,
+            accent = accent,
+            viewModel = viewModel,
+            navigation = navigation,
+            onBack = navigation.back,
+        )
+        return
+    }
+
+    if (routeKey is TrainingWorkoutHistoryDetailNavKey && state.selectedWorkoutDetail == null) {
+        TrainingRoutePlaceholder("Workout", state.message ?: "Loading workout...", navigation.back)
+        return
+    }
+
+    if (routeKey == TrainingHistoryNavKey || routeKey is TrainingWorkoutHistoryDetailNavKey) {
         TrainingHistoryPage(
             state = state,
             accent = accent,
-            onBack = { viewModel.selectSection(TrainingSection.Routines) },
-            onOpenDetail = viewModel::openWorkoutDetail,
-            onCloseDetail = viewModel::closeWorkoutDetail,
+            onBack = navigation.back,
+            onOpenDetail = { sessionId ->
+                navigation.open(TrainingWorkoutHistoryDetailNavKey(sessionId))
+            },
+            onCloseDetail = navigation.back,
             onOpenCoach = onOpenCoach,
         )
         return
@@ -338,24 +380,36 @@ private fun TrainingProjectedSurface(
     TrainingDashboard(
         state = state,
         accent = accent,
-        onOpenHistory = { viewModel.selectSection(TrainingSection.History) },
-        onResume = viewModel::resumeActiveWorkout,
+        onOpenHistory = { navigation.open(TrainingHistoryNavKey) },
+        onResume = {
+            navigation.open(TrainingActiveWorkoutNavKey)
+        },
         onDiscardActiveWorkout = viewModel::requestDiscardActiveWorkout,
-        onStartRoutine = viewModel::startRoutine,
-        onStartBlankWorkout = viewModel::startBlankWorkout,
-        onOpenRoutineDetail = viewModel::openRoutineDetail,
-        onOpenAllRoutines = viewModel::openRoutineLibraryPage,
-        onNewRoutine = { viewModel.openRoutineEditor(null) },
-        onOpenProgress = onOpenProgress,
+        onStartRoutine = { routineId ->
+            viewModel.startRoutine(routineId) { navigation.open(TrainingActiveWorkoutNavKey) }
+        },
+        onStartBlankWorkout = {
+            viewModel.startBlankWorkout { navigation.open(TrainingActiveWorkoutNavKey) }
+        },
+        onOpenRoutineDetail = { routineId ->
+            navigation.open(TrainingRoutineDetailNavKey(routineId))
+        },
+        onOpenAllRoutines = {
+            navigation.open(TrainingRoutineLibraryNavKey)
+        },
+        onNewRoutine = {
+            navigation.open(TrainingRoutineEditorNavKey())
+        },
+        onOpenProgress = { navigation.open(TrainingProgressFeatureNavKey) },
         onOpenCoach = onOpenCoach,
     )
     // The resume hero's split-button menu can request a discard from the
     // dashboard, so the confirmation dialogs live here too.
     ActiveWorkoutConfirmationDialogs(
         state = state,
-        onConfirmFinish = viewModel::finishActiveWorkout,
+        onConfirmFinish = finishActiveWorkout,
         onCancelFinish = viewModel::cancelFinishActiveWorkout,
-        onConfirmDiscard = viewModel::discardActiveWorkout,
+        onConfirmDiscard = discardActiveWorkout,
         onCancelDiscard = viewModel::cancelDiscardActiveWorkout,
     )
 }
@@ -874,10 +928,12 @@ private fun TrainingHistoryPage(
  * pre-made routine library.
  */
 @Composable
+@Suppress("LongMethod")
 private fun RoutineLibraryPage(
     state: TrainingUiState,
     accent: TabAccent,
     viewModel: TrainingViewModel,
+    navigation: TrainingNavigationActions,
     onBack: () -> Unit,
 ) {
     TrainingPageContainer {
@@ -905,8 +961,12 @@ private fun RoutineLibraryPage(
             folders = state.homeFolders,
             folderEditor = state.routineFolderEditor,
             accent = accent,
-            onStartBlankWorkout = viewModel::startBlankWorkout,
-            onNewRoutine = { viewModel.openRoutineEditor(null) },
+            onStartBlankWorkout = {
+                viewModel.startBlankWorkout { navigation.open(TrainingActiveWorkoutNavKey) }
+            },
+            onNewRoutine = {
+                navigation.open(TrainingRoutineEditorNavKey())
+            },
             onOpenLibrary = {},
             showLibraryLink = false,
             onOpenFolderEditor = viewModel::openRoutineFolderEditor,
@@ -915,15 +975,25 @@ private fun RoutineLibraryPage(
             onCancelFolder = viewModel::closeRoutineFolderEditor,
             onDeleteFolder = viewModel::deleteRoutineFolder,
             onAssignRoutineToFolder = viewModel::assignRoutineToFolder,
-            onStartRoutine = viewModel::startRoutine,
-            onEditRoutine = viewModel::openRoutineEditor,
-            onOpenRoutineDetail = viewModel::openRoutineDetail,
+            onStartRoutine = { routineId ->
+                viewModel.startRoutine(routineId) { navigation.open(TrainingActiveWorkoutNavKey) }
+            },
+            onEditRoutine = { routineId ->
+                navigation.open(TrainingRoutineEditorNavKey(routineId))
+            },
+            onOpenRoutineDetail = { routineId ->
+                navigation.open(TrainingRoutineDetailNavKey(routineId))
+            },
         )
         TrainingRoutineLibraryList(
             routines = state.visibleRoutines,
             accent = accent,
-            onStartRoutine = viewModel::startRoutine,
-            onOpenRoutineDetail = viewModel::openRoutineDetail,
+            onStartRoutine = { routineId ->
+                viewModel.startRoutine(routineId) { navigation.open(TrainingActiveWorkoutNavKey) }
+            },
+            onOpenRoutineDetail = { routineId ->
+                navigation.open(TrainingRoutineDetailNavKey(routineId))
+            },
         )
     }
 }
@@ -957,6 +1027,24 @@ private fun ActiveWorkoutPlaceholder(state: TrainingUiState, onBack: () -> Unit)
                 TextButton(onClick = onBack) { Text("Back to home") }
             }
         }
+    }
+}
+
+@Composable
+private fun TrainingRoutePlaceholder(title: String, message: String, onBack: () -> Unit) {
+    TrainingPageContainer {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MusFitTheme.colors.onSurface,
+        )
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
+        TextButton(onClick = onBack) { Text("Back") }
     }
 }
 

@@ -1,7 +1,7 @@
 # MusFit Food System
 
 The Food miniapp is the largest and most polished area of MusFit. This document
-is the feature deep-dive: feature map, state-driven navigation, `FoodUiState`,
+is the feature deep-dive: feature map, typed feature navigation, `FoodUiState`,
 domain logic, and a record of the completed structure refactor. For current
 cross-cutting defects or new structural work, the July 2026 architecture audit
 and remediation backlog take precedence.
@@ -22,6 +22,7 @@ committed schema JSON.
 | Path | Responsibility |
 | --- | --- |
 | `ui/food/FoodScreen.kt` | Diary screen, summary/header, meal detail, and the `FoodSheetMode` dispatch. |
+| `ui/food/FoodNavigation.kt`, `FoodNavigationContract.kt` | Saveable typed Food/scanner back stack, ID-only keys, process rehydration, and exactly-once scanner results. |
 | `ui/food/FoodComponents.kt` | Shared leaf composables + formatters (`ProgressBar`, `FoodThumb`, `SectionTitle`, …). |
 | `ui/food/FoodTrackersUi.kt` | Water + Health Connect cards, shown as bottom-sheet content (Water via the quick-actions tile, Health Connect via the tools menu). |
 | `ui/food/FoodPresentationState.kt` | Pure diary, tracker, Add/database, editor/planning, and route projections plus Food summary, rating, favorite, filter, and form reducers. |
@@ -43,9 +44,10 @@ Food uses one route-coordinator ViewModel with destination-lifetime projections.
 The diary, water/Health Connect, Add/database, and editor/planning surfaces
 consume equality-stable `FoodDiaryUiState`, `FoodTrackerUiState`,
 `FoodAddDatabaseUiState`, and `FoodEditorPlanningUiState` flows.
-`FoodRouteUiState` carries only the active-surface key and classifies which one
-of those flows is collected. Unrelated changes do not emit into or recompose
-other surface groups, and no composable collects the compatibility aggregate.
+`FoodRouteUiState` carries only the active content identity needed by the route
+coordinator and classifies which one of those flows is collected. Unrelated
+changes do not emit into or recompose other surface groups, and no composable
+collects the compatibility aggregate.
 The aggregate remains internal to actions, saved-state restoration, and the
 repository coordinator. Preserve the established `FoodAddMode` /
 `FoodSheetMode` behavior for feature changes.
@@ -159,12 +161,22 @@ Health Connect, and architecture work remains in the remediation backlog.
 - Fasting timer state is MVP-local UI state; notifications and fasting history
   are out of scope for this loop.
 
-## State-driven navigation
+## Typed feature navigation
 
-Food avoids separate nav routes for most surfaces and instead drives them from
-state. The top-level `FoodScreen` chooses between a full-screen meal detail, the
-full-screen add surface, the full-screen recipe browser, the diary, or a
-`ModalBottomSheet` keyed by sheet mode.
+The app shell retains one `FoodNavKey` entry. Inside it, `FoodNavigation` owns a
+saveable Navigation 3 stack of serializable `FoodNavKey` values for diary, meal
+detail, Add/database, editors, planners, and both scanner producers. Keys carry
+only stable IDs and primitive arguments. They are the durable destination
+identity across process recreation; `FoodViewModel` continues to own mutable
+content and persistence, and the navigation coordinator rehydrates transient
+content from the current key.
+
+Within the current typed destination, `FoodScreen` chooses the full-screen or
+`ModalBottomSheet` presentation from `FoodSheetMode`. Successful asynchronous
+save/delete operations clear their transient content and then reconcile the
+matching key; validation or repository failures keep the destination open.
+Barcode and OCR values return through a typed result only when the current key
+is the matching scanner producer, preventing duplicate handling.
 
 `FoodSheetMode`:
 

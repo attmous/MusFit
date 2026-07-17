@@ -48,26 +48,4 @@ class TrainingPresentationReducersTest {
             ),
         )
     }
-
-    @Test
-    fun routeProjectionClassifiesDestinationLifetime() {
-        assertEquals(
-            TrainingSurfaceGroup.RoutinesLibrary,
-            TrainingPresentationReducers.route(
-                TrainingUiState(pageStack = listOf(TrainingPage.RoutineEditor)),
-            ).surfaceGroup,
-        )
-        assertEquals(
-            TrainingSurfaceGroup.ActiveHistory,
-            TrainingPresentationReducers.route(
-                TrainingUiState(pageStack = listOf(TrainingPage.ActiveWorkout)),
-            ).surfaceGroup,
-        )
-        assertEquals(
-            TrainingSurfaceGroup.ActiveHistory,
-            TrainingPresentationReducers.route(
-                TrainingUiState(selectedSection = TrainingSection.History),
-            ).surfaceGroup,
-        )
-    }
 }

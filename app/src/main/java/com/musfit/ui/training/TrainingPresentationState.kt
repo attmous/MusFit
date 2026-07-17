@@ -14,32 +14,7 @@ data class TrainingActiveHistoryUiState(
     val content: TrainingUiState,
 )
 
-enum class TrainingSurfaceGroup {
-    RoutinesLibrary,
-    ActiveHistory,
-}
-
-/** Minimal coordinator state used to select the destination-lifetime projection. */
-@Immutable
-data class TrainingRouteUiState(
-    val selectedSection: TrainingSection,
-    val pageStack: List<TrainingPage>,
-) {
-    val surfaceGroup: TrainingSurfaceGroup
-        get() = when {
-            pageStack.lastOrNull() == TrainingPage.ActiveWorkout -> TrainingSurfaceGroup.ActiveHistory
-            pageStack.lastOrNull() == TrainingPage.WorkoutHistoryDetail -> TrainingSurfaceGroup.ActiveHistory
-            selectedSection == TrainingSection.History -> TrainingSurfaceGroup.ActiveHistory
-            else -> TrainingSurfaceGroup.RoutinesLibrary
-        }
-}
-
 internal object TrainingPresentationReducers {
-    fun route(state: TrainingUiState): TrainingRouteUiState = TrainingRouteUiState(
-        selectedSection = state.selectedSection,
-        pageStack = state.pageStack,
-    )
-
     @Suppress("LongMethod")
     fun routinesLibrary(state: TrainingUiState): TrainingRoutinesLibraryUiState = TrainingRoutinesLibraryUiState(
         content = TrainingUiState(
@@ -65,7 +40,6 @@ internal object TrainingPresentationReducers {
             routineExercisePickerFilterSheetOpen = state.routineExercisePickerFilterSheetOpen,
             loggedExerciseIds = state.loggedExerciseIds,
             selectedRoutineDetail = state.selectedRoutineDetail,
-            pageStack = state.pageStack,
             finishConfirmationOpen = state.finishConfirmationOpen,
             discardConfirmationOpen = state.discardConfirmationOpen,
             message = state.message,
@@ -81,7 +55,6 @@ internal object TrainingPresentationReducers {
             workoutHistory = state.workoutHistory,
             historyOverview = state.historyOverview,
             selectedWorkoutDetail = state.selectedWorkoutDetail,
-            pageStack = state.pageStack,
             replaceExerciseTargetId = state.replaceExerciseTargetId,
             activeWorkoutNotesInput = state.activeWorkoutNotesInput,
             trainingSettings = state.trainingSettings,

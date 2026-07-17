@@ -53,7 +53,6 @@ internal data class RestoredRoutineEditorDraft(
 
 internal data class TrainingRestorationState(
     val selectedSection: String,
-    val pageStack: List<String>,
     val selectedRoutineDetailId: String?,
     val selectedExerciseDetailId: String?,
     val exerciseDetailTarget: String?,
@@ -137,7 +136,6 @@ internal fun RestoredRoutineEditorDraft.toRoutineEditorState(): RoutineEditorSta
 
 internal fun TrainingUiState.toTrainingRestorationState(): TrainingRestorationState = TrainingRestorationState(
     selectedSection = selectedSection.name,
-    pageStack = pageStack.map(TrainingPage::name).distinct().take(TrainingPage.entries.size),
     selectedRoutineDetailId = selectedRoutineDetail?.id?.boundedRestoredId(),
     selectedExerciseDetailId = selectedExerciseDetail?.id?.boundedRestoredId(),
     exerciseDetailTarget = exerciseDetailTarget?.take(MAX_RESTORED_NAME_LENGTH),
@@ -168,9 +166,6 @@ internal fun TrainingUiState.toTrainingRestorationState(): TrainingRestorationSt
 internal fun TrainingRestorationState.toTrainingUiState(): TrainingUiState = TrainingUiState(
     selectedSection = TrainingSection.entries.firstOrNull { it.name == selectedSection }
         ?: TrainingSection.Routines,
-    pageStack = pageStack.mapNotNull { savedPage ->
-        TrainingPage.entries.firstOrNull { it.name == savedPage }
-    }.distinct().take(TrainingPage.entries.size),
     routineEditor = routineEditor?.toRoutineEditorState() ?: RoutineEditorState(),
     routineFolderEditor = RoutineFolderEditorState(
         folderId = routineFolderEditorId?.boundedRestoredId(),

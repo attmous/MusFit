@@ -79,6 +79,13 @@ data class FoodRouteUiState(
     val isAddPanelVisible: Boolean,
     val sheetMode: FoodSheetMode?,
     val selectedMealDetailId: String?,
+    val mealType: String,
+    val selectedSavedFoodDetailId: String?,
+    val diaryEntryEditorId: String?,
+    val savedFoodEditorId: String?,
+    val recipeEditorId: String?,
+    val mealTemplateEditorId: String?,
+    val editingMealDefinitionId: String?,
 ) {
     val hasActiveSurface: Boolean
         get() = isAddPanelVisible || selectedMealDetailId != null
@@ -142,6 +149,13 @@ internal object FoodPresentationReducers {
         isAddPanelVisible = state.isAddPanelVisible,
         sheetMode = state.sheetMode,
         selectedMealDetailId = state.selectedMealDetailId,
+        mealType = state.mealType,
+        selectedSavedFoodDetailId = state.selectedSavedFoodDetail?.id,
+        diaryEntryEditorId = state.diaryEntryEditor?.id,
+        savedFoodEditorId = state.savedFoodEditor?.id,
+        recipeEditorId = state.recipeEditor?.editingRecipeId,
+        mealTemplateEditorId = state.mealTemplateEditor?.id,
+        editingMealDefinitionId = state.editingMealDefinitionId,
     )
 
     @Suppress("LongMethod")

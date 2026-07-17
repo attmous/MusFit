@@ -43,20 +43,26 @@ there is never more than one ViewModel/collector owner for a top-level screen.
 | `ProfileSettingsNavKey` | Profile | `ProfileSettingsScreen` |
 | `TrainingProgressNavKey` | Profile | `TrainingProgressScreen` |
 | `NutritionTrendsNavKey` | Profile | `NutritionTrendsScreen` |
-| `BarcodeScannerNavKey` | Food | `BarcodeScannerScreen` |
-| `NutritionLabelScannerNavKey` | Food | `NutritionLabelScannerScreen` |
 
 `AppNavigationAction` is the typed app-shell contract used by Today, Profile,
-Training, and Food callbacks. Profile keys keep Profile selected; scanner keys
-keep Food selected. Secondary screens return through `AppNavigator.goBack()`.
+Training, and Food callbacks. Profile keys keep Profile selected. Secondary
+screens return through `AppNavigator.goBack()`.
+
+Food and Training each own a nested saveable Navigation 3 stack beneath their
+single retained top-level entry. Their feature keys carry only stable IDs and
+primitive arguments; no Room entity, repository model, or transport DTO is
+stored in a key. A feature-home back falls through to the app-level visit-order
+stack, while feature subroutes consume back locally.
 
 ### Scanner Results
 
-`AppNavGraph` holds pending barcode and OCR text results as saveable strings.
-After a scanner emits a nonblank `AppNavigationResult`, the navigator delivers
-the typed result exactly once, pops the producer key, and passes the value into
-`FoodScreen`. Food forwards it to `FoodViewModel` and invokes the matching
-consumed callback so it is not processed twice.
+`FoodNavigation` owns `FoodBarcodeScannerNavKey` and
+`FoodNutritionLabelScannerNavKey` plus pending barcode/OCR results as saveable
+strings. After a scanner emits a nonblank `FoodNavigationResult`, the Food
+navigator verifies the matching producer, delivers the result exactly once,
+pops that producer, and passes the value into `FoodScreen`. Food forwards it to
+`FoodViewModel` and invokes the matching consumed callback so it is not
+processed twice.
 
 ## Global Coach Sheet
 
@@ -129,36 +135,36 @@ does not own the global coach sheet or a navigation controller.
 Source:
 
 - `app/src/main/java/com/musfit/ui/food/FoodScreen.kt`
+- `app/src/main/java/com/musfit/ui/food/FoodNavigation.kt`
+- `app/src/main/java/com/musfit/ui/food/FoodNavigationContract.kt`
 - `app/src/main/java/com/musfit/ui/food/FoodViewModel.kt`
 - `app/src/main/java/com/musfit/ui/food/FoodAddPanelUi.kt`
 - `app/src/main/java/com/musfit/ui/food/FoodModalSheets.kt`
 - `app/src/main/java/com/musfit/ui/food/FoodTrackersUi.kt`
 - `app/src/main/java/com/musfit/data/repository/FoodRepository.kt`
 
-Route: `food`
+Top-level key: `FoodNavKey`
 
 ```kotlin
 @Composable
-fun FoodScreen(
-    scannedBarcode: String? = null,
-    onScanClick: () -> Unit = {},
-    onScannedBarcodeConsumed: () -> Unit = {},
-    scannedLabelText: String? = null,
-    onLabelScanClick: () -> Unit = {},
-    onScannedLabelConsumed: () -> Unit = {},
+fun FoodNavigation(
     viewModel: FoodViewModel = hiltViewModel(),
 )
 ```
 
-Food currently uses one `FoodViewModel` and a state-driven feature shell.
-Diary, meal detail, add flow, recipe browsing/editing, and modal tools are
-in-feature surfaces selected through `FoodAddMode`, `FoodSheetMode`, and related
-state. They are not separate app-shell routes. Read the
-[Food system reference](food-system.md) before changing these transitions.
+Food keeps one retained `FoodViewModel`/collector owner and uses serializable
+`FoodNavKey` entries for diary, meal detail, Add/database, editors, planning
+tools, and both scanners. The key is the durable destination identity; the
+coordinator rehydrates transient editor content from its ID after process
+recreation or after a child pop reveals its parent. `FoodAddMode` and
+`FoodSheetMode` still select presentation within the current typed destination.
+Read the [Food system reference](food-system.md) before changing these
+transitions.
 
-Barcode and nutrition-label capture are the exceptions: `onScanClick` and
-`onLabelScanClick` open app-shell scanner routes. Returned values must be
-forwarded once and then consumed through the corresponding callbacks.
+Successful asynchronous mutations clear their transient content before the
+navigator pops the matching key. Validation and repository failures therefore
+leave the editor visible. Barcode and nutrition-label values are returned and
+consumed exactly once within the Food stack.
 
 `NutritionTrendsScreen` is a Profile-owned secondary route even though it reads
 Food data. Food's Health Connect controls are an integration boundary; current
@@ -170,40 +176,41 @@ this screen contract.
 Source:
 
 - `app/src/main/java/com/musfit/ui/training/TrainingScreen.kt`
+- `app/src/main/java/com/musfit/ui/training/TrainingNavigation.kt`
+- `app/src/main/java/com/musfit/ui/training/TrainingNavigationContract.kt`
 - `app/src/main/java/com/musfit/ui/training/TrainingViewModel.kt`
 - `app/src/main/java/com/musfit/ui/training/TrainingRoutineContent.kt`
 - `app/src/main/java/com/musfit/ui/training/TrainingActiveWorkoutContent.kt`
 - `app/src/main/java/com/musfit/ui/training/TrainingHistoryContent.kt`
 - `app/src/main/java/com/musfit/data/repository/TrainingRepository.kt`
 
-Route: `training`
+Top-level key: `TrainingNavKey`
 
 ```kotlin
 @Composable
-fun TrainingScreen(
-    viewModel: TrainingViewModel = hiltViewModel(),
-    onOpenProgress: () -> Unit = {},
+fun TrainingNavigation(
     onOpenCoach: () -> Unit = {},
+    viewModel: TrainingViewModel = hiltViewModel(),
 )
 ```
 
 `TrainingViewModel` owns routines, exercises, workout history, active-workout
-state, and the current in-feature page stack. The visible top level is the
-Training dashboard plus History opened from the dashboard. Routine/exercise
-detail, editors, pickers, libraries, workout detail, and active-workout surfaces
-are coordinated through `TrainingPage`; `TrainingSection.Exercises` remains only
-as a legacy state marker while opening exercise detail. These are not separate
-app-shell routes.
+content, and the screen-scoped rest timer. A saveable `TrainingNavKey` stack now
+owns routines, exercise/history/progress, editors, pickers, and the active
+workout; the former ViewModel `TrainingPage` stack no longer exists. Keys carry
+only routine, exercise, and session IDs plus the optional exercise target.
+Destination lookup and workout mutations complete before their success callback
+opens, pops, or resets the typed stack.
 
-The screen selects a destination-lifetime projection through
-`TrainingRouteUiState`: routines, the exercise library, and their editors collect
-`TrainingRoutinesLibraryUiState`, while active workout and history collect
+Routines, the exercise library, and their editors collect
+`TrainingRoutinesLibraryUiState`; active workout and history collect
 `TrainingActiveHistoryUiState`. `TrainingUiState` remains the internal mutation
 and restoration compatibility model; no Training composable collects it as one
-aggregate flow. Active workouts remain Room-owned, and closing the active-workout
-screen still clears the screen-scoped rest timer.
+aggregate flow. Active workouts remain Room-owned. Popping the active-workout
+key clears the screen-scoped rest timer, while leaving the top-level destination
+cancels the composable ticker without mutating the Room-owned workout.
 
-`onOpenProgress` dispatches the Profile-owned `TrainingProgressNavKey` action.
+Training progress is a feature-owned `TrainingProgressFeatureNavKey` entry.
 `onOpenCoach` opens the same global coach sheet used by the bottom coach FAB.
 Training handles its in-feature back stack before back falls through to the
 app-level bottom-destination stack.
@@ -281,6 +288,7 @@ Source:
 @Composable
 fun BarcodeScannerScreen(
     onBarcodeDetected: (String) -> Unit,
+    onClose: () -> Unit = {},
 )
 
 @Composable
