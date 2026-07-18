@@ -15,19 +15,31 @@ import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.test.core.app.ApplicationProvider
-import java.io.File
-import javax.xml.parsers.DocumentBuilderFactory
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.w3c.dom.Element
+import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 
 @RunWith(RobolectricTestRunner::class)
 class HealthPermissionContractTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Test
+    @Config(sdk = [29])
+    fun rationaleActivity_appliesSharedEdgeToEdgeWindowPolicy() {
+        val activity = Robolectric.buildActivity(HealthPermissionsRationaleActivity::class.java)
+            .setup()
+            .get()
+
+        assertFalse(activity.window.isNavigationBarContrastEnforced)
+    }
 
     @Test
     fun mergedManifestsDeclareExactlyEveryRequestedHealthPermission() = runTest {

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -72,20 +73,25 @@ class MusFitScreenshotRegressionTest {
     }
 
     @Test
+    @Config(qualifiers = "w400dp-h800dp-mdpi")
+    fun navigation_phone_light_ltr() = capture("navigation-phone-light-ltr.png", dark = false) {
+        RootNavigationFixture(RootNavigationLayout.Compact)
+    }
+
+    @Test
     @Config(qualifiers = "w610dp-h900dp-mdpi")
     fun navigation_foldable_dark_rtl() = capture(
         "navigation-foldable-dark-rtl.png",
         dark = true,
         rtl = true,
     ) {
-        Box(Modifier.fillMaxSize().padding(20.dp)) {
-            MusFitBottomNav(
-                destinations = AppDestination.entries,
-                currentRoute = AppDestination.Food.route,
-                onSelect = {},
-                onCoachClick = {},
-            )
-        }
+        RootNavigationFixture(RootNavigationLayout.Rail)
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h700dp-mdpi")
+    fun navigation_tablet_light_ltr() = capture("navigation-tablet-light-ltr.png", dark = false) {
+        RootNavigationFixture(RootNavigationLayout.Wide)
     }
 
     @Test
@@ -165,6 +171,28 @@ class MusFitScreenshotRegressionTest {
             "Create",
             "<unlabelled:Switch>",
         )
+    }
+}
+
+@Composable
+private fun RootNavigationFixture(layout: RootNavigationLayout) {
+    RootNavigationScaffold(
+        layout = layout,
+        state = RootNavigationState(
+            destinations = AppDestination.entries,
+            currentRoute = AppDestination.Food.route,
+            chromeVisible = true,
+        ),
+        callbacks = RootNavigationCallbacks(onSelect = {}, onCoachClick = {}),
+    ) { modifier ->
+        Box(
+            modifier
+                .fillMaxSize()
+                .background(MusFitTheme.colors.background)
+                .padding(32.dp),
+        ) {
+            Text("Adaptive content", color = MusFitTheme.colors.onSurface)
+        }
     }
 }
 

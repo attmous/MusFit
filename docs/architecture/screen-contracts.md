@@ -21,7 +21,7 @@ Source:
 
 ### Top-Level Destinations
 
-`AppDestination` is the source of truth for the four bottom destinations:
+`AppDestination` is the source of truth for the four top-level destinations:
 
 | Destination | Route | Label | Screen |
 | --- | --- | --- | --- |
@@ -30,8 +30,19 @@ Source:
 | `Training` | `training` | Training | `TrainingScreen` |
 | `Profile` | `profile` | Profile | `ProfileScreen` |
 
-`AppNavGraph()` starts at `TodayNavKey`, renders the custom `MusFitBottomNav`,
-and uses a saveable Navigation 3 back stack plus `NavDisplay`. Re-selecting a
+`AppNavGraph()` starts at `TodayNavKey` and uses one stable adaptive root shell:
+the existing `MusFitBottomNav` below 600 dp, a navigation rail from 600 through
+839 dp, and a permanent navigation drawer at 840 dp and above. Rail and drawer
+also expose the global Coach action as a navigation item. The saveable
+Navigation 3 back stack and `NavDisplay` live outside the width-based layout
+choice, so resizing does not recreate navigation state or screen collector
+owners. Scanner routes hide root chrome for full-screen camera content.
+
+All app activities enable edge-to-edge before `setContent`. The shell applies
+safe drawing insets exactly once around normal content; full-screen camera
+content owns its own inset treatment. Keyboard-capable activities use
+`adjustResize`, and the transfer screen combines safe-drawing and IME padding
+without applying either inset twice. Re-selecting a
 previously visited tab moves its retained entry to the end of the visit order;
 there is never more than one ViewModel/collector owner for a top-level screen.
 `NavDisplay` owns system and predictive-back handling.

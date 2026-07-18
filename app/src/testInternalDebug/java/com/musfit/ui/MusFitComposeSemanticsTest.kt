@@ -1,12 +1,17 @@
 package com.musfit.ui
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -16,6 +21,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineExerciseDetail
+import com.musfit.ui.components.MusFitSegmented
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.training.ExerciseGif
@@ -52,11 +58,95 @@ class MusFitComposeSemanticsTest {
             }
         }
 
-        compose.onNodeWithContentDescription("Today").assertIsSelected()
+        compose.onAllNodesWithContentDescription("Today").assertCountEquals(1)
+        compose.onNodeWithContentDescription("Today")
+            .assertIsSelected()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+            .also(::assertMinimumTouchHeight)
         compose.onNodeWithContentDescription("Food").performClick()
         compose.onNodeWithContentDescription("Training").performClick()
 
         assertEquals(listOf(AppDestination.Food, AppDestination.Training), visits)
+    }
+
+    @Test
+    fun rootNavigationLayout_usesCompactRailAndWideBreakpoints() {
+        assertEquals(RootNavigationLayout.Compact, rootNavigationLayoutForWidth(599.dp))
+        assertEquals(RootNavigationLayout.Rail, rootNavigationLayoutForWidth(600.dp))
+        assertEquals(RootNavigationLayout.Rail, rootNavigationLayoutForWidth(839.dp))
+        assertEquals(RootNavigationLayout.Wide, rootNavigationLayoutForWidth(840.dp))
+    }
+
+    @Test
+    fun adaptiveRail_dispatchesDestinationsAndCoachWithSelectedTargetSemantics() {
+        val visits = mutableListOf<String>()
+        compose.setContent {
+            MusFitTheme {
+                RootNavigationScaffold(
+                    layout = RootNavigationLayout.Rail,
+                    state = RootNavigationState(
+                        destinations = AppDestination.entries,
+                        currentRoute = AppDestination.Today.route,
+                        chromeVisible = true,
+                    ),
+                    callbacks = RootNavigationCallbacks(
+                        onSelect = { visits += it.route },
+                        onCoachClick = { visits += "coach" },
+                    ),
+                    content = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Today").assertIsSelected().also(::assertMinimumTouchHeight)
+        compose.onNodeWithText("Food").performClick()
+        compose.onNodeWithText("Coach").performClick()
+
+        assertEquals(listOf("food", "coach"), visits)
+    }
+
+    @Test
+    fun adaptiveChrome_hidden_removesNavigationForCameraContent() {
+        compose.setContent {
+            MusFitTheme {
+                RootNavigationScaffold(
+                    layout = RootNavigationLayout.Wide,
+                    state = RootNavigationState(
+                        destinations = AppDestination.entries,
+                        currentRoute = AppDestination.Food.route,
+                        chromeVisible = false,
+                    ),
+                    callbacks = RootNavigationCallbacks(onSelect = {}, onCoachClick = {}),
+                    content = {},
+                )
+            }
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText("Food").fetchSemanticsNodes().isEmpty()
+        }
+        compose.onNodeWithText("Coach").assertDoesNotExist()
+    }
+
+    @Test
+    fun sharedSegmentedControl_exposesSingleSelectedRadioAndMinimumTarget() {
+        compose.setContent {
+            MusFitTheme {
+                MusFitSegmented(
+                    options = listOf("Diary", "Summary"),
+                    selected = "Diary",
+                    accent = tabAccentFor(AppDestination.Food),
+                    label = { it },
+                    onSelect = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Diary")
+            .assertIsSelected()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+            .also(::assertMinimumTouchHeight)
+        compose.onAllNodesWithText("Diary").assertCountEquals(1)
     }
 
     @Test

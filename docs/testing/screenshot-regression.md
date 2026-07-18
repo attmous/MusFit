@@ -8,10 +8,11 @@ goldens. The reviewed references live beside their owning tests under
 records or replaces them.
 
 The bounded matrix covers 400 × 800 dp phones, 610 × 900 dp foldable-sized
-windows, and 900 × 700 dp tablet/desktop-sized windows. Across the seven
+windows, and 900 × 700 dp tablet/desktop-sized windows. Across the nine
 scenarios it exercises light and dark themes, LTR and RTL, normal and 1.5× font
 scale, and representative Today, Food add, Training, Profile, scanner-denial,
-and root-navigation states.
+and root-navigation states. Root-shell goldens explicitly cover compact bottom
+navigation, medium navigation rail, and wide permanent navigation drawer.
 
 The same tests inspect every clickable semantics node. New targets must be at
 least 48 dp in both dimensions. Existing undersized controls discovered while
@@ -29,7 +30,7 @@ unrecognized regression fails immediately.
 Failures retain the Roborazzi report, actual/compare images, and JUnit XML as
 the `musfit-screenshot-regression` CI artifact. The screenshot job is separate
 from managed-device and benchmark work and has a 12-minute hard timeout; the
-initial seven-image local verification is recorded in the package PR.
+initial nine-image local verification is recorded in the package PR.
 
 ## Review and update references
 

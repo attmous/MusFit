@@ -3,7 +3,6 @@ package com.musfit
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.musfit.data.repository.AccountRepository
 import com.musfit.ui.AppNavGraph
@@ -22,8 +21,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             accountRepository.ensureActiveAccount()
         }
-        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
-        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = true
+        configureMusFitEdgeToEdge()
         setContent {
             MusFitTheme {
                 AppNavGraph()

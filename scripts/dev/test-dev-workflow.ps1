@@ -364,7 +364,7 @@ Assert-DestinationTable "docs/architecture/README.md" $destinations
 Assert-DestinationTable "docs/architecture/screen-contracts.md" $destinations
 
 $appNavText = Get-FileText "app/src/main/java/com/musfit/ui/AppNavGraph.kt"
-$bottomBarMatch = [regex]::Match($appNavText, 'bottomBar\s*=\s*\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\(')
+$bottomBarMatch = [regex]::Match($appNavText, 'bottomBar\s*=\s*\{[\s\S]{0,300}?\b([A-Z][A-Za-z0-9_]*)\s*\(')
 if (-not $bottomBarMatch.Success) {
     throw "Could not derive the bottom-navigation component from AppNavGraph.kt."
 }
@@ -679,13 +679,20 @@ Assert-FileContains ".github/workflows/device-ui.yml" 'verifyRoborazziInternalDe
 Assert-FileContains ".github/workflows/device-ui.yml" 'musfit-screenshot-regression'
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'recordRoborazzi'
 
+# W5-INSETS-01: every activity enters the shared edge-to-edge contract before composition.
+Assert-FileContains "app/src/main/java/com/musfit/EdgeToEdge.kt" 'enableEdgeToEdge\(\)'
+Assert-FileContains "app/src/main/java/com/musfit/EdgeToEdge.kt" 'isNavigationBarContrastEnforced\s*=\s*false'
+Assert-FileContains "app/src/main/java/com/musfit/MainActivity.kt" 'configureMusFitEdgeToEdge\(\)[\s\S]*setContent\s*\{'
+Assert-FileContains "app/src/main/java/com/musfit/integrations/healthconnect/HealthPermissionsRationaleActivity.kt" 'configureMusFitEdgeToEdge\(\)[\s\S]*setContent\s*\{'
+Assert-FileContains "app/src/main/java/com/musfit/ui/transfer/DataTransferActivity.kt" 'configureMusFitEdgeToEdge\(\)[\s\S]*setContent\s*\{'
+
 $goldenCount = @(
     "app/src/testInternalDebug/screenshots",
     "feature/profile/src/testInternalDebug/screenshots",
     "feature/today/src/testInternalDebug/screenshots" |
         ForEach-Object { Get-ChildItem -LiteralPath (Get-RepoPath $_) -Filter "*.png" -File }
 ).Count
-Assert-Equal "Reviewed screenshot golden count" 7 $goldenCount
+Assert-Equal "Reviewed screenshot golden count" 9 $goldenCount
 
 # W2-PERF-01: production-shaped Macrobenchmark and app-owned Baseline Profile.
 Assert-FileExists "benchmark/build.gradle.kts"
@@ -775,4 +782,4 @@ if ($SelfTest) {
 
 }
 
-Write-Host "Development workflow checks passed (Room $databaseVersion; destinations: $destinationSummary; bottom bar: $bottomBarComponent)."
+Write-Host "Development workflow checks passed (Room $databaseVersion; destinations: $destinationSummary; compact navigation: $bottomBarComponent)."

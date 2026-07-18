@@ -1,13 +1,13 @@
 package com.musfit.release
 
 import com.musfit.BuildConfig
-import java.io.File
-import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.w3c.dom.Element
+import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 
 class VariantContractTest {
     @Test
@@ -60,6 +60,8 @@ class VariantContractTest {
         assertTrue(internal.mainLauncherEnabled)
         assertFalse(internal.migrationLauncherEnabled)
         assertFalse(internal.dataTransferActivityExported)
+        assertEquals("adjustResize", internal.mainActivitySoftInputMode)
+        assertEquals("adjustResize", internal.dataTransferActivitySoftInputMode)
 
         assertEquals(PRODUCTION_APPLICATION_ID, migration.applicationId)
         assertFalse(migration.debuggable)
@@ -70,6 +72,8 @@ class VariantContractTest {
         assertFalse(migration.mainLauncherEnabled)
         assertTrue(migration.migrationLauncherEnabled)
         assertTrue(migration.dataTransferActivityExported)
+        assertEquals("adjustResize", migration.mainActivitySoftInputMode)
+        assertEquals("adjustResize", migration.dataTransferActivitySoftInputMode)
 
         assertEquals(PRODUCTION_APPLICATION_ID, production.applicationId)
         assertFalse(production.debuggable)
@@ -80,6 +84,8 @@ class VariantContractTest {
         assertTrue(production.mainLauncherEnabled)
         assertFalse(production.migrationLauncherEnabled)
         assertFalse(production.dataTransferActivityExported)
+        assertEquals("adjustResize", production.mainActivitySoftInputMode)
+        assertEquals("adjustResize", production.dataTransferActivitySoftInputMode)
     }
 
     @Test
@@ -128,22 +134,26 @@ class VariantContractTest {
             mainLauncherEnabled = aliases.aliasEnabled(".MainLauncher"),
             migrationLauncherEnabled = aliases.aliasEnabled(".LegacyMigrationLauncher"),
             dataTransferActivityExported = activities.componentExported(".ui.transfer.DataTransferActivity"),
+            mainActivitySoftInputMode = activities.componentAttribute(".MainActivity", "windowSoftInputMode"),
+            dataTransferActivitySoftInputMode = activities.componentAttribute(
+                ".ui.transfer.DataTransferActivity",
+                "windowSoftInputMode",
+            ),
         )
     }
 
-    private fun org.w3c.dom.NodeList.aliasEnabled(suffix: String): Boolean =
-        (0 until length)
-            .mapNotNull { item(it) as? Element }
-            .first { it.androidAttribute("name").endsWith(suffix) }
-            .androidAttribute("enabled")
-            .toBoolean()
+    private fun org.w3c.dom.NodeList.aliasEnabled(suffix: String): Boolean = (0 until length)
+        .mapNotNull { item(it) as? Element }
+        .first { it.androidAttribute("name").endsWith(suffix) }
+        .androidAttribute("enabled")
+        .toBoolean()
 
-    private fun org.w3c.dom.NodeList.componentExported(suffix: String): Boolean =
-        (0 until length)
-            .mapNotNull { item(it) as? Element }
-            .first { it.androidAttribute("name").endsWith(suffix) }
-            .androidAttribute("exported")
-            .toBoolean()
+    private fun org.w3c.dom.NodeList.componentExported(suffix: String): Boolean = componentAttribute(suffix, "exported").toBoolean()
+
+    private fun org.w3c.dom.NodeList.componentAttribute(suffix: String, attribute: String): String = (0 until length)
+        .mapNotNull { item(it) as? Element }
+        .first { it.androidAttribute("name").endsWith(suffix) }
+        .androidAttribute(attribute)
 
     private fun resolveMergedManifest(variant: String): File {
         val taskVariant = variant.replaceFirstChar(Char::uppercaseChar)
@@ -163,8 +173,7 @@ class VariantContractTest {
             ?: error("Could not find the internal seed instrumentation manifest: ${candidates.joinToString { it.path }}")
     }
 
-    private fun Element.androidAttribute(name: String): String =
-        getAttributeNS(ANDROID_NAMESPACE, name)
+    private fun Element.androidAttribute(name: String): String = getAttributeNS(ANDROID_NAMESPACE, name)
 
     private data class ManifestContract(
         val applicationId: String,
@@ -176,6 +185,8 @@ class VariantContractTest {
         val mainLauncherEnabled: Boolean,
         val migrationLauncherEnabled: Boolean,
         val dataTransferActivityExported: Boolean,
+        val mainActivitySoftInputMode: String,
+        val dataTransferActivitySoftInputMode: String,
     )
 
     private companion object {
