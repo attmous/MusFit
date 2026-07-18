@@ -18,7 +18,7 @@ Related documents:
 
 - The top-level destination names and routes in the table below are checked against `AppDestination`.
 - The Room version, newest exported schema, contiguous migrations, and documented table inventory are checked against source and schema JSON.
-- The bottom-navigation component name is derived from `AppNavGraph` and checked here.
+- The adaptive root-navigation component name is derived from `AppNavGraph` and checked here.
 - The workflow and architecture-boundary checks run from `scripts/dev/test-dev-workflow.ps1` and `ArchitectureBoundaryTest`.
 <!-- source-derived-facts:end -->
 
@@ -26,7 +26,12 @@ Related documents:
 
 MusFit is an Android-only, local-first fitness and nutrition tracker. The app is inspired by the information architecture of food trackers and training loggers, but uses original UI and app-specific models.
 
-Top-level navigation is a bottom bar with four destinations:
+Top-level navigation keeps the same four destinations while adapting its chrome
+to the available width: a bottom bar below 600 dp, a navigation rail from 600
+through 839 dp, and a permanent navigation drawer at 840 dp and above. The
+saveable Navigation 3 back stack remains outside that layout choice, so a live
+resize does not recreate destinations or their collector owners. Scanner routes
+hide root chrome and draw edge to edge.
 
 | Destination | Route | Purpose |
 | --- | --- | --- |
@@ -133,7 +138,9 @@ flowchart TD
 
 ## App Bootstrap And Navigation
 
-`MusFitApplication` is annotated with `@HiltAndroidApp`. `MainActivity` is annotated with `@AndroidEntryPoint`, sets light system-bar appearance, and calls:
+`MusFitApplication` is annotated with `@HiltAndroidApp`. `MainActivity` is
+annotated with `@AndroidEntryPoint`, enables edge-to-edge with theme-aware
+system bars, and calls:
 
 ```kotlin
 setContent {
@@ -143,7 +150,9 @@ setContent {
 }
 ```
 
-`AppNavGraph` owns a `NavController`, renders the custom `MusFitBottomNav`, and
+`AppNavGraph` owns a saveable Navigation 3 back stack and `NavDisplay`. Its
+stable adaptive shell renders `MusFitBottomNav` on compact windows, a navigation
+rail on medium windows, and a permanent navigation drawer on wide windows. It
 defines the top-level routes:
 
 - `today`
@@ -151,16 +160,21 @@ defines the top-level routes:
 - `training`
 - `profile`
 
-Profile also owns `profile-settings`, `profile-training-progress`, and
-`profile-nutrition-trends` routes. Food owns the scanner routes:
+Profile also owns typed keys for settings, training progress, and nutrition
+trends. Food owns nested typed scanner keys for:
 
 - `barcode-scanner`
 - `nutrition-label-scanner`
 
-The app shell also exposes a global coach action in `MusFitBottomNav` and mounts
+The app shell exposes the global coach action through the compact floating
+action and through a Coach item in rail/drawer layouts. It mounts
 `ChatPreviewSheet` above the current destination.
 
-Barcode and nutrition-label scanner routes return simple strings through `rememberSaveable` state held in `AppNavGraph`. `FoodScreen` receives those strings as parameters, forwards them into `FoodViewModel`, then calls consume callbacks so the same scan is not processed twice.
+Barcode and nutrition-label scanner routes return saveable string results to
+their retained Food navigator. Food forwards each result into `FoodViewModel`
+and consumes it exactly once. While either camera route is active, Food asks the
+app shell to remove root navigation chrome so the scanner can own the full
+edge-to-edge surface.
 
 ## Dependency Injection
 

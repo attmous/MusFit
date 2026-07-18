@@ -4,23 +4,39 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
+import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -28,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -81,6 +98,18 @@ internal object MusFitBottomNavMetrics {
     val FabShadowElevation: Dp = 10.dp
 }
 
+internal enum class RootNavigationLayout {
+    Compact,
+    Rail,
+    Wide,
+}
+
+internal fun rootNavigationLayoutForWidth(width: Dp): RootNavigationLayout = when {
+    width < 600.dp -> RootNavigationLayout.Compact
+    width < 840.dp -> RootNavigationLayout.Rail
+    else -> RootNavigationLayout.Wide
+}
+
 @Composable
 fun AppNavGraph(
     barcodeScannerContent: @Composable (
@@ -96,26 +125,18 @@ fun AppNavGraph(
     val backStack = rememberNavBackStack(TodayNavKey)
     val destinations = AppDestination.entries
     var chatPreviewVisible by rememberSaveable { mutableStateOf(false) }
+    var rootNavigationChromeVisible by rememberSaveable { mutableStateOf(true) }
     val navigator = AppNavigator(
         backStack = backStack,
         onOpenCoach = { chatPreviewVisible = true },
     )
     val currentBottomRoute = navigator.currentDestination.route
 
-    Scaffold(
-        containerColor = MusFitTheme.colors.background,
-        bottomBar = {
-            MusFitBottomNav(
-                destinations = destinations,
-                currentRoute = currentBottomRoute,
-                onSelect = { navigator.navigate(AppNavigationAction.SelectTopLevel(it)) },
-                onCoachClick = { navigator.navigate(AppNavigationAction.OpenCoach) },
-            )
-        },
-    ) { padding ->
+    @Composable
+    fun NavigationContent(modifier: Modifier) {
         NavDisplay(
             backStack = backStack,
-            modifier = Modifier.padding(padding),
+            modifier = modifier,
             onBack = { navigator.goBack() },
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
@@ -136,7 +157,10 @@ fun AppNavGraph(
                     )
                 }
                 entry<FoodNavKey> {
-                    FoodNavigation(barcodeScannerContent = barcodeScannerContent)
+                    FoodNavigation(
+                        barcodeScannerContent = barcodeScannerContent,
+                        onRootNavigationChromeVisibilityChange = { rootNavigationChromeVisible = it },
+                    )
                 }
                 entry<TrainingNavKey> {
                     TrainingNavigation(
@@ -166,6 +190,22 @@ fun AppNavGraph(
         )
     }
 
+    BoxWithConstraints {
+        RootNavigationScaffold(
+            layout = rootNavigationLayoutForWidth(maxWidth),
+            state = RootNavigationState(
+                destinations = destinations,
+                currentRoute = currentBottomRoute,
+                chromeVisible = rootNavigationChromeVisible,
+            ),
+            callbacks = RootNavigationCallbacks(
+                onSelect = { navigator.navigate(AppNavigationAction.SelectTopLevel(it)) },
+                onCoachClick = { navigator.navigate(AppNavigationAction.OpenCoach) },
+            ),
+            content = { modifier -> NavigationContent(modifier) },
+        )
+    }
+
     if (chatPreviewVisible) {
         CoachChatEntry(
             onDismiss = { chatPreviewVisible = false },
@@ -174,6 +214,129 @@ fun AppNavGraph(
             },
         )
     }
+}
+
+internal data class RootNavigationCallbacks(
+    val onSelect: (AppDestination) -> Unit,
+    val onCoachClick: () -> Unit,
+)
+
+internal data class RootNavigationState(
+    val destinations: List<AppDestination>,
+    val currentRoute: String,
+    val chromeVisible: Boolean,
+)
+
+@Composable
+internal fun RootNavigationScaffold(
+    layout: RootNavigationLayout,
+    state: RootNavigationState,
+    callbacks: RootNavigationCallbacks,
+    content: @Composable (Modifier) -> Unit,
+) {
+    if (layout == RootNavigationLayout.Compact) {
+        CompactRootNavigationScaffold(state, callbacks, content)
+    } else {
+        AdaptiveRootNavigationScaffold(layout, state, callbacks, content)
+    }
+}
+
+@Composable
+private fun CompactRootNavigationScaffold(
+    state: RootNavigationState,
+    callbacks: RootNavigationCallbacks,
+    content: @Composable (Modifier) -> Unit,
+) {
+    Scaffold(
+        containerColor = MusFitTheme.colors.background,
+        contentWindowInsets = WindowInsets(0),
+        bottomBar = {
+            if (state.chromeVisible) {
+                MusFitBottomNav(
+                    destinations = state.destinations,
+                    currentRoute = state.currentRoute,
+                    onSelect = callbacks.onSelect,
+                    onCoachClick = callbacks.onCoachClick,
+                )
+            }
+        },
+    ) { innerPadding ->
+        val safeContent = if (state.chromeVisible) {
+            Modifier.windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            )
+        } else {
+            Modifier
+        }
+        content(
+            Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .then(safeContent),
+        )
+    }
+}
+
+@Composable
+private fun AdaptiveRootNavigationScaffold(
+    layout: RootNavigationLayout,
+    state: RootNavigationState,
+    callbacks: RootNavigationCallbacks,
+    content: @Composable (Modifier) -> Unit,
+) {
+    val scaffoldState = rememberNavigationSuiteScaffoldState()
+    LaunchedEffect(state.chromeVisible) {
+        if (state.chromeVisible) scaffoldState.show() else scaffoldState.hide()
+    }
+    NavigationSuiteScaffold(
+        navigationSuiteItems = {
+            rootNavigationItems(state.destinations, state.currentRoute, callbacks)
+        },
+        layoutType = if (!state.chromeVisible) {
+            NavigationSuiteType.None
+        } else {
+            when (layout) {
+                RootNavigationLayout.Compact -> NavigationSuiteType.None
+                RootNavigationLayout.Rail -> NavigationSuiteType.NavigationRail
+                RootNavigationLayout.Wide -> NavigationSuiteType.NavigationDrawer
+            }
+        },
+        state = scaffoldState,
+        containerColor = MusFitTheme.colors.background,
+    ) {
+        val safeContent = if (state.chromeVisible) {
+            Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
+        } else {
+            Modifier
+        }
+        content(safeContent)
+    }
+}
+
+private fun NavigationSuiteScope.rootNavigationItems(
+    destinations: List<AppDestination>,
+    currentRoute: String,
+    callbacks: RootNavigationCallbacks,
+) {
+    destinations.forEach { destination ->
+        item(
+            selected = currentRoute == destination.route,
+            onClick = { callbacks.onSelect(destination) },
+            icon = {
+                Icon(
+                    imageVector = if (currentRoute == destination.route) destination.selectedIcon else destination.icon,
+                    contentDescription = null,
+                )
+            },
+            label = { Text(destination.label) },
+        )
+    }
+    item(
+        selected = false,
+        onClick = callbacks.onCoachClick,
+        icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) },
+        label = { Text("Coach") },
+    )
 }
 
 /**
@@ -269,12 +432,17 @@ private fun RowScope.NavBarItem(
         label = "navContentColor",
     )
     Surface(
-        selected = selected,
-        onClick = onClick,
         color = pillColor,
         contentColor = contentColor,
         shape = RoundedCornerShape(MusFitBottomNavMetrics.ActivePillRadius),
-        modifier = Modifier.weight(1f),
+        modifier = Modifier
+            .weight(1f)
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .selectable(
+                selected = selected,
+                role = Role.Tab,
+                onClick = onClick,
+            ),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

@@ -1,6 +1,7 @@
 package com.musfit.ui.food
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,6 +34,7 @@ fun FoodNavigation(
             onClose = onClose,
         )
     },
+    onRootNavigationChromeVisibilityChange: (Boolean) -> Unit = {},
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
     val backStack = rememberNavBackStack(FoodDiaryNavKey)
@@ -50,6 +52,13 @@ fun FoodNavigation(
     val currentKey = navigator.currentKey
     val routeState by viewModel.routeState.collectAsState()
     var routeEstablished by remember(currentKey) { mutableStateOf(false) }
+
+    LaunchedEffect(currentKey) {
+        onRootNavigationChromeVisibilityChange(currentKey.showsRootNavigationChrome())
+    }
+    DisposableEffect(Unit) {
+        onDispose { onRootNavigationChromeVisibilityChange(true) }
+    }
 
     // The key is the durable source of destination identity. Rebuild the screen-specific
     // ViewModel content from its ID-only arguments after process recreation and whenever a
@@ -139,6 +148,14 @@ fun FoodNavigation(
             }
         },
     )
+}
+
+internal fun FoodNavKey.showsRootNavigationChrome(): Boolean = when (this) {
+    FoodBarcodeScannerNavKey,
+    FoodNutritionLabelScannerNavKey,
+    -> false
+
+    else -> true
 }
 
 private fun closeFoodRoute(viewModel: FoodViewModel, key: FoodNavKey) {

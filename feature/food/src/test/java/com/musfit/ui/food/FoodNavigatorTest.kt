@@ -58,6 +58,14 @@ class FoodNavigatorTest {
     }
 
     @Test
+    fun scannerRoutes_hideRootNavigationChrome() {
+        assertFalse(FoodBarcodeScannerNavKey.showsRootNavigationChrome())
+        assertFalse(FoodNutritionLabelScannerNavKey.showsRootNavigationChrome())
+        assertTrue(FoodDiaryNavKey.showsRootNavigationChrome())
+        assertTrue(FoodAddNavKey("dinner").showsRootNavigationChrome())
+    }
+
+    @Test
     fun closedEditorContent_noLongerMatchesItsTypedDestination() {
         val key = FoodSavedFoodEditorNavKey("food-42")
         val activeRoute = FoodPresentationReducers.route(

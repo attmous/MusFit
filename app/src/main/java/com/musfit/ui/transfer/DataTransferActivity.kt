@@ -2,7 +2,6 @@ package com.musfit.ui.transfer
 
 import android.net.Uri
 import android.os.Bundle
-import android.content.res.Configuration
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -13,7 +12,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,8 +46,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.core.view.WindowCompat
 import com.musfit.BuildConfig
+import com.musfit.configureMusFitEdgeToEdge
 import com.musfit.data.transfer.DataTransferArchiveCodec
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.theme.MusFitTheme
@@ -57,12 +58,7 @@ import java.time.LocalDate
 class DataTransferActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val darkTheme = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-            Configuration.UI_MODE_NIGHT_YES
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = !darkTheme
-            isAppearanceLightNavigationBars = !darkTheme
-        }
+        configureMusFitEdgeToEdge()
         setContent {
             MusFitTheme {
                 DataTransferRoute(onBack = ::finish)
@@ -146,6 +142,8 @@ private fun DataTransferScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MusFitTheme.colors.background)
+            .safeDrawingPadding()
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
