@@ -33,6 +33,8 @@ import com.musfit.ui.training.RoutineExercisePickerPage
 import com.musfit.ui.training.TrainingHomeContent
 import com.musfit.ui.training.TrainingPickerFilters
 import com.musfit.ui.training.TrainingProgressContent
+import com.musfit.ui.training.TrainingProgressContentActions
+import com.musfit.ui.training.TrainingProgressContentData
 import com.musfit.ui.training.TrainingProgressPeriod
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -162,13 +164,15 @@ class MusFitScreenshotRegressionTest {
         val trend = screenshotTrend()
         Box(Modifier.fillMaxSize().padding(24.dp)) {
             TrainingProgressContent(
-                progress = screenshotProgress(trend),
-                period = TrainingProgressPeriod.Year,
-                weeklyVolume = screenshotWeeks(),
-                recentPrs = emptyList(),
+                data = TrainingProgressContentData(
+                    progress = screenshotProgress(trend),
+                    period = TrainingProgressPeriod.Year,
+                    weeklyVolume = screenshotWeeks(),
+                    recentPrs = emptyList(),
+                    today = screenshotToday,
+                ),
                 accent = tabAccentFor(AppDestination.Training),
-                onOpenAllExercises = {},
-                today = screenshotToday,
+                actions = TrainingProgressContentActions(onOpenAllExercises = {}),
             )
         }
     }

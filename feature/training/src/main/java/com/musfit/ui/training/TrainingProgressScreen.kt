@@ -87,12 +87,16 @@ fun TrainingProgressScreen(
                 onSelectPeriod = viewModel::selectPeriod,
             )
             TrainingProgressContent(
-                progress = state.selectedExerciseProgress,
-                period = state.period,
-                weeklyVolume = state.progressAnalytics.weeklyVolume,
-                recentPrs = state.recentPrs,
+                data = TrainingProgressContentData(
+                    progress = state.selectedExerciseProgress,
+                    period = state.period,
+                    weeklyVolume = state.progressAnalytics.weeklyVolume,
+                    recentPrs = state.recentPrs,
+                ),
                 accent = accent,
-                onOpenAllExercises = viewModel::openExercisePicker,
+                actions = TrainingProgressContentActions(
+                    onOpenAllExercises = viewModel::openExercisePicker,
+                ),
             )
         }
     }

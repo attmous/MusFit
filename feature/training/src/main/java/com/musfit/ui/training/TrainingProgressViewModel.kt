@@ -99,45 +99,46 @@ class TrainingProgressViewModel @Inject constructor(
                 }
             }
             launchRepositoryObserver {
-                combine(
-                    mutableState
-                        .map { it.selectedProgressExerciseId }
-                        .distinctUntilChanged(),
-                    progressRetryGeneration,
-                ) { exerciseId, retryGeneration -> exerciseId to retryGeneration }
-                    .flatMapLatest { (exerciseId, _) ->
-                        if (exerciseId == null) {
-                            emptyFlow()
+                selectedExerciseProgressFlow().collect { (exerciseId, progress) ->
+                    mutableState.update { current ->
+                        if (current.selectedProgressExerciseId == exerciseId) {
+                            current.copy(selectedExerciseProgress = progress)
                         } else {
-                            repository.observeExerciseProgress(exerciseId)
-                                .onEach {
-                                    if (mutableState.value.selectedProgressExerciseId == exerciseId) {
-                                        failedProgressExerciseId = null
-                                    }
-                                }
-                                .map { progress -> exerciseId to progress }
-                                .catch { error ->
-                                    if (error is CancellationException) throw error
-                                    if (mutableState.value.selectedProgressExerciseId == exerciseId) {
-                                        failedProgressExerciseId = exerciseId
-                                    }
-                                    // Retain the last value so an explicit same-exercise retry does not flash empty.
-                                }
+                            current
                         }
                     }
-                    .collect { (exerciseId, progress) ->
-                        mutableState.update { current ->
-                            if (current.selectedProgressExerciseId == exerciseId) {
-                                current.copy(selectedExerciseProgress = progress)
-                            } else {
-                                current
-                            }
-                        }
-                    }
+                }
             }
             mutableState.collect { send(it) }
         }
     }
+
+    private fun selectedExerciseProgressFlow(): Flow<Pair<String, ExerciseProgress?>> = combine(
+        mutableState
+            .map { it.selectedProgressExerciseId }
+            .distinctUntilChanged(),
+        progressRetryGeneration,
+    ) { exerciseId, retryGeneration -> exerciseId to retryGeneration }
+        .flatMapLatest { (exerciseId, _) ->
+            if (exerciseId == null) {
+                emptyFlow()
+            } else {
+                repository.observeExerciseProgress(exerciseId)
+                    .onEach {
+                        if (mutableState.value.selectedProgressExerciseId == exerciseId) {
+                            failedProgressExerciseId = null
+                        }
+                    }
+                    .map { progress -> exerciseId to progress }
+                    .catch { error ->
+                        if (error is CancellationException) throw error
+                        if (mutableState.value.selectedProgressExerciseId == exerciseId) {
+                            failedProgressExerciseId = exerciseId
+                        }
+                        // Retain the last value so an explicit same-exercise retry does not flash empty.
+                    }
+            }
+        }
 
     @Suppress("SwallowedException", "TooGenericExceptionCaught")
     private fun CoroutineScope.launchRepositoryObserver(observe: suspend () -> Unit): Job = launch {

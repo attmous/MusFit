@@ -46,9 +46,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -93,6 +96,28 @@ import java.time.temporal.WeekFields
 import java.util.Locale
 import kotlin.math.roundToInt
 
+data class TrainingProgressContentActions(
+    val onOpenAllExercises: () -> Unit,
+)
+
+data class TrainingProgressContentData(
+    val progress: ExerciseProgress?,
+    val period: TrainingProgressPeriod,
+    val weeklyVolume: List<WeeklyTrainingVolume>,
+    val recentPrs: List<TrainingPrRecord>,
+    val today: LocalDate = LocalDate.now(),
+)
+
+private data class VisibleProgressContent(
+    val trend: List<TrainingTrendPoint>,
+    val weeks: List<WeeklyTrainingVolume>,
+)
+
+private fun TrainingProgressContentData.visibleContent(): VisibleProgressContent = VisibleProgressContent(
+    trend = progress?.let { filterTrendByPeriod(it.trend, period, today) }.orEmpty(),
+    weeks = weeklyVolume.sortedBy { it.weekStartEpochDay }.takeLast(VOLUME_WEEK_COUNT),
+)
+
 /**
  * Progress page body (Turn 10 §10f): the anchored exercise's e1RM trend as the
  * tonal hero, the weekly volume card, and Recent PR grouped rows with the
@@ -100,19 +125,12 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun TrainingProgressContent(
-    progress: ExerciseProgress?,
-    period: TrainingProgressPeriod,
-    weeklyVolume: List<WeeklyTrainingVolume>,
-    recentPrs: List<TrainingPrRecord>,
+    data: TrainingProgressContentData,
     accent: TabAccent,
-    onOpenAllExercises: () -> Unit,
-    today: LocalDate = LocalDate.now(),
+    actions: TrainingProgressContentActions,
 ) {
-    val visibleTrend = progress
-        ?.let { filterTrendByPeriod(it.trend, period, today) }
-        .orEmpty()
-    val visibleWeeks = weeklyVolume.sortedBy { it.weekStartEpochDay }.takeLast(VOLUME_WEEK_COUNT)
-    var selectedTrendDateEpochDay by rememberSaveable(progress?.exerciseId) { mutableStateOf<Long?>(null) }
+    val (visibleTrend, visibleWeeks) = data.visibleContent()
+    var selectedTrendDateEpochDay by rememberSaveable(data.progress?.exerciseId) { mutableStateOf<Long?>(null) }
     var selectedWeekStartEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
     val effectiveTrendDate = visibleTrend
         .firstOrNull { it.dateEpochDay == selectedTrendDateEpochDay }
@@ -130,7 +148,7 @@ fun TrainingProgressContent(
 
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         EstimatedOneRepMaxHero(
-            progress = progress,
+            progress = data.progress,
             trend = visibleTrend,
             accent = accent,
             selectedDateEpochDay = effectiveTrendDate,
@@ -151,7 +169,11 @@ fun TrainingProgressContent(
             },
             onOpenDataTable = { openDataTab = ProgressDataTab.WeeklyVolume },
         )
-        RecentPrsSection(recentPrs = recentPrs, accent = accent, onOpenAllExercises = onOpenAllExercises)
+        RecentPrsSection(
+            recentPrs = data.recentPrs,
+            accent = accent,
+            onOpenAllExercises = actions.onOpenAllExercises,
+        )
     }
 
     openDataTab?.let { initialTab ->
@@ -276,12 +298,16 @@ private fun EstimatedOneRepMaxHero(
                     modifier = Modifier.clearAndSetSemantics { },
                 )
                 ProgressLineChart(
-                    exerciseName = progress.exerciseName,
-                    trend = trend,
+                    data = ProgressLineChartData(
+                        exerciseName = progress.exerciseName,
+                        trend = trend,
+                    ),
                     accent = accent,
                     selectedDateEpochDay = selectedDateEpochDay,
-                    onSelectDate = onSelectDate,
-                    onOpenDataTable = onOpenDataTable,
+                    actions = ProgressLineChartActions(
+                        onSelectDate = onSelectDate,
+                        onOpenDataTable = onOpenDataTable,
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(96.dp),
@@ -304,77 +330,100 @@ private fun EstimatedOneRepMaxHero(
 }
 
 /** 2.5dp line + endpoint dot over an on-container hairline baseline (10f hero). */
+private data class ProgressLineChartActions(
+    val onSelectDate: (Long) -> Unit,
+    val onOpenDataTable: () -> Unit,
+)
+
+private data class ProgressLineChartData(
+    val exerciseName: String,
+    val trend: List<TrainingTrendPoint>,
+)
+
 @Composable
-@Suppress("LongParameterList")
 private fun ProgressLineChart(
-    exerciseName: String,
-    trend: List<TrainingTrendPoint>,
+    data: ProgressLineChartData,
     accent: TabAccent,
     selectedDateEpochDay: Long?,
-    onSelectDate: (Long) -> Unit,
-    onOpenDataTable: () -> Unit,
+    actions: ProgressLineChartActions,
     modifier: Modifier = Modifier,
 ) {
+    val trend = data.trend
     val dates = trend.map { it.dateEpochDay }
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val selectedIndex = dates.indexOf(selectedDateEpochDay).takeIf { it >= 0 } ?: trend.lastIndex
     val selectIndex: (Int) -> Unit = { index ->
-        dates.getOrNull(index)?.let(onSelectDate)
+        dates.getOrNull(index)?.let(actions.onSelectDate)
     }
     val lineColor = accent.color
     val baselineColor = accent.onContainer.copy(alpha = 0.18f)
     val chartModifier = modifier.chartInteraction(
         dates = dates,
         selectedIndex = selectedIndex,
-        summary = e1rmChartSummary(exerciseName, trend),
+        summary = e1rmChartSummary(data.exerciseName, trend),
         selectedState = e1rmChartSelectionDescription(trend, selectedIndex),
         onSelectIndex = selectIndex,
-        onOpenDataTable = onOpenDataTable,
+        onOpenDataTable = actions.onOpenDataTable,
     )
     Canvas(modifier = chartModifier) {
-        if (trend.isEmpty()) return@Canvas
-        val values = trend.map { it.bestEstimatedOneRepMaxKg }
-        val minValue = values.min()
-        val maxValue = values.max()
-        val range = (maxValue - minValue).takeIf { it > 0 } ?: 1.0
-        val padTop = 8.dp.toPx()
-        val padBottom = 10.dp.toPx()
-        val usableHeight = size.height - padTop - padBottom
-        val points = values.mapIndexed { index, value ->
-            val fraction = ((value - minValue) / range).toFloat()
-            androidx.compose.ui.geometry.Offset(
-                x = chartPointX(
-                    index = index,
-                    itemCount = values.size,
-                    width = size.width,
-                    isRtl = isRtl,
-                ),
-                y = padTop + usableHeight * (1f - fraction),
-            )
-        }
-        drawLine(
-            color = baselineColor,
-            start = androidx.compose.ui.geometry.Offset(0f, size.height - 1.dp.toPx()),
-            end = androidx.compose.ui.geometry.Offset(size.width, size.height - 1.dp.toPx()),
-            strokeWidth = 1.dp.toPx(),
-        )
-        if (points.size > 1) {
-            val path = Path().apply {
-                moveTo(points.first().x, points.first().y)
-                points.drop(1).forEach { lineTo(it.x, it.y) }
-            }
-            drawPath(
-                path = path,
-                color = lineColor,
-                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
-            )
-        }
-        drawCircle(
-            color = lineColor,
-            radius = 4.5.dp.toPx(),
-            center = points[selectedIndex.coerceIn(0, points.lastIndex)],
+        drawProgressLineChart(
+            values = trend.map { it.bestEstimatedOneRepMaxKg },
+            selectedIndex = selectedIndex,
+            lineColor = lineColor,
+            baselineColor = baselineColor,
+            isRtl = isRtl,
         )
     }
+}
+
+private fun DrawScope.drawProgressLineChart(
+    values: List<Double>,
+    selectedIndex: Int,
+    lineColor: Color,
+    baselineColor: Color,
+    isRtl: Boolean,
+) {
+    if (values.isEmpty()) return
+    val minValue = values.min()
+    val maxValue = values.max()
+    val range = (maxValue - minValue).takeIf { it > 0 } ?: 1.0
+    val padTop = 8.dp.toPx()
+    val padBottom = 10.dp.toPx()
+    val usableHeight = size.height - padTop - padBottom
+    val points = values.mapIndexed { index, value ->
+        val fraction = ((value - minValue) / range).toFloat()
+        Offset(
+            x = chartPointX(
+                index = index,
+                itemCount = values.size,
+                width = size.width,
+                isRtl = isRtl,
+            ),
+            y = padTop + usableHeight * (1f - fraction),
+        )
+    }
+    drawLine(
+        color = baselineColor,
+        start = Offset(0f, size.height - 1.dp.toPx()),
+        end = Offset(size.width, size.height - 1.dp.toPx()),
+        strokeWidth = 1.dp.toPx(),
+    )
+    if (points.size > 1) {
+        val path = Path().apply {
+            moveTo(points.first().x, points.first().y)
+            points.drop(1).forEach { lineTo(it.x, it.y) }
+        }
+        drawPath(
+            path = path,
+            color = lineColor,
+            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+    }
+    drawCircle(
+        color = lineColor,
+        radius = 4.5.dp.toPx(),
+        center = points[selectedIndex.coerceIn(0, points.lastIndex)],
+    )
 }
 
 /** Weekly volume (10f): white card, 6 rounded bars — tonal past, filled current. */

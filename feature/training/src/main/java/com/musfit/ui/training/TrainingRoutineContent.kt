@@ -77,6 +77,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -143,6 +144,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 @Composable
 @Suppress("LongMethod", "LongParameterList")
 fun TrainingHomeContent(
+    modifier: Modifier = Modifier,
     hasActiveWorkout: Boolean = false,
     routines: List<RoutineSummary> = emptyList(),
     folders: List<RoutineFolder> = emptyList(),
@@ -160,7 +162,6 @@ fun TrainingHomeContent(
     onAssignRoutineToFolder: (String, String?) -> Unit = { _, _ -> },
     onStartRoutine: (String) -> Unit = {},
     onOpenRoutineDetail: (String) -> Unit = {},
-    modifier: Modifier = Modifier,
     libraryRoutines: List<RoutineSummary>? = null,
     onStartLibraryRoutine: (String) -> Unit = onStartRoutine,
     onOpenLibraryRoutineDetail: (String) -> Unit = onOpenRoutineDetail,
@@ -2745,27 +2746,7 @@ private fun RoutineExercisePickerRow(
                 selected = selected,
                 accent = accent,
                 badgeShape = badgeShape,
-                useBenchmarkFixture = benchmarkProbeEnabled,
-                onDataSourceChanged = thumbnailResourceTag?.let { resourceTag ->
-                    { dataSource ->
-                        val source = dataSource.name.lowercase()
-                        resourceTag.value =
-                            "training-exercise-thumbnail-loaded-$source-${exercise.id}"
-                    }
-                },
-                onLoading = thumbnailResourceTag?.let { resourceTag ->
-                    {
-                        resourceTag.value =
-                            "training-exercise-thumbnail-item-loading-${exercise.id}"
-                    }
-                },
-                onLoadError = thumbnailResourceTag?.let { resourceTag ->
-                    { error ->
-                        val errorName = error.javaClass.simpleName.ifEmpty { "Unknown" }
-                        resourceTag.value =
-                            "training-exercise-thumbnail-error-$errorName-${exercise.id}"
-                    }
-                },
+                benchmarkProbe = pickerThumbBenchmarkProbe(thumbnailResourceTag, exercise.id),
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -2806,6 +2787,35 @@ private fun RoutineExercisePickerRow(
     }
 }
 
+/** Benchmark-only callback bundle kept out of the normal picker parameter surface. */
+private data class PickerThumbBenchmarkProbe(
+    val useFixture: Boolean = false,
+    val onDataSourceChanged: ((coil.decode.DataSource) -> Unit)? = null,
+    val onLoading: (() -> Unit)? = null,
+    val onLoadError: ((Throwable) -> Unit)? = null,
+)
+
+private fun pickerThumbBenchmarkProbe(
+    resourceTag: MutableState<String>?,
+    exerciseId: String,
+): PickerThumbBenchmarkProbe {
+    if (resourceTag == null) return PickerThumbBenchmarkProbe()
+    return PickerThumbBenchmarkProbe(
+        useFixture = true,
+        onDataSourceChanged = { dataSource ->
+            val source = dataSource.name.lowercase()
+            resourceTag.value = "training-exercise-thumbnail-loaded-$source-$exerciseId"
+        },
+        onLoading = {
+            resourceTag.value = "training-exercise-thumbnail-item-loading-$exerciseId"
+        },
+        onLoadError = { error ->
+            val errorName = error.javaClass.simpleName.ifEmpty { "Unknown" }
+            resourceTag.value = "training-exercise-thumbnail-error-$errorName-$exerciseId"
+        },
+    )
+}
+
 /** The 52dp media thumb with the selection scrim + white check morph. */
 @Composable
 private fun PickerExerciseThumb(
@@ -2813,10 +2823,7 @@ private fun PickerExerciseThumb(
     selected: Boolean,
     accent: TabAccent,
     badgeShape: ExpressiveBadgeShape,
-    useBenchmarkFixture: Boolean,
-    onDataSourceChanged: ((coil.decode.DataSource) -> Unit)?,
-    onLoading: (() -> Unit)?,
-    onLoadError: ((Throwable) -> Unit)?,
+    benchmarkProbe: PickerThumbBenchmarkProbe,
 ) {
     val shape = badgeShape.asShape()
     val scrimAlpha by animateFloatAsState(
@@ -2836,10 +2843,10 @@ private fun PickerExerciseThumb(
             accent = accent,
             size = 52.dp,
             shape = shape,
-            useBenchmarkFixture = useBenchmarkFixture,
-            onDataSourceChanged = onDataSourceChanged,
-            onLoading = onLoading,
-            onLoadError = onLoadError,
+            useBenchmarkFixture = benchmarkProbe.useFixture,
+            onDataSourceChanged = benchmarkProbe.onDataSourceChanged,
+            onLoading = benchmarkProbe.onLoading,
+            onLoadError = benchmarkProbe.onLoadError,
         )
         if (scrimAlpha > 0.01f) {
             Box(

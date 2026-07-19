@@ -142,8 +142,8 @@ five iterations, the deterministic 100-image fixture, and confirmed Google
 Photos disabled before every launch. The baseline app source was commit
 `8913598edcd7a67a6e17520437b1c3d396c548fb`; the final candidate product-code
 head was `a5260d993699e4211b2e94992de038f0bd80ad07`. The exact-head rerun was made
-after the restoration fix; subsequent S15 changes add only acceptance tests and
-this evidence documentation.
+after the restoration fix; subsequent S15 changes are behavior-preserving
+static-analysis refactors plus acceptance tests and this evidence documentation.
 
 | Acceptance metric | Controlled master | Exact-head candidate | Change |
 | --- | ---: | ---: | ---: |

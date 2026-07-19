@@ -282,12 +282,14 @@ class TrainingProgressChartAccessibilityTest {
         compose.setContent {
             MusFitTheme {
                 TrainingProgressContent(
-                    progress = progress(trend),
-                    period = TrainingProgressPeriod.Year,
-                    weeklyVolume = emptyList(),
-                    recentPrs = emptyList(),
+                    data = TrainingProgressContentData(
+                        progress = progress(trend),
+                        period = TrainingProgressPeriod.Year,
+                        weeklyVolume = emptyList(),
+                        recentPrs = emptyList(),
+                    ),
                     accent = accent,
-                    onOpenAllExercises = {},
+                    actions = TrainingProgressContentActions(onOpenAllExercises = {}),
                 )
             }
         }
@@ -419,12 +421,14 @@ class TrainingProgressChartAccessibilityTest {
             CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                 MusFitTheme {
                     TrainingProgressContent(
-                        progress = if (includeProgress) progress(trend) else null,
-                        period = TrainingProgressPeriod.Year,
-                        weeklyVolume = weeks,
-                        recentPrs = emptyList(),
+                        data = TrainingProgressContentData(
+                            progress = if (includeProgress) progress(trend) else null,
+                            period = TrainingProgressPeriod.Year,
+                            weeklyVolume = weeks,
+                            recentPrs = emptyList(),
+                        ),
                         accent = accent,
-                        onOpenAllExercises = {},
+                        actions = TrainingProgressContentActions(onOpenAllExercises = {}),
                     )
                 }
             }

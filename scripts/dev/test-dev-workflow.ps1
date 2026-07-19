@@ -727,7 +727,7 @@ Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyB
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun trainingExerciseImageBrowse100Items\(\)'
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun profileJourney\(\)'
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/TrainingExerciseImageBenchmarkJourney.kt" 'EXERCISE_BROWSE_ITEM_TARGET\s*=\s*100'
-Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/TrainingExerciseImageBenchmarkJourney.kt" 'training-exercise-thumbnail-loaded-'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/TrainingExerciseImageBenchmarkSnapshot.kt" 'training-exercise-thumbnail-loaded-'
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/TrainingExerciseImageBenchmarkJourney.kt" 'pm disable-user --user 0 com\.google\.android\.apps\.photos'
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'TrainingExerciseImagePssMetric\(\)'
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'traceTargetPss\(\)'
