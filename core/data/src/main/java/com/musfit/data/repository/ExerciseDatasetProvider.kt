@@ -2,9 +2,9 @@ package com.musfit.data.repository
 
 import android.content.Context
 import com.musfit.data.local.entity.ExerciseEntity
+import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -23,6 +23,7 @@ const val EXERCISE_DATASET_ID_PREFIX = "ds-"
 private const val EXERCISE_DATASET_ASSET = "exercises_dataset.json"
 
 /** One row of the bundled catalog (English text only; image/gif are repo-relative paths). */
+@JsonClass(generateAdapter = true)
 data class ExerciseDatasetRecord(
     val id: String,
     val name: String,
@@ -44,7 +45,7 @@ class AssetExerciseDatasetProvider @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ExerciseDatasetProvider {
     private val adapter by lazy {
-        val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+        val moshi = Moshi.Builder().build()
         val type = Types.newParameterizedType(List::class.java, ExerciseDatasetRecord::class.java)
         moshi.adapter<List<ExerciseDatasetRecord>>(type)
     }

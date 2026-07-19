@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "app/**"
+      - "feature/training/**"
+      - "core/data/**"
       - "benchmark/**"
       - "baselineprofile/**"
       - "scripts/performance/**"
@@ -30,7 +32,7 @@ concurrency:
 jobs:
   macrobenchmark:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 65
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

@@ -29,16 +29,21 @@ import com.musfit.domain.training.PlateCalculator
 import com.musfit.domain.training.WarmupSetCalculator
 import com.musfit.domain.training.WorkoutCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -181,24 +186,23 @@ data class TrainingUiState(
     val message: String? = null,
 )
 
-private data class TrainingInitialStreams(
-    val routines: List<RoutineSummary>,
-    val folders: List<RoutineFolder>,
-    val exercises: List<ExerciseSummary>,
-    val activeWorkout: ActiveWorkoutSummary?,
-)
-
 @HiltViewModel
 class TrainingViewModel @Inject constructor(
     private val repository: TrainingRepository,
-    goalsRepository: GoalsRepository,
+    private val goalsRepository: GoalsRepository,
     private val savedStateHandle: SavedStateHandle? = null,
 ) : ViewModel() {
     private val restoredState = savedStateHandle
         ?.get<TrainingRestorationState>(TRAINING_RESTORATION_STATE_KEY)
     private val mutableState = MutableStateFlow(restoredState?.toTrainingUiState() ?: TrainingUiState())
     val state: StateFlow<TrainingUiState> = mutableState.asStateFlow()
-    val routinesLibraryState: StateFlow<TrainingRoutinesLibraryUiState> = mutableState
+    private val observedState: StateFlow<TrainingUiState> = repositoryObservationFlow()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(),
+            initialValue = mutableState.value,
+        )
+    val routinesLibraryState: StateFlow<TrainingRoutinesLibraryUiState> = observedState
         .map(TrainingPresentationReducers::routinesLibrary)
         .distinctUntilChanged()
         .stateIn(
@@ -206,7 +210,7 @@ class TrainingViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = TrainingPresentationReducers.routinesLibrary(mutableState.value),
         )
-    val activeHistoryState: StateFlow<TrainingActiveHistoryUiState> = mutableState
+    val activeHistoryState: StateFlow<TrainingActiveHistoryUiState> = observedState
         .map(TrainingPresentationReducers::activeHistory)
         .distinctUntilChanged()
         .stateIn(
@@ -214,6 +218,14 @@ class TrainingViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = TrainingPresentationReducers.activeHistory(mutableState.value),
         )
+    private val workoutDetailLoad = RouteLoadGuard()
+    private val routineDetailLoad = RouteLoadGuard()
+    private val routineEditorLoad = RouteLoadGuard()
+    private val exerciseDetailLoad = RouteLoadGuard()
+    private val restoredWorkoutDetailRequest = workoutDetailLoad.currentRequest()
+    private val restoredRoutineDetailRequest = routineDetailLoad.currentRequest()
+    private val restoredRoutineEditorRequest = routineEditorLoad.currentRequest()
+    private val restoredExerciseDetailRequest = exerciseDetailLoad.currentRequest()
 
     init {
         viewModelScope.launch {
@@ -229,91 +241,114 @@ class TrainingViewModel @Inject constructor(
                 )
             }
         }
-        viewModelScope.launch {
-            // The "This week" card measures against the same weekly session target
-            // the Today dashboard editor writes.
-            goalsRepository.observeUserGoals().collect { goals ->
-                mutableState.update { it.copy(weeklySessionTarget = goals.weeklySessionTarget) }
-            }
-        }
-        viewModelScope.launch {
-            combine(
-                repository.observeRoutineSummaries(),
-                repository.observeRoutineFolders(),
-                repository.observeExercises(),
-                repository.observeActiveWorkoutSummary(),
-            ) { routines, folders, exercises, activeWorkout ->
-                TrainingInitialStreams(routines, folders, exercises, activeWorkout)
-            }.collect { streams ->
-                mutableState.update {
-                    it.copy(
-                        routines = streams.routines,
-                        routineFolders = streams.folders,
-                        exercises = streams.exercises,
-                        activeWorkoutSummary = streams.activeWorkout,
-                    ).withVisibleRoutines()
-                        .withDashboard()
-                        .withFilteredExercises()
+    }
+
+    @Suppress("LongMethod") // One shared lifecycle boundary owns every UI data observer.
+    private fun repositoryObservationFlow(): Flow<TrainingUiState> = channelFlow {
+        supervisorScope {
+            launchRepositoryObserver {
+                // The "This week" card measures against the same weekly session target
+                // the Today dashboard editor writes.
+                goalsRepository.observeUserGoals().collect { goals ->
+                    mutableState.update { it.copy(weeklySessionTarget = goals.weeklySessionTarget) }
                 }
             }
-        }
-        viewModelScope.launch {
-            repository.observeActiveWorkoutDetail().collect { activeWorkout ->
-                mutableState.update { current ->
-                    val previousActiveWorkout = current.activeWorkout
-                    val shouldSyncNotes = activeWorkout == null ||
-                        previousActiveWorkout?.sessionId != activeWorkout.sessionId ||
-                        previousActiveWorkout.notes != activeWorkout.notes
-                    val updated = current.copy(
-                        activeWorkout = activeWorkout,
-                        activeWorkoutNotesInput = if (shouldSyncNotes) {
-                            activeWorkout?.notes.orEmpty()
-                        } else {
-                            current.activeWorkoutNotesInput
-                        },
-                    )
-                    if (activeWorkout == null) {
-                        updated.copy(
-                            restTimer = RestTimerState(),
-                            finishConfirmationOpen = false,
-                            discardConfirmationOpen = false,
-                        )
-                    } else {
-                        updated
+            launchRepositoryObserver {
+                repository.observeRoutineSummaries().collect { routines ->
+                    mutableState.update {
+                        it.copy(routines = routines)
+                            .withVisibleRoutines()
+                            .withDashboard()
                     }
                 }
             }
-        }
-        viewModelScope.launch {
-            repository.observeTrainingSettings().collect { settings ->
-                mutableState.update { current ->
-                    current.copy(
-                        trainingSettings = settings,
-                        restTimerDefaultSecondsInput = settings.defaultRestSeconds.toString(),
-                        plateBarWeightInput = settings.barWeightKg.formatSettingsNumber(),
-                        availablePlatesInput = settings.availablePlatesKg.formatPlateListInput(),
-                        restTimer = if (current.restTimer.isVisible) {
-                            current.restTimer
+            launchRepositoryObserver {
+                repository.observeRoutineFolders().collect { folders ->
+                    mutableState.update { it.copy(routineFolders = folders).withVisibleRoutines() }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeExercises().collect { exercises ->
+                    mutableState.update { it.copy(exercises = exercises).withFilteredExercises() }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeActiveWorkoutSummary().collect { activeWorkout ->
+                    mutableState.update { it.copy(activeWorkoutSummary = activeWorkout).withDashboard() }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeActiveWorkoutDetail().collect { activeWorkout ->
+                    mutableState.update { current ->
+                        val previousActiveWorkout = current.activeWorkout
+                        val shouldSyncNotes = activeWorkout == null ||
+                            previousActiveWorkout?.sessionId != activeWorkout.sessionId ||
+                            previousActiveWorkout.notes != activeWorkout.notes
+                        val updated = current.copy(
+                            activeWorkout = activeWorkout,
+                            activeWorkoutNotesInput = if (shouldSyncNotes) {
+                                activeWorkout?.notes.orEmpty()
+                            } else {
+                                current.activeWorkoutNotesInput
+                            },
+                        )
+                        if (activeWorkout == null) {
+                            updated.copy(
+                                restTimer = RestTimerState(),
+                                finishConfirmationOpen = false,
+                                discardConfirmationOpen = false,
+                            )
                         } else {
-                            current.restTimer.copy(durationSeconds = settings.defaultRestSeconds)
-                        },
-                    )
+                            updated
+                        }
+                    }
                 }
             }
-        }
-        viewModelScope.launch {
-            repository.observeWorkoutHistory().collect { history ->
-                mutableState.update {
-                    it.copy(
-                        workoutHistory = history,
-                        historyOverview = buildTrainingHistoryOverview(history),
-                    ).withDashboard()
+            launchRepositoryObserver {
+                repository.observeTrainingSettings().collect { settings ->
+                    mutableState.update { current ->
+                        current.copy(
+                            trainingSettings = settings,
+                            restTimerDefaultSecondsInput = settings.defaultRestSeconds.toString(),
+                            plateBarWeightInput = settings.barWeightKg.formatSettingsNumber(),
+                            availablePlatesInput = settings.availablePlatesKg.formatPlateListInput(),
+                            restTimer = if (current.restTimer.isVisible) {
+                                current.restTimer
+                            } else {
+                                current.restTimer.copy(durationSeconds = settings.defaultRestSeconds)
+                            },
+                        )
+                    }
                 }
             }
+            launchRepositoryObserver {
+                repository.observeWorkoutHistory().collect { history ->
+                    mutableState.update {
+                        it.copy(
+                            workoutHistory = history,
+                            historyOverview = buildTrainingHistoryOverview(history),
+                        ).withDashboard()
+                    }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeLoggedExerciseIds().collect { ids ->
+                    mutableState.update { it.copy(loggedExerciseIds = ids) }
+                }
+            }
+            mutableState.collect { send(it) }
         }
-        viewModelScope.launch {
-            repository.observeLoggedExerciseIds().collect { ids ->
-                mutableState.update { it.copy(loggedExerciseIds = ids) }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun CoroutineScope.launchRepositoryObserver(observe: suspend () -> Unit): Job = launch {
+        try {
+            observe()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            mutableState.update { current ->
+                current.copy(message = error.message ?: TRAINING_DATA_OBSERVATION_ERROR_MESSAGE)
             }
         }
     }
@@ -327,8 +362,10 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun openWorkoutDetail(sessionId: String, onMissing: () -> Unit = {}) {
-        viewModelScope.launch {
+        val request = workoutDetailLoad.begin()
+        workoutDetailLoad.job = viewModelScope.launch {
             val detail = repository.getWorkoutHistoryDetail(sessionId)
+            if (!workoutDetailLoad.isCurrent(request)) return@launch
             mutableState.update {
                 if (detail == null) {
                     it.copy(selectedWorkoutDetail = null)
@@ -341,6 +378,7 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun closeWorkoutDetail() {
+        workoutDetailLoad.invalidate()
         mutableState.update {
             it.copy(selectedWorkoutDetail = null)
         }
@@ -357,32 +395,64 @@ class TrainingViewModel @Inject constructor(
         }
     }
 
+    @Suppress("CyclomaticComplexMethod")
     private suspend fun restoreReferencedPages(restoration: TrainingRestorationState) {
         val routineId = restoration.selectedRoutineDetailId?.boundedRestoredId()
         val exerciseId = restoration.selectedExerciseDetailId?.boundedRestoredId()
         val workoutId = restoration.selectedWorkoutDetailId?.boundedRestoredId()
-        val routineDetail = routineId?.let { repository.getRoutineDetail(it) }
-        val exerciseDetail = exerciseId?.let { repository.getExerciseDetail(it) }
-        val workoutDetail = workoutId?.let { repository.getWorkoutHistoryDetail(it) }
+        val routineDetail = if (routineDetailLoad.isCurrent(restoredRoutineDetailRequest)) {
+            routineId?.let { repository.getRoutineDetail(it) }
+        } else {
+            null
+        }
+        val exerciseDetail = if (exerciseDetailLoad.isCurrent(restoredExerciseDetailRequest)) {
+            exerciseId?.let { repository.getExerciseDetail(it) }
+        } else {
+            null
+        }
+        val workoutDetail = if (workoutDetailLoad.isCurrent(restoredWorkoutDetailRequest)) {
+            workoutId?.let { repository.getWorkoutHistoryDetail(it) }
+        } else {
+            null
+        }
         val restoredEditor = restoration.routineEditor?.toRoutineEditorState()
-        val existingEditorStillValid = restoredEditor?.routineId
-            ?.let { editorId ->
-                if (editorId == routineId) routineDetail else repository.getRoutineDetail(editorId)
-            } != null || restoredEditor?.routineId == null
+        val existingEditorStillValid = routineEditorLoad.isCurrent(restoredRoutineEditorRequest) &&
+            (
+                restoredEditor?.routineId
+                    ?.let { editorId ->
+                        if (editorId == routineId && routineDetailLoad.isCurrent(restoredRoutineDetailRequest)) {
+                            routineDetail
+                        } else {
+                            repository.getRoutineDetail(editorId)
+                        }
+                    } != null || restoredEditor?.routineId == null
+                )
 
         mutableState.update { current ->
-            current.copy(
-                selectedRoutineDetail = routineDetail,
-                selectedExerciseDetail = exerciseDetail,
-                exerciseDetailNotesInput = exerciseDetail?.localNotes.orEmpty(),
-                exerciseDetailTarget = restoration.exerciseDetailTarget?.take(MAX_RESTORED_NAME_LENGTH),
-                selectedWorkoutDetail = workoutDetail,
-                routineEditor = if (existingEditorStillValid) {
-                    restoredEditor ?: RoutineEditorState()
-                } else {
-                    RoutineEditorState()
-                },
-            )
+            var restored = current
+            if (routineDetailLoad.isCurrent(restoredRoutineDetailRequest)) {
+                restored = restored.copy(selectedRoutineDetail = routineDetail)
+            }
+            if (exerciseDetailLoad.isCurrent(restoredExerciseDetailRequest)) {
+                restored = restored.copy(
+                    selectedExerciseDetail = exerciseDetail,
+                    exerciseDetailNotesInput = exerciseDetail?.localNotes.orEmpty(),
+                    exerciseDetailTarget = restoration.exerciseDetailTarget?.take(MAX_RESTORED_NAME_LENGTH),
+                )
+            }
+            if (workoutDetailLoad.isCurrent(restoredWorkoutDetailRequest)) {
+                restored = restored.copy(selectedWorkoutDetail = workoutDetail)
+            }
+            if (routineEditorLoad.isCurrent(restoredRoutineEditorRequest)) {
+                restored = restored.copy(
+                    routineEditor = if (existingEditorStillValid) {
+                        restoredEditor ?: RoutineEditorState()
+                    } else {
+                        RoutineEditorState()
+                    },
+                )
+            }
+            restored
         }
     }
 
@@ -391,6 +461,9 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun closeRoutineLibraryPage() {
+        routineDetailLoad.invalidate()
+        routineEditorLoad.invalidate()
+        exerciseDetailLoad.invalidate()
         mutableState.update {
             it.copy(
                 selectedSection = TrainingSection.Routines,
@@ -473,8 +546,10 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun openRoutineEditor(routineId: String?, onMissing: () -> Unit = {}) {
-        viewModelScope.launch {
+        val request = routineEditorLoad.begin()
+        routineEditorLoad.job = viewModelScope.launch {
             val detail = routineId?.let { repository.getRoutineDetail(it) }
+            if (!routineEditorLoad.isCurrent(request)) return@launch
             if (routineId != null && detail == null) {
                 mutableState.update { it.copy(message = "Routine not found.") }
                 onMissing()
@@ -508,14 +583,17 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun closeRoutineEditor() {
+        routineEditorLoad.invalidate()
         mutableState.update {
             it.copy(routineEditor = RoutineEditorState())
         }
     }
 
     fun openRoutineDetail(routineId: String, onMissing: () -> Unit = {}) {
-        viewModelScope.launch {
+        val request = routineDetailLoad.begin()
+        routineDetailLoad.job = viewModelScope.launch {
             val detail = repository.getRoutineDetail(routineId)
+            if (!routineDetailLoad.isCurrent(request)) return@launch
             mutableState.update {
                 if (detail == null) {
                     it.copy(message = "Routine not found.")
@@ -531,6 +609,7 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun closeRoutineDetail() {
+        routineDetailLoad.invalidate()
         mutableState.update {
             it.copy(selectedRoutineDetail = null)
         }
@@ -935,8 +1014,10 @@ class TrainingViewModel @Inject constructor(
         switchToExercises: Boolean,
         onMissing: () -> Unit,
     ) {
-        viewModelScope.launch {
+        val request = exerciseDetailLoad.begin()
+        exerciseDetailLoad.job = viewModelScope.launch {
             val detail = repository.getExerciseDetail(exerciseId)
+            if (!exerciseDetailLoad.isCurrent(request)) return@launch
             mutableState.update {
                 if (detail == null) {
                     it.copy(message = "Exercise not found.")
@@ -955,6 +1036,7 @@ class TrainingViewModel @Inject constructor(
     }
 
     fun closeExerciseDetail() {
+        exerciseDetailLoad.invalidate()
         mutableState.update {
             it.copy(
                 selectedExerciseDetail = null,
@@ -971,15 +1053,22 @@ class TrainingViewModel @Inject constructor(
     fun saveExerciseDetailNotes() {
         val detail = state.value.selectedExerciseDetail ?: return
         val notes = state.value.exerciseDetailNotesInput.trim().takeIf { it.isNotBlank() }
+        val request = exerciseDetailLoad.currentRequest()
         viewModelScope.launch {
             repository.updateExerciseLocalNotes(detail.id, notes)
             val updated = repository.getExerciseDetail(detail.id)?.copy(localNotes = notes)
-            mutableState.update {
-                it.copy(
-                    selectedExerciseDetail = updated,
-                    exerciseDetailNotesInput = notes.orEmpty(),
-                    message = "Exercise notes saved.",
-                )
+            if (exerciseDetailLoad.isCurrent(request)) {
+                mutableState.update { current ->
+                    if (current.selectedExerciseDetail?.id != detail.id) {
+                        current
+                    } else {
+                        current.copy(
+                            selectedExerciseDetail = updated,
+                            exerciseDetailNotesInput = notes.orEmpty(),
+                            message = "Exercise notes saved.",
+                        )
+                    }
+                }
             }
         }
     }
@@ -1657,6 +1746,26 @@ class TrainingViewModel @Inject constructor(
     } else {
         this + value
     }
+
+    private class RouteLoadGuard {
+        private var request = 0L
+        var job: Job? = null
+
+        fun begin(): Long {
+            job?.cancel()
+            job = null
+            request += 1
+            return request
+        }
+
+        fun invalidate() {
+            begin()
+        }
+
+        fun currentRequest(): Long = request
+
+        fun isCurrent(candidate: Long): Boolean = candidate == request
+    }
 }
 
 private fun defaultSetPlans(targetSets: Int, targetReps: String?): List<RoutineSetInput> = (0 until targetSets.coerceAtLeast(1)).map {
@@ -1769,3 +1878,4 @@ private fun bestStreakDays(trainingDays: List<LocalDate>): Int {
 }
 
 private const val DEFAULT_REST_TIMER_SECONDS = 120
+private const val TRAINING_DATA_OBSERVATION_ERROR_MESSAGE = "Training data could not be refreshed"

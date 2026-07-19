@@ -1,9 +1,15 @@
 package com.musfit.ui.training
 
+import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.layout.PaneScaffoldDirective
+import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
+import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -17,12 +23,37 @@ data class TrainingNavigationActions(
 )
 
 @Composable
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 fun TrainingNavigation(
     onOpenCoach: () -> Unit = {},
     viewModel: TrainingViewModel = hiltViewModel(),
 ) {
+    TrainingNavigationHost(
+        onOpenCoach = onOpenCoach,
+        viewModel = viewModel,
+    )
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
+internal fun TrainingNavigationHost(
+    onOpenCoach: () -> Unit = {},
+    viewModel: TrainingViewModel,
+    paneScaffoldDirectiveOverride: PaneScaffoldDirective? = null,
+) {
     val backStack = rememberNavBackStack(TrainingHomeNavKey)
-    val navigator = TrainingNavigator(backStack)
+    val navigator = TrainingNavigator(
+        backStack = backStack,
+        onRoutesRemoved = { routes -> routes.forEach { closeTrainingRoute(viewModel, it) } },
+    )
+    val listDetailStrategy = paneScaffoldDirectiveOverride?.let { directive ->
+        rememberListDetailSceneStrategy<NavKey>(
+            shouldHandleSinglePaneLayout = false,
+            directive = directive,
+        )
+    } ?: rememberListDetailSceneStrategy(
+        shouldHandleSinglePaneLayout = false,
+    )
     val currentKey = navigator.currentKey
 
     // Destination keys own the durable route identity. Rehydrate ID-backed content after
@@ -34,14 +65,8 @@ fun TrainingNavigation(
     }
     val navigation = TrainingNavigationActions(
         open = navigator::open,
-        back = {
-            closeTrainingRoute(viewModel, navigator.currentKey)
-            navigator.back()
-        },
-        popThrough = { key ->
-            closeTrainingRoute(viewModel, key)
-            navigator.popThrough(key)
-        },
+        back = { navigator.back() },
+        popThrough = { key -> navigator.popThrough(key) },
         resetTo = navigator::resetTo,
     )
 
@@ -58,19 +83,28 @@ fun TrainingNavigation(
     NavDisplay(
         backStack = backStack,
         onBack = navigation.back,
+        sceneStrategies = listOf(listDetailStrategy),
         entryDecorators = listOf(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
         ),
         entryProvider = entryProvider {
             entry<TrainingHomeNavKey> { TrainingEntry(it) }
-            entry<TrainingRoutineLibraryNavKey> { TrainingEntry(it) }
-            entry<TrainingRoutineDetailNavKey> { TrainingEntry(it) }
+            entry<TrainingRoutineLibraryNavKey>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = { Text("Select a routine") },
+                ),
+            ) { TrainingEntry(it) }
+            entry<TrainingRoutineDetailNavKey>(metadata = ListDetailSceneStrategy.detailPane()) { TrainingEntry(it) }
             entry<TrainingRoutineEditorNavKey> { TrainingEntry(it) }
-            entry<TrainingExerciseDetailNavKey> { TrainingEntry(it) }
+            entry<TrainingExerciseDetailNavKey>(metadata = ListDetailSceneStrategy.extraPane()) { TrainingEntry(it) }
             entry<TrainingExercisePickerNavKey> { TrainingEntry(it) }
-            entry<TrainingHistoryNavKey> { TrainingEntry(it) }
-            entry<TrainingWorkoutHistoryDetailNavKey> { TrainingEntry(it) }
+            entry<TrainingHistoryNavKey>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = { Text("Select a workout") },
+                ),
+            ) { TrainingEntry(it) }
+            entry<TrainingWorkoutHistoryDetailNavKey>(metadata = ListDetailSceneStrategy.detailPane()) { TrainingEntry(it) }
             entry<TrainingActiveWorkoutNavKey> { TrainingEntry(it) }
             entry<TrainingProgressFeatureNavKey> {
                 TrainingProgressScreen(onBack = navigation.back)

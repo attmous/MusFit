@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,6 +44,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -65,8 +67,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -345,16 +351,18 @@ private fun ActiveWorkoutHeader(
             onClick = onFinish,
             containerColor = accent.color,
             contentColor = accent.onColor,
-            height = 44.dp,
+            height = MinimumInteractiveSize,
         )
         Box {
             var menu by remember { mutableStateOf(false) }
-            Icon(
-                imageVector = Icons.Outlined.MoreVert,
-                contentDescription = "Workout options",
-                tint = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.size(22.dp).clickable { menu = true },
-            )
+            IconButton(onClick = { menu = true }, modifier = Modifier.size(MinimumInteractiveSize)) {
+                Icon(
+                    imageVector = Icons.Outlined.MoreVert,
+                    contentDescription = "Workout options",
+                    tint = MusFitTheme.colors.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text("Workout notes") },
@@ -466,7 +474,7 @@ private fun RestTimerHero(
                     onClick = onSkip,
                     containerColor = accent.color,
                     contentColor = accent.onColor,
-                    height = 44.dp,
+                    height = MinimumInteractiveSize,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -490,7 +498,12 @@ private fun RestAdjustSegment(
         color = color,
         contentColor = contentColor,
         shape = shape,
-        modifier = modifier.height(40.dp).semantics { this.contentDescription = contentDescription },
+        modifier = modifier
+            .height(MinimumInteractiveSize)
+            .semantics {
+                this.contentDescription = contentDescription
+                role = Role.Button
+            },
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -520,7 +533,13 @@ private fun CollapsedExerciseRow(
         onClick = onClick,
         color = MusFitTheme.colors.surface,
         shape = shape,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = block.exercise.name
+                stateDescription = if (isComplete) "Complete" else upNextTarget(block)
+                role = Role.Button
+            },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -552,7 +571,7 @@ private fun CollapsedExerciseRow(
             if (isComplete) {
                 Icon(
                     imageVector = Icons.Outlined.Check,
-                    contentDescription = "${block.exercise.name} complete",
+                    contentDescription = null,
                     tint = accent.color,
                     modifier = Modifier.size(18.dp),
                 )
@@ -619,12 +638,17 @@ private fun FocusedExerciseSection(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                Icon(
-                    imageVector = Icons.Outlined.MoreVert,
-                    contentDescription = "Exercise options",
-                    tint = MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp).clickable { optionsOpen = true },
-                )
+                IconButton(
+                    onClick = { optionsOpen = true },
+                    modifier = Modifier.size(MinimumInteractiveSize),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.MoreVert,
+                        contentDescription = "Exercise options",
+                        tint = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
 
             SetColumnHeaderRow()
@@ -652,6 +676,12 @@ private fun FocusedExerciseSection(
                     color = accent.container,
                     contentColor = accent.onContainer,
                     shape = RoundedCornerShape(99.dp),
+                    modifier = Modifier
+                        .heightIn(min = MinimumInteractiveSize)
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "Add set"
+                            role = Role.Button
+                        },
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -709,49 +739,73 @@ private fun FocusedExerciseSection(
 }
 
 /** Shared column geometry for the set table (header + rows must line up). */
-private val SetColumnWidth = 30.dp
+private val SetColumnWidth = 48.dp
 private val LastColumnWidth = 64.dp
-private val CheckButtonSize = 42.dp
+private val CheckButtonSize = 48.dp
+private val MinimumInteractiveSize = 48.dp
+private val SetTableSingleRowMinWidth = 296.dp
 
 /** SET · LAST · KG · REPS column headers (10a), 10.5/800 +0.6 faint. */
 @Composable
 private fun SetColumnHeaderRow() {
-    val headerStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, letterSpacing = 0.6.sp)
-    val headerColor = MusFitTheme.colors.onSurfaceFaint
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text("SET", style = headerStyle, color = headerColor, modifier = Modifier.width(SetColumnWidth))
-        Text("LAST", style = headerStyle, color = headerColor, modifier = Modifier.width(LastColumnWidth))
-        Text(
-            "KG",
-            style = headerStyle,
-            color = headerColor,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            "REPS",
-            style = headerStyle,
-            color = headerColor,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(modifier = Modifier.width(CheckButtonSize))
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        if (maxWidth < SetTableSingleRowMinWidth) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    SetColumnHeader("SET", Modifier.width(SetColumnWidth))
+                    SetColumnHeader("LAST", Modifier.width(LastColumnWidth))
+                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(CheckButtonSize))
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    SetColumnHeader("KG", Modifier.weight(1f), TextAlign.Center)
+                    SetColumnHeader("REPS", Modifier.weight(1f), TextAlign.Center)
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SetColumnHeader("SET", Modifier.width(SetColumnWidth))
+                SetColumnHeader("LAST", Modifier.width(LastColumnWidth))
+                SetColumnHeader("KG", Modifier.weight(1f), TextAlign.Center)
+                SetColumnHeader("REPS", Modifier.weight(1f), TextAlign.Center)
+                Spacer(modifier = Modifier.width(CheckButtonSize))
+            }
+        }
     }
+}
+
+@Composable
+private fun SetColumnHeader(
+    label: String,
+    modifier: Modifier,
+    textAlign: TextAlign = TextAlign.Start,
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, letterSpacing = 0.6.sp),
+        color = MusFitTheme.colors.onSurfaceFaint,
+        textAlign = textAlign,
+        modifier = modifier,
+    )
 }
 
 /** The coral coach mark (filled chat bubble + knocked-out sparkle) → chat. */
 @Composable
 private fun CoachGlyphButton(onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(MinimumInteractiveSize),
     ) {
         Box(modifier = Modifier.size(22.dp)) {
             Icon(
@@ -816,150 +870,208 @@ private fun FocusedSetRow(
         onUpdateSet(set.id, nextSetType, nextReps, nextWeightKg, nextRpe, nextNotes)
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+    val previousParts = previousSetParts(row.previousLabel)
+    val setOptionsCell: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier.size(SetColumnWidth, CheckButtonSize),
+            contentAlignment = Alignment.CenterStart,
         ) {
-            Box(modifier = Modifier.width(SetColumnWidth)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                    modifier = Modifier.clickable { setMenuOpen = true },
-                ) {
-                    Text(
-                        text = row.setLabel,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Medium,
-                        color = when (row.setLabel) {
-                            "W" -> MusFitTheme.colors.macroCarbs
-                            "D", "F" -> accent.color
-                            else -> MusFitTheme.colors.onSurface
-                        },
-                    )
-                    if (row.isPr) {
-                        Icon(
-                            imageVector = Icons.Outlined.EmojiEvents,
-                            contentDescription = "Personal record",
-                            tint = MusFitTheme.colors.warning,
-                            modifier = Modifier.size(13.dp),
-                        )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = buildString {
+                            append("Set ${row.setLabel} options")
+                            if (row.isPr) append(", personal record")
+                        }
                     }
-                }
-                DropdownMenu(expanded = setMenuOpen, onDismissRequest = { setMenuOpen = false }) {
-                    SET_TYPE_OPTIONS.forEach { (type, label) ->
-                        DropdownMenuItem(
-                            text = { Text(label) },
-                            onClick = {
-                                setMenuOpen = false
-                                persist(nextSetType = type)
-                            },
-                        )
-                    }
-                    HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
-                    DropdownMenuItem(
-                        text = { Text(if (detailsOpen) "Hide details" else "RPE & notes") },
-                        onClick = {
-                            setMenuOpen = false
-                            detailsOpen = !detailsOpen
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Move up") },
-                        onClick = {
-                            setMenuOpen = false
-                            onMoveSetUp(set.id)
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Move down") },
-                        onClick = {
-                            setMenuOpen = false
-                            onMoveSetDown(set.id)
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Delete set", color = MusFitTheme.colors.warning) },
-                        onClick = {
-                            setMenuOpen = false
-                            onDeleteSet(set.id)
-                        },
+                    .clickable(role = Role.Button) { setMenuOpen = true },
+            ) {
+                Text(
+                    text = row.setLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Medium,
+                    color = when (row.setLabel) {
+                        "W" -> MusFitTheme.colors.macroCarbs
+                        "D", "F" -> accent.color
+                        else -> MusFitTheme.colors.onSurface
+                    },
+                )
+                if (row.isPr) {
+                    Icon(
+                        imageVector = Icons.Outlined.EmojiEvents,
+                        contentDescription = null,
+                        tint = MusFitTheme.colors.warning,
+                        modifier = Modifier.size(13.dp),
                     )
                 }
             }
-            Text(
-                text = compactLastLabel(row.previousLabel),
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Normal,
-                color = if (isCurrent) MusFitTheme.colors.onSurface else MusFitTheme.colors.onSurfaceFaint,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.width(LastColumnWidth),
-            )
-            val previousParts = previousSetParts(row.previousLabel)
-            SetValueField(
-                value = weightKg,
-                onValueChange = {
-                    weightKg = it
-                    persist(nextWeightKg = it)
-                },
-                completed = set.completed,
-                accent = accent,
-                keyboardType = KeyboardType.Decimal,
-                placeholder = previousParts?.first,
-                modifier = Modifier.weight(1f),
-            )
-            SetValueField(
-                value = reps,
-                onValueChange = {
-                    reps = it
-                    persist(nextReps = it)
-                },
-                completed = set.completed,
-                accent = accent,
-                keyboardType = KeyboardType.Number,
-                placeholder = previousParts?.second,
-                modifier = Modifier.weight(1f),
-            )
-            Box(
-                modifier = Modifier
-                    .size(CheckButtonSize)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (set.completed) accent.color else MusFitTheme.colors.surfaceVariant)
-                    .clickable { onToggleSet(set.id, !set.completed) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Check,
-                    contentDescription = if (set.completed) "Mark incomplete" else "Mark complete",
-                    tint = if (set.completed) accent.onColor else MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.size(21.dp),
+            DropdownMenu(expanded = setMenuOpen, onDismissRequest = { setMenuOpen = false }) {
+                SET_TYPE_OPTIONS.forEach { (type, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            setMenuOpen = false
+                            persist(nextSetType = type)
+                        },
+                    )
+                }
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+                DropdownMenuItem(
+                    text = { Text(if (detailsOpen) "Hide details" else "RPE & notes") },
+                    onClick = {
+                        setMenuOpen = false
+                        detailsOpen = !detailsOpen
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Move up") },
+                    onClick = {
+                        setMenuOpen = false
+                        onMoveSetUp(set.id)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Move down") },
+                    onClick = {
+                        setMenuOpen = false
+                        onMoveSetDown(set.id)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete set", color = MusFitTheme.colors.warning) },
+                    onClick = {
+                        setMenuOpen = false
+                        onDeleteSet(set.id)
+                    },
                 )
             }
         }
-        if (detailsOpen) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 40.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CompactRpeField(
-                    value = rpe,
-                    onValueChange = {
-                        rpe = it
-                        persist(nextRpe = it)
-                    },
-                    modifier = Modifier.width(64.dp),
-                )
-                CompactNotesField(
-                    value = notes,
-                    onValueChange = {
-                        notes = it
-                        persist(nextNotes = it)
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+    }
+    val previousCell: @Composable () -> Unit = {
+        Text(
+            text = compactLastLabel(row.previousLabel),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Normal,
+            color = if (isCurrent) MusFitTheme.colors.onSurface else MusFitTheme.colors.onSurfaceFaint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.width(LastColumnWidth),
+        )
+    }
+    val weightField: @Composable (Modifier) -> Unit = { fieldModifier ->
+        SetValueField(
+            label = "Weight, kilograms",
+            value = weightKg,
+            onValueChange = {
+                weightKg = it
+                persist(nextWeightKg = it)
+            },
+            completed = set.completed,
+            accent = accent,
+            keyboardType = KeyboardType.Decimal,
+            placeholder = previousParts?.first,
+            modifier = fieldModifier,
+        )
+    }
+    val repsField: @Composable (Modifier) -> Unit = { fieldModifier ->
+        SetValueField(
+            label = "Repetitions",
+            value = reps,
+            onValueChange = {
+                reps = it
+                persist(nextReps = it)
+            },
+            completed = set.completed,
+            accent = accent,
+            keyboardType = KeyboardType.Number,
+            placeholder = previousParts?.second,
+            modifier = fieldModifier,
+        )
+    }
+    val completionCell: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier
+                .size(CheckButtonSize)
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (set.completed) accent.color else MusFitTheme.colors.surfaceVariant)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = if (set.completed) "Mark incomplete" else "Mark complete"
+                }
+                .clickable(role = Role.Button) { onToggleSet(set.id, !set.completed) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Check,
+                contentDescription = null,
+                tint = if (set.completed) accent.onColor else MusFitTheme.colors.onSurfaceVariant,
+                modifier = Modifier.size(21.dp),
+            )
+        }
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val usesStackedInputs = maxWidth < SetTableSingleRowMinWidth
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (usesStackedInputs) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    setOptionsCell()
+                    previousCell()
+                    Spacer(modifier = Modifier.weight(1f))
+                    completionCell()
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    weightField(Modifier.weight(1f))
+                    repsField(Modifier.weight(1f))
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    setOptionsCell()
+                    previousCell()
+                    weightField(Modifier.weight(1f))
+                    repsField(Modifier.weight(1f))
+                    completionCell()
+                }
+            }
+            if (detailsOpen) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = if (usesStackedInputs) 0.dp else 40.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CompactRpeField(
+                        value = rpe,
+                        onValueChange = {
+                            rpe = it
+                            persist(nextRpe = it)
+                        },
+                        modifier = Modifier.width(64.dp),
+                    )
+                    CompactNotesField(
+                        value = notes,
+                        onValueChange = {
+                            notes = it
+                            persist(nextNotes = it)
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
@@ -971,7 +1083,9 @@ private fun FocusedSetRow(
  * LAST performance.
  */
 @Composable
+@Suppress("LongParameterList")
 private fun SetValueField(
+    label: String,
     value: String,
     onValueChange: (String) -> Unit,
     completed: Boolean,
@@ -992,7 +1106,9 @@ private fun SetValueField(
             textAlign = TextAlign.Center,
         ),
         cursorBrush = SolidColor(if (completed) accent.onContainer else MusFitTheme.colors.onSurface),
-        modifier = modifier,
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .semantics { contentDescription = label },
         decorationBox = { innerTextField ->
             Box(
                 modifier = Modifier
@@ -1009,6 +1125,7 @@ private fun SetValueField(
                         fontWeight = FontWeight.Medium,
                         color = MusFitTheme.colors.onSurfaceFaint,
                         textAlign = TextAlign.Center,
+                        modifier = Modifier.clearAndSetSemantics { },
                     )
                 }
                 innerTextField()
@@ -1037,7 +1154,9 @@ private fun AddExerciseRow(
             onClick = { expanded = !expanded },
             color = MusFitTheme.colors.surface,
             shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { role = Role.Button },
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
@@ -1085,7 +1204,8 @@ private fun AddExerciseRow(
                     color = MusFitTheme.colors.onSurface,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
+                        .heightIn(min = MinimumInteractiveSize)
+                        .clickable(role = Role.Button) {
                             onAddExercise(exercise.id)
                             query = ""
                             expanded = false
@@ -1282,7 +1402,7 @@ private fun ExerciseSheetItem(
             headlineColor = tint,
             leadingIconColor = tint,
         ),
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick),
     )
 }
 
@@ -1343,13 +1463,13 @@ private fun ReplaceExercisePickerSheet(
                         leadingContent = {
                             ExerciseThumb(
                                 imageUrl = exercise.imageUrl,
-                                contentDescription = exercise.name,
+                                contentDescription = null,
                                 accent = accent,
                                 size = 40.dp,
                             )
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { onPick(exercise.id) },
+                        modifier = Modifier.clickable(role = Role.Button) { onPick(exercise.id) },
                     )
                 }
             }
@@ -1385,12 +1505,14 @@ private fun CompactRpeField(
             color = MusFitTheme.colors.onSurface,
             textAlign = TextAlign.Center,
         ),
-        modifier = modifier,
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .semantics { contentDescription = "RPE" },
         decorationBox = { innerTextField ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 32.dp)
+                    .heightIn(min = 48.dp)
                     .clip(MusFitTheme.shapes.small)
                     .background(MusFitTheme.colors.surfaceVariant)
                     .padding(horizontal = 4.dp, vertical = 5.dp),
@@ -1402,6 +1524,7 @@ private fun CompactRpeField(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         textAlign = TextAlign.Center,
+                        modifier = Modifier.clearAndSetSemantics { },
                     )
                 }
                 innerTextField()
@@ -1421,12 +1544,14 @@ private fun CompactNotesField(
         onValueChange = onValueChange,
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyMedium.copy(color = MusFitTheme.colors.onSurface),
-        modifier = modifier,
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .semantics { contentDescription = "Set notes" },
         decorationBox = { innerTextField ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 32.dp)
+                    .heightIn(min = 48.dp)
                     .clip(MusFitTheme.shapes.small)
                     .background(MusFitTheme.colors.surfaceVariant)
                     .padding(horizontal = 10.dp, vertical = 5.dp),
@@ -1437,6 +1562,7 @@ private fun CompactNotesField(
                         "Add notes here...",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.clearAndSetSemantics { },
                     )
                 }
                 innerTextField()

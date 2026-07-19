@@ -39,6 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -88,6 +91,7 @@ fun PillButton(
         contentColor = contentColor,
         interactionSource = interactionSource,
         modifier = modifier
+            .semantics { role = Role.Button }
             .height(height)
             .graphicsLayer {
                 scaleX = scale

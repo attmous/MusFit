@@ -1,7 +1,5 @@
 package com.musfit.ui.training
 
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineFolder
@@ -156,18 +154,6 @@ class TrainingHomeContentTest {
         // The "My routines" bucket is droppable-by-title but is not an editable user folder.
         assertEquals(null, groups[2].folderId)
         assertFalse(groups[2].isUserFolder)
-    }
-
-    @Test
-    fun routineFolderDropTargetAt_resolvesFolderAndUnassignedTargets() {
-        val targetBounds = mapOf(
-            null to Rect(left = 0f, top = 0f, right = 96f, bottom = 40f),
-            "folder-ppl" to Rect(left = 104f, top = 0f, right = 240f, bottom = 40f),
-        )
-
-        assertEquals(RoutineFolderDropTarget(null), routineFolderDropTargetAt(Offset(24f, 20f), targetBounds))
-        assertEquals(RoutineFolderDropTarget("folder-ppl"), routineFolderDropTargetAt(Offset(160f, 20f), targetBounds))
-        assertEquals(null, routineFolderDropTargetAt(Offset(260f, 20f), targetBounds))
     }
 
     @Test

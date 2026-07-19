@@ -1,7 +1,6 @@
 package com.musfit.ui.training
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -33,7 +33,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,10 +40,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.theme.MusFitTheme
@@ -61,7 +65,7 @@ fun TrainingProgressScreen(
     onBack: () -> Unit,
     viewModel: TrainingProgressViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val accent = tabAccentFor(TabAccentRole.Training)
 
     Scaffold(
@@ -120,6 +124,12 @@ private fun TrainingProgressHeader(
                 color = MusFitTheme.colors.surfaceVariant,
                 contentColor = MusFitTheme.colors.onSurface,
                 shape = RoundedCornerShape(99.dp),
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "Period, ${period.label}"
+                        role = Role.Button
+                    },
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -133,7 +143,7 @@ private fun TrainingProgressHeader(
                     )
                     Icon(
                         imageVector = Icons.Outlined.KeyboardArrowDown,
-                        contentDescription = "Change period",
+                        contentDescription = null,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -215,13 +225,17 @@ private fun ProgressExercisePickerSheet(
                             if (exercise.id == selectedExerciseId) {
                                 Icon(
                                     imageVector = Icons.Outlined.Check,
-                                    contentDescription = "Selected",
+                                    contentDescription = null,
                                     tint = accent.color,
                                 )
                             }
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { onSelect(exercise.id) },
+                        modifier = Modifier.selectable(
+                            selected = exercise.id == selectedExerciseId,
+                            role = Role.RadioButton,
+                            onClick = { onSelect(exercise.id) },
+                        ),
                     )
                     if (index < filtered.lastIndex) {
                         HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)

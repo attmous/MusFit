@@ -19,12 +19,21 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.musfit.data.repository.ExerciseSummary
+import com.musfit.data.repository.WeeklyTrainingVolume
+import com.musfit.domain.model.ExerciseProgress
+import com.musfit.domain.model.TrainingTrendPoint
 import com.musfit.ui.food.AddFoodScreen
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodUiState
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.tabAccentFor
+import com.musfit.ui.training.ExerciseEditorState
+import com.musfit.ui.training.RoutineExercisePickerPage
 import com.musfit.ui.training.TrainingHomeContent
+import com.musfit.ui.training.TrainingPickerFilters
+import com.musfit.ui.training.TrainingProgressContent
+import com.musfit.ui.training.TrainingProgressPeriod
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -32,6 +41,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -119,6 +129,50 @@ class MusFitScreenshotRegressionTest {
         }
     }
 
+    @Test
+    @Config(qualifiers = "w900dp-h700dp-mdpi")
+    fun trainingPicker_tablet_light_ltr() = capture("training-picker-tablet-light-ltr.png", dark = false) {
+        RoutineExercisePickerPage(
+            exercises = screenshotExercises(),
+            currentRoutineExerciseIds = emptySet(),
+            selectedExerciseIds = setOf("exercise-1", "exercise-4"),
+            searchQuery = "",
+            filters = TrainingPickerFilters(),
+            filterSheetOpen = false,
+            loggedExerciseIds = setOf("exercise-0", "exercise-3"),
+            customExerciseEditor = ExerciseEditorState(),
+            accent = tabAccentFor(AppDestination.Training),
+            onSearchChange = {}, onOpenFilters = {}, onCloseFilters = {},
+            onToggleEquipment = {}, onToggleMuscle = {}, onOnlyDoneChange = {},
+            onResetFilters = {}, onClearFilters = {}, onToggleExercise = {},
+            onOpenCustomExercise = {}, onCloseCustomExercise = {},
+            onCustomExerciseNameChange = {}, onCustomExerciseCategoryChange = {},
+            onCustomExerciseEquipmentChange = {}, onCustomExerciseTargetMusclesChange = {},
+            onSaveCustomExercise = {}, onCancel = {}, onConfirm = {},
+        )
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h700dp-mdpi")
+    fun trainingProgress_tablet_light_rtl() = capture(
+        "training-progress-tablet-light-rtl.png",
+        dark = false,
+        rtl = true,
+    ) {
+        val trend = screenshotTrend()
+        Box(Modifier.fillMaxSize().padding(24.dp)) {
+            TrainingProgressContent(
+                progress = screenshotProgress(trend),
+                period = TrainingProgressPeriod.Year,
+                weeklyVolume = screenshotWeeks(),
+                recentPrs = emptyList(),
+                accent = tabAccentFor(AppDestination.Training),
+                onOpenAllExercises = {},
+                today = screenshotToday,
+            )
+        }
+    }
+
     private fun capture(
         fileName: String,
         dark: Boolean,
@@ -158,13 +212,10 @@ class MusFitScreenshotRegressionTest {
         // W5 accessibility packages remove entries as the corresponding controls reach 48 dp.
         val knownTouchTargetDebt = setOf(
             "Back",
-            "Browse library",
             "Change meal",
             "Edit",
             "Favorites",
             "More actions",
-            "New folder",
-            "New routine",
             "Recents",
             "Recipes",
             "Templates",
@@ -173,6 +224,48 @@ class MusFitScreenshotRegressionTest {
         )
     }
 }
+
+private fun screenshotExercises(): List<ExerciseSummary> = List(12) { index ->
+    ExerciseSummary(
+        id = "exercise-$index",
+        name = listOf("Back Squat", "Bench Press", "Barbell Row", "Romanian Deadlift")[index % 4] + " ${index + 1}",
+        category = "strength",
+        equipment = if (index % 2 == 0) "barbell" else "dumbbell",
+        targetMuscles = if (index % 2 == 0) "legs,glutes" else "chest,triceps",
+        isCustom = false,
+    )
+}
+
+private fun screenshotTrend(): List<TrainingTrendPoint> = List(8) { index ->
+    TrainingTrendPoint(
+        dateEpochDay = screenshotToday.minusWeeks((7 - index).toLong()).toEpochDay(),
+        volumeKg = 1_100.0 + index * 175.0,
+        bestEstimatedOneRepMaxKg = 98.0 + index * 2.5,
+    )
+}
+
+private fun screenshotWeeks(): List<WeeklyTrainingVolume> = List(6) { index ->
+    WeeklyTrainingVolume(
+        weekStartEpochDay = screenshotToday.minusWeeks((5 - index).toLong()).toEpochDay(),
+        workoutCount = 2 + index % 3,
+        completedSetCount = 12 + index * 3,
+        totalVolumeKg = 1_600.0 + index * 525.0,
+    )
+}
+
+private fun screenshotProgress(trend: List<TrainingTrendPoint>) = ExerciseProgress(
+    exerciseId = "back-squat",
+    exerciseName = "Back Squat",
+    equipment = "barbell",
+    targetMuscles = "legs,glutes",
+    heaviestWeightKg = 120.0,
+    maxReps = 8,
+    bestEstimatedOneRepMaxKg = trend.last().bestEstimatedOneRepMaxKg,
+    bestWorkoutVolumeKg = 2_325.0,
+    trend = trend,
+)
+
+private val screenshotToday: LocalDate = LocalDate.of(2026, 7, 13)
 
 @Composable
 private fun RootNavigationFixture(layout: RootNavigationLayout) {
