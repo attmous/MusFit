@@ -518,6 +518,7 @@ Assert-FileContains ".github/workflows/android.yml" 'gradle/actions/setup-gradle
 Assert-FileContains ".github/workflows/android.yml" 'cache-read-only:\s*\$\{\{\s*github\.ref\s*!=\s*''refs/heads/master''\s*\}\}'
 Assert-FileContains ".github/workflows/android.yml" '--no-daemon'
 Assert-FileDoesNotContain ".github/workflows/android.yml" 'cache:\s*gradle'
+Assert-FileContains ".github/workflows/android.yml" 'GRADLE_OPTS:\s*''-Dorg\.gradle\.jvmargs="-Xmx8g -Dfile\.encoding=UTF-8"'''
 
 # W1-REL-04: production publication is manual, environment-protected, and
 # promotes the Google-signed universal APK without rebuilding the candidate.
@@ -529,6 +530,7 @@ Assert-FileContains ".github/workflows/release.yml" "contents:\s*write"
 Assert-FileContains ".github/workflows/release.yml" "id-token:\s*write"
 Assert-FileContains ".github/workflows/release.yml" "assert-verified-release-commit\.ps1"
 Assert-FileContains ".github/workflows/release.yml" "verify-musfit\.ps1 -Preset Full"
+Assert-FileContains ".github/workflows/release.yml" 'GRADLE_OPTS:\s*''-Dorg\.gradle\.jvmargs="-Xmx8g -Dfile\.encoding=UTF-8"'''
 Assert-FileContains ".github/workflows/release.yml" "prepare-play-upload-bundle\.ps1"
 Assert-FileContains ".github/workflows/release.yml" "invoke-play-option-a\.ps1"
 Assert-FileDoesNotContain ".github/workflows/release.yml" 'git\s+ls-remote\s+--exit-code\s+--tags'
