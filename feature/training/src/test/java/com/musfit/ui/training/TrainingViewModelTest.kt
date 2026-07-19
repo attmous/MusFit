@@ -1,6 +1,10 @@
 package com.musfit.ui.training
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.repeatOnLifecycle
 import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
 import com.musfit.data.repository.ExerciseDetail
@@ -18,6 +22,7 @@ import com.musfit.data.repository.RoutineFolder
 import com.musfit.data.repository.RoutineInput
 import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.RoutineSummary
+import com.musfit.data.repository.TrainingPrRecord
 import com.musfit.data.repository.TrainingProgressAnalytics
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.data.repository.TrainingSettings
@@ -33,11 +38,18 @@ import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.TrainingTrendPoint
 import com.musfit.testing.MainDispatcherRule
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -49,12 +61,234 @@ import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrainingViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
     private val dispatcher get() = mainDispatcherRule.dispatcher
+
+    @Test
+    fun repositoryObservation_stopsAfterGraceAndSharesDestinationCollectors() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(10_000)
+        testScheduler.runCurrent()
+
+        assertEquals(0, repository.activeRoutineSummaryCollectors)
+        assertEquals(0, repository.routineSummarySubscriptionStarts)
+
+        val routinesCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.routinesLibraryState.collect { }
+        }
+        testScheduler.runCurrent()
+        assertEquals(1, repository.activeRoutineSummaryCollectors)
+
+        val activeCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.activeHistoryState.collect { }
+        }
+        testScheduler.runCurrent()
+        assertEquals(1, repository.activeRoutineSummaryCollectors)
+        assertEquals(1, repository.maxRoutineSummaryCollectors)
+
+        routinesCollector.cancel()
+        testScheduler.runCurrent()
+        assertEquals(1, repository.activeRoutineSummaryCollectors)
+
+        activeCollector.cancel()
+        testScheduler.advanceTimeBy(4_999)
+        testScheduler.runCurrent()
+        assertEquals(1, repository.activeRoutineSummaryCollectors)
+
+        testScheduler.advanceTimeBy(2)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.activeRoutineSummaryCollectors)
+    }
+
+    @Test
+    fun progressObservation_stopsAfterGraceAndSharesCollectors() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingProgressViewModel(repository)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(0, repository.activeProgressExerciseListCollectors)
+
+        val firstCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        val secondCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
+        assertEquals(1, repository.activeProgressExerciseListCollectors)
+        assertEquals(1, repository.maxProgressExerciseListCollectors)
+
+        firstCollector.cancel()
+        testScheduler.runCurrent()
+        assertEquals(1, repository.activeProgressExerciseListCollectors)
+
+        secondCollector.cancel()
+        testScheduler.advanceTimeBy(4_999)
+        testScheduler.runCurrent()
+        assertEquals(1, repository.activeProgressExerciseListCollectors)
+
+        testScheduler.advanceTimeBy(2)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.activeProgressExerciseListCollectors)
+    }
+
+    @Test
+    fun repositoryObservation_resumesWithCurrentValuesWithoutDuplicateCollectors() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        val bootstrapCollector = observeTraining(viewModel)
+
+        val originalName = viewModel.state.value.routines.first().name
+        bootstrapCollector.cancel()
+        testScheduler.advanceTimeBy(5_001)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.activeRoutineSummaryCollectors)
+        repository.renameFirstRoutine("Updated while stopped")
+        testScheduler.runCurrent()
+        assertEquals(originalName, viewModel.state.value.routines.first().name)
+
+        repeat(3) {
+            val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                viewModel.routinesLibraryState.collect { }
+            }
+            testScheduler.runCurrent()
+            assertEquals("Updated while stopped", viewModel.state.value.routines.first().name)
+            assertEquals(1, repository.activeRoutineSummaryCollectors)
+
+            collector.cancel()
+            testScheduler.advanceTimeBy(5_001)
+            testScheduler.runCurrent()
+            assertEquals(0, repository.activeRoutineSummaryCollectors)
+        }
+
+        assertEquals(1, repository.maxRoutineSummaryCollectors)
+    }
+
+    @Test
+    fun lifecycleOwner_stoppedAndStarted_resumesCurrentValuesWithoutDuplicateCollectors() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        testScheduler.runCurrent()
+        val owner = object : LifecycleOwner {
+            override val lifecycle = LifecycleRegistry.createUnsafe(this)
+        }
+        val lifecycle = owner.lifecycle
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        val lifecycleCollection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.routinesLibraryState.collect { }
+            }
+        }
+        testScheduler.runCurrent()
+        assertEquals(0, repository.activeRoutineSummaryCollectors)
+
+        repeat(3) { cycle ->
+            val currentName = "Updated while stopped ${cycle + 1}"
+            repository.renameFirstRoutine(currentName)
+            testScheduler.runCurrent()
+            assertTrue(viewModel.state.value.routines.none { it.name == currentName })
+
+            lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
+            testScheduler.runCurrent()
+            assertEquals(currentName, viewModel.state.value.routines.first().name)
+            assertEquals(1, repository.activeRoutineSummaryCollectors)
+            assertEquals(cycle + 1, repository.routineSummarySubscriptionStarts)
+
+            lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+            testScheduler.advanceTimeBy(4_999)
+            testScheduler.runCurrent()
+            assertEquals(1, repository.activeRoutineSummaryCollectors)
+            testScheduler.advanceTimeBy(2)
+            testScheduler.runCurrent()
+            assertEquals(0, repository.activeRoutineSummaryCollectors)
+        }
+
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        lifecycleCollection.join()
+        assertEquals(1, repository.maxRoutineSummaryCollectors)
+    }
+
+    @Test
+    fun repositoryObservation_failedSourceDoesNotCancelSibling() = runTest {
+        val repository = FakeTrainingRepository().apply {
+            failRoutineSummariesAfterCurrentValue()
+        }
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        testScheduler.advanceUntilIdle()
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.activeHistoryState.collect { }
+        }
+        testScheduler.runCurrent()
+
+        repository.renameFirstExercise("Sibling still active")
+        testScheduler.runCurrent()
+
+        assertEquals("Sibling still active", viewModel.state.value.exercises.first().name)
+        assertEquals("routine observation failed", viewModel.state.value.message)
+        collector.cancel()
+    }
+
+    @Test
+    fun mutationsAndRestTimerContinueAfterRepositoryObservationStops() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        val collector = observeTraining(viewModel)
+        collector.cancel()
+        testScheduler.advanceTimeBy(5_001)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.activeRoutineSummaryCollectors)
+
+        viewModel.onRoutineExercisePickerSearchChanged("bench")
+        viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
+        testScheduler.runCurrent()
+        val remainingBeforeTick = viewModel.state.value.restTimer.remainingSeconds
+        viewModel.tickRestTimer()
+
+        assertEquals("bench", viewModel.state.value.routineExercisePickerSearchQuery)
+        assertTrue(viewModel.state.value.restTimer.isRunning)
+        assertEquals(remainingBeforeTick - 1, viewModel.state.value.restTimer.remainingSeconds)
+        assertEquals(0, repository.activeRoutineSummaryCollectors)
+    }
+
+    @Test
+    fun progressObservation_sameSelectionKeepsLoadedValueAndStopsWithScreen() = runTest {
+        val repository = FakeTrainingRepository().apply {
+            useSingleEmissionProgressObservation()
+        }
+        val viewModel = TrainingProgressViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
+
+        viewModel.selectProgressExercise("exercise-bench-press")
+        testScheduler.runCurrent()
+        assertEquals("Barbell Bench Press", viewModel.state.value.selectedExerciseProgress?.exerciseName)
+        assertEquals(1, repository.activeSelectedProgressCollectors)
+
+        viewModel.openExercisePicker()
+        viewModel.selectProgressExercise("exercise-bench-press")
+        testScheduler.runCurrent()
+        assertEquals("Barbell Bench Press", viewModel.state.value.selectedExerciseProgress?.exerciseName)
+        assertFalse(viewModel.state.value.exercisePickerOpen)
+        assertEquals(1, repository.observedProgressExerciseIds.size)
+
+        collector.cancel()
+        testScheduler.advanceTimeBy(4_999)
+        testScheduler.runCurrent()
+        assertEquals(1, repository.activeSelectedProgressCollectors)
+        testScheduler.advanceTimeBy(2)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.activeSelectedProgressCollectors)
+    }
 
     @Test
     fun destinationStateFlowsOnlyEmitForTheirOwnDomain() = runTest {
@@ -115,10 +349,41 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun restoration_retainsRoutineExercisePickerDraft() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val repository = FakeTrainingRepository()
+        val first = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        observeTraining(first)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        first.openRoutineExercisePicker()
+        first.onRoutineExercisePickerSearchChanged("bench")
+        first.toggleRoutineExercisePickerEquipment("barbell")
+        first.toggleRoutineExercisePickerMuscle("chest")
+        first.setRoutineExercisePickerOnlyDone(true)
+        first.toggleRoutineExercisePickerSelection("exercise-bench-press")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val restored = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        observeTraining(restored)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("bench", restored.state.value.routineExercisePickerSearchQuery)
+        assertEquals(setOf("barbell"), restored.state.value.routineExercisePickerFilters.equipment)
+        assertEquals(setOf("chest"), restored.state.value.routineExercisePickerFilters.muscles)
+        assertTrue(restored.state.value.routineExercisePickerFilters.onlyDone)
+        assertEquals(
+            setOf("exercise-bench-press"),
+            restored.state.value.routineExercisePickerSelectedIds,
+        )
+    }
+
+    @Test
     fun restoration_reopensRoomOwnedActiveWorkoutWithoutDuplicateSetOrTimerWork() = runTest {
         val savedStateHandle = SavedStateHandle()
         val repository = FakeTrainingRepository()
         val first = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        observeTraining(first)
         dispatcher.scheduler.advanceUntilIdle()
         first.resumeActiveWorkout()
         first.toggleWorkoutSetCompletion("set-1", completed = true)
@@ -130,6 +395,7 @@ class TrainingViewModelTest {
             ?.size
 
         val restored = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        observeTraining(restored)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("session-1", restored.state.value.activeWorkout?.sessionId)
@@ -143,9 +409,145 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun routeDetailLoads_ignoreLateResultsFromSupersededRequests() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        testScheduler.advanceUntilIdle()
+        val routineGate = CompletableDeferred<Unit>()
+        val exerciseGate = CompletableDeferred<Unit>()
+        val workoutGate = CompletableDeferred<Unit>()
+        repository.routineDetailLoadGates["routine-upper-a"] = routineGate
+        repository.exerciseDetailLoadGates["exercise-bench-press"] = exerciseGate
+        repository.workoutDetailLoadGates["session-history-1"] = workoutGate
+
+        viewModel.openRoutineDetail("routine-upper-a")
+        viewModel.openRoutineEditor("routine-upper-a")
+        viewModel.openExerciseDetail("exercise-bench-press")
+        viewModel.openWorkoutDetail("session-history-1")
+        testScheduler.runCurrent()
+
+        viewModel.openRoutineDetail("routine-full-body-a")
+        viewModel.openRoutineEditor("routine-full-body-a")
+        viewModel.openExerciseDetail("exercise-row")
+        viewModel.openWorkoutDetail("session-history-2")
+        testScheduler.runCurrent()
+
+        assertEquals("routine-full-body-a", viewModel.state.value.selectedRoutineDetail?.id)
+        assertEquals("routine-full-body-a", viewModel.state.value.routineEditor.routineId)
+        assertEquals("exercise-row", viewModel.state.value.selectedExerciseDetail?.id)
+        assertEquals("session-history-2", viewModel.state.value.selectedWorkoutDetail?.summary?.sessionId)
+
+        routineGate.complete(Unit)
+        exerciseGate.complete(Unit)
+        workoutGate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("routine-full-body-a", viewModel.state.value.selectedRoutineDetail?.id)
+        assertEquals("routine-full-body-a", viewModel.state.value.routineEditor.routineId)
+        assertEquals("exercise-row", viewModel.state.value.selectedExerciseDetail?.id)
+        assertEquals("session-history-2", viewModel.state.value.selectedWorkoutDetail?.summary?.sessionId)
+    }
+
+    @Test
+    fun closingDetailRoutes_invalidatesLateResults() = runTest {
+        val repository = FakeTrainingRepository()
+        val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        testScheduler.advanceUntilIdle()
+        val routineGate = CompletableDeferred<Unit>()
+        val exerciseGate = CompletableDeferred<Unit>()
+        val workoutGate = CompletableDeferred<Unit>()
+        repository.routineDetailLoadGates["routine-upper-a"] = routineGate
+        repository.exerciseDetailLoadGates["exercise-bench-press"] = exerciseGate
+        repository.workoutDetailLoadGates["session-history-1"] = workoutGate
+
+        viewModel.openRoutineDetail("routine-upper-a")
+        viewModel.openRoutineEditor("routine-upper-a")
+        viewModel.openRoutineExerciseDetail("exercise-bench-press", target = "3 x 6")
+        viewModel.openWorkoutDetail("session-history-1")
+        testScheduler.runCurrent()
+
+        viewModel.closeRoutineDetail()
+        viewModel.closeRoutineEditor()
+        viewModel.closeExerciseDetail()
+        viewModel.closeWorkoutDetail()
+        routineGate.complete(Unit)
+        exerciseGate.complete(Unit)
+        workoutGate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(null, viewModel.state.value.selectedRoutineDetail)
+        assertFalse(viewModel.state.value.routineEditor.isOpen)
+        assertEquals(null, viewModel.state.value.selectedExerciseDetail)
+        assertEquals("", viewModel.state.value.exerciseDetailNotesInput)
+        assertEquals(null, viewModel.state.value.exerciseDetailTarget)
+        assertEquals(null, viewModel.state.value.selectedWorkoutDetail)
+    }
+
+    @Test
+    fun restoration_doesNotOverwriteNewerRouteRequests() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val repository = FakeTrainingRepository()
+        val first = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        testScheduler.advanceUntilIdle()
+        first.openRoutineDetail("routine-upper-a")
+        first.openRoutineEditor("routine-upper-a")
+        first.openRoutineExerciseDetail("exercise-bench-press", target = "3 x 6")
+        first.openWorkoutDetail("session-history-1")
+        testScheduler.advanceUntilIdle()
+
+        val restoredRoutineGate = CompletableDeferred<Unit>()
+        repository.routineDetailLoadGates["routine-upper-a"] = restoredRoutineGate
+        val restored = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        testScheduler.runCurrent()
+
+        restored.openRoutineDetail("routine-full-body-a")
+        restored.openRoutineEditor("routine-full-body-a")
+        restored.openRoutineExerciseDetail("exercise-row", target = "4 x 8")
+        restored.openWorkoutDetail("session-history-2")
+        testScheduler.runCurrent()
+
+        restoredRoutineGate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("routine-full-body-a", restored.state.value.selectedRoutineDetail?.id)
+        assertEquals("routine-full-body-a", restored.state.value.routineEditor.routineId)
+        assertEquals("exercise-row", restored.state.value.selectedExerciseDetail?.id)
+        assertEquals("4 x 8", restored.state.value.exerciseDetailTarget)
+        assertEquals("session-history-2", restored.state.value.selectedWorkoutDetail?.summary?.sessionId)
+    }
+
+    @Test
+    fun restoration_doesNotReopenRoutesClosedBeforeRestoreStarts() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val repository = FakeTrainingRepository()
+        val first = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        testScheduler.advanceUntilIdle()
+        first.openRoutineDetail("routine-upper-a")
+        first.openRoutineEditor("routine-upper-a")
+        first.openRoutineExerciseDetail("exercise-bench-press", target = "3 x 6")
+        first.openWorkoutDetail("session-history-1")
+        testScheduler.advanceUntilIdle()
+
+        val restored = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        restored.closeRoutineDetail()
+        restored.closeRoutineEditor()
+        restored.closeExerciseDetail()
+        restored.closeWorkoutDetail()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(null, restored.state.value.selectedRoutineDetail)
+        assertFalse(restored.state.value.routineEditor.isOpen)
+        assertEquals(null, restored.state.value.selectedExerciseDetail)
+        assertEquals("", restored.state.value.exerciseDetailNotesInput)
+        assertEquals(null, restored.state.value.exerciseDetailTarget)
+        assertEquals(null, restored.state.value.selectedWorkoutDetail)
+    }
+
+    @Test
     fun closeActiveWorkoutRoute_stopsRestTimer() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.resumeActiveWorkout()
         viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
@@ -286,6 +688,7 @@ class TrainingViewModelTest {
             FakeTrainingRepository(),
             FakeGoalsRepository(UserGoals(weeklySessionTarget = 4)),
         )
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(4, viewModel.state.value.weeklySessionTarget)
@@ -295,6 +698,7 @@ class TrainingViewModelTest {
     fun initialState_isTrainingHomeAndSeedsStarterTrainingData() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.state.value
@@ -312,6 +716,7 @@ class TrainingViewModelTest {
     fun exerciseLibrary_filtersVisibleExercisesBySearchEquipmentAndMuscle() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.onExerciseSearchQueryChanged("press")
@@ -414,6 +819,7 @@ class TrainingViewModelTest {
     fun openRoutineEditor_forStarterRoutineLoadsAndCanSaveChanges() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.openRoutineEditor("routine-full-body-a")
@@ -523,6 +929,7 @@ class TrainingViewModelTest {
     fun routineFolders_showConfigurableFoldersAndDoNotFilterVisibleRoutinesByProgram() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf("Starter Pack", "PPL System"), viewModel.state.value.routineFolders.map { it.name })
@@ -556,6 +963,9 @@ class TrainingViewModelTest {
     fun assignRoutineToFolder_delegatesKnownFolderAndUnassignedTargets() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.routinesLibraryState.collect { }
+        }
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.assignRoutineToFolder("routine-upper-a", "folder-starter-pack")
@@ -590,6 +1000,7 @@ class TrainingViewModelTest {
     fun dashboard_suggestsRoutineRecentWorkoutAndQuickStarts() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         val initialDashboard = viewModel.state.value.dashboard
@@ -617,6 +1028,7 @@ class TrainingViewModelTest {
     fun deleteRoutine_forStarterRoutineDoesNotDelete() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.deleteRoutine("routine-full-body-a")
@@ -652,6 +1064,7 @@ class TrainingViewModelTest {
     fun routineEditor_addsEditsAndRemovesExercisesBeforeSave() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
 
         viewModel.openRoutineEditor(null)
         dispatcher.scheduler.advanceUntilIdle()
@@ -691,6 +1104,7 @@ class TrainingViewModelTest {
     fun routineExercisePicker_addsSelectedExercisesOnlyAfterConfirm() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
 
         viewModel.openRoutineEditor(null)
         dispatcher.scheduler.advanceUntilIdle()
@@ -710,6 +1124,7 @@ class TrainingViewModelTest {
     fun routineEditor_updatesExerciseRestAndSetPlanRowsBeforeSave() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
 
         viewModel.openRoutineEditor(null)
         dispatcher.scheduler.advanceUntilIdle()
@@ -736,6 +1151,7 @@ class TrainingViewModelTest {
     fun routineEditor_reordersExercisesBeforeSave() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
 
         viewModel.openRoutineEditor(null)
         dispatcher.scheduler.advanceUntilIdle()
@@ -842,6 +1258,7 @@ class TrainingViewModelTest {
     fun finishActiveWorkout_loadsSummaryContentForHistoryDestination() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
@@ -860,6 +1277,7 @@ class TrainingViewModelTest {
     fun finishAndDiscardRequests_toggleConfirmationState() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.requestFinishActiveWorkout()
@@ -879,6 +1297,7 @@ class TrainingViewModelTest {
     fun finishActiveWorkout_opensCompletedWorkoutDetailInHistoryAndClearsRestTimer() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
@@ -900,6 +1319,7 @@ class TrainingViewModelTest {
     fun discardActiveWorkout_discardsAndReturnsToHomeAndClearsRestTimer() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
@@ -923,6 +1343,7 @@ class TrainingViewModelTest {
     fun completeSet_updatesSummaryAndStartsRunningRestTimer() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         repository.activeWorkoutDetail.value = ActiveWorkoutDetail(
@@ -969,6 +1390,9 @@ class TrainingViewModelTest {
     fun completeSet_usesRoutineSetRestSecondsBeforeGlobalDefault() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.activeHistoryState.collect { }
+        }
         dispatcher.scheduler.advanceUntilIdle()
 
         repository.activeWorkoutDetail.value = ActiveWorkoutDetail(
@@ -1012,6 +1436,7 @@ class TrainingViewModelTest {
     fun restTimerSettings_saveAndApplyRestDefaultToNextCompletedSet() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("120", viewModel.state.value.restTimerDefaultSecondsInput)
@@ -1049,6 +1474,7 @@ class TrainingViewModelTest {
     fun addSuggestedWarmupSet_addsWarmupSetWithSuggestedValues() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
@@ -1074,6 +1500,9 @@ class TrainingViewModelTest {
     fun makeSupersetWithNext_pairsWithNextStandalone_andDissolveDelegates() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.activeHistoryState.collect { }
+        }
         dispatcher.scheduler.advanceUntilIdle()
 
         fun block(id: String) = WorkoutExerciseBlock(
@@ -1119,6 +1548,7 @@ class TrainingViewModelTest {
     fun restTimerControls_tickPauseResumeAdjustAndSkip() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
@@ -1168,6 +1598,7 @@ class TrainingViewModelTest {
     fun completingAnotherSet_restartsRestTimerFromDefaultDuration() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
@@ -1231,6 +1662,7 @@ class TrainingViewModelTest {
     fun activeWorkoutActions_addDuplicateAndDeleteDelegateToRepository() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
@@ -1254,6 +1686,7 @@ class TrainingViewModelTest {
     fun activeWorkoutNotesAndReorder_delegateToRepository() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
@@ -1272,6 +1705,7 @@ class TrainingViewModelTest {
     fun updateWorkoutSetFields_propagatesEditedValues() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.resumeActiveWorkout()
@@ -1352,6 +1786,7 @@ class TrainingViewModelTest {
         )
 
         val viewModel = TrainingViewModel(repository, FakeGoalsRepository())
+        observeTraining(viewModel)
         dispatcher.scheduler.advanceUntilIdle()
 
         val overview = viewModel.state.value.historyOverview
@@ -1365,10 +1800,13 @@ class TrainingViewModelTest {
     fun selectProgressExercise_loadsProgressForSelectedExercise() = runTest {
         val repository = FakeTrainingRepository()
         val viewModel = TrainingProgressViewModel(repository)
-        dispatcher.scheduler.advanceUntilIdle()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
 
         viewModel.selectProgressExercise("exercise-bench-press")
-        dispatcher.scheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertEquals("exercise-bench-press", repository.observedProgressExerciseIds.single())
         assertEquals("exercise-bench-press", viewModel.state.value.selectedProgressExerciseId)
@@ -1385,12 +1823,21 @@ class TrainingViewModelTest {
         )
 
         val viewModel = TrainingProgressViewModel(repository)
-        dispatcher.scheduler.advanceUntilIdle()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
 
         val analytics = viewModel.state.value.progressAnalytics
         assertEquals("chest", analytics.muscleGroups.single().muscle)
         assertEquals(4, analytics.muscleGroups.single().completedSetCount)
         assertEquals(2, analytics.weeklyVolume.single().workoutCount)
+    }
+
+    private fun TestScope.observeTraining(viewModel: TrainingViewModel): Job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+        viewModel.routinesLibraryState.collect { }
+    }.also {
+        testScheduler.runCurrent()
     }
 
     private class FakeGoalsRepository(
@@ -1442,7 +1889,18 @@ class TrainingViewModelTest {
         val openedWorkoutDetailSessionIds = mutableListOf<String>()
         val observedProgressExerciseIds = mutableListOf<String>()
         val requestedRoutineDetailIds = mutableListOf<String>()
+        val workoutDetailLoadGates = mutableMapOf<String, CompletableDeferred<Unit>>()
+        val routineDetailLoadGates = mutableMapOf<String, CompletableDeferred<Unit>>()
+        val exerciseDetailLoadGates = mutableMapOf<String, CompletableDeferred<Unit>>()
         val deletedRoutineIds = mutableListOf<String>()
+        var activeRoutineSummaryCollectors = 0
+        var maxRoutineSummaryCollectors = 0
+        var routineSummarySubscriptionStarts = 0
+        var activeProgressExerciseListCollectors = 0
+        var maxProgressExerciseListCollectors = 0
+        var activeSelectedProgressCollectors = 0
+        private var routineSummaryObservationOverride: Flow<List<RoutineSummary>>? = null
+        private var progressObservationFactory: ((String) -> Flow<ExerciseProgress?>)? = null
 
         private val routinesFlow = MutableStateFlow(
             listOf(
@@ -1549,6 +2007,8 @@ class TrainingViewModelTest {
         private val progressFlow = MutableStateFlow<ExerciseProgress?>(null)
         private val trainingSettingsFlow = MutableStateFlow(TrainingSettings())
         val progressAnalyticsFlow = MutableStateFlow(TrainingProgressAnalytics())
+        private val recentPersonalRecordsFlow = MutableStateFlow<List<TrainingPrRecord>>(emptyList())
+        private val loggedExerciseIdsFlow = MutableStateFlow<Set<String>>(emptySet())
 
         val activeWorkoutDetail = MutableStateFlow<ActiveWorkoutDetail?>(
             ActiveWorkoutDetail(
@@ -1617,10 +2077,54 @@ class TrainingViewModelTest {
                     summary = workoutHistoryFlow.value.single(),
                     exerciseBlocks = activeWorkoutDetail.value?.exerciseBlocks.orEmpty(),
                 ),
+            "session-history-2" to
+                WorkoutHistoryDetail(
+                    summary = WorkoutHistorySummary(
+                        sessionId = "session-history-2",
+                        title = "Pull",
+                        startedAtEpochMillis = 3_000L,
+                        endedAtEpochMillis = 4_000L,
+                        completedSetCount = 3,
+                        totalVolumeKg = 900.0,
+                    ),
+                    exerciseBlocks = activeWorkoutDetail.value?.exerciseBlocks.orEmpty(),
+                ),
         )
 
         fun setWorkoutHistory(history: List<WorkoutHistorySummary>) {
             workoutHistoryFlow.value = history
+        }
+
+        fun renameFirstRoutine(name: String) {
+            routinesFlow.value = routinesFlow.value.mapIndexed { index, routine ->
+                if (index == 0) routine.copy(name = name) else routine
+            }
+        }
+
+        fun renameFirstExercise(name: String) {
+            exercisesFlow.value = exercisesFlow.value.mapIndexed { index, exercise ->
+                if (index == 0) exercise.copy(name = name) else exercise
+            }
+        }
+
+        fun failRoutineSummariesAfterCurrentValue() {
+            routineSummaryObservationOverride = flow {
+                emit(routinesFlow.value)
+                throw IllegalStateException("routine observation failed")
+            }
+        }
+
+        fun useSingleEmissionProgressObservation() {
+            var emitted = false
+            progressObservationFactory = {
+                flow {
+                    if (!emitted) {
+                        emitted = true
+                        emit(progressFlow.value)
+                    }
+                    awaitCancellation()
+                }
+            }
         }
 
         private val routineDetails = mutableMapOf(
@@ -1706,8 +2210,25 @@ class TrainingViewModelTest {
             muscle: String?,
             equipment: String?,
         ): Flow<List<ExerciseSummary>> = exercisesFlow
+            .onStart {
+                activeProgressExerciseListCollectors += 1
+                maxProgressExerciseListCollectors = maxOf(
+                    maxProgressExerciseListCollectors,
+                    activeProgressExerciseListCollectors,
+                )
+            }
+            .onCompletion { activeProgressExerciseListCollectors -= 1 }
 
-        override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = routinesFlow
+        override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = (routineSummaryObservationOverride ?: routinesFlow)
+            .onStart {
+                activeRoutineSummaryCollectors += 1
+                routineSummarySubscriptionStarts += 1
+                maxRoutineSummaryCollectors = maxOf(
+                    maxRoutineSummaryCollectors,
+                    activeRoutineSummaryCollectors,
+                )
+            }
+            .onCompletion { activeRoutineSummaryCollectors -= 1 }
 
         override fun observeRoutineFolders(): Flow<List<RoutineFolder>> = routineFoldersFlow
 
@@ -1744,13 +2265,20 @@ class TrainingViewModelTest {
 
         override fun observeExerciseProgress(exerciseId: String): Flow<ExerciseProgress?> {
             observedProgressExerciseIds += exerciseId
-            return progressFlow
+            return (progressObservationFactory?.invoke(exerciseId) ?: progressFlow)
+                .onStart { activeSelectedProgressCollectors += 1 }
+                .onCompletion { activeSelectedProgressCollectors -= 1 }
         }
 
         override fun observeTrainingProgressAnalytics(): Flow<TrainingProgressAnalytics> = progressAnalyticsFlow
 
+        override fun observeRecentPersonalRecords(): Flow<List<TrainingPrRecord>> = recentPersonalRecordsFlow
+
+        override fun observeLoggedExerciseIds(): Flow<Set<String>> = loggedExerciseIdsFlow
+
         override suspend fun getWorkoutHistoryDetail(sessionId: String): WorkoutHistoryDetail? {
             openedWorkoutDetailSessionIds += sessionId
+            awaitRouteLoadGate(workoutDetailLoadGates[sessionId])
             return workoutHistoryDetails[sessionId]
         }
 
@@ -1786,7 +2314,10 @@ class TrainingViewModelTest {
             return "custom-exercise-id"
         }
 
-        override suspend fun getExerciseDetail(exerciseId: String): ExerciseDetail? = exerciseDetails[exerciseId]
+        override suspend fun getExerciseDetail(exerciseId: String): ExerciseDetail? {
+            awaitRouteLoadGate(exerciseDetailLoadGates[exerciseId])
+            return exerciseDetails[exerciseId]
+        }
 
         override suspend fun updateExerciseLocalNotes(exerciseId: String, notes: String?) {
             updatedExerciseNotesId = exerciseId
@@ -1806,7 +2337,17 @@ class TrainingViewModelTest {
 
         override suspend fun getRoutineDetail(routineId: String): RoutineDetail? {
             requestedRoutineDetailIds += routineId
+            awaitRouteLoadGate(routineDetailLoadGates[routineId])
             return routineDetails[routineId]
+        }
+
+        private suspend fun awaitRouteLoadGate(gate: CompletableDeferred<Unit>?) {
+            if (gate == null) return
+            // Deliberately ignore Job cancellation so the tests also prove the request-generation
+            // guard rejects a repository that completes after cancellation was requested.
+            suspendCoroutine<Unit> { continuation ->
+                gate.invokeOnCompletion { continuation.resume(Unit) }
+            }
         }
 
         override suspend fun assignRoutineToFolder(routineId: String, folderId: String?) {

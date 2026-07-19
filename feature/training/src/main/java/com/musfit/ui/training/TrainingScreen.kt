@@ -1,7 +1,6 @@
 package com.musfit.ui.training
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -37,8 +37,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.navigation3.LocalListDetailSceneScope
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.musfit.data.repository.ExerciseDetail
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.WorkoutHistorySummary
@@ -94,7 +99,7 @@ fun TrainingScreen(
         TrainingHistoryNavKey,
         is TrainingWorkoutHistoryDetailNavKey,
         -> {
-            val state by viewModel.activeHistoryState.collectAsState()
+            val state by viewModel.activeHistoryState.collectAsStateWithLifecycle()
             TrainingProjectedSurface(
                 routeKey = routeKey,
                 state = state.content,
@@ -105,7 +110,7 @@ fun TrainingScreen(
         }
 
         else -> {
-            val state by viewModel.routinesLibraryState.collectAsState()
+            val state by viewModel.routinesLibraryState.collectAsStateWithLifecycle()
             TrainingProjectedSurface(
                 routeKey = routeKey,
                 state = state.content,
@@ -118,7 +123,8 @@ fun TrainingScreen(
 }
 
 @Composable
-@Suppress("LongMethod", "ReturnCount", "CyclomaticComplexMethod")
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
+@Suppress("LongMethod", "ReturnCount", "CyclomaticComplexMethod", "ComplexCondition")
 private fun TrainingProjectedSurface(
     routeKey: TrainingNavKey,
     state: TrainingUiState,
@@ -128,6 +134,9 @@ private fun TrainingProjectedSurface(
 ) {
     val activeWorkout = state.activeWorkout
     val accent = tabAccentFor(TabAccentRole.Training)
+    // The strategy opts out of single-pane layouts, so this local is non-null only while this
+    // destination is actually rendered beside another Training pane.
+    val isExpandedPane = LocalListDetailSceneScope.current != null
     val finishActiveWorkout = {
         viewModel.finishActiveWorkout { sessionId ->
             navigation.resetTo(
@@ -253,7 +262,11 @@ private fun TrainingProjectedSurface(
         return
     }
 
-    if (routeKey is TrainingRoutineEditorNavKey && state.routineEditor.isOpen) {
+    if (
+        routeKey is TrainingRoutineEditorNavKey &&
+        state.routineEditor.isOpen &&
+        state.routineEditor.routineId == routeKey.routineId
+    ) {
         TrainingPageContainer {
             TrainingRoutineEditor(
                 editor = state.routineEditor,
@@ -262,6 +275,7 @@ private fun TrainingProjectedSurface(
                 onNameChange = viewModel::onRoutineNameChanged,
                 onNotesChange = viewModel::onRoutineNotesChanged,
                 onOpenExercisePicker = {
+                    viewModel.openRoutineExercisePicker()
                     navigation.open(TrainingExercisePickerNavKey)
                 },
                 onRemoveExercise = viewModel::removeRoutineExercise,
@@ -293,7 +307,12 @@ private fun TrainingProjectedSurface(
     }
 
     val exerciseDetail = state.selectedExerciseDetail
-    if (routeKey is TrainingExerciseDetailNavKey && exerciseDetail != null) {
+    if (
+        routeKey is TrainingExerciseDetailNavKey &&
+        exerciseDetail != null &&
+        exerciseDetail.id == routeKey.exerciseId &&
+        state.exerciseDetailTarget == routeKey.target
+    ) {
         TrainingPageContainer {
             ExerciseDetailPage(
                 detail = exerciseDetail,
@@ -303,6 +322,7 @@ private fun TrainingProjectedSurface(
                 onNotesChange = viewModel::onExerciseDetailNotesChanged,
                 onSaveNotes = viewModel::saveExerciseDetailNotes,
                 onClose = navigation.back,
+                showBackAction = !isExpandedPane,
             )
         }
         return
@@ -313,7 +333,11 @@ private fun TrainingProjectedSurface(
     }
 
     val routineDetail = state.selectedRoutineDetail
-    if (routeKey is TrainingRoutineDetailNavKey && routineDetail != null) {
+    if (
+        routeKey is TrainingRoutineDetailNavKey &&
+        routineDetail != null &&
+        routineDetail.id == routeKey.routineId
+    ) {
         TrainingPageContainer {
             RoutineDetailContent(
                 detail = routineDetail,
@@ -338,6 +362,7 @@ private fun TrainingProjectedSurface(
                     viewModel.deleteRoutine(routineDetail.id, navigation.back)
                 },
                 onClose = navigation.back,
+                showBackAction = !isExpandedPane,
             )
         }
         return
@@ -353,26 +378,39 @@ private fun TrainingProjectedSurface(
             accent = accent,
             viewModel = viewModel,
             navigation = navigation,
-            onBack = navigation.back,
+            onBack = { navigation.popThrough(TrainingRoutineLibraryNavKey) },
         )
         return
     }
 
-    if (routeKey is TrainingWorkoutHistoryDetailNavKey && state.selectedWorkoutDetail == null) {
+    val workoutDetail = state.selectedWorkoutDetail
+    if (
+        routeKey is TrainingWorkoutHistoryDetailNavKey &&
+        workoutDetail?.summary?.sessionId != routeKey.sessionId
+    ) {
         TrainingRoutePlaceholder("Workout", state.message ?: "Loading workout...", navigation.back)
         return
     }
 
-    if (routeKey == TrainingHistoryNavKey || routeKey is TrainingWorkoutHistoryDetailNavKey) {
-        TrainingHistoryPage(
+    if (routeKey is TrainingWorkoutHistoryDetailNavKey) {
+        TrainingWorkoutHistoryDetailPage(
+            detail = requireNotNull(workoutDetail),
+            accent = accent,
+            onClose = navigation.back,
+            onOpenCoach = onOpenCoach,
+            showCloseAction = !isExpandedPane,
+        )
+        return
+    }
+
+    if (routeKey == TrainingHistoryNavKey) {
+        TrainingHistoryListPage(
             state = state,
             accent = accent,
-            onBack = navigation.back,
+            onBack = { navigation.popThrough(TrainingHistoryNavKey) },
             onOpenDetail = { sessionId ->
                 navigation.open(TrainingWorkoutHistoryDetailNavKey(sessionId))
             },
-            onCloseDetail = navigation.back,
-            onOpenCoach = onOpenCoach,
         )
         return
     }
@@ -513,7 +551,7 @@ private fun TrainingDashboard(
         }
 
         DashboardRoutineList(
-            routines = state.homeRoutines.ifEmpty { state.visibleRoutines },
+            routines = state.homeRoutines.ifEmpty { state.visibleRoutines }.take(DASHBOARD_ROUTINE_PREVIEW_LIMIT),
             history = state.workoutHistory,
             accent = accent,
             onOpenRoutineDetail = onOpenRoutineDetail,
@@ -596,6 +634,9 @@ private fun TrainingResumeSplitButton(
             color = accent.color,
             contentColor = accent.onColor,
             shape = RoundedCornerShape(topStart = 99.dp, bottomStart = 99.dp, topEnd = 8.dp, bottomEnd = 8.dp),
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { role = Role.Button },
         ) {
             Text(
                 text = "Resume",
@@ -609,6 +650,9 @@ private fun TrainingResumeSplitButton(
                 color = accent.color,
                 contentColor = accent.onColor,
                 shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 99.dp, bottomEnd = 99.dp),
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
             ) {
                 Box(modifier = Modifier.padding(horizontal = 10.dp, vertical = 13.dp)) {
                     Icon(
@@ -796,7 +840,9 @@ private fun DashboardRoutineList(
                     onClick = { onOpenRoutineDetail(routine.id) },
                     color = MusFitTheme.colors.surface,
                     shape = groupedShape(index, routines.size),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { role = Role.Button },
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
@@ -831,7 +877,9 @@ private fun DashboardRoutineList(
                             color = accent.container,
                             contentColor = accent.onContainer,
                             shape = if (index % 2 == 0) CircleShape else RoundedCornerShape(16.dp),
-                            modifier = Modifier.size(44.dp),
+                            modifier = Modifier
+                                .size(48.dp)
+                                .semantics { role = Role.Button },
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -867,13 +915,14 @@ private fun TrainingCoachRow(cue: String, onView: () -> Unit) {
             color = MusFitTheme.colors.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            text = "View",
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium,
-            color = MusFitTheme.colors.accent,
-            modifier = Modifier.clickable(onClick = onView),
-        )
+        TextButton(onClick = onView) {
+            Text(
+                text = "View",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MusFitTheme.colors.accent,
+            )
+        }
     }
 }
 
@@ -883,28 +932,20 @@ private fun TrainingCoachRow(cue: String, onView: () -> Unit) {
  * over the page with its own header.
  */
 @Composable
-private fun TrainingHistoryPage(
+private fun TrainingHistoryListPage(
     state: TrainingUiState,
     accent: TabAccent,
     onBack: () -> Unit,
     onOpenDetail: (String) -> Unit,
-    onCloseDetail: () -> Unit,
-    onOpenCoach: () -> Unit,
 ) {
-    val detail = state.selectedWorkoutDetail
-    if (detail != null) {
-        TrainingPageContainer {
-            WorkoutCompleteContent(
-                detail = detail,
-                accent = accent,
-                onClose = onCloseDetail,
-                onOpenCoach = onOpenCoach,
-            )
-        }
-        return
-    }
     var calendarOpen by rememberSaveable { mutableStateOf(false) }
-    TrainingPageContainer {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MusFitTheme.colors.background)
+            .padding(start = MusFitTheme.spacing.xl, end = MusFitTheme.spacing.xl, top = MusFitTheme.spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.xl),
+    ) {
         InnerScreenHeader(title = "History", onBack = onBack) {
             TonalHeaderIconButton(
                 icon = Icons.Outlined.CalendarMonth,
@@ -918,6 +959,28 @@ private fun TrainingHistoryPage(
             accent = accent,
             calendarOpen = calendarOpen,
             onOpenDetail = onOpenDetail,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+private const val DASHBOARD_ROUTINE_PREVIEW_LIMIT = 6
+
+@Composable
+private fun TrainingWorkoutHistoryDetailPage(
+    detail: com.musfit.data.repository.WorkoutHistoryDetail,
+    accent: TabAccent,
+    onClose: () -> Unit,
+    onOpenCoach: () -> Unit,
+    showCloseAction: Boolean,
+) {
+    TrainingPageContainer {
+        WorkoutCompleteContent(
+            detail = detail,
+            accent = accent,
+            onClose = onClose,
+            onOpenCoach = onOpenCoach,
+            showCloseAction = showCloseAction,
         )
     }
 }
@@ -936,25 +999,14 @@ private fun RoutineLibraryPage(
     navigation: TrainingNavigationActions,
     onBack: () -> Unit,
 ) {
-    TrainingPageContainer {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = "Back",
-                tint = MusFitTheme.colors.onSurface,
-                modifier = Modifier.size(24.dp).clickable(onClick = onBack),
-            )
-            Text(
-                text = "Routines",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Normal,
-                color = MusFitTheme.colors.onSurface,
-            )
-        }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MusFitTheme.colors.background)
+            .padding(start = MusFitTheme.spacing.xl, end = MusFitTheme.spacing.xl, top = MusFitTheme.spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.xl),
+    ) {
+        InnerScreenHeader(title = "Routines", onBack = onBack)
         TrainingHomeContent(
             hasActiveWorkout = state.activeWorkoutSummary != null,
             routines = state.homeRoutines,
@@ -978,20 +1030,15 @@ private fun RoutineLibraryPage(
             onStartRoutine = { routineId ->
                 viewModel.startRoutine(routineId) { navigation.open(TrainingActiveWorkoutNavKey) }
             },
-            onEditRoutine = { routineId ->
-                navigation.open(TrainingRoutineEditorNavKey(routineId))
-            },
             onOpenRoutineDetail = { routineId ->
                 navigation.open(TrainingRoutineDetailNavKey(routineId))
             },
-        )
-        TrainingRoutineLibraryList(
-            routines = state.visibleRoutines,
-            accent = accent,
-            onStartRoutine = { routineId ->
+            modifier = Modifier.weight(1f),
+            libraryRoutines = state.visibleRoutines,
+            onStartLibraryRoutine = { routineId ->
                 viewModel.startRoutine(routineId) { navigation.open(TrainingActiveWorkoutNavKey) }
             },
-            onOpenRoutineDetail = { routineId ->
+            onOpenLibraryRoutineDetail = { routineId ->
                 navigation.open(TrainingRoutineDetailNavKey(routineId))
             },
         )
@@ -1054,6 +1101,7 @@ private fun TrainingRoutePlaceholder(title: String, message: String, onBack: () 
  * Shared by routine exercise rows and the library so there is one clean exercise screen everywhere.
  */
 @Composable
+@Suppress("LongMethod", "LongParameterList")
 private fun ExerciseDetailPage(
     detail: ExerciseDetail,
     target: String?,
@@ -1062,42 +1110,37 @@ private fun ExerciseDetailPage(
     onNotesChange: (String) -> Unit,
     onSaveNotes: () -> Unit,
     onClose: () -> Unit,
+    showBackAction: Boolean = true,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(
-            modifier = Modifier.clickable(onClick = onClose),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+        if (showBackAction) {
+            TonalHeaderIconButton(
+                icon = Icons.AutoMirrored.Outlined.ArrowBack,
                 contentDescription = "Back",
-                tint = accent.color,
-                modifier = Modifier.size(20.dp),
+                onClick = onClose,
             )
-            Text("Back", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = accent.color)
         }
 
         val gifUrl = detail.gifUrl
         val imageUrl = detail.imageUrl
         var gifUnavailable by remember(gifUrl) { mutableStateOf(false) }
-        if (!gifUrl.isNullOrBlank() && !gifUnavailable) {
-            ExerciseGif(
-                gifUrl = gifUrl,
+        when (exerciseDetailMediaMode(gifUrl, imageUrl, gifUnavailable)) {
+            ExerciseDetailMediaMode.Animated -> ExerciseGif(
+                gifUrl = requireNotNull(gifUrl),
                 contentDescription = detail.name,
                 accent = accent,
                 onError = { gifUnavailable = true },
             )
-        } else if (!imageUrl.isNullOrBlank()) {
-            ExerciseThumb(
+
+            ExerciseDetailMediaMode.Static -> ExerciseThumb(
                 imageUrl = imageUrl,
                 contentDescription = detail.name,
                 accent = accent,
                 size = 200.dp,
                 shape = MusFitTheme.shapes.large,
             )
-        } else {
-            ExerciseThumb(
+
+            ExerciseDetailMediaMode.Placeholder -> ExerciseThumb(
                 imageUrl = null,
                 contentDescription = detail.name,
                 accent = accent,

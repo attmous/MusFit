@@ -627,7 +627,10 @@ Assert-FileContains "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourne
 Assert-FileContains "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'fun cameraDenialAndDeterministicReturn_coverPermissionAndOfflineSafeRoundTrip\(\)'
 Assert-FileDoesNotContain "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'revokeSelfPermissionOnKill\('
 Assert-FileDoesNotContain "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'pm revoke \$\{targetContext\.packageName\} \$\{Manifest\.permission\.CAMERA\}'
-Assert-FileContains ".github/workflows/device-ui.yml" '(?s)critical-journeys:.{0,100}timeout-minutes:\s*55'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?s)critical-journeys:.{0,100}timeout-minutes:\s*65'
+Assert-FileContains ".github/workflows/device-ui.yml" 'feature:training:trainingApi28InternalDebugAndroidTest'
+Assert-FileContains ".github/workflows/device-ui.yml" 'feature:training:trainingApi37InternalDebugAndroidTest'
+Assert-FileContains ".github/workflows/device-ui.yml" 'ExerciseAnimatedMediaInstrumentationTest'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?s)Aggregate unit and managed-device coverage.{0,100}timeout-minutes:\s*15'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'
@@ -694,7 +697,7 @@ $goldenCount = @(
     "feature/today/src/testInternalDebug/screenshots" |
         ForEach-Object { Get-ChildItem -LiteralPath (Get-RepoPath $_) -Filter "*.png" -File }
 ).Count
-Assert-Equal "Reviewed screenshot golden count" 9 $goldenCount
+Assert-Equal "Reviewed screenshot golden count" 11 $goldenCount
 
 # W2-PERF-01: production-shaped Macrobenchmark and app-owned Baseline Profile.
 Assert-FileExists "benchmark/build.gradle.kts"
@@ -721,9 +724,21 @@ Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitStartupB
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitStartupBenchmark.kt" 'fun warmStartup\(\)'
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun foodJourney\(\)'
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun trainingJourney\(\)'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun trainingExerciseImageBrowse100Items\(\)'
 Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'fun profileJourney\(\)'
-Assert-FileContains ".github/workflows/performance.yml" 'benchmarkApi28And37GroupBenchmarkAndroidTest'
-Assert-FileContains ".github/workflows/performance.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/TrainingExerciseImageBenchmarkJourney.kt" 'EXERCISE_BROWSE_ITEM_TARGET\s*=\s*100'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/TrainingExerciseImageBenchmarkSnapshot.kt" 'training-exercise-thumbnail-loaded-'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/TrainingExerciseImageBenchmarkJourney.kt" 'pm disable-user --user 0 com\.google\.android\.apps\.photos'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'TrainingExerciseImagePssMetric\(\)'
+Assert-FileContains "benchmark/src/main/java/com/musfit/benchmark/MusFitJourneyBenchmark.kt" 'traceTargetPss\(\)'
+Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'trainingExerciseImagePssKb'
+Assert-FileContains ".github/workflows/performance.yml" 'feature/training/\*\*'
+Assert-FileContains ".github/workflows/performance.yml" 'core/data/\*\*'
+Assert-FileContains ".github/workflows/performance.yml" '(?s)macrobenchmark:.{0,100}timeout-minutes:\s*65'
+Assert-FileContains ".github/workflows/performance.yml" '(?m)^\s*\./gradlew :benchmark:benchmarkApi28BenchmarkAndroidTest[^\r\n]*\r?\n\s*\./gradlew :benchmark:benchmarkApi37BenchmarkAndroidTest[^\r\n]*'
+Assert-FileDoesNotContain ".github/workflows/performance.yml" 'benchmarkApi28And37GroupBenchmarkAndroidTest'
+$performanceWorkflow = Get-FileText ".github/workflows/performance.yml"
+Assert-Equal "Performance managed-device cap references" 2 ([regex]::Matches($performanceWorkflow, 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1').Count)
 Assert-FileContains ".github/workflows/performance.yml" 'verify-benchmark-regression\.ps1[^\r\n]*-ReportOnly'
 Assert-FileContains ".github/workflows/performance.yml" 'managed_device_android_test_additional_output'
 Assert-FileContains ".github/workflows/performance.yml" 'system-images;android-37\.0;google_apis_ps16k;x86_64'
@@ -736,6 +751,11 @@ Assert-FileContains ".github/workflows/release.yml" 'performance_verification_ru
 Assert-FileContains "docs/testing/ci-lanes.md" 'PR latency budget'
 Assert-FileContains "docs/testing/ci-lanes.md" 'Nightly and main budget'
 Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'ThresholdPercent\s*=\s*10\.0'
+Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" '\[string\]\s*\$BenchmarkId'
+Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'BenchmarkId cannot be combined with WriteBaseline'
+Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'Exact benchmark ID:'
+Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'did not exactly match a current gated benchmark ID'
+Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'Current gated measurements are missing from the approved baseline'
 Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'Test-Regression 100\.0 110\.01 10\.0'
 Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" '::warning title=MusFit benchmark regression'
 

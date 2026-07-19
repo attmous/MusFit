@@ -72,7 +72,7 @@ jobs:
 
   critical-journeys:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 65
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -112,6 +112,11 @@ jobs:
           ./gradlew :app:musFitApi28InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
           ./gradlew :app:musFitApi37InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
 
+      - name: Run API 28 and API 37 animated Training media regression
+        run: |
+          ./gradlew :feature:training:trainingApi28InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.training.ExerciseAnimatedMediaInstrumentationTest' --no-daemon --console=plain
+          ./gradlew :feature:training:trainingApi37InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.training.ExerciseAnimatedMediaInstrumentationTest' --no-daemon --console=plain
+
       - name: Aggregate unit and managed-device coverage
         timeout-minutes: 15
         shell: pwsh
@@ -143,11 +148,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: musfit-critical-journeys-${{ github.run_attempt }}
+          name: musfit-critical-journeys-and-training-media-${{ github.run_attempt }}
           path: |
             app/build/reports/androidTests/managedDevice/
             app/build/outputs/androidTest-results/managedDevice/
             app/build/outputs/managed_device_android_test_additional_output/
+            feature/training/build/reports/androidTests/managedDevice/
+            feature/training/build/outputs/androidTest-results/managedDevice/
+            feature/training/build/outputs/managed_device_android_test_additional_output/
             app/build/reports/coverage/
             core/model/build/reports/jacoco/test/
             core/network/build/reports/coverage/test/internal/debug/

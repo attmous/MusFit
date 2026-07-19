@@ -28,7 +28,7 @@
     {
       "tool": "detekt",
       "id": "CyclomaticComplexMethod",
-      "occurrences": 26,
+      "occurrences": 24,
       "owner": "architecture-remediation",
       "expiresOn": "2027-03-31",
       "rationale": "Existing feature orchestrators are reduced by the Wave 4 state-decomposition and module-boundary packages."
@@ -52,7 +52,7 @@
     {
       "tool": "detekt",
       "id": "LongMethod",
-      "occurrences": 115,
+      "occurrences": 107,
       "owner": "architecture-remediation",
       "expiresOn": "2027-03-31",
       "rationale": "Legacy Compose and ViewModel methods are reduced incrementally by the planned feature-state and UI-boundary packages."
@@ -60,7 +60,7 @@
     {
       "tool": "detekt",
       "id": "LongParameterList",
-      "occurrences": 116,
+      "occurrences": 106,
       "owner": "architecture-remediation",
       "expiresOn": "2027-03-31",
       "rationale": "Existing stateless Compose callback surfaces are replaced only after restoration and state-holder contracts are merged."

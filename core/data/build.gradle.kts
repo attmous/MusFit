@@ -41,10 +41,10 @@ dependencies {
     implementation(libs.androidx.core)
     implementation(libs.hilt.android)
     implementation(libs.moshi)
-    implementation(libs.moshi.kotlin)
     implementation(libs.kotlinx.coroutines.android)
 
     ksp(libs.hilt.compiler)
+    ksp(libs.moshi.kotlin.codegen)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.test.core)

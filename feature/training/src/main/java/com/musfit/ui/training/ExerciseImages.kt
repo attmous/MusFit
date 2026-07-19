@@ -1,6 +1,8 @@
 package com.musfit.ui.training
 
 import android.content.Context
+import android.util.Base64
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,17 +32,49 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
+import coil.decode.BitmapFactoryDecoder
+import coil.decode.DataSource
+import coil.decode.Decoder
 import coil.decode.ImageDecoderDecoder
+import coil.imageLoader
+import coil.request.CachePolicy
 import coil.request.ImageRequest
+import com.musfit.feature.training.BuildConfig
 import com.musfit.ui.theme.TabAccent
 
+internal const val EXERCISE_MEDIA_MODE_PARAMETER = "exercise-media-mode"
+internal const val EXERCISE_MEDIA_MODE_STATIC = "static"
+internal const val EXERCISE_MEDIA_MODE_ANIMATED = "animated"
+
+internal enum class ExerciseDetailMediaMode { Animated, Static, Placeholder }
+
+internal fun exerciseDetailMediaMode(
+    gifUrl: String?,
+    imageUrl: String?,
+    gifUnavailable: Boolean,
+): ExerciseDetailMediaMode = when {
+    !gifUrl.isNullOrBlank() && !gifUnavailable -> ExerciseDetailMediaMode.Animated
+    !imageUrl.isNullOrBlank() -> ExerciseDetailMediaMode.Static
+    else -> ExerciseDetailMediaMode.Placeholder
+}
+
+private val staticExerciseDecoderFactory = BitmapFactoryDecoder.Factory()
+private val animatedExerciseDecoderFactory = ImageDecoderDecoder.Factory()
+private val benchmarkThumbnailData: ByteArray? by lazy {
+    BuildConfig.BENCHMARK_THUMBNAIL_BASE64
+        .takeIf(String::isNotEmpty)
+        ?.let { Base64.decode(it, Base64.DEFAULT) }
+}
+
 /**
- * Square exercise thumbnail. Demos in the dataset sit on white, so the image fills a white tile;
- * when no media is available it falls back to a tinted dumbbell placeholder.
+ * Square, static exercise thumbnail. Mirrored GIF media is intentionally decoded to its first
+ * frame; animation is reserved for [ExerciseGif] on the visible detail screen. Demos in the
+ * dataset sit on white, so the image fills a white tile; when no media is available it falls back
+ * to a tinted dumbbell placeholder.
  */
 @Composable
+@Suppress("LongParameterList")
 fun ExerciseThumb(
     imageUrl: String?,
     contentDescription: String?,
@@ -48,7 +82,10 @@ fun ExerciseThumb(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
     shape: Shape = RoundedCornerShape(10.dp),
-    animateGif: Boolean = true,
+    useBenchmarkFixture: Boolean = false,
+    onDataSourceChanged: ((DataSource) -> Unit)? = null,
+    onLoading: (() -> Unit)? = null,
+    onLoadError: ((Throwable) -> Unit)? = null,
 ) {
     if (imageUrl.isNullOrBlank()) {
         ExerciseMediaPlaceholder(
@@ -61,13 +98,27 @@ fun ExerciseThumb(
         return
     }
     val context = LocalContext.current
-    val imageLoader = rememberExerciseMediaImageLoader(context, animateGif = animateGif)
+    val request = remember(context, imageUrl, useBenchmarkFixture) {
+        exerciseThumbnailRequest(
+            context = context,
+            imageUrl = imageUrl,
+            benchmarkData = if (useBenchmarkFixture) benchmarkThumbnailData else null,
+        )
+    }
     SubcomposeAsyncImage(
-        model = ImageRequest.Builder(context).data(imageUrl).crossfade(animateGif).build(),
-        imageLoader = imageLoader,
+        model = request,
+        imageLoader = context.imageLoader,
         contentDescription = contentDescription,
         contentScale = ContentScale.Crop,
         modifier = modifier.size(size).clip(shape).background(Color.White),
+        onLoading = { onLoading?.invoke() },
+        onSuccess = { onDataSourceChanged?.invoke(it.result.dataSource) },
+        onError = { state ->
+            onLoadError?.invoke(state.result.throwable)
+            if (useBenchmarkFixture) {
+                Log.e("MusFitBenchmarkImage", "Deterministic thumbnail failed", state.result.throwable)
+            }
+        },
         loading = {
             ExerciseMediaPlaceholder(
                 contentDescription = contentDescription,
@@ -91,8 +142,9 @@ fun ExerciseThumb(
 }
 
 /**
- * Animated GIF demonstration, decoded via Coil's [ImageDecoderDecoder] (minSdk 28). Fetched from
- * the CDN and cached; falls back to nothing while loading.
+ * Animated detail demonstration, decoded via Coil's [ImageDecoderDecoder] (minSdk 28). It shares
+ * the process image loader and encoded disk entry with thumbnails while keeping a distinct memory
+ * cache entry. A failed animation reports once so its detail owner can show the static fallback.
  */
 @Composable
 fun ExerciseGif(
@@ -105,11 +157,10 @@ fun ExerciseGif(
     onError: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val gifLoader = rememberExerciseMediaImageLoader(context)
     var reportedError by remember(gifUrl) { mutableStateOf(false) }
     SubcomposeAsyncImage(
-        model = ImageRequest.Builder(context).data(gifUrl).crossfade(true).build(),
-        imageLoader = gifLoader,
+        model = exerciseAnimatedMediaRequest(context, gifUrl),
+        imageLoader = context.imageLoader,
         contentDescription = contentDescription,
         contentScale = ContentScale.Fit,
         modifier = modifier
@@ -147,14 +198,56 @@ fun ExerciseGif(
     )
 }
 
-@Composable
-private fun rememberExerciseMediaImageLoader(context: Context, animateGif: Boolean = true): ImageLoader = remember(context, animateGif) {
-    val builder = ImageLoader.Builder(context)
-    if (animateGif) {
-        builder.components { add(ImageDecoderDecoder.Factory()) }
+internal fun exerciseThumbnailRequest(
+    context: Context,
+    imageUrl: String,
+    benchmarkData: ByteArray? = null,
+): ImageRequest {
+    if (benchmarkData != null) {
+        return ImageRequest.Builder(context)
+            .data(benchmarkData)
+            .memoryCacheKey("benchmark-picker-static:$imageUrl")
+            .memoryCachePolicy(CachePolicy.ENABLED)
+            .diskCachePolicy(CachePolicy.DISABLED)
+            .networkCachePolicy(CachePolicy.DISABLED)
+            .crossfade(false)
+            .build()
     }
-    builder.build()
+    return exerciseMediaRequest(
+        context = context,
+        mediaUrl = imageUrl,
+        mode = EXERCISE_MEDIA_MODE_STATIC,
+        decoderFactory = staticExerciseDecoderFactory,
+        crossfade = false,
+    )
 }
+
+internal fun exerciseAnimatedMediaRequest(context: Context, gifUrl: String): ImageRequest = exerciseMediaRequest(
+    context = context,
+    mediaUrl = gifUrl,
+    mode = EXERCISE_MEDIA_MODE_ANIMATED,
+    decoderFactory = animatedExerciseDecoderFactory,
+    crossfade = true,
+)
+
+private fun exerciseMediaRequest(
+    context: Context,
+    mediaUrl: String,
+    mode: String,
+    decoderFactory: Decoder.Factory,
+    crossfade: Boolean,
+): ImageRequest = ImageRequest.Builder(context)
+    .data(mediaUrl)
+    .decoderFactory(decoderFactory)
+    // Coil's computed memory key does not include decoderFactory; the mode prevents a static first
+    // frame from satisfying the animated detail request while the encoded disk entry stays shared.
+    .setParameter(EXERCISE_MEDIA_MODE_PARAMETER, mode, memoryCacheKey = mode)
+    .memoryCachePolicy(CachePolicy.ENABLED)
+    .diskCachePolicy(CachePolicy.ENABLED)
+    .networkCachePolicy(CachePolicy.ENABLED)
+    .diskCacheKey(mediaUrl)
+    .crossfade(crossfade)
+    .build()
 
 @Composable
 private fun ExerciseMediaPlaceholder(

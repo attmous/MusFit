@@ -1,15 +1,18 @@
 package com.musfit.ui.training
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,10 +25,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -62,11 +68,13 @@ import java.util.Locale
  * pill. The mock's edit square is omitted — no session editor exists yet.
  */
 @Composable
+@Suppress("LongMethod")
 fun WorkoutCompleteContent(
     detail: WorkoutHistoryDetail,
     accent: TabAccent,
     onClose: () -> Unit,
     onOpenCoach: () -> Unit,
+    showCloseAction: Boolean = true,
 ) {
     val recap = detail.effectiveRecap()
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -88,11 +96,13 @@ fun WorkoutCompleteContent(
                     modifier = Modifier.padding(top = 1.dp),
                 )
             }
-            TonalHeaderIconButton(
-                icon = Icons.Outlined.Close,
-                contentDescription = "Close workout summary",
-                onClick = onClose,
-            )
+            if (showCloseAction) {
+                TonalHeaderIconButton(
+                    icon = Icons.Outlined.Close,
+                    contentDescription = "Close workout summary",
+                    onClick = onClose,
+                )
+            }
         }
 
         WorkoutDurationHero(recap = recap, accent = accent)
@@ -274,16 +284,14 @@ private fun WorkoutCoachNoteCard(note: String, onOpenCoach: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
                     color = MusFitTheme.colors.onSurface,
                 )
-                Text(
-                    text = "Ask Coach",
-                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MusFitTheme.colors.accent,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable(onClick = onOpenCoach)
-                        .padding(vertical = 2.dp),
-                )
+                TextButton(onClick = onOpenCoach) {
+                    Text(
+                        text = "Ask Coach",
+                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MusFitTheme.colors.accent,
+                    )
+                }
             }
         }
     }
@@ -294,35 +302,52 @@ private fun WorkoutCoachNoteCard(note: String, onOpenCoach: () -> Unit) {
  * header's calendar toggle), and week sections of grouped session rows.
  */
 @Composable
+@Suppress("LongMethod", "LongParameterList")
 fun TrainingHistoryContent(
     history: List<WorkoutHistorySummary>,
     overview: TrainingHistoryOverview,
     accent: TabAccent,
     calendarOpen: Boolean,
     onOpenDetail: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        HistoryMonthHero(overview = overview, accent = accent)
+    val sections = historyWeekSections(history, LocalDate.now())
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 88.dp),
+    ) {
+        item(key = "history-month-hero", contentType = "history-hero") {
+            Box(modifier = Modifier.padding(bottom = 18.dp)) {
+                HistoryMonthHero(overview = overview, accent = accent)
+            }
+        }
         if (calendarOpen) {
-            Surface(
-                color = MusFitTheme.colors.surface,
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Box(modifier = Modifier.padding(14.dp)) {
-                    HistoryCalendarGrid(overview = overview, accent = accent)
+            item(key = "history-calendar", contentType = "history-calendar") {
+                Surface(
+                    color = MusFitTheme.colors.surface,
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp),
+                ) {
+                    Box(modifier = Modifier.padding(14.dp)) {
+                        HistoryCalendarGrid(overview = overview, accent = accent)
+                    }
                 }
             }
         }
         if (history.isEmpty()) {
-            Text(
-                "Finish a workout to build history.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
+            item(key = "history-empty", contentType = "history-empty") {
+                Text(
+                    "Finish a workout to build history.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
         }
-        historyWeekSections(history, LocalDate.now()).forEach { section ->
-            Column {
+        sections.forEach { section ->
+            item(
+                key = "history-section-${section.workouts.firstOrNull()?.sessionId ?: section.title}",
+                contentType = "history-section",
+            ) {
                 Text(
                     text = section.title,
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
@@ -330,16 +355,24 @@ fun TrainingHistoryContent(
                     color = MusFitTheme.colors.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp, start = 4.dp),
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    section.workouts.forEachIndexed { index, workout ->
-                        HistorySessionRow(
-                            workout = workout,
-                            accent = accent,
-                            shape = groupedShape(index, section.workouts.size),
-                            badgeShape = if (index % 2 == 0) ExpressiveBadgeShape.Sunny else ExpressiveBadgeShape.Circle,
-                            onClick = { onOpenDetail(workout.sessionId) },
-                        )
-                    }
+            }
+            itemsIndexed(
+                items = section.workouts,
+                key = { _, workout -> "history-session-${workout.sessionId}" },
+                contentType = { _, _ -> "history-session" },
+            ) { index, workout ->
+                Box(
+                    modifier = Modifier.padding(
+                        bottom = if (index == section.workouts.lastIndex) 18.dp else 4.dp,
+                    ),
+                ) {
+                    HistorySessionRow(
+                        workout = workout,
+                        accent = accent,
+                        shape = groupedShape(index, section.workouts.size),
+                        badgeShape = if (index % 2 == 0) ExpressiveBadgeShape.Sunny else ExpressiveBadgeShape.Circle,
+                        onClick = { onOpenDetail(workout.sessionId) },
+                    )
                 }
             }
         }

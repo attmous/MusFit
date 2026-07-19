@@ -2,8 +2,9 @@
 
 MusFit measures a production-shaped, minified, profileable build instead of the
 debug build. The benchmark surface covers cold and warm startup plus the Food,
-Training, and Profile journeys. Journey runs capture frame timing, maximum heap
-and anonymous RSS memory, and a Perfetto trace for every iteration.
+Training, Profile, and warmed 100-item exercise-image browse journeys. Journey
+runs capture frame timing, maximum heap and anonymous RSS memory, and a Perfetto
+trace for every iteration.
 
 ## Targets
 
@@ -19,6 +20,30 @@ where the process is created but has not attached when `am start -W` returns.
 The retry occurs before measurement; a second failure remains a hard test
 failure. Startup measurements never retry inside their measured block.
 
+The exercise-image journey opens Training -> New routine -> Add exercise, waits
+for Coil success semantics while visiting 100 distinct image-bearing exercises
+in setup, verifies the list's first-page anchor after each rewind, and requires
+all 100 IDs to report `MEMORY_CACHE` on a second pass. The measured pass again
+traverses and proves the same 100 memory-cache IDs inside the frame-timing block,
+then records an end-of-browse `dumpsys meminfo` total-PSS snapshot and peak
+process memory.
+
+The benchmark variant alone replaces picker thumbnail URLs with a deterministic
+256 x 256 PNG byte fixture. Each exercise keeps a distinct decoded-memory key;
+fixture disk and network caching are disabled. This isolates warmed decoded
+bitmap and process-loader behavior from CDN availability and encoded-cache
+variance. Production and internal variants continue to load the real media
+URLs, and the generic Training journey remains a separate whole-destination
+signal.
+
+Before this journey's setup, the harness verifies `ro.kernel.qemu=1`, disables
+the preinstalled Google Photos package, and confirms the disabled package state.
+The documented Gradle tasks create disposable managed emulators, and the guard
+hard-fails before mutating a physical device. A controlled trace comparison
+found Photos indexing on both emulator CPUs during the candidate's worst
+runnable delay; MusFit never opens Photos, so excluding that unrelated work
+makes the same-fixture comparison repeatable.
+
 The managed-device matrix is:
 
 | Target | Purpose | Result transport |
@@ -28,7 +53,9 @@ The managed-device matrix is:
 
 Android's managed-device additional-output transport is unavailable below API
 29. API 28 therefore remains an execution gate, while repeatable numeric
-comparison uses API 37's exported benchmark JSON.
+comparison uses API 37's exported benchmark JSON. The long 100-image journey
+runs once on API 28 and five times on API 37; the other journeys retain five
+iterations on both devices.
 
 ## Local commands
 
@@ -38,10 +65,18 @@ Initialize the Android environment before Gradle commands:
 . .\scripts\android\android-env.ps1
 ```
 
-Run a quick structural/device smoke pass:
+Run a quick structural/device smoke pass. Keep the device-specific tasks in
+separate Gradle invocations when the host is capped to one managed device; a
+group task can make the second device exceed Gradle's 600-second lock wait while
+the first suite is still active.
 
 ```powershell
-.\gradlew.bat :benchmark:benchmarkApi28And37GroupBenchmarkAndroidTest `
+.\gradlew.bat :benchmark:benchmarkApi28BenchmarkAndroidTest `
+  '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' `
+  '-Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.dryRunMode.enable=true' `
+  --no-daemon --console=plain
+.\gradlew.bat :benchmark:benchmarkApi37BenchmarkAndroidTest `
+  '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' `
   '-Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.dryRunMode.enable=true' `
   --no-daemon --console=plain
 ```
@@ -49,11 +84,31 @@ Run a quick structural/device smoke pass:
 Run the measured suite and compare it with the approved baseline:
 
 ```powershell
-.\gradlew.bat :benchmark:benchmarkApi28And37GroupBenchmarkAndroidTest `
+.\gradlew.bat :benchmark:benchmarkApi28BenchmarkAndroidTest `
+  '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' `
+  --no-daemon --console=plain
+.\gradlew.bat :benchmark:benchmarkApi37BenchmarkAndroidTest `
+  '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' `
   --no-daemon --console=plain
 
 .\scripts\performance\verify-benchmark-regression.ps1 `
   -ResultsPath benchmark\build\intermediates\managed_device_android_test_additional_output `
+  -SelfTest
+```
+
+Validate only the long image journey after a targeted API 37 run by selecting
+its exact fully qualified benchmark ID. Without `-BenchmarkId`, the verifier
+continues to require the complete approved suite. A selected subset cannot be
+used with `-WriteBaseline`.
+
+```powershell
+.\gradlew.bat :benchmark:benchmarkApi37BenchmarkAndroidTest `
+  '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.benchmark.MusFitJourneyBenchmark#trainingExerciseImageBrowse100Items' `
+  --no-daemon --console=plain
+
+.\scripts\performance\verify-benchmark-regression.ps1 `
+  -ResultsPath benchmark\build\intermediates\managed_device_android_test_additional_output\benchmark\benchmarkApi37BenchmarkAndroidTest `
+  -BenchmarkId 'com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items' `
   -SelfTest
 ```
 
@@ -76,17 +131,92 @@ metric. The CI gate compares approved metrics from
 
 - startup and frame metrics use P90;
 - maximum heap and anonymous RSS use maximum;
+- the end-of-browse Training image total-PSS metric uses maximum;
 - any increase greater than 10% fails the verifier by default;
 - exactly 10% remains within the approved boundary;
 - a built-in deliberate-regression self-test proves that the comparison is
   capable of failing.
 
-The initial approved values use the per-metric maximum from the complete local
-run and the first exact-head GitHub-hosted run. That measured two-host envelope
-avoids treating runner CPU differences as product regressions while retaining a
-strict >10% failure above every verified environment. Later baseline updates
+The original journey/startup approved values use the per-metric maximum from the
+complete local run and the first exact-head GitHub-hosted run. That measured
+two-host envelope avoids treating runner CPU differences as product regressions
+while retaining a strict >10% failure above every verified environment. The new
+image-browse entries are initialized from the controlled five-iteration
+`origin/master` run below, not from the faster candidate. Later baseline updates
 use a complete, reviewed API 37 run and must explain the measured product or
 runner change; they must not be used simply to make a regression green.
+
+## Training image comparison (2026-07-19)
+
+Both runs used API 37 device key `api37-sdk_gphone16k_x86_64`, fingerprint
+`google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.019/15611780:userdebug/dev-keys`,
+five iterations, the deterministic 100-image fixture, and confirmed Google
+Photos disabled before every launch. The baseline app source was commit
+`8913598edcd7a67a6e17520437b1c3d396c548fb`; the final candidate product-code
+head was `a5260d993699e4211b2e94992de038f0bd80ad07`. The exact-head rerun was made
+after the restoration fix; subsequent S15 changes are behavior-preserving
+static-analysis refactors plus acceptance tests and this evidence documentation.
+
+| Acceptance metric | Controlled master | Exact-head candidate | Change |
+| --- | ---: | ---: | ---: |
+| Frame CPU P90 | 15.0513 ms | 12.92425 ms | -14.13% |
+| Frame overrun P90 | 2.216126 ms | -1.224151 ms | -155.24% |
+| Maximum heap | 15,463 KB | 14,344 KB | -7.24% |
+| Maximum anonymous RSS | 104,036 KB | 102,784 KB | -1.20% |
+| Maximum end-of-browse total PSS | 74,430 KB | 67,418 KB | -9.42% |
+| Memory-cache hits per setup/measured traversal | 0/100 | 100/100 in all five iterations | behavioral gate passed |
+
+Master PSS samples were `69,470, 68,524, 72,014, 73,578, 74,430` KB; exact-head
+candidate samples were `66,940, 66,549, 64,170, 64,928, 67,418` KB. Exact-head
+candidate maximum-heap samples were `14,344, 14,231, 14,167, 14,023, 14,167`
+KB, and anonymous-RSS samples were `102,784, 98,532, 98,616, 100,660,
+102,356` KB. The retained five traces and benchmark JSON are the auditable
+source for the frame distributions and memory values; retained logcat confirms
+100/100 memory-cache hits in every setup and measured traversal.
+
+The baseline compatibility harness backports the same fixture, traversal, PSS
+metric, and log probe onto `origin/master`, but it cannot hard-require memory
+hits because the old per-composable loader reports none. The candidate harness
+keeps the same traversal and adds the acceptance assertion. Therefore the two
+harnesses are deliberately equivalent rather than byte-identical. Retained
+logcat is the auditable source for cache hits because cache source is not a
+Macrobenchmark JSON metric.
+
+## Training chart and adaptive-scene comparison (2026-07-19)
+
+The seeded `MusFit_API36` emulator supplied direct `gfxinfo` checks for the two
+S15 interactions not isolated by the production-shaped Macrobenchmark. Both
+comparisons preserved Room data while switching between baseline commit
+`22487be46fb1d6e7602c17f49a01166f11eb6f81` and the candidate. The Progress
+chart journey performed 25 repeated chart selections in compact layout. Its
+frame P90 remained 18 ms (0.00% regression), while P99 improved from 65 ms to
+34 ms.
+
+The expanded journey used a 1080 x 2400 display at a 160 dpi override and, per
+sample, three warm-ups followed by 25 Profile -> Training -> bidirectional
+routine-scroll -> alternating routine-selection cycles. Three matched samples
+were taken for each exact revision; the candidate source was
+`a5260d993699e4211b2e94992de038f0bd80ad07`.
+
+| Expanded metric | Baseline samples | Candidate samples | Median change |
+| --- | --- | --- | ---: |
+| Frame P90 | 18, 30, 32 ms | 19, 21, 27 ms | 30 -> 21 ms (-30.00%) |
+| Janky frames | 8.35%, 8.62%, 9.55% | 7.23%, 6.91%, 6.88% | 8.62% -> 6.91% (-19.84%) |
+
+Matched medians are used because the ADB-driven path showed discrete histogram
+and synthetic-input scheduling variance. These direct checks satisfy the chart
+and expanded-interaction <=5% contracts; the managed-device Macrobenchmark and
+its regression verifier remain the authoritative production-shaped gate.
+
+The same candidate was also captured in a 35.85-second Perfetto lifecycle
+trace. While Training was foregrounded, its `arch_disk_io_*` threads ran 329
+slices (240.184 ms), confirming that the trace could see repository work. The
+activity stopped 0.705 seconds after HOME; after its five-second
+`WhileSubscribed` timeout and a conservative 95 ms drain allowance, there were
+zero main, RenderThread, `arch_disk_io_*`, pool, Dispatcher, Room, or SQLite
+scheduling slices for the remaining 15.96 seconds. Only 0.138 ms of unrelated
+ART finalizer/heap housekeeping remained. This is the device acceptance check
+for Training's lifecycle-aware collectors.
 
 GitHub-hosted emulator CPU timing varied materially between two exact-head runs
 even though all device tests passed. CI therefore invokes `-ReportOnly`: a >10%
@@ -103,7 +233,8 @@ on matching pushes to the default branch, weekly, and on manual dispatch. It
 retains benchmark JSON, managed-device test reports, regression reports, and
 Perfetto traces for 30 days.
 
-The first approved local run completed all five tests on both managed devices:
+Before the image journey was added, the first approved local run completed all
+five original tests on both managed devices:
 
 - dry run: 5/5 on API 28 and 5/5 on API 37 in 4m 51s;
 - corrected measured run: 5/5 on API 28 and 5/5 on API 37 in 16m 05s;

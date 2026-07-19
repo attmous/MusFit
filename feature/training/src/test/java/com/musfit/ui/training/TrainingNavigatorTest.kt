@@ -31,6 +31,85 @@ class TrainingNavigatorTest {
     }
 
     @Test
+    fun open_sameCurrentRoute_isANoOpWithoutCleanup() {
+        val stack = mutableListOf<NavKey>(TrainingHomeNavKey, TrainingRoutineLibraryNavKey)
+        val removed = mutableListOf<TrainingNavKey>()
+        val navigator = TrainingNavigator(stack) { removed += it }
+
+        navigator.open(TrainingRoutineLibraryNavKey)
+
+        assertEquals(listOf(TrainingHomeNavKey, TrainingRoutineLibraryNavKey), stack)
+        assertTrue(removed.isEmpty())
+    }
+
+    @Test
+    fun selectingRoutineSibling_prunesOldDetailAndExtraAndCleansBoth() {
+        val oldDetail = TrainingRoutineDetailNavKey("routine-old")
+        val oldExercise = TrainingExerciseDetailNavKey("exercise-old")
+        val stack = mutableListOf<NavKey>(TrainingHomeNavKey, TrainingRoutineLibraryNavKey, oldDetail, oldExercise)
+        val removed = mutableListOf<TrainingNavKey>()
+        val navigator = TrainingNavigator(stack) { removed += it }
+
+        navigator.open(TrainingRoutineDetailNavKey("routine-new"))
+
+        assertEquals(
+            listOf(TrainingHomeNavKey, TrainingRoutineLibraryNavKey, TrainingRoutineDetailNavKey("routine-new")),
+            stack,
+        )
+        assertEquals(listOf(oldExercise, oldDetail), removed)
+    }
+
+    @Test
+    fun selectingExerciseSibling_preservesRoutineDetailAndCleansOldExtra() {
+        val detail = TrainingRoutineDetailNavKey("routine-1")
+        val oldExercise = TrainingExerciseDetailNavKey("exercise-old")
+        val stack = mutableListOf<NavKey>(TrainingHomeNavKey, TrainingRoutineLibraryNavKey, detail, oldExercise)
+        val removed = mutableListOf<TrainingNavKey>()
+        val navigator = TrainingNavigator(stack) { removed += it }
+
+        navigator.open(TrainingExerciseDetailNavKey("exercise-new"))
+
+        assertEquals(
+            listOf(
+                TrainingHomeNavKey,
+                TrainingRoutineLibraryNavKey,
+                detail,
+                TrainingExerciseDetailNavKey("exercise-new"),
+            ),
+            stack,
+        )
+        assertEquals(listOf(oldExercise), removed)
+    }
+
+    @Test
+    fun selectingWorkoutSibling_prunesOldDetailAndPreservesHistoryOwner() {
+        val oldDetail = TrainingWorkoutHistoryDetailNavKey("session-old")
+        val stack = mutableListOf<NavKey>(TrainingHomeNavKey, TrainingHistoryNavKey, oldDetail)
+        val removed = mutableListOf<TrainingNavKey>()
+        val navigator = TrainingNavigator(stack) { removed += it }
+
+        navigator.open(TrainingWorkoutHistoryDetailNavKey("session-new"))
+
+        assertEquals(
+            listOf(TrainingHomeNavKey, TrainingHistoryNavKey, TrainingWorkoutHistoryDetailNavKey("session-new")),
+            stack,
+        )
+        assertEquals(listOf(oldDetail), removed)
+    }
+
+    @Test
+    fun dashboardRoutineDetail_remainsDirectHomeToDetailForCompactBackParity() {
+        val stack = mutableListOf<NavKey>(TrainingHomeNavKey)
+        val navigator = TrainingNavigator(stack)
+
+        navigator.open(TrainingRoutineDetailNavKey("routine-1"))
+
+        assertEquals(listOf(TrainingHomeNavKey, TrainingRoutineDetailNavKey("routine-1")), stack)
+        assertTrue(navigator.back())
+        assertEquals(listOf(TrainingHomeNavKey), stack)
+    }
+
+    @Test
     fun popThroughLibrary_returnsToHomeWithoutDuplicateOwner() {
         val stack = mutableListOf<NavKey>(
             TrainingHomeNavKey,
@@ -42,6 +121,20 @@ class TrainingNavigatorTest {
         assertTrue(navigator.popThrough(TrainingRoutineLibraryNavKey))
         assertEquals(listOf(TrainingHomeNavKey), stack)
         assertFalse(navigator.popThrough(TrainingRoutineLibraryNavKey))
+    }
+
+    @Test
+    fun popThroughListOwner_cleansEveryPrunedRouteInTopDownOrder() {
+        val detail = TrainingRoutineDetailNavKey("routine-1")
+        val extra = TrainingExerciseDetailNavKey("exercise-1")
+        val stack = mutableListOf<NavKey>(TrainingHomeNavKey, TrainingRoutineLibraryNavKey, detail, extra)
+        val removed = mutableListOf<TrainingNavKey>()
+        val navigator = TrainingNavigator(stack) { removed += it }
+
+        assertTrue(navigator.popThrough(TrainingRoutineLibraryNavKey))
+
+        assertEquals(listOf(TrainingHomeNavKey), stack)
+        assertEquals(listOf(extra, detail, TrainingRoutineLibraryNavKey), removed)
     }
 
     @Test

@@ -2,9 +2,20 @@
     "schemaVersion":  1,
     "thresholdPercent":  10,
     "provenance":  {
-                       "policy":  "Per-metric maximum from the verified local and exact-head GitHub-hosted API 37 runs",
+                       "policy":  "Existing journey/startup entries use the per-metric maximum from the verified local and exact-head GitHub-hosted API 37 runs; the Training image-browse entries use the controlled origin/master run described by trainingExerciseImageBrowse100Items",
                        "localHead":  "1e9023d1976f5b25c5b11b7386b1965ceb1acd25",
-                       "githubRun":  "https://github.com/attmous/MusFit/actions/runs/29214608530"
+                       "githubRun":  "https://github.com/attmous/MusFit/actions/runs/29214608530",
+                       "trainingExerciseImageBrowse100Items":  {
+                                                                        "policy":  "Five-iteration controlled local origin/master baseline; p90 is approved for frame metrics and maximum is approved for memory metrics",
+                                                                        "baseHead":  "8913598edcd7a67a6e17520437b1c3d396c548fb",
+                                                                        "candidateHead":  "a5260d993699e4211b2e94992de038f0bd80ad07",
+                                                                        "capturedDate":  "2026-07-19",
+                                                                        "iterations":  5,
+                                                                        "deviceKey":  "api37-sdk_gphone16k_x86_64",
+                                                                        "fixture":  "100 distinct benchmark-only byte-backed image requests",
+                                                                        "deviceStabilization":  "Google Photos disabled and confirmed disabled on the emulator before every launch",
+                                                                        "candidateEvidence":  "Exact-head five-iteration candidate run is documented in docs/testing/performance-benchmarks.md and the retained benchmark JSON, logcat, and Perfetto outputs"
+                                                                    }
                    },
     "devices":  [
                     {
@@ -76,6 +87,31 @@
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|memoryRssAnonMaxKb",
                              "statistic":  "maximum",
                              "approvedValue":  99844
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items|frameDurationCpuMs",
+                             "statistic":  "p90",
+                             "approvedValue":  15.0513
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items|frameOverrunMs",
+                             "statistic":  "p90",
+                             "approvedValue":  2.216126
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items|memoryHeapSizeMaxKb",
+                             "statistic":  "maximum",
+                             "approvedValue":  15463
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items|memoryRssAnonMaxKb",
+                             "statistic":  "maximum",
+                             "approvedValue":  104036
+                         },
+                         {
+                             "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items|trainingExerciseImagePssKb",
+                             "statistic":  "maximum",
+                             "approvedValue":  74430
                          },
                          {
                              "key":  "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitStartupBenchmark.coldStartup|timeToInitialDisplayMs",

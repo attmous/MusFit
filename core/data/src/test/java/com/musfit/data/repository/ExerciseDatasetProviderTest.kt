@@ -1,5 +1,7 @@
 package com.musfit.data.repository
 
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -13,17 +15,31 @@ class ExerciseDatasetProviderTest {
         image: String = "images/0001-x.jpg",
         gif: String = "videos/0001-x.gif",
         equipment: String = "body weight",
+        secondary: String = "hip flexors, lower back",
+        instructions: String = "Lie flat and curl up.",
     ) = ExerciseDatasetRecord(
         id = "0001",
         name = "3/4 sit-up",
         category = "waist",
         equipment = equipment,
         target = "abs",
-        secondary = "hip flexors, lower back",
-        instructions = "Lie flat and curl up.",
+        secondary = secondary,
+        instructions = instructions,
         image = image,
         gif = gif,
     )
+
+    @Test
+    fun exerciseDatasetRecord_generatedAdapterParsesMinificationSafeCatalogJson() {
+        val listType = Types.newParameterizedType(List::class.java, ExerciseDatasetRecord::class.java)
+        val adapter = Moshi.Builder().build().adapter<List<ExerciseDatasetRecord>>(listType)
+
+        val records = adapter.fromJson(
+            """[{"id":"0001","name":"3/4 sit-up","category":"waist","equipment":"body weight","target":"abs","secondary":"hip flexors","instructions":"Curl up.","image":"images/0001-x.jpg","gif":"videos/0001-x.gif"}]""",
+        )
+
+        assertEquals(listOf(record(secondary = "hip flexors", instructions = "Curl up.")), records)
+    }
 
     @Test
     fun toExerciseEntity_namespacesIdAndBuildsGifMirrorMediaUrls() {

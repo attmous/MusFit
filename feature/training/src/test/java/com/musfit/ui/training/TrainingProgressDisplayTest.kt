@@ -1,6 +1,8 @@
 package com.musfit.ui.training
 
+import androidx.compose.ui.input.key.Key
 import com.musfit.data.repository.TrainingPrRecord
+import com.musfit.data.repository.WeeklyTrainingVolume
 import com.musfit.domain.model.TrainingTrendPoint
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -72,6 +74,131 @@ class TrainingProgressDisplayTest {
     }
 
     @Test
+    fun chartDescriptions_associateDatesValuesAndPositions() {
+        val trend = listOf(
+            point(daysAgo = 2, e1rm = 120.0),
+            point(daysAgo = 0, e1rm = 128.5),
+        )
+        val weeks = listOf(
+            week(LocalDate.of(2026, 6, 29), volumeKg = 840.0, workouts = 1, sets = 4),
+            week(LocalDate.of(2026, 7, 6), volumeKg = 2_000.0, workouts = 2, sets = 8),
+        )
+
+        assertEquals(
+            "Estimated one rep max chart for Back Squat. 2 data points from July 6, 2026 to July 8, 2026.",
+            e1rmChartSummary("Back Squat", trend),
+        )
+        assertEquals(
+            "Selected July 8, 2026, 128.5 kg estimated one rep max, point 2 of 2",
+            e1rmChartSelectionDescription(trend, 1),
+        )
+        assertEquals(
+            "Weekly training volume chart. 2 weeks from week of June 29, 2026 to week of July 6, 2026.",
+            weeklyVolumeChartSummary(weeks),
+        )
+        assertEquals(
+            "Selected week of July 6, 2026, 2 t total volume, 2 workouts, 8 completed sets, week 2 of 2",
+            weeklyVolumeChartSelectionDescription(weeks, 1),
+        )
+    }
+
+    @Test
+    fun chartDescriptions_handleEmptyAndSinglePointBoundaries() {
+        val onlyPoint = listOf(point(daysAgo = 0, e1rm = 128.0))
+        val onlyWeek = listOf(week(today, volumeKg = 500.0, workouts = 1, sets = 1))
+
+        assertEquals(
+            "Estimated one rep max chart for Back Squat. 1 data point on July 8, 2026.",
+            e1rmChartSummary("Back Squat", onlyPoint),
+        )
+        assertEquals("Estimated one rep max chart. No data.", e1rmChartSummary(null, emptyList()))
+        assertEquals("No data selected", e1rmChartSelectionDescription(emptyList(), -1))
+        assertEquals(
+            "Weekly training volume chart. 1 week on week of July 8, 2026.",
+            weeklyVolumeChartSummary(onlyWeek),
+        )
+        assertEquals("Weekly training volume chart. No data.", weeklyVolumeChartSummary(emptyList()))
+        assertEquals("No data selected", weeklyVolumeChartSelectionDescription(emptyList(), -1))
+    }
+
+    @Test
+    fun chartKeyboardNavigation_honorsArrowsHomeEndAndBoundaries() {
+        assertEquals(1, chartIndexForKey(Key.DirectionLeft, selectedIndex = 2, lastIndex = 3))
+        assertEquals(1, chartIndexForKey(Key.DirectionUp, selectedIndex = 2, lastIndex = 3))
+        assertEquals(3, chartIndexForKey(Key.DirectionRight, selectedIndex = 2, lastIndex = 3))
+        assertEquals(3, chartIndexForKey(Key.DirectionDown, selectedIndex = 2, lastIndex = 3))
+        assertEquals(0, chartIndexForKey(Key.MoveHome, selectedIndex = 2, lastIndex = 3))
+        assertEquals(3, chartIndexForKey(Key.MoveEnd, selectedIndex = 1, lastIndex = 3))
+        assertEquals(null, chartIndexForKey(Key.DirectionLeft, selectedIndex = 0, lastIndex = 3))
+        assertEquals(null, chartIndexForKey(Key.DirectionRight, selectedIndex = 3, lastIndex = 3))
+        assertEquals(null, chartIndexForKey(Key.MoveHome, selectedIndex = 0, lastIndex = 3))
+        assertEquals(null, chartIndexForKey(Key.MoveEnd, selectedIndex = 3, lastIndex = 3))
+    }
+
+    @Test
+    fun chartKeyboardNavigation_mirrorsHorizontalArrowsInRtl() {
+        assertEquals(3, chartIndexForKey(Key.DirectionLeft, selectedIndex = 2, lastIndex = 3, isRtl = true))
+        assertEquals(1, chartIndexForKey(Key.DirectionRight, selectedIndex = 2, lastIndex = 3, isRtl = true))
+        assertEquals(1, chartIndexForKey(Key.DirectionUp, selectedIndex = 2, lastIndex = 3, isRtl = true))
+        assertEquals(3, chartIndexForKey(Key.DirectionDown, selectedIndex = 2, lastIndex = 3, isRtl = true))
+        assertEquals(null, chartIndexForKey(Key.DirectionLeft, selectedIndex = 3, lastIndex = 3, isRtl = true))
+        assertEquals(null, chartIndexForKey(Key.DirectionRight, selectedIndex = 0, lastIndex = 3, isRtl = true))
+    }
+
+    @Test
+    fun chartTapMapping_mirrorsPointAndSlotSelectionInRtl() {
+        assertEquals(
+            3,
+            chartIndexForTap(
+                x = 0f,
+                width = 300f,
+                itemCount = 4,
+                mode = ChartTapSelectionMode.Points,
+                isRtl = true,
+            ),
+        )
+        assertEquals(
+            0,
+            chartIndexForTap(
+                x = 300f,
+                width = 300f,
+                itemCount = 4,
+                mode = ChartTapSelectionMode.Points,
+                isRtl = true,
+            ),
+        )
+        assertEquals(
+            3,
+            chartIndexForTap(
+                x = 1f,
+                width = 400f,
+                itemCount = 4,
+                mode = ChartTapSelectionMode.Slots,
+                isRtl = true,
+            ),
+        )
+        assertEquals(
+            0,
+            chartIndexForTap(
+                x = 399f,
+                width = 400f,
+                itemCount = 4,
+                mode = ChartTapSelectionMode.Slots,
+                isRtl = true,
+            ),
+        )
+    }
+
+    @Test
+    fun chartPointGeometry_mirrorsChronologicalEndpointsInRtl() {
+        assertEquals(0f, chartPointX(index = 0, itemCount = 4, width = 300f, isRtl = false), 0.001f)
+        assertEquals(300f, chartPointX(index = 3, itemCount = 4, width = 300f, isRtl = false), 0.001f)
+        assertEquals(300f, chartPointX(index = 0, itemCount = 4, width = 300f, isRtl = true), 0.001f)
+        assertEquals(0f, chartPointX(index = 3, itemCount = 4, width = 300f, isRtl = true), 0.001f)
+        assertEquals(200f, chartPointX(index = 1, itemCount = 4, width = 300f, isRtl = true), 0.001f)
+    }
+
+    @Test
     fun prMetaLabel_formatsWeightRepsAndRecency() {
         assertEquals(
             "107.5 kg × 5 · Mon",
@@ -96,5 +223,17 @@ class TrainingProgressDisplayTest {
         reps = reps,
         weightKg = weightKg,
         estimatedOneRepMaxKg = 128.0,
+    )
+
+    private fun week(
+        date: LocalDate,
+        volumeKg: Double,
+        workouts: Int,
+        sets: Int,
+    ): WeeklyTrainingVolume = WeeklyTrainingVolume(
+        weekStartEpochDay = date.toEpochDay(),
+        workoutCount = workouts,
+        completedSetCount = sets,
+        totalVolumeKg = volumeKg,
     )
 }

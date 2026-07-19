@@ -1,5 +1,6 @@
 package com.musfit.benchmark
 
+import android.os.Build
 import androidx.benchmark.macro.BaselineProfileMode
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.ExperimentalMetricApi
@@ -25,6 +26,34 @@ class MusFitJourneyBenchmark {
 
     @Test
     fun trainingJourney() = measureDestination("Training")
+
+    @Test
+    fun trainingExerciseImageBrowse100Items() {
+        lateinit var imageBrowsePlan: ExerciseImageBrowsePlan
+        benchmarkRule.measureRepeated(
+            packageName = TARGET_PACKAGE,
+            metrics = listOf(
+                FrameTimingMetric(),
+                MemoryUsageMetric(MemoryUsageMetric.Mode.Max),
+                TrainingExerciseImagePssMetric(),
+            ),
+            compilationMode = CompilationMode.Partial(BaselineProfileMode.Require),
+            startupMode = null,
+            // API 37 is the approved regression target. Keep API 28 in the production-shaped
+            // execution matrix without adding five more long image traversals to the serial lane.
+            iterations = if (Build.VERSION.SDK_INT >= 37) 5 else 1,
+            setupBlock = {
+                stabilizeExerciseImageBenchmarkDevice()
+                launchToToday()
+                openTrainingExerciseImageBrowse()
+                imageBrowsePlan = warmExerciseImageBrowse()
+            },
+            measureBlock = {
+                browseWarmedExerciseImages(imageBrowsePlan)
+                traceTargetPss()
+            },
+        )
+    }
 
     @Test
     fun profileJourney() = measureDestination("Profile")

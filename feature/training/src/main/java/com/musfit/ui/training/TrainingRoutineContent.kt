@@ -11,13 +11,16 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -26,6 +29,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -69,6 +76,8 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,8 +97,21 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -101,6 +123,7 @@ import com.musfit.data.repository.RoutineFolder
 import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.domain.training.RoutineDisplayCalculator
+import com.musfit.feature.training.BuildConfig
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.PillButton
@@ -116,9 +139,12 @@ import com.musfit.ui.theme.NeutralOutline
 import com.musfit.ui.theme.NeutralOutlineDark
 import com.musfit.ui.theme.TabAccent
 import kotlin.math.roundToInt
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 
 @Composable
+@Suppress("LongMethod", "LongParameterList")
 fun TrainingHomeContent(
+    modifier: Modifier = Modifier,
     hasActiveWorkout: Boolean = false,
     routines: List<RoutineSummary> = emptyList(),
     folders: List<RoutineFolder> = emptyList(),
@@ -135,224 +161,311 @@ fun TrainingHomeContent(
     onDeleteFolder: (String) -> Unit = {},
     onAssignRoutineToFolder: (String, String?) -> Unit = { _, _ -> },
     onStartRoutine: (String) -> Unit = {},
-    onEditRoutine: (String?) -> Unit = {},
     onOpenRoutineDetail: (String) -> Unit = {},
+    libraryRoutines: List<RoutineSummary>? = null,
+    onStartLibraryRoutine: (String) -> Unit = onStartRoutine,
+    onOpenLibraryRoutineDetail: (String) -> Unit = onOpenRoutineDetail,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // Your own routines live here, organized into folders you create and drag them into.
-        // Creation and folder/library actions are quiet text links under the list (mock 3c).
-        TrainingRoutineContent(
-            routines = routines,
-            folders = folders,
-            folderEditor = folderEditor,
-            accent = accent,
-            onOpenLibrary = onOpenLibrary,
-            showLibraryLink = showLibraryLink,
-            onOpenFolderEditor = onOpenFolderEditor,
-            onFolderNameChange = onFolderNameChange,
-            onSaveFolder = onSaveFolder,
-            onCancelFolder = onCancelFolder,
-            onDeleteFolder = onDeleteFolder,
-            onAssignRoutineToFolder = onAssignRoutineToFolder,
-            onStartRoutine = onStartRoutine,
-            onEditRoutine = onEditRoutine,
-            onOpenRoutineDetail = onOpenRoutineDetail,
-        )
-        TrainingHomePrimaryActions(
-            hasActiveWorkout = hasActiveWorkout,
-            accent = accent,
-            onStartBlankWorkout = onStartBlankWorkout,
-            onNewRoutine = onNewRoutine,
-        )
-    }
+    TrainingRoutineWorkspaceLazy(
+        routines = routines,
+        folders = folders,
+        folderEditor = folderEditor,
+        accent = accent,
+        onOpenLibrary = onOpenLibrary,
+        showLibraryLink = showLibraryLink,
+        onOpenFolderEditor = onOpenFolderEditor,
+        onFolderNameChange = onFolderNameChange,
+        onSaveFolder = onSaveFolder,
+        onCancelFolder = onCancelFolder,
+        onDeleteFolder = onDeleteFolder,
+        onAssignRoutineToFolder = onAssignRoutineToFolder,
+        onStartRoutine = onStartRoutine,
+        onOpenRoutineDetail = onOpenRoutineDetail,
+        modifier = modifier,
+        footerContent = {
+            item(key = "routine-primary-actions", contentType = "routine-actions") {
+                TrainingHomePrimaryActions(
+                    hasActiveWorkout = hasActiveWorkout,
+                    accent = accent,
+                    onStartBlankWorkout = onStartBlankWorkout,
+                    onNewRoutine = onNewRoutine,
+                )
+            }
+            libraryRoutines?.let { library ->
+                item(key = "routine-library-heading", contentType = "routine-heading") {
+                    Text(
+                        text = "Pre-made routines",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp).padding(top = 6.dp),
+                    )
+                }
+                if (library.isEmpty()) {
+                    item(key = "routine-library-empty", contentType = "routine-empty") {
+                        Text(
+                            text = "No pre-made routines available.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
+                } else {
+                    itemsIndexed(
+                        items = library,
+                        key = { _, routine -> "routine-library-${routine.id}" },
+                        contentType = { _, _ -> "routine-library-row" },
+                    ) { index, routine ->
+                        Column {
+                            RoutineRow(
+                                routine = routine,
+                                accent = accent,
+                                onOpenDetail = { onOpenLibraryRoutineDetail(routine.id) },
+                                onStart = { onStartLibraryRoutine(routine.id) },
+                            )
+                            if (index < library.lastIndex) {
+                                HorizontalDivider(
+                                    thickness = 1.dp,
+                                    color = MusFitTheme.colors.outline,
+                                    modifier = Modifier.padding(start = 69.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    )
 }
 
+private data class RoutineDropArea(
+    val target: RoutineFolderDropTarget,
+    val bounds: Rect,
+)
+
 @Composable
-fun TrainingRoutineContent(
+@Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
+private fun TrainingRoutineWorkspaceLazy(
     routines: List<RoutineSummary>,
-    folders: List<RoutineFolder> = emptyList(),
-    folderEditor: RoutineFolderEditorState = RoutineFolderEditorState(),
+    folders: List<RoutineFolder>,
+    folderEditor: RoutineFolderEditorState,
     accent: TabAccent,
-    onOpenLibrary: () -> Unit = {},
-    showLibraryLink: Boolean = true,
-    onOpenFolderEditor: (String?) -> Unit = {},
-    onFolderNameChange: (String) -> Unit = {},
-    onSaveFolder: () -> Unit = {},
-    onCancelFolder: () -> Unit = {},
-    onDeleteFolder: (String) -> Unit = {},
-    onAssignRoutineToFolder: (String, String?) -> Unit = { _, _ -> },
+    onOpenLibrary: () -> Unit,
+    showLibraryLink: Boolean,
+    onOpenFolderEditor: (String?) -> Unit,
+    onFolderNameChange: (String) -> Unit,
+    onSaveFolder: () -> Unit,
+    onCancelFolder: () -> Unit,
+    onDeleteFolder: (String) -> Unit,
+    onAssignRoutineToFolder: (String, String?) -> Unit,
     onStartRoutine: (String) -> Unit,
-    onEditRoutine: (String?) -> Unit,
     onOpenRoutineDetail: (String) -> Unit,
+    modifier: Modifier,
+    footerContent: LazyListScope.() -> Unit,
 ) {
     var draggedRoutine by remember { mutableStateOf<RoutineDragState?>(null) }
-    var dropTargetBounds by remember { mutableStateOf<Map<String?, Rect>>(emptyMap()) }
-    var contentBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
+    var dropTargetAreas by remember { mutableStateOf<Map<String, RoutineDropArea>>(emptyMap()) }
+    var contentBounds by remember { mutableStateOf(Rect.Zero) }
+    val groups = groupRoutineSummariesByFolder(routines = routines, folders = folders)
     val activeDropTarget = draggedRoutine?.let { drag ->
-        routineFolderDropTargetAt(position = drag.position, targetBounds = dropTargetBounds)
+        routineFolderDropTargetAtAreas(drag.position, dropTargetAreas.values)
+    }
+    val updateDropArea = { areaId: String, area: RoutineDropArea? ->
+        if (dropTargetAreas[areaId] != area) {
+            dropTargetAreas = if (area == null) dropTargetAreas - areaId else dropTargetAreas + (areaId to area)
+        }
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
+            .fillMaxSize()
             .onGloballyPositioned { contentBounds = it.boundsInRoot() },
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            val routineGroups = groupRoutineSummariesByFolder(
-                routines = routines,
-                folders = folders,
-            )
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 88.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             if (draggedRoutine != null && folders.isNotEmpty()) {
-                Text(
-                    text = "Drop the routine onto a folder to move it, or onto “My routines” to take it out.",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = accent.color,
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
+                item(key = "routine-drag-help", contentType = "routine-help") {
+                    Text(
+                        text = "Drop the routine onto a folder to move it, or onto My routines to take it out.",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accent.color,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
             }
-            if (routineGroups.isEmpty()) {
-                Text(
-                    text = "Create a routine and it will appear here. Add folders to group them, then drag routines in.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp),
-                )
+            if (groups.isEmpty()) {
+                item(key = "routine-empty", contentType = "routine-empty") {
+                    Text(
+                        text = "Create a routine and it will appear here. Add folders to group them, then drag routines in.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
             }
-            if (routineGroups.isNotEmpty()) {
-                routineGroups.forEach { group ->
-                    // A section is a drop target when it's a user folder (drop in) or the
-                    // "My routines" bucket (drop out). Registering the whole section — not just a
-                    // chip — lets a dragged routine land wherever the user naturally aims it.
-                    val isDroppable = group.isUserFolder || group.title == MY_ROUTINES_GROUP_TITLE
-                    val isActiveDropTarget = draggedRoutine != null &&
-                        isDroppable &&
-                        activeDropTarget == RoutineFolderDropTarget(group.folderId)
-                    val sectionModifier = if (isDroppable) {
-                        Modifier.onGloballyPositioned { coordinates ->
-                            dropTargetBounds = dropTargetBounds + (group.folderId to coordinates.boundsInRoot())
-                        }
-                    } else {
-                        Modifier
-                    }
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = sectionModifier,
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+            groups.forEachIndexed { groupIndex, group ->
+                val isDroppable = group.isUserFolder || group.title == MY_ROUTINES_GROUP_TITLE
+                val target = RoutineFolderDropTarget(group.folderId)
+                val groupKey = group.folderId ?: group.title
+                val isActiveDropTarget = draggedRoutine != null && isDroppable && activeDropTarget == target
+                item(key = "routine-group-$groupKey", contentType = "routine-group") {
+                    RoutineDropTargetArea(
+                        areaId = "routine-group-$groupKey",
+                        target = target.takeIf { isDroppable },
+                        onAreaChanged = updateDropArea,
+                    ) { dropModifier ->
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = dropModifier.padding(top = if (groupIndex == 0) 0.dp else 6.dp),
                         ) {
-                            Text(
-                                text = group.title,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isActiveDropTarget) accent.color else MusFitTheme.colors.onSurfaceVariant,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (group.isUserFolder && group.folderId != null) {
-                                IconButton(
-                                    onClick = { onOpenFolderEditor(group.folderId) },
-                                    modifier = Modifier.size(32.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Edit,
-                                        contentDescription = "Edit ${group.title}",
-                                        tint = MusFitTheme.colors.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp),
-                                    )
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = group.title,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isActiveDropTarget) accent.color else MusFitTheme.colors.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (group.isUserFolder && group.folderId != null) {
+                                    IconButton(
+                                        onClick = { onOpenFolderEditor(group.folderId) },
+                                        modifier = Modifier.size(48.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Edit,
+                                            contentDescription = "Edit ${group.title}",
+                                            tint = MusFitTheme.colors.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
                                 }
                             }
+                            if (group.routines.isEmpty()) {
+                                Text(
+                                    text = if (isDroppable && draggedRoutine != null) "Drop here to add" else "No routines yet",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MusFitTheme.colors.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                                )
+                            }
                         }
-                        // No resting card chrome — rows sit on the surface; the tonal
-                        // fill appears only while this section is an active drop target.
+                    }
+                }
+                itemsIndexed(
+                    items = group.routines,
+                    key = { _, routine -> "routine-user-${routine.id}" },
+                    contentType = { _, _ -> "routine-user-row" },
+                ) { index, routine ->
+                    RoutineDropTargetArea(
+                        areaId = "routine-row-${routine.id}",
+                        target = target.takeIf { isDroppable },
+                        onAreaChanged = updateDropArea,
+                    ) { dropModifier ->
                         Surface(
                             color = if (isActiveDropTarget) accent.container else Color.Transparent,
                             shape = MusFitTheme.shapes.large,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = dropModifier.fillMaxWidth(),
                         ) {
                             Column {
-                                if (group.routines.isEmpty()) {
-                                    Text(
-                                        text = if (isDroppable && draggedRoutine != null) {
-                                            "Drop here to add"
-                                        } else {
-                                            "No routines yet"
-                                        },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MusFitTheme.colors.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
-                                    )
-                                } else {
-                                    group.routines.forEachIndexed { index, routine ->
-                                        RoutineRow(
-                                            routine = routine,
-                                            accent = accent,
-                                            folders = folders,
-                                            isDragging = draggedRoutine?.routineId == routine.id,
-                                            onOpenDetail = { onOpenRoutineDetail(routine.id) },
-                                            onStart = { onStartRoutine(routine.id) },
-                                            onMoveToFolder = { folderId -> onAssignRoutineToFolder(routine.id, folderId) },
-                                            onDragStart = { position ->
-                                                draggedRoutine = RoutineDragState(
-                                                    routineId = routine.id,
-                                                    routineName = routine.name,
-                                                    position = position,
-                                                )
-                                            },
-                                            onDrag = { dragAmount ->
-                                                draggedRoutine = draggedRoutine?.let { drag ->
-                                                    drag.copy(position = drag.position + dragAmount)
-                                                }
-                                            },
-                                            onDragEnd = {
-                                                val drag = draggedRoutine
-                                                val target = drag?.let {
-                                                    routineFolderDropTargetAt(it.position, dropTargetBounds)
-                                                }
-                                                if (drag != null && target != null) {
-                                                    onAssignRoutineToFolder(drag.routineId, target.folderId)
-                                                }
-                                                draggedRoutine = null
-                                            },
-                                            onDragCancel = { draggedRoutine = null },
-                                        )
-                                        if (index < group.routines.lastIndex) {
-                                            HorizontalDivider(
-                                                thickness = 1.dp,
-                                                color = MusFitTheme.colors.outline,
-                                                modifier = Modifier.padding(start = 69.dp),
-                                            )
+                                RoutineRow(
+                                    routine = routine,
+                                    accent = accent,
+                                    folders = folders,
+                                    isDragging = draggedRoutine?.routineId == routine.id,
+                                    onOpenDetail = { onOpenRoutineDetail(routine.id) },
+                                    onStart = { onStartRoutine(routine.id) },
+                                    onMoveToFolder = { folderId -> onAssignRoutineToFolder(routine.id, folderId) },
+                                    onDragStart = { position ->
+                                        draggedRoutine = RoutineDragState(routine.id, routine.name, position)
+                                    },
+                                    onDrag = { amount ->
+                                        draggedRoutine = draggedRoutine?.let { it.copy(position = it.position + amount) }
+                                    },
+                                    onDragEnd = {
+                                        val drag = draggedRoutine
+                                        val destination = drag?.let {
+                                            routineFolderDropTargetAtAreas(it.position, dropTargetAreas.values)
                                         }
-                                    }
+                                        if (drag != null && destination != null) {
+                                            onAssignRoutineToFolder(drag.routineId, destination.folderId)
+                                        }
+                                        draggedRoutine = null
+                                    },
+                                    onDragCancel = { draggedRoutine = null },
+                                )
+                                if (index < group.routines.lastIndex) {
+                                    HorizontalDivider(
+                                        thickness = 1.dp,
+                                        color = MusFitTheme.colors.outline,
+                                        modifier = Modifier.padding(start = 69.dp),
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
-            RoutineOrganizeActions(
-                accent = accent,
-                onNewFolder = { onOpenFolderEditor(null) },
-                onOpenLibrary = onOpenLibrary,
-                showLibraryLink = showLibraryLink,
-            )
-            if (folderEditor.isOpen) {
-                RoutineFolderEditorCard(
-                    editor = folderEditor,
+            item(key = "routine-organize-actions", contentType = "routine-actions") {
+                RoutineOrganizeActions(
                     accent = accent,
-                    onNameChange = onFolderNameChange,
-                    onSave = onSaveFolder,
-                    onCancel = onCancelFolder,
-                    onDelete = folderEditor.folderId?.let { id -> { onDeleteFolder(id) } },
+                    onNewFolder = { onOpenFolderEditor(null) },
+                    onOpenLibrary = onOpenLibrary,
+                    showLibraryLink = showLibraryLink,
                 )
             }
+            if (folderEditor.isOpen) {
+                item(key = "routine-folder-editor", contentType = "routine-editor") {
+                    RoutineFolderEditorCard(
+                        editor = folderEditor,
+                        accent = accent,
+                        onNameChange = onFolderNameChange,
+                        onSave = onSaveFolder,
+                        onCancel = onCancelFolder,
+                        onDelete = folderEditor.folderId?.let { id -> { onDeleteFolder(id) } },
+                    )
+                }
+            }
+            footerContent()
         }
         draggedRoutine?.let { drag ->
             RoutineDragLabel(drag = drag, contentBounds = contentBounds, accent = accent)
         }
     }
 }
+
+@Composable
+private fun RoutineDropTargetArea(
+    areaId: String,
+    target: RoutineFolderDropTarget?,
+    onAreaChanged: (String, RoutineDropArea?) -> Unit,
+    content: @Composable (Modifier) -> Unit,
+) {
+    val currentOnAreaChanged by rememberUpdatedState(onAreaChanged)
+    DisposableEffect(areaId, target) {
+        onDispose { currentOnAreaChanged(areaId, null) }
+    }
+    content(
+        if (target == null) {
+            Modifier
+        } else {
+            Modifier.onGloballyPositioned { coordinates ->
+                onAreaChanged(areaId, RoutineDropArea(target, coordinates.boundsInRoot()))
+            }
+        },
+    )
+}
+
+private fun routineFolderDropTargetAtAreas(
+    position: Offset,
+    targetAreas: Collection<RoutineDropArea>,
+): RoutineFolderDropTarget? = targetAreas.firstOrNull { area -> area.bounds.contains(position) }?.target
 
 /**
  * The mock's quiet creation row under the routine list: "+ New routine" and
@@ -371,7 +484,10 @@ private fun TrainingHomePrimaryActions(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = onNewRoutine) {
+        TextButton(
+            onClick = onNewRoutine,
+            modifier = Modifier.heightIn(min = 48.dp),
+        ) {
             Icon(imageVector = Icons.Outlined.Add, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text("New routine", color = accent.color, fontWeight = FontWeight.Medium, maxLines = 1)
@@ -382,7 +498,10 @@ private fun TrainingHomePrimaryActions(
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
-            TextButton(onClick = onStartBlankWorkout) {
+            TextButton(
+                onClick = onStartBlankWorkout,
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
                 Text("empty workout", color = accent.color, fontWeight = FontWeight.Medium, maxLines = 1)
             }
         }
@@ -404,69 +523,23 @@ private fun RoutineOrganizeActions(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = onNewFolder) {
+        TextButton(
+            onClick = onNewFolder,
+            modifier = Modifier.heightIn(min = 48.dp),
+        ) {
             Icon(imageVector = Icons.Outlined.Add, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text("New folder", color = accent.color, fontWeight = FontWeight.Medium)
         }
         Spacer(modifier = Modifier.weight(1f))
         if (showLibraryLink) {
-            TextButton(onClick = onOpenLibrary) {
+            TextButton(
+                onClick = onOpenLibrary,
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
                 Icon(imageVector = Icons.Outlined.FitnessCenter, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Browse library", color = accent.color, fontWeight = FontWeight.Medium)
-            }
-        }
-    }
-}
-
-/**
- * Plain, non-organizable routine list used by the routine Library to browse pre-made (starter)
- * routines. Folder management + drag-and-drop live on the Home tab for the user's own routines.
- */
-@Composable
-fun TrainingRoutineLibraryList(
-    routines: List<RoutineSummary>,
-    accent: TabAccent,
-    onStartRoutine: (String) -> Unit,
-    onOpenRoutineDetail: (String) -> Unit,
-    heading: String? = "Pre-made routines",
-    emptyMessage: String = "No pre-made routines available.",
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (heading != null) {
-            Text(
-                text = heading,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
-        if (routines.isEmpty()) {
-            Text(
-                text = emptyMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 8.dp),
-            )
-        } else {
-            Column {
-                routines.forEachIndexed { index, routine ->
-                    RoutineRow(
-                        routine = routine,
-                        accent = accent,
-                        onOpenDetail = { onOpenRoutineDetail(routine.id) },
-                        onStart = { onStartRoutine(routine.id) },
-                    )
-                    if (index < routines.lastIndex) {
-                        HorizontalDivider(
-                            thickness = 1.dp,
-                            color = MusFitTheme.colors.outline,
-                            modifier = Modifier.padding(start = 69.dp),
-                        )
-                    }
-                }
             }
         }
     }
@@ -501,7 +574,7 @@ private fun RoutineRow(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer(alpha = if (isDragging) 0.5f else 1f)
-            .clickable(onClick = onOpenDetail)
+            .clickable(role = Role.Button, onClick = onOpenDetail)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -509,7 +582,6 @@ private fun RoutineRow(
         if (enableMoveControls) {
             RoutineDragHandle(
                 routineId = routine.id,
-                accent = accent,
                 onDragStart = onDragStart,
                 onDrag = onDrag,
                 onDragEnd = onDragEnd,
@@ -551,7 +623,7 @@ private fun RoutineRow(
                 onMoveToFolder = onMoveToFolder,
             )
         }
-        IconButton(onClick = onStart, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = onStart, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = Icons.Filled.PlayCircle,
                 contentDescription = "Start ${routine.name}",
@@ -625,7 +697,6 @@ private fun RoutineMoveMenu(
 @Composable
 private fun RoutineDragHandle(
     routineId: String,
-    accent: TabAccent,
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
@@ -634,7 +705,7 @@ private fun RoutineDragHandle(
     var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     Box(
         modifier = Modifier
-            .size(46.dp)
+            .size(48.dp)
             .clip(CircleShape)
             .background(MusFitTheme.colors.surfaceVariant)
             .onGloballyPositioned { coordinates = it }
@@ -655,7 +726,7 @@ private fun RoutineDragHandle(
     ) {
         Icon(
             imageVector = Icons.Outlined.DragIndicator,
-            contentDescription = "Move routine",
+            contentDescription = null,
             tint = MusFitTheme.colors.onSurfaceVariant,
             modifier = Modifier.size(20.dp),
         )
@@ -710,6 +781,7 @@ private fun RoutineDragLabel(
  * delete, gated the same way as the row overflow used to be).
  */
 @Composable
+@Suppress("LongMethod", "LongParameterList")
 fun RoutineDetailContent(
     detail: RoutineDetail,
     accent: TabAccent,
@@ -719,6 +791,7 @@ fun RoutineDetailContent(
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
     onClose: () -> Unit,
+    showBackAction: Boolean = true,
 ) {
     val totalSets = detail.exercises.sumOf { it.targetSets }
     val estimatedMinutes = RoutineDisplayCalculator.estimatedMinutes(totalSets)
@@ -737,8 +810,12 @@ fun RoutineDetailContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            TextButton(onClick = onClose, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
-                Text("Back")
+            if (showBackAction) {
+                TonalHeaderIconButton(
+                    icon = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = "Back",
+                    onClick = onClose,
+                )
             }
             Text(
                 text = detail.name,
@@ -842,7 +919,7 @@ private fun RoutineDetailExerciseRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onOpen(target) }
+            .clickable(role = Role.Button) { onOpen(target) }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -866,10 +943,9 @@ private fun RoutineDetailExerciseRow(
         } else {
             ExerciseThumb(
                 imageUrl = imageUrl,
-                contentDescription = exercise.exercise.name,
+                contentDescription = null,
                 accent = accent,
                 size = 44.dp,
-                animateGif = false,
             )
         }
         Column(modifier = Modifier.weight(1f)) {
@@ -1008,13 +1084,6 @@ private data class RoutineDragState(
     val routineName: String,
     val position: Offset,
 )
-
-internal fun routineFolderDropTargetAt(
-    position: Offset,
-    targetBounds: Map<String?, Rect>,
-): RoutineFolderDropTarget? = targetBounds.entries
-    .firstOrNull { (_, bounds) -> bounds.contains(position) }
-    ?.let { (folderId, _) -> RoutineFolderDropTarget(folderId) }
 
 internal fun routineFolderMoveTargets(folders: List<RoutineFolder>): List<RoutineFolderMoveTarget> = listOf(RoutineFolderMoveTarget(folderId = null, label = "My routines")) +
     folders.map { folder -> RoutineFolderMoveTarget(folderId = folder.id, label = folder.name) }
@@ -1237,7 +1306,7 @@ fun TrainingRoutineEditor(
                 enabled = routineEditorCanSave(editor.name, editor.exercises),
                 containerColor = accent.color,
                 contentColor = accent.onColor,
-                height = 44.dp,
+                height = 48.dp,
             )
         }
 
@@ -1254,16 +1323,14 @@ fun TrainingRoutineEditor(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(start = 4.dp),
             )
-            Text(
-                text = "Details",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.ExtraBold,
-                color = accent.color,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { detailsOpen = true }
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-            )
+            TextButton(onClick = { detailsOpen = true }) {
+                Text(
+                    text = "Details",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accent.color,
+                )
+            }
         }
 
         if (editor.exercises.isEmpty()) {
@@ -1313,6 +1380,7 @@ fun TrainingRoutineEditor(
                         exerciseName = exerciseName,
                         shape = groupedShape(index, groupCount),
                         currentIndexOf = { id -> currentExercises.value.indexOfFirst { it.exerciseId == id } },
+                        lastIndex = currentExercises.value.lastIndex,
                         onExpand = { expandedExerciseId = exercise.exerciseId },
                         onDragStarted = { expandedExerciseId = null },
                         onMoveUp = onMoveExerciseUp,
@@ -1324,7 +1392,9 @@ fun TrainingRoutineEditor(
                 onClick = onOpenExercisePicker,
                 color = MusFitTheme.colors.surface,
                 shape = groupedShape(groupCount - 1, groupCount),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { role = Role.Button },
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
@@ -1370,11 +1440,13 @@ fun TrainingRoutineEditor(
 
 /** Collapsed exercise row (10e): grouped white row — drag handle, name + one subline, expand chevron. */
 @Composable
+@Suppress("LongParameterList")
 private fun RoutineEditorCollapsedRow(
     exercise: RoutineExerciseInput,
     exerciseName: String,
     shape: RoundedCornerShape,
     currentIndexOf: (String) -> Int,
+    lastIndex: Int,
     onExpand: () -> Unit,
     onDragStarted: () -> Unit,
     onMoveUp: (Int) -> Unit,
@@ -1384,7 +1456,13 @@ private fun RoutineEditorCollapsedRow(
         onClick = onExpand,
         color = MusFitTheme.colors.surface,
         shape = shape,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = exerciseName
+                stateDescription = "${routineExerciseSubline(exercise)}. Collapsed"
+                role = Role.Button
+            },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
@@ -1394,6 +1472,7 @@ private fun RoutineEditorCollapsedRow(
             RoutineEditorDragHandle(
                 exerciseId = exercise.exerciseId,
                 currentIndexOf = currentIndexOf,
+                lastIndex = lastIndex,
                 onDragStarted = onDragStarted,
                 onMoveUp = onMoveUp,
                 onMoveDown = onMoveDown,
@@ -1415,7 +1494,7 @@ private fun RoutineEditorCollapsedRow(
             }
             Icon(
                 imageVector = Icons.Outlined.KeyboardArrowDown,
-                contentDescription = "Expand $exerciseName",
+                contentDescription = null,
                 tint = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
@@ -1428,19 +1507,41 @@ private fun RoutineEditorCollapsedRow(
  * position through the existing move-up/move-down actions.
  */
 @Composable
+@Suppress("LongParameterList")
 private fun RoutineEditorDragHandle(
     exerciseId: String,
     currentIndexOf: (String) -> Int,
+    lastIndex: Int,
     onDragStarted: () -> Unit,
     onMoveUp: (Int) -> Unit,
     onMoveDown: (Int) -> Unit,
 ) {
-    Icon(
-        imageVector = Icons.Outlined.DragIndicator,
-        contentDescription = "Reorder exercise",
-        tint = pickerOutlineColor(),
+    Box(
         modifier = Modifier
-            .size(20.dp)
+            .size(48.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Reorder exercise"
+                role = Role.Button
+                val currentIndex = currentIndexOf(exerciseId)
+                customActions = buildList {
+                    if (currentIndex > 0) {
+                        add(
+                            CustomAccessibilityAction("Move exercise up") {
+                                onMoveUp(currentIndexOf(exerciseId))
+                                true
+                            },
+                        )
+                    }
+                    if (currentIndex in 0 until lastIndex) {
+                        add(
+                            CustomAccessibilityAction("Move exercise down") {
+                                onMoveDown(currentIndexOf(exerciseId))
+                                true
+                            },
+                        )
+                    }
+                }
+            }
             .pointerInput(exerciseId) {
                 val rowHeightPx = 64.dp.toPx()
                 var accumulated = 0f
@@ -1463,7 +1564,15 @@ private fun RoutineEditorDragHandle(
                     },
                 )
             },
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.DragIndicator,
+            contentDescription = null,
+            tint = pickerOutlineColor(),
+            modifier = Modifier.size(20.dp),
+        )
+    }
 }
 
 /** Expanded exercise (mock 5f): white 20dp card with Sets/Reps/Rest fields and the per-set plan link. */
@@ -1503,7 +1612,13 @@ private fun RoutineEditorExpandedCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onCollapse),
+                    .heightIn(min = 48.dp)
+                    .clickable(onClick = onCollapse)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = exerciseName
+                        stateDescription = if (exerciseMeta.isBlank()) "Expanded" else "$exerciseMeta. Expanded"
+                        role = Role.Button
+                    },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -1532,7 +1647,7 @@ private fun RoutineEditorExpandedCard(
                 }
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowUp,
-                    contentDescription = "Collapse $exerciseName",
+                    contentDescription = null,
                     tint = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
@@ -1579,13 +1694,14 @@ private fun RoutineEditorExpandedCard(
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
-                Text(
-                    text = if (perSetPlanOpen) "Hide per-set plan" else "Per-set plan",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
-                    fontWeight = FontWeight.Medium,
-                    color = accent.color,
-                    modifier = Modifier.clickable { perSetPlanOpen = !perSetPlanOpen },
-                )
+                TextButton(onClick = { perSetPlanOpen = !perSetPlanOpen }) {
+                    Text(
+                        text = if (perSetPlanOpen) "Hide per-set plan" else "Per-set plan",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
+                        fontWeight = FontWeight.Medium,
+                        color = accent.color,
+                    )
+                }
             }
 
             if (perSetPlanOpen) {
@@ -1647,8 +1763,12 @@ private fun RoutineEditorMiniField(
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.sp),
             fontWeight = FontWeight.Medium,
             color = if (isError) MaterialTheme.colorScheme.error else MusFitTheme.colors.onSurfaceVariant,
+            modifier = Modifier.clearAndSetSemantics { },
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.heightIn(min = 48.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -1659,13 +1779,28 @@ private fun RoutineEditorMiniField(
                     color = MusFitTheme.colors.onSurface,
                 ),
                 cursorBrush = SolidColor(MusFitTheme.colors.onSurface),
-                modifier = Modifier.weight(1f, fill = false).widthIn(min = 20.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .widthIn(min = 20.dp)
+                    .heightIn(min = 48.dp)
+                    .semantics {
+                        contentDescription = if (suffix == "s") "$label, seconds" else label
+                    },
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        innerTextField()
+                    }
+                },
             )
             if (suffix != null && value.isNotBlank()) {
                 Text(
                     text = " $suffix",
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.ExtraBold),
                     color = MusFitTheme.colors.onSurface,
+                    modifier = Modifier.clearAndSetSemantics { },
                 )
             }
         }
@@ -1763,9 +1898,15 @@ private fun RoutineEditorTitleField(
         textStyle = titleStyle.copy(color = MusFitTheme.colors.onSurface),
         cursorBrush = SolidColor(accent.color),
         singleLine = true,
-        modifier = modifier,
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .semantics { contentDescription = "Routine name" },
         decorationBox = { innerTextField ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Box(modifier = Modifier.weight(1f, fill = false)) {
                     if (value.isEmpty()) {
                         Text(
@@ -1774,13 +1915,14 @@ private fun RoutineEditorTitleField(
                             color = MusFitTheme.colors.onSurfaceFaint,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clearAndSetSemantics { },
                         )
                     }
                     innerTextField()
                 }
                 Icon(
                     imageVector = Icons.Outlined.Edit,
-                    contentDescription = "Rename routine",
+                    contentDescription = null,
                     tint = MusFitTheme.colors.onSurfaceFaint,
                     modifier = Modifier.size(16.dp),
                 )
@@ -1879,11 +2021,7 @@ fun RoutineExercisePickerPage(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Row(
-                    modifier = Modifier.clickable(onClick = onClearFilters),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
+                TextButton(onClick = onClearFilters) {
                     Text(
                         text = "Clear",
                         style = MaterialTheme.typography.bodySmall,
@@ -1892,7 +2030,7 @@ fun RoutineExercisePickerPage(
                     )
                     Icon(
                         imageVector = Icons.Outlined.Close,
-                        contentDescription = "Clear filters",
+                        contentDescription = null,
                         tint = accent.color,
                         modifier = Modifier.size(15.dp),
                     )
@@ -1906,68 +2044,106 @@ fun RoutineExercisePickerPage(
             }
         }
 
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            if (visibleExercises.isEmpty()) {
-                item {
-                    Text(
-                        "No matching exercises",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 14.dp),
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            val columnCount = exercisePickerColumnCount(maxWidth)
+            val exerciseRowCount = exercisePickerRowCount(visibleExercises.size, columnCount)
+            val groupRowCount = exerciseRowCount + 1
+
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = EXERCISE_PICKER_MINIMUM_CELL_WIDTH),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .semantics { testTagsAsResourceId = true },
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(EXERCISE_PICKER_HORIZONTAL_SPACING),
+            ) {
+                if (visibleExercises.isEmpty()) {
+                    item(
+                        key = "no-matching-exercises",
+                        contentType = "exercise-picker-empty",
+                        span = { GridItemSpan(maxLineSpan) },
+                    ) {
+                        Text(
+                            "No matching exercises",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 14.dp),
+                        )
+                    }
+                }
+                gridItemsIndexed(
+                    items = visibleExercises,
+                    key = { _, exercise -> exercise.id },
+                    contentType = { _, _ -> "exercise-picker-row" },
+                ) { index, exercise ->
+                    val row = index / columnCount
+                    val column = index % columnCount
+                    val columnsInRow = exercisePickerColumnsInRow(
+                        itemCount = visibleExercises.size,
+                        columnCount = columnCount,
+                        row = row,
+                    )
+                    RoutineExercisePickerRow(
+                        exercise = exercise,
+                        selected = exercise.id in selectedExerciseIds,
+                        accent = accent,
+                        shape = gridGroupShape(
+                            row = row,
+                            rowCount = groupRowCount,
+                            column = column,
+                            columnCount = columnsInRow,
+                        ),
+                        badgeShape = expressiveBadgeShapeFor(index),
+                        onToggle = { onToggleExercise(exercise.id) },
                     )
                 }
-            }
-            // The create-custom row closes the same grouped list, so shapes span
-            // visibleExercises.size + 1 slots.
-            val groupCount = visibleExercises.size + 1
-            itemsIndexed(
-                items = visibleExercises,
-                key = { _, exercise -> exercise.id },
-            ) { index, exercise ->
-                RoutineExercisePickerRow(
-                    exercise = exercise,
-                    selected = exercise.id in selectedExerciseIds,
-                    accent = accent,
-                    shape = groupedShape(index, groupCount),
-                    badgeShape = expressiveBadgeShapeFor(index),
-                    onToggle = { onToggleExercise(exercise.id) },
-                )
-            }
-            item {
-                Surface(
-                    onClick = onOpenCustomExercise,
-                    color = MusFitTheme.colors.surface,
-                    shape = groupedShape(groupCount - 1, groupCount),
-                    modifier = Modifier.fillMaxWidth(),
+                item(
+                    key = "create-custom-exercise",
+                    contentType = "exercise-picker-create",
+                    span = { GridItemSpan(maxLineSpan) },
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    Surface(
+                        onClick = onOpenCustomExercise,
+                        color = MusFitTheme.colors.surface,
+                        shape = gridGroupShape(
+                            row = exerciseRowCount,
+                            rowCount = groupRowCount,
+                            column = 0,
+                            columnCount = 1,
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics {
+                                role = Role.Button
+                                testTag = CREATE_CUSTOM_EXERCISE_TAG
+                            },
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(accent.container),
-                            contentAlignment = Alignment.Center,
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Add,
-                                contentDescription = null,
-                                tint = accent.onContainer,
-                                modifier = Modifier.size(16.dp),
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(accent.container),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Add,
+                                    contentDescription = null,
+                                    tint = accent.onContainer,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                            Text(
+                                text = "Create custom exercise",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = accent.color,
                             )
                         }
-                        Text(
-                            text = "Create custom exercise",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = accent.color,
-                        )
                     }
                 }
             }
@@ -2014,6 +2190,24 @@ fun RoutineExercisePickerPage(
     }
 }
 
+// A 280dp cell keeps the compact picker's existing single-column row legible
+// (52dp media, label/subline, and selection state) while using tablet width for
+// additional lazy columns without branching or rebuilding picker state.
+private val EXERCISE_PICKER_MINIMUM_CELL_WIDTH = 280.dp
+private val EXERCISE_PICKER_HORIZONTAL_SPACING = 8.dp
+private const val CREATE_CUSTOM_EXERCISE_TAG = "training-create-custom-exercise"
+
+private fun exercisePickerColumnCount(availableWidth: Dp): Int = (
+    (availableWidth + EXERCISE_PICKER_HORIZONTAL_SPACING) /
+        (EXERCISE_PICKER_MINIMUM_CELL_WIDTH + EXERCISE_PICKER_HORIZONTAL_SPACING)
+    )
+    .toInt()
+    .coerceAtLeast(1)
+
+private fun exercisePickerRowCount(itemCount: Int, columnCount: Int): Int = if (itemCount == 0) 0 else (itemCount + columnCount - 1) / columnCount
+
+private fun exercisePickerColumnsInRow(itemCount: Int, columnCount: Int, row: Int): Int = minOf(columnCount, itemCount - (row * columnCount)).coerceAtLeast(1)
+
 /** White search pill (10c): h52, quiet leading glyph, on the cream ground. */
 @Composable
 private fun PickerSearchField(
@@ -2036,23 +2230,33 @@ private fun PickerSearchField(
             tint = MusFitTheme.colors.onSurfaceFaint,
             modifier = Modifier.size(20.dp),
         )
-        Box(modifier = Modifier.weight(1f)) {
-            if (value.isEmpty()) {
-                Text(
-                    text = "Search exercises…",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MusFitTheme.colors.onSurfaceFaint,
-                )
-            }
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MusFitTheme.colors.onSurface),
-                cursorBrush = SolidColor(MusFitTheme.colors.onSurface),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MusFitTheme.colors.onSurface),
+            cursorBrush = SolidColor(MusFitTheme.colors.onSurface),
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = "Search exercises" },
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = "Search exercises…",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MusFitTheme.colors.onSurfaceFaint,
+                            modifier = Modifier.clearAndSetSemantics { },
+                        )
+                    }
+                    innerTextField()
+                }
+            },
+        )
     }
 }
 
@@ -2069,12 +2273,16 @@ private fun PickerFilterButton(
                 .size(52.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(accent.container)
-                .clickable(onClick = onClick),
+                .clickable(onClick = onClick)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = if (activeCount == 0) "Filters" else "Filters, $activeCount active"
+                    role = Role.Button
+                },
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Outlined.Tune,
-                contentDescription = "Filters",
+                contentDescription = null,
                 tint = accent.onContainer,
                 modifier = Modifier.size(22.dp),
             )
@@ -2086,7 +2294,8 @@ private fun PickerFilterButton(
                     .offset(x = 3.dp, y = (-3).dp)
                     .size(18.dp)
                     .clip(CircleShape)
-                    .background(accent.color),
+                    .background(accent.color)
+                    .clearAndSetSemantics { },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -2148,16 +2357,14 @@ private fun ExercisePickerFilterSheet(
                     style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
                     color = MusFitTheme.colors.onSurface,
                 )
-                Text(
-                    text = "Reset",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = accent.color,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onReset)
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                )
+                TextButton(onClick = onReset) {
+                    Text(
+                        text = "Reset",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accent.color,
+                    )
+                }
             }
 
             FilterSectionLabel("Equipment")
@@ -2252,7 +2459,12 @@ private fun EquipmentTileGrid(
                             onClick = { onToggle(option) },
                             color = if (isSelected) accent.container else MusFitTheme.colors.surface,
                             shape = gridGroupShape(rowIndex, rows.size, columnIndex, 3, outer = 20.dp),
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics(mergeDescendants = true) {
+                                    role = Role.Checkbox
+                                    toggleableState = if (isSelected) ToggleableState.On else ToggleableState.Off
+                                },
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -2325,7 +2537,12 @@ private fun MuscleRowGrid(
                         onClick = { onToggle(option) },
                         color = if (isSelected) accent.container else MusFitTheme.colors.surface,
                         shape = gridGroupShape(rowIndex, rows.size, columnIndex, 2, outer = 20.dp),
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics(mergeDescendants = true) {
+                                role = Role.Checkbox
+                                toggleableState = if (isSelected) ToggleableState.On else ToggleableState.Off
+                            },
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -2478,6 +2695,7 @@ private fun CustomExerciseSheet(
  * (M3E spring), and swaps the outline circle for "Added".
  */
 @Composable
+@Suppress("LongMethod", "LongParameterList")
 private fun RoutineExercisePickerRow(
     exercise: ExerciseSummary,
     selected: Boolean,
@@ -2491,11 +2709,32 @@ private fun RoutineExercisePickerRow(
         animationSpec = MusFitMotion.effects(),
         label = "pickerRowColor",
     )
+    val hasThumbnail = !exercise.imageUrl.isNullOrBlank()
+    val benchmarkProbeEnabled = hasThumbnail && BuildConfig.BENCHMARK_THUMBNAIL_BASE64.isNotEmpty()
+    val stableThumbnailTag = if (hasThumbnail) {
+        "training-exercise-thumbnail-item-${exercise.id}"
+    } else {
+        "training-exercise-thumbnail-placeholder-${exercise.id}"
+    }
+    val thumbnailResourceTag = if (benchmarkProbeEnabled) {
+        remember(exercise.id) {
+            mutableStateOf("training-exercise-thumbnail-item-initial-${exercise.id}")
+        }
+    } else {
+        null
+    }
     Surface(
         onClick = onToggle,
         color = rowColor,
         shape = shape,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                // This snapshot read invalidates semantics only; image loads do not recompose the row.
+                testTag = thumbnailResourceTag?.value ?: stableThumbnailTag
+                role = Role.Checkbox
+                toggleableState = if (selected) ToggleableState.On else ToggleableState.Off
+            },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -2507,6 +2746,7 @@ private fun RoutineExercisePickerRow(
                 selected = selected,
                 accent = accent,
                 badgeShape = badgeShape,
+                benchmarkProbe = pickerThumbBenchmarkProbe(thumbnailResourceTag, exercise.id),
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -2519,7 +2759,11 @@ private fun RoutineExercisePickerRow(
                 Text(
                     text = pickerRowSubline(exercise),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = if (selected) accent.onContainer.copy(alpha = 0.8f) else MusFitTheme.colors.onSurfaceFaint,
+                    color = if (selected) {
+                        accent.onContainer.copy(alpha = 0.8f)
+                    } else {
+                        MusFitTheme.colors.onSurfaceFaint
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 1.dp),
@@ -2543,6 +2787,35 @@ private fun RoutineExercisePickerRow(
     }
 }
 
+/** Benchmark-only callback bundle kept out of the normal picker parameter surface. */
+private data class PickerThumbBenchmarkProbe(
+    val useFixture: Boolean = false,
+    val onDataSourceChanged: ((coil.decode.DataSource) -> Unit)? = null,
+    val onLoading: (() -> Unit)? = null,
+    val onLoadError: ((Throwable) -> Unit)? = null,
+)
+
+private fun pickerThumbBenchmarkProbe(
+    resourceTag: MutableState<String>?,
+    exerciseId: String,
+): PickerThumbBenchmarkProbe {
+    if (resourceTag == null) return PickerThumbBenchmarkProbe()
+    return PickerThumbBenchmarkProbe(
+        useFixture = true,
+        onDataSourceChanged = { dataSource ->
+            val source = dataSource.name.lowercase()
+            resourceTag.value = "training-exercise-thumbnail-loaded-$source-$exerciseId"
+        },
+        onLoading = {
+            resourceTag.value = "training-exercise-thumbnail-item-loading-$exerciseId"
+        },
+        onLoadError = { error ->
+            val errorName = error.javaClass.simpleName.ifEmpty { "Unknown" }
+            resourceTag.value = "training-exercise-thumbnail-error-$errorName-$exerciseId"
+        },
+    )
+}
+
 /** The 52dp media thumb with the selection scrim + white check morph. */
 @Composable
 private fun PickerExerciseThumb(
@@ -2550,6 +2823,7 @@ private fun PickerExerciseThumb(
     selected: Boolean,
     accent: TabAccent,
     badgeShape: ExpressiveBadgeShape,
+    benchmarkProbe: PickerThumbBenchmarkProbe,
 ) {
     val shape = badgeShape.asShape()
     val scrimAlpha by animateFloatAsState(
@@ -2565,11 +2839,14 @@ private fun PickerExerciseThumb(
     Box(modifier = Modifier.size(52.dp)) {
         ExerciseThumb(
             imageUrl = exercise.imageUrl,
-            contentDescription = exercise.name,
+            contentDescription = null,
             accent = accent,
             size = 52.dp,
             shape = shape,
-            animateGif = false,
+            useBenchmarkFixture = benchmarkProbe.useFixture,
+            onDataSourceChanged = benchmarkProbe.onDataSourceChanged,
+            onLoading = benchmarkProbe.onLoading,
+            onLoadError = benchmarkProbe.onLoadError,
         )
         if (scrimAlpha > 0.01f) {
             Box(
@@ -2581,7 +2858,7 @@ private fun PickerExerciseThumb(
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Check,
-                    contentDescription = "Selected",
+                    contentDescription = null,
                     tint = accent.onColor,
                     modifier = Modifier
                         .size(24.dp)
@@ -2619,7 +2896,12 @@ private fun RoutineEditorSetRow(
             onClick = { onSetTypeChange(nextRoutineSetType(setPlan.setType)) },
             color = routineSetTypeColor(setPlan.setType, accent),
             shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.size(42.dp),
+            modifier = Modifier
+                .size(48.dp)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Change set type from ${setPlan.setType}"
+                    role = Role.Button
+                },
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(

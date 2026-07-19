@@ -262,7 +262,6 @@ class MusFitComposeSemanticsTest {
                     imageUrl = null,
                     contentDescription = "Static exercise demo",
                     accent = tabAccentFor(AppDestination.Training),
-                    animateGif = false,
                 )
                 ExerciseGif(
                     gifUrl = "file:///does-not-exist.gif",
