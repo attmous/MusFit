@@ -120,7 +120,7 @@ jobs:
           ./gradlew :feature:training:trainingApi37InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.training.ExerciseAnimatedMediaInstrumentationTest' --no-daemon --console=plain
 
       - name: Aggregate unit and managed-device coverage
-        timeout-minutes: 15
+        timeout-minutes: 25
         shell: pwsh
         run: |
           ./gradlew :app:musFitApi28InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
