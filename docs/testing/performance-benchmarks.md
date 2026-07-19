@@ -140,24 +140,27 @@ Both runs used API 37 device key `api37-sdk_gphone16k_x86_64`, fingerprint
 `google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.019/15611780:userdebug/dev-keys`,
 five iterations, the deterministic 100-image fixture, and confirmed Google
 Photos disabled before every launch. The baseline app source was commit
-`8913598edcd7a67a6e17520437b1c3d396c548fb`; the candidate was the S15 dirty
-working tree based on that commit.
+`8913598edcd7a67a6e17520437b1c3d396c548fb`; the final candidate product-code
+head was `a5260d993699e4211b2e94992de038f0bd80ad07`. The exact-head rerun was made
+after the restoration fix; subsequent S15 changes add only acceptance tests and
+this evidence documentation.
 
-| Acceptance metric | Controlled master | Final candidate | Change |
+| Acceptance metric | Controlled master | Exact-head candidate | Change |
 | --- | ---: | ---: | ---: |
-| Frame CPU P90 | 15.0513 ms | 14.45644 ms | -3.95% |
-| Frame overrun P90 | 2.216126 ms | 1.442662 ms | -34.90% |
-| Maximum heap | 15,463 KB | 15,048 KB | -2.68% |
-| Maximum anonymous RSS | 104,036 KB | 99,496 KB | -4.36% |
-| Maximum end-of-browse total PSS | 74,430 KB | 70,155 KB | -5.74% |
-| Memory-cache hits per setup/measured traversal | 0/100 | 100/100 | behavioral gate passed |
+| Frame CPU P90 | 15.0513 ms | 12.92425 ms | -14.13% |
+| Frame overrun P90 | 2.216126 ms | -1.224151 ms | -155.24% |
+| Maximum heap | 15,463 KB | 14,344 KB | -7.24% |
+| Maximum anonymous RSS | 104,036 KB | 102,784 KB | -1.20% |
+| Maximum end-of-browse total PSS | 74,430 KB | 67,418 KB | -9.42% |
+| Memory-cache hits per setup/measured traversal | 0/100 | 100/100 in all five iterations | behavioral gate passed |
 
-Master PSS samples were `69,470, 68,524, 72,014, 73,578, 74,430` KB; candidate
-samples were `66,789, 62,835, 63,188, 66,263, 70,155` KB. Perfetto
-actual-frame P90 samples were `14.7685, 12.9497, 13.2468, 12.8168, 12.6129` ms
-for master and `14.1538, 12.7141, 12.9167, 13.0315, 12.3785` ms for the
-candidate. App-deadline-missed frames fell from 144 to 125, and Photos consumed
-0 ms scheduled CPU time in every controlled measured trace.
+Master PSS samples were `69,470, 68,524, 72,014, 73,578, 74,430` KB; exact-head
+candidate samples were `66,940, 66,549, 64,170, 64,928, 67,418` KB. Exact-head
+candidate maximum-heap samples were `14,344, 14,231, 14,167, 14,023, 14,167`
+KB, and anonymous-RSS samples were `102,784, 98,532, 98,616, 100,660,
+102,356` KB. The retained five traces and benchmark JSON are the auditable
+source for the frame distributions and memory values; retained logcat confirms
+100/100 memory-cache hits in every setup and measured traversal.
 
 The baseline compatibility harness backports the same fixture, traversal, PSS
 metric, and log probe onto `origin/master`, but it cannot hard-require memory
@@ -166,6 +169,42 @@ keeps the same traversal and adds the acceptance assertion. Therefore the two
 harnesses are deliberately equivalent rather than byte-identical. Retained
 logcat is the auditable source for cache hits because cache source is not a
 Macrobenchmark JSON metric.
+
+## Training chart and adaptive-scene comparison (2026-07-19)
+
+The seeded `MusFit_API36` emulator supplied direct `gfxinfo` checks for the two
+S15 interactions not isolated by the production-shaped Macrobenchmark. Both
+comparisons preserved Room data while switching between baseline commit
+`22487be46fb1d6e7602c17f49a01166f11eb6f81` and the candidate. The Progress
+chart journey performed 25 repeated chart selections in compact layout. Its
+frame P90 remained 18 ms (0.00% regression), while P99 improved from 65 ms to
+34 ms.
+
+The expanded journey used a 1080 x 2400 display at a 160 dpi override and, per
+sample, three warm-ups followed by 25 Profile -> Training -> bidirectional
+routine-scroll -> alternating routine-selection cycles. Three matched samples
+were taken for each exact revision; the candidate source was
+`a5260d993699e4211b2e94992de038f0bd80ad07`.
+
+| Expanded metric | Baseline samples | Candidate samples | Median change |
+| --- | --- | --- | ---: |
+| Frame P90 | 18, 30, 32 ms | 19, 21, 27 ms | 30 -> 21 ms (-30.00%) |
+| Janky frames | 8.35%, 8.62%, 9.55% | 7.23%, 6.91%, 6.88% | 8.62% -> 6.91% (-19.84%) |
+
+Matched medians are used because the ADB-driven path showed discrete histogram
+and synthetic-input scheduling variance. These direct checks satisfy the chart
+and expanded-interaction <=5% contracts; the managed-device Macrobenchmark and
+its regression verifier remain the authoritative production-shaped gate.
+
+The same candidate was also captured in a 35.85-second Perfetto lifecycle
+trace. While Training was foregrounded, its `arch_disk_io_*` threads ran 329
+slices (240.184 ms), confirming that the trace could see repository work. The
+activity stopped 0.705 seconds after HOME; after its five-second
+`WhileSubscribed` timeout and a conservative 95 ms drain allowance, there were
+zero main, RenderThread, `arch_disk_io_*`, pool, Dispatcher, Room, or SQLite
+scheduling slices for the remaining 15.96 seconds. Only 0.138 ms of unrelated
+ART finalizer/heap housekeeping remained. This is the device acceptance check
+for Training's lifecycle-aware collectors.
 
 GitHub-hosted emulator CPU timing varied materially between two exact-head runs
 even though all device tests passed. CI therefore invokes `-ReportOnly`: a >10%
