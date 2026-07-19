@@ -1,5 +1,9 @@
 package com.musfit.ui.profile
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.repeatOnLifecycle
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
 import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
@@ -41,9 +45,15 @@ import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
 import com.musfit.testing.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -64,25 +74,87 @@ class ProfileViewModelTest {
     private val dayMillis = 86_400_000L
     private fun daysAgo(n: Long) = (fixedDate.toEpochDay() - n) * dayMillis + 12L * 3_600_000L
 
-    private fun profileViewModel(
+    private fun TestScope.profileViewModel(
         profileRepository: ProfileRepository = FakeProfileRepository(),
         healthRepository: HealthRepository = FakeHealthRepo(),
         foodRepository: FoodRepository = FakeFoodGoalRepo(),
         trainingRepository: TrainingRepository = FakeTrainingRepo(),
         goalsRepository: GoalsRepository = FakeGoalsRepo(),
         dateProvider: () -> LocalDate = { fixedDate },
-    ) = ProfileViewModel(
-        profileRepository = profileRepository,
-        healthRepository = healthRepository,
-        foodRepository = foodRepository,
-        trainingRepository = trainingRepository,
-        goalsRepository = goalsRepository,
-        dateProvider = dateProvider,
-    )
+    ): ProfileViewModel {
+        val viewModel = ProfileViewModel(
+            profileRepository = profileRepository,
+            healthRepository = healthRepository,
+            foodRepository = foodRepository,
+            trainingRepository = trainingRepository,
+            goalsRepository = goalsRepository,
+            dateProvider = dateProvider,
+        )
+        observeProfile(viewModel)
+        return viewModel
+    }
+
+    @Test
+    fun lifecycleOwner_stoppedAndStarted_resumesCurrentValuesWithoutDuplicateCollectors() = runTest {
+        val trainingRepository = FakeTrainingRepo().apply {
+            routines.value = listOf(routineSummary("Initial program"))
+        }
+        val viewModel = ProfileViewModel(
+            profileRepository = FakeProfileRepository(),
+            healthRepository = FakeHealthRepo(),
+            foodRepository = FakeFoodGoalRepo(),
+            trainingRepository = trainingRepository,
+            goalsRepository = FakeGoalsRepo(),
+            dateProvider = { fixedDate },
+        )
+        testScheduler.runCurrent()
+        val owner = object : LifecycleOwner {
+            override val lifecycle = LifecycleRegistry.createUnsafe(this)
+        }
+        val lifecycle = owner.lifecycle
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        val lifecycleCollection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.state.collect { }
+            }
+        }
+        testScheduler.runCurrent()
+
+        assertEquals(0, trainingRepository.activeRoutineSummaryCollectors)
+        assertEquals(0, trainingRepository.routineSummarySubscriptionStarts)
+
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        testScheduler.runCurrent()
+        assertTrue(viewModel.state.value.plansSummary.contains("Initial program"))
+        assertEquals(1, trainingRepository.activeRoutineSummaryCollectors)
+        assertEquals(1, trainingRepository.routineSummarySubscriptionStarts)
+
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        testScheduler.advanceTimeBy(4_999)
+        testScheduler.runCurrent()
+        assertEquals(1, trainingRepository.activeRoutineSummaryCollectors)
+        testScheduler.advanceTimeBy(2)
+        testScheduler.runCurrent()
+        assertEquals(0, trainingRepository.activeRoutineSummaryCollectors)
+
+        trainingRepository.routines.value = listOf(routineSummary("Updated while stopped"))
+        testScheduler.runCurrent()
+        assertTrue(viewModel.state.value.plansSummary.contains("Initial program"))
+
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        testScheduler.runCurrent()
+        assertTrue(viewModel.state.value.plansSummary.contains("Updated while stopped"))
+        assertEquals(1, trainingRepository.activeRoutineSummaryCollectors)
+        assertEquals(2, trainingRepository.routineSummarySubscriptionStarts)
+
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        lifecycleCollection.join()
+        assertEquals(1, trainingRepository.maxRoutineSummaryCollectors)
+    }
 
     @Test
     fun incompleteProfile_hidesRecommendation() = runTest {
-        val viewModel = ProfileViewModel(FakeProfileRepository(), FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
+        val viewModel = profileViewModel()
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isLoaded)
@@ -97,7 +169,7 @@ class ProfileViewModelTest {
             latestWeight = WeightEntry("w1", 1_000L, 80.0, "manual"),
             targets = RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
         )
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
+        val viewModel = profileViewModel(profileRepository = repo)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(true, viewModel.state.value.isProfileComplete)
@@ -344,7 +416,7 @@ class ProfileViewModelTest {
     @Test
     fun logWeight_callsRepository() = runTest {
         val repo = FakeProfileRepository()
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
+        val viewModel = profileViewModel(profileRepository = repo)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.logWeight(83.6)
@@ -356,7 +428,7 @@ class ProfileViewModelTest {
     @Test
     fun editEntry_callsRepositoryWithIdAndValue() = runTest {
         val repo = FakeProfileRepository()
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
+        val viewModel = profileViewModel(profileRepository = repo)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.editEntry("abc", 81.3)
@@ -369,7 +441,7 @@ class ProfileViewModelTest {
     @Test
     fun deleteEntry_callsRepositoryWithId() = runTest {
         val repo = FakeProfileRepository()
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
+        val viewModel = profileViewModel(profileRepository = repo)
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.deleteEntry("xyz")
@@ -381,7 +453,7 @@ class ProfileViewModelTest {
     @Test
     fun state_exposesWeightEntriesForSheet() = runTest {
         val repo = FakeProfileRepository(latestWeight = WeightEntry("w9", 1_000L, 84.0, "manual"))
-        val viewModel = ProfileViewModel(repo, FakeHealthRepo(), FakeFoodGoalRepo(), FakeTrainingRepo(), FakeGoalsRepo())
+        val viewModel = profileViewModel(profileRepository = repo)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("w9", viewModel.state.value.weightEntries.first().id)
@@ -489,6 +561,22 @@ class ProfileViewModelTest {
         assertEquals(true, viewModel.state.value.isHealthConnectNudgeVisible)
     }
 
+    private fun TestScope.observeProfile(viewModel: ProfileViewModel): Job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+        viewModel.state.collect { }
+    }.also {
+        testScheduler.runCurrent()
+    }
+
+    private fun routineSummary(name: String) = RoutineSummary(
+        id = "routine-1",
+        name = name,
+        notes = null,
+        exerciseCount = 1,
+        targetSetCount = 3,
+        isStarter = false,
+        programName = name,
+    )
+
     private class FakeProfileRepository(
         private val profile: UserProfile = DEFAULT_USER_PROFILE,
         private val latestWeight: WeightEntry? = null,
@@ -554,8 +642,20 @@ class ProfileViewModelTest {
     private class FakeTrainingRepo : TrainingRepository {
         val routines = MutableStateFlow<List<RoutineSummary>>(emptyList())
         val history = MutableStateFlow<List<WorkoutHistorySummary>>(emptyList())
+        var activeRoutineSummaryCollectors = 0
+        var maxRoutineSummaryCollectors = 0
+        var routineSummarySubscriptionStarts = 0
 
         override fun observeRoutineSummaries(): Flow<List<RoutineSummary>> = routines
+            .onStart {
+                activeRoutineSummaryCollectors += 1
+                routineSummarySubscriptionStarts += 1
+                maxRoutineSummaryCollectors = maxOf(
+                    maxRoutineSummaryCollectors,
+                    activeRoutineSummaryCollectors,
+                )
+            }
+            .onCompletion { activeRoutineSummaryCollectors -= 1 }
 
         override fun observeWorkoutHistory(): Flow<List<WorkoutHistorySummary>> = history
 

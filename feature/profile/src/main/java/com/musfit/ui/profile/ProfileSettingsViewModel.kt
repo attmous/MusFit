@@ -36,8 +36,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -185,7 +183,6 @@ private data class HealthConnectState(
     val canRequestPermissions: Boolean = false,
     val isHealthConnectSyncing: Boolean = false,
     val message: String = DEFAULT_STATUS_MESSAGE,
-    val preferredStepsPackage: String? = null,
     val stepSources: List<StepSource> = emptyList(),
     val githubDeviceCode: GitHubDeviceAuthorization? = null,
     val githubSignInInProgress: Boolean = false,
@@ -193,9 +190,13 @@ private data class HealthConnectState(
     val aiCoachMessage: String? = null,
     val isAiCoachTesting: Boolean = false,
     val aiCoachTestState: AiCoachTestState = AiCoachTestState.Idle,
-    val includeBurnedCalories: Boolean = false,
     val targetApplyState: TargetApplyState = TargetApplyState.Idle,
     val targetApplyTargets: RecommendedTargets? = null,
+)
+
+private data class ObservedProfileSettingsUiState(
+    val preferredStepsPackage: String?,
+    val includeBurnedCalories: Boolean,
 )
 
 private data class AccountEditorState(
@@ -335,16 +336,6 @@ class ProfileSettingsViewModel @Inject constructor(
                     }
                 }
         }
-        healthRepository.observePreferredStepsPackage()
-            .onEach { preferredStepsPackage ->
-                mutableState.update { it.copy(preferredStepsPackage = preferredStepsPackage) }
-            }
-            .launchIn(viewModelScope)
-        foodRepository.observeFoodGoal()
-            .onEach { goal ->
-                mutableState.update { it.copy(includeBurnedCalories = goal.includeTrainingCalories) }
-            }
-            .launchIn(viewModelScope)
     }
 
     private val profileState = combine(
@@ -363,12 +354,23 @@ class ProfileSettingsViewModel @Inject constructor(
         accountErasureFlow,
     ) { account, editor, erasure -> Triple(account, editor, erasure) }
 
+    private val observedUiState = combine(
+        healthRepository.observePreferredStepsPackage(),
+        foodRepository.observeFoodGoal(),
+    ) { preferredStepsPackage, foodGoal ->
+        ObservedProfileSettingsUiState(
+            preferredStepsPackage = preferredStepsPackage,
+            includeBurnedCalories = foodGoal.includeTrainingCalories,
+        )
+    }
+
     val state: StateFlow<ProfileSettingsUiState> = combine(
         mutableState,
         accountState,
         profileState,
         aiCoachState,
-    ) { base, accountTriple, profilePair, aiCoachPair ->
+        observedUiState,
+    ) { base, accountTriple, profilePair, aiCoachPair, observed ->
         val (account, editor, erasure) = accountTriple
         val (profile, latestWeight) = profilePair
         val (aiCoach, aiCoachEditor) = aiCoachPair
@@ -380,8 +382,8 @@ class ProfileSettingsViewModel @Inject constructor(
             canRequestPermissions = base.canRequestPermissions,
             isHealthConnectSyncing = base.isHealthConnectSyncing,
             message = base.message,
-            preferredStepsPackage = base.preferredStepsPackage,
-            stepSourceLabel = stepSourceLabel(base.preferredStepsPackage, base.stepSources),
+            preferredStepsPackage = observed.preferredStepsPackage,
+            stepSourceLabel = stepSourceLabel(observed.preferredStepsPackage, base.stepSources),
             stepSources = base.stepSources,
             account = account.toUiState(),
             accountEditorOpen = editor.open,
@@ -407,11 +409,15 @@ class ProfileSettingsViewModel @Inject constructor(
             aiCoachMessage = base.aiCoachMessage,
             isAiCoachTesting = base.isAiCoachTesting,
             aiCoachTestState = base.aiCoachTestState,
-            includeBurnedCalories = base.includeBurnedCalories,
+            includeBurnedCalories = observed.includeBurnedCalories,
             targetApplyState = base.targetApplyState,
             targetApplyTargets = base.targetApplyTargets,
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileSettingsUiState())
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+        initialValue = ProfileSettingsUiState(),
+    )
 
     fun refreshStatus() {
         viewModelScope.launch {
@@ -522,7 +528,6 @@ class ProfileSettingsViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isHealthConnectSyncing = false,
-                        preferredStepsPackage = packageName,
                         message = "Updated steps source. MusFit now shows " +
                             "${stepSourceLabel(packageName, it.stepSources)}.",
                     )
