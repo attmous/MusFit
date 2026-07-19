@@ -111,7 +111,7 @@ fun AddFoodScreen(
         InnerScreenHeader(
             title = "Add food",
             onBack = onBack,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp),
         ) {
             MealTargetChip(
                 label = "to $mealLabel",
