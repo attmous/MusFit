@@ -613,15 +613,29 @@ Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^name:\s*Android devi
 Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^\s*schedule:'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^\s*workflow_dispatch:'
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" '(?m)^\s*pull_request:'
-Assert-FileContains ".github/workflows/device-ui.yml" 'migrationApi28And37GroupInternalDebugAndroidTest'
+Assert-FileExists "core/database/src/androidTest/java/com/musfit/data/local/MusFitMigrationInstrumentationTest.kt"
+Assert-FileContains "core/database/build.gradle.kts" '(?s)create\("databaseApi28"\)\s*\{\s*device\s*=\s*"Pixel 2"\s*apiLevel\s*=\s*28\s*systemImageSource\s*=\s*"google"\s*require64Bit\s*=\s*true\s*testedAbi\s*=\s*"x86_64"\s*\}'
+Assert-FileContains "core/database/build.gradle.kts" '(?s)create\("databaseApi37"\)\s*\{\s*device\s*=\s*"Pixel 2"\s*apiLevel\s*=\s*37\s*systemImageSource\s*=\s*"google"\s*pageAlignment\s*=\s*ManagedVirtualDevice\.PageAlignment\.FORCE_16KB_PAGES\s*testedAbi\s*=\s*"x86_64"\s*\}'
+Assert-FileDoesNotContain "app/build.gradle.kts" 'create\("migrationApi28And37"\)'
 $deviceUiWorkflow = Get-FileText ".github/workflows/device-ui.yml"
+Assert-Equal "Database API 28 task references" 1 ([regex]::Matches($deviceUiWorkflow, ':core:database:databaseApi28DebugAndroidTest').Count)
+Assert-Equal "Database API 37 task references" 1 ([regex]::Matches($deviceUiWorkflow, ':core:database:databaseApi37DebugAndroidTest').Count)
 Assert-Equal "Critical API 28 task references" 3 ([regex]::Matches($deviceUiWorkflow, ':app:musFitApi28InternalDebugAndroidTest').Count)
 Assert-Equal "Critical API 37 task references" 3 ([regex]::Matches($deviceUiWorkflow, ':app:musFitApi37InternalDebugAndroidTest').Count)
 Assert-Equal "Coverage clear-package exceptions" 2 ([regex]::Matches($deviceUiWorkflow, 'android\.testInstrumentationRunnerArguments\.clearPackageData=false').Count)
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" '-x :app:musFitApi28InternalDebugAndroidTest -x :app:musFitApi37InternalDebugAndroidTest'
-Assert-FileContains ".github/workflows/device-ui.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
-Assert-FileContains ".github/workflows/device-ui.yml" '(?s)migrationApi28And37GroupInternalDebugAndroidTest.{0,500}android\.testInstrumentationRunnerArguments\.class=com\.musfit\.data\.local\.MusFitMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitRecentMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitLargeMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitFrameworkDaoInstrumentationTest'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^\s*\./gradlew :core:database:databaseApi28DebugAndroidTest[^\r\n]*\r?\n\s*\./gradlew :core:database:databaseApi37DebugAndroidTest[^\r\n]*'
+Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'migrationApi28And37GroupInternalDebugAndroidTest'
+$migrationCommandMatches = [regex]::Matches($deviceUiWorkflow, '(?m)^\s*\./gradlew :core:database:databaseApi(?:28|37)DebugAndroidTest[^\r\n]*\r?$')
+Assert-Equal "Migration command count" 2 $migrationCommandMatches.Count
+$migrationCommands = $migrationCommandMatches.Value -join "`n"
+Assert-Equal "Migration managed-device caps" 2 ([regex]::Matches($migrationCommands, 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1').Count)
+$migrationClassFilter = 'android\.testInstrumentationRunnerArguments\.class=com\.musfit\.data\.local\.MusFitMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitRecentMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitLargeMigrationInstrumentationTest,com\.musfit\.data\.local\.MusFitFrameworkDaoInstrumentationTest'
+Assert-Equal "Migration class-filter references" 2 ([regex]::Matches($migrationCommands, $migrationClassFilter).Count)
+Assert-FileContains ".github/workflows/device-ui.yml" 'core/database/build/reports/androidTests/managedDevice/'
+Assert-FileContains ".github/workflows/device-ui.yml" 'core/database/build/outputs/androidTest-results/managedDevice/'
+Assert-FileContains ".github/workflows/device-ui.yml" 'core/database/build/outputs/managed_device_android_test_additional_output/'
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'android\.testInstrumentationRunnerArguments\.package=com\.musfit\.data\.local'
 Assert-FileContains "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" '@FixMethodOrder\(MethodSorters\.NAME_ASCENDING\)'
 Assert-FileContains "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'fun cameraDenialAndDeterministicReturn_coverPermissionAndOfflineSafeRoundTrip\(\)'
@@ -631,7 +645,8 @@ Assert-FileContains ".github/workflows/device-ui.yml" '(?s)critical-journeys:.{0
 Assert-FileContains ".github/workflows/device-ui.yml" 'feature:training:trainingApi28InternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'feature:training:trainingApi37InternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'ExerciseAnimatedMediaInstrumentationTest'
-Assert-FileContains ".github/workflows/device-ui.yml" '(?s)Aggregate unit and managed-device coverage.{0,100}timeout-minutes:\s*15'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?s)Aggregate unit and managed-device coverage.{0,100}timeout-minutes:\s*25'
+Assert-FileContains "docs/testing/coverage.md" 'isolated collection and\s+aggregation step has a hard CI budget of \*\*25 minutes\*\*'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-ksp-migration\.ps1'
@@ -682,6 +697,10 @@ Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreensh
 Assert-FileContains "app/src/testInternalDebug/java/com/musfit/ui/MusFitScreenshotRegressionTest.kt" '48\.dp\.toPx'
 Assert-FileContains ".github/workflows/device-ui.yml" 'verifyRoborazziInternalDebug'
 Assert-FileContains ".github/workflows/device-ui.yml" 'musfit-screenshot-regression'
+Assert-FileContains ".github/workflows/device-ui.yml" 'feature/\*/build/reports/roborazzi/internalDebug/'
+Assert-FileContains ".github/workflows/device-ui.yml" 'feature/\*/build/outputs/roborazzi-comparison/'
+Assert-FileContains ".github/workflows/device-ui.yml" 'feature/\*/build/test-results/roborazzi/'
+Assert-FileContains ".github/workflows/device-ui.yml" 'feature/\*/build/test-results/testInternalDebugUnitTest/'
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'recordRoborazzi'
 
 # W5-INSETS-01: every activity enters the shared edge-to-edge contract before composition.

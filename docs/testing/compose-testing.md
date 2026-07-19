@@ -64,8 +64,9 @@ ten orchestrated cases cover:
   recreation without creating a routine;
 - Profile preference persistence plus restored visit-order back navigation;
 - unsaved Profile editor draft restoration across Activity recreation;
-- real gesture-navigation predictive-back preview, cancel, and commit while
-  preserving top-level visit order;
+- real gesture-navigation predictive-back preview, cancel, and commit on API
+  37, plus committed legacy system back on API 28, while preserving top-level
+  visit order;
 - Today coach-card shortcuts into Food and Profile with system-back return to
   Today;
 - a deterministic scanner-result return on both devices, with fixed

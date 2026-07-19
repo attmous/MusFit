@@ -170,12 +170,13 @@ class MusFitCriticalJourneyInstrumentationTest {
         compose.onNodeWithContentDescription("Training").performClick()
         compose.waitForText("New routine")
         compose.onNodeWithText("New routine").performClick()
-        compose.waitForText("Name your routine")
-        compose.onNodeWithText("Name your routine").performTextReplacement("Process-safe draft")
+        compose.waitForContentDescription("Routine name")
+        compose.onNodeWithContentDescription("Routine name").performTextReplacement("Process-safe draft")
 
         compose.activityRule.scenario.recreate()
 
-        compose.waitForText("Process-safe draft")
+        compose.waitForContentDescription("Routine name")
+        compose.onNodeWithContentDescription("Routine name").assertTextEquals("Process-safe draft")
         compose.onNodeWithText("Add at least one exercise to start this routine").assertIsDisplayed()
     }
 
@@ -250,15 +251,21 @@ class MusFitCriticalJourneyInstrumentationTest {
         compose.onNodeWithContentDescription("Training").performClick()
         compose.onNodeWithContentDescription("Profile").performClick()
 
-        val cancelledGesture = beginPredictiveBackGesture()
-        instrumentation.waitForIdleSync()
-        compose.onNodeWithContentDescription("Profile").assertIsSelected()
-        finishPredictiveBackGesture(cancelledGesture, commit = false)
-        instrumentation.waitForIdleSync()
-        compose.onNodeWithContentDescription("Profile").assertIsSelected()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val cancelledGesture = beginPredictiveBackGesture()
+            instrumentation.waitForIdleSync()
+            compose.onNodeWithContentDescription("Profile").assertIsSelected()
+            finishPredictiveBackGesture(cancelledGesture, commit = false)
+            instrumentation.waitForIdleSync()
+            compose.onNodeWithContentDescription("Profile").assertIsSelected()
 
-        val committedGesture = beginPredictiveBackGesture()
-        finishPredictiveBackGesture(committedGesture, commit = true)
+            val committedGesture = beginPredictiveBackGesture()
+            finishPredictiveBackGesture(committedGesture, commit = true)
+        } else {
+            // Back progress/cancellation callbacks do not exist before Android 14. The legacy
+            // device still verifies that a committed system back preserves visit order.
+            UiDevice.getInstance(instrumentation).pressBack()
+        }
         compose.waitUntil(timeoutMillis = 10_000) {
             runCatching {
                 compose.onNodeWithContentDescription("Training").assertIsSelected()
@@ -455,6 +462,14 @@ class MusFitCriticalJourneyInstrumentationTest {
     ) {
         waitUntil(timeoutMillis = 15_000) {
             onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>.waitForContentDescription(
+        description: String,
+    ) {
+        waitUntil(timeoutMillis = 15_000) {
+            onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty()
         }
     }
 

@@ -307,10 +307,6 @@ android {
                 }
             }
             groups {
-                create("migrationApi28And37") {
-                    targetDevices.add(localDevices["musFitApi28"])
-                    targetDevices.add(localDevices["musFitApi37"])
-                }
                 create("criticalJourneysApi28And37") {
                     targetDevices.add(localDevices["musFitApi28"])
                     targetDevices.add(localDevices["musFitApi37"])

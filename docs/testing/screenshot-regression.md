@@ -27,10 +27,11 @@ unrecognized regression fails immediately.
 .\gradlew.bat verifyRoborazziInternalDebug --no-daemon --console=plain
 ```
 
-Failures retain the Roborazzi report, actual/compare images, and JUnit XML as
-the `musfit-screenshot-regression` CI artifact. The screenshot job is separate
-from managed-device and benchmark work and has a 12-minute hard timeout; the
-initial nine-image local verification is recorded in the package PR.
+Failures retain the Roborazzi report, actual/compare images, and JUnit XML from
+the app plus every Roborazzi-owning feature module as the
+`musfit-screenshot-regression` CI artifact. The screenshot job is separate from
+managed-device and benchmark work and has a 12-minute hard timeout; verification
+of the reviewed matrix is recorded in the package PR.
 
 ## Review and update references
 

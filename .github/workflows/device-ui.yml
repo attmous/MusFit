@@ -56,7 +56,9 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run API 28 and API 37 migration matrix
-        run: ./gradlew migrationApi28And37GroupInternalDebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.data.local.MusFitMigrationInstrumentationTest,com.musfit.data.local.MusFitRecentMigrationInstrumentationTest,com.musfit.data.local.MusFitLargeMigrationInstrumentationTest,com.musfit.data.local.MusFitFrameworkDaoInstrumentationTest' --no-daemon --console=plain
+        run: |
+          ./gradlew :core:database:databaseApi28DebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.data.local.MusFitMigrationInstrumentationTest,com.musfit.data.local.MusFitRecentMigrationInstrumentationTest,com.musfit.data.local.MusFitLargeMigrationInstrumentationTest,com.musfit.data.local.MusFitFrameworkDaoInstrumentationTest' --no-daemon --console=plain
+          ./gradlew :core:database:databaseApi37DebugAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.data.local.MusFitMigrationInstrumentationTest,com.musfit.data.local.MusFitRecentMigrationInstrumentationTest,com.musfit.data.local.MusFitLargeMigrationInstrumentationTest,com.musfit.data.local.MusFitFrameworkDaoInstrumentationTest' --no-daemon --console=plain
 
       - name: Retain migration reports and device diagnostics
         if: always()
@@ -64,9 +66,9 @@ jobs:
         with:
           name: musfit-migration-matrix-${{ github.run_attempt }}
           path: |
-            app/build/reports/androidTests/managedDevice/
-            app/build/outputs/androidTest-results/managedDevice/
-            app/build/outputs/managed_device_android_test_additional_output/
+            core/database/build/reports/androidTests/managedDevice/
+            core/database/build/outputs/androidTest-results/managedDevice/
+            core/database/build/outputs/managed_device_android_test_additional_output/
           if-no-files-found: warn
           retention-days: 30
 
@@ -118,7 +120,7 @@ jobs:
           ./gradlew :feature:training:trainingApi37InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.training.ExerciseAnimatedMediaInstrumentationTest' --no-daemon --console=plain
 
       - name: Aggregate unit and managed-device coverage
-        timeout-minutes: 15
+        timeout-minutes: 25
         shell: pwsh
         run: |
           ./gradlew :app:musFitApi28InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
@@ -205,5 +207,9 @@ jobs:
             app/build/outputs/roborazzi-comparison/
             app/build/test-results/roborazzi/
             app/build/test-results/testInternalDebugUnitTest/
+            feature/*/build/reports/roborazzi/internalDebug/
+            feature/*/build/outputs/roborazzi-comparison/
+            feature/*/build/test-results/roborazzi/
+            feature/*/build/test-results/testInternalDebugUnitTest/
           if-no-files-found: warn
           retention-days: 14

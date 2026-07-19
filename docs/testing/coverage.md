@@ -97,10 +97,13 @@ but their production classes are incorrectly reported as entirely uncovered.
 The measured clean local unit report completed in 223.6 seconds for 814 tests;
 the warm report-only rerun completed in 16.6 seconds. The unit coverage step
 has a hard CI budget of **10 minutes**. Managed-device coverage reuses the
-already-required critical-journey execution and has an additional 15-minute
-reporting budget. The encompassing critical-journey job has a 55-minute budget
-so the 32-minute two-device journey allowance, coverage, and artifact retention
-can all complete.
+already-required critical-journey execution, and its isolated collection and
+aggregation step has a hard CI budget of **25 minutes**. In hosted run
+`29696154720`, the API 28 and API 37 coverage journeys completed in 6 minutes 7
+seconds and 6 minutes 27 seconds, respectively, before the expanded multi-module
+report graph reached the former 15-minute cutoff while still producing reports.
+The encompassing critical-journey job remains capped at 65 minutes so the
+two-device journey allowance, coverage, and artifact retention can all complete.
 
 Do not lower a threshold or replace the baseline merely to make CI green. A
 baseline update requires a measured report from current `origin/master`, the
