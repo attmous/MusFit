@@ -1,3 +1,5 @@
+import com.android.build.api.dsl.ManagedVirtualDevice
+
 plugins {
     id("musfit.android.library")
     alias(libs.plugins.ksp)
@@ -13,6 +15,24 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        managedDevices {
+            localDevices {
+                create("databaseApi28") {
+                    device = "Pixel 2"
+                    apiLevel = 28
+                    systemImageSource = "google"
+                    require64Bit = true
+                    testedAbi = "x86_64"
+                }
+                create("databaseApi37") {
+                    device = "Pixel 2"
+                    apiLevel = 37
+                    systemImageSource = "google"
+                    pageAlignment = ManagedVirtualDevice.PageAlignment.FORCE_16KB_PAGES
+                    testedAbi = "x86_64"
+                }
+            }
+        }
     }
 
     sourceSets {
