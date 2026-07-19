@@ -167,7 +167,10 @@ private fun prepareTrainingRoute(
             }
         }
 
-        TrainingExercisePickerNavKey -> viewModel.openRoutineExercisePicker()
+        // The picker draft is part of restored ViewModel state. Reset it only from the
+        // explicit user action that starts a new picker session, not while rehydrating
+        // an already-current destination after host or process recreation.
+        TrainingExercisePickerNavKey -> Unit
 
         is TrainingWorkoutHistoryDetailNavKey -> {
             if (state.selectedWorkoutDetail?.summary?.sessionId != key.sessionId) {

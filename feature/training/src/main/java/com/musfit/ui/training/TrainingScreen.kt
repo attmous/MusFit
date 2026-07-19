@@ -275,6 +275,7 @@ private fun TrainingProjectedSurface(
                 onNameChange = viewModel::onRoutineNameChanged,
                 onNotesChange = viewModel::onRoutineNotesChanged,
                 onOpenExercisePicker = {
+                    viewModel.openRoutineExercisePicker()
                     navigation.open(TrainingExercisePickerNavKey)
                 },
                 onRemoveExercise = viewModel::removeRoutineExercise,

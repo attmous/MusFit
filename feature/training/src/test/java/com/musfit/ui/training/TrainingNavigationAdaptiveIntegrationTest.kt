@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.musfit.data.repository.ActiveWorkoutDetail
 import com.musfit.data.repository.ActiveWorkoutSummary
+import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.GoalsRepository
 import com.musfit.data.repository.LoggedWorkoutSet
 import com.musfit.data.repository.RoutineDetail
@@ -145,6 +147,65 @@ class TrainingNavigationAdaptiveIntegrationTest {
         assertEquals(1, repository.maximumActiveWorkoutCollectors)
     }
 
+    @Test
+    fun exercisePickerDestination_restoreKeepsDraftUntilExplicitlyOpenedAgain() {
+        val repository = NavigationTrainingRepository()
+        val viewModel = TrainingViewModel(repository, NavigationGoalsRepository())
+        val restoration = StateRestorationTester(compose)
+        val directive = PaneScaffoldDirective.Default.copy(maxHorizontalPartitions = 1)
+
+        restoration.setContent {
+            MusFitTheme {
+                TrainingNavigationHost(
+                    viewModel = viewModel,
+                    paneScaffoldDirectiveOverride = directive,
+                )
+            }
+        }
+
+        waitForText("All")
+        compose.onNodeWithText("All").performClick()
+        waitForText(ROUTINE_NAME)
+        compose.onNodeWithText(ROUTINE_NAME).performClick()
+        waitForText("Edit")
+        compose.onNodeWithText("Edit").performClick()
+        waitForText("Add exercise")
+        compose.onNodeWithText("Add exercise").performClick()
+        waitForContentDescription("Search exercises")
+
+        compose.runOnIdle {
+            viewModel.onRoutineExercisePickerSearchChanged("bench")
+            viewModel.toggleRoutineExercisePickerEquipment("barbell")
+            viewModel.toggleRoutineExercisePickerMuscle("chest")
+            viewModel.setRoutineExercisePickerOnlyDone(true)
+            viewModel.toggleRoutineExercisePickerSelection("exercise-bench-press")
+        }
+
+        restoration.emulateSavedInstanceStateRestore()
+        waitForContentDescription("Search exercises")
+
+        compose.runOnIdle {
+            val state = viewModel.state.value
+            assertEquals("bench", state.routineExercisePickerSearchQuery)
+            assertEquals(setOf("barbell"), state.routineExercisePickerFilters.equipment)
+            assertEquals(setOf("chest"), state.routineExercisePickerFilters.muscles)
+            assertEquals(true, state.routineExercisePickerFilters.onlyDone)
+            assertEquals(setOf("exercise-bench-press"), state.routineExercisePickerSelectedIds)
+        }
+
+        compose.onNodeWithContentDescription("Back").performClick()
+        waitForText("Add exercise")
+        compose.onNodeWithText("Add exercise").performClick()
+        waitForContentDescription("Search exercises")
+
+        compose.runOnIdle {
+            val state = viewModel.state.value
+            assertEquals("", state.routineExercisePickerSearchQuery)
+            assertEquals(TrainingPickerFilters(), state.routineExercisePickerFilters)
+            assertEquals(emptySet<String>(), state.routineExercisePickerSelectedIds)
+        }
+    }
+
     private fun waitForText(text: String) {
         compose.waitUntil(timeoutMillis = TEST_TIMEOUT_MILLIS) {
             compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
@@ -171,6 +232,14 @@ private class NavigationGoalsRepository : GoalsRepository {
 }
 
 private class NavigationTrainingRepository : TrainingRepository {
+    private val benchPress = ExerciseSummary(
+        id = "exercise-bench-press",
+        name = "Barbell Bench Press",
+        category = "strength",
+        equipment = "barbell",
+        targetMuscles = "chest",
+        isCustom = false,
+    )
     private val routine = RoutineSummary(
         id = ROUTINE_ID,
         name = ROUTINE_NAME,
@@ -205,6 +274,12 @@ private class NavigationTrainingRepository : TrainingRepository {
             maximumActiveWorkoutCollectors = maxOf(maximumActiveWorkoutCollectors, activeWorkoutCollectors)
         }
         .onCompletion { activeWorkoutCollectors -= 1 }
+
+    override fun observeExercises(
+        query: String,
+        muscle: String?,
+        equipment: String?,
+    ): Flow<List<ExerciseSummary>> = flowOf(listOf(benchPress))
 
     override suspend fun getRoutineDetail(routineId: String): RoutineDetail? = routine
         .takeIf { it.id == routineId }

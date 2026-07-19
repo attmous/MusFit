@@ -34,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +71,7 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.LayoutDirection
@@ -222,17 +224,21 @@ private fun EstimatedOneRepMaxHero(
                             testTag = e1rmVisualSelectionTag(selectedPoint)
                         },
                 ) {
-                    Text(
-                        text = selectedPoint.bestEstimatedOneRepMaxKg.formatE1rm(),
-                        style = MaterialTheme.typography.displayMedium,
-                        color = accent.onContainer,
-                    )
-                    Text(
-                        text = " kg",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = accent.onContainer.copy(alpha = 0.8f),
-                        modifier = Modifier.padding(bottom = 6.dp),
-                    )
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = selectedPoint.bestEstimatedOneRepMaxKg.formatE1rm(),
+                                style = MaterialTheme.typography.displayMedium,
+                                color = accent.onContainer,
+                            )
+                            Text(
+                                text = " kg",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = accent.onContainer.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(bottom = 6.dp),
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.weight(1f))
                     val delta = e1rmDeltaKg(trend.take(selectedIndex + 1))
                     if (delta != null) {
@@ -253,7 +259,10 @@ private fun EstimatedOneRepMaxHero(
                             )
                             Text(
                                 text = deltaLabel(delta),
-                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 13.sp,
+                                    textDirection = TextDirection.Ltr,
+                                ),
                                 fontWeight = FontWeight.ExtraBold,
                                 color = accent.onContainer,
                             )
@@ -414,7 +423,7 @@ private fun WeeklyVolumeCard(
                                 }
                                 append(" · week of ${accessibleDate(current.weekStartEpochDay)}")
                             },
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr),
                             color = MusFitTheme.colors.onSurfaceVariant,
                             modifier = Modifier.clearAndSetSemantics {
                                 testTag = weeklyVolumeVisualSelectionTag(current)
@@ -910,7 +919,7 @@ private fun RecentPrsSection(
         if (prs.isEmpty()) {
             Text(
                 text = "Beat a previous best to log a PR.",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr),
                 color = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 10.dp, start = 4.dp),
             )

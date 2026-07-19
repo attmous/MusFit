@@ -349,6 +349,36 @@ class TrainingViewModelTest {
     }
 
     @Test
+    fun restoration_retainsRoutineExercisePickerDraft() = runTest {
+        val savedStateHandle = SavedStateHandle()
+        val repository = FakeTrainingRepository()
+        val first = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        observeTraining(first)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        first.openRoutineExercisePicker()
+        first.onRoutineExercisePickerSearchChanged("bench")
+        first.toggleRoutineExercisePickerEquipment("barbell")
+        first.toggleRoutineExercisePickerMuscle("chest")
+        first.setRoutineExercisePickerOnlyDone(true)
+        first.toggleRoutineExercisePickerSelection("exercise-bench-press")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val restored = TrainingViewModel(repository, FakeGoalsRepository(), savedStateHandle)
+        observeTraining(restored)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("bench", restored.state.value.routineExercisePickerSearchQuery)
+        assertEquals(setOf("barbell"), restored.state.value.routineExercisePickerFilters.equipment)
+        assertEquals(setOf("chest"), restored.state.value.routineExercisePickerFilters.muscles)
+        assertTrue(restored.state.value.routineExercisePickerFilters.onlyDone)
+        assertEquals(
+            setOf("exercise-bench-press"),
+            restored.state.value.routineExercisePickerSelectedIds,
+        )
+    }
+
+    @Test
     fun restoration_reopensRoomOwnedActiveWorkoutWithoutDuplicateSetOrTimerWork() = runTest {
         val savedStateHandle = SavedStateHandle()
         val repository = FakeTrainingRepository()
