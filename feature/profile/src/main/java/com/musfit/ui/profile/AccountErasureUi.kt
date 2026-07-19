@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.AccountErasureScope
 import com.musfit.ui.components.ExpressiveBadge
@@ -100,8 +104,23 @@ internal fun AccountErasureDialog(
                         "This permanently removes the current account and all data it owns. Other local accounts are kept and one becomes active."
                     },
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(state.deleteAuthoredHealthRecords, onDeleteAuthoredHealthRecordsChange, enabled = !inProgress)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(
+                            value = state.deleteAuthoredHealthRecords,
+                            enabled = !inProgress,
+                            role = Role.Checkbox,
+                            onValueChange = onDeleteAuthoredHealthRecordsChange,
+                        ),
+                ) {
+                    Checkbox(
+                        checked = state.deleteAuthoredHealthRecords,
+                        onCheckedChange = null,
+                        enabled = !inProgress,
+                    )
                     Text("Also delete records MusFit authored in Health Connect")
                 }
                 Text("Encrypted export files already saved outside MusFit are not deleted.")

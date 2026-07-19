@@ -41,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -407,6 +409,9 @@ internal fun SettingsHub(
                         checked = state.includeBurnedCalories,
                         onCheckedChange = onIncludeBurnedCaloriesChange,
                         accent = accent,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Add burned calories to budget"
+                        },
                     )
                 },
             )

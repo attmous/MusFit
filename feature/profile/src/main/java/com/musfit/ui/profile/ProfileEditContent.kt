@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +49,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -173,17 +178,13 @@ fun ProfileEditSheet(
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-                Surface(
+                ProfileCircleIconButton(
+                    icon = Icons.Outlined.Close,
+                    contentDescription = "Close",
+                    container = MusFitTheme.colors.surfaceVariant,
+                    content = MusFitTheme.colors.onSurface,
                     onClick = onDismiss,
-                    color = MusFitTheme.colors.surfaceVariant,
-                    contentColor = MusFitTheme.colors.onSurface,
-                    shape = CircleShape,
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
-                    }
-                }
+                )
             }
 
             SheetFieldLabel("Sex")
@@ -302,15 +303,9 @@ fun ProfileEditSheet(
                 height = 50.dp,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             )
-            Text(
-                "Cancel",
-                style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
-                color = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .clip(RoundedCornerShape(99.dp))
-                    .clickable(onClickLabel = "Cancel", onClick = onDismiss)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ProfileCancelAction(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
     }
@@ -387,15 +382,44 @@ private fun PaceStepperCircle(
     content: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit,
 ) {
-    Surface(
+    ProfileCircleIconButton(
+        icon = icon,
+        contentDescription = contentDescription,
+        container = container,
+        content = content,
         onClick = onClick,
-        color = container,
-        contentColor = content,
-        shape = CircleShape,
-        modifier = Modifier.size(40.dp),
+    )
+}
+
+@Composable
+private fun ProfileCircleIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    container: androidx.compose.ui.graphics.Color,
+    content: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(48.dp)
+            .semantics { this.contentDescription = contentDescription }
+            .clip(CircleShape)
+            .clickable(
+                onClickLabel = contentDescription,
+                role = Role.Button,
+                onClick = onClick,
+            ),
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(18.dp))
+        Surface(
+            color = container,
+            contentColor = content,
+            shape = CircleShape,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
@@ -449,7 +473,9 @@ private fun ApplyTargetsBanner(
                 enabled = actionEnabled,
                 color = androidx.compose.ui.graphics.Color.Transparent,
                 shape = RoundedCornerShape(99.dp),
-                modifier = Modifier.heightIn(min = 48.dp),
+                modifier = Modifier
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .semantics { role = Role.Button },
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
                     Text(

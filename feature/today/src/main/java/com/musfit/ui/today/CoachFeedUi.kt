@@ -3,9 +3,9 @@ package com.musfit.ui.today
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -40,7 +41,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -60,7 +60,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -140,7 +146,6 @@ private fun DismissableMessageCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun CoachMessageCard(
     message: CoachMessage,
@@ -156,47 +161,21 @@ private fun CoachMessageCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .semantics { if (!message.isRead) stateDescription = "Unread" }
-            .combinedClickable(
-                onClick = { message.action?.let(onAction) },
-                onClickLabel = message.action?.let(::coachActionLabel),
-                onLongClick = onLongPress,
-                onLongClickLabel = "Dismiss message",
-            ),
+            .pointerInput(onLongPress) {
+                detectTapGestures(onLongPress = { onLongPress() })
+            }
+            .semantics(mergeDescendants = true) {
+                if (!message.isRead) stateDescription = "Unread"
+                customActions = listOf(
+                    CustomAccessibilityAction(label = "Dismiss message") {
+                        onLongPress()
+                        true
+                    },
+                )
+            },
     ) {
         Column(modifier = Modifier.padding(MusFitTheme.spacing.lg)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    message.category.icon(),
-                    contentDescription = null, // decorative: the visible category label follows
-                    tint = MusFitTheme.colors.accent,
-                    modifier = Modifier.size(15.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = message.category.displayLabel().uppercase(),
-                    style = MusFitTheme.typography.labelSmall,
-                    color = MusFitTheme.colors.accent,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = currentTimeFormatter().format(
-                        Instant.ofEpochMilli(message.firstSeenAtEpochMillis).atZone(ZoneId.systemDefault()),
-                    ),
-                    style = MusFitTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MusFitTheme.colors.onSurfaceFaint,
-                )
-                if (!message.isRead) {
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(MusFitTheme.colors.accent),
-                    )
-                }
-            }
+            CoachMessageHeader(message)
             Spacer(Modifier.height(8.dp))
             Text(
                 text = message.title,
@@ -211,19 +190,71 @@ private fun CoachMessageCard(
             )
             message.action?.let { action ->
                 Spacer(Modifier.height(MusFitTheme.spacing.md))
-                Surface(
-                    onClick = { onAction(action) },
-                    color = MusFitTheme.colors.accentContainer,
-                    shape = RoundedCornerShape(999.dp),
-                ) {
-                    Text(
-                        text = coachActionLabel(action),
-                        style = MusFitTheme.typography.labelMedium,
-                        color = MusFitTheme.colors.onAccentContainer,
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-                    )
-                }
+                CoachActionButton(action = action, onAction = onAction)
             }
+        }
+    }
+}
+
+@Composable
+private fun CoachMessageHeader(message: CoachMessage) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            message.category.icon(),
+            contentDescription = null, // decorative: the visible category label follows
+            tint = MusFitTheme.colors.accent,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = message.category.displayLabel().uppercase(),
+            style = MusFitTheme.typography.labelSmall,
+            color = MusFitTheme.colors.accent,
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = currentTimeFormatter().format(
+                Instant.ofEpochMilli(message.firstSeenAtEpochMillis).atZone(ZoneId.systemDefault()),
+            ),
+            style = MusFitTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = MusFitTheme.colors.onSurfaceFaint,
+        )
+        if (!message.isRead) {
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(MusFitTheme.colors.accent),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CoachActionButton(
+    action: CoachAction,
+    onAction: (CoachAction) -> Unit,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .widthIn(min = 48.dp)
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .clickable(role = Role.Button) { onAction(action) },
+    ) {
+        Surface(
+            color = MusFitTheme.colors.accentContainer,
+            shape = RoundedCornerShape(999.dp),
+        ) {
+            Text(
+                text = coachActionLabel(action),
+                style = MusFitTheme.typography.labelMedium,
+                color = MusFitTheme.colors.onAccentContainer,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+            )
         }
     }
 }
@@ -281,6 +312,7 @@ fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
         shape = shape,
         modifier = modifier
             .size(58.dp)
+            .semantics { role = Role.Button }
             .shadow(
                 elevation = 10.dp,
                 shape = shape,
@@ -379,10 +411,17 @@ fun ChatPreviewSheet(
                         color = MusFitTheme.colors.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = viewModel::clearChat, enabled = state.messages.isNotEmpty()) {
+                IconButton(
+                    onClick = viewModel::clearChat,
+                    enabled = state.messages.isNotEmpty(),
+                    modifier = Modifier.size(48.dp).semantics { role = Role.Button },
+                ) {
                     Icon(Icons.Outlined.DeleteOutline, contentDescription = "Clear coach chat")
                 }
-                IconButton(onClick = onDismiss) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(48.dp).semantics { role = Role.Button },
+                ) {
                     Icon(Icons.Outlined.Close, contentDescription = "Close coach chat")
                 }
             }
@@ -424,41 +463,76 @@ fun ChatPreviewSheet(
                         }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = state.input,
-                        onValueChange = viewModel::onInputChanged,
-                        placeholder = { Text("Ask about today") },
-                        singleLine = false,
-                        minLines = 1,
-                        maxLines = 4,
-                        modifier = Modifier.weight(1f),
-                    )
-                    IconButton(
-                        onClick = { runWithLocalNetworkPermission(viewModel::send) },
-                        enabled = state.input.isNotBlank() && !state.isSending,
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (state.input.isNotBlank() && !state.isSending) {
-                                MusFitTheme.colors.accent
-                            } else {
-                                MusFitTheme.colors.surfaceVariant
-                            },
-                        ),
-                    ) {
-                        if (state.isSending) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                strokeWidth = 2.dp,
-                                color = MusFitTheme.colors.onSurfaceVariant,
-                            )
-                        } else {
-                            Icon(
-                                Icons.AutoMirrored.Outlined.Send,
-                                contentDescription = "Send coach message",
-                                tint = if (state.input.isNotBlank()) MusFitTheme.colors.onAccent else MusFitTheme.colors.onSurfaceVariant,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
+                CoachChatComposer(
+                    input = state.input,
+                    isSending = state.isSending,
+                    onInputChanged = viewModel::onInputChanged,
+                    onSend = { runWithLocalNetworkPermission(viewModel::send) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun CoachChatComposer(
+    input: String,
+    isSending: Boolean,
+    onInputChanged: (String) -> Unit,
+    onSend: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = input,
+            onValueChange = onInputChanged,
+            placeholder = { Text("Ask about today") },
+            singleLine = false,
+            minLines = 1,
+            maxLines = 4,
+            modifier = Modifier
+                .weight(1f)
+                .semantics { contentDescription = "Coach message" },
+        )
+        val canSend = input.isNotBlank() && !isSending
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable(
+                    enabled = canSend,
+                    role = Role.Button,
+                    onClick = onSend,
+                )
+                .semantics {
+                    role = Role.Button
+                    contentDescription = if (isSending) "Sending coach message" else "Send coach message"
+                },
+        ) {
+            Surface(
+                color = if (canSend) MusFitTheme.colors.accent else MusFitTheme.colors.surfaceVariant,
+                shape = CircleShape,
+                modifier = Modifier.size(40.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (isSending) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                        )
+                    } else {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.Send,
+                            contentDescription = null,
+                            tint = if (canSend) MusFitTheme.colors.onAccent else MusFitTheme.colors.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp),
+                        )
                     }
                 }
             }
