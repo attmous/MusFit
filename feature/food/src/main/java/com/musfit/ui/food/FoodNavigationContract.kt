@@ -86,7 +86,13 @@ internal class FoodNavigator(
         get() = backStack.lastOrNull() as? FoodNavKey ?: FoodDiaryNavKey
 
     fun open(key: FoodNavKey) {
-        if (backStack.lastOrNull() != key) backStack += key
+        val current = backStack.lastOrNull()
+        if (current == key) return
+        if (current is FoodNavKey && current.isSameAdaptiveDetailFamily(key)) {
+            backStack[backStack.lastIndex] = key
+        } else {
+            backStack += key
+        }
     }
 
     fun replace(key: FoodNavKey) {
@@ -112,3 +118,6 @@ internal class FoodNavigator(
         return true
     }
 }
+
+private fun FoodNavKey.isSameAdaptiveDetailFamily(other: FoodNavKey): Boolean = (this is FoodDetailNavKey && other is FoodDetailNavKey) ||
+    (this is FoodRecipeEditorNavKey && other is FoodRecipeEditorNavKey)

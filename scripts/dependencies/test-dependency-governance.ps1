@@ -100,6 +100,7 @@ function Assert-UpdateAutomation([string] $DependabotText) {
         'dependency-name:\s*"androidx\.credentials:\*"',
         'dependency-name:\s*"androidx\.benchmark:\*"',
         'dependency-name:\s*"androidx\.baselineprofile"',
+        'dependency-name:\s*"androidx\.compose\.material3\.adaptive:\*"',
         '(?m)^\s{6}android-toolchain:',
         '(?m)^\s{6}app-runtime:',
         '(?m)^\s{6}test-tooling:'

@@ -20,6 +20,7 @@ updates:
       - dependency-name: "androidx.credentials:*"
       - dependency-name: "androidx.benchmark:*"
       - dependency-name: "androidx.baselineprofile"
+      - dependency-name: "androidx.compose.material3.adaptive:*"
     groups:
       android-toolchain:
         patterns:

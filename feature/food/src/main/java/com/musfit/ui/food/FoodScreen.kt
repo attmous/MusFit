@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,10 +58,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
+import androidx.compose.material3.adaptive.layout.PaneAdaptedValue
+import androidx.compose.material3.adaptive.navigation3.LocalListDetailSceneScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,6 +81,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +93,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.ui.components.ExpressiveBadge
@@ -138,10 +145,11 @@ private data class FoodDiaryActions(
     val onAddFood: (String) -> Unit,
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 @Suppress("LongMethod", "LongParameterList")
 fun FoodScreen(
+    renderedKey: FoodNavKey? = null,
     scannedBarcode: String? = null,
     onScanClick: () -> Unit = {},
     onScannedBarcodeConsumed: () -> Unit = {},
@@ -151,8 +159,9 @@ fun FoodScreen(
     navigation: FoodNavigationActions = FoodNavigationActions(),
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
-    val routeState by viewModel.routeState.collectAsState()
-    val diaryState by viewModel.diaryState.collectAsState()
+    val routeState by viewModel.routeState.collectAsStateWithLifecycle()
+    val diaryState by viewModel.diaryState.collectAsStateWithLifecycle()
+    val adaptiveRenderedKey = if (LocalListDetailSceneScope.current != null) renderedKey else null
     val accent = tabAccentFor(TabAccentRole.Food)
     val diaryActions = remember(viewModel, navigation) {
         FoodDiaryActions(
@@ -237,6 +246,7 @@ fun FoodScreen(
             onLabelScanClick = onLabelScanClick,
             onRequestFoodHealthConnectPermissions = foodHealthConnectPermissionLauncher::launch,
             navigation = navigation,
+            renderedKey = adaptiveRenderedKey,
         )
     } else {
         Box(
@@ -259,27 +269,30 @@ private fun FoodActiveSurface(
     onLabelScanClick: () -> Unit,
     onRequestFoodHealthConnectPermissions: (Set<String>) -> Unit,
     navigation: FoodNavigationActions,
+    renderedKey: FoodNavKey?,
 ) {
     when (routeState.surfaceGroup) {
         FoodSurfaceGroup.AddDatabase -> {
-            val state by viewModel.addDatabaseState.collectAsState()
+            val state by viewModel.addDatabaseState.collectAsStateWithLifecycle()
             FoodProjectedSurface(
                 state = state.content,
                 viewModel = viewModel,
                 onScanClick = onScanClick,
                 onLabelScanClick = onLabelScanClick,
                 navigation = navigation,
+                renderedKey = renderedKey,
             )
         }
 
         FoodSurfaceGroup.EditorPlanning -> {
-            val state by viewModel.editorPlanningState.collectAsState()
+            val state by viewModel.editorPlanningState.collectAsStateWithLifecycle()
             FoodProjectedSurface(
                 state = state.content,
                 viewModel = viewModel,
                 onScanClick = onScanClick,
                 onLabelScanClick = onLabelScanClick,
                 navigation = navigation,
+                renderedKey = renderedKey,
             )
         }
 
@@ -328,16 +341,240 @@ private fun FoodTrackerSurface(
     }
 }
 
+internal fun FoodNavKey.isAdaptiveFoodPane(): Boolean = when (this) {
+    FoodDatabaseNavKey,
+    is FoodDetailNavKey,
+    FoodRecipeBrowserNavKey,
+    is FoodRecipeEditorNavKey,
+    -> true
+
+    else -> false
+}
+
+@Composable
+@Suppress("LongMethod")
+private fun AdaptiveFoodPane(
+    key: FoodNavKey,
+    state: FoodUiState,
+    viewModel: FoodViewModel,
+    onLabelScanClick: () -> Unit,
+    navigation: FoodNavigationActions,
+) {
+    when (key) {
+        FoodDatabaseNavKey -> FoodDatabasePanel(
+            state = state,
+            onSearchChanged = viewModel::onFoodDatabaseQueryChanged,
+            onSearchOnlineClick = viewModel::searchOnlineFoods,
+            onNewFoodClick = {
+                viewModel.openNewSavedFoodEditor()
+                navigation.open(FoodSavedFoodEditorNavKey())
+            },
+            onBarcodeCompareClick = {
+                viewModel.openBarcodeComparison()
+                navigation.open(FoodBarcodeComparisonNavKey)
+            },
+            onOpenFoodDetailClick = { foodId ->
+                viewModel.openSavedFoodDetail(foodId)
+                navigation.open(FoodDetailNavKey(foodId))
+            },
+            onEditFoodClick = { foodId ->
+                viewModel.openSavedFoodEditor(foodId)
+                navigation.open(FoodSavedFoodEditorNavKey(foodId))
+            },
+            onSaveOnlineFoodClick = viewModel::saveOnlineFoodResult,
+            onImportStarterFoodsClick = viewModel::seedStarterFoods,
+            onNutritionLabelScanClick = onLabelScanClick,
+            onMergeDuplicateFoodsClick = viewModel::mergeDuplicateFoods,
+            onFavoriteClick = viewModel::toggleFavoriteFood,
+            onReportFoodClick = viewModel::reportSavedFoodForReview,
+        )
+
+        is FoodDetailNavKey -> FoodDetailPanel(
+            state = state,
+            onEditClick = {
+                viewModel.openSavedFoodEditor(key.foodId)
+                navigation.open(FoodSavedFoodEditorNavKey(key.foodId))
+            },
+            onLogClick = { viewModel.logSavedFood(key.foodId) },
+            onFavoriteClick = {
+                state.selectedSavedFoodDetail?.let { food ->
+                    viewModel.toggleFavoriteFood(food.id, !food.isFavorite)
+                }
+            },
+            onReportClick = { viewModel.reportSavedFoodForReview(key.foodId) },
+            onCorrectClick = { viewModel.startSavedFoodCorrection(key.foodId) },
+            onQuantityChanged = viewModel::onSavedFoodQuantityChanged,
+            onServingSelected = viewModel::onSavedFoodServingSelected,
+        )
+
+        FoodRecipeBrowserNavKey -> AdaptiveRecipePane(
+            state = state.copy(sheetMode = FoodSheetMode.RecipeBrowser),
+            viewModel = viewModel,
+            navigation = navigation,
+        )
+
+        is FoodRecipeEditorNavKey -> AdaptiveRecipePane(
+            state = state.copy(sheetMode = FoodSheetMode.RecipeEditor),
+            viewModel = viewModel,
+            navigation = navigation,
+        )
+
+        else -> Unit
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
+@Suppress("LongMethod", "LongParameterList") // Adaptive host keeps list/editor actions on the same ViewModel instance.
+private fun AdaptiveRecipePane(
+    state: FoodUiState,
+    viewModel: FoodViewModel,
+    navigation: FoodNavigationActions,
+) {
+    var pendingRecipeReplacement by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val sceneValue = LocalListDetailSceneScope.current
+        ?.scaffoldTransitionScope
+        ?.scaffoldStateTransition
+        ?.targetState
+    val showsListAndDetail = sceneValue != null &&
+        sceneValue[ListDetailPaneScaffoldRole.List] == PaneAdaptedValue.Expanded &&
+        sceneValue[ListDetailPaneScaffoldRole.Detail] == PaneAdaptedValue.Expanded
+    val replaceRecipeEditor: (() -> Unit) -> Unit = { replacement ->
+        if (state.hasUnsavedRecipeEditorChanges()) {
+            pendingRecipeReplacement = replacement
+        } else {
+            replacement()
+        }
+    }
+
+    pendingRecipeReplacement?.let { replacement ->
+        DiscardRecipeChangesDialog(
+            onDismiss = { pendingRecipeReplacement = null },
+            onConfirm = {
+                pendingRecipeReplacement = null
+                replacement()
+            },
+        )
+    }
+
+    RecipeBrowserScreen(
+        state = state,
+        showEditorBack = !showsListAndDetail,
+        onCloseClick = navigation.back,
+        onForwardClick = {
+            replaceRecipeEditor {
+                viewModel.openRecipeEditor(null)
+                navigation.open(FoodRecipeEditorNavKey())
+            }
+        },
+        onHomeClick = navigation.back,
+        onPreviousDayClick = viewModel::goToPreviousRecipeBrowserDay,
+        onNextDayClick = viewModel::goToNextRecipeBrowserDay,
+        onTodayClick = viewModel::goToTodayRecipeBrowserDay,
+        onMealChanged = viewModel::onRecipeBrowserMealChanged,
+        onServingsChanged = viewModel::onRecipeServingsToLogChanged,
+        onNameChanged = viewModel::onRecipeNameChanged,
+        onCategoryChanged = viewModel::onRecipeCategoryChanged,
+        onServingNameChanged = viewModel::onRecipeServingNameChanged,
+        onServingsCountChanged = viewModel::onRecipeServingsCountChanged,
+        onCookedYieldChanged = viewModel::onRecipeCookedYieldGramsChanged,
+        onIngredientFoodChanged = viewModel::onRecipeIngredientFoodChanged,
+        onIngredientServingChoiceSelected = viewModel::onRecipeIngredientServingChoiceSelected,
+        onIngredientQuantityChanged = viewModel::onRecipeIngredientQuantityChanged,
+        onAddIngredientClick = viewModel::addRecipeIngredient,
+        onEditRecipeClick = { recipeId ->
+            replaceRecipeEditor {
+                viewModel.openRecipeEditor(recipeId)
+                navigation.open(FoodRecipeEditorNavKey(recipeId))
+            }
+        },
+        onDuplicateRecipeClick = viewModel::duplicateRecipe,
+        onFavoriteClick = viewModel::toggleFavoriteRecipe,
+        onSearchQueryChanged = viewModel::onRecipeDiscoveryQueryChanged,
+        onDiscoveryFilterChanged = viewModel::selectRecipeDiscoveryFilter,
+        onDiscoveryItemClick = { itemId ->
+            val opensEditor = state.recipeDiscovery.items.firstOrNull { it.id == itemId }?.sourceRecipeId == null
+            val openItem = {
+                if (viewModel.useRecipeDiscoveryItem(itemId)) navigation.open(FoodRecipeEditorNavKey())
+            }
+            if (opensEditor) replaceRecipeEditor(openItem) else openItem()
+        },
+        onLogRecipeClick = viewModel::logRecipeFromBrowser,
+        onPlanRecipeClick = viewModel::planRecipe,
+        onReviewIdeaClick = { itemId ->
+            replaceRecipeEditor {
+                if (viewModel.useRecipeDiscoveryItem(itemId)) navigation.open(FoodRecipeEditorNavKey())
+            }
+        },
+        onSaveClick = viewModel::saveRecipe,
+        onDeleteClick = { state.recipeEditor?.editingRecipeId?.let(viewModel::deleteRecipe) },
+    )
+}
+
+@Composable
+internal fun DiscardRecipeChangesDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Discard recipe changes?") },
+        text = { Text("Your unsaved recipe edits will be lost.") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Discard changes")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Keep editing")
+            }
+        },
+    )
+}
+
+internal fun FoodUiState.hasUnsavedRecipeEditorChanges(): Boolean {
+    val editor = recipeEditor
+    val original = editor?.editingRecipeId?.let { recipeId -> recipes.firstOrNull { it.id == recipeId } }
+    return when {
+        editor == null -> false
+
+        original == null -> editor != RecipeEditorState()
+
+        else -> editor != RecipeEditorState(
+            editingRecipeId = original.id,
+            name = original.name,
+            category = original.category.orEmpty(),
+            servingName = original.servingName,
+            servingGrams = original.servingGrams.formatInputNumber(),
+            servingsCount = original.servings.formatInputNumber(),
+            cookedYieldGrams = original.cookedYieldGrams.formatInputNumber(),
+            ingredients = original.ingredients,
+        )
+    }
+}
+
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-@Suppress("LongMethod", "CyclomaticComplexMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "LongParameterList")
 private fun FoodProjectedSurface(
     state: FoodUiState,
     viewModel: FoodViewModel,
     onScanClick: () -> Unit,
     onLabelScanClick: () -> Unit,
     navigation: FoodNavigationActions,
+    renderedKey: FoodNavKey?,
 ) {
+    if (renderedKey != null && renderedKey.isAdaptiveFoodPane()) {
+        AdaptiveFoodPane(
+            key = renderedKey,
+            state = state,
+            viewModel = viewModel,
+            onLabelScanClick = onLabelScanClick,
+            navigation = navigation,
+        )
+        return
+    }
     val selectedMealDetail = state.selectedMealDetailForDisplay()
     val isRecipeFullScreen =
         state.isAddPanelVisible &&
@@ -357,14 +594,7 @@ private fun FoodProjectedSurface(
     BackHandler(
         enabled = state.isAddPanelVisible && state.sheetMode == FoodSheetMode.AddFood,
     ) { navigation.back() }
-    BackHandler(enabled = isRecipeFullScreen) {
-        if (state.sheetMode == FoodSheetMode.RecipeEditor) {
-            viewModel.openRecipeBrowser()
-            navigation.replace(FoodRecipeBrowserNavKey)
-        } else {
-            navigation.back()
-        }
-    }
+    BackHandler(enabled = isRecipeFullScreen) { navigation.back() }
     BackHandler(enabled = isSavedFoodEditorFullScreen || isGoalEditorFullScreen) {
         navigation.back()
     }
@@ -429,10 +659,7 @@ private fun FoodProjectedSurface(
                     viewModel.openRecipeEditor(null)
                     navigation.open(FoodRecipeEditorNavKey())
                 },
-                onHomeClick = {
-                    viewModel.openRecipeBrowser()
-                    navigation.replace(FoodRecipeBrowserNavKey)
-                },
+                onHomeClick = navigation.back,
                 onPreviousDayClick = viewModel::goToPreviousRecipeBrowserDay,
                 onNextDayClick = viewModel::goToNextRecipeBrowserDay,
                 onTodayClick = viewModel::goToTodayRecipeBrowserDay,
@@ -455,10 +682,14 @@ private fun FoodProjectedSurface(
                 onFavoriteClick = viewModel::toggleFavoriteRecipe,
                 onSearchQueryChanged = viewModel::onRecipeDiscoveryQueryChanged,
                 onDiscoveryFilterChanged = viewModel::selectRecipeDiscoveryFilter,
-                onDiscoveryItemClick = viewModel::useRecipeDiscoveryItem,
+                onDiscoveryItemClick = { itemId ->
+                    if (viewModel.useRecipeDiscoveryItem(itemId)) navigation.open(FoodRecipeEditorNavKey())
+                },
                 onLogRecipeClick = viewModel::logRecipeFromBrowser,
                 onPlanRecipeClick = viewModel::planRecipe,
-                onReviewIdeaClick = viewModel::useRecipeDiscoveryItem,
+                onReviewIdeaClick = { itemId ->
+                    if (viewModel.useRecipeDiscoveryItem(itemId)) navigation.open(FoodRecipeEditorNavKey())
+                },
                 onSaveClick = viewModel::saveRecipe,
                 onDeleteClick = { state.recipeEditor?.editingRecipeId?.let(viewModel::deleteRecipe) },
             )
@@ -745,7 +976,7 @@ private fun FoodProjectedSurface(
                         onDuplicateRecipeClick = viewModel::duplicateRecipe,
                         onFavoriteClick = viewModel::toggleFavoriteRecipe,
                         onDiscoveryFilterChanged = viewModel::selectRecipeDiscoveryFilter,
-                        onDiscoveryItemClick = viewModel::useRecipeDiscoveryItem,
+                        onDiscoveryItemClick = { itemId -> viewModel.useRecipeDiscoveryItem(itemId) },
                         onSaveClick = viewModel::saveRecipe,
                         onDeleteClick = { state.recipeEditor?.editingRecipeId?.let(viewModel::deleteRecipe) },
                     )
@@ -898,7 +1129,7 @@ private fun FoodDiaryHome(
 
 @Composable
 private fun FoodWaterTrackerSheet(viewModel: FoodViewModel) {
-    val state by viewModel.trackerState.collectAsState()
+    val state by viewModel.trackerState.collectAsStateWithLifecycle()
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         WaterTrackerCard(
             state = state,
@@ -918,7 +1149,7 @@ private fun FoodHealthConnectTrackerSheet(
     viewModel: FoodViewModel,
     onRequestPermissions: (Set<String>) -> Unit,
 ) {
-    val state by viewModel.trackerState.collectAsState()
+    val state by viewModel.trackerState.collectAsStateWithLifecycle()
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         FoodHealthConnectSyncCard(
             state = state,
@@ -961,7 +1192,7 @@ private fun FoodDateChip(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            IconButton(onClick = onPreviousDayClick, modifier = Modifier.size(30.dp)) {
+            IconButton(onClick = onPreviousDayClick, modifier = Modifier.size(48.dp)) {
                 Icon(
                     Icons.Filled.ChevronLeft,
                     contentDescription = "Previous day",
@@ -976,11 +1207,16 @@ private fun FoodDateChip(
                 color = accent.onContainer,
                 maxLines = 1,
                 modifier = Modifier
+                    .defaultMinSize(minHeight = 48.dp)
                     .clip(CircleShape)
-                    .clickable(onClick = onTodayClick)
+                    .clickable(
+                        onClickLabel = "Jump to today",
+                        role = Role.Button,
+                        onClick = onTodayClick,
+                    )
                     .padding(horizontal = 4.dp, vertical = 6.dp),
             )
-            IconButton(onClick = onNextDayClick, modifier = Modifier.size(30.dp)) {
+            IconButton(onClick = onNextDayClick, modifier = Modifier.size(48.dp)) {
                 Icon(
                     Icons.Filled.ChevronRight,
                     contentDescription = "Next day",
@@ -996,8 +1232,9 @@ private fun FoodDateChip(
  * The mock-6b water card: a white card with a filled drop icon, "Water" label
  * with the consumed/goal figure, a segmented glass tracker (one cell per 250 ml
  * glass — outer corners fully round, inner 6dp, and the fill edge rounds too so
- * the shape itself marks progress), and a trailing tonal add button. Tapping a
- * cell logs a glass; long actions live in the water sheet behind [onWaterClick].
+ * the shape itself marks progress), and a trailing tonal add button. The
+ * segments are decorative progress; quick logging belongs to the single
+ * labelled add control, while long actions live behind [onWaterClick].
  */
 @Composable
 private fun FoodWaterRow(
@@ -1072,8 +1309,7 @@ private fun FoodWaterRow(
                                 .weight(1f)
                                 .height(20.dp)
                                 .clip(waterSegmentShape(index, segmentCount, filledSegments))
-                                .background(if (filled) waterColor else emptyColor)
-                                .clickable(onClick = onQuickAddClick),
+                                .background(if (filled) waterColor else emptyColor),
                         )
                     }
                 }
@@ -1082,7 +1318,7 @@ private fun FoodWaterRow(
                 onClick = onQuickAddClick,
                 color = emptyColor,
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(48.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -2012,6 +2248,7 @@ private fun MealDetailScreen(
                             icon = Icons.Outlined.MoreHoriz,
                             contentDescription = "Meal actions",
                             onClick = { menuOpen = true },
+                            modifier = Modifier.size(48.dp),
                         )
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
@@ -2459,7 +2696,7 @@ private fun MealSummaryRow(
                 color = accent.color,
                 contentColor = accent.onColor,
                 shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.size(44.dp),
+                modifier = Modifier.size(48.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(

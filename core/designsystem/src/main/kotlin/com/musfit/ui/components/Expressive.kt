@@ -9,13 +9,13 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
@@ -37,6 +38,9 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -314,10 +318,10 @@ fun gridGroupShape(
 fun rowGroupShape(index: Int, count: Int, outer: Dp = 24.dp, inner: Dp = 8.dp): RoundedCornerShape = gridGroupShape(row = 0, rowCount = 1, column = index, columnCount = count, outer = outer, inner = inner)
 
 /**
- * The shared 44dp circular tonal icon button used by every tab header
- * (edit / history / settings).
+ * The shared circular tonal icon button used by every tab header
+ * (edit / history / settings). The visual surface stays at 44dp while the
+ * default interaction and semantics target meets the 48dp accessibility floor.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TonalHeaderIconButton(
     icon: ImageVector,
@@ -325,15 +329,32 @@ fun TonalHeaderIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        onClick = onClick,
-        color = MusFitTheme.colors.surfaceVariant,
-        contentColor = MusFitTheme.colors.onSurface,
-        shape = CircleShape,
-        modifier = modifier.size(44.dp),
+    val accessibilityLabel = contentDescription
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(48.dp)
+            .semantics {
+                if (accessibilityLabel != null) {
+                    this.contentDescription = accessibilityLabel
+                }
+            }
+            .clip(CircleShape)
+            .clickable(
+                onClickLabel = accessibilityLabel,
+                role = Role.Button,
+                onClick = onClick,
+            ),
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp))
+        Surface(
+            color = MusFitTheme.colors.surfaceVariant,
+            contentColor = MusFitTheme.colors.onSurface,
+            shape = CircleShape,
+            modifier = Modifier.size(44.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            }
         }
     }
 }

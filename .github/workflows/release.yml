@@ -18,6 +18,10 @@ concurrency:
   group: production-release
   cancel-in-progress: false
 
+env:
+  # Match the verified CI gate's headroom for concurrent D8 instrumentation merges.
+  GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx8g -Dfile.encoding=UTF-8"'
+
 jobs:
   preflight:
     runs-on: ubuntu-latest

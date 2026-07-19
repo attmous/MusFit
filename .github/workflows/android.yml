@@ -12,6 +12,8 @@ permissions:
 env:
   # setup-gradle build-result capture injects action-owned plugin dependencies.
   GRADLE_ACTIONS_SKIP_BUILD_RESULT_CAPTURE: "true"
+  # Concurrent D8 instrumentation merges can exhaust the 4 GiB developer heap.
+  GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx8g -Dfile.encoding=UTF-8"'
 
 concurrency:
   group: android-${{ github.workflow }}-${{ github.ref }}

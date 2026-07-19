@@ -44,6 +44,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material3.adaptive.navigation3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.health.connect)
     implementation(libs.hilt.android)
@@ -60,4 +61,5 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.compose.ui.test.manifest)
 }
