@@ -1,5 +1,6 @@
 package com.musfit.ui
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -22,6 +23,8 @@ import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineDetail
 import com.musfit.data.repository.RoutineExerciseDetail
 import com.musfit.ui.components.MusFitSegmented
+import com.musfit.ui.food.FoodDatabaseNavKey
+import com.musfit.ui.food.FoodDetailNavKey
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.tabAccentFor
 import com.musfit.ui.training.ExerciseGif
@@ -75,6 +78,38 @@ class MusFitComposeSemanticsTest {
         assertEquals(RootNavigationLayout.Rail, rootNavigationLayoutForWidth(600.dp))
         assertEquals(RootNavigationLayout.Rail, rootNavigationLayoutForWidth(839.dp))
         assertEquals(RootNavigationLayout.Wide, rootNavigationLayoutForWidth(840.dp))
+    }
+
+    @Test
+    fun rootNavigationLayoutChange_preservesNestedDestinationState() {
+        val layout = mutableStateOf(RootNavigationLayout.Wide)
+        lateinit var foodEntries: MutableList<NavKey>
+
+        compose.setContent {
+            MusFitTheme {
+                RootNavigationScaffold(
+                    layout = layout.value,
+                    state = RootNavigationState(
+                        destinations = AppDestination.entries,
+                        currentRoute = AppDestination.Food.route,
+                        chromeVisible = true,
+                    ),
+                    callbacks = RootNavigationCallbacks(onSelect = {}, onCoachClick = {}),
+                ) {
+                    foodEntries = rememberNavBackStack(FoodDatabaseNavKey)
+                }
+            }
+        }
+
+        compose.runOnIdle { foodEntries += FoodDetailNavKey("almonds") }
+        compose.runOnIdle {
+            assertEquals(listOf(FoodDatabaseNavKey, FoodDetailNavKey("almonds")), foodEntries)
+        }
+
+        compose.runOnIdle { layout.value = RootNavigationLayout.Compact }
+        compose.runOnIdle {
+            assertEquals(listOf(FoodDatabaseNavKey, FoodDetailNavKey("almonds")), foodEntries)
+        }
     }
 
     @Test

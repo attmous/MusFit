@@ -38,7 +38,10 @@ import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -234,10 +237,14 @@ internal fun RootNavigationScaffold(
     callbacks: RootNavigationCallbacks,
     content: @Composable (Modifier) -> Unit,
 ) {
+    val currentContent = rememberUpdatedState(content)
+    val movableContent = remember {
+        movableContentOf<Modifier> { modifier -> currentContent.value(modifier) }
+    }
     if (layout == RootNavigationLayout.Compact) {
-        CompactRootNavigationScaffold(state, callbacks, content)
+        CompactRootNavigationScaffold(state, callbacks, movableContent)
     } else {
-        AdaptiveRootNavigationScaffold(layout, state, callbacks, content)
+        AdaptiveRootNavigationScaffold(layout, state, callbacks, movableContent)
     }
 }
 

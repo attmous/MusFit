@@ -3,16 +3,19 @@
 package com.musfit.ui.food
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,8 +46,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -65,7 +72,7 @@ import com.musfit.ui.theme.tabAccentFor
 // Shared Food-package building blocks for the Turn 9 inner-screen restyle:
 // sheet chrome, chips, mode row, and the dense grouped list row.
 
-/** Sheet header row: optional leading badge, title, optional chip, 40dp close circle. */
+/** Sheet header row with a 40dp close visual inside a 48dp interaction target. */
 @Composable
 internal fun FoodSheetHeader(
     title: String,
@@ -100,15 +107,27 @@ internal fun FoodSheetHeader(
             }
         }
         chip?.invoke()
-        Surface(
-            onClick = onClose,
-            shape = CircleShape,
-            color = MusFitTheme.colors.surfaceVariant,
-            contentColor = MusFitTheme.colors.onSurface,
-            modifier = Modifier.size(40.dp),
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(48.dp)
+                .semantics { contentDescription = "Close" }
+                .clip(CircleShape)
+                .clickable(
+                    onClickLabel = "Close",
+                    role = Role.Button,
+                    onClick = onClose,
+                ),
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Close, contentDescription = "Close", modifier = Modifier.size(19.dp))
+            Surface(
+                shape = CircleShape,
+                color = MusFitTheme.colors.surfaceVariant,
+                contentColor = MusFitTheme.colors.onSurface,
+                modifier = Modifier.size(40.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(19.dp))
+                }
             }
         }
     }
@@ -356,9 +375,10 @@ internal fun FoodAddModeRow(
 
 /** Dark-vs-white selectable pill chip (sort, filter, unit, preset chips). */
 @Composable
+@Suppress("LongParameterList") // Shared chip styling keeps its color/icon overrides in one contract.
 internal fun SelectableChip(
     text: String,
-    selected: Boolean,
+    selected: Boolean?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selectedContainer: Color = MusFitTheme.colors.chipSelected,
@@ -368,22 +388,36 @@ internal fun SelectableChip(
     leadingIcon: ImageVector? = null,
     leadingTint: Color? = null,
 ) {
+    val isSelected = selected == true
     val container by animateColorAsState(
-        targetValue = if (selected) selectedContainer else unselectedContainer,
+        targetValue = if (isSelected) selectedContainer else unselectedContainer,
         animationSpec = MusFitMotion.effects(),
         label = "chipFill",
     )
     val content by animateColorAsState(
-        targetValue = if (selected) selectedContent else unselectedContent,
+        targetValue = if (isSelected) selectedContent else unselectedContent,
         animationSpec = MusFitMotion.effects(),
         label = "chipInk",
     )
+    val interactionModifier = if (selected != null) {
+        Modifier.selectable(
+            selected = isSelected,
+            role = Role.RadioButton,
+            onClick = onClick,
+        )
+    } else {
+        Modifier.clickable(
+            role = Role.Button,
+            onClick = onClick,
+        )
+    }
     Surface(
-        onClick = onClick,
         shape = RoundedCornerShape(99.dp),
         color = container,
         contentColor = content,
-        modifier = modifier,
+        modifier = modifier
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .then(interactionModifier),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -401,7 +435,7 @@ internal fun SelectableChip(
             Text(
                 text = text,
                 style = MusFitTheme.typography.labelMedium.copy(
-                    fontWeight = if (selected) FontWeight.W700 else FontWeight.W500,
+                    fontWeight = if (isSelected) FontWeight.W700 else FontWeight.W500,
                 ),
                 maxLines = 1,
             )

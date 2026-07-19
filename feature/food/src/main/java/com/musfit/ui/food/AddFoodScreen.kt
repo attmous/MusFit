@@ -8,6 +8,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,11 +18,13 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalDining
 import androidx.compose.material.icons.outlined.Add
@@ -44,6 +47,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -118,6 +124,7 @@ fun AddFoodScreen(
                     icon = Icons.Outlined.MoreHoriz,
                     contentDescription = "More actions",
                     onClick = { menuOpen = true },
+                    modifier = Modifier.size(48.dp),
                 )
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(text = { Text("Quick track") }, onClick = {
@@ -140,88 +147,132 @@ fun AddFoodScreen(
             }
         }
 
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            AddFoodSearchPill(
-                query = state.foodDatabaseQuery,
-                onQueryChange = onQueryChange,
-                onScanClick = onScanClick,
-            )
-            FoodAddModeRow(selected = state.addMode, onSelect = onModeSelected)
-            AddFoodTabChips(
-                selected = state.addTab,
-                onTabSelected = onTabSelected,
-                onOpenTemplates = onOpenTemplates,
-                onOpenRecipes = onOpenRecipes,
-            )
+            item(key = "search") {
+                AddFoodSectionWithGap {
+                    AddFoodSearchPill(
+                        query = state.foodDatabaseQuery,
+                        onQueryChange = onQueryChange,
+                        onScanClick = onScanClick,
+                    )
+                }
+            }
+            item(key = "modes") {
+                AddFoodSectionWithGap {
+                    FoodAddModeRow(selected = state.addMode, onSelect = onModeSelected)
+                }
+            }
+            item(key = "tabs") {
+                AddFoodSectionWithGap {
+                    AddFoodTabChips(
+                        selected = state.addTab,
+                        onTabSelected = onTabSelected,
+                        onOpenTemplates = onOpenTemplates,
+                        onOpenRecipes = onOpenRecipes,
+                    )
+                }
+            }
 
             val query = state.foodDatabaseQuery
             when (state.addTab) {
                 AddTab.Recents ->
                     if (query.isBlank()) {
                         if (state.sameAsYesterday.isNotEmpty()) {
-                            SameAsYesterdayCard(
-                                items = state.sameAsYesterday,
-                                mealLabel = mealLabel,
-                                actionVerb = state.foodEntryActionVerb,
-                                onLogAll = {
-                                    if (onLogAllYesterday != null) {
-                                        onLogAllYesterday()
-                                    } else {
-                                        val first = state.sameAsYesterday.firstOrNull()
-                                        if (first != null) onFoodClick(first.id)
-                                    }
-                                },
-                            )
+                            item(key = "yesterday") {
+                                AddFoodSectionWithGap {
+                                    SameAsYesterdayCard(
+                                        items = state.sameAsYesterday,
+                                        mealLabel = mealLabel,
+                                        actionVerb = state.foodEntryActionVerb,
+                                        onLogAll = {
+                                            if (onLogAllYesterday != null) {
+                                                onLogAllYesterday()
+                                            } else {
+                                                val first = state.sameAsYesterday.firstOrNull()
+                                                if (first != null) onFoodClick(first.id)
+                                            }
+                                        },
+                                    )
+                                }
+                            }
                         }
                         if (state.recentFoods.isNotEmpty()) {
-                            SectionOverline("RECENTS")
-                            AddFoodList(state.recentFoods, state.foodEntryActionVerb, onFoodClick)
+                            item(key = "recents-heading") {
+                                AddFoodSectionWithGap { SectionOverline("RECENTS") }
+                            }
+                            addFoodItems(
+                                foods = state.recentFoods,
+                                actionVerb = state.foodEntryActionVerb,
+                                onFoodClick = onFoodClick,
+                                sectionGapAfter = true,
+                            )
                         }
                         if (state.recentFoods.isEmpty() && state.sameAsYesterday.isEmpty()) {
-                            EmptyHint("Search or scan a barcode to ${state.foodEntryActionVerb.lowercase()} your first food.")
+                            item(key = "recents-empty") {
+                                AddFoodSectionWithGap {
+                                    EmptyHint(
+                                        "Search or scan a barcode to " +
+                                            "${state.foodEntryActionVerb.lowercase()} your first food.",
+                                    )
+                                }
+                            }
                         }
-                        DailyIntakeStrip(state)
+                        item(key = "recents-intake") { DailyIntakeStrip(state) }
                     } else {
                         if (state.visibleSavedFoods.isEmpty()) {
-                            EmptyHint("No saved food matches \"$query\". Scan a barcode or create it.")
+                            item(key = "search-empty") {
+                                EmptyHint("No saved food matches \"$query\". Scan a barcode or create it.")
+                            }
                         }
-                        AddFoodList(state.visibleSavedFoods, state.foodEntryActionVerb, onFoodClick)
+                        addFoodItems(state.visibleSavedFoods, state.foodEntryActionVerb, onFoodClick)
                     }
 
                 AddTab.Favorites -> {
                     val favorites = state.savedFoods.filter { it.isFavorite }
                     if (favorites.isEmpty()) {
                         val actionNoun = if (state.isPlanningMode) "planning" else "logging"
-                        EmptyHint("Foods you favorite show up here for one-tap $actionNoun.")
+                        item(key = "favorites-empty") {
+                            AddFoodSectionWithGap {
+                                EmptyHint("Foods you favorite show up here for one-tap $actionNoun.")
+                            }
+                        }
                     }
-                    AddFoodList(favorites, state.foodEntryActionVerb, onFoodClick)
-                    DailyIntakeStrip(state)
+                    addFoodItems(
+                        foods = favorites,
+                        actionVerb = state.foodEntryActionVerb,
+                        onFoodClick = onFoodClick,
+                        sectionGapAfter = true,
+                    )
+                    item(key = "favorites-intake") { DailyIntakeStrip(state) }
                 }
 
                 AddTab.Create -> {
-                    CreateFoodForm(
-                        state = state,
-                        onScanBarcode = onScanClick,
-                        onScanLabel = onScanLabel,
-                        onProductNameChanged = onProductNameChanged,
-                        onBrandChanged = onBrandChanged,
-                        onQuantityChanged = onQuantityChanged,
-                        onAmountServingChoiceSelected = onAmountServingChoiceSelected,
-                        onCaloriesChanged = onCaloriesChanged,
-                        onProteinChanged = onProteinChanged,
-                        onCarbsChanged = onCarbsChanged,
-                        onFatChanged = onFatChanged,
-                        onSaveProduct = onSaveProduct,
-                        onLogFood = onLogFood,
-                        onCreateRecipe = onCreateRecipe,
-                    )
-                    Spacer(Modifier.height(8.dp))
+                    item(key = "create-form") {
+                        CreateFoodForm(
+                            state = state,
+                            onScanBarcode = onScanClick,
+                            onScanLabel = onScanLabel,
+                            onProductNameChanged = onProductNameChanged,
+                            onBrandChanged = onBrandChanged,
+                            onQuantityChanged = onQuantityChanged,
+                            onAmountServingChoiceSelected = onAmountServingChoiceSelected,
+                            onCaloriesChanged = onCaloriesChanged,
+                            onProteinChanged = onProteinChanged,
+                            onCarbsChanged = onCarbsChanged,
+                            onFatChanged = onFatChanged,
+                            onSaveProduct = onSaveProduct,
+                            onLogFood = onLogFood,
+                            onCreateRecipe = onCreateRecipe,
+                        )
+                        // Preserve the original 14dp section rhythm plus the form's 8dp tail.
+                        Spacer(Modifier.height(22.dp))
+                    }
                 }
             }
         }
@@ -297,8 +348,13 @@ private fun AddFoodSearchPill(
             Box(
                 modifier = Modifier
                     .size(48.dp)
+                    .semantics { contentDescription = "Scan barcode" }
                     .clip(CircleShape)
-                    .clickable(onClickLabel = "Scan barcode") { onScanClick() },
+                    .clickable(
+                        onClickLabel = "Scan barcode",
+                        role = Role.Button,
+                        onClick = onScanClick,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -314,7 +370,7 @@ private fun AddFoodSearchPill(
                 ) {
                     Icon(
                         Icons.Outlined.QrCodeScanner,
-                        contentDescription = "Scan barcode",
+                        contentDescription = null,
                         tint = MusFitTheme.colors.brand,
                         modifier = Modifier
                             .size(20.dp)
@@ -350,8 +406,16 @@ private fun AddFoodTabChips(
                 onClick = { onTabSelected(tab) },
             )
         }
-        SelectableChip(text = "Templates", selected = false, onClick = onOpenTemplates)
-        SelectableChip(text = "Recipes", selected = false, onClick = onOpenRecipes)
+        SelectableChip(
+            text = "Templates",
+            selected = null,
+            onClick = onOpenTemplates,
+        )
+        SelectableChip(
+            text = "Recipes",
+            selected = null,
+            onClick = onOpenRecipes,
+        )
     }
 }
 
@@ -423,47 +487,85 @@ private fun SameAsYesterdayCard(
     }
 }
 
-/** Grouped white rows; whole-row tap logs, plus a 44-ish add button target. */
-@Composable
-private fun AddFoodList(
+/** Grouped white rows; whole-row tap logs, plus a 48dp add button target. */
+private fun LazyListScope.addFoodItems(
     foods: List<SavedFoodUiState>,
     actionVerb: String,
     onFoodClick: (String) -> Unit,
+    sectionGapAfter: Boolean = false,
+) {
+    itemsIndexed(
+        items = foods,
+        key = { _, food -> food.id },
+        contentType = { _, _ -> "saved-food" },
+    ) { index, food ->
+        AddFoodListItem(
+            food = food,
+            index = index,
+            count = foods.size,
+            actionVerb = actionVerb,
+            onFoodClick = onFoodClick,
+            modifier = if (sectionGapAfter && index == foods.lastIndex) {
+                Modifier.padding(bottom = 10.dp)
+            } else {
+                Modifier
+            },
+        )
+    }
+}
+
+@Composable
+@Suppress("LongParameterList") // Lazy row geometry and action semantics stay explicit at the item boundary.
+private fun AddFoodListItem(
+    food: SavedFoodUiState,
+    index: Int,
+    count: Int,
+    actionVerb: String,
+    onFoodClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val accent = tabAccentFor(TabAccentRole.Food)
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        foods.forEachIndexed { index, food ->
-            val kcal = food.caloriesPerServingKcal.roundToInt()
-            val subtitle = food.servingName?.let { "1 $it · $kcal kcal" }
-                ?: "${food.defaultServingGrams.roundToInt()} g · $kcal kcal"
-            FoodListItemRow(
-                index = index,
-                count = foods.size,
-                title = food.name,
-                subtitle = subtitle,
+    val kcal = food.caloriesPerServingKcal.roundToInt()
+    val subtitle = food.servingName?.let { "1 $it · $kcal kcal" }
+        ?: "${food.defaultServingGrams.roundToInt()} g · $kcal kcal"
+    FoodListItemRow(
+        index = index,
+        count = count,
+        title = food.name,
+        subtitle = subtitle,
+        onClick = { onFoodClick(food.id) },
+        modifier = modifier,
+        imageUrl = food.imageUrl,
+        fallbackIcon = Icons.Filled.LocalDining,
+        badgeSize = 44.dp,
+        trailingContent = {
+            Surface(
                 onClick = { onFoodClick(food.id) },
-                imageUrl = food.imageUrl,
-                fallbackIcon = Icons.Filled.LocalDining,
-                badgeSize = 44.dp,
-                trailingContent = {
-                    Surface(
-                        onClick = { onFoodClick(food.id) },
-                        shape = RoundedCornerShape(14.dp),
-                        color = accent.container,
-                        contentColor = accent.onContainer,
-                        modifier = Modifier.size(40.dp),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Outlined.Add,
-                                contentDescription = "$actionVerb ${food.name}",
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-                },
-            )
-        }
+                shape = RoundedCornerShape(14.dp),
+                color = accent.container,
+                contentColor = accent.onContainer,
+                modifier = Modifier.size(48.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Outlined.Add,
+                        contentDescription = "$actionVerb ${food.name}",
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun AddFoodSectionWithGap(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp),
+    ) {
+        content()
     }
 }
 

@@ -46,13 +46,16 @@ import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.nutrition.NutritionCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -60,6 +63,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.Serializable
 import java.time.LocalDate
 import java.time.LocalTime
@@ -896,24 +901,31 @@ class FoodViewModel @Inject constructor(
         ?.toFoodUiStateOrNull()
     private val selectedDateFlow = MutableStateFlow(restoredState?.selectedDate ?: LocalDate.now())
     private val mutableState = MutableStateFlow(restoredState ?: FoodUiState())
+    private var currentDiary: FoodDiary = emptyFoodDiary()
     val state: StateFlow<FoodUiState> = mutableState.asStateFlow()
-    val diaryState: StateFlow<FoodDiaryUiState> = mutableState
+    private val observedState: StateFlow<FoodUiState> = repositoryObservationFlow()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(),
+            initialValue = mutableState.value,
+        )
+    val diaryState: StateFlow<FoodDiaryUiState> = observedState
         .map(FoodPresentationReducers::diary)
         .distinctUntilChanged()
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.Eagerly,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
             initialValue = FoodPresentationReducers.diary(mutableState.value),
         )
-    val routeState: StateFlow<FoodRouteUiState> = mutableState
+    val routeState: StateFlow<FoodRouteUiState> = observedState
         .map(FoodPresentationReducers::route)
         .distinctUntilChanged()
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.Eagerly,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
             initialValue = FoodPresentationReducers.route(mutableState.value),
         )
-    val trackerState: StateFlow<FoodTrackerUiState> = mutableState
+    val trackerState: StateFlow<FoodTrackerUiState> = observedState
         .map(FoodPresentationReducers::trackers)
         .distinctUntilChanged()
         .stateIn(
@@ -921,7 +933,7 @@ class FoodViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
             initialValue = FoodPresentationReducers.trackers(mutableState.value),
         )
-    val addDatabaseState: StateFlow<FoodAddDatabaseUiState> = mutableState
+    val addDatabaseState: StateFlow<FoodAddDatabaseUiState> = observedState
         .map(FoodPresentationReducers::addDatabase)
         .distinctUntilChanged()
         .stateIn(
@@ -929,7 +941,7 @@ class FoodViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
             initialValue = FoodPresentationReducers.addDatabase(mutableState.value),
         )
-    val editorPlanningState: StateFlow<FoodEditorPlanningUiState> = mutableState
+    val editorPlanningState: StateFlow<FoodEditorPlanningUiState> = observedState
         .map(FoodPresentationReducers::editorPlanning)
         .distinctUntilChanged()
         .stateIn(
@@ -939,119 +951,142 @@ class FoodViewModel @Inject constructor(
         )
     private var lookupJob: Job? = null
     private var transientMessageJob: Job? = null
-    private var currentDiary: FoodDiary = emptyFoodDiary()
 
     init {
+        viewModelScope.launch {
+            withTimeoutOrNull(5_000) {
+                observedState.collect { }
+            }
+        }
         viewModelScope.launch {
             mutableState.collect { currentState ->
                 savedStateHandle?.set(FOOD_RESTORATION_STATE_KEY, currentState.toFoodRestorationState())
             }
         }
-        viewModelScope.launch {
-            selectedDateFlow.flatMapLatest { date ->
-                repository.observeFoodDiary(date)
-            }.collect { diary ->
-                currentDiary = diary
-                mutableState.update { currentState -> currentState.withDiary(diary) }
-            }
-        }
-        viewModelScope.launch {
-            selectedDateFlow.flatMapLatest { date ->
-                repository.observeFoodPlan(date)
-            }.collect { planDays ->
-                mutableState.update { currentState ->
-                    currentState.copy(weeklyPlan = planDays.map { it.toUiState() })
-                }
-            }
-        }
-        viewModelScope.launch {
-            selectedDateFlow.flatMapLatest { date ->
-                repository.observeWaterSummary(date)
-            }.collect { summary ->
-                mutableState.update { currentState -> currentState.withWaterSummary(summary, currentDiary) }
-            }
-        }
-        viewModelScope.launch {
-            selectedDateFlow.flatMapLatest { date ->
-                repository.observeBurnedCalories(date)
-            }.collect { burnedCalories ->
-                mutableState.update { currentState -> currentState.copy(burnedCaloriesKcal = burnedCalories) }
-            }
-        }
-        viewModelScope.launch {
-            repository.observeFoodHealthConnectSyncState().collect { syncState ->
-                mutableState.update { currentState -> currentState.withFoodHealthConnectSyncState(syncState) }
-            }
-        }
-        viewModelScope.launch {
-            repository.observeRecentFoods().collect { recents ->
-                mutableState.update { it.copy(recentFoods = recents.map { food -> food.toUiState() }) }
-            }
-        }
-        viewModelScope.launch {
-            repository.observeSavedFoods().collect { savedFoods ->
-                mutableState.update { currentState ->
-                    val foodStates = savedFoods.map { food ->
-                        food.toUiState(isReported = food.id in currentState.reportedSavedFoodIds)
-                    }
-                    currentState.copy(
-                        savedFoods = foodStates,
-                        visibleSavedFoods = foodStates.filterForDatabaseQuery(currentState.foodDatabaseQuery),
-                        duplicateFoodGroups = foodStates.toDuplicateFoodGroups(),
-                        selectedSavedFoodDetail = currentState.selectedSavedFoodDetail?.let { selectedFood ->
-                            foodStates.firstOrNull { it.id == selectedFood.id } ?: selectedFood.withTrust(
-                                isReported = selectedFood.id in currentState.reportedSavedFoodIds,
-                            )
-                        },
-                    )
-                }
-            }
-        }
-        viewModelScope.launch {
-            repository.observeFoodGoal().collect { goal ->
-                mutableState.update { currentState -> currentState.withFoodGoal(goal).withDiary(currentDiary) }
-            }
-        }
-        viewModelScope.launch {
-            repository.observeMealTemplates().collect { templates ->
-                mutableState.update { currentState ->
-                    currentState.copy(mealTemplates = templates.map { it.toUiState() })
-                }
-            }
-        }
-        viewModelScope.launch {
-            repository.observeRecipes().collect { recipes ->
-                mutableState.update { currentState ->
-                    currentState.withRecipes(recipes.map { it.toUiState() })
-                }
-            }
-        }
-        viewModelScope.launch {
-            repository.observeQuickCaloriePresets().collect { presets ->
-                mutableState.update { currentState ->
-                    currentState.copy(quickCaloriePresets = presets.map { it.toUiState() })
-                }
-            }
-        }
-        viewModelScope.launch {
-            repository.observeShoppingList().collect { groups ->
-                mutableState.update { currentState ->
-                    currentState.copy(shoppingListGroups = groups.map { it.toUiState() })
-                }
-            }
-        }
-        viewModelScope.launch {
-            repository.observeCustomMealDefinitions().collect { definitions ->
-                mutableState.update { currentState ->
-                    val mealDefinitions = definitions.toMealDefinitionUiStates()
-                    val updatedState = currentState.copy(mealDefinitions = mealDefinitions)
-                    updatedState
-                        .copy(selectedMealTitle = updatedState.mealTitleFor(updatedState.mealType))
-                        .withDiary(currentDiary)
-                }
-            }
-        }
         refreshFoodHealthConnectSync()
+    }
+
+    @Suppress("LongMethod") // One shared lifecycle boundary must own every repository observer.
+    private fun repositoryObservationFlow(): Flow<FoodUiState> = channelFlow {
+        supervisorScope {
+            launchRepositoryObserver {
+                selectedDateFlow.flatMapLatest { date ->
+                    repository.observeFoodDiary(date)
+                }.collect { diary ->
+                    currentDiary = diary
+                    mutableState.update { currentState -> currentState.withDiary(diary) }
+                }
+            }
+            launchRepositoryObserver {
+                selectedDateFlow.flatMapLatest { date ->
+                    repository.observeFoodPlan(date)
+                }.collect { planDays ->
+                    mutableState.update { currentState ->
+                        currentState.copy(weeklyPlan = planDays.map { it.toUiState() })
+                    }
+                }
+            }
+            launchRepositoryObserver {
+                selectedDateFlow.flatMapLatest { date ->
+                    repository.observeWaterSummary(date)
+                }.collect { summary ->
+                    mutableState.update { currentState -> currentState.withWaterSummary(summary, currentDiary) }
+                }
+            }
+            launchRepositoryObserver {
+                selectedDateFlow.flatMapLatest { date ->
+                    repository.observeBurnedCalories(date)
+                }.collect { burnedCalories ->
+                    mutableState.update { currentState -> currentState.copy(burnedCaloriesKcal = burnedCalories) }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeFoodHealthConnectSyncState().collect { syncState ->
+                    mutableState.update { currentState -> currentState.withFoodHealthConnectSyncState(syncState) }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeRecentFoods().collect { recents ->
+                    mutableState.update { it.copy(recentFoods = recents.map { food -> food.toUiState() }) }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeSavedFoods().collect { savedFoods ->
+                    mutableState.update { currentState ->
+                        val foodStates = savedFoods.map { food ->
+                            food.toUiState(isReported = food.id in currentState.reportedSavedFoodIds)
+                        }
+                        currentState.copy(
+                            savedFoods = foodStates,
+                            visibleSavedFoods = foodStates.filterForDatabaseQuery(currentState.foodDatabaseQuery),
+                            duplicateFoodGroups = foodStates.toDuplicateFoodGroups(),
+                            selectedSavedFoodDetail = currentState.selectedSavedFoodDetail?.let { selectedFood ->
+                                foodStates.firstOrNull { it.id == selectedFood.id } ?: selectedFood.withTrust(
+                                    isReported = selectedFood.id in currentState.reportedSavedFoodIds,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeFoodGoal().collect { goal ->
+                    mutableState.update { currentState -> currentState.withFoodGoal(goal).withDiary(currentDiary) }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeMealTemplates().collect { templates ->
+                    mutableState.update { currentState ->
+                        currentState.copy(mealTemplates = templates.map { it.toUiState() })
+                    }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeRecipes().collect { recipes ->
+                    mutableState.update { currentState ->
+                        currentState.withRecipes(recipes.map { it.toUiState() })
+                    }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeQuickCaloriePresets().collect { presets ->
+                    mutableState.update { currentState ->
+                        currentState.copy(quickCaloriePresets = presets.map { it.toUiState() })
+                    }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeShoppingList().collect { groups ->
+                    mutableState.update { currentState ->
+                        currentState.copy(shoppingListGroups = groups.map { it.toUiState() })
+                    }
+                }
+            }
+            launchRepositoryObserver {
+                repository.observeCustomMealDefinitions().collect { definitions ->
+                    mutableState.update { currentState ->
+                        val mealDefinitions = definitions.toMealDefinitionUiStates()
+                        val updatedState = currentState.copy(mealDefinitions = mealDefinitions)
+                        updatedState
+                            .copy(selectedMealTitle = updatedState.mealTitleFor(updatedState.mealType))
+                            .withDiary(currentDiary)
+                    }
+                }
+            }
+            mutableState.collect { send(it) }
+        }
+    }
+
+    private fun CoroutineScope.launchRepositoryObserver(observe: suspend () -> Unit): Job = launch {
+        try {
+            observe()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            mutableState.update { currentState ->
+                currentState.copy(message = error.message ?: FOOD_DATA_OBSERVATION_ERROR_MESSAGE)
+            }
+        }
     }
 
     fun goToPreviousDay() {
@@ -2039,30 +2074,38 @@ class FoodViewModel @Inject constructor(
         }
     }
 
-    fun useRecipeDiscoveryItem(itemId: String) {
-        val item = state.value.recipeDiscovery.items.firstOrNull { it.id == itemId } ?: run {
-            mutableState.update { it.copy(message = "Recipe idea unavailable") }
-            return
-        }
-        val savedRecipeId = item.sourceRecipeId
-        if (savedRecipeId != null) {
-            logRecipe(savedRecipeId)
-            return
-        }
-        mutableState.update {
-            it.copy(
-                isAddPanelVisible = true,
-                sheetMode = FoodSheetMode.RecipeEditor,
-                recipeEditor = RecipeEditorState(
-                    name = item.title,
-                    category = item.category,
-                    servingName = item.servingName,
-                    servingGrams = item.servingGrams.formatInputNumber(),
-                    servingsCount = "1",
-                    cookedYieldGrams = item.servingGrams.formatInputNumber(),
-                ),
-                message = "Review and save ${item.title}",
-            )
+    /** Returns true when the selected catalog idea prepared an editor destination. */
+    fun useRecipeDiscoveryItem(itemId: String): Boolean {
+        val item = state.value.recipeDiscovery.items.firstOrNull { it.id == itemId }
+        return when {
+            item == null -> {
+                mutableState.update { it.copy(message = "Recipe idea unavailable") }
+                false
+            }
+
+            item.sourceRecipeId != null -> {
+                logRecipe(item.sourceRecipeId)
+                false
+            }
+
+            else -> {
+                mutableState.update {
+                    it.copy(
+                        isAddPanelVisible = true,
+                        sheetMode = FoodSheetMode.RecipeEditor,
+                        recipeEditor = RecipeEditorState(
+                            name = item.title,
+                            category = item.category,
+                            servingName = item.servingName,
+                            servingGrams = item.servingGrams.formatInputNumber(),
+                            servingsCount = "1",
+                            cookedYieldGrams = item.servingGrams.formatInputNumber(),
+                        ),
+                        message = "Review and save ${item.title}",
+                    )
+                }
+                true
+            }
         }
     }
 
@@ -4760,6 +4803,7 @@ private const val WATER_GOAL_MILLILITERS = 2000.0
 private const val TRANSIENT_MESSAGE_DISMISS_MILLIS = 3_000L
 private const val FOOD_PLANNING_LIMIT_DAYS = 7L
 private const val FOOD_PLANNING_LIMIT_MESSAGE = "You can plan up to 1 week ahead."
+private const val FOOD_DATA_OBSERVATION_ERROR_MESSAGE = "Some food data couldn't be refreshed."
 
 private fun foodPlanningMaxDate(): LocalDate = LocalDate.now().plusDays(FOOD_PLANNING_LIMIT_DAYS)
 

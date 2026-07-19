@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 
 package com.musfit.ui.food
 
@@ -11,7 +11,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +27,18 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,6 +121,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -140,6 +156,23 @@ import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+
+private fun LazyListScope.verticalGap(key: String, height: Dp) {
+    item(key = key, contentType = "vertical-gap") {
+        Spacer(modifier = Modifier.height(height))
+    }
+}
+
+private fun LazyGridScope.verticalGap(key: String, height: Dp) {
+    item(
+        key = key,
+        span = { GridItemSpan(maxLineSpan) },
+        contentType = "vertical-gap",
+    ) {
+        Spacer(modifier = Modifier.height(height))
+    }
+}
 
 // Modal bottom-sheet panels for the Food screen (database, detail, diary-entry
 // editor, saved-food editor, OCR review, goals, recipes, templates, meals,
@@ -305,114 +338,137 @@ internal fun FoodDatabasePanel(
     onReportFoodClick: (String) -> Unit,
 ) {
     val foods = state.visibleSavedFoods
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 640.dp)
-            .verticalScroll(rememberScrollState())
-            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .heightIn(max = 640.dp),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 28.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Food database",
-                    style = MaterialTheme.typography.headlineSmall,
-                )
-                Text(
-                    text = "${state.savedFoods.size} saved foods",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
-            Button(
-                onClick = onNewFoodClick,
-                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+        item(key = "header") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("New")
-            }
-        }
-
-        MusFitOutlinedButton(onClick = onImportStarterFoodsClick, modifier = Modifier.fillMaxWidth()) {
-            Text("Import starter foods")
-        }
-
-        MusFitOutlinedButton(onClick = onBarcodeCompareClick, modifier = Modifier.fillMaxWidth()) {
-            Text("Compare barcodes")
-        }
-
-        OutlinedTextField(
-            value = state.foodDatabaseQuery,
-            onValueChange = onSearchChanged,
-            label = { Text("Search foods") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Button(
-            onClick = onSearchOnlineClick,
-            enabled = !state.isSearchingFoods && !state.isSaving,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-        ) {
-            Text(if (state.isSearchingFoods) "Searching" else "Search online foods")
-        }
-
-        state.message?.let { message ->
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.brand,
-            )
-        }
-
-        if (state.onlineFoodResults.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                SectionTitle("Online results")
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    state.onlineFoodResults.forEach { result ->
-                        OnlineFoodResultRow(
-                            result = result,
-                            isSaving = state.isSaving,
-                            onSaveClick = { onSaveOnlineFoodClick(result.barcode) },
-                        )
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "Food database", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        text = "${state.savedFoods.size} saved foods",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                }
+                Button(
+                    onClick = onNewFoodClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+                ) {
+                    Text("New")
                 }
             }
         }
+        verticalGap("gap-after-header", 14.dp)
 
-        if (state.duplicateFoodGroups.isNotEmpty()) {
-            DuplicateFoodGroupsSection(
-                duplicateGroups = state.duplicateFoodGroups,
-                isSaving = state.isSaving,
-                onMergeDuplicateFoodsClick = onMergeDuplicateFoodsClick,
+        item(key = "import") {
+            MusFitOutlinedButton(onClick = onImportStarterFoodsClick, modifier = Modifier.fillMaxWidth()) {
+                Text("Import starter foods")
+            }
+        }
+        verticalGap("gap-after-import", 14.dp)
+
+        item(key = "compare") {
+            MusFitOutlinedButton(onClick = onBarcodeCompareClick, modifier = Modifier.fillMaxWidth()) {
+                Text("Compare barcodes")
+            }
+        }
+        verticalGap("gap-after-compare", 14.dp)
+
+        item(key = "search") {
+            OutlinedTextField(
+                value = state.foodDatabaseQuery,
+                onValueChange = onSearchChanged,
+                label = { Text("Search foods") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
+        verticalGap("gap-after-search", 14.dp)
 
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SectionTitle("Saved foods")
-            if (foods.isEmpty()) {
+        item(key = "online-search") {
+            Button(
+                onClick = onSearchOnlineClick,
+                enabled = !state.isSearchingFoods && !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+            ) {
+                Text(if (state.isSearchingFoods) "Searching" else "Search online foods")
+            }
+        }
+        verticalGap("gap-after-online-search", 14.dp)
+
+        state.message?.let { message ->
+            item(key = "message") {
+                Text(text = message, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.brand)
+            }
+            verticalGap("gap-after-message", 14.dp)
+        }
+
+        if (state.onlineFoodResults.isNotEmpty()) {
+            item(key = "online-heading") { SectionTitle("Online results") }
+            verticalGap("gap-after-online-heading", 4.dp)
+            items(
+                items = state.onlineFoodResults,
+                key = { "online-${it.barcode}" },
+                contentType = { "online-food" },
+            ) { result ->
+                OnlineFoodResultRow(
+                    result = result,
+                    isSaving = state.isSaving,
+                    onSaveClick = { onSaveOnlineFoodClick(result.barcode) },
+                )
+            }
+            verticalGap("gap-after-online-results", 14.dp)
+        }
+
+        if (state.duplicateFoodGroups.isNotEmpty()) {
+            item(key = "duplicates-heading") { SectionTitle("Potential duplicates") }
+            verticalGap("gap-after-duplicates-heading", 4.dp)
+            items(
+                items = state.duplicateFoodGroups,
+                key = { "duplicate-${it.primaryFoodId}" },
+                contentType = { "duplicate-food-group" },
+            ) { group ->
+                DuplicateFoodGroupRow(
+                    group = group,
+                    isSaving = state.isSaving,
+                    onMergeDuplicateFoodsClick = onMergeDuplicateFoodsClick,
+                )
+            }
+            verticalGap("gap-after-duplicates", 14.dp)
+        }
+
+        item(key = "saved-heading") { SectionTitle("Saved foods") }
+        verticalGap("gap-after-saved-heading", 4.dp)
+        if (foods.isEmpty()) {
+            item(key = "saved-empty") {
                 Text(
                     text = if (state.foodDatabaseQuery.isBlank()) "No saved foods yet" else "No matching foods",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
-            } else {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    foods.forEach { food ->
-                        SavedFoodDatabaseRow(
-                            food = food,
-                            onDetailClick = { onOpenFoodDetailClick(food.id) },
-                            onEditClick = { onEditFoodClick(food.id) },
-                            onFavoriteClick = { onFavoriteClick(food.id, !food.isFavorite) },
-                            onReportClick = { onReportFoodClick(food.id) },
-                        )
-                    }
-                }
+            }
+        } else {
+            items(
+                items = foods,
+                key = SavedFoodUiState::id,
+                contentType = { "saved-food" },
+            ) { food ->
+                SavedFoodDatabaseRow(
+                    food = food,
+                    onDetailClick = { onOpenFoodDetailClick(food.id) },
+                    onEditClick = { onEditFoodClick(food.id) },
+                    onFavoriteClick = { onFavoriteClick(food.id, !food.isFavorite) },
+                    onReportClick = { onReportFoodClick(food.id) },
+                )
             }
         }
     }
@@ -681,45 +737,40 @@ private fun OnlineFoodResultRow(
 }
 
 @Composable
-private fun DuplicateFoodGroupsSection(
-    duplicateGroups: List<FoodDuplicateGroupUiState>,
+private fun DuplicateFoodGroupRow(
+    group: FoodDuplicateGroupUiState,
     isSaving: Boolean,
     onMergeDuplicateFoodsClick: (String, List<String>) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        SectionTitle("Potential duplicates")
-        Column(modifier = Modifier.fillMaxWidth()) {
-            duplicateGroups.forEach { group ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = group.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = "${group.reason} - ${group.duplicateFoodIds.size + 1} foods",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MusFitTheme.colors.onSurfaceVariant,
-                        )
-                    }
-                    MusFitOutlinedButton(
-                        onClick = { onMergeDuplicateFoodsClick(group.primaryFoodId, group.duplicateFoodIds) },
-                        enabled = !isSaving,
-                    ) {
-                        Text("Merge")
-                    }
-                }
-                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = group.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${group.reason} - ${group.duplicateFoodIds.size + 1} foods",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+            }
+            MusFitOutlinedButton(
+                onClick = { onMergeDuplicateFoodsClick(group.primaryFoodId, group.duplicateFoodIds) },
+                enabled = !isSaving,
+            ) {
+                Text("Merge")
             }
         }
+        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
     }
 }
 
@@ -731,51 +782,126 @@ private fun SavedFoodDatabaseRow(
     onFavoriteClick: () -> Unit,
     onReportClick: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FoodThumb(imageUrl = food.imageUrl, fallback = Icons.Outlined.Restaurant)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = food.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = listOfNotNull(
-                        food.trust.label,
-                        food.brand,
-                        "${food.defaultServingGrams.roundToInt()} g",
-                        "${food.caloriesPerServingKcal.roundToInt()} kcal",
-                    ).joinToString(" - "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                MusFitOutlinedButton(onClick = onFavoriteClick) {
-                    Text(if (food.isFavorite) "Starred" else "Star")
-                }
-                MusFitOutlinedButton(onClick = onReportClick) {
-                    Text("Report")
-                }
-                MusFitOutlinedButton(onClick = onDetailClick) {
-                    Text("Detail")
-                }
-                MusFitOutlinedButton(onClick = onEditClick) {
-                    Text("Edit")
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("food-database-row-${food.id}"),
+    ) {
+        val useCompactActions = maxWidth < 560.dp
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = if (useCompactActions) 2.dp else 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FoodThumb(imageUrl = food.imageUrl, fallback = Icons.Outlined.Restaurant)
+                SavedFoodDatabaseSummary(food = food, modifier = Modifier.weight(1f))
+                if (!useCompactActions) {
+                    SavedFoodDatabaseTextActions(
+                        food = food,
+                        onFavoriteClick = onFavoriteClick,
+                        onReportClick = onReportClick,
+                        onDetailClick = onDetailClick,
+                        onEditClick = onEditClick,
+                    )
                 }
             }
+            if (useCompactActions) {
+                SavedFoodDatabaseIconActions(
+                    food = food,
+                    onFavoriteClick = onFavoriteClick,
+                    onReportClick = onReportClick,
+                    onDetailClick = onDetailClick,
+                    onEditClick = onEditClick,
+                )
+            }
+            HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
         }
-        HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+    }
+}
+
+@Composable
+private fun SavedFoodDatabaseSummary(food: SavedFoodUiState, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(
+            text = food.name,
+            style = MaterialTheme.typography.titleSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = listOfNotNull(
+                food.trust.label,
+                food.brand,
+                "${food.defaultServingGrams.roundToInt()} g",
+                "${food.caloriesPerServingKcal.roundToInt()} kcal",
+            ).joinToString(" - "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun SavedFoodDatabaseTextActions(
+    food: SavedFoodUiState,
+    onFavoriteClick: () -> Unit,
+    onReportClick: () -> Unit,
+    onDetailClick: () -> Unit,
+    onEditClick: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        MusFitOutlinedButton(onClick = onFavoriteClick) { Text(if (food.isFavorite) "Starred" else "Star") }
+        MusFitOutlinedButton(onClick = onReportClick) { Text("Report") }
+        MusFitOutlinedButton(onClick = onDetailClick) { Text("Detail") }
+        MusFitOutlinedButton(onClick = onEditClick) { Text("Edit") }
+    }
+}
+
+@Composable
+private fun SavedFoodDatabaseIconActions(
+    food: SavedFoodUiState,
+    onFavoriteClick: () -> Unit,
+    onReportClick: () -> Unit,
+    onDetailClick: () -> Unit,
+    onEditClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onFavoriteClick,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(
+                imageVector = if (food.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                contentDescription = if (food.isFavorite) "Remove ${food.name} from favorites" else "Add ${food.name} to favorites",
+            )
+        }
+        IconButton(
+            onClick = onReportClick,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(Icons.Outlined.ErrorOutline, contentDescription = "Report ${food.name}")
+        }
+        IconButton(
+            onClick = onDetailClick,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(Icons.Outlined.ChevronRight, contentDescription = "View ${food.name} details")
+        }
+        IconButton(
+            onClick = onEditClick,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(Icons.Outlined.Edit, contentDescription = "Edit ${food.name}")
+        }
     }
 }
 
@@ -1069,24 +1195,33 @@ private fun FoodDetailAmountCard(
                     onClick = { onQuantityChanged(steppedGramsInput(quantityInput, 10.0)) },
                 )
             }
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                val matchesServing = food.servings.any { quantityInput == it.grams.formatNutritionDisplay() }
-                SelectableChip(
-                    text = "grams",
-                    selected = !matchesServing,
-                    onClick = { onQuantityChanged(food.defaultServingGrams.formatNutritionDisplay()) },
-                    unselectedContainer = MusFitTheme.colors.surfaceVariant,
-                )
-                food.servings.forEach { serving ->
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val maxItemsPerRow = when {
+                    maxWidth < 280.dp -> 1
+                    maxWidth < 440.dp -> 2
+                    else -> Int.MAX_VALUE
+                }
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    maxItemsInEachRow = maxItemsPerRow,
+                ) {
+                    val matchesServing = food.servings.any { quantityInput == it.grams.formatNutritionDisplay() }
                     SelectableChip(
-                        text = "${serving.label} · ${serving.grams.formatNutritionDisplay()} g",
-                        selected = quantityInput == serving.grams.formatNutritionDisplay(),
-                        onClick = { onServingSelected(food.id, serving.grams) },
+                        text = "grams",
+                        selected = !matchesServing,
+                        onClick = { onQuantityChanged(food.defaultServingGrams.formatNutritionDisplay()) },
                         unselectedContainer = MusFitTheme.colors.surfaceVariant,
                     )
+                    food.servings.forEach { serving ->
+                        SelectableChip(
+                            text = "${serving.label} · ${serving.grams.formatNutritionDisplay()} g",
+                            selected = quantityInput == serving.grams.formatNutritionDisplay(),
+                            onClick = { onServingSelected(food.id, serving.grams) },
+                            unselectedContainer = MusFitTheme.colors.surfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -1163,43 +1298,111 @@ private fun FoodDetailMacrosCard(amount: FoodNutrition, state: FoodUiState) {
         Triple("Protein", amount.proteinGrams, state.proteinGoalGrams),
         Triple("Fat", amount.fatGrams, state.fatGoalGrams),
     )
-    Surface(color = colors.surface, shape = RoundedCornerShape(24.dp)) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-        ) {
-            entries.forEachIndexed { index, entry ->
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = entry.first,
-                            style = MusFitTheme.typography.labelSmall.copy(
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.W800,
-                                letterSpacing = 0.sp,
-                            ),
-                            color = colors.macroColors[index],
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            text = "${entry.second.formatNutritionDisplay()} g",
-                            style = MusFitTheme.typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.sp),
-                            color = colors.onSurfaceVariant,
-                            maxLines = 1,
-                        )
-                    }
-                    WavyProgressBar(
-                        progress = macroFillFraction(entry.second, entry.third),
-                        color = colors.macroColors[index],
-                        trackColor = colors.macroTracks[index],
+    Surface(
+        color = colors.surface,
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val stackLabels = maxWidth < 440.dp
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+            ) {
+                entries.forEachIndexed { index, entry ->
+                    FoodDetailMacroEntry(
+                        entry = entry,
+                        colorIndex = index,
+                        stackLabels = stackLabels,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FoodDetailMacroEntry(
+    entry: Triple<String, Double, Double>,
+    colorIndex: Int,
+    stackLabels: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MusFitTheme.colors
+    Column(
+        verticalArrangement = Arrangement.spacedBy(7.dp),
+        modifier = modifier,
+    ) {
+        FoodDetailMacroLabels(
+            label = entry.first,
+            amountGrams = entry.second,
+            colorIndex = colorIndex,
+            stackLabels = stackLabels,
+        )
+        WavyProgressBar(
+            progress = macroFillFraction(entry.second, entry.third),
+            color = colors.macroColors[colorIndex],
+            trackColor = colors.macroTracks[colorIndex],
+        )
+    }
+}
+
+@Composable
+private fun FoodDetailMacroLabels(
+    label: String,
+    amountGrams: Double,
+    colorIndex: Int,
+    stackLabels: Boolean,
+) {
+    val colors = MusFitTheme.colors
+    val value = "${amountGrams.formatNutritionDisplay()} g"
+    if (stackLabels) {
+        Text(
+            text = label,
+            style = MusFitTheme.typography.labelSmall.copy(
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.W800,
+                letterSpacing = 0.sp,
+            ),
+            color = colors.macroColors[colorIndex],
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = value,
+            style = MusFitTheme.typography.labelSmall.copy(
+                fontSize = 11.5.sp,
+                letterSpacing = 0.sp,
+            ),
+            color = colors.onSurfaceVariant,
+            maxLines = 1,
+        )
+    } else {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = label,
+                style = MusFitTheme.typography.labelSmall.copy(
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.W800,
+                    letterSpacing = 0.sp,
+                ),
+                color = colors.macroColors[colorIndex],
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = value,
+                style = MusFitTheme.typography.labelSmall.copy(
+                    fontSize = 11.5.sp,
+                    letterSpacing = 0.sp,
+                ),
+                color = colors.onSurfaceVariant,
+                maxLines = 1,
+            )
         }
     }
 }
@@ -1412,13 +1615,13 @@ internal fun DiaryEntryEditorPanel(
             state.visibleMealDefinitions.forEach { choice ->
                 SelectableChip(
                     text = choice.title,
-                    selected = false,
+                    selected = null,
                     onClick = { onCopyToMealClick(choice.id) },
                 )
             }
             SelectableChip(
                 text = "Tomorrow",
-                selected = false,
+                selected = null,
                 onClick = onCopyTomorrowClick,
             )
         }
@@ -1696,7 +1899,7 @@ internal fun SavedFoodEditorScreen(
                     text = if (state.isSaving) "Saving" else "Save",
                     onClick = onSaveClick,
                     enabled = !state.isSaving,
-                    height = 44.dp,
+                    height = 48.dp,
                 )
             },
         )
@@ -2229,7 +2432,7 @@ internal fun GoalEditorScreen(
                     text = if (state.isSaving) "Saving" else "Save",
                     onClick = onSaveClick,
                     enabled = !state.isSaving,
-                    height = 44.dp,
+                    height = 48.dp,
                 )
             },
         )
@@ -2582,8 +2785,11 @@ private fun GoalProgramRow(
 }
 
 @Composable
+@Suppress("LongMethod", "LongParameterList") // Browser/editor host intentionally forwards one stable action contract.
 internal fun RecipeBrowserScreen(
     state: FoodUiState,
+    showEditorBack: Boolean = true,
+    recipeListState: LazyGridState = rememberLazyGridState(),
     onCloseClick: () -> Unit,
     onForwardClick: () -> Unit,
     onHomeClick: () -> Unit,
@@ -2623,10 +2829,16 @@ internal fun RecipeBrowserScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (isEditorPage) {
-            InnerScreenHeader(
-                title = if (state.recipeEditor?.editingRecipeId == null) "New recipe" else "Edit recipe",
-                onBack = onHomeClick,
-            )
+            val editorTitle = if (state.recipeEditor.editingRecipeId == null) "New recipe" else "Edit recipe"
+            if (showEditorBack) {
+                InnerScreenHeader(title = editorTitle, onBack = onHomeClick)
+            } else {
+                Text(
+                    text = editorTitle,
+                    style = MusFitTheme.typography.headlineSmall,
+                    color = MusFitTheme.colors.onSurface,
+                )
+            }
             RecipeEditorPanel(
                 state = state,
                 onNameChanged = onNameChanged,
@@ -2652,6 +2864,7 @@ internal fun RecipeBrowserScreen(
         } else {
             RecipeBrowserHome(
                 state = state,
+                recipeListState = recipeListState,
                 modifier = Modifier.weight(1f),
                 onBackClick = onCloseClick,
                 onPreviousDayClick = onPreviousDayClick,
@@ -2675,9 +2888,31 @@ internal fun RecipeBrowserScreen(
 
 private fun RecipeDiscoveryFilter.chipLabel(): String = if (this == RecipeDiscoveryFilter.All) "For you" else label
 
+private const val RECIPE_GRID_COLUMN_COUNT = 2
+
+internal fun recipeGridShape(index: Int, itemCount: Int): RoundedCornerShape {
+    require(index in 0 until itemCount)
+    val row = index / RECIPE_GRID_COLUMN_COUNT
+    val rowCount = (itemCount + RECIPE_GRID_COLUMN_COUNT - 1) / RECIPE_GRID_COLUMN_COUNT
+    val column = index % RECIPE_GRID_COLUMN_COUNT
+    val populatedColumns = if (row == rowCount - 1 && itemCount % RECIPE_GRID_COLUMN_COUNT != 0) {
+        itemCount % RECIPE_GRID_COLUMN_COUNT
+    } else {
+        RECIPE_GRID_COLUMN_COUNT
+    }
+    return gridGroupShape(
+        row = row,
+        rowCount = rowCount,
+        column = column,
+        columnCount = populatedColumns,
+    )
+}
+
 @Composable
+@Suppress("CyclomaticComplexMethod", "LongMethod", "LongParameterList") // One lazy scene owns ordered full-span and keyed-grid sections.
 private fun RecipeBrowserHome(
     state: FoodUiState,
+    recipeListState: LazyGridState,
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit,
     onPreviousDayClick: () -> Unit,
@@ -2699,20 +2934,29 @@ private fun RecipeBrowserHome(
     val colors = MusFitTheme.colors
     var searchVisible by rememberSaveable { mutableStateOf(state.recipeDiscovery.query.isNotBlank()) }
     var showMyRecipes by rememberSaveable { mutableStateOf(false) }
-    val contentScrollState = rememberScrollState()
-    // The MY RECIPES section sits below the discovery grid; jump there when the
-    // pill reveals it so the tap visibly does something on long grids.
-    LaunchedEffect(showMyRecipes) {
-        if (showMyRecipes) {
-            contentScrollState.animateScrollTo(contentScrollState.maxValue)
-        }
-    }
     val mealTitle = state.visibleMealDefinitions
         .firstOrNull { it.id == state.recipeBrowserMealType }?.title
         ?: state.recipeBrowserMealType
     val visibleItems = state.recipeDiscovery.visibleItems
     val featured = visibleItems.firstOrNull { it.programRelevant } ?: visibleItems.firstOrNull()
     val gridItems = visibleItems.filterNot { it.id == featured?.id }
+    val hasEmptyDiscovery = gridItems.isEmpty() && featured == null
+    val hasDiscoverySection = hasEmptyDiscovery || gridItems.isNotEmpty()
+    val myRecipesHeadingIndex =
+        (if (state.message != null) 2 else 0) +
+            (if (featured != null) 2 else 0) +
+            2 +
+            when {
+                hasEmptyDiscovery -> 2
+                gridItems.isNotEmpty() -> gridItems.size + 1
+                else -> 0
+            }
+
+    LaunchedEffect(showMyRecipes, myRecipesHeadingIndex) {
+        if (showMyRecipes) {
+            recipeListState.animateScrollToItem(myRecipesHeadingIndex)
+        }
+    }
 
     Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         InnerScreenHeader(
@@ -2723,6 +2967,7 @@ private fun RecipeBrowserHome(
                     icon = Icons.Outlined.Search,
                     contentDescription = "Search recipes",
                     onClick = { searchVisible = !searchVisible },
+                    modifier = Modifier.size(48.dp),
                 )
             },
         )
@@ -2779,119 +3024,121 @@ private fun RecipeBrowserHome(
             }
         }
 
-        Column(
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(RECIPE_GRID_COLUMN_COUNT),
+            state = recipeListState,
             modifier = Modifier
                 .weight(1f)
-                .clipToBounds()
-                .verticalScroll(contentScrollState)
-                .padding(bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .clipToBounds(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 8.dp),
         ) {
             state.message?.let {
-                Text(
-                    text = it,
-                    style = MusFitTheme.typography.bodyMedium,
-                    color = colors.brand,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                item(
+                    key = "message",
+                    span = { GridItemSpan(maxLineSpan) },
+                ) {
+                    Text(
+                        text = it,
+                        style = MusFitTheme.typography.bodyMedium,
+                        color = colors.brand,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                verticalGap("gap-after-message", 12.dp)
             }
 
             if (featured != null) {
-                RecipeFeaturedCard(
-                    item = featured,
-                    mealTitle = mealTitle,
-                    isSaving = state.isSaving,
-                    onPlanClick = onPlanRecipeClick,
-                    onReviewClick = onReviewIdeaClick,
-                )
+                item(
+                    key = "featured-${featured.id}",
+                    span = { GridItemSpan(maxLineSpan) },
+                ) {
+                    RecipeFeaturedCard(
+                        item = featured,
+                        mealTitle = mealTitle,
+                        isSaving = state.isSaving,
+                        onPlanClick = onPlanRecipeClick,
+                        onReviewClick = onReviewIdeaClick,
+                    )
+                }
+                verticalGap("gap-after-featured", 12.dp)
             }
 
             // Compact plan target: day, meal, and servings feed plan/log calls.
-            Surface(color = colors.surface, shape = RoundedCornerShape(24.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                ) {
-                    IconButton(onClick = onPreviousDayClick) {
-                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = colors.onSurface)
-                    }
-                    Column(
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .clickable(onClickLabel = "Jump to today", onClick = onTodayClick),
-                    ) {
-                        Text(
-                            text = state.recipeBrowserDate.toString(),
-                            style = MusFitTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
-                            color = colors.onSurface,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = "Today",
-                            style = MusFitTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
-                            color = colors.brand,
-                        )
-                    }
-                    IconButton(onClick = onNextDayClick) {
-                        Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = colors.onSurface)
-                    }
-                    MealTargetChip(
-                        label = mealTitle,
-                        meals = state.visibleMealDefinitions,
-                        onMealSelected = onMealChanged,
-                    )
-                    FieldCell(
-                        label = "Serv",
-                        value = state.recipeServingsToLog,
-                        onValueChange = onServingsChanged,
-                        shape = RoundedCornerShape(16.dp),
-                        keyboardType = KeyboardType.Decimal,
-                        modifier = Modifier.width(72.dp),
-                    )
-                }
+            item(
+                key = "plan-target",
+                span = { GridItemSpan(maxLineSpan) },
+            ) {
+                RecipePlanTargetCard(
+                    state = state,
+                    mealTitle = mealTitle,
+                    onPreviousDayClick = onPreviousDayClick,
+                    onNextDayClick = onNextDayClick,
+                    onTodayClick = onTodayClick,
+                    onMealChanged = onMealChanged,
+                    onServingsChanged = onServingsChanged,
+                )
+            }
+            if (hasDiscoverySection || showMyRecipes) {
+                verticalGap("gap-after-plan-target", 12.dp)
             }
 
-            if (gridItems.isEmpty() && featured == null) {
-                RecipeBrowserEmptyText("No recipes match this search yet.")
+            if (hasEmptyDiscovery) {
+                item(
+                    key = "empty",
+                    span = { GridItemSpan(maxLineSpan) },
+                ) {
+                    RecipeBrowserEmptyText("No recipes match this search yet.")
+                }
+                if (showMyRecipes) {
+                    verticalGap("gap-after-empty", 12.dp)
+                }
             } else if (gridItems.isNotEmpty()) {
-                val chunks = gridItems.chunked(2)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    chunks.forEachIndexed { rowIndex, rowItems ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            rowItems.forEachIndexed { columnIndex, item ->
-                                RecipeGridCard(
-                                    item = item,
-                                    shape = gridGroupShape(
-                                        row = rowIndex,
-                                        rowCount = chunks.size,
-                                        column = columnIndex,
-                                        columnCount = 2,
-                                    ),
-                                    onClick = { onItemClick(item.id) },
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                            if (rowItems.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
+                gridItemsIndexed(
+                    items = gridItems,
+                    key = { _, recipe -> "discovery-${recipe.id}" },
+                    contentType = { _, _ -> "recipe-discovery-card" },
+                ) { index, recipeItem ->
+                    val rowIndex = index / RECIPE_GRID_COLUMN_COUNT
+                    val rowCount = (gridItems.size + RECIPE_GRID_COLUMN_COUNT - 1) / RECIPE_GRID_COLUMN_COUNT
+                    RecipeGridCard(
+                        item = recipeItem,
+                        shape = recipeGridShape(index = index, itemCount = gridItems.size),
+                        onClick = { onItemClick(recipeItem.id) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = if (rowIndex < rowCount - 1) 8.dp else 0.dp),
+                    )
+                }
+                if (showMyRecipes) {
+                    verticalGap("gap-after-discovery", 12.dp)
                 }
             }
 
             if (showMyRecipes) {
-                SectionOverline("MY RECIPES")
+                item(
+                    key = "my-recipes-heading",
+                    span = { GridItemSpan(maxLineSpan) },
+                ) {
+                    SectionOverline("MY RECIPES")
+                }
+                verticalGap("gap-after-my-recipes-heading", 12.dp)
                 if (state.recipes.isEmpty()) {
-                    RecipeBrowserEmptyText("No saved recipes yet — build one with New recipe.")
+                    item(
+                        key = "my-recipes-empty",
+                        span = { GridItemSpan(maxLineSpan) },
+                    ) {
+                        RecipeBrowserEmptyText("No saved recipes yet — build one with New recipe.")
+                    }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        state.recipes.forEachIndexed { index, recipe ->
+                    gridItemsIndexed(
+                        items = state.recipes,
+                        key = { _, recipe -> "saved-${recipe.id}" },
+                        span = { _, _ -> GridItemSpan(maxLineSpan) },
+                        contentType = { _, _ -> "saved-recipe" },
+                    ) { index, recipe ->
+                        Column {
                             FoodListItemRow(
                                 index = index,
                                 count = state.recipes.size,
@@ -2922,7 +3169,7 @@ private fun RecipeBrowserHome(
                                             color = accent.container,
                                             contentColor = accent.onContainer,
                                             shape = RoundedCornerShape(14.dp),
-                                            modifier = Modifier.size(40.dp),
+                                            modifier = Modifier.size(48.dp),
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
                                                 Icon(
@@ -2935,6 +3182,9 @@ private fun RecipeBrowserHome(
                                     }
                                 },
                             )
+                            if (index < state.recipes.lastIndex) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
                         }
                     }
                 }
@@ -2968,7 +3218,151 @@ private fun RecipeBrowserHome(
 }
 
 @Composable
-private fun RecipeFeaturedCard(
+@Suppress("LongParameterList")
+internal fun RecipePlanTargetCard(
+    state: FoodUiState,
+    mealTitle: String,
+    onPreviousDayClick: () -> Unit,
+    onNextDayClick: () -> Unit,
+    onTodayClick: () -> Unit,
+    onMealChanged: (String) -> Unit,
+    onServingsChanged: (String) -> Unit,
+) {
+    val colors = MusFitTheme.colors
+    Surface(
+        color = colors.surface,
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            if (maxWidth < 420.dp) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    RecipePlanDateControls(
+                        state = state,
+                        onPreviousDayClick = onPreviousDayClick,
+                        onNextDayClick = onNextDayClick,
+                        onTodayClick = onTodayClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    RecipePlanMealControls(
+                        state = state,
+                        mealTitle = mealTitle,
+                        onMealChanged = onMealChanged,
+                        onServingsChanged = onServingsChanged,
+                        modifier = Modifier.width(190.dp),
+                    )
+                }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    RecipePlanDateControls(
+                        state = state,
+                        onPreviousDayClick = onPreviousDayClick,
+                        onNextDayClick = onNextDayClick,
+                        onTodayClick = onTodayClick,
+                        modifier = Modifier.weight(1f),
+                    )
+                    RecipePlanMealControls(
+                        state = state,
+                        mealTitle = mealTitle,
+                        onMealChanged = onMealChanged,
+                        onServingsChanged = onServingsChanged,
+                        modifier = Modifier.width(190.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecipePlanDateControls(
+    state: FoodUiState,
+    onPreviousDayClick: () -> Unit,
+    onNextDayClick: () -> Unit,
+    onTodayClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MusFitTheme.colors
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
+        IconButton(onClick = onPreviousDayClick) {
+            Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = colors.onSurface)
+        }
+        Column(
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 48.dp)
+                .clickable(onClickLabel = "Jump to today", onClick = onTodayClick),
+        ) {
+            Text(
+                text = state.recipeBrowserDate.toString(),
+                style = MusFitTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
+                color = colors.onSurface,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = "Today",
+                style = MusFitTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                color = colors.brand,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        IconButton(onClick = onNextDayClick) {
+            Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = colors.onSurface)
+        }
+    }
+}
+
+@Composable
+private fun RecipePlanMealControls(
+    state: FoodUiState,
+    mealTitle: String,
+    onMealChanged: (String) -> Unit,
+    onServingsChanged: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier,
+    ) {
+        MealTargetChip(
+            label = mealTitle,
+            meals = state.visibleMealDefinitions,
+            onMealSelected = onMealChanged,
+            modifier = Modifier.weight(1f),
+        )
+        FieldCell(
+            label = "Serv",
+            value = state.recipeServingsToLog,
+            onValueChange = onServingsChanged,
+            shape = RoundedCornerShape(16.dp),
+            keyboardType = KeyboardType.Decimal,
+            modifier = Modifier.width(72.dp),
+        )
+    }
+}
+
+@Composable
+internal fun RecipeFeaturedCard(
     item: RecipeDiscoveryItemUiState,
     mealTitle: String,
     isSaving: Boolean,
@@ -2976,7 +3370,16 @@ private fun RecipeFeaturedCard(
     onReviewClick: (String) -> Unit,
 ) {
     val accent = tabAccentFor(TabAccentRole.Food)
-    Surface(color = accent.container, shape = RoundedCornerShape(28.dp)) {
+    val sourceRecipeId = item.sourceRecipeId
+    val actionText = if (sourceRecipeId != null) "Plan ${mealTitle.lowercase()}" else "Review"
+    val onAction = {
+        if (sourceRecipeId != null) onPlanClick(sourceRecipeId) else onReviewClick(item.id)
+    }
+    Surface(
+        color = accent.container,
+        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Column {
             RecipeBrowserThumbnail(
                 key = item.thumbnailKey,
@@ -2985,45 +3388,70 @@ private fun RecipeFeaturedCard(
                     .height(130.dp)
                     .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)),
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 18.dp, end = 14.dp, top = 14.dp, bottom = 16.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.title,
-                        style = MusFitTheme.typography.titleMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.W800),
-                        color = accent.onContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = buildList {
-                            add("${item.caloriesKcal.roundToInt()} kcal")
-                            add("${item.proteinGrams.formatNutritionDisplay()} g protein")
-                            item.tagLabels.firstOrNull()?.let(::add)
-                        }.joinToString(" · "),
-                        style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = accent.onContainerVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                if (maxWidth < 360.dp) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(start = 18.dp, end = 14.dp, top = 14.dp, bottom = 16.dp),
+                    ) {
+                        RecipeFeaturedSummary(item = item, modifier = Modifier.fillMaxWidth())
+                        PillButton(
+                            text = actionText,
+                            onClick = onAction,
+                            enabled = !isSaving,
+                            height = 48.dp,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 18.dp, end = 14.dp, top = 14.dp, bottom = 16.dp),
+                    ) {
+                        RecipeFeaturedSummary(item = item, modifier = Modifier.weight(1f))
+                        PillButton(
+                            text = actionText,
+                            onClick = onAction,
+                            enabled = !isSaving,
+                            height = 48.dp,
+                        )
+                    }
                 }
-                val sourceRecipeId = item.sourceRecipeId
-                PillButton(
-                    text = if (sourceRecipeId != null) "Plan ${mealTitle.lowercase()}" else "Review",
-                    onClick = {
-                        if (sourceRecipeId != null) onPlanClick(sourceRecipeId) else onReviewClick(item.id)
-                    },
-                    enabled = !isSaving,
-                    height = 40.dp,
-                )
             }
         }
+    }
+}
+
+@Composable
+private fun RecipeFeaturedSummary(item: RecipeDiscoveryItemUiState, modifier: Modifier = Modifier) {
+    val accent = tabAccentFor(TabAccentRole.Food)
+    Column(modifier = modifier) {
+        Text(
+            text = item.title,
+            style = MusFitTheme.typography.titleMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.W800),
+            color = accent.onContainer,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = buildList {
+                add("${item.caloriesKcal.roundToInt()} kcal")
+                add("${item.proteinGrams.formatNutritionDisplay()} g protein")
+                item.tagLabels.firstOrNull()?.let(::add)
+            }.joinToString(" · "),
+            style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            color = accent.onContainerVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp),
+        )
     }
 }
 
@@ -3182,8 +3610,8 @@ internal fun RecipeEditorPanel(
             color = MusFitTheme.colors.onSurfaceVariant,
         )
         SectionOverline("INGREDIENTS")
-        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            state.savedFoods.forEach { food ->
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(items = state.savedFoods, key = SavedFoodUiState::id) { food ->
                 SelectableChip(
                     text = food.name,
                     selected = editor.ingredientFoodId == food.id,
@@ -3192,8 +3620,8 @@ internal fun RecipeEditorPanel(
             }
         }
         if (editor.ingredientServingChoices.isNotEmpty()) {
-            Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                editor.ingredientServingChoices.forEach { choice ->
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(items = editor.ingredientServingChoices, key = RecipeIngredientServingChoiceUiState::id) { choice ->
                     SelectableChip(
                         text = choice.label,
                         selected = editor.ingredientServingChoiceId == choice.id,
@@ -3500,140 +3928,153 @@ internal fun MealTemplatesPanel(
     onTemplateAddItemClick: () -> Unit,
     onSaveEditClick: () -> Unit,
 ) {
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 560.dp)
-            .verticalScroll(rememberScrollState())
-            .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .heightIn(max = 560.dp),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 28.dp),
     ) {
-        Text("Meal templates", style = MaterialTheme.typography.headlineSmall)
+        item(key = "meal-template-title") {
+            Text("Meal templates", style = MaterialTheme.typography.headlineSmall)
+        }
+        verticalGap("gap-after-meal-template-title", 14.dp)
         state.mealTemplateEditor?.let { editor ->
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SectionTitle("Edit template")
-                OutlinedTextField(
-                    value = editor.name,
-                    onValueChange = onNameChanged,
-                    label = { Text("Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                MealTypeChips(
-                    selectedMealType = editor.mealType,
-                    mealDefinitions = state.visibleMealDefinitions,
-                    onMealChanged = onMealTypeChanged,
-                )
-                Text("Items", style = MaterialTheme.typography.titleSmall)
-                editor.items.forEachIndexed { index, item ->
+            item(key = "meal-template-editor") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionTitle("Edit template")
+                    OutlinedTextField(
+                        value = editor.name,
+                        onValueChange = onNameChanged,
+                        label = { Text("Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    MealTypeChips(
+                        selectedMealType = editor.mealType,
+                        mealDefinitions = state.visibleMealDefinitions,
+                        onMealChanged = onMealTypeChanged,
+                    )
+                    Text("Items", style = MaterialTheme.typography.titleSmall)
+                    editor.items.forEachIndexed { index, templateItem ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedTextField(
+                                value = templateItem.quantityGrams,
+                                onValueChange = { onTemplateItemQuantityChanged(index, it) },
+                                label = { Text(templateItem.foodName) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                modifier = Modifier.weight(1f),
+                            )
+                            OutlinedButton(
+                                onClick = { onTemplateItemRemoveClick(index) },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                modifier = Modifier.width(104.dp),
+                            ) {
+                                Text("Remove")
+                            }
+                        }
+                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(items = state.savedFoods, key = SavedFoodUiState::id) { food ->
+                            FilterChip(
+                                selected = editor.newItemFoodId == food.id,
+                                onClick = { onTemplateItemFoodChanged(food.id) },
+                                label = { Text(food.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            )
+                        }
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         OutlinedTextField(
-                            value = item.quantityGrams,
-                            onValueChange = { onTemplateItemQuantityChanged(index, it) },
-                            label = { Text(item.foodName) },
+                            value = editor.newItemQuantityGrams,
+                            onValueChange = onTemplateNewItemQuantityChanged,
+                            label = { Text("Amount g") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.weight(1f),
                         )
-                        OutlinedButton(
-                            onClick = { onTemplateItemRemoveClick(index) },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            modifier = Modifier.width(104.dp),
-                        ) {
-                            Text("Remove")
+                        Button(onClick = onTemplateAddItemClick, modifier = Modifier.width(96.dp)) {
+                            Text("Add")
                         }
                     }
-                }
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    state.savedFoods.forEach { food ->
-                        FilterChip(
-                            selected = editor.newItemFoodId == food.id,
-                            onClick = { onTemplateItemFoodChanged(food.id) },
-                            label = { Text(food.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        )
+                    Button(
+                        onClick = onSaveEditClick,
+                        enabled = !state.isSaving,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
+                    ) {
+                        Text(if (state.isSaving) "Saving" else "Save template")
                     }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedTextField(
-                        value = editor.newItemQuantityGrams,
-                        onValueChange = onTemplateNewItemQuantityChanged,
-                        label = { Text("Amount g") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.weight(1f),
-                    )
-                    Button(onClick = onTemplateAddItemClick, modifier = Modifier.width(96.dp)) {
-                        Text("Add")
-                    }
-                }
-                Button(
-                    onClick = onSaveEditClick,
-                    enabled = !state.isSaving,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
-                ) {
-                    Text(if (state.isSaving) "Saving" else "Save template")
                 }
             }
-            HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+            verticalGap("gap-after-meal-template-editor", 14.dp)
+            item(key = "meal-template-editor-divider") {
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+            }
+            verticalGap("gap-after-meal-template-editor-divider", 14.dp)
         }
         if (state.mealTemplates.isEmpty()) {
-            Text("No meal templates yet", color = MusFitTheme.colors.onSurfaceVariant)
+            item(key = "meal-template-empty") {
+                Text("No meal templates yet", color = MusFitTheme.colors.onSurfaceVariant)
+            }
         } else {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                state.mealTemplates.forEach { template ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Column {
-                            Text(template.name, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                template.itemSummary,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MusFitTheme.colors.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (template.isFavorite) {
-                                Text("Favorite", color = MusFitTheme.colors.brand, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MusFitOutlinedButton(onClick = { onTemplateClick(template.id) }) {
-                                Text(state.foodEntryActionVerb)
-                            }
-                            MusFitOutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
-                                Text(if (template.isFavorite) "Starred" else "Star")
-                            }
-                            MusFitOutlinedButton(onClick = { onEditClick(template.id) }) {
-                                Text("Edit")
-                            }
-                            MusFitOutlinedButton(onClick = { onDuplicateClick(template.id) }) {
-                                Text("Duplicate")
-                            }
-                            OutlinedButton(
-                                onClick = { onDeleteClick(template.id) },
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            ) {
-                                Text("Delete")
-                            }
+            items(items = state.mealTemplates, key = MealTemplateUiState::id) { template ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("meal-template-row-${template.id}")
+                        .padding(vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Column {
+                        Text(template.name, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            template.itemSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MusFitTheme.colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (template.isFavorite) {
+                            Text("Favorite", color = MusFitTheme.colors.brand, style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+                    Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MusFitOutlinedButton(onClick = { onTemplateClick(template.id) }) {
+                            Text(state.foodEntryActionVerb)
+                        }
+                        MusFitOutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
+                            Text(if (template.isFavorite) "Starred" else "Star")
+                        }
+                        MusFitOutlinedButton(onClick = { onEditClick(template.id) }) {
+                            Text("Edit")
+                        }
+                        MusFitOutlinedButton(onClick = { onDuplicateClick(template.id) }) {
+                            Text("Duplicate")
+                        }
+                        OutlinedButton(
+                            onClick = { onDeleteClick(template.id) },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        ) {
+                            Text("Delete")
+                        }
+                    }
                 }
+                HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
             }
         }
-        state.message?.let { Text(it, color = MusFitTheme.colors.brand) }
+        state.message?.let { message ->
+            verticalGap("gap-before-meal-template-message", 14.dp)
+            item(key = "meal-template-message") {
+                Text(message, color = MusFitTheme.colors.brand)
+            }
+        }
     }
 }

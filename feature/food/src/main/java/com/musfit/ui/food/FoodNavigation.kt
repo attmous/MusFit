@@ -1,16 +1,21 @@
 package com.musfit.ui.food
 
+import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
+import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -23,6 +28,7 @@ data class FoodNavigationActions(
 )
 
 @Composable
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Suppress("LongMethod")
 fun FoodNavigation(
     barcodeScannerContent: @Composable (
@@ -38,6 +44,9 @@ fun FoodNavigation(
     viewModel: FoodViewModel = hiltViewModel(),
 ) {
     val backStack = rememberNavBackStack(FoodDiaryNavKey)
+    val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(
+        shouldHandleSinglePaneLayout = false,
+    )
     var scannedBarcode by rememberSaveable { mutableStateOf<String?>(null) }
     var scannedLabelText by rememberSaveable { mutableStateOf<String?>(null) }
     val navigator = FoodNavigator(
@@ -49,11 +58,15 @@ fun FoodNavigation(
             }
         },
     )
+    var isRecipeBackConfirmationPending by rememberSaveable { mutableStateOf(false) }
     val currentKey = navigator.currentKey
-    val routeState by viewModel.routeState.collectAsState()
+    val routeState by viewModel.routeState.collectAsStateWithLifecycle()
     var routeEstablished by remember(currentKey) { mutableStateOf(false) }
 
     LaunchedEffect(currentKey) {
+        if (isRecipeBackConfirmationPending && currentKey !is FoodRecipeEditorNavKey) {
+            isRecipeBackConfirmationPending = false
+        }
         onRootNavigationChromeVisibilityChange(currentKey.showsRootNavigationChrome())
     }
     DisposableEffect(Unit) {
@@ -80,14 +93,34 @@ fun FoodNavigation(
         open = navigator::open,
         replace = navigator::replace,
         back = {
-            closeFoodRoute(viewModel, navigator.currentKey)
-            navigator.back()
+            val key = navigator.currentKey
+            if (key is FoodRecipeEditorNavKey && key.shouldConfirmRecipeDiscard(viewModel.state.value)) {
+                isRecipeBackConfirmationPending = true
+            } else {
+                closeFoodRoute(viewModel, key)
+                navigator.back()
+            }
         },
     )
 
+    if (isRecipeBackConfirmationPending) {
+        DiscardRecipeChangesDialog(
+            onDismiss = { isRecipeBackConfirmationPending = false },
+            onConfirm = {
+                isRecipeBackConfirmationPending = false
+                val key = navigator.currentKey
+                if (key is FoodRecipeEditorNavKey) {
+                    closeFoodRoute(viewModel, key)
+                    navigator.back()
+                }
+            },
+        )
+    }
+
     @Composable
-    fun FoodEntry() {
+    fun FoodEntry(key: FoodNavKey) {
         FoodScreen(
+            renderedKey = key,
             scannedBarcode = scannedBarcode,
             onScanClick = { navigator.open(FoodBarcodeScannerNavKey) },
             onScannedBarcodeConsumed = { scannedBarcode = null },
@@ -102,31 +135,40 @@ fun FoodNavigation(
     NavDisplay(
         backStack = backStack,
         onBack = navigation.back,
+        sceneStrategies = listOf(listDetailStrategy),
         entryDecorators = listOf(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
         ),
         entryProvider = entryProvider {
-            entry<FoodDiaryNavKey> { FoodEntry() }
-            entry<FoodMealDetailNavKey> { FoodEntry() }
-            entry<FoodAddNavKey> { FoodEntry() }
-            entry<FoodDatabaseNavKey> { FoodEntry() }
-            entry<FoodDetailNavKey> { FoodEntry() }
-            entry<FoodDiaryEntryEditorNavKey> { FoodEntry() }
-            entry<FoodSavedFoodEditorNavKey> { FoodEntry() }
-            entry<FoodNutritionLabelReviewNavKey> { FoodEntry() }
-            entry<FoodBarcodeComparisonNavKey> { FoodEntry() }
-            entry<FoodFastingTimerNavKey> { FoodEntry() }
-            entry<FoodGoalEditorNavKey> { FoodEntry() }
-            entry<FoodRecipeBrowserNavKey> { FoodEntry() }
-            entry<FoodRecipeEditorNavKey> { FoodEntry() }
-            entry<FoodMealTemplatesNavKey> { FoodEntry() }
-            entry<FoodMealTemplateEditorNavKey> { FoodEntry() }
-            entry<FoodMealSettingsNavKey> { FoodEntry() }
-            entry<FoodMealDefinitionEditorNavKey> { FoodEntry() }
-            entry<FoodShoppingListNavKey> { FoodEntry() }
-            entry<FoodWaterNavKey> { FoodEntry() }
-            entry<FoodHealthConnectNavKey> { FoodEntry() }
+            entry<FoodDiaryNavKey> { FoodEntry(it) }
+            entry<FoodMealDetailNavKey> { FoodEntry(it) }
+            entry<FoodAddNavKey> { FoodEntry(it) }
+            entry<FoodDatabaseNavKey>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = { Text("Select a saved food") },
+                ),
+            ) { FoodEntry(it) }
+            entry<FoodDetailNavKey>(metadata = ListDetailSceneStrategy.detailPane()) { FoodEntry(it) }
+            entry<FoodDiaryEntryEditorNavKey> { FoodEntry(it) }
+            entry<FoodSavedFoodEditorNavKey> { FoodEntry(it) }
+            entry<FoodNutritionLabelReviewNavKey> { FoodEntry(it) }
+            entry<FoodBarcodeComparisonNavKey> { FoodEntry(it) }
+            entry<FoodFastingTimerNavKey> { FoodEntry(it) }
+            entry<FoodGoalEditorNavKey> { FoodEntry(it) }
+            entry<FoodRecipeBrowserNavKey>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = { Text("Select a recipe") },
+                ),
+            ) { FoodEntry(it) }
+            entry<FoodRecipeEditorNavKey>(metadata = ListDetailSceneStrategy.detailPane()) { FoodEntry(it) }
+            entry<FoodMealTemplatesNavKey> { FoodEntry(it) }
+            entry<FoodMealTemplateEditorNavKey> { FoodEntry(it) }
+            entry<FoodMealSettingsNavKey> { FoodEntry(it) }
+            entry<FoodMealDefinitionEditorNavKey> { FoodEntry(it) }
+            entry<FoodShoppingListNavKey> { FoodEntry(it) }
+            entry<FoodWaterNavKey> { FoodEntry(it) }
+            entry<FoodHealthConnectNavKey> { FoodEntry(it) }
             entry<FoodBarcodeScannerNavKey> {
                 barcodeScannerContent(
                     { barcode ->
@@ -157,6 +199,8 @@ internal fun FoodNavKey.showsRootNavigationChrome(): Boolean = when (this) {
 
     else -> true
 }
+
+internal fun FoodNavKey.shouldConfirmRecipeDiscard(state: FoodUiState): Boolean = this is FoodRecipeEditorNavKey && state.hasUnsavedRecipeEditorChanges()
 
 private fun closeFoodRoute(viewModel: FoodViewModel, key: FoodNavKey) {
     when (key) {

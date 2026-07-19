@@ -7,7 +7,7 @@ release, device, supply-chain, and performance obligations as production code.
 
 - Direct dependencies and plugins are declared in `gradle/libs.versions.toml`.
 - Dependabot opens at most five weekly, grouped minor/patch PRs against
-  `master`. Major updates and the two registered preview families are not
+  `master`. Major updates and the registered preview families are not
   automated; preview exit requires a human-authored compatibility PR.
 - Keep one dependency family per PR when an update changes runtime, generated
   code, schemas, manifests, shrinking, or benchmark semantics. Do not mix a
@@ -44,10 +44,14 @@ Current exceptions are intentionally narrow:
   2026-09-30. The approved performance baseline was produced with this engine;
   migration to stable must deliberately revalidate Perfetto and measurement
   comparability.
+- Material 3 Adaptive Navigation3 `1.3.0-rc01`, owned by `@attmous`, expires
+  2026-10-31. The stable 1.2 family predates the aligned Navigation3 artifact;
+  move to stable 1.3 after compact/expanded Food navigation and API 28/37
+  performance verification.
 
-AndroidX currently lists Credentials 1.6.0 and Benchmark 1.4.1 as the stable
-lines. The exception register, not this explanatory summary, is executable
-truth for exact versions and dates.
+AndroidX currently lists Credentials 1.6.0, Benchmark 1.4.1, and Material 3
+Adaptive 1.2.0 as the stable lines. The exception register, not this
+explanatory summary, is executable truth for exact versions and dates.
 
 ## Unused dependency review
 

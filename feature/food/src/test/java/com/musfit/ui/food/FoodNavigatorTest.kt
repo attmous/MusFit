@@ -30,6 +30,19 @@ class FoodNavigatorTest {
     }
 
     @Test
+    fun adaptiveDetails_replaceCurrentSelectionAndBackReturnsToList() {
+        val stack = mutableListOf<NavKey>(FoodDiaryNavKey, FoodDatabaseNavKey)
+        val navigator = FoodNavigator(stack)
+
+        navigator.open(FoodDetailNavKey("food-1"))
+        navigator.open(FoodDetailNavKey("food-2"))
+
+        assertEquals(listOf(FoodDiaryNavKey, FoodDatabaseNavKey, FoodDetailNavKey("food-2")), stack)
+        assertTrue(navigator.back())
+        assertEquals(FoodDatabaseNavKey, navigator.currentKey)
+    }
+
+    @Test
     fun scannerResult_isConsumedOnceByMatchingProducer() {
         val stack = mutableListOf<NavKey>(FoodDiaryNavKey, FoodAddNavKey("breakfast"), FoodBarcodeScannerNavKey)
         val results = mutableListOf<FoodNavigationResult>()
@@ -63,6 +76,16 @@ class FoodNavigatorTest {
         assertFalse(FoodNutritionLabelScannerNavKey.showsRootNavigationChrome())
         assertTrue(FoodDiaryNavKey.showsRootNavigationChrome())
         assertTrue(FoodAddNavKey("dinner").showsRootNavigationChrome())
+    }
+
+    @Test
+    fun unsavedRecipeEditor_requiresDiscardConfirmationBeforeBack() {
+        val cleanState = FoodUiState(recipeEditor = RecipeEditorState())
+        val dirtyState = FoodUiState(recipeEditor = RecipeEditorState(name = "Draft dinner"))
+
+        assertFalse(FoodRecipeEditorNavKey().shouldConfirmRecipeDiscard(cleanState))
+        assertTrue(FoodRecipeEditorNavKey().shouldConfirmRecipeDiscard(dirtyState))
+        assertFalse(FoodRecipeBrowserNavKey.shouldConfirmRecipeDiscard(dirtyState))
     }
 
     @Test

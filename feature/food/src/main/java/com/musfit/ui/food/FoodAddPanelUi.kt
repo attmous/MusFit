@@ -1568,7 +1568,7 @@ private fun QuickCalorieForm(
                 }
                 SelectableChip(
                     text = "Save preset",
-                    selected = false,
+                    selected = null,
                     onClick = onQuickSaveFavoriteClick,
                     unselectedContent = MusFitTheme.colors.brand,
                     leadingIcon = Icons.Outlined.Add,

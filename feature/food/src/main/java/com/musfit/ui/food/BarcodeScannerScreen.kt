@@ -2,8 +2,10 @@ package com.musfit.ui.food
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -26,12 +28,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -116,18 +122,27 @@ private fun BarcodeScannerCameraContent(
                     icon = if (torchEnabled) Icons.Outlined.FlashlightOff else Icons.Outlined.FlashlightOn,
                 )
             } else {
-                Box(modifier = Modifier.size(44.dp))
+                Box(modifier = Modifier.size(48.dp))
             }
         }
         ViewfinderBrackets(
             modifier = Modifier.align(Alignment.Center).size(width = 250.dp, height = 160.dp),
         )
         Surface(
-            onClick = onClose,
             shape = CircleShape,
             color = CameraTranslucent,
             contentColor = Cream,
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 16.dp),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
+                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                .clip(CircleShape)
+                .clickable(
+                    onClickLabel = "Enter barcode manually",
+                    role = Role.Button,
+                    onClick = onClose,
+                ),
         ) {
             Text(
                 text = "Or enter the code manually",
@@ -154,19 +169,31 @@ private fun CameraCircleButton(
     contentDescription: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
 ) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = CameraTranslucent,
-        modifier = Modifier.size(44.dp),
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(48.dp)
+            .semantics { this.contentDescription = contentDescription }
+            .clip(CircleShape)
+            .clickable(
+                onClickLabel = contentDescription,
+                role = Role.Button,
+                onClick = onClick,
+            ),
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = Cream,
-                modifier = Modifier.size(20.dp),
-            )
+        Surface(
+            shape = CircleShape,
+            color = CameraTranslucent,
+            modifier = Modifier.size(44.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Cream,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }

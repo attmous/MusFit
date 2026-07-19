@@ -52,7 +52,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -71,6 +74,230 @@ class FoodViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
     private val dispatcher get() = mainDispatcherRule.dispatcher
+
+    @Test
+    fun repositoryObservation_stopsAfterGraceAndIsSharedAcrossResumedCollectors() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(FakeProductProvider(), repository)
+        testScheduler.runCurrent()
+
+        assertEquals(1, repository.savedFoodsSubscriptions)
+        testScheduler.advanceTimeBy(5_001)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.savedFoodsSubscriptions)
+
+        val diaryCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.diaryState.collect { }
+        }
+        val databaseCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.addDatabaseState.collect { }
+        }
+        testScheduler.runCurrent()
+        assertEquals(1, repository.savedFoodsSubscriptions)
+
+        diaryCollector.cancel()
+        databaseCollector.cancel()
+        testScheduler.advanceTimeBy(5_001)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.savedFoodsSubscriptions)
+    }
+
+    @Test
+    fun repositoryObservation_resumesMainFoodStateWithCurrentRepositoryValue() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(FakeProductProvider(), repository)
+        testScheduler.advanceTimeBy(5_001)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.diarySubscriptions)
+
+        repository.updateDiary(
+            FoodDiary(
+                totals = NutritionTotals(456.0, 35.0, 50.0, 14.0),
+                meals = emptyList(),
+            ),
+        )
+        testScheduler.runCurrent()
+        assertEquals(0.0, viewModel.state.value.eatenCaloriesKcal, 0.0)
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.diaryState.collect { }
+        }
+        testScheduler.runCurrent()
+
+        assertEquals(1, repository.diarySubscriptions)
+        assertEquals(456.0, viewModel.state.value.eatenCaloriesKcal, 0.0)
+        assertEquals(456.0, viewModel.diaryState.value.eatenCaloriesKcal, 0.0)
+    }
+
+    @Test
+    fun repositoryObservation_repeatedStopResumeDoesNotAccumulateSubscriptions() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(FakeProductProvider(), repository)
+        testScheduler.advanceTimeBy(5_001)
+        testScheduler.runCurrent()
+
+        repeat(3) {
+            val diaryCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                viewModel.diaryState.collect { }
+            }
+            val databaseCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                viewModel.addDatabaseState.collect { }
+            }
+            testScheduler.runCurrent()
+
+            assertEquals(1, repository.diarySubscriptions)
+            assertEquals(1, repository.savedFoodsSubscriptions)
+
+            diaryCollector.cancel()
+            databaseCollector.cancel()
+            testScheduler.advanceTimeBy(5_001)
+            testScheduler.runCurrent()
+
+            assertEquals(0, repository.diarySubscriptions)
+            assertEquals(0, repository.savedFoodsSubscriptions)
+        }
+    }
+
+    @Test
+    fun repositoryObservation_failedObserverDoesNotCancelSibling() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = FoodViewModel(FakeProductProvider(), repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.diaryState.collect { }
+        }
+        testScheduler.runCurrent()
+
+        assertEquals(1, repository.diarySubscriptions)
+        assertEquals(1, repository.savedFoodsSubscriptions)
+
+        repository.failSavedFoodsObservation(IllegalStateException("Saved foods unavailable"))
+        testScheduler.runCurrent()
+
+        assertEquals(0, repository.savedFoodsSubscriptions)
+        assertEquals(1, repository.diarySubscriptions)
+        assertEquals("Saved foods unavailable", viewModel.state.value.message)
+
+        repository.updateDiary(
+            FoodDiary(
+                totals = NutritionTotals(321.0, 20.0, 30.0, 10.0),
+                meals = emptyList(),
+            ),
+        )
+        testScheduler.runCurrent()
+
+        assertEquals(321.0, viewModel.state.value.eatenCaloriesKcal, 0.0)
+
+        collector.cancel()
+        testScheduler.advanceTimeBy(5_001)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.diarySubscriptions)
+    }
+
+    @Test
+    fun nutritionTrendsObservation_startsForCollectorAndStopsAfterGrace() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = NutritionTrendsViewModel(repository)
+        testScheduler.runCurrent()
+
+        assertEquals(0, repository.weeklySummarySubscriptions)
+        assertEquals(0, repository.progressSummarySubscriptions)
+
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
+
+        assertEquals(1, repository.weeklySummarySubscriptions)
+        assertEquals(1, repository.progressSummarySubscriptions)
+
+        collector.cancel()
+        testScheduler.advanceTimeBy(4_999)
+        testScheduler.runCurrent()
+        assertEquals(1, repository.weeklySummarySubscriptions)
+        assertEquals(1, repository.progressSummarySubscriptions)
+
+        testScheduler.advanceTimeBy(2)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.weeklySummarySubscriptions)
+        assertEquals(0, repository.progressSummarySubscriptions)
+    }
+
+    @Test
+    fun nutritionTrendsObservation_resumesWithCurrentRepositoryValues() = runTest {
+        val repository = FakeFoodRepository()
+        val viewModel = NutritionTrendsViewModel(repository)
+        val firstCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
+
+        firstCollector.cancel()
+        testScheduler.advanceTimeBy(5_001)
+        testScheduler.runCurrent()
+        assertEquals(0, repository.weeklySummarySubscriptions)
+        assertEquals(0, repository.progressSummarySubscriptions)
+
+        repository.updateWeeklySummary(weeklySummaryForScore(LocalDate.now().minusDays(6)))
+        repository.updateProgressSummary(progressSummaryForStats(LocalDate.now().minusDays(27)))
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
+
+        assertEquals(1, repository.weeklySummarySubscriptions)
+        assertEquals(1, repository.progressSummarySubscriptions)
+        assertTrue(viewModel.state.value.weeklyScore.summary.contains("3 tracked days"))
+        assertEquals("3 tracked days", viewModel.state.value.progressStats.weekly.trackedDaysLabel)
+    }
+
+    @Test
+    fun nutritionTrendsObservation_failedWeeklySourceDoesNotCancelProgressSource() = runTest {
+        val repository = FakeFoodRepository(
+            weeklySummary = weeklySummaryForScore(LocalDate.now().minusDays(6)),
+        )
+        val viewModel = NutritionTrendsViewModel(repository)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
+
+        repository.failWeeklySummaryObservation(IllegalStateException("Weekly summary unavailable"))
+        testScheduler.runCurrent()
+
+        assertEquals(0, repository.weeklySummarySubscriptions)
+        assertEquals(1, repository.progressSummarySubscriptions)
+        assertTrue(viewModel.state.value.weeklyScore.summary.contains("3 tracked days"))
+
+        repository.updateProgressSummary(progressSummaryForStats(LocalDate.now().minusDays(27)))
+        testScheduler.runCurrent()
+
+        assertEquals("3 tracked days", viewModel.state.value.progressStats.weekly.trackedDaysLabel)
+    }
+
+    @Test
+    fun nutritionTrendsObservation_failedProgressSourceDoesNotCancelWeeklySource() = runTest {
+        val repository = FakeFoodRepository(
+            progressSummary = progressSummaryForStats(LocalDate.now().minusDays(27)),
+        )
+        val viewModel = NutritionTrendsViewModel(repository)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
+
+        repository.failProgressSummaryObservation(IllegalStateException("Progress summary unavailable"))
+        testScheduler.runCurrent()
+
+        assertEquals(1, repository.weeklySummarySubscriptions)
+        assertEquals(0, repository.progressSummarySubscriptions)
+        assertEquals("3 tracked days", viewModel.state.value.progressStats.weekly.trackedDaysLabel)
+
+        repository.updateWeeklySummary(weeklySummaryForScore(LocalDate.now().minusDays(6)))
+        testScheduler.runCurrent()
+
+        assertTrue(viewModel.state.value.weeklyScore.summary.contains("3 tracked days"))
+    }
 
     @Test
     fun unrelatedEditorUpdateDoesNotEmitDiaryOrTrackerSlices() = runTest {
@@ -677,7 +904,10 @@ class FoodViewModelTest {
                 weeklySummary = weeklySummaryForScore(startDate),
             )
         val viewModel = NutritionTrendsViewModel(repository = repository)
-        dispatcher.scheduler.advanceUntilIdle()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
 
         val score = viewModel.state.value.weeklyScore
         assertEquals("Weekly MusFit score", score.title)
@@ -696,8 +926,11 @@ class FoodViewModelTest {
     fun weeklyMusFitScoreUsesTrailingSevenDayWindow() = runTest {
         val today = LocalDate.now()
         val repository = FakeFoodRepository()
-        NutritionTrendsViewModel(repository = repository)
-        dispatcher.scheduler.advanceUntilIdle()
+        val viewModel = NutritionTrendsViewModel(repository = repository)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
 
         assertEquals(today.minusDays(6), repository.weeklySummaryStartDates.last())
     }
@@ -710,7 +943,10 @@ class FoodViewModelTest {
                 progressSummary = progressSummaryForStats(startDate),
             )
         val viewModel = NutritionTrendsViewModel(repository = repository)
-        dispatcher.scheduler.advanceUntilIdle()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
 
         val stats = viewModel.state.value.progressStats
 
@@ -3931,7 +4167,7 @@ class FoodViewModelTest {
 
         viewModel.openAddFood("lunch")
         val savedRecipeDiscoveryId = viewModel.state.value.recipeDiscovery.items.single { it.sourceRecipeId == "recipe-1" }.id
-        viewModel.useRecipeDiscoveryItem(savedRecipeDiscoveryId)
+        assertFalse(viewModel.useRecipeDiscoveryItem(savedRecipeDiscoveryId))
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(
@@ -3944,7 +4180,7 @@ class FoodViewModelTest {
             repository.logRecipeCall,
         )
 
-        viewModel.useRecipeDiscoveryItem("catalog-mediterranean-chickpea-bowl")
+        assertTrue(viewModel.useRecipeDiscoveryItem("catalog-mediterranean-chickpea-bowl"))
 
         val editor = requireNotNull(viewModel.state.value.recipeEditor)
         assertEquals(FoodSheetMode.RecipeEditor, viewModel.state.value.sheetMode)
@@ -4792,13 +5028,16 @@ class FoodViewModelTest {
     ) : FoodRepository {
         private val diaryFlow = MutableStateFlow(diary)
         private val savedFoodsFlow = MutableStateFlow(savedFoods)
+        private val savedFoodsObservationFailureFlow = MutableStateFlow<Throwable?>(null)
         private val templatesFlow = MutableStateFlow(templates)
         private val recipesFlow = MutableStateFlow(recipes)
         private val quickCaloriePresetsFlow = MutableStateFlow(quickCaloriePresets)
         private val customMealDefinitionsFlow = MutableStateFlow(customMealDefinitions)
         private val weeklyPlanFlow = MutableStateFlow(weeklyPlan)
         private val weeklySummaryFlow = MutableStateFlow(weeklySummary)
+        private val weeklySummaryObservationFailureFlow = MutableStateFlow<Throwable?>(null)
         private val progressSummaryFlow = MutableStateFlow(progressSummary)
+        private val progressSummaryObservationFailureFlow = MutableStateFlow<Throwable?>(null)
         private val shoppingGroupsFlow = MutableStateFlow(shoppingGroups)
         private val waterSummaryFlow = MutableStateFlow(waterSummary)
         private val foodHealthConnectSyncStateFlow = MutableStateFlow(foodHealthConnectSyncState)
@@ -4850,6 +5089,10 @@ class FoodViewModelTest {
         var waterGoalMilliliters: Double? = null
         var foodHealthConnectEnabled: Boolean? = null
         var foodHealthConnectSyncDate: LocalDate? = null
+        var diarySubscriptions: Int = 0
+        var savedFoodsSubscriptions: Int = 0
+        var weeklySummarySubscriptions: Int = 0
+        var progressSummarySubscriptions: Int = 0
 
         override suspend fun saveConfirmedProduct(
             result: ProductLookupResult.Found,
@@ -4874,8 +5117,24 @@ class FoodViewModelTest {
         override fun observeDailyNutrition(date: LocalDate): Flow<NutritionTotals> = flowOf(NutritionTotals(0.0, 0.0, 0.0, 0.0))
 
         override fun observeFoodDiary(date: LocalDate): Flow<FoodDiary> = diaryFlow
+            .onStart { diarySubscriptions += 1 }
+            .onCompletion { diarySubscriptions -= 1 }
 
         override fun observeSavedFoods(): Flow<List<SavedFoodItem>> = savedFoodsFlow
+            .combine(savedFoodsObservationFailureFlow) { foods, failure ->
+                failure?.let { throw it }
+                foods
+            }
+            .onStart { savedFoodsSubscriptions += 1 }
+            .onCompletion { savedFoodsSubscriptions -= 1 }
+
+        fun failSavedFoodsObservation(error: Throwable) {
+            savedFoodsObservationFailureFlow.value = error
+        }
+
+        fun updateDiary(diary: FoodDiary) {
+            diaryFlow.value = diary
+        }
 
         override fun observeRecentFoods(limit: Int): Flow<List<SavedFoodItem>> = flowOf(emptyList())
 
@@ -4906,10 +5165,36 @@ class FoodViewModelTest {
 
         override fun observeWeeklyFoodSummary(startDate: LocalDate): Flow<FoodWeeklySummary> {
             weeklySummaryStartDates += startDate
-            return weeklySummaryFlow
+            return weeklySummaryFlow.combine(weeklySummaryObservationFailureFlow) { summary, failure ->
+                failure?.let { throw it }
+                summary
+            }
+                .onStart { weeklySummarySubscriptions += 1 }
+                .onCompletion { weeklySummarySubscriptions -= 1 }
         }
 
-        override fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> = progressSummaryFlow
+        override fun observeFoodProgressSummary(startDate: LocalDate, dayCount: Int): Flow<FoodProgressSummary> = progressSummaryFlow.combine(progressSummaryObservationFailureFlow) { summary, failure ->
+            failure?.let { throw it }
+            summary
+        }
+            .onStart { progressSummarySubscriptions += 1 }
+            .onCompletion { progressSummarySubscriptions -= 1 }
+
+        fun failWeeklySummaryObservation(error: Throwable) {
+            weeklySummaryObservationFailureFlow.value = error
+        }
+
+        fun failProgressSummaryObservation(error: Throwable) {
+            progressSummaryObservationFailureFlow.value = error
+        }
+
+        fun updateWeeklySummary(summary: FoodWeeklySummary) {
+            weeklySummaryFlow.value = summary
+        }
+
+        fun updateProgressSummary(summary: FoodProgressSummary) {
+            progressSummaryFlow.value = summary
+        }
 
         override fun observeShoppingList(): Flow<List<ShoppingListGroup>> = shoppingGroupsFlow
 

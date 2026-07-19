@@ -24,6 +24,17 @@
       "expiresOn": "2026-09-30",
       "rationale": "The approved API 37 regression baseline and serialized API 28/37 harness were established on this measurement engine. Changing it can alter Perfetto capture and benchmark semantics, so recalibration belongs in a measured dependency-only PR.",
       "exitCriteria": "Adopt the 1.5 stable release, or a separately proven stable alternative, after both managed-device matrices pass and the approved performance baseline is deliberately recalibrated."
+    },
+    {
+      "versionKey": "material3Adaptive",
+      "coordinates": [
+        "androidx.compose.material3.adaptive:adaptive-navigation3"
+      ],
+      "version": "1.3.0-rc01",
+      "owner": "@attmous",
+      "expiresOn": "2026-10-31",
+      "rationale": "The Food adaptive remediation requires the Material Navigation 3 list-detail scene integration. AndroidX first aligned adaptive-navigation3 with the adaptive family in 1.3, so the stable 1.2 line does not provide this artifact.",
+      "exitCriteria": "Move to the first stable 1.3 release after compact and expanded Food navigation tests, the Full gate, and the API 28/37 performance matrix pass without regressions."
     }
   ]
 }
