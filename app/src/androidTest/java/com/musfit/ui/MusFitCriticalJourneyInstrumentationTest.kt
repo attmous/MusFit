@@ -182,11 +182,13 @@ class MusFitCriticalJourneyInstrumentationTest {
 
     @Test
     fun todayShortcuts_requestTypedTopLevelActions_andBackToToday() {
+        compose.waitForText("Open Food")
         compose.onAllNodesWithText("Open Food").onFirst().performScrollTo().performClick()
         compose.onNodeWithContentDescription("Food").assertIsSelected()
 
         UiDevice.getInstance(instrumentation).pressBack()
         compose.onNodeWithContentDescription("Today").assertIsSelected()
+        compose.waitForText("Open Profile")
         compose.onAllNodesWithText("Open Profile").onFirst().performScrollTo().performClick()
         compose.onNodeWithContentDescription("Profile").assertIsSelected()
 
