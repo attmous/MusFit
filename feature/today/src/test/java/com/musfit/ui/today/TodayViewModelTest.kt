@@ -1,7 +1,20 @@
 package com.musfit.ui.today
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.repeatOnLifecycle
 import com.musfit.data.local.entity.BodyMetricEntity
 import com.musfit.data.local.entity.DailyHealthSummaryEntity
+import com.musfit.data.repository.AiCoachChatMessage
+import com.musfit.data.repository.AiCoachChatMessageStatus
+import com.musfit.data.repository.AiCoachChatRepository
+import com.musfit.data.repository.AiCoachChatRole
+import com.musfit.data.repository.AiCoachConnection
+import com.musfit.data.repository.AiCoachProviderKind
+import com.musfit.data.repository.AiCoachRepository
+import com.musfit.data.repository.AiCoachSettings
+import com.musfit.data.repository.AiCoachSettingsInput
 import com.musfit.data.repository.AppSettings
 import com.musfit.data.repository.BodyMeasurement
 import com.musfit.data.repository.CoachMessage
@@ -52,6 +65,13 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -73,25 +93,181 @@ class TodayViewModelTest {
     private val dispatcher get() = mainDispatcherRule.dispatcher
 
     @Test
-    fun state_usesInjectedDateProviderBeforeStartingRepositoryFlows() = runTest {
+    fun state_startsRepositoryFlowsOnlyAfterCollection_usingInjectedDate() = runTest {
         val targetDate = LocalDate.now().plusDays(3)
         val foodRepository = FakeFoodRepository()
         val trainingRepository = FakeTrainingRepository()
         val healthRepository = FakeHealthRepository(targetDate)
+        val coachRepository = FakeCoachRepository()
 
-        TodayViewModel(
+        val viewModel = TodayViewModel(
             foodRepository = foodRepository,
             trainingRepository = trainingRepository,
             healthRepository = healthRepository,
             goalsRepository = FakeGoalsRepository(),
-            coachRepository = FakeCoachRepository(),
+            coachRepository = coachRepository,
             profileRepository = FakeProfileRepository(),
             dateProvider = { targetDate },
         )
-        dispatcher.scheduler.advanceUntilIdle()
+        runCurrent()
+
+        assertTrue(foodRepository.observedDates.isEmpty())
+        assertTrue(healthRepository.observedDates.isEmpty())
+        assertEquals(0, coachRepository.activeFeedSubscriptions)
+
+        val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect()
+        }
+        runCurrent()
 
         assertTrue(foodRepository.observedDates.isNotEmpty() && foodRepository.observedDates.all { it == targetDate })
         assertTrue(healthRepository.observedDates.isNotEmpty() && healthRepository.observedDates.all { it == targetDate })
+        assertEquals(1, coachRepository.activeFeedSubscriptions)
+        collection.cancel()
+    }
+
+    @Test
+    fun repositoryObservation_stopsAfterGraceAndSharesResumedCollectors() = runTest {
+        val date = LocalDate.of(2026, 7, 4)
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository, date = date, collectState = false)
+
+        val first = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
+        val second = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
+        runCurrent()
+
+        assertEquals(1, coachRepository.activeFeedSubscriptions)
+        assertEquals(1, coachRepository.feedSubscriptionStarts)
+
+        first.cancel()
+        second.cancel()
+        runCurrent()
+        advanceTimeBy(4_999)
+        runCurrent()
+        assertEquals(1, coachRepository.activeFeedSubscriptions)
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(0, coachRepository.activeFeedSubscriptions)
+
+        coachRepository.feed.value = listOf(message(9, date, firstSeenAt = 90L))
+        val resumed = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
+        runCurrent()
+
+        assertEquals(1, coachRepository.activeFeedSubscriptions)
+        assertEquals(2, coachRepository.feedSubscriptionStarts)
+        assertEquals(listOf(9L), viewModel.state.value.feed.single().messages.map { it.id })
+        resumed.cancel()
+    }
+
+    @Test
+    fun lifecycleCollection_stopsAndResumesCurrentFeedWithoutDuplicates() = runTest {
+        val date = LocalDate.of(2026, 7, 5)
+        val coachRepository = FakeCoachRepository()
+        val viewModel = todayViewModel(coachRepository = coachRepository, date = date, collectState = false)
+        val owner = object : LifecycleOwner {
+            override val lifecycle = LifecycleRegistry.createUnsafe(this)
+        }
+        val lifecycle = owner.lifecycle
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.state.collect()
+            }
+        }
+        runCurrent()
+        assertEquals(0, coachRepository.activeFeedSubscriptions)
+
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        runCurrent()
+        assertEquals(1, coachRepository.activeFeedSubscriptions)
+
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertEquals(0, coachRepository.activeFeedSubscriptions)
+
+        coachRepository.feed.value = listOf(message(11, date, firstSeenAt = 110L))
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        runCurrent()
+
+        assertEquals(1, coachRepository.activeFeedSubscriptions)
+        assertEquals(2, coachRepository.feedSubscriptionStarts)
+        assertEquals(listOf(11L), viewModel.state.value.feed.single().messages.map { it.id })
+
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        collection.join()
+    }
+
+    @Test
+    fun coachChatObservation_stopsAfterGrace_whileSendAndClearRemainIndependent() = runTest {
+        val aiCoachRepository = FakeAiCoachRepository()
+        val chatRepository = FakeAiCoachChatRepository()
+        val viewModel = CoachChatViewModel(
+            aiCoachRepository = aiCoachRepository,
+            aiCoachChatRepository = chatRepository,
+            foodRepository = FakeFoodRepository(),
+            trainingRepository = FakeTrainingRepository(),
+            healthRepository = FakeHealthRepository(LocalDate.now()),
+            goalsRepository = FakeGoalsRepository(),
+            profileRepository = FakeProfileRepository(),
+        )
+        runCurrent()
+        assertEquals(0, aiCoachRepository.activeSettingsSubscriptions)
+        assertEquals(0, chatRepository.activeMessageSubscriptions)
+
+        val first = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
+        val second = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
+        runCurrent()
+        assertEquals(1, aiCoachRepository.activeSettingsSubscriptions)
+        assertEquals(1, chatRepository.activeMessageSubscriptions)
+        assertEquals(1, aiCoachRepository.settingsSubscriptionStarts)
+        assertEquals(1, chatRepository.messageSubscriptionStarts)
+
+        first.cancel()
+        second.cancel()
+        advanceTimeBy(4_999)
+        runCurrent()
+        assertEquals(1, aiCoachRepository.activeSettingsSubscriptions)
+        assertEquals(1, chatRepository.activeMessageSubscriptions)
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(0, aiCoachRepository.activeSettingsSubscriptions)
+        assertEquals(0, chatRepository.activeMessageSubscriptions)
+
+        aiCoachRepository.settings.value = AiCoachSettings()
+        chatRepository.messages.value = listOf(
+            AiCoachChatMessage(
+                id = "resumed-message",
+                role = AiCoachChatRole.Assistant,
+                content = "Current after resume",
+                status = AiCoachChatMessageStatus.Sent,
+                errorMessage = null,
+                createdAtEpochMillis = 1L,
+            ),
+        )
+        val resumed = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
+        runCurrent()
+
+        assertEquals(2, aiCoachRepository.settingsSubscriptionStarts)
+        assertEquals(2, chatRepository.messageSubscriptionStarts)
+        assertEquals("Off", viewModel.state.value.providerLabel)
+        assertEquals(listOf("resumed-message"), viewModel.state.value.messages.map { it.id })
+
+        resumed.cancel()
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertEquals(0, aiCoachRepository.activeSettingsSubscriptions)
+        assertEquals(0, chatRepository.activeMessageSubscriptions)
+
+        viewModel.onInputChanged("Keep this mutation alive")
+        viewModel.send()
+        viewModel.clearChat()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("Keep this mutation alive"), chatRepository.sentMessages)
+        assertEquals(1, chatRepository.clearCount)
     }
 
     @Test
@@ -110,6 +286,40 @@ class TodayViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf(date), healthRepository.refreshDates)
+    }
+
+    @Test
+    fun coachSync_whileResumedDoesNotDependOnStateCollection_andStopsOnPause() = runTest {
+        val date = LocalDate.of(2026, 7, 2)
+        val coachRepository = FakeCoachRepository()
+        val foodRepository = FakeFoodRepository()
+        val viewModel = todayViewModel(
+            coachRepository = coachRepository,
+            date = date,
+            foodRepository = foodRepository,
+            collectState = false,
+        )
+        runCurrent()
+        assertEquals(0, coachRepository.activeFeedSubscriptions)
+
+        viewModel.onScreenResumed()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(coachRepository.lastCandidates.any { it.ruleKey == "water_low" })
+
+        foodRepository.waterSummary.value =
+            FoodWaterSummary(date, consumedMilliliters = 1_900.0, goalMilliliters = 2_000.0)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(coachRepository.lastCandidates.none { it.ruleKey == "water_low" })
+
+        viewModel.onScreenPaused()
+        dispatcher.scheduler.advanceUntilIdle()
+        val syncCountAfterPause = coachRepository.syncedDays.size
+        foodRepository.waterSummary.value =
+            FoodWaterSummary(date, consumedMilliliters = 100.0, goalMilliliters = 2_000.0)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(syncCountAfterPause, coachRepository.syncedDays.size)
+        assertEquals(1, coachRepository.markAllReadCount)
     }
 
     @Test
@@ -406,6 +616,7 @@ class TodayViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         viewModel.openDashboardEditor()
+        runCurrent()
 
         val state = viewModel.state.value
         assertEquals(true, state.isDashboardEditorVisible)
@@ -424,6 +635,7 @@ class TodayViewModelTest {
         viewModel.togglePin(TodayMetric.Water)
         viewModel.togglePin(TodayMetric.Calories) // last pin — must be ignored
 
+        runCurrent()
         assertEquals(listOf(TodayMetric.Calories), viewModel.state.value.editPins)
     }
 
@@ -455,6 +667,7 @@ class TodayViewModelTest {
         viewModel.movePin(TodayMetric.Calories, up = true) // first up — no-op
         viewModel.movePin(TodayMetric.Water, up = false) // last down — no-op
 
+        runCurrent()
         assertEquals(TodayMetric.DEFAULT_PINS, viewModel.state.value.editPins)
     }
 
@@ -497,7 +710,7 @@ class TodayViewModelTest {
         assertEquals(TodayNavigationTarget.Training, coachActionDestination(CoachAction.StartRoutine("deleted-routine")))
     }
 
-    private fun todayViewModel(
+    private fun TestScope.todayViewModel(
         coachRepository: CoachRepository,
         date: LocalDate = LocalDate.now(),
         dateProvider: (() -> LocalDate)? = null,
@@ -505,24 +718,33 @@ class TodayViewModelTest {
         profileRepository: ProfileRepository = FakeProfileRepository(),
         goalsRepository: GoalsRepository = FakeGoalsRepository(),
         healthRepository: FakeHealthRepository? = null,
-    ) = TodayViewModel(
-        foodRepository = foodRepository,
-        trainingRepository = FakeTrainingRepository(),
-        healthRepository = healthRepository ?: FakeHealthRepository(date),
-        goalsRepository = goalsRepository,
-        coachRepository = coachRepository,
-        profileRepository = profileRepository,
-        dateProvider = dateProvider ?: { date },
-        // Deterministic afternoon clock: the engine's time-gated rules (water_low is
-        // NOT-morning, plan_morning is morning-only) must not flake with wall time.
-        clock = {
-            date
-                .atTime(14, 0)
-                .atZone(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli()
-        },
-    )
+        collectState: Boolean = true,
+    ): TodayViewModel {
+        val viewModel = TodayViewModel(
+            foodRepository = foodRepository,
+            trainingRepository = FakeTrainingRepository(),
+            healthRepository = healthRepository ?: FakeHealthRepository(date),
+            goalsRepository = goalsRepository,
+            coachRepository = coachRepository,
+            profileRepository = profileRepository,
+            dateProvider = dateProvider ?: { date },
+            // Deterministic afternoon clock: the engine's time-gated rules (water_low is
+            // NOT-morning, plan_morning is morning-only) must not flake with wall time.
+            clock = {
+                date
+                    .atTime(14, 0)
+                    .atZone(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            },
+        )
+        if (collectState) {
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                viewModel.state.collect()
+            }
+        }
+        return viewModel
+    }
 
     private fun message(
         id: Long,
@@ -551,8 +773,15 @@ class TodayViewModelTest {
         var markAllReadCount = 0
         val pins = MutableStateFlow(TodayMetric.DEFAULT_PINS)
         var savedPins: List<TodayMetric>? = null
+        var activeFeedSubscriptions = 0
+        var feedSubscriptionStarts = 0
 
         override fun observeFeed(): Flow<List<CoachMessage>> = feed
+            .onStart {
+                activeFeedSubscriptions++
+                feedSubscriptionStarts++
+            }
+            .onCompletion { activeFeedSubscriptions-- }
 
         override suspend fun syncToday(
             day: LocalDate,
@@ -575,6 +804,57 @@ class TodayViewModelTest {
         override suspend fun saveDashboardPins(ordered: List<TodayMetric>) {
             savedPins = ordered
         }
+    }
+
+    private class FakeAiCoachRepository : AiCoachRepository {
+        val settings = MutableStateFlow(
+            AiCoachSettings(
+                providerKind = AiCoachProviderKind.OpenAiCompatible,
+                baseUrl = "https://example.invalid/v1",
+                modelName = "test-model",
+                hasApiKey = true,
+            ),
+        )
+        var activeSettingsSubscriptions = 0
+        var settingsSubscriptionStarts = 0
+
+        override fun observeSettings(): Flow<AiCoachSettings> = settings
+            .onStart {
+                activeSettingsSubscriptions++
+                settingsSubscriptionStarts++
+            }
+            .onCompletion { activeSettingsSubscriptions-- }
+
+        override suspend fun saveSettings(input: AiCoachSettingsInput) = Unit
+
+        override suspend fun clearApiKey() = Unit
+
+        override suspend fun activeConnection(): AiCoachConnection? = null
+    }
+
+    private class FakeAiCoachChatRepository : AiCoachChatRepository {
+        val messages = MutableStateFlow<List<AiCoachChatMessage>>(emptyList())
+        val sentMessages = mutableListOf<String>()
+        var clearCount = 0
+        var activeMessageSubscriptions = 0
+        var messageSubscriptionStarts = 0
+
+        override fun observeMessages(): Flow<List<AiCoachChatMessage>> = messages
+            .onStart {
+                activeMessageSubscriptions++
+                messageSubscriptionStarts++
+            }
+            .onCompletion { activeMessageSubscriptions-- }
+
+        override suspend fun sendMessage(content: String, systemPrompt: String) {
+            sentMessages += content
+        }
+
+        override suspend fun clearThread() {
+            clearCount++
+        }
+
+        override suspend fun testConnection() = Unit
     }
 
     private class FakeFoodRepository : FoodRepository {

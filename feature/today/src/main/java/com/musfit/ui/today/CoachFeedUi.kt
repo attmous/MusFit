@@ -49,7 +49,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +66,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.musfit.data.repository.AiCoachChatMessage
 import com.musfit.data.repository.AiCoachChatMessageStatus
 import com.musfit.data.repository.AiCoachChatRole
@@ -327,7 +327,7 @@ fun ChatPreviewSheet(
     localNetworkConfig: TodayLocalNetworkConfig,
     viewModel: CoachChatViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pendingLocalNetworkAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val localNetworkPermissionLauncher = rememberLauncherForActivityResult(

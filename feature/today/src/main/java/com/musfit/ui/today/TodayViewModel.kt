@@ -33,13 +33,16 @@ import com.musfit.domain.today.countSessionsInWeek
 import com.musfit.domain.today.vitalsTileMetrics
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -91,29 +94,50 @@ class TodayViewModel internal constructor(
     private val dateProvider: () -> LocalDate,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(TodayUiState())
-    val state: StateFlow<TodayUiState> = mutableState.asStateFlow()
+    private val initialDate = dateProvider()
+    private val mutableState = MutableStateFlow(
+        TodayUiState(dateLabel = initialDate.format(currentDateFormatter())),
+    )
 
     private var currentUserGoals = UserGoals()
     private var currentPins: List<TodayMetric> = TodayMetric.DEFAULT_PINS
+    private var coachSyncJob: Job? = null
 
-    /** The freshest coach input, pinned to the [activeDate] its flows were anchored to. */
-    private var latestCoachInput: Pair<LocalDate, CoachInput>? = null
-    private var isResumed = false
+    /** The day all date-scoped flows are anchored to; re-resolved on every resume. */
+    private val activeDate = MutableStateFlow(initialDate)
 
-    /** The day the coach's date-scoped flows are anchored to; re-resolved on every resume. */
-    private val activeDate = MutableStateFlow(dateProvider())
-
-    init {
-        viewModelScope.launch {
-            activeDate.collect { date ->
-                mutableState.update { it.copy(dateLabel = date.format(currentDateFormatter())) }
-            }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val repositoryObservation: Flow<TodayRepositoryUiState> = activeDate.flatMapLatest { date ->
+        combine(
+            vitalsFlow(date),
+            coachRepository.observeFeed(),
+        ) { dashboard, messages ->
+            currentPins = dashboard.pins
+            currentUserGoals = dashboard.userGoals
+            TodayRepositoryUiState(
+                dateLabel = date.format(currentDateFormatter()),
+                vitals = dashboard.vitals,
+                readiness = dashboard.readiness,
+                feed = buildFeedGroups(messages, date),
+            )
         }
-        observeFeed()
-        observeCoach()
-        observeVitals()
     }
+
+    val state: StateFlow<TodayUiState> = combine(
+        mutableState,
+        repositoryObservation,
+    ) { base, observed ->
+        base.copy(
+            dateLabel = observed.dateLabel,
+            vitals = observed.vitals,
+            readiness = observed.readiness,
+            feed = observed.feed,
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+        initialValue = mutableState.value,
+    )
 
     @Inject
     constructor(
@@ -132,19 +156,6 @@ class TodayViewModel internal constructor(
         profileRepository = profileRepository,
         dateProvider = { LocalDate.now() },
     )
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private fun observeVitals() {
-        viewModelScope.launch {
-            activeDate
-                .flatMapLatest { vitalsFlow(it) }
-                .collect { dashboard ->
-                    mutableState.update {
-                        it.copy(vitals = dashboard.vitals, readiness = dashboard.readiness)
-                    }
-                }
-        }
-    }
 
     private fun vitalsFlow(date: LocalDate): Flow<TodayDashboardUiState> {
         val weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -180,8 +191,6 @@ class TodayViewModel internal constructor(
             coachRepository.observeDashboardPins(),
         ) { f, h, bt, pins ->
             val (measurements, history) = bt
-            currentPins = pins
-            currentUserGoals = h.userGoals
             TodayDashboardUiState(
                 vitals =
                 buildVitals(
@@ -196,18 +205,20 @@ class TodayViewModel internal constructor(
                     weekStartMillis,
                 ),
                 readiness = buildReadinessUiState(date, h.summary, h.recentSummaries),
+                pins = pins,
+                userGoals = h.userGoals,
             )
         }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun observeCoach() {
-        viewModelScope.launch {
+    private fun startCoachSync() {
+        if (coachSyncJob?.isActive == true) return
+        coachSyncJob = viewModelScope.launch {
             activeDate
                 .flatMapLatest { date -> coachInputFlow(date).map { input -> date to input } }
                 .collect { anchored ->
-                    latestCoachInput = anchored
-                    if (isResumed) syncCoachFeed()
+                    syncCoachFeed(anchored.first, anchored.second)
                 }
         }
     }
@@ -262,37 +273,25 @@ class TodayViewModel internal constructor(
         }
     }
 
-    private fun observeFeed() {
-        viewModelScope.launch {
-            // Combining with activeDate re-derives Today/Yesterday labels on every
-            // resume re-anchor, even when the sync writes nothing new.
-            combine(coachRepository.observeFeed(), activeDate) { messages, today ->
-                buildFeedGroups(messages, today)
-            }.collect { groups ->
-                mutableState.update { it.copy(feed = groups) }
-            }
-        }
-    }
-
     fun onScreenResumed() {
-        isResumed = true
         // Re-anchor date-scoped coach flows — a cached process crossing midnight must
         // generate the new day's messages from the new day's data, never stale flows.
         val today = dateProvider()
         activeDate.value = today
         refreshHealthConnectData(today)
-        syncCoachFeed()
+        startCoachSync()
     }
 
     fun refreshTodayData() {
         val today = dateProvider()
         activeDate.value = today
         refreshHealthConnectData(today, showLoading = true)
-        syncCoachFeed()
+        requestCoachSync(today)
     }
 
     fun onScreenPaused() {
-        isResumed = false
+        coachSyncJob?.cancel()
+        coachSyncJob = null
         viewModelScope.launch { coachRepository.markAllRead() }
     }
 
@@ -300,14 +299,23 @@ class TodayViewModel internal constructor(
         viewModelScope.launch { coachRepository.dismiss(id) }
     }
 
-    private fun syncCoachFeed() {
-        val (anchor, input) = latestCoachInput ?: return
+    private fun requestCoachSync(anchor: LocalDate) {
+        viewModelScope.launch {
+            val input = coachInputFlow(anchor).first()
+            syncCoachFeed(anchor, input)
+        }
+    }
+
+    private fun syncCoachFeed(
+        anchor: LocalDate,
+        input: CoachInput,
+    ) {
         viewModelScope.launch {
             // Resolve "today" at invocation time — a cached process crossing midnight
             // must write under the new day, never back-fill the old one. An input built
             // from another day's flows is never written at all: after a rollover the
             // stale-anchored sync self-suppresses and the re-anchored emission from
-            // observeCoach drives the first sync of the new day.
+            // the resumed sync collector drives the first sync of the new day.
             val today = dateProvider()
             if (anchor != today) return@launch
             coachRepository.syncToday(today, CoachEngine.messages(input))
@@ -435,7 +443,7 @@ class TodayViewModel internal constructor(
     }
 
     fun saveDashboard() {
-        val current = state.value
+        val current = mutableState.value
         val goals =
             UserGoals(
                 stepGoal = current.stepGoalInput.toLongOrNull()?.coerceAtLeast(0L) ?: currentUserGoals.stepGoal,
@@ -497,6 +505,15 @@ private data class HealthSnapshot(
 private data class TodayDashboardUiState(
     val vitals: List<MetricCardUiState>,
     val readiness: TodayReadinessUiState?,
+    val pins: List<TodayMetric>,
+    val userGoals: UserGoals,
+)
+
+private data class TodayRepositoryUiState(
+    val dateLabel: String,
+    val vitals: List<MetricCardUiState>,
+    val readiness: TodayReadinessUiState?,
+    val feed: List<CoachFeedDayGroup>,
 )
 
 private data class TrainingGoalsProfile(
