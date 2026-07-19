@@ -68,7 +68,9 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run production-shaped API 28 and API 37 benchmarks
-        run: ./gradlew :benchmark:benchmarkApi28And37GroupBenchmarkAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' --no-daemon --console=plain
+        run: |
+          ./gradlew :benchmark:benchmarkApi28BenchmarkAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' --no-daemon --console=plain
+          ./gradlew :benchmark:benchmarkApi37BenchmarkAndroidTest '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' --no-daemon --console=plain
 
       - name: Enforce approved API 37 regression baseline
         shell: pwsh

@@ -65,10 +65,18 @@ Initialize the Android environment before Gradle commands:
 . .\scripts\android\android-env.ps1
 ```
 
-Run a quick structural/device smoke pass:
+Run a quick structural/device smoke pass. Keep the device-specific tasks in
+separate Gradle invocations when the host is capped to one managed device; a
+group task can make the second device exceed Gradle's 600-second lock wait while
+the first suite is still active.
 
 ```powershell
-.\gradlew.bat :benchmark:benchmarkApi28And37GroupBenchmarkAndroidTest `
+.\gradlew.bat :benchmark:benchmarkApi28BenchmarkAndroidTest `
+  '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' `
+  '-Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.dryRunMode.enable=true' `
+  --no-daemon --console=plain
+.\gradlew.bat :benchmark:benchmarkApi37BenchmarkAndroidTest `
+  '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' `
   '-Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.dryRunMode.enable=true' `
   --no-daemon --console=plain
 ```
@@ -76,7 +84,11 @@ Run a quick structural/device smoke pass:
 Run the measured suite and compare it with the approved baseline:
 
 ```powershell
-.\gradlew.bat :benchmark:benchmarkApi28And37GroupBenchmarkAndroidTest `
+.\gradlew.bat :benchmark:benchmarkApi28BenchmarkAndroidTest `
+  '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' `
+  --no-daemon --console=plain
+.\gradlew.bat :benchmark:benchmarkApi37BenchmarkAndroidTest `
+  '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1' `
   --no-daemon --console=plain
 
 .\scripts\performance\verify-benchmark-regression.ps1 `

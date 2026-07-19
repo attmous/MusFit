@@ -735,8 +735,10 @@ Assert-FileContains "scripts/performance/verify-benchmark-regression.ps1" 'train
 Assert-FileContains ".github/workflows/performance.yml" 'feature/training/\*\*'
 Assert-FileContains ".github/workflows/performance.yml" 'core/data/\*\*'
 Assert-FileContains ".github/workflows/performance.yml" '(?s)macrobenchmark:.{0,100}timeout-minutes:\s*65'
-Assert-FileContains ".github/workflows/performance.yml" 'benchmarkApi28And37GroupBenchmarkAndroidTest'
-Assert-FileContains ".github/workflows/performance.yml" 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1'
+Assert-FileContains ".github/workflows/performance.yml" '(?m)^\s*\./gradlew :benchmark:benchmarkApi28BenchmarkAndroidTest[^\r\n]*\r?\n\s*\./gradlew :benchmark:benchmarkApi37BenchmarkAndroidTest[^\r\n]*'
+Assert-FileDoesNotContain ".github/workflows/performance.yml" 'benchmarkApi28And37GroupBenchmarkAndroidTest'
+$performanceWorkflow = Get-FileText ".github/workflows/performance.yml"
+Assert-Equal "Performance managed-device cap references" 2 ([regex]::Matches($performanceWorkflow, 'android\.experimental\.testOptions\.managedDevices\.maxConcurrentDevices=1').Count)
 Assert-FileContains ".github/workflows/performance.yml" 'verify-benchmark-regression\.ps1[^\r\n]*-ReportOnly'
 Assert-FileContains ".github/workflows/performance.yml" 'managed_device_android_test_additional_output'
 Assert-FileContains ".github/workflows/performance.yml" 'system-images;android-37\.0;google_apis_ps16k;x86_64'
