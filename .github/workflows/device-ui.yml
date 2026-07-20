@@ -74,7 +74,7 @@ jobs:
 
   critical-journeys:
     runs-on: ubuntu-latest
-    timeout-minutes: 65
+    timeout-minutes: 85
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -110,9 +110,17 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run API 28 and API 37 critical journeys
+        shell: pwsh
         run: |
-          ./gradlew :app:musFitApi28InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
-          ./gradlew :app:musFitApi37InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' --no-daemon --console=plain
+          ./scripts/dev/run-managed-device-test.ps1 `
+            -Task ':app:musFitApi28InternalDebugAndroidTest' `
+            -ResultsDirectory 'app/build/outputs/androidTest-results/managedDevice/debug/flavors/internal/musFitApi28' `
+            -GradleArguments @('-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest')
+          ./scripts/dev/run-managed-device-test.ps1 `
+            -Task ':app:musFitApi37InternalDebugAndroidTest' `
+            -ResultsDirectory 'app/build/outputs/androidTest-results/managedDevice/debug/flavors/internal/musFitApi37' `
+            -Api37InfrastructureRetries 2 `
+            -GradleArguments @('-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest')
 
       - name: Run API 28 and API 37 animated Training media regression
         run: |
@@ -120,11 +128,24 @@ jobs:
           ./gradlew :feature:training:trainingApi37InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.training.ExerciseAnimatedMediaInstrumentationTest' --no-daemon --console=plain
 
       - name: Aggregate unit and managed-device coverage
-        timeout-minutes: 25
+        timeout-minutes: 40
         shell: pwsh
         run: |
-          ./gradlew :app:musFitApi28InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
-          ./gradlew :app:musFitApi37InternalDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest' '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false' --no-daemon --console=plain
+          ./scripts/dev/run-managed-device-test.ps1 `
+            -Task ':app:musFitApi28InternalDebugAndroidTest' `
+            -ResultsDirectory 'app/build/outputs/androidTest-results/managedDevice/debug/flavors/internal/musFitApi28' `
+            -GradleArguments @(
+              '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest'
+              '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false'
+            )
+          ./scripts/dev/run-managed-device-test.ps1 `
+            -Task ':app:musFitApi37InternalDebugAndroidTest' `
+            -ResultsDirectory 'app/build/outputs/androidTest-results/managedDevice/debug/flavors/internal/musFitApi37' `
+            -Api37InfrastructureRetries 2 `
+            -GradleArguments @(
+              '-Pandroid.testInstrumentationRunnerArguments.class=com.musfit.ui.MusFitCriticalJourneyInstrumentationTest'
+              '-Pandroid.testInstrumentationRunnerArguments.clearPackageData=false'
+            )
           ./gradlew :app:createInternalDebugUnitTestCoverageReport :core:model:jacocoTestReport :core:network:createInternalDebugUnitTestCoverageReport :core:data:createInternalDebugUnitTestCoverageReport :integration:healthconnect:createInternalDebugUnitTestCoverageReport :integration:scanner:createInternalDebugUnitTestCoverageReport :feature:food:createInternalDebugUnitTestCoverageReport :feature:training:createInternalDebugUnitTestCoverageReport :app:createManagedDeviceInternalDebugAndroidTestCoverageReport -x :app:musFitApi28InternalDebugAndroidTest -x :app:musFitApi37InternalDebugAndroidTest --no-daemon --console=plain
           $reports = @(
             Get-ChildItem app/build/reports/coverage -Recurse -Filter report.xml -File |
@@ -155,6 +176,7 @@ jobs:
             app/build/reports/androidTests/managedDevice/
             app/build/outputs/androidTest-results/managedDevice/
             app/build/outputs/managed_device_android_test_additional_output/
+            app/build/outputs/managed-device-infra-retries/
             feature/training/build/reports/androidTests/managedDevice/
             feature/training/build/outputs/androidTest-results/managedDevice/
             feature/training/build/outputs/managed_device_android_test_additional_output/

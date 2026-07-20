@@ -72,6 +72,10 @@ Both the ordinary journey pass and the isolated coverage rerun invoke the API 28
 and API 37 tasks sequentially. The report task then aggregates the two retained
 device outputs without rerunning either emulator. This keeps the hosted runner
 within its memory boundary while preserving coverage from both API levels.
+Both API 37 invocations use the same bounded retry for zero-test instrumentation
+startup crashes and the exact hosted-emulator Bluetooth service abort. Assertions
+and identified app-process crashes are not retried, retry exhaustion is fatal,
+and every failed infrastructure attempt is retained.
 
 Coverage-producing Orchestrator runs pass
 `android.testInstrumentationRunnerArguments.clearPackageData=false`. Orchestrator
@@ -98,12 +102,14 @@ The measured clean local unit report completed in 223.6 seconds for 814 tests;
 the warm report-only rerun completed in 16.6 seconds. The unit coverage step
 has a hard CI budget of **10 minutes**. Managed-device coverage reuses the
 already-required critical-journey execution, and its isolated collection and
-aggregation step has a hard CI budget of **25 minutes**. In hosted run
+aggregation step has a hard CI budget of **40 minutes** so bounded API 37
+infrastructure retries cannot consume the reporting window. In hosted run
 `29696154720`, the API 28 and API 37 coverage journeys completed in 6 minutes 7
 seconds and 6 minutes 27 seconds, respectively, before the expanded multi-module
 report graph reached the former 15-minute cutoff while still producing reports.
-The encompassing critical-journey job remains capped at 65 minutes so the
-two-device journey allowance, coverage, and artifact retention can all complete.
+The encompassing critical-journey job is capped at 85 minutes so the ordinary
+two-device journey allowance remains unchanged while retry exhaustion, coverage,
+and artifact retention can still complete.
 
 Do not lower a threshold or replace the baseline merely to make CI green. A
 baseline update requires a measured report from current `origin/master`, the

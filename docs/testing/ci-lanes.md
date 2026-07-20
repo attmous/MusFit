@@ -25,7 +25,7 @@ and on manual dispatch. Its jobs run in parallel on isolated runners:
 | Job | Matrix | Hard timeout | Retained evidence |
 | --- | --- | ---: | --- |
 | `migration-matrix` | API 28 and API 37, serialized per runner | 40 minutes | Managed-device reports, protobuf/XML results, additional output, migration metrics |
-| `critical-journeys` | API 28 and API 37, explicit per-device sequence | 65 minutes | Managed-device reports, failure logcat, screenshots/additional output, aggregate coverage |
+| `critical-journeys` | API 28 and API 37, explicit per-device sequence | 85 minutes | Managed-device reports, failure logcat, screenshots/additional output, aggregate coverage |
 | `screenshots` | Deterministic 400/610/900 dp Roborazzi matrix | 12 minutes | HTML/JUnit reports and image diffs |
 
 `Android performance` also runs on every default-branch push, weekly, and on
@@ -41,6 +41,11 @@ The critical-journey job likewise invokes each managed-device task separately.
 Do not replace that sequence with the Gradle device-group task: the group can
 overlap both emulator setups on a hosted runner even when its device concurrency
 property is one, which can crash API 37 before instrumentation starts.
+API 37 gets up to two fail-closed fresh-device retries only when zero tests start
+before an instrumentation process crash or the incomplete report is paired with
+the exact platform Bluetooth hardware-error abort. Assertions, identified app
+process crashes, and exhausted infrastructure retries remain red; every failed
+device attempt is retained with the normal job artifacts.
 
 ## Release promotion contract
 
