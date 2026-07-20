@@ -218,6 +218,39 @@ scheduling slices for the remaining 15.96 seconds. Only 0.138 ms of unrelated
 ART finalizer/heap housekeeping remained. This is the device acceptance check
 for Training's lifecycle-aware collectors.
 
+## Profile and Today lifecycle comparison (2026-07-20)
+
+S16 used the strict API 37 regression verifier against the checked-in approved
+baselines. Profile's production-shaped journey improved frame CPU P90 by
+19.58% and frame-overrun P90 by 43.44%; its maximum heap and anonymous RSS also
+improved by 9.93% and 0.33%. Today's warm-start time-to-initial-display P90
+improved by 32.49%. All five measurements passed the 5% regression ceiling.
+
+The seeded `MusFit_API36` emulator also supplied a matched Today interaction
+comparison between exact master commit
+`f0e64e5b5317d6954b20b63b7eb38ba4174f4a29` and candidate source
+`b05b388b9307251c18589469bf9b5f36ddbb5104`. Each of the three samples used
+three warm-ups followed by 25 bidirectional dashboard-scroll cycles, with
+`gfxinfo framestats` reset immediately before the measured block. Room data and
+the emulator session were preserved while switching revisions.
+
+| Today frame metric | Baseline samples | Candidate samples | Median change |
+| --- | --- | --- | ---: |
+| P90 | 23.682, 24.509, 24.694 ms | 24.266, 23.503, 24.997 ms | 24.509 -> 24.266 ms (-0.99%) |
+| P99 | 25.796, 29.106, 27.572 ms | 26.589, 26.856, 26.903 ms | 27.572 -> 26.856 ms (-2.60%) |
+
+The same candidate was captured in a 60-second Perfetto lifecycle trace with
+explicit Profile/Today foreground and post-timeout markers. Profile foreground
+recorded 1,635 relevant scheduling slices (1,203.051 ms CPU), and Today
+foreground recorded 4,854 (3,324.127 ms CPU), confirming that the trace could
+observe UI, JIT, and repository work. The post-timeout windows began 5.549 and
+5.559 seconds after their respective `activityStop` slices and each ran for
+more than ten seconds. Both contained zero main, RenderThread,
+`arch_disk_io_*`, pool, Dispatcher, Room, SQLite, or DefaultExecutor scheduling
+slices (0.000 ms CPU). The only whole-process activity was one 9.300 ms ART
+profile-save pass and one 0.070 ms finalizer-watchdog tick during Today's
+window; neither is application collector or query work.
+
 GitHub-hosted emulator CPU timing varied materially between two exact-head runs
 even though all device tests passed. CI therefore invokes `-ReportOnly`: a >10%
 change produces a GitHub warning, a red status in the retained JSON/Markdown,
