@@ -2,7 +2,7 @@
 agp = "9.2.1"
 kotlin = "2.4.0"
 ksp = "2.3.10"
-cyclonedx = "3.2.4"
+cyclonedx = "3.3.0"
 spotless = "8.8.0"
 detekt = "1.23.8"
 composeBom = "2026.06.01"
