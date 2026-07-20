@@ -40,7 +40,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -50,13 +52,18 @@ import androidx.core.net.toUri
 import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.musfit.data.repository.AccountAuthProvider
 import com.musfit.data.repository.AccountErasureScope
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.UserProfile
+import com.musfit.feature.profile.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.asString
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.TabAccentRole
@@ -87,6 +94,8 @@ fun ProfileSettingsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val accent = tabAccentFor(TabAccentRole.Profile)
     val context = LocalContext.current
+    val googleLabel = stringResource(R.string.profile_google)
+    val githubLabel = stringResource(R.string.profile_github)
     val coroutineScope = rememberCoroutineScope()
     var subPage by rememberSaveable { mutableStateOf<SettingsSubPage?>(null) }
     var showProfileSheet by rememberSaveable { mutableStateOf(false) }
@@ -163,7 +172,7 @@ fun ProfileSettingsScreen(
                             googleWebClientId = entryConfig.googleWebClientId,
                         )
                     }.onSuccess(viewModel::signInWithProvider)
-                        .onFailure { viewModel.reportExternalSignInFailure("Google", it) }
+                        .onFailure { viewModel.reportExternalSignInFailure(googleLabel, it) }
                 }
             },
             onGitHubSignIn = viewModel::signInWithGitHub,
@@ -242,7 +251,7 @@ fun ProfileSettingsScreen(
                     context.startActivity(
                         Intent(Intent.ACTION_VIEW, githubDeviceCode.verificationUri.toUri()),
                     )
-                }.onFailure { viewModel.reportExternalSignInFailure("GitHub", it) }
+                }.onFailure { viewModel.reportExternalSignInFailure(githubLabel, it) }
             },
             onDismiss = viewModel::dismissGitHubDeviceCode,
         )
@@ -284,6 +293,7 @@ internal fun SettingsHub(
     googleSignInConfigured: Boolean,
     versionName: String,
 ) {
+    val addBurnedDescription = stringResource(R.string.profile_add_burned_calories)
     val signInActions = providerSignInActions(
         googleConfigured = googleSignInConfigured,
         githubConfigured = state.isGitHubSignInConfigured,
@@ -298,17 +308,17 @@ internal fun SettingsHub(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         InnerScreenHeader(
-            title = "Settings",
-            subtitle = "Profile, identity, coach and device sync",
+            title = stringResource(R.string.profile_settings_title),
+            subtitle = stringResource(R.string.profile_settings_subtitle),
             onBack = onBack,
         )
 
         LocalAccountHero(account = state.account, accent = accent, onEdit = onEditAccount)
 
-        GroupLabel("Account")
+        GroupLabel(stringResource(R.string.profile_account))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ProfileHubRow(
-                title = "Profile details",
+                title = stringResource(R.string.profile_details),
                 subtitle = profileDetailsSummary(state.profile),
                 shape = groupedShape(0, 4),
                 onClick = onOpenProfileDetails,
@@ -324,40 +334,40 @@ internal fun SettingsHub(
                 },
             )
             ProviderRow(
-                title = "Google",
-                linked = state.account.providerLabel == "Google",
+                title = stringResource(R.string.profile_google),
+                linked = state.account.provider == AccountAuthProvider.Google,
                 action = signInActions.google,
                 accent = accent,
                 shape = groupedShape(1, 4),
                 badgeShape = ExpressiveBadgeShape.Circle,
                 badgeIcon = Icons.Outlined.Link,
-                linkedSubtitle = state.account.email ?: "Linked to this local account",
+                linkedSubtitle = state.account.email ?: stringResource(R.string.profile_linked_local_account),
                 onClick = onGoogleSignIn,
             )
             ProviderRow(
-                title = "GitHub",
-                linked = state.account.providerLabel == "GitHub",
+                title = stringResource(R.string.profile_github),
+                linked = state.account.provider == AccountAuthProvider.GitHub,
                 action = signInActions.github,
                 accent = accent,
                 shape = groupedShape(2, 4),
                 badgeShape = ExpressiveBadgeShape.Squircle,
                 badgeIcon = Icons.Outlined.Code,
-                linkedSubtitle = state.account.email ?: "Linked to this local account",
+                linkedSubtitle = state.account.email ?: stringResource(R.string.profile_linked_local_account),
                 onClick = onGitHubSignIn,
             )
             ProfileHubRow(
-                title = "Data & privacy",
-                subtitle = "Local storage, retention and erasure",
+                title = stringResource(R.string.profile_data_privacy),
+                subtitle = stringResource(R.string.profile_data_privacy_summary),
                 shape = groupedShape(3, 4),
                 onClick = onOpenDataTransfer,
                 leading = null,
             )
         }
 
-        GroupLabel("Connections")
+        GroupLabel(stringResource(R.string.profile_connections))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ProfileHubRow(
-                title = "AI coach",
+                title = stringResource(R.string.profile_ai_title),
                 subtitle = coachConnectionSummary(state),
                 shape = groupedShape(0, 2),
                 onClick = onOpenAiCoach,
@@ -379,7 +389,7 @@ internal fun SettingsHub(
                 },
             )
             ProfileHubRow(
-                title = "Health Connect",
+                title = stringResource(R.string.profile_health_connect),
                 subtitle = healthConnectionSummary(state),
                 shape = groupedShape(1, 2),
                 onClick = onOpenHealthConnect,
@@ -396,11 +406,11 @@ internal fun SettingsHub(
             )
         }
 
-        GroupLabel("Preferences")
+        GroupLabel(stringResource(R.string.profile_preferences))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ProfileHubRow(
-                title = "Add burned calories to budget",
-                subtitle = "kcal left = goal − eaten + burned",
+                title = stringResource(R.string.profile_add_burned_calories),
+                subtitle = stringResource(R.string.profile_burned_calorie_formula),
                 shape = groupedShape(0, 5),
                 onClick = null,
                 leading = null,
@@ -410,20 +420,24 @@ internal fun SettingsHub(
                         onCheckedChange = onIncludeBurnedCaloriesChange,
                         accent = accent,
                         modifier = Modifier.semantics {
-                            contentDescription = "Add burned calories to budget"
+                            contentDescription = addBurnedDescription
                         },
                     )
                 },
             )
             CompactValueRow(
-                title = "Units",
-                value = "Metric · kg, cm",
+                title = stringResource(R.string.profile_units),
+                value = stringResource(R.string.profile_metric_units),
                 shape = groupedShape(1, 5),
             )
-            CompactValueRow(title = "Theme", value = "System", shape = groupedShape(2, 5))
+            CompactValueRow(
+                title = stringResource(R.string.profile_theme),
+                value = stringResource(R.string.profile_system),
+                shape = groupedShape(2, 5),
+            )
             ProfileHubRow(
-                title = "Data transfer",
-                subtitle = "Encrypted export and restore",
+                title = stringResource(R.string.profile_data_transfer),
+                subtitle = stringResource(R.string.profile_data_transfer_summary),
                 shape = groupedShape(3, 5),
                 onClick = onOpenDataTransfer,
                 leading = {
@@ -437,12 +451,16 @@ internal fun SettingsHub(
                     )
                 },
             )
-            CompactValueRow(title = "Data", value = "Local first", shape = groupedShape(4, 5))
+            CompactValueRow(
+                title = stringResource(R.string.profile_data),
+                value = stringResource(R.string.profile_local_first),
+                shape = groupedShape(4, 5),
+            )
         }
 
-        GroupLabel("About")
+        GroupLabel(stringResource(R.string.profile_about))
         CompactValueRow(
-            title = "MusFit",
+            title = stringResource(R.string.profile_app_name),
             value = versionName,
             shape = RoundedCornerShape(24.dp),
         )
@@ -466,13 +484,17 @@ private fun ProviderRow(
         title = title,
         subtitle = when {
             linked -> linkedSubtitle
-            action.statusLabel == "Setup needed" -> "Not configured in this build"
-            action.statusLabel == "In progress" || action.statusLabel == "Waiting" -> action.supportingText
-            else -> "Optional linking · no cloud sync"
+
+            action.statusLabel == uiText(R.string.profile_setup_needed) -> stringResource(R.string.profile_not_configured_build)
+
+            action.statusLabel == uiText(R.string.profile_in_progress) ||
+                action.statusLabel == uiText(R.string.profile_waiting) -> action.supportingText.asString()
+
+            else -> stringResource(R.string.profile_optional_linking)
         },
         shape = shape,
         onClick = if (!linked && action.enabled) onClick else null,
-        onClickLabel = action.buttonLabel,
+        onClickLabel = action.buttonLabel.asString(),
         leading = {
             ExpressiveBadge(
                 icon = badgeIcon,
@@ -487,7 +509,7 @@ private fun ProviderRow(
             when {
                 linked -> Surface(color = accent.container, shape = RoundedCornerShape(99.dp)) {
                     Text(
-                        "Linked",
+                        stringResource(R.string.profile_linked),
                         style = MusFitTheme.typography.labelSmall.copy(fontWeight = FontWeight.W800, letterSpacing = 0.sp),
                         color = accent.onContainer,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -495,7 +517,13 @@ private fun ProviderRow(
                 }
 
                 else -> Text(
-                    text = if (action.statusLabel == "In progress") "Waiting…" else "Link",
+                    text = stringResource(
+                        if (action.statusLabel == uiText(R.string.profile_in_progress)) {
+                            R.string.profile_waiting_ellipsis
+                        } else {
+                            R.string.profile_link
+                        },
+                    ),
                     style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
                     color = if (action.enabled) accent.color else MusFitTheme.colors.onSurfaceFaint,
                 )
@@ -505,36 +533,73 @@ private fun ProviderRow(
 }
 
 /** "31 · 183 cm · gain 0.3 kg/wk" — or an invitation while fields are missing. */
+@Composable
 private fun profileDetailsSummary(profile: UserProfile): String {
+    val locale = LocalConfiguration.current.locales[0]
     val age = profile.birthDateEpochDay?.let {
-        Period.between(LocalDate.ofEpochDay(it), LocalDate.now()).years.toString()
+        LocalizedFormatter.integer(Period.between(LocalDate.ofEpochDay(it), LocalDate.now()).years.toLong(), locale = locale)
     }
-    val height = profile.heightCm?.let { "${it.format1()} cm" }
+    val height = profile.heightCm?.let {
+        stringResource(R.string.profile_details_height, it.format1(locale))
+    }
     val pace = when (profile.goalType) {
-        com.musfit.domain.profile.GoalType.Maintain -> "maintain"
-        com.musfit.domain.profile.GoalType.Lose -> "lose ${profile.goalPaceKgPerWeek.format1()} kg/wk"
-        com.musfit.domain.profile.GoalType.Gain -> "gain ${profile.goalPaceKgPerWeek.format1()} kg/wk"
+        com.musfit.domain.profile.GoalType.Maintain -> stringResource(R.string.profile_pace_maintain)
+
+        com.musfit.domain.profile.GoalType.Lose -> stringResource(
+            R.string.profile_details_pace_lose,
+            profile.goalPaceKgPerWeek.format1(locale),
+        )
+
+        com.musfit.domain.profile.GoalType.Gain -> stringResource(
+            R.string.profile_details_pace_gain,
+            profile.goalPaceKgPerWeek.format1(locale),
+        )
     }
     val parts = listOfNotNull(age, height, pace)
-    return if (age == null && height == null) "Add your age, height, and goal" else parts.joinToString(" · ")
+    return if (age == null && height == null) {
+        stringResource(R.string.profile_details_invitation)
+    } else {
+        when (parts.size) {
+            1 -> parts.single()
+
+            2 -> stringResource(R.string.profile_join_middle_dot, parts[0], parts[1])
+
+            else -> {
+                val firstTwo = stringResource(R.string.profile_join_middle_dot, parts[0], parts[1])
+                stringResource(R.string.profile_join_middle_dot, firstTwo, parts[2])
+            }
+        }
+    }
 }
 
+@Composable
 private fun coachConnectionSummary(state: ProfileSettingsUiState): String {
     val coach = state.aiCoach
     return when {
-        coach.providerKind == AiCoachProviderKind.Disabled -> "Off · bring your own model"
-        coach.modelName.isNotBlank() -> "${coach.providerLabel} · ${coach.modelName}"
-        else -> coach.providerLabel
+        coach.providerKind == AiCoachProviderKind.Disabled -> stringResource(R.string.profile_ai_off_summary)
+
+        coach.modelName.isNotBlank() -> stringResource(
+            R.string.profile_ai_provider_model,
+            coach.providerLabel.asString(),
+            coach.modelName,
+        )
+
+        else -> coach.providerLabel.asString()
     }
 }
 
+@Composable
 private fun healthConnectionSummary(state: ProfileSettingsUiState): String = when {
     state.requestablePermissionCount > 0 ->
-        "${state.grantedPermissionCount} of ${state.requestablePermissionCount} permissions"
+        stringResource(
+            R.string.profile_permissions_summary,
+            LocalizedFormatter.integer(state.grantedPermissionCount.toLong(), locale = LocalConfiguration.current.locales[0]),
+            LocalizedFormatter.integer(state.requestablePermissionCount.toLong(), locale = LocalConfiguration.current.locales[0]),
+        )
 
-    state.availabilityLabel == "Unknown" -> "Checking availability…"
+    state.availabilityLabel == uiText(R.string.profile_unknown) -> stringResource(R.string.profile_checking_availability)
 
-    else -> state.availabilityLabel
+    else -> state.availabilityLabel.asString()
 }
 
 @Composable
@@ -546,15 +611,15 @@ private fun GitHubDeviceCodeDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("GitHub sign-in") },
+        title = { Text(stringResource(R.string.profile_github_sign_in)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Enter this code at GitHub:")
+                Text(stringResource(R.string.profile_github_enter_code_prompt))
                 Text(userCode, style = MusFitTheme.typography.headlineSmall)
                 Text(verificationUri, style = MusFitTheme.typography.bodySmall)
             }
         },
-        confirmButton = { TextButton(onClick = onOpen) { Text("Open GitHub") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        confirmButton = { TextButton(onClick = onOpen) { Text(stringResource(R.string.profile_open_github)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.profile_close)) } },
     )
 }

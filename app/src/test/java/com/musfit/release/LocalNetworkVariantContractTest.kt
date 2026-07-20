@@ -4,8 +4,8 @@ import android.content.Context
 import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import com.musfit.BuildConfig
+import com.musfit.R
 import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION
-import com.musfit.ui.permissions.LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE
 import com.musfit.ui.permissions.hasLocalNetworkPermission
 import com.musfit.ui.permissions.requiresLocalNetworkPermission
 import org.junit.Assert.assertEquals
@@ -43,10 +43,11 @@ class LocalNetworkVariantContractTest {
 
     @Test
     fun permissionHelpCopyMatchesTheCurrentVariantPolicy() {
+        val permissionDeniedMessage = context.getString(R.string.app_local_network_permission_denied)
         if (BuildConfig.APPLICATION_ID == INTERNAL_APPLICATION_ID) {
-            assertTrue(LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE.contains("Local Network"))
+            assertTrue(permissionDeniedMessage.contains("Local Network"))
         } else {
-            assertFalse(LOCAL_NETWORK_PERMISSION_DENIED_MESSAGE.contains("LAN", ignoreCase = true))
+            assertFalse(permissionDeniedMessage.contains("LAN", ignoreCase = true))
         }
     }
 

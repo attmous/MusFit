@@ -2,6 +2,7 @@ package com.musfit.ui.today
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -46,10 +48,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -58,10 +64,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
+import com.musfit.feature.today.R
 import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.gridGroupShape
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.AmberBright
 import com.musfit.ui.theme.AmberContainerDark
 import com.musfit.ui.theme.AmberInkDark
@@ -147,16 +154,17 @@ private fun VitalsTile(
 ) {
     val family = vitalsFamilyFor(card.metric)
     val figure = when (val value = card.value) {
-        is MetricValue.WithGoal -> value.figure
-        is MetricValue.Plain -> value.figure
-        is MetricValue.NoData -> "—"
+        is MetricValueUiState.WithGoal -> value.figure.asString()
+        is MetricValueUiState.Plain -> value.figure.asString()
+        is MetricValueUiState.NoData -> "—"
     }
     val caption = when (val value = card.value) {
-        is MetricValue.WithGoal -> value.caption
-        is MetricValue.Plain -> value.caption
-        is MetricValue.NoData -> value.caption
+        is MetricValueUiState.WithGoal -> value.caption.asString()
+        is MetricValueUiState.Plain -> value.caption.asString()
+        is MetricValueUiState.NoData -> value.caption.asString()
     }
-    val label = vitalsTileLabel(card.metric)
+    val locale = LocalConfiguration.current.locales[0]
+    val label = card.label.asString()
     Surface(
         onClick = onClick,
         color = family.container,
@@ -178,7 +186,7 @@ private fun VitalsTile(
                     modifier = Modifier.size(15.dp),
                 )
                 Text(
-                    text = label.uppercase(),
+                    text = label.uppercase(locale),
                     style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp),
                     fontWeight = FontWeight.ExtraBold,
                     color = family.onContainer,
@@ -200,7 +208,7 @@ private fun VitalsTile(
                 color = family.onContainer,
                 maxLines = 1,
             )
-            (card.value as? MetricValue.WithGoal)?.let { value ->
+            (card.value as? MetricValueUiState.WithGoal)?.let { value ->
                 Spacer(Modifier.height(8.dp))
                 WavyProgressBar(
                     progress = value.progress,
@@ -280,12 +288,6 @@ internal fun vitalsFamilyFor(metric: TodayMetric): VitalsTileFamily {
     }
 }
 
-/** Tile overline: the mock says EATEN, not CALORIES; everything else keeps its pool label. */
-internal fun vitalsTileLabel(metric: TodayMetric): String = when (metric) {
-    TodayMetric.Calories -> "Eaten"
-    else -> metric.label
-}
-
 /** Tile overline glyphs from the 8a mock (restaurant / steps / exercise / water_drop). */
 internal fun vitalsTileIcon(metric: TodayMetric): ImageVector = when (metric) {
     TodayMetric.Calories -> Icons.Filled.Restaurant
@@ -340,119 +342,142 @@ fun DashboardEditSheet(
     onDismiss: () -> Unit,
 ) {
     val accent = tabAccentFor(TabAccentRole.Today)
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MusFitTheme.colors.surface) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm),
-        ) {
-            Text(
-                text = "Dashboard",
-                style = MusFitTheme.typography.titleLarge,
-                color = MusFitTheme.colors.onSurface,
-            )
-            Text(
-                text = "Pin the metrics you're focused on. Each pin is one tile on the grid.",
-                style = MusFitTheme.typography.bodyMedium,
-                color = MusFitTheme.colors.onSurfaceVariant,
-            )
-
-            // Pinned first (in order, with reorder controls), then the rest of the pool.
-            val pinned = state.editPins
-            pinned.forEachIndexed { index, metric ->
-                // The last remaining pin cannot be unpinned — surface the rule as disabled.
-                val toggleEnabled = pinned.size > 1
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = true,
-                            enabled = toggleEnabled,
-                            role = Role.Checkbox,
-                            onValueChange = { onTogglePin(metric) },
-                        ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(checked = true, onCheckedChange = null, enabled = toggleEnabled)
-                    Text(
-                        text = metric.label,
-                        style = MusFitTheme.typography.bodyMedium,
-                        color = MusFitTheme.colors.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
-                    val arrowColors = IconButtonDefaults.iconButtonColors(contentColor = MusFitTheme.colors.onSurfaceVariant)
-                    IconButton(
-                        onClick = { onMovePin(metric, true) },
-                        enabled = index > 0,
-                        colors = arrowColors,
-                        modifier = Modifier.size(48.dp).semantics { role = Role.Button },
-                    ) {
-                        Icon(Icons.Outlined.ArrowUpward, contentDescription = "Move ${metric.label} up")
-                    }
-                    IconButton(
-                        onClick = { onMovePin(metric, false) },
-                        enabled = index < pinned.lastIndex,
-                        colors = arrowColors,
-                        modifier = Modifier.size(48.dp).semantics { role = Role.Button },
-                    ) {
-                        Icon(Icons.Outlined.ArrowDownward, contentDescription = "Move ${metric.label} down")
-                    }
-                }
-            }
-            TodayMetric.entries.filter { it !in pinned }.forEach { metric ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = false,
-                            role = Role.Checkbox,
-                            onValueChange = { onTogglePin(metric) },
-                        ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(checked = false, onCheckedChange = null)
-                    Text(
-                        text = metric.label,
-                        style = MusFitTheme.typography.bodyMedium,
-                        color = MusFitTheme.colors.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(MusFitTheme.spacing.sm))
-            Text(
-                text = "Goals",
-                style = MusFitTheme.typography.titleMedium,
-                color = MusFitTheme.colors.onSurface,
-            )
-            OutlinedTextField(
-                value = state.stepGoalInput,
-                onValueChange = onStepGoalChanged,
-                label = { Text("Daily step goal") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.sessionTargetInput,
-                onValueChange = onSessionTargetChanged,
-                label = { Text("Workouts per week") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Button(
-                onClick = onSave,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = accent.color,
-                    contentColor = accent.onColor,
-                ),
+    val layoutDirection = LocalLayoutDirection.current
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MusFitTheme.colors.surface,
+        dragHandle = {
+            Box(
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Text("Save dashboard")
+                BottomSheetDefaults.DragHandle()
+            }
+        },
+    ) {
+        CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm),
+            ) {
+                Text(
+                    text = stringResource(R.string.today_dashboard),
+                    style = MusFitTheme.typography.titleLarge,
+                    color = MusFitTheme.colors.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.today_dashboard_explanation),
+                    style = MusFitTheme.typography.bodyMedium,
+                    color = MusFitTheme.colors.onSurfaceVariant,
+                )
+
+                // Pinned first (in order, with reorder controls), then the rest of the pool.
+                val pinned = state.editPins
+                pinned.forEachIndexed { index, metric ->
+                    val metricLabel = metric.presentationLabel().asString()
+                    // The last remaining pin cannot be unpinned — surface the rule as disabled.
+                    val toggleEnabled = pinned.size > 1
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(
+                                value = true,
+                                enabled = toggleEnabled,
+                                role = Role.Checkbox,
+                                onValueChange = { onTogglePin(metric) },
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = true, onCheckedChange = null, enabled = toggleEnabled)
+                        Text(
+                            text = metricLabel,
+                            style = MusFitTheme.typography.bodyMedium,
+                            color = MusFitTheme.colors.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        val arrowColors =
+                            IconButtonDefaults.iconButtonColors(contentColor = MusFitTheme.colors.onSurfaceVariant)
+                        IconButton(
+                            onClick = { onMovePin(metric, true) },
+                            enabled = index > 0,
+                            colors = arrowColors,
+                            modifier = Modifier.size(48.dp).semantics { role = Role.Button },
+                        ) {
+                            Icon(
+                                Icons.Outlined.ArrowUpward,
+                                contentDescription = stringResource(R.string.today_move_metric_up, metricLabel),
+                            )
+                        }
+                        IconButton(
+                            onClick = { onMovePin(metric, false) },
+                            enabled = index < pinned.lastIndex,
+                            colors = arrowColors,
+                            modifier = Modifier.size(48.dp).semantics { role = Role.Button },
+                        ) {
+                            Icon(
+                                Icons.Outlined.ArrowDownward,
+                                contentDescription = stringResource(R.string.today_move_metric_down, metricLabel),
+                            )
+                        }
+                    }
+                }
+                TodayMetric.entries.filter { it !in pinned }.forEach { metric ->
+                    val metricLabel = metric.presentationLabel().asString()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(
+                                value = false,
+                                role = Role.Checkbox,
+                                onValueChange = { onTogglePin(metric) },
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = false, onCheckedChange = null)
+                        Text(
+                            text = metricLabel,
+                            style = MusFitTheme.typography.bodyMedium,
+                            color = MusFitTheme.colors.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(MusFitTheme.spacing.sm))
+                Text(
+                    text = stringResource(R.string.today_goals),
+                    style = MusFitTheme.typography.titleMedium,
+                    color = MusFitTheme.colors.onSurface,
+                )
+                OutlinedTextField(
+                    value = state.stepGoalInput,
+                    onValueChange = onStepGoalChanged,
+                    label = { Text(stringResource(R.string.today_daily_step_goal)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.sessionTargetInput,
+                    onValueChange = onSessionTargetChanged,
+                    label = { Text(stringResource(R.string.today_workouts_per_week)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accent.color,
+                        contentColor = accent.onColor,
+                    ),
+                ) {
+                    Text(stringResource(R.string.today_save_dashboard))
+                }
             }
         }
     }

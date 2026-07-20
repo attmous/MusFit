@@ -49,6 +49,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -67,8 +69,10 @@ import com.musfit.domain.profile.EnergyCalculator
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
+import com.musfit.feature.profile.R
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.SheetDragHandle
+import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.theme.LavenderBody
 import com.musfit.ui.theme.LavenderBodyDark
 import com.musfit.ui.theme.LavenderContainer
@@ -81,16 +85,6 @@ import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
 import java.time.LocalDate
 import java.time.Period
-import java.util.Locale
-
-private val MEASUREMENT_LABELS = mapOf(
-    "waist" to "Waist",
-    "chest" to "Chest",
-    "arms" to "Arms",
-    "thighs" to "Thighs",
-    "hips" to "Hips",
-    "body_fat" to "Body fat",
-)
 
 private const val PACE_STEP = 0.1
 private const val PACE_MIN = 0.1
@@ -168,11 +162,11 @@ fun ProfileEditSheet(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Your profile",
+                        stringResource(R.string.profile_your_profile),
                         style = MusFitTheme.typography.headlineMedium.copy(fontSize = 22.sp, lineHeight = 25.sp),
                     )
                     Text(
-                        "Sets your calorie and macro targets",
+                        stringResource(R.string.profile_targets_explanation),
                         style = MusFitTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp),
@@ -180,59 +174,59 @@ fun ProfileEditSheet(
                 }
                 ProfileCircleIconButton(
                     icon = Icons.Outlined.Close,
-                    contentDescription = "Close",
+                    contentDescription = stringResource(R.string.profile_close),
                     container = MusFitTheme.colors.surfaceVariant,
                     content = MusFitTheme.colors.onSurface,
                     onClick = onDismiss,
                 )
             }
 
-            SheetFieldLabel("Sex")
+            SheetFieldLabel(stringResource(R.string.profile_sex))
             ConnectedSegmentRow(
                 options = listOf(Sex.Male, Sex.Female),
                 selected = sex,
-                label = { it.label() },
+                label = { stringResource(it.labelResource()) },
                 accent = accent,
                 onSelect = { sexName = it.name },
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProfileFieldTile(
-                    label = "Age",
+                    label = stringResource(R.string.profile_age),
                     value = ageText,
                     onValueChange = { ageText = it },
-                    unit = "years",
+                    unit = stringResource(R.string.profile_unit_years),
                     keyboardType = KeyboardType.Number,
                     modifier = Modifier.weight(1f),
                 )
                 ProfileFieldTile(
-                    label = "Height",
+                    label = stringResource(R.string.profile_height),
                     value = heightText,
                     onValueChange = { heightText = it },
-                    unit = "cm",
+                    unit = stringResource(R.string.profile_unit_cm),
                     modifier = Modifier.weight(1f),
                 )
             }
 
-            SheetFieldLabel("Activity level")
+            SheetFieldLabel(stringResource(R.string.profile_activity_level))
             // Five levels don't fit one connected row; split into two rows that
             // share the selection (a documented deviation from the 3-segment mock).
             ConnectedSegmentRow(
                 options = listOf(ActivityLevel.Sedentary, ActivityLevel.Light, ActivityLevel.Moderate),
                 selected = activity,
-                label = { it.label() },
+                label = { stringResource(it.labelResource()) },
                 accent = accent,
                 onSelect = { activityName = it.name },
             )
             ConnectedSegmentRow(
                 options = listOf(ActivityLevel.Active, ActivityLevel.VeryActive),
                 selected = activity,
-                label = { it.label() },
+                label = { stringResource(it.labelResource()) },
                 accent = accent,
                 onSelect = { activityName = it.name },
             )
 
-            SheetFieldLabel("Goal")
+            SheetFieldLabel(stringResource(R.string.profile_goal))
             ConnectedSegmentRow(
                 options = GoalType.entries,
                 selected = goalType,
@@ -253,17 +247,17 @@ fun ProfileEditSheet(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProfileFieldTile(
-                    label = "Goal weight",
+                    label = stringResource(R.string.profile_goal_weight_label),
                     value = goalWeightText,
                     onValueChange = { goalWeightText = it },
-                    unit = "kg",
+                    unit = stringResource(R.string.profile_unit_kg),
                     modifier = Modifier.weight(1f),
                 )
                 ProfileFieldTile(
-                    label = "Current weight",
+                    label = stringResource(R.string.profile_current_weight),
                     value = currentWeightText,
                     onValueChange = { currentWeightText = it },
-                    unit = "kg",
+                    unit = stringResource(R.string.profile_unit_kg),
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -278,7 +272,7 @@ fun ProfileEditSheet(
             }
 
             PillButton(
-                text = "Save",
+                text = stringResource(R.string.profile_save),
                 onClick = {
                     val ageYears = ageText.trim().toIntOrNull()
                     val profile = UserProfile(
@@ -337,18 +331,18 @@ private fun PaceMiniHero(
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
-                    "PACE",
+                    stringResource(R.string.profile_pace),
                     style = MusFitTheme.typography.labelSmall.copy(fontWeight = FontWeight.W800, letterSpacing = 0.8.sp),
                     color = accent.onContainer,
                 )
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        pace.format1(),
+                        pace.format1(LocalConfiguration.current.locales[0]),
                         style = MusFitTheme.typography.displaySmall.copy(fontSize = 24.sp, lineHeight = 24.sp),
                         color = accent.onContainer,
                     )
                     Text(
-                        "kg/week",
+                        stringResource(R.string.profile_unit_kg_per_week),
                         style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         fontWeight = FontWeight.Medium,
                         color = accent.onContainerVariant,
@@ -358,14 +352,14 @@ private fun PaceMiniHero(
             }
             PaceStepperCircle(
                 icon = Icons.Outlined.Remove,
-                contentDescription = "Decrease pace",
+                contentDescription = stringResource(R.string.profile_decrease_pace),
                 container = MusFitTheme.colors.surface,
                 content = accent.onContainer,
                 onClick = onDecrease,
             )
             PaceStepperCircle(
                 icon = Icons.Outlined.Add,
-                contentDescription = "Increase pace",
+                contentDescription = stringResource(R.string.profile_increase_pace),
                 container = accent.color,
                 content = accent.onColor,
                 onClick = onIncrease,
@@ -440,12 +434,6 @@ private fun ApplyTargetsBanner(
     val body = if (dark) LavenderBodyDark else LavenderBody
     val action = if (dark) LavenderInkDark else LavenderInk
     val stateForTargets = targetApplyStateForTargets(applyState, requestedTargets, targets)
-    val actionLabel = when (stateForTargets) {
-        TargetApplyState.Idle -> "Apply to Food"
-        TargetApplyState.Applying -> "Applying…"
-        TargetApplyState.Success -> "Applied"
-        TargetApplyState.Failure -> "Retry"
-    }
     val actionEnabled = applyState != TargetApplyState.Applying && stateForTargets != TargetApplyState.Success
     Surface(color = container, shape = RoundedCornerShape(99.dp), modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -453,41 +441,88 @@ private fun ApplyTargetsBanner(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                buildAnnotatedString {
-                    append("New targets: ")
-                    withStyle(SpanStyle(fontWeight = FontWeight.W800)) {
-                        append(String.format(Locale.US, "%,d kcal", targets.caloriesKcal.toInt()))
-                    }
-                    append(" · ${targets.proteinGrams.toInt()} g protein")
-                    if (stateForTargets == TargetApplyState.Failure) {
-                        append("\nCouldn't apply targets. Try again.")
-                    }
-                },
-                style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            ApplyTargetsSummary(
+                targets = targets,
+                state = stateForTargets,
                 color = body,
                 modifier = Modifier.weight(1f),
             )
-            Surface(
-                onClick = { onApply(targets) },
+            ApplyTargetsAction(
+                state = stateForTargets,
                 enabled = actionEnabled,
-                color = androidx.compose.ui.graphics.Color.Transparent,
-                shape = RoundedCornerShape(99.dp),
-                modifier = Modifier
-                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                    .semantics { role = Role.Button },
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Text(
-                        actionLabel,
-                        style = MusFitTheme.typography.labelMedium.copy(
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.W800,
-                        ),
-                        color = action,
-                    )
-                }
-            }
+                color = action,
+                onClick = { onApply(targets) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ApplyTargetsSummary(
+    targets: RecommendedTargets,
+    state: TargetApplyState,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier,
+) {
+    val locale = LocalConfiguration.current.locales[0]
+    val summary = buildAnnotatedString {
+        append(stringResource(R.string.profile_new_targets_prefix))
+        withStyle(SpanStyle(fontWeight = FontWeight.W800)) {
+            append(
+                stringResource(
+                    R.string.profile_value_kcal,
+                    LocalizedFormatter.integer(targets.caloriesKcal.toLong(), locale = locale),
+                ),
+            )
+        }
+        append(stringResource(R.string.profile_separator_middle_dot))
+        append(
+            stringResource(
+                R.string.profile_value_protein_grams,
+                LocalizedFormatter.integer(targets.proteinGrams.toLong(), locale = locale),
+            ),
+        )
+        if (state == TargetApplyState.Failure) {
+            append('\n')
+            append(stringResource(R.string.profile_apply_targets_failed))
+        }
+    }
+    Text(
+        summary,
+        style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
+        color = color,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun ApplyTargetsAction(
+    state: TargetApplyState,
+    enabled: Boolean,
+    color: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+) {
+    val label = when (state) {
+        TargetApplyState.Idle -> stringResource(R.string.profile_apply_to_food)
+        TargetApplyState.Applying -> stringResource(R.string.profile_applying)
+        TargetApplyState.Success -> stringResource(R.string.profile_applied)
+        TargetApplyState.Failure -> stringResource(R.string.profile_retry)
+    }
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        color = androidx.compose.ui.graphics.Color.Transparent,
+        shape = RoundedCornerShape(99.dp),
+        modifier = Modifier
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .semantics { role = Role.Button },
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+            Text(
+                label,
+                style = MusFitTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.W800),
+                color = color,
+            )
         }
     }
 }
@@ -530,10 +565,11 @@ private fun liveRecommendedTargets(
 private fun Double.roundToPaceStep(): Double = Math.round(this * 10.0) / 10.0
 
 /** The sheet renames Maintain to the mock's "Keep"; storage is unchanged. */
+@Composable
 private fun GoalType.sheetLabel(): String = when (this) {
-    GoalType.Lose -> "Lose"
-    GoalType.Maintain -> "Keep"
-    GoalType.Gain -> "Gain"
+    GoalType.Lose -> stringResource(R.string.profile_goal_lose)
+    GoalType.Maintain -> stringResource(R.string.profile_goal_keep)
+    GoalType.Gain -> stringResource(R.string.profile_goal_gain)
 }
 
 private fun GoalType.trendIcon(): ImageVector = when (this) {
@@ -552,12 +588,12 @@ fun LogWeightDialog(
     val parsed = text.toPositiveDoubleOrNull()
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Log weight") },
-        text = { NumberField(value = text, onValueChange = { text = it }, label = "Weight (kg)") },
+        title = { Text(stringResource(R.string.profile_log_weight)) },
+        text = { NumberField(value = text, onValueChange = { text = it }, label = stringResource(R.string.profile_weight_kg)) },
         confirmButton = {
-            TextButton(enabled = parsed != null, onClick = { parsed?.let(onConfirm) }) { Text("Save") }
+            TextButton(enabled = parsed != null, onClick = { parsed?.let(onConfirm) }) { Text(stringResource(R.string.profile_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.profile_cancel)) } },
     )
 }
 
@@ -574,24 +610,30 @@ fun LogMeasurementDialog(
     val unit = if (type == "body_fat") "%" else "cm"
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Log measurement") },
+        title = { Text(stringResource(R.string.profile_log_measurement)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ChipGroup(
                     options = MEASUREMENT_TYPES,
                     isSelected = { it == type },
                     onSelect = { type = it },
-                    label = { MEASUREMENT_LABELS[it] ?: it },
+                    label = { typeKey ->
+                        MEASUREMENT_LABEL_RESOURCES[typeKey]?.let { stringResource(it) } ?: typeKey
+                    },
                 )
-                NumberField(value = text, onValueChange = { text = it }, label = "Value ($unit)")
+                NumberField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = stringResource(R.string.profile_value_with_unit, unit),
+                )
             }
         },
         confirmButton = {
             TextButton(enabled = parsed != null, onClick = { parsed?.let { onConfirm(type, it, unit) } }) {
-                Text("Save")
+                Text(stringResource(R.string.profile_save))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.profile_cancel)) } },
     )
 }
 
@@ -600,7 +642,7 @@ private fun <T> ChipGroup(
     options: List<T>,
     isSelected: (T) -> Boolean,
     onSelect: (T) -> Unit,
-    label: (T) -> String,
+    label: @Composable (T) -> String,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),

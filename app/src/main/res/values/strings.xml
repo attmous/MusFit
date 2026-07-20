@@ -1,3 +1,78 @@
 <resources>
     <string name="app_name">MusFit</string>
+    <string name="app_destination_today">Today</string>
+    <string name="app_destination_food">Food</string>
+    <string name="app_destination_training">Training</string>
+    <string name="app_destination_profile">Profile</string>
+    <string name="app_destination_coach">Coach</string>
+    <string name="app_local_network_permission_denied">Use an HTTPS AI coach endpoint.</string>
+
+    <string name="data_transfer_protect_backup">Protect this backup</string>
+    <string name="data_transfer_unlock_backup">Unlock MusFit backup</string>
+    <string name="data_transfer_move_title">Move MusFit data</string>
+    <string name="data_transfer_title">Data transfer</string>
+    <string name="data_transfer_move_subtitle">Step 1 of 3 &#183; export before reinstalling</string>
+    <string name="data_transfer_subtitle">Encrypted, local, and user-controlled</string>
+    <string name="data_transfer_preserve_title">Preserve your existing data</string>
+    <string name="data_transfer_backup_yours_title">Your backup stays yours</string>
+    <string name="data_transfer_preserve_body">Create an encrypted backup, uninstall this legacy build, install the production app, then import the file.</string>
+    <string name="data_transfer_backup_yours_body">MusFit encrypts the database with your passphrase. API keys and Android permissions are never included.</string>
+    <string name="data_transfer_export_title">Export encrypted backup</string>
+    <string name="data_transfer_export_subtitle">Includes Food, Training, profile, goals, and local history</string>
+    <string name="data_transfer_import_title">Import encrypted backup</string>
+    <string name="data_transfer_import_subtitle">Verifies checksum and row counts before staging restore</string>
+    <string name="data_transfer_working">Working locally&#8230;</string>
+    <plurals name="data_transfer_last_restore">
+        <item quantity="one">Last restore: %1$d row &#183; %2$s</item>
+        <item quantity="other">Last restore: %1$d rows &#183; %2$s</item>
+    </plurals>
+    <string name="data_transfer_restore_not_applied">The pending restore was not applied; your previous data was retained.</string>
+    <string name="data_transfer_passphrase_warning">Keep the passphrase separately. MusFit cannot recover it. The encrypted file contains personal health and fitness data.</string>
+    <string name="data_transfer_passphrase_help">Use at least 12 characters. It is never stored by MusFit.</string>
+    <string name="data_transfer_passphrase">Passphrase</string>
+    <string name="data_transfer_confirm_passphrase">Confirm passphrase</string>
+    <string name="data_transfer_continue">Continue</string>
+    <string name="data_transfer_cancel">Cancel</string>
+    <plurals name="data_transfer_export_success">
+        <item quantity="one">Encrypted backup saved: %1$d row &#183; %2$s</item>
+        <item quantity="other">Encrypted backup saved: %1$d rows &#183; %2$s</item>
+    </plurals>
+    <plurals name="data_transfer_import_success">
+        <item quantity="one">Backup verified and staged. Fully close and reopen MusFit to finish restoring %1$d row.</item>
+        <item quantity="other">Backup verified and staged. Fully close and reopen MusFit to finish restoring %1$d rows.</item>
+    </plurals>
+    <string name="data_transfer_short_passphrase">Passphrase must be at least 12 characters.</string>
+    <string name="data_transfer_failed">Transfer failed. Check the backup, passphrase, and available storage.</string>
+
+    <string name="health_rationale_title">MusFit Health Connect access</string>
+    <string name="health_rationale_intro">You choose each data type in Health Connect. MusFit uses only the access you grant, and you can change it at any time.</string>
+    <string name="health_rationale_read">MusFit can read</string>
+    <string name="health_rationale_write">MusFit can write</string>
+    <string name="health_rationale_item">&#8226; %1$s: %2$s</string>
+    <string name="health_steps_label">Steps</string>
+    <string name="health_steps_purpose">Show daily movement and progress.</string>
+    <string name="health_active_calories_label">Active calories</string>
+    <string name="health_active_calories_purpose">Show energy burned through activity.</string>
+    <string name="health_total_calories_label">Total calories</string>
+    <string name="health_total_calories_purpose">Show total energy burned during the day.</string>
+    <string name="health_distance_label">Distance</string>
+    <string name="health_distance_purpose">Show distance-based activity progress.</string>
+    <string name="health_sleep_label">Sleep</string>
+    <string name="health_sleep_purpose">Show sleep duration in your health summary.</string>
+    <string name="health_exercise_sessions_label">Exercise sessions</string>
+    <string name="health_exercise_sessions_purpose">Show completed exercise and time spent training.</string>
+    <string name="health_weight_label">Weight</string>
+    <string name="health_weight_purpose">Show weight measurements and trends.</string>
+    <string name="health_body_fat_label">Body fat</string>
+    <string name="health_body_fat_purpose">Show body-fat measurements and trends.</string>
+    <string name="health_resting_heart_rate_label">Resting heart rate</string>
+    <string name="health_resting_heart_rate_purpose">Show resting heart-rate trends.</string>
+    <string name="health_hrv_label">Heart rate variability</string>
+    <string name="health_hrv_purpose">Show recovery trends from heart-rate variability.</string>
+    <string name="health_workouts_label">Workouts</string>
+    <string name="health_workouts_purpose">Save workouts you log in MusFit.</string>
+    <string name="health_meals_nutrition_label">Meals and nutrition</string>
+    <string name="health_meals_nutrition_purpose">Save meals and their nutrition when you choose Food sync.</string>
+    <string name="health_water_label">Water</string>
+    <string name="health_water_purpose">Save water totals when you choose Food sync.</string>
 </resources>

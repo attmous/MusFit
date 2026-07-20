@@ -1,5 +1,6 @@
 package com.musfit.ui.profile
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -46,6 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.musfit.feature.profile.R
 import com.musfit.ui.components.InnerScreenTitleStyle
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.TonalIconSquare
@@ -67,19 +71,24 @@ data class HistoryEntry(
     val unit: String,
 )
 
-internal enum class HistoryRange(val chipLabel: String, val title: String, val days: Long?) {
-    Week("7d", "7 days", 7L),
-    Month("30d", "30 days", 30L),
-    Quarter("90d", "90 days", 90L),
-    All("All", "All time", null),
+internal enum class HistoryRange(
+    @StringRes val chipLabelResource: Int,
+    @StringRes val titleResource: Int,
+    val days: Long?,
+) {
+    Week(R.string.profile_range_7_days_short, R.string.profile_range_7_days, 7L),
+    Month(R.string.profile_range_30_days_short, R.string.profile_range_30_days, 30L),
+    Quarter(R.string.profile_range_90_days_short, R.string.profile_range_90_days, 90L),
+    All(R.string.profile_range_all, R.string.profile_range_all_time, null),
 }
 
-private val ENTRY_DATE_FORMAT = DateTimeFormatter.ofPattern("EEE d MMM · HH:mm", Locale.ENGLISH)
-private val AXIS_DATE_FORMAT = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
+private fun formatEntryTimestamp(epochMillis: Long, locale: Locale): String = Instant.ofEpochMilli(epochMillis)
+    .atZone(ZoneId.systemDefault())
+    .format(DateTimeFormatter.ofPattern("EEE d MMM · HH:mm", locale))
 
-private fun formatEntryTimestamp(epochMillis: Long): String = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(ENTRY_DATE_FORMAT)
-
-private fun formatAxisDate(epochMillis: Long): String = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(AXIS_DATE_FORMAT)
+private fun formatAxisDate(epochMillis: Long, locale: Locale): String = Instant.ofEpochMilli(epochMillis)
+    .atZone(ZoneId.systemDefault())
+    .format(DateTimeFormatter.ofPattern("d MMM", locale))
 
 internal fun historyRangeStartEpochMillis(
     range: HistoryRange,
@@ -149,7 +158,7 @@ fun MeasurementHistoryScreen(
         ConnectedSegmentRow(
             options = HistoryRange.entries,
             selected = range,
-            label = { it.chipLabel },
+            label = { stringResource(it.chipLabelResource) },
             accent = accent,
             onSelect = { range = it },
             equalWidths = true,
@@ -157,17 +166,17 @@ fun MeasurementHistoryScreen(
 
         HistoryChartCard(inRange = inRange, range = range, unit = unit, accent = accent, goalValue = goalValue)
 
-        GroupLabel("Entries")
+        GroupLabel(stringResource(R.string.profile_entries))
         if (entries.isEmpty()) {
             Text(
-                "No entries yet. Log one with the + button.",
+                stringResource(R.string.profile_no_entries_yet),
                 style = MusFitTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         } else if (inRange.isEmpty()) {
             Text(
-                "No entries in this range.",
+                stringResource(R.string.profile_no_entries_in_range),
                 style = MusFitTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp),
@@ -204,17 +213,27 @@ fun MeasurementHistoryScreen(
         )
     }
     deleting?.let { entry ->
+        val locale = LocalConfiguration.current.locales[0]
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Delete entry?") },
-            text = { Text("${entry.value.format1()} ${entry.unit} · ${formatEntryTimestamp(entry.measuredAtEpochMillis)}") },
+            title = { Text(stringResource(R.string.profile_delete_entry_question)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.profile_history_entry_summary,
+                        entry.value.format1(locale),
+                        entry.unit,
+                        formatEntryTimestamp(entry.measuredAtEpochMillis, locale),
+                    ),
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete(entry.id)
                     deleting = null
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.profile_delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.profile_cancel)) } },
         )
     }
 }
@@ -234,6 +253,9 @@ private fun HistoryHeader(
     onBack: () -> Unit,
     onAdd: () -> Unit,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
+    val separator = stringResource(R.string.profile_separator_middle_dot)
+    val rangeTitle = stringResource(range.titleResource)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -241,7 +263,7 @@ private fun HistoryHeader(
     ) {
         TonalHeaderIconButton(
             icon = Icons.AutoMirrored.Outlined.ArrowBack,
-            contentDescription = "Back",
+            contentDescription = stringResource(R.string.profile_back),
             onClick = onBack,
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -252,10 +274,11 @@ private fun HistoryHeader(
                 Text(
                     buildAnnotatedString {
                         withStyle(SpanStyle(fontWeight = FontWeight.W800, color = MusFitTheme.colors.onSurface)) {
-                            append("${latest.value.format1()} $unit")
+                            append("${latest.value.format1(locale)} $unit")
                         }
-                        rangeDelta?.let { append(" · ${it.signedFormat1()} $unit") }
-                        append(" · ${range.title.lowercase(Locale.ENGLISH)}")
+                        rangeDelta?.let { append("$separator${it.signedFormat1(locale)} $unit") }
+                        append(separator)
+                        append(rangeTitle)
                     },
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
@@ -264,7 +287,7 @@ private fun HistoryHeader(
         }
         TonalIconSquare(
             icon = Icons.Outlined.Add,
-            contentDescription = "Log entry",
+            contentDescription = stringResource(R.string.profile_log_entry),
             onClick = onAdd,
             size = 44.dp,
             cornerRadius = 16.dp,
@@ -282,6 +305,7 @@ private fun HistoryChartCard(
     accent: TabAccent,
     goalValue: Double?,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     Surface(color = MusFitTheme.colors.surface, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
@@ -293,14 +317,19 @@ private fun HistoryChartCard(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Text(
-                    range.title,
+                    stringResource(range.titleResource),
                     style = MusFitTheme.typography.titleSmall.copy(fontSize = 15.sp, fontWeight = FontWeight.W800),
                 )
                 if (inRange.size >= 2) {
                     val min = inRange.minOf { it.value }
                     val max = inRange.maxOf { it.value }
                     Text(
-                        "${min.format1()} – ${max.format1()} $unit",
+                        stringResource(
+                            R.string.profile_history_value_range,
+                            min.format1(locale),
+                            max.format1(locale),
+                            unit,
+                        ),
                         style = MusFitTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                     )
@@ -316,26 +345,26 @@ private fun HistoryChartCard(
                 )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(
-                        formatAxisDate(inRange.last().measuredAtEpochMillis),
+                        formatAxisDate(inRange.last().measuredAtEpochMillis, locale),
                         style = MusFitTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal, letterSpacing = 0.sp),
                         color = MusFitTheme.colors.onSurfaceFaint,
                     )
                     if (goalValue != null) {
                         Text(
-                            "goal ${goalValue.format1()} $unit",
+                            stringResource(R.string.profile_goal_value_with_unit, goalValue.format1(locale), unit),
                             style = MusFitTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal, letterSpacing = 0.sp),
                             color = MusFitTheme.colors.onSurfaceFaint,
                         )
                     }
                     Text(
-                        formatAxisDate(inRange.first().measuredAtEpochMillis),
+                        formatAxisDate(inRange.first().measuredAtEpochMillis, locale),
                         style = MusFitTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal, letterSpacing = 0.sp),
                         color = MusFitTheme.colors.onSurfaceFaint,
                     )
                 }
             } else {
                 Text(
-                    "Log at least two entries in this range to see a trend.",
+                    stringResource(R.string.profile_log_two_entries_for_trend),
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -361,6 +390,8 @@ private fun HistoryEntryRow(
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val locale = LocalConfiguration.current.locales[0]
+    val entryOptions = stringResource(R.string.profile_entry_options)
     Surface(color = MusFitTheme.colors.surface, shape = shape, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(start = 18.dp, end = 10.dp, top = 13.dp, bottom = 13.dp),
@@ -370,7 +401,7 @@ private fun HistoryEntryRow(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        entry.value.format1(),
+                        entry.value.format1(locale),
                         style = MusFitTheme.typography.titleSmall.copy(fontSize = 15.5.sp, fontWeight = FontWeight.W800),
                     )
                     Text(
@@ -382,7 +413,7 @@ private fun HistoryEntryRow(
                     )
                 }
                 Text(
-                    formatEntryTimestamp(entry.measuredAtEpochMillis),
+                    formatEntryTimestamp(entry.measuredAtEpochMillis, locale),
                     style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -390,7 +421,7 @@ private fun HistoryEntryRow(
             if (previousValue != null) {
                 val delta = entry.value - previousValue
                 Text(
-                    delta.signedFormat1(),
+                    delta.signedFormat1(locale),
                     style = MusFitTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.W800),
                     color = deltaColor(delta, previousValue, goalValue, accent),
                 )
@@ -400,10 +431,10 @@ private fun HistoryEntryRow(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(48.dp)
-                        .semantics { contentDescription = "Entry options" }
+                        .semantics { contentDescription = entryOptions }
                         .clip(RoundedCornerShape(99.dp))
                         .clickable(
-                            onClickLabel = "Entry options",
+                            onClickLabel = entryOptions,
                             role = Role.Button,
                             onClick = { menuOpen = true },
                         ),
@@ -425,14 +456,14 @@ private fun HistoryEntryRow(
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text("Edit value") },
+                        text = { Text(stringResource(R.string.profile_edit_value)) },
                         onClick = {
                             menuOpen = false
                             onEdit()
                         },
                     )
                     DropdownMenuItem(
-                        text = { Text("Delete") },
+                        text = { Text(stringResource(R.string.profile_delete)) },
                         onClick = {
                             menuOpen = false
                             onDelete()
@@ -467,30 +498,31 @@ private fun EditHistoryValueDialog(
     onDismiss: () -> Unit,
     onConfirm: (Double) -> Unit,
 ) {
-    var text by remember(entry.id) { mutableStateOf(entry.value.format1()) }
+    val locale = LocalConfiguration.current.locales[0]
+    var text by remember(entry.id, locale) { mutableStateOf(entry.value.format1(locale)) }
     val parsed = text.toPositiveDoubleOrNull()
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit value") },
+        title = { Text(stringResource(R.string.profile_edit_value)) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                label = { Text("Value (${entry.unit})") },
+                label = { Text(stringResource(R.string.profile_value_with_unit, entry.unit)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
             )
         },
         confirmButton = {
-            TextButton(enabled = parsed != null, onClick = { parsed?.let(onConfirm) }) { Text("Save") }
+            TextButton(enabled = parsed != null, onClick = { parsed?.let(onConfirm) }) { Text(stringResource(R.string.profile_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.profile_cancel)) } },
     )
 }
 
-internal fun Double.signedFormat1(): String = when {
-    this > 0 -> "+${format1()}"
-    this < 0 -> "−${abs(this).format1()}"
-    else -> "0.0"
+internal fun Double.signedFormat1(locale: Locale = Locale.getDefault()): String = when {
+    this > 0 -> "+${format1(locale)}"
+    this < 0 -> "−${abs(this).format1(locale)}"
+    else -> format1(locale)
 }

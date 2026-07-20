@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -69,6 +70,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.musfit.feature.profile.R
 import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
@@ -349,15 +351,16 @@ internal fun ProfileCancelAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val cancelLabel = stringResource(R.string.profile_cancel)
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clip(RoundedCornerShape(99.dp))
-            .clickable(onClickLabel = "Cancel", role = Role.Button, onClick = onClick),
+            .clickable(onClickLabel = cancelLabel, role = Role.Button, onClick = onClick),
     ) {
         Text(
-            "Cancel",
+            cancelLabel,
             style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
             color = MusFitTheme.colors.onSurfaceVariant,
         )
@@ -406,7 +409,7 @@ internal fun CoachChatMark(
 internal fun <T> ConnectedSegmentRow(
     options: List<T>,
     selected: T?,
-    label: (T) -> String,
+    label: @Composable (T) -> String,
     accent: TabAccent,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,

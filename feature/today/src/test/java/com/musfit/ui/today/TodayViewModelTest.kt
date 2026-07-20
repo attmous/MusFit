@@ -58,9 +58,12 @@ import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.profile.ActivityLevel
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
-import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
+import com.musfit.feature.today.R
 import com.musfit.testing.MainDispatcherRule
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.uiText
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -252,7 +255,7 @@ class TodayViewModelTest {
 
         assertEquals(2, aiCoachRepository.settingsSubscriptionStarts)
         assertEquals(2, chatRepository.messageSubscriptionStarts)
-        assertEquals("Off", viewModel.state.value.providerLabel)
+        assertEquals(uiText(R.string.today_coach_off), viewModel.state.value.providerLabel)
         assertEquals(listOf("resumed-message"), viewModel.state.value.messages.map { it.id })
 
         resumed.cancel()
@@ -387,7 +390,10 @@ class TodayViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         val groups = viewModel.state.value.feed
-        assertEquals(listOf("Today", "Yesterday"), groups.map { it.label })
+        assertEquals(
+            listOf(uiText(R.string.today_day_today), uiText(R.string.today_day_yesterday)),
+            groups.map { it.label },
+        )
         assertEquals(listOf(3L, 2L), groups[0].messages.map { it.id })
         assertEquals(listOf(1L), groups[1].messages.map { it.id })
     }
@@ -444,9 +450,9 @@ class TodayViewModelTest {
             )
 
         assertEquals(listOf(1L, 2L, 3L), groups.map { it.messages.single().id })
-        assertEquals("Today", groups[0].label)
-        assertEquals("Yesterday", groups[1].label)
-        assertTrue(groups[2].label != "Today" && groups[2].label != "Yesterday")
+        assertEquals(uiText(R.string.today_day_today), groups[0].label)
+        assertEquals(uiText(R.string.today_day_yesterday), groups[1].label)
+        assertTrue(groups[2].label is UiText.Verbatim)
     }
 
     @Test
@@ -456,9 +462,9 @@ class TodayViewModelTest {
         val message = message(1, today.minusDays(3), firstSeenAt = 30L)
         try {
             Locale.setDefault(Locale.ENGLISH)
-            val english = buildFeedGroups(listOf(message), today).single().label
+            val english = (buildFeedGroups(listOf(message), today).single().label as UiText.Verbatim).value
             Locale.setDefault(Locale.GERMAN)
-            val german = buildFeedGroups(listOf(message), today).single().label
+            val german = (buildFeedGroups(listOf(message), today).single().label as UiText.Verbatim).value
 
             assertEquals("Friday, 10 July", english)
             assertEquals("Freitag, 10 Juli", german)
@@ -522,9 +528,16 @@ class TodayViewModelTest {
             vitals.map { it.metric },
         )
         // FakeFoodRepository: 600 eaten of 2000 goal → the tile shows EATEN with percent.
-        val calories = vitals[0].value as MetricValue.WithGoal
-        assertEquals("600", calories.figure)
-        assertEquals("of 2,000 kcal · 30%", calories.caption)
+        val calories = vitals[0].value as MetricValueUiState.WithGoal
+        assertEquals(UiText.Verbatim("600"), calories.figure)
+        assertEquals(
+            uiText(
+                R.string.today_of_kcal_percent,
+                UiText.Argument.Text("2,000"),
+                UiText.Argument.Text("30"),
+            ),
+            calories.caption,
+        )
         assertEquals(0.3f, calories.progress, 0.001f)
     }
 
@@ -564,7 +577,10 @@ class TodayViewModelTest {
                 ?.score,
         )
         assertEquals(
-            "Ready 86",
+            uiText(
+                R.string.today_ready_score,
+                UiText.Argument.Text(LocalizedFormatter.integer(86L)),
+            ),
             viewModel.state.value.readiness
                 ?.label,
         )

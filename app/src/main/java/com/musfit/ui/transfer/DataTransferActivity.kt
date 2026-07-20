@@ -41,15 +41,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.musfit.BuildConfig
+import com.musfit.R
 import com.musfit.configureMusFitEdgeToEdge
 import com.musfit.data.transfer.DataTransferArchiveCodec
 import com.musfit.ui.components.InnerScreenHeader
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDate
@@ -103,7 +107,7 @@ private fun DataTransferRoute(
 
     if (exportDialog) {
         PassphraseDialog(
-            title = "Protect this backup",
+            title = stringResource(R.string.data_transfer_protect_backup),
             confirmPassphrase = true,
             onDismiss = { exportDialog = false },
             onConfirm = { passphrase ->
@@ -115,7 +119,7 @@ private fun DataTransferRoute(
     }
     if (importDialog) {
         PassphraseDialog(
-            title = "Unlock MusFit backup",
+            title = stringResource(R.string.data_transfer_unlock_backup),
             confirmPassphrase = false,
             onDismiss = {
                 importDialog = false
@@ -149,8 +153,12 @@ private fun DataTransferScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         InnerScreenHeader(
-            title = if (bridgeMode) "Move MusFit data" else "Data transfer",
-            subtitle = if (bridgeMode) "Step 1 of 3 · export before reinstalling" else "Encrypted, local, and user-controlled",
+            title = stringResource(
+                if (bridgeMode) R.string.data_transfer_move_title else R.string.data_transfer_title,
+            ),
+            subtitle = stringResource(
+                if (bridgeMode) R.string.data_transfer_move_subtitle else R.string.data_transfer_subtitle,
+            ),
             onBack = onBack,
         )
         Surface(
@@ -161,15 +169,17 @@ private fun DataTransferScreen(
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(30.dp))
                 Text(
-                    if (bridgeMode) "Preserve your existing data" else "Your backup stays yours",
+                    stringResource(
+                        if (bridgeMode) R.string.data_transfer_preserve_title else R.string.data_transfer_backup_yours_title,
+                    ),
                     style = MusFitTheme.typography.headlineSmall,
                     fontWeight = FontWeight.W800,
                 )
                 Text(
                     if (bridgeMode) {
-                        "Create an encrypted backup, uninstall this legacy build, install the production app, then import the file."
+                        stringResource(R.string.data_transfer_preserve_body)
                     } else {
-                        "MusFit encrypts the database with your passphrase. API keys and Android permissions are never included."
+                        stringResource(R.string.data_transfer_backup_yours_body)
                     },
                     style = MusFitTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
@@ -178,16 +188,16 @@ private fun DataTransferScreen(
         }
 
         TransferAction(
-            title = "Export encrypted backup",
-            subtitle = "Includes Food, Training, profile, goals, and local history",
+            title = stringResource(R.string.data_transfer_export_title),
+            subtitle = stringResource(R.string.data_transfer_export_subtitle),
             icon = Icons.Outlined.Upload,
             enabled = !state.busy,
             onClick = onExport,
         )
         if (!bridgeMode) {
             TransferAction(
-                title = "Import encrypted backup",
-                subtitle = "Verifies checksum and row counts before staging restore",
+                title = stringResource(R.string.data_transfer_import_title),
+                subtitle = stringResource(R.string.data_transfer_import_subtitle),
                 icon = Icons.Outlined.Download,
                 enabled = !state.busy,
                 onClick = onImport,
@@ -197,28 +207,33 @@ private fun DataTransferScreen(
         if (state.busy) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp)
-                Text("Working locally…", style = MusFitTheme.typography.bodyMedium)
+                Text(stringResource(R.string.data_transfer_working), style = MusFitTheme.typography.bodyMedium)
             }
         }
         state.message?.let {
-            Text(it, style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
+            Text(it.asString(), style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
         }
         state.lastReceipt?.let { receipt ->
             Text(
-                "Last restore: ${receipt.totalRows} rows · ${receipt.databaseSha256.take(12)}",
+                pluralStringResource(
+                    R.plurals.data_transfer_last_restore,
+                    receipt.totalRows.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(),
+                    receipt.totalRows,
+                    receipt.databaseSha256.take(12),
+                ),
                 style = MusFitTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
         }
         state.lastRestoreFailure?.let {
             Text(
-                "The pending restore was not applied; your previous data was retained.",
+                stringResource(R.string.data_transfer_restore_not_applied),
                 style = MusFitTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
         }
         Text(
-            "Keep the passphrase separately. MusFit cannot recover it. The encrypted file contains personal health and fitness data.",
+            stringResource(R.string.data_transfer_passphrase_warning),
             style = MusFitTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceFaint,
         )
@@ -270,11 +285,11 @@ private fun PassphraseDialog(
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Use at least 12 characters. It is never stored by MusFit.")
+                Text(stringResource(R.string.data_transfer_passphrase_help))
                 OutlinedTextField(
                     value = passphrase,
                     onValueChange = { passphrase = it },
-                    label = { Text("Passphrase") },
+                    label = { Text(stringResource(R.string.data_transfer_passphrase)) },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     singleLine = true,
@@ -283,7 +298,7 @@ private fun PassphraseDialog(
                     OutlinedTextField(
                         value = confirmation,
                         onValueChange = { confirmation = it },
-                        label = { Text("Confirm passphrase") },
+                        label = { Text(stringResource(R.string.data_transfer_confirm_passphrase)) },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         singleLine = true,
@@ -292,8 +307,12 @@ private fun PassphraseDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(passphrase) }, enabled = valid) { Text("Continue") }
+            TextButton(onClick = { onConfirm(passphrase) }, enabled = valid) {
+                Text(stringResource(R.string.data_transfer_continue))
+            }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.data_transfer_cancel)) }
+        },
     )
 }

@@ -1,5 +1,6 @@
 package com.musfit.ui
 
+import com.musfit.R
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -12,8 +13,13 @@ class AppDestinationTest {
             AppDestination.entries.map { it.route },
         )
         assertEquals(
-            listOf("Today", "Food", "Training", "Profile"),
-            AppDestination.entries.map { it.label },
+            listOf(
+                R.string.app_destination_today,
+                R.string.app_destination_food,
+                R.string.app_destination_training,
+                R.string.app_destination_profile,
+            ),
+            AppDestination.entries.map { it.labelRes },
         )
     }
 

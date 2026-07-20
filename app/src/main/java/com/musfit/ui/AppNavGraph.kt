@@ -47,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -58,6 +60,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.musfit.R
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodNavigation
 import com.musfit.ui.food.NutritionTrendsScreen
@@ -112,6 +115,8 @@ internal fun rootNavigationLayoutForWidth(width: Dp): RootNavigationLayout = whe
     width < 840.dp -> RootNavigationLayout.Rail
     else -> RootNavigationLayout.Wide
 }
+
+internal fun compactNavigationShowsLabels(fontScale: Float): Boolean = fontScale < 1.3f
 
 @Composable
 fun AppNavGraph(
@@ -335,14 +340,14 @@ private fun NavigationSuiteScope.rootNavigationItems(
                     contentDescription = null,
                 )
             },
-            label = { Text(destination.label) },
+            label = { Text(stringResource(destination.labelRes)) },
         )
     }
     item(
         selected = false,
         onClick = callbacks.onCoachClick,
         icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) },
-        label = { Text("Coach") },
+        label = { Text(stringResource(R.string.app_destination_coach)) },
     )
 }
 
@@ -428,6 +433,8 @@ private fun RowScope.NavBarItem(
     accent: TabAccent,
     onClick: () -> Unit,
 ) {
+    val destinationLabel = stringResource(destination.labelRes)
+    val showLabel = compactNavigationShowsLabels(LocalDensity.current.fontScale)
     val pillColor by animateColorAsState(
         targetValue = if (selected) accent.container else Color.Transparent,
         animationSpec = MusFitMotion.effects(),
@@ -457,19 +464,21 @@ private fun RowScope.NavBarItem(
         ) {
             Icon(
                 imageVector = if (selected) destination.selectedIcon else destination.icon,
-                contentDescription = destination.label,
+                contentDescription = destinationLabel,
                 tint = contentColor,
                 modifier = Modifier.size(MusFitBottomNavMetrics.IconSize),
             )
-            Spacer(Modifier.height(MusFitBottomNavMetrics.LabelSpacing))
-            Text(
-                text = destination.label,
-                style = MaterialTheme.typography.labelSmall,
-                fontSize = MusFitBottomNavMetrics.LabelSize,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = contentColor,
-                maxLines = 1,
-            )
+            if (showLabel) {
+                Spacer(Modifier.height(MusFitBottomNavMetrics.LabelSpacing))
+                Text(
+                    text = destinationLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = MusFitBottomNavMetrics.LabelSize,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    color = contentColor,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }

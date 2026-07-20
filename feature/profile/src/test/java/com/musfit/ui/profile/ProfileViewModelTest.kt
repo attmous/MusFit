@@ -44,6 +44,7 @@ import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
 import com.musfit.testing.MainDispatcherRule
+import com.musfit.ui.text.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -61,6 +62,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModelTest {
@@ -125,7 +127,7 @@ class ProfileViewModelTest {
 
         lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
         testScheduler.runCurrent()
-        assertTrue(viewModel.state.value.plansSummary.contains("Initial program"))
+        assertTrue(viewModel.state.value.plansSummary.containsText("Initial program"))
         assertEquals(1, trainingRepository.activeRoutineSummaryCollectors)
         assertEquals(1, trainingRepository.routineSummarySubscriptionStarts)
 
@@ -139,11 +141,11 @@ class ProfileViewModelTest {
 
         trainingRepository.routines.value = listOf(routineSummary("Updated while stopped"))
         testScheduler.runCurrent()
-        assertTrue(viewModel.state.value.plansSummary.contains("Initial program"))
+        assertTrue(viewModel.state.value.plansSummary.containsText("Initial program"))
 
         lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
         testScheduler.runCurrent()
-        assertTrue(viewModel.state.value.plansSummary.contains("Updated while stopped"))
+        assertTrue(viewModel.state.value.plansSummary.containsText("Updated while stopped"))
         assertEquals(1, trainingRepository.activeRoutineSummaryCollectors)
         assertEquals(2, trainingRepository.routineSummarySubscriptionStarts)
 
@@ -410,7 +412,7 @@ class ProfileViewModelTest {
         viewModel.saveProfile(DEFAULT_USER_PROFILE)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("disk full", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("disk full"), viewModel.state.value.message)
     }
 
     @Test
@@ -477,7 +479,10 @@ class ProfileViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         // FakeFoodGoalRepo default: Balanced, 2000 kcal → the calorie figure with grouping.
-        assertEquals("Gain 0.3 kg/wk · 2,000 kcal · Beginner Program ×4", viewModel.state.value.plansSummary)
+        assertTrue(viewModel.state.value.plansSummary.containsText("0.3"))
+        assertTrue(viewModel.state.value.plansSummary.containsText("2,000"))
+        assertTrue(viewModel.state.value.plansSummary.containsText("Beginner Program"))
+        assertTrue(viewModel.state.value.plansSummary.containsText("4"))
     }
 
     @Test
@@ -492,7 +497,7 @@ class ProfileViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         // DEFAULT_USER_PROFILE is Maintain; no routine → no program part.
-        assertEquals("Maintain · 180 g protein", viewModel.state.value.plansSummary)
+        assertTrue(viewModel.state.value.plansSummary.containsText("180"))
     }
 
     @Test
@@ -502,14 +507,15 @@ class ProfileViewModelTest {
         val viewModel = profileViewModel(trainingRepository = training, goalsRepository = goals)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Maintain · 2,000 kcal", viewModel.state.value.plansSummary)
+        assertTrue(viewModel.state.value.plansSummary.containsText("2,000"))
 
         training.routines.value = listOf(
             RoutineSummary(id = "r1", name = "Machine A", notes = null, exerciseCount = 5, targetSetCount = 15, isStarter = false),
         )
         dispatcher.scheduler.advanceUntilIdle()
         // No programName → routine name; target 0 drops the ×n multiplier.
-        assertEquals("Maintain · 2,000 kcal · Machine A", viewModel.state.value.plansSummary)
+        assertTrue(viewModel.state.value.plansSummary.containsText("2,000"))
+        assertTrue(viewModel.state.value.plansSummary.containsText("Machine A"))
     }
 
     @Test
@@ -527,11 +533,41 @@ class ProfileViewModelTest {
 
             val summary = viewModel.state.value.plansSummary
             if (mode in proteinLed) {
-                assertTrue("$mode figure", summary.contains("160 g protein"))
+                assertTrue("$mode figure", summary.containsText("160"))
             } else {
-                assertTrue("$mode figure", summary.contains("2,100 kcal"))
+                assertTrue("$mode figure", summary.containsText("2,100"))
             }
         }
+    }
+
+    @Test
+    fun plansSummary_usesRequestedLocaleForGroupedNumbers() {
+        val summary = buildPlansSummary(
+            profile = DEFAULT_USER_PROFILE,
+            goal = FoodGoal(
+                2100.0, 160.0, 220.0, 70.0, 30.0, 50.0, 20.0, 2300.0,
+                FoodGoalMode.Balanced,
+                includeTrainingCalories = false,
+            ),
+            routines = emptyList(),
+            userGoals = UserGoals(weeklySessionTarget = 0),
+            locale = Locale.GERMANY,
+        )
+
+        assertTrue(summary.containsText("2.100"))
+    }
+
+    private fun UiText?.containsText(expected: String): Boolean = when (this) {
+        null -> false
+        is UiText.Verbatim -> value.contains(expected)
+        is UiText.Resource -> arguments.any { it.containsText(expected) }
+        is UiText.Plural -> arguments.any { it.containsText(expected) }
+    }
+
+    private fun UiText.Argument.containsText(expected: String): Boolean = when (this) {
+        is UiText.Argument.Text -> value.contains(expected)
+        is UiText.Argument.Nested -> value.containsText(expected)
+        else -> false
     }
 
     @Test

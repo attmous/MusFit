@@ -23,14 +23,17 @@ import com.musfit.domain.coach.TimeOfDay
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.today.DailyReadinessSample
 import com.musfit.domain.today.LoggingStreakCalculator
-import com.musfit.domain.today.MetricResolver
 import com.musfit.domain.today.MetricSnapshot
-import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.ReadinessCalculator
+import com.musfit.domain.today.ReadinessLevel
 import com.musfit.domain.today.TodayMetric
 import com.musfit.domain.today.WeeklyGoalsCalculator
 import com.musfit.domain.today.countSessionsInWeek
 import com.musfit.domain.today.vitalsTileMetrics
+import com.musfit.feature.today.R
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.uiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -55,24 +58,27 @@ import java.util.Locale
 import javax.inject.Inject
 
 data class CoachFeedDayGroup(
-    val label: String,
+    val label: UiText,
     val messages: List<CoachMessage>,
 )
 
 data class MetricCardUiState(
     val metric: TodayMetric,
-    val label: String,
-    val value: MetricValue,
+    val label: UiText,
+    val value: MetricValueUiState,
 )
 
 data class TodayReadinessUiState(
     val score: Int,
-    val levelLabel: String,
-    val label: String = "Ready $score",
+    val levelLabel: UiText,
+    val label: UiText = uiText(
+        R.string.today_ready_score,
+        UiText.Argument.Text(LocalizedFormatter.integer(score.toLong())),
+    ),
 )
 
 data class TodayUiState(
-    val dateLabel: String = "",
+    val date: LocalDate = LocalDate.now(),
     val vitals: List<MetricCardUiState> = emptyList(),
     val readiness: TodayReadinessUiState? = null,
     val isRefreshing: Boolean = false,
@@ -96,7 +102,7 @@ class TodayViewModel internal constructor(
 ) : ViewModel() {
     private val initialDate = dateProvider()
     private val mutableState = MutableStateFlow(
-        TodayUiState(dateLabel = initialDate.format(currentDateFormatter())),
+        TodayUiState(date = initialDate),
     )
 
     private var currentUserGoals = UserGoals()
@@ -115,7 +121,7 @@ class TodayViewModel internal constructor(
             currentPins = dashboard.pins
             currentUserGoals = dashboard.userGoals
             TodayRepositoryUiState(
-                dateLabel = date.format(currentDateFormatter()),
+                date = date,
                 vitals = dashboard.vitals,
                 readiness = dashboard.readiness,
                 feed = buildFeedGroups(messages, date),
@@ -128,7 +134,7 @@ class TodayViewModel internal constructor(
         repositoryObservation,
     ) { base, observed ->
         base.copy(
-            dateLabel = observed.dateLabel,
+            date = observed.date,
             vitals = observed.vitals,
             readiness = observed.readiness,
             feed = observed.feed,
@@ -479,9 +485,9 @@ internal fun buildFeedGroups(
             CoachFeedDayGroup(
                 label =
                 when (day) {
-                    today -> "Today"
-                    today.minusDays(1) -> "Yesterday"
-                    else -> day.format(formatter)
+                    today -> uiText(R.string.today_day_today)
+                    today.minusDays(1) -> uiText(R.string.today_day_yesterday)
+                    else -> UiText.Verbatim(day.format(formatter))
                 },
                 messages = dayMessages.sortedByDescending { it.firstSeenAtEpochMillis },
             )
@@ -510,7 +516,7 @@ private data class TodayDashboardUiState(
 )
 
 private data class TodayRepositoryUiState(
-    val dateLabel: String,
+    val date: LocalDate,
     val vitals: List<MetricCardUiState>,
     val readiness: TodayReadinessUiState?,
     val feed: List<CoachFeedDayGroup>,
@@ -568,7 +574,7 @@ private fun buildVitals(
             loggingStreakDays = LoggingStreakCalculator.streakDays(food.loggedDays, date.toEpochDay()),
         )
     return vitalsTileMetrics(pins).map { metric ->
-        MetricCardUiState(metric, metric.label, MetricResolver.resolve(metric, snapshot))
+        MetricCardUiState(metric, metric.presentationLabel(), resolveMetricPresentation(metric, snapshot))
     }
 }
 
@@ -589,7 +595,13 @@ private fun buildReadinessUiState(
         ) ?: return null
     return TodayReadinessUiState(
         score = readiness.score,
-        levelLabel = readiness.level.label,
+        levelLabel = uiText(
+            when (readiness.level) {
+                ReadinessLevel.Low -> R.string.today_readiness_low
+                ReadinessLevel.Moderate -> R.string.today_readiness_moderate
+                ReadinessLevel.High -> R.string.today_readiness_high
+            },
+        ),
     )
 }
 

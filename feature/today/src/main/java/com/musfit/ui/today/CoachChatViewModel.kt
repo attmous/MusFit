@@ -20,6 +20,9 @@ import com.musfit.data.repository.UserGoals
 import com.musfit.data.repository.UserProfile
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.feature.today.R
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.uiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,9 +42,9 @@ data class CoachChatUiState(
     val input: String = "",
     val isSending: Boolean = false,
     val isConfigured: Boolean = false,
-    val providerLabel: String = "Off",
+    val providerLabel: UiText = uiText(R.string.today_coach_off),
     val baseUrl: String = "",
-    val errorMessage: String? = null,
+    val errorMessage: UiText? = null,
 )
 
 @HiltViewModel
@@ -87,7 +90,7 @@ class CoachChatViewModel @Inject constructor(
                 aiCoachChatRepository.sendMessage(prompt, buildSystemPrompt())
             }.onFailure { error ->
                 mutableState.update {
-                    it.copy(errorMessage = error.message ?: "Coach is not reachable.")
+                    it.copy(errorMessage = error.message?.let(UiText::Verbatim) ?: uiText(R.string.today_error_coach_not_reachable))
                 }
             }
             mutableState.update { it.copy(isSending = false) }
@@ -98,14 +101,16 @@ class CoachChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { aiCoachChatRepository.clearThread() }
                 .onFailure { error ->
-                    mutableState.update { it.copy(errorMessage = error.message ?: "Could not clear coach chat.") }
+                    mutableState.update {
+                        it.copy(errorMessage = error.message?.let(UiText::Verbatim) ?: uiText(R.string.today_error_clear_chat))
+                    }
                 }
         }
     }
 
     fun reportLocalNetworkPermissionDenied(message: String) {
         mutableState.update {
-            it.copy(errorMessage = message)
+            it.copy(errorMessage = UiText.Verbatim(message))
         }
     }
 
@@ -114,7 +119,9 @@ class CoachChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { aiCoachChatRepository.testConnection() }
                 .onFailure { error ->
-                    mutableState.update { it.copy(errorMessage = error.message ?: "Coach is not reachable.") }
+                    mutableState.update {
+                        it.copy(errorMessage = error.message?.let(UiText::Verbatim) ?: uiText(R.string.today_error_coach_not_reachable))
+                    }
                 }
         }
     }
@@ -179,15 +186,15 @@ internal fun coachSystemPrompt(
     return lines.joinToString("\n")
 }
 
-private fun AiCoachProviderKind.chatLabel(localAgentKind: LocalAgentKind): String = when (this) {
-    AiCoachProviderKind.Disabled -> "Off"
+private fun AiCoachProviderKind.chatLabel(localAgentKind: LocalAgentKind): UiText = when (this) {
+    AiCoachProviderKind.Disabled -> uiText(R.string.today_coach_off)
 
-    AiCoachProviderKind.OpenAiCompatible -> "API coach"
+    AiCoachProviderKind.OpenAiCompatible -> uiText(R.string.today_api_coach)
 
     AiCoachProviderKind.LocalAgent -> when (localAgentKind) {
-        LocalAgentKind.HermesAgent -> "Hermes"
-        LocalAgentKind.OpenClaw -> "OpenClaw"
-        LocalAgentKind.Custom -> "Local agent"
+        LocalAgentKind.HermesAgent -> uiText(R.string.today_hermes)
+        LocalAgentKind.OpenClaw -> uiText(R.string.today_openclaw)
+        LocalAgentKind.Custom -> uiText(R.string.today_local_agent)
     }
 }
 

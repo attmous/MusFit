@@ -28,6 +28,7 @@ import com.musfit.data.repository.LocalAgentKind
 import com.musfit.domain.health.StepSource
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.Sex
+import com.musfit.ui.text.UiText
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
@@ -142,7 +143,7 @@ class ProfileComposeSemanticsTest {
             MusFitTheme {
                 HealthConnectSettingsPage(
                     state = ProfileSettingsUiState(
-                        availabilityLabel = "Available",
+                        availabilityLabel = UiText.Verbatim("Available"),
                         isHealthConnectSyncing = true,
                         stepSources = listOf(StepSource("phone", "Phone", 1_234)),
                     ),

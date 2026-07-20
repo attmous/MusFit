@@ -65,12 +65,16 @@ class HealthPermissionContractTest {
 
         assertEquals(items.size, items.map { it.permission }.distinct().size)
         assertEquals(requestedPermissions, items.map { it.permission }.toSet())
-        assertEquals(expectedRationales(), items.associate { it.permission to it.expectedRationale() })
+        assertEquals(
+            expectedRationales(),
+            items.associate { it.permission to it.expectedRationale() },
+        )
         assertFalse(
             items.any { item ->
+                val rationale = item.resolveRationale(context.resources)
                 IMPLEMENTATION_JARGON.any { word ->
-                    item.label.contains(word, ignoreCase = true) ||
-                        item.purpose.contains(word, ignoreCase = true)
+                    rationale.label.contains(word, ignoreCase = true) ||
+                        rationale.purpose.contains(word, ignoreCase = true)
                 }
             },
         )
@@ -157,11 +161,14 @@ class HealthPermissionContractTest {
             ),
     )
 
-    private fun HealthPermissionRationaleItem.expectedRationale() = ExpectedRationale(
-        access = access,
-        label = label,
-        purpose = purpose,
-    )
+    private fun HealthPermissionRationaleItem.expectedRationale(): ExpectedRationale {
+        val text = resolveRationale(context.resources)
+        return ExpectedRationale(
+            access = access,
+            label = text.label,
+            purpose = text.purpose,
+        )
+    }
 
     private fun healthPermissionsIn(manifest: File): Set<String> {
         val document = DocumentBuilderFactory.newInstance().apply {

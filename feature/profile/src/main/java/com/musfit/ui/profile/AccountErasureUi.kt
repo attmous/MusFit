@@ -23,9 +23,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.AccountErasureScope
+import com.musfit.feature.profile.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenHeader
@@ -50,23 +52,23 @@ internal fun DataPrivacySettingsPage(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         InnerScreenHeader(
-            title = "Data & privacy",
+            title = stringResource(R.string.profile_data_privacy),
             onBack = onBack,
-            subtitle = "Local storage, retention and erasure",
+            subtitle = stringResource(R.string.profile_data_privacy_summary),
         )
-        Text("MusFit stores account and fitness data locally on this device. Encrypted export files saved outside the app remain under your control.")
+        Text(stringResource(R.string.profile_data_privacy_local_storage))
         ProfileHubRow(
-            title = "Encrypted backups",
-            subtitle = "Export or restore a MusFit backup file",
+            title = stringResource(R.string.profile_encrypted_backups),
+            subtitle = stringResource(R.string.profile_encrypted_backups_summary),
             shape = RoundedCornerShape(24.dp),
             onClick = onOpenDataTransfer,
             leading = null,
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            ProfileHubRow(title = "Delete this account", subtitle = "Erase this identity and only its local MusFit data", shape = groupedShape(0, 2), onClick = onDeleteAccount, leading = { DestructiveDataBadge() })
-            ProfileHubRow(title = "Delete all MusFit data", subtitle = "Erase every local account, then create a fresh local account", shape = groupedShape(1, 2), onClick = onDeleteAllData, leading = { DestructiveDataBadge() })
+            ProfileHubRow(title = stringResource(R.string.profile_delete_this_account), subtitle = stringResource(R.string.profile_delete_this_account_summary), shape = groupedShape(0, 2), onClick = onDeleteAccount, leading = { DestructiveDataBadge() })
+            ProfileHubRow(title = stringResource(R.string.profile_delete_all_data), subtitle = stringResource(R.string.profile_delete_all_data_summary), shape = groupedShape(1, 2), onClick = onDeleteAllData, leading = { DestructiveDataBadge() })
         }
-        Text("Health Connect deletion is optional and targets only records authored by MusFit.", color = accent.onContainer)
+        Text(stringResource(R.string.profile_health_deletion_optional), color = accent.onContainer)
     }
 }
 
@@ -94,15 +96,15 @@ internal fun AccountErasureDialog(
     val deletingAll = scope == AccountErasureScope.AllAccounts
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (deletingAll) "Delete all MusFit data?" else "Delete this account?") },
+        title = {
+            Text(stringResource(if (deletingAll) R.string.profile_delete_all_data_question else R.string.profile_delete_this_account_question))
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    if (deletingAll) {
-                        "This permanently removes every local account and all owned Food, Training, profile, AI coach, and Health cache data. A blank local account will be created."
-                    } else {
-                        "This permanently removes the current account and all data it owns. Other local accounts are kept and one becomes active."
-                    },
+                    stringResource(
+                        if (deletingAll) R.string.profile_delete_all_data_warning else R.string.profile_delete_this_account_warning,
+                    ),
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -121,16 +123,16 @@ internal fun AccountErasureDialog(
                         onCheckedChange = null,
                         enabled = !inProgress,
                     )
-                    Text("Also delete records MusFit authored in Health Connect")
+                    Text(stringResource(R.string.profile_also_delete_health_records))
                 }
-                Text("Encrypted export files already saved outside MusFit are not deleted.")
+                Text(stringResource(R.string.profile_saved_exports_not_deleted))
             }
         },
         confirmButton = {
             TextButton(onClick = onConfirm, enabled = !inProgress) {
-                Text(if (inProgress) "Deleting..." else "Delete permanently")
+                Text(stringResource(if (inProgress) R.string.profile_deleting else R.string.profile_delete_permanently))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !inProgress) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !inProgress) { Text(stringResource(R.string.profile_cancel)) } },
     )
 }

@@ -118,10 +118,30 @@ class MusFitScreenshotRegressionTest {
     }
 
     @Test
+    @Config(qualifiers = "en-rXA-w400dp-h800dp-mdpi")
+    fun navigation_phone_pseudo_largeFont() = capture(
+        "navigation-phone-pseudo-font-150.png",
+        dark = false,
+        fontScale = 1.5f,
+    ) {
+        RootNavigationFixture(RootNavigationLayout.Compact)
+    }
+
+    @Test
     @Config(qualifiers = "w610dp-h900dp-mdpi")
     fun navigation_foldable_dark_rtl() = capture(
         "navigation-foldable-dark-rtl.png",
         dark = true,
+        rtl = true,
+    ) {
+        RootNavigationFixture(RootNavigationLayout.Rail)
+    }
+
+    @Test
+    @Config(qualifiers = "ar-rXB-w610dp-h900dp-mdpi")
+    fun navigation_foldable_pseudoRtl() = capture(
+        "navigation-foldable-pseudo-rtl.png",
+        dark = false,
         rtl = true,
     ) {
         RootNavigationFixture(RootNavigationLayout.Rail)

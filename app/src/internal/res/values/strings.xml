@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">MusFit Internal</string>
+    <string name="app_local_network_permission_denied">Allow Local Network access to reach the configured private AI coach endpoint.</string>
 </resources>
