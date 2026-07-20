@@ -93,8 +93,12 @@ Run the API 28/37 lane with:
   --no-daemon --console=plain
 ```
 
-The suite has no automatic retry: any failure is treated as real and its
-artifacts are reviewed. Local use may invoke the group task above, but CI invokes
-the API 28 and API 37 tasks separately so their emulator processes cannot
-overlap. The CI budget is 16 minutes per device (32 minutes for the two-device
-lane); the local API 36 baseline is recorded in the PR evidence.
+Assertions and identified app-process crashes have no automatic retry: they fail
+the lane and their artifacts are reviewed. CI allows up to two fresh-device
+retries when the API 37 report says zero tests started before an instrumentation
+process crash, or when logcat contains the exact Android Bluetooth hardware-error
+abort. Failed-attempt diagnostics are retained, and exhaustion remains red.
+Local use may invoke the group task above, but CI invokes the API 28 and API 37
+tasks separately so their emulator processes cannot overlap. The base CI budget
+is 16 minutes per device (32 minutes for the two-device lane); the local API 36
+baseline is recorded in the PR evidence.

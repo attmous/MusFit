@@ -659,8 +659,11 @@ Assert-Equal "Database API 37 task references" 1 ([regex]::Matches($deviceUiWork
 Assert-Equal "Critical API 28 task references" 3 ([regex]::Matches($deviceUiWorkflow, ':app:musFitApi28InternalDebugAndroidTest').Count)
 Assert-Equal "Critical API 37 task references" 3 ([regex]::Matches($deviceUiWorkflow, ':app:musFitApi37InternalDebugAndroidTest').Count)
 Assert-Equal "Coverage clear-package exceptions" 2 ([regex]::Matches($deviceUiWorkflow, 'android\.testInstrumentationRunnerArguments\.clearPackageData=false').Count)
+Assert-Equal "API 37 infrastructure retry references" 2 ([regex]::Matches($deviceUiWorkflow, '-Api37InfrastructureRetries 2').Count)
+Assert-Equal "Managed-device runner references" 4 ([regex]::Matches($deviceUiWorkflow, 'scripts/dev/run-managed-device-test\.ps1').Count)
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'criticalJourneysApi28And37GroupInternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" '-x :app:musFitApi28InternalDebugAndroidTest -x :app:musFitApi37InternalDebugAndroidTest'
+Assert-FileContains ".github/workflows/device-ui.yml" 'app/build/outputs/managed-device-infra-retries/'
 Assert-FileContains ".github/workflows/device-ui.yml" '(?m)^\s*\./gradlew :core:database:databaseApi28DebugAndroidTest[^\r\n]*\r?\n\s*\./gradlew :core:database:databaseApi37DebugAndroidTest[^\r\n]*'
 Assert-FileDoesNotContain ".github/workflows/device-ui.yml" 'migrationApi28And37GroupInternalDebugAndroidTest'
 $migrationCommandMatches = [regex]::Matches($deviceUiWorkflow, '(?m)^\s*\./gradlew :core:database:databaseApi(?:28|37)DebugAndroidTest[^\r\n]*\r?$')
@@ -677,12 +680,17 @@ Assert-FileContains "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourne
 Assert-FileContains "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'fun cameraDenialAndDeterministicReturn_coverPermissionAndOfflineSafeRoundTrip\(\)'
 Assert-FileDoesNotContain "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'revokeSelfPermissionOnKill\('
 Assert-FileDoesNotContain "app/src/androidTest/java/com/musfit/ui/MusFitCriticalJourneyInstrumentationTest.kt" 'pm revoke \$\{targetContext\.packageName\} \$\{Manifest\.permission\.CAMERA\}'
-Assert-FileContains ".github/workflows/device-ui.yml" '(?s)critical-journeys:.{0,100}timeout-minutes:\s*65'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?s)critical-journeys:.{0,100}timeout-minutes:\s*85'
+Assert-PowerShellParses "scripts/dev/run-managed-device-test.ps1"
+Assert-FileContains "scripts/dev/run-managed-device-test.ps1" 'Instrumentation run failed due to Process crashed'
+Assert-FileContains "scripts/dev/run-managed-device-test.ps1" '<testsuites\\s\+\[\^>\]\*tests="0"'
+Assert-FileContains "scripts/dev/run-managed-device-test.ps1" 'on_hardware_error: Hardware Error Event with code 0x42'
+Assert-FileContains "scripts/dev/run-managed-device-test.ps1" 'Fatal signal 6 .*\\\(gd_stack_thread\\\).*\\\(droid\\\.bluetooth\\\)'
 Assert-FileContains ".github/workflows/device-ui.yml" 'feature:training:trainingApi28InternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'feature:training:trainingApi37InternalDebugAndroidTest'
 Assert-FileContains ".github/workflows/device-ui.yml" 'ExerciseAnimatedMediaInstrumentationTest'
-Assert-FileContains ".github/workflows/device-ui.yml" '(?s)Aggregate unit and managed-device coverage.{0,100}timeout-minutes:\s*25'
-Assert-FileContains "docs/testing/coverage.md" 'isolated collection and\s+aggregation step has a hard CI budget of \*\*25 minutes\*\*'
+Assert-FileContains ".github/workflows/device-ui.yml" '(?s)Aggregate unit and managed-device coverage.{0,100}timeout-minutes:\s*40'
+Assert-FileContains "docs/testing/coverage.md" 'isolated collection and\s+aggregation step has a hard CI budget of \*\*40 minutes\*\*'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-no-unused-workmanager\.ps1'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'RequireReleaseArtifact'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-ksp-migration\.ps1'
@@ -891,6 +899,11 @@ if ($SelfTest) {
         throw "Workflow self-test failed to detect a deliberate source/schema mismatch."
     }
     Write-Host "Deliberate mismatch self-test passed."
+
+    & (Get-RepoPath "scripts/dev/run-managed-device-test.ps1") -SelfTest
+    if ($LASTEXITCODE -ne 0) {
+        throw "Managed-device infrastructure retry self-test failed with exit code $LASTEXITCODE."
+    }
 
 }
 
