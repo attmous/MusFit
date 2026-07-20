@@ -311,9 +311,9 @@ internal fun HeroChip(
     } else {
         Box(
             contentAlignment = Alignment.Center,
+            // Clip only the visual capsule below; clipping both layers produces platform-dependent edge pixels.
             modifier = modifier
                 .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                .clip(shape)
                 .clickable(onClickLabel = text, role = Role.Button, onClick = onClick),
         ) {
             HeroChipVisual(text = text, accent = accent, shape = shape)
