@@ -675,8 +675,14 @@ Assert-FileExists "config/detekt.yml"
 Assert-FileExists "config/detekt-baseline.xml"
 Assert-FileExists "app/lint-baseline.xml"
 Assert-FileExists "scripts/quality/test-static-quality.ps1"
+Assert-FileExists "scripts/quality/test-icon-subset.ps1"
+Assert-FileExists "scripts/quality/update-material-icon-subset.ps1"
+Assert-FileExists "config/material-icon-subset.json"
 Assert-FileExists "docs/testing/static-quality.md"
 Assert-PowerShellParses "scripts/quality/test-static-quality.ps1"
+Assert-PowerShellParses "scripts/quality/test-icon-subset.ps1"
+Assert-PowerShellParses "scripts/quality/update-material-icon-subset.ps1"
+Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-icon-subset\.ps1'
 Assert-FileContains "build.gradle.kts" 'ratchetFrom\("origin/master"\)'
 Assert-FileContains "app/build.gradle.kts" 'warningsAsErrors\s*=\s*true'
 Assert-FileContains ".github/workflows/device-ui.yml" 'MusFitCriticalJourneyInstrumentationTest'

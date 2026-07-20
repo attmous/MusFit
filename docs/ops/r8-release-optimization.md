@@ -16,6 +16,29 @@ Measured from `origin/master` at `85e1e5de93e014ca3e66d555e17a418f5a0ee3ec`:
 The AAB is below the W1-REL-03 40 MiB budget. ABI-specific Obtainium packaging
 remains a later size package; this change does not alter ABI delivery.
 
+## Extended-icon ownership follow-up
+
+W5-SIZE-01 remeasured the optimized artifacts before changing icon ownership.
+The historical audit counted 66 imports before feature growth; the current
+source uses 88 distinct extended Material vectors. The maintained subset keeps
+only those 88 Apache-licensed upstream sources in `:core:designsystem`, and the
+`material-icons-extended` dependency is no longer part of the build graph.
+
+Measured from the S19 base `d3c4fe2f8c7fb9a1cefd6a9a0b7f84eaa9fe101e`
+with the same production R8 tasks and toolchain:
+
+| Artifact | Extended dependency | Maintained subset | Change |
+| --- | ---: | ---: | ---: |
+| Universal production APK | 74,550,401 bytes | 74,550,185 bytes | -216 bytes (-0.00029%) |
+| Production AAB | 40,673,505 bytes | 40,674,587 bytes | +1,082 bytes (+0.00266%) |
+
+The final-artifact change is neutral because full-mode R8 had already removed
+the unused extended-icon bytecode. The accepted benefit is bounded source and
+dependency ownership rather than a material download-size reduction; the AAB
+remains 1,268,453 bytes below the 40 MiB budget. Roborazzi verifies the existing
+icon states, and the checked-in manifest plus workflow policy prevent unused or
+unregistered vectors and the extended dependency from returning.
+
 ## Configuration analysis
 
 R8 keep-radius analysis covered 190,712 live classes, fields, and methods:

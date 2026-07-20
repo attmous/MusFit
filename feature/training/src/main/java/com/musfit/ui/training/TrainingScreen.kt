@@ -20,12 +20,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -81,6 +77,10 @@ import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.icons.filled.ExpandMore
+import com.musfit.ui.icons.filled.FitnessCenter
+import com.musfit.ui.icons.outlined.CalendarMonth
+import com.musfit.ui.icons.outlined.History
 import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.UiText
 import com.musfit.ui.text.asString

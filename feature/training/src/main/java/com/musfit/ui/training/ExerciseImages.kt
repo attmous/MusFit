@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +42,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.musfit.feature.training.BuildConfig
 import com.musfit.feature.training.R
+import com.musfit.ui.icons.outlined.FitnessCenter
 import com.musfit.ui.theme.TabAccent
 
 internal const val EXERCISE_MEDIA_MODE_PARAMETER = "exercise-media-mode"

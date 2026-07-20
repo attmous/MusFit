@@ -27,7 +27,10 @@ spotless {
             "integration/*/src/**/*.kt",
             "feature/*/src/**/*.kt",
         )
-        targetExclude("app/src/main/generated/**")
+        targetExclude(
+            "app/src/main/generated/**",
+            "core/designsystem/src/main/kotlin/com/musfit/ui/icons/generated/**",
+        )
         ktlint("1.8.0").editorConfigOverride(
             mapOf("ktlint_function_naming_ignore_when_annotated_with" to "Composable"),
         )

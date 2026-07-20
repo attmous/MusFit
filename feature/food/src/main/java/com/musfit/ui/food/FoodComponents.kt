@@ -12,11 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BakeryDining
-import androidx.compose.material.icons.filled.Cookie
-import androidx.compose.material.icons.filled.DinnerDining
-import androidx.compose.material.icons.filled.LunchDining
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +31,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.musfit.ui.icons.filled.BakeryDining
+import com.musfit.ui.icons.filled.Cookie
+import com.musfit.ui.icons.filled.DinnerDining
+import com.musfit.ui.icons.filled.LunchDining
+import com.musfit.ui.icons.filled.Restaurant
 import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.UiText
 import com.musfit.ui.theme.MusFitTheme

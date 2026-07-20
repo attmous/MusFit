@@ -26,11 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocalDining
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -60,6 +56,10 @@ import com.musfit.feature.food.R
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.SectionOverline
 import com.musfit.ui.components.TonalHeaderIconButton
+import com.musfit.ui.icons.filled.LocalDining
+import com.musfit.ui.icons.outlined.History
+import com.musfit.ui.icons.outlined.MoreHoriz
+import com.musfit.ui.icons.outlined.QrCodeScanner
 import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccentRole

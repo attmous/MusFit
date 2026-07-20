@@ -17,8 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,6 +55,8 @@ import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.icons.filled.EmojiEvents
+import com.musfit.ui.icons.filled.FitnessCenter
 import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.UiText
 import com.musfit.ui.text.asString

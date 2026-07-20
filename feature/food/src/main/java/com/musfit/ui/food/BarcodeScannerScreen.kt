@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.FlashlightOff
-import androidx.compose.material.icons.outlined.FlashlightOn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +43,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.musfit.feature.food.R
 import com.musfit.integrations.scanner.BarcodeScannerController
+import com.musfit.ui.icons.outlined.FlashlightOff
+import com.musfit.ui.icons.outlined.FlashlightOn
 import com.musfit.ui.theme.CameraSurface
 import com.musfit.ui.theme.CameraTranslucent
 import com.musfit.ui.theme.Cream

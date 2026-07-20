@@ -14,7 +14,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +31,7 @@ import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.icons.outlined.DeleteForever
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 
