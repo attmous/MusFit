@@ -53,6 +53,8 @@ import org.junit.runners.model.Statement
 import java.io.File
 import java.io.FileOutputStream
 import java.time.LocalDate
+import com.musfit.feature.food.R as FoodR
+import com.musfit.feature.training.R as TrainingR
 
 /**
  * Small framework-owned journey layer. Lower-level state and callback behavior stays in unit and
@@ -304,7 +306,9 @@ class MusFitCriticalJourneyInstrumentationTest {
                 compose.onAllNodesWithText("Create").fetchSemanticsNodes().isNotEmpty()
             }
             compose.onNodeWithText("Create").assertIsDisplayed()
-            compose.onNodeWithText("Amount (g)").assertIsDisplayed()
+            compose.onNodeWithText(targetContext.getString(FoodR.string.food_amount_grams))
+                .performScrollTo()
+                .assertIsDisplayed()
         } finally {
             if (controlsNetwork) setAirplaneMode(enabled = false)
         }
@@ -373,7 +377,12 @@ class MusFitCriticalJourneyInstrumentationTest {
     }
 
     private fun currentRestTimerSeconds(): Int = (0..300).firstOrNull { seconds ->
-        compose.onAllNodesWithContentDescription("Rest timer $seconds seconds remaining")
+        val remainingDescription = targetContext.resources.getQuantityString(
+            TrainingR.plurals.training_rest_seconds_remaining,
+            seconds,
+            seconds,
+        )
+        compose.onAllNodesWithContentDescription(remainingDescription)
             .fetchSemanticsNodes()
             .isNotEmpty()
     } ?: error("No visible rest-timer remaining-seconds semantics found")
