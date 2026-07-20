@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 
 class TrainingDashboardDisplayTest {
     // Wednesday 8 Jul 2026.
@@ -129,19 +130,29 @@ class TrainingDashboardDisplayTest {
 
         assertEquals(
             uiText(R.string.training_last_today),
-            routineLastPerformedMeta(routine, listOf(workout("Full Body A", today)), today),
+            routineLastPerformedMeta(routine, listOf(workout("Full Body A", today)), today, Locale.UK),
         )
         assertEquals(
             uiText(R.string.training_last_yesterday),
-            routineLastPerformedMeta(routine, listOf(workout("Full Body A", today.minusDays(1))), today),
+            routineLastPerformedMeta(routine, listOf(workout("Full Body A", today.minusDays(1))), today, Locale.UK),
         )
         assertEquals(
             uiText(R.string.training_last_performed, UiText.Argument.Text("Fri")),
-            routineLastPerformedMeta(routine, listOf(workout("full body a", LocalDate.of(2026, 7, 3))), today),
+            routineLastPerformedMeta(
+                routine,
+                listOf(workout("full body a", LocalDate.of(2026, 7, 3))),
+                today,
+                Locale.UK,
+            ),
         )
         assertEquals(
             uiText(R.string.training_last_performed, UiText.Argument.Text("26 Jun 2026")),
-            routineLastPerformedMeta(routine, listOf(workout("Full Body A", LocalDate.of(2026, 6, 26))), today),
+            routineLastPerformedMeta(
+                routine,
+                listOf(workout("Full Body A", LocalDate.of(2026, 6, 26))),
+                today,
+                Locale.UK,
+            ),
         )
         assertEquals(
             pluralUiText(
@@ -150,7 +161,7 @@ class TrainingDashboardDisplayTest {
                 UiText.Argument.Integer(5),
                 UiText.Argument.Integer(40),
             ),
-            routineLastPerformedMeta(routine, listOf(workout("Other Routine", today)), today),
+            routineLastPerformedMeta(routine, listOf(workout("Other Routine", today)), today, Locale.UK),
         )
     }
 
