@@ -18,7 +18,6 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -204,26 +203,23 @@ class MusFitCriticalJourneyInstrumentationTest {
         compose.onNodeWithContentDescription("Settings").performClick()
         compose.waitForText("Add burned calories to budget")
 
-        val toggle = compose.onAllNodes(isToggleable()).onFirst()
-        val initiallyOn = runCatching {
-            toggle.assertIsOn()
-            true
-        }.getOrDefault(false)
-        toggle.performScrollTo().performClick()
+        val toggleDescription = "Add burned calories to budget"
         compose.waitUntil(timeoutMillis = 10_000) {
             runCatching {
-                val updated = compose.onAllNodes(isToggleable()).onFirst()
-                if (initiallyOn) updated.assertIsOff() else updated.assertIsOn()
+                compose.onNodeWithContentDescription(toggleDescription).assertIsOn()
+                true
+            }.getOrDefault(false)
+        }
+        compose.onNodeWithContentDescription(toggleDescription).performScrollTo().performClick()
+        compose.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                compose.onNodeWithContentDescription(toggleDescription).assertIsOff()
                 true
             }.getOrDefault(false)
         }
         compose.activityRule.scenario.recreate()
         compose.waitForText("Add burned calories to budget")
-        if (initiallyOn) {
-            compose.onAllNodes(isToggleable()).onFirst().assertIsOff()
-        } else {
-            compose.onAllNodes(isToggleable()).onFirst().assertIsOn()
-        }
+        compose.onNodeWithContentDescription(toggleDescription).assertIsOff()
 
         UiDevice.getInstance(instrumentation).pressBack()
         compose.onNodeWithContentDescription("Profile").assertIsSelected()
