@@ -716,7 +716,7 @@ $goldenCount = @(
     "feature/today/src/testInternalDebug/screenshots" |
         ForEach-Object { Get-ChildItem -LiteralPath (Get-RepoPath $_) -Filter "*.png" -File }
 ).Count
-Assert-Equal "Reviewed screenshot golden count" 11 $goldenCount
+Assert-Equal "Reviewed screenshot golden count" 15 $goldenCount
 
 # W2-PERF-01: production-shaped Macrobenchmark and app-owned Baseline Profile.
 Assert-FileExists "benchmark/build.gradle.kts"
