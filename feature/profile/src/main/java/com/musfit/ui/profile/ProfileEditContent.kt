@@ -22,12 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.TrendingDown
-import androidx.compose.material.icons.automirrored.outlined.TrendingFlat
-import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -72,6 +68,10 @@ import com.musfit.domain.profile.Sex
 import com.musfit.feature.profile.R
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.SheetDragHandle
+import com.musfit.ui.icons.automirrored.outlined.TrendingDown
+import com.musfit.ui.icons.automirrored.outlined.TrendingFlat
+import com.musfit.ui.icons.automirrored.outlined.TrendingUp
+import com.musfit.ui.icons.outlined.Remove
 import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.theme.LavenderBody
 import com.musfit.ui.theme.LavenderBodyDark

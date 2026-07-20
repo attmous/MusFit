@@ -19,9 +19,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -54,6 +52,8 @@ import com.musfit.feature.today.R
 import com.musfit.ui.components.EmptyState
 import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.TonalHeaderIconButton
+import com.musfit.ui.icons.outlined.ChatBubbleOutline
+import com.musfit.ui.icons.outlined.MonitorHeart
 import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme

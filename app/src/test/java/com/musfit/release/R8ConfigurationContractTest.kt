@@ -1,9 +1,9 @@
 package com.musfit.release
 
-import java.io.File
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class R8ConfigurationContractTest {
     @Test
@@ -21,6 +21,24 @@ class R8ConfigurationContractTest {
         assertFalse(rules.contains("-dontshrink"))
         assertFalse(rules.contains("-dontoptimize"))
         assertFalse(rules.contains("-dontobfuscate"))
+    }
+
+    @Test
+    fun manifestDiscoveredComponentRegistrarsKeepConstructors() {
+        val rules = resolveProjectFile("proguard-rules.pro").readText()
+
+        assertTrue(
+            rules.contains(
+                "-keepclassmembers class * implements " +
+                    "com.google.firebase.components.ComponentRegistrar {",
+            ),
+        )
+        assertTrue(rules.contains("public <init>();"))
+        assertFalse(rules.contains("com.google.mlkit.vision.barcode.internal.zzc"))
+        assertFalse(rules.contains("com.google.mlkit.vision.barcode.internal.zzd"))
+        assertFalse(rules.contains("com.google.mlkit.vision.barcode.internal.zzg"))
+        assertFalse(rules.contains("com.google.mlkit.vision.barcode.internal.**"))
+        assertFalse(rules.contains("com.google.mlkit.**"))
     }
 
     private fun resolveProjectFile(path: String): File {

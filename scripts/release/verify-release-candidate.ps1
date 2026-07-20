@@ -86,6 +86,7 @@ if (-not $versionMatch.Success) { throw "Could not read universal APK version co
 $apkVersionCode = [long]$versionMatch.Groups[1].Value
 
 $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+& (Join-Path $PSScriptRoot "test-obtainium-distribution-policy.ps1") -MetadataPath $metadataPath
 if ($ExpectedCommitSha -notmatch '^[0-9a-f]{40}$' -or $metadata.commitSha -cne $ExpectedCommitSha) {
     throw "Release metadata is not bound to the expected commit."
 }

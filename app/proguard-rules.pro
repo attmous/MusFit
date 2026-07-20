@@ -22,3 +22,10 @@
 -keep class com.musfit.data.remote.auth.GitHubAccessTokenResponse { *; }
 -keep class com.musfit.data.remote.auth.GitHubUserResponse { *; }
 -keep class com.musfit.data.remote.auth.GitHubEmailResponse { *; }
+
+# Firebase discovers component registrars by manifest class name and constructs
+# them reflectively. Its consumer rule preserves the class names, but full-mode
+# R8 bundled with AGP 9.2.1 can remove the unreferenced zero-argument constructors.
+-keepclassmembers class * implements com.google.firebase.components.ComponentRegistrar {
+    public <init>();
+}

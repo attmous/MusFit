@@ -13,8 +13,31 @@ Measured from `origin/master` at `85e1e5de93e014ca3e66d555e17a418f5a0ee3ec`:
 | Universal production APK | 135,503,830 bytes | 73,117,915 bytes | 62,385,915 bytes (46.04%) |
 | Production AAB | 49,700,255 bytes | 39,873,912 bytes | 9,826,343 bytes (19.77%) |
 
-The AAB is below the W1-REL-03 40 MiB budget. ABI-specific Obtainium packaging
-remains a later size package; this change does not alter ABI delivery.
+The AAB is below the W1-REL-03 40 MiB budget. The W5-SIZE-02 follow-up in
+`production-release.md` records the final ABI-distribution decision.
+
+## Extended-icon ownership follow-up
+
+W5-SIZE-01 remeasured the optimized artifacts before changing icon ownership.
+The historical audit counted 66 imports before feature growth; the current
+source uses 88 distinct extended Material vectors. The maintained subset keeps
+only those 88 Apache-licensed upstream sources in `:core:designsystem`, and the
+`material-icons-extended` dependency is no longer part of the build graph.
+
+Measured from the S19 base `d3c4fe2f8c7fb9a1cefd6a9a0b7f84eaa9fe101e`
+with the same production R8 tasks and toolchain:
+
+| Artifact | Extended dependency | Maintained subset | Change |
+| --- | ---: | ---: | ---: |
+| Universal production APK | 74,550,401 bytes | 74,550,185 bytes | -216 bytes (-0.00029%) |
+| Production AAB | 40,673,505 bytes | 40,674,587 bytes | +1,082 bytes (+0.00266%) |
+
+The final-artifact change is neutral because full-mode R8 had already removed
+the unused extended-icon bytecode. The accepted benefit is bounded source and
+dependency ownership rather than a material download-size reduction; the AAB
+remains 1,268,453 bytes below the 40 MiB budget. Roborazzi verifies the existing
+icon states, and the checked-in manifest plus workflow policy prevent unused or
+unregistered vectors and the extended dependency from returning.
 
 ## Configuration analysis
 
@@ -27,11 +50,26 @@ R8 keep-radius analysis covered 190,712 live classes, fields, and methods:
 
 The largest retained surfaces are consumer/default rules for bundled ML Kit
 text/barcode models, enum contracts, Android views, and Health Connect proto
-fields. MusFit does not duplicate or broaden those rules. Six small subsumed
-rules also originate in default or dependency configurations, so this package
-does not override them.
+fields. Six small subsumed rules also originate in default or dependency
+configurations, so this package does not override them.
 
-The API 37 minified smoke reproduced Moshi constructing the reflected
+The S19 x86_64 production smoke exposed one incomplete dependency rule. Firebase
+kept every manifest-discovered `ComponentRegistrar` class name, but full-mode R8
+bundled with AGP 9.2.1 removed `BarcodeRegistrar`'s reflectively invoked
+zero-argument constructor. ML Kit then skipped that registrar and
+`BarcodeScanning.getClient()` failed because its component lookup returned
+null. The app adds one interface-scoped `-keepclassmembers` rule for public
+zero-argument `ComponentRegistrar` constructors. It does not retain ML Kit
+packages, barcode implementation classes, or component factories. The contract
+test rejects those broader alternatives.
+
+After that rule, the constructor is present in the minified DEX and the exact
+x86_64 probe remained on the barcode scanner with no fatal exception. The
+x86_64 probe is 30,574,271 bytes (29.16 MiB), the arm64-v8a probe is 29,017,790
+bytes (27.67 MiB), the universal APK is 74,550,181 bytes, and the Play AAB is
+40,674,855 bytes (38.79 MiB). The AAB remains 1,268,185 bytes below 40 MiB.
+
+The earlier API 37 minified smoke reproduced Moshi constructing the reflected
 `OpenAiChatCompletionResponse` model as an abstract, vertically merged type
 when Profile initialized the coach client. The app rules therefore retain only
 the 15 exact reflected coach, Open Food Facts, and GitHub DTOs. A contract test

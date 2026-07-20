@@ -14,8 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +31,8 @@ import com.musfit.domain.health.StepSource
 import com.musfit.feature.profile.R
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.icons.outlined.Sync
+import com.musfit.ui.icons.outlined.Upload
 import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.UiText
 import com.musfit.ui.text.asString

@@ -19,11 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.outlined.Code
-import androidx.compose.material.icons.outlined.DeleteForever
-import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +57,10 @@ import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.icons.outlined.Code
+import com.musfit.ui.icons.outlined.DeleteForever
+import com.musfit.ui.icons.outlined.Link
+import com.musfit.ui.icons.outlined.SwapHoriz
 import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.asString
 import com.musfit.ui.text.uiText

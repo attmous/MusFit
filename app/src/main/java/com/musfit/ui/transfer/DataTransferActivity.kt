@@ -21,9 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -53,6 +51,8 @@ import com.musfit.R
 import com.musfit.configureMusFitEdgeToEdge
 import com.musfit.data.transfer.DataTransferArchiveCodec
 import com.musfit.ui.components.InnerScreenHeader
+import com.musfit.ui.icons.outlined.Download
+import com.musfit.ui.icons.outlined.Upload
 import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import dagger.hilt.android.AndroidEntryPoint

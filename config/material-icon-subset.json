@@ -1,0 +1,362 @@
+﻿{
+    "schemaVersion":  1,
+    "upstream":  {
+                     "module":  "androidx.compose.material:material-icons-extended-android",
+                     "version":  "1.7.8",
+                     "license":  "Apache-2.0"
+                 },
+    "icons":  [
+                  {
+                      "style":  "automirrored/filled",
+                      "name":  "DirectionsRun"
+                  },
+                  {
+                      "style":  "automirrored/filled",
+                      "name":  "DirectionsWalk"
+                  },
+                  {
+                      "style":  "automirrored/outlined",
+                      "name":  "TrendingDown"
+                  },
+                  {
+                      "style":  "automirrored/outlined",
+                      "name":  "TrendingFlat"
+                  },
+                  {
+                      "style":  "automirrored/outlined",
+                      "name":  "TrendingUp"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "AutoAwesome"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "BakeryDining"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Balance"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Bedtime"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Bolt"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Bookmark"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "BreakfastDining"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "ChatBubble"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Cookie"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "DinnerDining"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "EditNote"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Egg"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "EggAlt"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "EmojiEvents"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "ExpandLess"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "ExpandMore"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "FitnessCenter"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Flatware"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Icecream"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "LocalDining"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "LocalFireDepartment"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "LunchDining"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "MonitorHeart"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "MonitorWeight"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Percent"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "PlayCircle"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "QrCodeScanner"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Remove"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Restaurant"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "RiceBowl"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Today"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "WaterDrop"
+                  },
+                  {
+                      "style":  "filled",
+                      "name":  "Whatshot"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "ArrowDownward"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "ArrowUpward"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "AutoAwesome"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "BakeryDining"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Bolt"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Bookmark"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Cable"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "CalendarMonth"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "ChatBubbleOutline"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "ChevronRight"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Code"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "ContentCopy"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Cookie"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "DeleteForever"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "DeleteOutline"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "DinnerDining"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "DocumentScanner"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Download"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "DragIndicator"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Eco"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "EditNote"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "EmojiEvents"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "ErrorOutline"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "FitnessCenter"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Flag"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "FlashlightOff"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "FlashlightOn"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Forum"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "History"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Link"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "LocalFireDepartment"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "LunchDining"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Mic"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "MonitorHeart"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "MoreHoriz"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "NightsStay"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "PrecisionManufacturing"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "QrCodeScanner"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "QueryStats"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Remove"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Restaurant"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "SportsGymnastics"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "SwapHoriz"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Sync"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "TableChart"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Today"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Tune"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Upload"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "Verified"
+                  },
+                  {
+                      "style":  "outlined",
+                      "name":  "WbSunny"
+                  }
+              ]
+}

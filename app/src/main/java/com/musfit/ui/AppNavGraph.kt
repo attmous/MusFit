@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +63,7 @@ import com.musfit.R
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodNavigation
 import com.musfit.ui.food.NutritionTrendsScreen
+import com.musfit.ui.icons.outlined.ChatBubbleOutline
 import com.musfit.ui.profile.ProfileScreen
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme

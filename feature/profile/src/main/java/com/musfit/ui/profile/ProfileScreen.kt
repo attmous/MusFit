@@ -17,12 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.TrendingDown
-import androidx.compose.material.icons.automirrored.outlined.TrendingFlat
-import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -61,6 +56,11 @@ import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.icons.automirrored.outlined.TrendingDown
+import com.musfit.ui.icons.automirrored.outlined.TrendingFlat
+import com.musfit.ui.icons.automirrored.outlined.TrendingUp
+import com.musfit.ui.icons.outlined.Flag
+import com.musfit.ui.icons.outlined.QueryStats
 import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.UiText
 import com.musfit.ui.text.asString

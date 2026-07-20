@@ -2,16 +2,16 @@ package com.musfit.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Today
-import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.Today
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.musfit.R
+import com.musfit.ui.icons.filled.FitnessCenter
+import com.musfit.ui.icons.filled.Restaurant
+import com.musfit.ui.icons.filled.Today
+import com.musfit.ui.icons.outlined.FitnessCenter
+import com.musfit.ui.icons.outlined.Restaurant
+import com.musfit.ui.icons.outlined.Today
 
 enum class AppDestination(
     val route: String,
