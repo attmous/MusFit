@@ -11,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.hasClickAction
@@ -25,6 +26,7 @@ import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.WeeklyTrainingVolume
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.TrainingTrendPoint
+import com.musfit.ui.components.MusFitScreenHeader
 import com.musfit.ui.food.AddFoodScreen
 import com.musfit.ui.food.BarcodeScannerScreen
 import com.musfit.ui.food.FoodUiState
@@ -70,6 +72,26 @@ class MusFitScreenshotRegressionTest {
         fontScale = 1.5f,
     ) {
         FoodAddFixture()
+    }
+
+    @Test
+    @Config(qualifiers = "en-rXA-w400dp-h800dp-mdpi")
+    fun screenHeader_phone_pseudo_largeFont() = capture(
+        "screen-header-phone-pseudo-font-150.png",
+        dark = false,
+        fontScale = 1.5f,
+    ) {
+        Box(Modifier.fillMaxSize().padding(20.dp)) {
+            MusFitScreenHeader(
+                title = stringResource(FoodR.string.food_title),
+                actions = {
+                    Text(
+                        text = "[Jûļ one] 20, 2026 one two",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                },
+            )
+        }
     }
 
     @Test

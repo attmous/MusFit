@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.musfit.ui.theme.MusFitTheme
 
@@ -30,28 +31,59 @@ fun MusFitScreenHeader(
     subtitle: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MusFitTheme.typography.headlineMedium,
-                color = MusFitTheme.colors.onSurface,
+    val useStackedLayout = LocalDensity.current.fontScale >= SCREEN_HEADER_STACKED_FONT_SCALE
+    if (useStackedLayout) {
+        Column(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.sm),
+        ) {
+            ScreenHeaderTitle(title = title, subtitle = subtitle)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+                content = actions,
             )
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = MusFitTheme.typography.bodyMedium,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, content = actions)
+    } else {
+        Row(
+            modifier = modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ScreenHeaderTitle(
+                title = title,
+                subtitle = subtitle,
+                modifier = Modifier.weight(1f),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, content = actions)
+        }
     }
 }
+
+@Composable
+private fun ScreenHeaderTitle(
+    title: String,
+    subtitle: String?,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = title,
+            style = MusFitTheme.typography.headlineMedium,
+            color = MusFitTheme.colors.onSurface,
+        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MusFitTheme.typography.bodyMedium,
+                color = MusFitTheme.colors.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private const val SCREEN_HEADER_STACKED_FONT_SCALE = 1.3f
 
 /**
  * The shared scrolling screen container: content directly on the pure surface,

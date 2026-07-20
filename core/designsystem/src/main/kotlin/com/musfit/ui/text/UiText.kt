@@ -4,8 +4,7 @@ import android.content.res.Resources
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 
 /** Context-free UI copy that is resolved only at the presentation boundary. */
 sealed interface UiText {
@@ -63,10 +62,7 @@ fun UiText.resolve(resources: Resources): String = when (this) {
 }
 
 @Composable
-fun UiText.asString(): String {
-    LocalConfiguration.current
-    return resolve(LocalContext.current.resources)
-}
+fun UiText.asString(): String = resolve(LocalResources.current)
 
 private fun List<UiText.Argument>.toFormatArguments(resources: Resources): Array<Any> = map { argument ->
     when (argument) {
