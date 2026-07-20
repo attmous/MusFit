@@ -285,6 +285,55 @@ screen-header width collapse that was fixed by stacking trailing actions below
 the title at large font scales. The reviewed Roborazzi baselines retain that
 header regression plus Food add, Training RTL, and expanded German coverage.
 
+## S20 measured closeout (2026-07-20)
+
+S20 selected the warmed Training image-browse journey because exact PR #176
+run `29751311490` reported frame CPU P90 `105.6049` ms and frame-overrun P90
+`126.8751` ms. All five iterations showed the same slow envelope. Perfetto
+then ruled out speculative stability annotations, broad caching, repository
+queries, Binder, and I/O: across 798 MusFit frames, RenderThread drawing used
+`27,979.241` ms of CPU and `eglSwapBuffersWithDamageKHR` used `23,359.490` ms.
+The EGL slices were running for `23,359.490` ms, runnable or preempted for
+`4,526.280` ms, sleeping for `1,086.824` ms, and never in I/O wait. The Ranchu
+graphics composer and SurfaceFlinger used another `21,001.593` and `9,974.639`
+ms of scheduled CPU. Main-thread recomposition used only `173.885` ms total.
+
+The hosted trace therefore identified a graphics-host envelope, not an app
+query or recomposition root cause that justified a production-code change. A
+consecutive same-host comparison used the same API 37 image, fingerprint,
+five-iteration fixture, Photos exclusion, and 100/100 warmed-memory-cache
+behavior gate for exact S15 product head
+`a5260d993699e4211b2e94992de038f0bd80ad07` and current master
+`50faaaef98b0b5674fd7d5e1294f8ec69177dd1f`:
+
+| Controlled image metric | Exact S15 | Current master | Change |
+| --- | ---: | ---: | ---: |
+| Frame CPU P90 | 32.4428 ms | 28.9724 ms | -10.70% |
+| Frame overrun P90 | 28.6866264 ms | 23.0809378 ms | -19.54% |
+| Median frame count | 844 | 858 | +1.66% |
+| Maximum heap | 14,407 KB | 14,506 KB | +0.69% |
+| Maximum anonymous RSS | 102,648 KB | 101,740 KB | -0.88% |
+| Maximum end-of-browse total PSS | 68,840 KB | 67,946 KB | -1.30% |
+
+The improvement is not explained by a shorter traversal: current master drew
+more frames while lowering the selected P90s. Representative iteration-zero
+trace slices also moved coherently: RenderThread drawing averaged `8.399` to
+`7.699` ms per frame, EGL swap `5.107` to `4.608` ms, main input `0.595` to
+`0.507` ms, traversal `0.507` to `0.466` ms, and total recomposition CPU
+`204.160` to `183.863` ms. This satisfies W5-PERF-01's measured >=10%
+closeout without adding an unproven cache or stability annotation.
+
+The same fingerprint cannot identify host graphics performance: the exact
+hosted image result was more than three times the controlled current P90. The
+approved file now records both evidence chains and uses the reviewed per-metric
+maximum as the cross-host regression envelope. It also calibrates the hosted
+Training frame CPU result (`324.9192` ms), which a controlled current-head run
+disproved as a product regression: Training frame CPU P90 was `168.31104` ms
+against `256.9968` ms approved (-34.51%), and frame-overrun P90 was
+`253.895717` ms against `441.3738` ms (-42.47%). The recalibrated baseline
+passes all 19 measurements from exact PR #176 while the deliberate >10%
+self-test and controlled strict mode remain capable of failing.
+
 ## CI and evidence
 
 `.github/workflows/performance.yml` runs for performance-relevant pull requests,

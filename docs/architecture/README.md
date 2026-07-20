@@ -176,6 +176,10 @@ and consumes it exactly once. While either camera route is active, Food asks the
 app shell to remove root navigation chrome so the scanner can own the full
 edge-to-edge surface.
 
+Experimental adaptive candidates remain documentation-only. The current status
+and mandatory adoption gates for MediaQuery, non-lazy Grid, and FlexBox live in
+[experimental-adaptive-api-watchlist.md](experimental-adaptive-api-watchlist.md).
+
 ## Dependency Injection
 
 Hilt modules live under `core/di`.

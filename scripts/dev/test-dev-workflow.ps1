@@ -322,6 +322,34 @@ foreach ($doc in $liveArchitectureDocs) {
 }
 Assert-FileContains "docs/architecture/README.md" '(?s)<!-- source-derived-facts:start -->.+<!-- source-derived-facts:end -->'
 Assert-FileContains "docs/architecture/README.md" 'ArchitectureBoundaryTest'
+Assert-FileExists "docs/architecture/experimental-adaptive-api-watchlist.md"
+Assert-FileContains "docs/architecture/README.md" 'experimental-adaptive-api-watchlist\.md'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'MediaQuery[\s\S]*Defer'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Non-lazy Grid[\s\S]*Defer'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'FlexBox[\s\S]*Defer'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Stable API proof'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Unmet user scenario'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Compatibility proof'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Behavior and accessibility coverage'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Measured benefit'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'ADR and rollback'
+Assert-FileDoesNotContain "gradle/libs.versions.toml" 'androidx-compose-foundation-layout'
+$experimentalAdaptiveProductionUsage = @(
+    @(
+        "app/src/main",
+        "feature/food/src/main",
+        "feature/training/src/main",
+        "feature/profile/src/main",
+        "feature/today/src/main",
+        "core/designsystem/src/main"
+    ) | ForEach-Object {
+        Get-ChildItem -LiteralPath (Get-RepoPath $_) -Recurse -Filter "*.kt" -File |
+            Select-String -Pattern 'ComposeUiFlags\.isMediaQueryIntegrationEnabled|\b(?:derived)?mediaQuery\s*\{|@ExperimentalFlexBoxApi|androidx\.compose\.foundation\.layout\.(?:Grid|FlexBox)\b'
+    }
+)
+if ($experimentalAdaptiveProductionUsage.Count -gt 0) {
+    throw "Experimental adaptive APIs must remain absent from production: $($experimentalAdaptiveProductionUsage -join '; ')"
+}
 Assert-FileExists "app/src/test/java/com/musfit/architecture/ArchitectureBoundaryTest.kt"
 Assert-FileContains "app/src/test/java/com/musfit/architecture/ArchitectureBoundaryTest.kt" 'compiledProductionClasses_haveNoForbiddenArchitectureEdges'
 Assert-FileContains "app/src/test/java/com/musfit/architecture/ArchitectureBoundaryTest.kt" 'deliberateForbiddenEdges_areRejected'
@@ -814,6 +842,35 @@ Assert-Equal "Approved benchmark schema" 1 ([int] $approvedBenchmark.schemaVersi
 Assert-Equal "Approved benchmark threshold" 10 ([double] $approvedBenchmark.thresholdPercent)
 if (@($approvedBenchmark.measurements).Count -eq 0) {
     throw "Approved benchmark baseline must contain regression measurements."
+}
+$s20Performance = $approvedBenchmark.provenance.s20MeasuredCloseout
+if ($null -eq $s20Performance) {
+    throw "Approved benchmark baseline must retain the S20 measured-closeout provenance."
+}
+Assert-Equal "S20 controlled benchmark iterations" 5 ([int] $s20Performance.iterations)
+if ([double] $s20Performance.controlledFrameCpuImprovementPercent -lt 10.0) {
+    throw "S20 controlled frame CPU evidence must retain at least a 10% P90 improvement."
+}
+if ([string] $s20Performance.rootCause -notmatch 'RenderThread EGL') {
+    throw "S20 measured-closeout provenance must retain the Perfetto root-cause classification."
+}
+foreach ($calibration in @(
+    [pscustomobject]@{
+        Key = "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|frameDurationCpuMs"
+        Expected = [double] $s20Performance.hostedTrainingFrameCpuP90Ms
+    },
+    [pscustomobject]@{
+        Key = "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items|frameDurationCpuMs"
+        Expected = [double] $s20Performance.hostedImageFrameCpuP90Ms
+    },
+    [pscustomobject]@{
+        Key = "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items|frameOverrunMs"
+        Expected = [double] $s20Performance.hostedImageFrameOverrunP90Ms
+    }
+)) {
+    $measurement = @($approvedBenchmark.measurements | Where-Object { $_.key -ceq $calibration.Key })
+    Assert-Equal "S20 hosted calibration count for $($calibration.Key)" 1 $measurement.Count
+    Assert-Equal "S20 hosted calibration value for $($calibration.Key)" $calibration.Expected ([double] $measurement[0].approvedValue)
 }
 
 if ($SelfTest) {
