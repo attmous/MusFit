@@ -41,11 +41,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -53,6 +52,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.musfit.feature.profile.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.MusFitScreenHeader
@@ -60,6 +60,9 @@ import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.LavenderBody
 import com.musfit.ui.theme.LavenderBodyDark
 import com.musfit.ui.theme.LavenderContainer
@@ -109,8 +112,9 @@ fun ProfileScreen(
 
     BackHandler(enabled = historyKey != null) { historyKey = null }
 
-    LaunchedEffect(state.message) {
-        val message = state.message
+    val resolvedMessage = state.message?.asString()
+    LaunchedEffect(state.message, resolvedMessage) {
+        val message = resolvedMessage
         if (message != null) {
             snackbarHostState.showSnackbar(message)
             viewModel.dismissMessage()
@@ -134,8 +138,15 @@ fun ProfileScreen(
                     HistoryEntry(it.id, it.measuredAtEpochMillis, it.value, it.unit)
                 }
             }
+            val measurementLabel = MEASUREMENT_LABEL_RESOURCES[openHistoryKey]
+                ?.let { stringResource(it) }
+                ?: openHistoryKey
             MeasurementHistoryScreen(
-                title = if (isWeight) "Weight history" else "${MEASUREMENT_SHEET_LABELS[openHistoryKey] ?: openHistoryKey} history",
+                title = if (isWeight) {
+                    stringResource(R.string.profile_weight_history)
+                } else {
+                    stringResource(R.string.profile_measurement_history, measurementLabel)
+                },
                 entries = entries,
                 accent = accent,
                 onBack = { historyKey = null },
@@ -157,11 +168,11 @@ fun ProfileScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 MusFitScreenHeader(
-                    title = "Profile",
+                    title = stringResource(R.string.profile_title),
                     actions = {
                         TonalHeaderIconButton(
                             icon = Icons.Outlined.Settings,
-                            contentDescription = "Settings",
+                            contentDescription = stringResource(R.string.profile_settings),
                             onClick = onSettingsClick,
                         )
                     },
@@ -176,8 +187,8 @@ fun ProfileScreen(
                     onLogWeight = { showLogWeight = true },
                 )
                 SectionHeader(
-                    title = "Measurements",
-                    trailingActionLabel = "+ Log",
+                    title = stringResource(R.string.profile_measurements),
+                    trailingActionLabel = stringResource(R.string.profile_log_action),
                     trailingActionColor = accent.color,
                     onTrailingAction = { showLogMeasurement = true },
                 )
@@ -190,7 +201,7 @@ fun ProfileScreen(
                         }
                     },
                 )
-                SectionHeader(title = "Plans & progress")
+                SectionHeader(title = stringResource(R.string.profile_plans_and_progress))
                 PlansAndProgressList(
                     plansSummary = state.plansSummary,
                     onOpenFood = onOpenFood,
@@ -248,7 +259,7 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
             // Clip before clickable so the ripple stays inside the rounded shape.
             .clip(shape)
             .clickable(
-                onClickLabel = "Open Health Connect settings",
+                onClickLabel = stringResource(R.string.profile_open_health_connect_settings),
                 role = Role.Button,
                 onClick = onOpen,
             ),
@@ -259,13 +270,13 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Connect Health Connect to mirror steps and heart rate",
+                stringResource(R.string.profile_health_connect_nudge),
                 style = MusFitTheme.typography.bodySmall,
                 color = body,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                "Set up",
+                stringResource(R.string.profile_set_up),
                 style = MusFitTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = action,
@@ -297,7 +308,7 @@ private fun WeightHeroCard(
             .fillMaxWidth()
             .clip(shape)
             .clickable(
-                onClickLabel = "Open weight history",
+                onClickLabel = stringResource(R.string.profile_open_weight_history),
                 role = Role.Button,
                 onClick = onOpenEntries,
             ),
@@ -312,13 +323,13 @@ private fun WeightHeroCard(
                         Row(verticalAlignment = Alignment.Bottom) {
                             // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
                             Text(
-                                hero.latestWeightKg!!.format1(),
+                                hero.latestWeightKg!!.format1(LocalConfiguration.current.locales[0]),
                                 style = MusFitTheme.typography.displayLarge.copy(fontSize = 52.sp, lineHeight = 52.sp),
                                 color = accent.onContainer,
                                 maxLines = 1,
                             )
                             Text(
-                                "kg",
+                                stringResource(R.string.profile_unit_kg),
                                 style = MusFitTheme.typography.titleLarge.copy(fontSize = 19.sp),
                                 fontWeight = FontWeight.Medium,
                                 color = accent.onContainer,
@@ -342,43 +353,43 @@ private fun WeightHeroCard(
 
                     hero.chartSeries.isEmpty() -> // entries exist (outer branch) but none in the window
                         Text(
-                            "No entries in the last 30 days.",
+                            stringResource(R.string.profile_no_entries_30_days),
                             style = MusFitTheme.typography.bodySmall,
                             color = accent.onContainerVariant,
                         )
 
                     else -> // exactly one point in the window — a chart or "no entries" text would both mislead
                         Text(
-                            "Log again to see a trend.",
+                            stringResource(R.string.profile_log_again_for_trend),
                             style = MusFitTheme.typography.bodySmall,
                             color = accent.onContainerVariant,
                         )
                 }
             } else {
-                Text("No weight logged yet.", style = MusFitTheme.typography.bodyMedium, color = accent.onContainerVariant)
+                Text(
+                    stringResource(R.string.profile_no_weight_logged),
+                    style = MusFitTheme.typography.bodyMedium,
+                    color = accent.onContainerVariant,
+                )
             }
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (hero.hasAnyEntry) {
-                        buildAnnotatedString {
-                            append("30 days")
-                            hero.goalProgressFraction?.let {
-                                append(" · ")
-                                withStyle(SpanStyle(fontWeight = FontWeight.W800)) {
-                                    append("${(it * 100).roundToInt()}%")
-                                }
-                                append(" to goal")
-                            }
-                        }
+                        hero.goalProgressFraction?.let {
+                            stringResource(
+                                R.string.profile_30_days_to_goal,
+                                LocalizedFormatter.integer((it * 100).roundToInt().toLong(), locale = LocalConfiguration.current.locales[0]),
+                            )
+                        } ?: stringResource(R.string.profile_30_days)
                     } else {
-                        buildAnnotatedString {}
+                        ""
                     },
                     style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = accent.onContainerVariant,
                     modifier = Modifier.weight(1f),
                 )
                 HeroActionPill(
-                    text = "Log weight",
+                    text = stringResource(R.string.profile_log_weight),
                     icon = Icons.Outlined.Add,
                     accent = accent,
                     onClick = onLogWeight,
@@ -392,17 +403,21 @@ private fun WeightHeroCard(
 @Composable
 private fun WeightMetaLine(hero: WeightHeroState, accent: TabAccent) {
     val delta = hero.deltaKg
-    val meta = buildAnnotatedString {
-        if (delta != null) {
-            withStyle(SpanStyle(fontWeight = FontWeight.W800)) {
-                append("${if (delta < 0) "−" else "+"}${abs(delta).format1()} kg")
-            }
-            append(" · 7 days")
-        }
-        hero.bmi?.let {
-            if (length > 0) append(" · ")
-            append("BMI ${it.format1()}")
-        }
+    val locale = LocalConfiguration.current.locales[0]
+    val deltaText = delta?.let {
+        stringResource(
+            R.string.profile_weight_delta_7_days,
+            stringResource(if (it < 0) R.string.profile_sign_minus else R.string.profile_sign_plus),
+            abs(it).format1(locale),
+        )
+    }
+    val bmiText = hero.bmi?.let {
+        stringResource(R.string.profile_bmi, it.format1(locale))
+    }
+    val meta = when {
+        deltaText != null && bmiText != null -> stringResource(R.string.profile_join_middle_dot, deltaText, bmiText)
+        deltaText != null -> deltaText
+        else -> bmiText.orEmpty()
     }
     if (meta.isNotEmpty()) {
         Text(
@@ -415,20 +430,29 @@ private fun WeightMetaLine(hero: WeightHeroState, accent: TabAccent) {
 }
 
 /** "goal 82 kg · gain 0.3/wk" — the goal chip carries the pace since Turn 11. */
+@Composable
 private fun goalChipText(state: ProfileUiState): String {
     val goalWeight = state.hero.goalWeightKg ?: return ""
     val profile = state.profile
+    val locale = LocalConfiguration.current.locales[0]
     val paceText = profile?.let {
         when (it.goalType) {
-            com.musfit.domain.profile.GoalType.Maintain -> "maintain"
-            com.musfit.domain.profile.GoalType.Lose -> "lose ${it.goalPaceKgPerWeek.format1()}/wk"
-            com.musfit.domain.profile.GoalType.Gain -> "gain ${it.goalPaceKgPerWeek.format1()}/wk"
+            com.musfit.domain.profile.GoalType.Maintain -> stringResource(R.string.profile_pace_maintain)
+
+            com.musfit.domain.profile.GoalType.Lose -> stringResource(
+                R.string.profile_pace_lose,
+                it.goalPaceKgPerWeek.format1(locale),
+            )
+
+            com.musfit.domain.profile.GoalType.Gain -> stringResource(
+                R.string.profile_pace_gain,
+                it.goalPaceKgPerWeek.format1(locale),
+            )
         }
     }
-    return buildString {
-        append("goal ${goalWeight.format1()} kg")
-        paceText?.let { append(" · $it") }
-    }
+    val goal = goalWeight.format1(locale)
+    return paceText?.let { stringResource(R.string.profile_goal_weight_with_pace, goal, it) }
+        ?: stringResource(R.string.profile_goal_weight, goal)
 }
 
 /**
@@ -468,13 +492,17 @@ private fun MeasurementCell(
     modifier: Modifier = Modifier,
 ) {
     val empty = tile.entryCount == 0
+    val label = tile.label.asString()
     Surface(
         color = MusFitTheme.colors.surface,
         shape = shape,
         modifier = modifier
             .clip(shape)
             .clickable(
-                onClickLabel = if (empty) "Log ${tile.label}" else "Open ${tile.label} history",
+                onClickLabel = stringResource(
+                    if (empty) R.string.profile_log_measurement_accessibility else R.string.profile_open_measurement_history,
+                    label,
+                ),
                 role = Role.Button,
                 onClick = onClick,
             ),
@@ -484,7 +512,7 @@ private fun MeasurementCell(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                tile.label,
+                label,
                 style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.sp),
                 fontWeight = FontWeight.SemiBold,
                 color = MusFitTheme.colors.onSurfaceVariant,
@@ -492,34 +520,39 @@ private fun MeasurementCell(
             )
             if (empty) {
                 Text(
-                    "Tap to log",
+                    stringResource(R.string.profile_tap_to_log),
                     style = MusFitTheme.typography.bodyLarge.copy(fontSize = 14.sp),
                     fontWeight = FontWeight.Medium,
                     color = MusFitTheme.colors.onSurfaceFaint,
                     maxLines = 1,
                 )
             } else {
-                Row {
-                    Text(
-                        tile.value!!.format1(),
-                        style = MusFitTheme.typography.titleLarge.copy(fontSize = 18.sp, letterSpacing = (-0.4).sp),
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MusFitTheme.colors.onSurface,
-                        maxLines = 1,
-                        modifier = Modifier.alignByBaseline(),
-                    )
-                    Text(
-                        tile.unit,
-                        style = MusFitTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        fontWeight = FontWeight.Medium,
-                        color = MusFitTheme.colors.onSurfaceVariant,
-                        maxLines = 1,
-                        modifier = Modifier.alignByBaseline().padding(start = 2.dp),
-                    )
-                }
+                MeasurementValue(tile.value!!, tile.unit)
                 MeasurementTrendRow(delta = tile.delta30d, accent = accent)
             }
         }
+    }
+}
+
+@Composable
+private fun MeasurementValue(value: Double, unit: String) {
+    Row {
+        Text(
+            value.format1(LocalConfiguration.current.locales[0]),
+            style = MusFitTheme.typography.titleLarge.copy(fontSize = 18.sp, letterSpacing = (-0.4).sp),
+            fontWeight = FontWeight.ExtraBold,
+            color = MusFitTheme.colors.onSurface,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline(),
+        )
+        Text(
+            unit,
+            style = MusFitTheme.typography.bodySmall.copy(fontSize = 11.sp),
+            fontWeight = FontWeight.Medium,
+            color = MusFitTheme.colors.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline().padding(start = 2.dp),
+        )
     }
 }
 
@@ -545,7 +578,12 @@ private fun MeasurementTrendRow(delta: Double?, accent: TabAccent) {
     ) {
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
         Text(
-            text = if (flat) "flat" else "${if (delta < 0) "−" else "+"}${abs(delta).format1()}",
+            text = if (flat) {
+                stringResource(R.string.profile_flat)
+            } else {
+                stringResource(if (delta < 0) R.string.profile_sign_minus else R.string.profile_sign_plus) +
+                    abs(delta).format1(LocalConfiguration.current.locales[0])
+            },
             style = MusFitTheme.typography.labelMedium.copy(fontSize = 11.sp),
             fontWeight = FontWeight.Bold,
             color = color,
@@ -562,7 +600,7 @@ private fun MeasurementTrendRow(delta: Double?, accent: TabAccent) {
  */
 @Composable
 private fun PlansAndProgressList(
-    plansSummary: String,
+    plansSummary: UiText?,
     onOpenFood: () -> Unit,
     onOpenTrainingProgress: () -> Unit,
     onOpenNutritionTrends: () -> Unit,
@@ -572,11 +610,11 @@ private fun PlansAndProgressList(
     val foodAccent = tabAccentFor(TabAccentRole.Food)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ProfileHubRow(
-            title = "Goals & programs",
-            subtitle = plansSummary.ifBlank { "Set your goal, diet, and program" },
+            title = stringResource(R.string.profile_goals_and_programs),
+            subtitle = plansSummary?.asString() ?: stringResource(R.string.profile_goals_and_programs_empty),
             shape = groupedShape(0, 3),
             onClick = onOpenFood,
-            onClickLabel = "Open goals and programs in Food",
+            onClickLabel = stringResource(R.string.profile_open_goals_food),
             leading = {
                 ExpressiveBadge(
                     icon = Icons.Outlined.Flag,
@@ -589,8 +627,8 @@ private fun PlansAndProgressList(
             },
         )
         ProfileHubRow(
-            title = "Training progress",
-            subtitle = "PRs, trends and volume per exercise",
+            title = stringResource(R.string.profile_training_progress),
+            subtitle = stringResource(R.string.profile_training_progress_summary),
             shape = groupedShape(1, 3),
             onClick = onOpenTrainingProgress,
             leading = {
@@ -605,8 +643,8 @@ private fun PlansAndProgressList(
             },
         )
         ProfileHubRow(
-            title = "Nutrition trends",
-            subtitle = "Weekly score · 7 and 28-day progress",
+            title = stringResource(R.string.profile_nutrition_trends),
+            subtitle = stringResource(R.string.profile_nutrition_trends_summary),
             shape = groupedShape(2, 3),
             onClick = onOpenNutritionTrends,
             leading = {
@@ -623,32 +661,23 @@ private fun PlansAndProgressList(
     }
 }
 
-internal val MEASUREMENT_SHEET_LABELS = mapOf(
-    "waist" to "Waist",
-    "chest" to "Chest",
-    "arms" to "Arms",
-    "thighs" to "Thighs",
-    "hips" to "Hips",
-    "body_fat" to "Body fat",
-)
+internal fun Double.format1(locale: Locale = Locale.getDefault()): String = LocalizedFormatter.number(this, maximumFractionDigits = 1, locale = locale)
 
-internal fun Double.format1(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.1f", this)
-
-internal fun com.musfit.domain.profile.ActivityLevel.label(): String = when (this) {
-    com.musfit.domain.profile.ActivityLevel.Sedentary -> "Sedentary"
-    com.musfit.domain.profile.ActivityLevel.Light -> "Light"
-    com.musfit.domain.profile.ActivityLevel.Moderate -> "Moderate"
-    com.musfit.domain.profile.ActivityLevel.Active -> "Active"
-    com.musfit.domain.profile.ActivityLevel.VeryActive -> "Very active"
+internal fun com.musfit.domain.profile.ActivityLevel.labelResource(): Int = when (this) {
+    com.musfit.domain.profile.ActivityLevel.Sedentary -> R.string.profile_activity_sedentary
+    com.musfit.domain.profile.ActivityLevel.Light -> R.string.profile_activity_light
+    com.musfit.domain.profile.ActivityLevel.Moderate -> R.string.profile_activity_moderate
+    com.musfit.domain.profile.ActivityLevel.Active -> R.string.profile_activity_active
+    com.musfit.domain.profile.ActivityLevel.VeryActive -> R.string.profile_activity_very_active
 }
 
-internal fun com.musfit.domain.profile.GoalType.label(): String = when (this) {
-    com.musfit.domain.profile.GoalType.Lose -> "Lose"
-    com.musfit.domain.profile.GoalType.Maintain -> "Maintain"
-    com.musfit.domain.profile.GoalType.Gain -> "Gain"
+internal fun com.musfit.domain.profile.GoalType.labelResource(): Int = when (this) {
+    com.musfit.domain.profile.GoalType.Lose -> R.string.profile_goal_lose
+    com.musfit.domain.profile.GoalType.Maintain -> R.string.profile_goal_maintain
+    com.musfit.domain.profile.GoalType.Gain -> R.string.profile_goal_gain
 }
 
-internal fun com.musfit.domain.profile.Sex.label(): String = when (this) {
-    com.musfit.domain.profile.Sex.Male -> "Male"
-    com.musfit.domain.profile.Sex.Female -> "Female"
+internal fun com.musfit.domain.profile.Sex.labelResource(): Int = when (this) {
+    com.musfit.domain.profile.Sex.Male -> R.string.profile_sex_male
+    com.musfit.domain.profile.Sex.Female -> R.string.profile_sex_female
 }

@@ -15,7 +15,10 @@ android {
         create("legacyMigration") { dimension = "distribution" }
     }
     buildTypes {
-        debug { enableUnitTestCoverage = true }
+        debug {
+            enableUnitTestCoverage = true
+            isPseudoLocalesEnabled = true
+        }
         create("benchmark") {
             initWith(getByName("release"))
             matchingFallbacks += "release"

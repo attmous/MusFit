@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="profile_ai_endpoint_policy_note">HTTP is limited to localhost and literal loopback/private IP addresses; use HTTPS for hostnames.</string>
+</resources>

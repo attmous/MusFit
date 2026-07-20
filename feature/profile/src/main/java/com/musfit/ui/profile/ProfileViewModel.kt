@@ -20,6 +20,10 @@ import com.musfit.domain.profile.BodyMetricsCalculator
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.today.WeeklyGoalsCalculator
+import com.musfit.feature.profile.R
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.uiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,7 +49,7 @@ data class WeightHeroState(
 
 data class MeasurementTile(
     val type: String,
-    val label: String,
+    val label: UiText,
     val value: Double?,
     val unit: String,
     val deltaFromPrevious: Double?,
@@ -66,18 +70,9 @@ data class ProfileUiState(
     val weightEntries: List<WeightEntry> = emptyList(),
     val measurementEntries: Map<String, List<BodyMeasurement>> = emptyMap(),
     /** The "Goals & programs" row subline: pace · diet figure · program ×target. */
-    val plansSummary: String = "",
+    val plansSummary: UiText? = null,
     val isHealthConnectNudgeVisible: Boolean = false,
-    val message: String? = null,
-)
-
-private val MEASUREMENT_LABELS = mapOf(
-    "waist" to "Waist",
-    "chest" to "Chest",
-    "arms" to "Arms",
-    "thighs" to "Thighs",
-    "hips" to "Hips",
-    "body_fat" to "Body fat",
+    val message: UiText? = null,
 )
 
 private fun defaultUnitFor(type: String) = if (type == "body_fat") "%" else "cm"
@@ -91,7 +86,7 @@ class ProfileViewModel internal constructor(
     private val goalsRepository: GoalsRepository,
     private val dateProvider: () -> LocalDate,
 ) : ViewModel() {
-    private val messageFlow = MutableStateFlow<String?>(null)
+    private val messageFlow = MutableStateFlow<UiText?>(null)
     private val nudgeFlow = MutableStateFlow(false)
 
     /** The day every hub window is anchored to; re-resolved on each resume so a
@@ -206,35 +201,35 @@ class ProfileViewModel internal constructor(
     fun saveProfile(profile: UserProfile) {
         viewModelScope.launch {
             runCatching { profileRepository.saveProfile(profile) }
-                .onFailure { messageFlow.value = it.message ?: "Could not save profile." }
+                .onFailure { messageFlow.value = it.messageOr(R.string.profile_error_save_profile) }
         }
     }
 
     fun logWeight(weightKg: Double) {
         viewModelScope.launch {
             runCatching { profileRepository.logWeight(weightKg) }
-                .onFailure { messageFlow.value = it.message ?: "Could not log weight." }
+                .onFailure { messageFlow.value = it.messageOr(R.string.profile_error_log_weight) }
         }
     }
 
     fun logMeasurement(type: String, value: Double, unit: String) {
         viewModelScope.launch {
             runCatching { profileRepository.logMeasurement(type, value, unit) }
-                .onFailure { messageFlow.value = it.message ?: "Could not log measurement." }
+                .onFailure { messageFlow.value = it.messageOr(R.string.profile_error_log_measurement) }
         }
     }
 
     fun editEntry(id: String, value: Double) {
         viewModelScope.launch {
             runCatching { profileRepository.updateEntryValue(id, value) }
-                .onFailure { messageFlow.value = it.message ?: "Could not update entry." }
+                .onFailure { messageFlow.value = it.messageOr(R.string.profile_error_update_entry) }
         }
     }
 
     fun deleteEntry(id: String) {
         viewModelScope.launch {
             runCatching { profileRepository.deleteEntry(id) }
-                .onFailure { messageFlow.value = it.message ?: "Could not delete entry." }
+                .onFailure { messageFlow.value = it.messageOr(R.string.profile_error_delete_entry) }
         }
     }
 
@@ -295,7 +290,7 @@ private fun buildMeasurementTile(
         ?: history.lastOrNull()
     return MeasurementTile(
         type = type,
-        label = MEASUREMENT_LABELS[type] ?: type,
+        label = MEASUREMENT_LABEL_RESOURCES[type]?.let(::uiText) ?: UiText.Verbatim(type),
         value = latest?.value,
         unit = latest?.unit ?: defaultUnitFor(type),
         // Deltas subtract raw values across rows; safe while the log dialog fixes one unit per type.
@@ -321,26 +316,49 @@ internal fun buildPlansSummary(
     goal: FoodGoal,
     routines: List<RoutineSummary>,
     userGoals: UserGoals,
-): String {
+    locale: Locale = Locale.getDefault(),
+): UiText {
     val pace = profile?.let {
         when (it.goalType) {
-            GoalType.Maintain -> "Maintain"
-            GoalType.Lose -> "Lose ${it.goalPaceKgPerWeek.format1()} kg/wk"
-            GoalType.Gain -> "Gain ${it.goalPaceKgPerWeek.format1()} kg/wk"
+            GoalType.Maintain -> uiText(R.string.profile_goal_maintain)
+
+            GoalType.Lose -> uiText(
+                R.string.profile_goal_lose_pace,
+                UiText.Argument.Text(LocalizedFormatter.number(it.goalPaceKgPerWeek, maximumFractionDigits = 1, locale = locale)),
+            )
+
+            GoalType.Gain -> uiText(
+                R.string.profile_goal_gain_pace,
+                UiText.Argument.Text(LocalizedFormatter.number(it.goalPaceKgPerWeek, maximumFractionDigits = 1, locale = locale)),
+            )
         }
     }
     val dietFigure = when (goal.mode) {
         FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain ->
-            "${goal.proteinGrams.roundToInt()} g protein"
+            uiText(
+                R.string.profile_value_protein_grams,
+                UiText.Argument.Text(LocalizedFormatter.integer(goal.proteinGrams.roundToInt().toLong(), locale = locale)),
+            )
 
-        else -> String.format(Locale.US, "%,d kcal", goal.dailyCaloriesKcal.roundToInt())
+        else -> uiText(
+            R.string.profile_value_kcal,
+            UiText.Argument.Text(LocalizedFormatter.integer(goal.dailyCaloriesKcal.roundToInt().toLong(), locale = locale)),
+        )
     }
     val routine = routines.firstOrNull() // the coach's existing "next routine" convention
     val program = routine?.let {
         val name = it.programName ?: it.name
-        if (userGoals.weeklySessionTarget > 0) "$name ×${userGoals.weeklySessionTarget}" else name
+        if (userGoals.weeklySessionTarget > 0) {
+            uiText(
+                R.string.profile_program_weekly_target,
+                UiText.Argument.Text(name),
+                UiText.Argument.Text(LocalizedFormatter.integer(userGoals.weeklySessionTarget.toLong(), locale = locale)),
+            )
+        } else {
+            UiText.Verbatim(name)
+        }
     }
-    return listOfNotNull(pace, dietFigure, program).joinToString(" · ")
+    return listOfNotNull(pace, dietFigure, program).joinedWithMiddleDot()
 }
 
 private const val DAY_MILLIS = 86_400_000L

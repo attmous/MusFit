@@ -13,6 +13,8 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.musfit.data.repository.DEFAULT_USER_PROFILE
+import com.musfit.domain.profile.GoalType
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
@@ -32,36 +34,88 @@ class ProfileScreenshotRegressionTest {
 
     @Test
     fun profile_foldable_light_ltr() {
+        capture("profile-foldable-light-ltr.png") {
+            SettingsFixture()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "en-rXA-w400dp-h800dp-mdpi")
+    fun profileEditor_phone_pseudo_largeFont() {
+        capture("profile-editor-phone-pseudo-font-150.png", fontScale = 1.5f) {
+            ProfileEditSheet(
+                initial = DEFAULT_USER_PROFILE,
+                initialWeightKg = 80.0,
+                onDismiss = {},
+                onSave = { _, _ -> },
+            )
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "ar-rXB-w400dp-h800dp-mdpi")
+    fun profileSettings_phone_pseudoRtl() {
+        capture("profile-settings-phone-pseudo-rtl.png", rtl = true) {
+            SettingsFixture()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "de-rDE-w610dp-h900dp-mdpi")
+    fun profileEditor_foldable_german() {
+        capture("profile-editor-foldable-german.png") {
+            ProfileEditSheet(
+                initial = DEFAULT_USER_PROFILE.copy(goalType = GoalType.Gain, goalPaceKgPerWeek = 0.3),
+                initialWeightKg = 80.5,
+                onDismiss = {},
+                onSave = { _, _ -> },
+            )
+        }
+    }
+
+    private fun capture(
+        fileName: String,
+        rtl: Boolean = false,
+        fontScale: Float = 1f,
+        content: @Composable () -> Unit,
+    ) {
         compose.setContent {
-            ScreenshotFrame {
-                SettingsHub(
-                    state = ProfileSettingsUiState(),
-                    accent = tabAccentFor(TabAccentRole.Profile),
-                    onBack = {},
-                    onEditAccount = {},
-                    onOpenProfileDetails = {},
-                    onGoogleSignIn = {},
-                    onGitHubSignIn = {},
-                    onOpenAiCoach = {},
-                    onOpenHealthConnect = {},
-                    onOpenDataTransfer = {},
-                    onIncludeBurnedCaloriesChange = {},
-                    googleSignInConfigured = false,
-                    versionName = "test",
-                )
-            }
+            ScreenshotFrame(rtl = rtl, fontScale = fontScale, content = content)
         }
         compose.waitForIdle()
-        compose.onRoot().captureRoboImage("profile-foldable-light-ltr.png")
+        compose.onRoot().captureRoboImage(fileName)
     }
 }
 
 @Composable
-private fun ScreenshotFrame(content: @Composable () -> Unit) {
+private fun SettingsFixture() {
+    SettingsHub(
+        state = ProfileSettingsUiState(),
+        accent = tabAccentFor(TabAccentRole.Profile),
+        onBack = {},
+        onEditAccount = {},
+        onOpenProfileDetails = {},
+        onGoogleSignIn = {},
+        onGitHubSignIn = {},
+        onOpenAiCoach = {},
+        onOpenHealthConnect = {},
+        onOpenDataTransfer = {},
+        onIncludeBurnedCaloriesChange = {},
+        googleSignInConfigured = false,
+        versionName = "test",
+    )
+}
+
+@Composable
+private fun ScreenshotFrame(
+    rtl: Boolean = false,
+    fontScale: Float = 1f,
+    content: @Composable () -> Unit,
+) {
     val density = LocalDensity.current
     CompositionLocalProvider(
-        LocalDensity provides Density(density.density, 1f),
-        LocalLayoutDirection provides LayoutDirection.Ltr,
+        LocalDensity provides Density(density.density, fontScale),
+        LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
     ) {
         MusFitTheme(darkTheme = false) {
             Box(Modifier.fillMaxSize().background(MusFitTheme.colors.background)) { content() }

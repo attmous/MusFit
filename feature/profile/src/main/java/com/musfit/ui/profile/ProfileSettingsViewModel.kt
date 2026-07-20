@@ -29,8 +29,14 @@ import com.musfit.data.repository.UserProfile
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.health.StepSource
 import com.musfit.domain.profile.RecommendedTargets
+import com.musfit.feature.profile.R
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -43,8 +49,6 @@ import java.time.LocalDate
 import java.util.Locale
 import javax.inject.Inject
 
-private const val DEFAULT_STATUS_MESSAGE = "Refresh status to check whether Health Connect is ready."
-private const val ALL_STEP_SOURCES_LABEL = "All sources (unified)"
 internal const val HERMES_DEFAULT_MODEL_NAME = "hermes-agent"
 private const val ACCOUNT_EDITOR_OPEN_KEY = "profile.accountEditor.open"
 private const val ACCOUNT_EDITOR_NAME_KEY = "profile.accountEditor.name"
@@ -55,10 +59,10 @@ private const val AI_COACH_EDITOR_BASE_URL_KEY = "profile.aiCoachEditor.baseUrl"
 private const val AI_COACH_EDITOR_MODEL_NAME_KEY = "profile.aiCoachEditor.modelName"
 private const val AI_COACH_EDITOR_LOCAL_AGENT_KEY = "profile.aiCoachEditor.localAgent"
 
-private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSource>): String = if (preferredStepsPackage == null) {
-    ALL_STEP_SOURCES_LABEL
+private fun stepSourceLabel(preferredStepsPackage: String?, sources: List<StepSource>): UiText = if (preferredStepsPackage == null) {
+    uiText(R.string.profile_all_step_sources)
 } else {
-    sources.firstOrNull { it.packageName == preferredStepsPackage }?.label ?: preferredStepsPackage
+    UiText.Verbatim(sources.firstOrNull { it.packageName == preferredStepsPackage }?.label ?: preferredStepsPackage)
 }
 
 /** Lifecycle of the coach connection test — drives the 11c hero status line. */
@@ -67,21 +71,21 @@ enum class AiCoachTestState { Idle, Testing, Success, Failure }
 enum class TargetApplyState { Idle, Applying, Success, Failure }
 
 data class ProfileSettingsUiState(
-    val availabilityLabel: String = "Unknown",
+    val availabilityLabel: UiText = uiText(R.string.profile_unknown),
     val grantedPermissionCount: Int = 0,
     val requestablePermissionCount: Int = 0,
     val requestablePermissions: Set<String> = emptySet(),
     val canRequestPermissions: Boolean = false,
     val isHealthConnectSyncing: Boolean = false,
-    val message: String = DEFAULT_STATUS_MESSAGE,
+    val message: UiText = uiText(R.string.profile_health_status_refresh),
     val preferredStepsPackage: String? = null,
-    val stepSourceLabel: String = ALL_STEP_SOURCES_LABEL,
+    val stepSourceLabel: UiText = uiText(R.string.profile_all_step_sources),
     val stepSources: List<StepSource> = emptyList(),
     val account: AccountUiState = AccountUiState(),
     val accountEditorOpen: Boolean = false,
     val accountNameInput: String = "",
     val accountEmailInput: String = "",
-    val accountErrorMessage: String? = null,
+    val accountErrorMessage: UiText? = null,
     val accountErasureScope: AccountErasureScope? = null,
     val deleteAuthoredHealthRecords: Boolean = false,
     val isErasingAccountData: Boolean = false,
@@ -97,8 +101,8 @@ data class ProfileSettingsUiState(
     val aiCoachModelNameInput: String = "",
     val aiCoachLocalAgentInput: LocalAgentKind = LocalAgentKind.Custom,
     val aiCoachApiKeyInput: String = "",
-    val aiCoachErrorMessage: String? = null,
-    val aiCoachMessage: String? = null,
+    val aiCoachErrorMessage: UiText? = null,
+    val aiCoachMessage: UiText? = null,
     val isAiCoachTesting: Boolean = false,
     val aiCoachTestState: AiCoachTestState = AiCoachTestState.Idle,
     val includeBurnedCalories: Boolean = false,
@@ -112,11 +116,11 @@ data class AiCoachSettingsUiState(
     val modelName: String = "",
     val localAgentKind: LocalAgentKind = LocalAgentKind.Custom,
     val hasApiKey: Boolean = false,
-    val providerLabel: String = "Off",
-    val endpointLabel: String = "Not set",
-    val modelLabel: String = "Not set",
-    val localAgentLabel: String = "Custom local agent",
-    val apiKeyLabel: String = "No API key",
+    val providerLabel: UiText = uiText(R.string.profile_off),
+    val endpointLabel: UiText = uiText(R.string.profile_not_set),
+    val modelLabel: UiText = uiText(R.string.profile_not_set),
+    val localAgentLabel: UiText = uiText(R.string.profile_custom_local_agent),
+    val apiKeyLabel: UiText = uiText(R.string.profile_no_api_key),
 )
 
 internal data class ProviderSignInActionsUiState(
@@ -125,10 +129,10 @@ internal data class ProviderSignInActionsUiState(
 )
 
 internal data class ProviderSignInActionUiState(
-    val providerLabel: String,
-    val buttonLabel: String,
-    val statusLabel: String,
-    val supportingText: String,
+    val providerLabel: UiText,
+    val buttonLabel: UiText,
+    val statusLabel: UiText,
+    val supportingText: UiText,
     val enabled: Boolean,
 )
 
@@ -138,32 +142,32 @@ internal fun providerSignInActions(
     githubBusy: Boolean,
 ): ProviderSignInActionsUiState = ProviderSignInActionsUiState(
     google = ProviderSignInActionUiState(
-        providerLabel = "Google",
-        buttonLabel = "Connect Google",
+        providerLabel = uiText(R.string.profile_google),
+        buttonLabel = uiText(R.string.profile_connect_google),
         statusLabel = when {
-            !googleConfigured -> "Setup needed"
-            githubBusy -> "Waiting"
-            else -> "Ready"
+            !googleConfigured -> uiText(R.string.profile_setup_needed)
+            githubBusy -> uiText(R.string.profile_waiting)
+            else -> uiText(R.string.profile_ready)
         },
         supportingText = when {
-            !googleConfigured -> "Missing Google OAuth client ID in this build."
-            githubBusy -> "Wait for GitHub to finish first."
-            else -> "Links Google to this local account. MusFit still keeps your data on this device."
+            !googleConfigured -> uiText(R.string.profile_google_missing_client)
+            githubBusy -> uiText(R.string.profile_wait_github_finish)
+            else -> uiText(R.string.profile_google_local_link_explanation)
         },
         enabled = googleConfigured && !githubBusy,
     ),
     github = ProviderSignInActionUiState(
-        providerLabel = "GitHub",
-        buttonLabel = if (githubBusy) "Waiting for GitHub" else "Connect GitHub",
+        providerLabel = uiText(R.string.profile_github),
+        buttonLabel = uiText(if (githubBusy) R.string.profile_waiting_github else R.string.profile_connect_github),
         statusLabel = when {
-            githubBusy -> "In progress"
-            !githubConfigured -> "Setup needed"
-            else -> "Ready"
+            githubBusy -> uiText(R.string.profile_in_progress)
+            !githubConfigured -> uiText(R.string.profile_setup_needed)
+            else -> uiText(R.string.profile_ready)
         },
         supportingText = when {
-            githubBusy -> "Enter the code in GitHub to finish linking your local account."
-            !githubConfigured -> "Missing GitHub OAuth client ID in this build."
-            else -> "Uses GitHub device flow to link your local account."
+            githubBusy -> uiText(R.string.profile_github_enter_code_supporting)
+            !githubConfigured -> uiText(R.string.profile_github_missing_client)
+            else -> uiText(R.string.profile_github_device_flow_explanation)
         },
         enabled = githubConfigured && !githubBusy,
     ),
@@ -176,18 +180,18 @@ internal fun providerSignInActions(
  * future `mutableState.update { it.copy(...) }` can never silently drop them.
  */
 private data class HealthConnectState(
-    val availabilityLabel: String = "Unknown",
+    val availabilityLabel: UiText = uiText(R.string.profile_unknown),
     val grantedPermissionCount: Int = 0,
     val requestablePermissionCount: Int = 0,
     val requestablePermissions: Set<String> = emptySet(),
     val canRequestPermissions: Boolean = false,
     val isHealthConnectSyncing: Boolean = false,
-    val message: String = DEFAULT_STATUS_MESSAGE,
+    val message: UiText = uiText(R.string.profile_health_status_refresh),
     val stepSources: List<StepSource> = emptyList(),
     val githubDeviceCode: GitHubDeviceAuthorization? = null,
     val githubSignInInProgress: Boolean = false,
     val isGitHubSignInConfigured: Boolean = false,
-    val aiCoachMessage: String? = null,
+    val aiCoachMessage: UiText? = null,
     val isAiCoachTesting: Boolean = false,
     val aiCoachTestState: AiCoachTestState = AiCoachTestState.Idle,
     val targetApplyState: TargetApplyState = TargetApplyState.Idle,
@@ -203,7 +207,7 @@ private data class AccountEditorState(
     val open: Boolean = false,
     val nameInput: String = "",
     val emailInput: String = "",
-    val errorMessage: String? = null,
+    val errorMessage: UiText? = null,
 )
 
 private data class AccountErasureState(
@@ -219,7 +223,7 @@ private data class AiCoachEditorState(
     val modelNameInput: String = "",
     val localAgentKind: LocalAgentKind = LocalAgentKind.Custom,
     val apiKeyInput: String = "",
-    val errorMessage: String? = null,
+    val errorMessage: UiText? = null,
 )
 
 private fun SavedStateHandle.restoreAccountEditor(): AccountEditorState = AccountEditorState(
@@ -326,13 +330,19 @@ class ProfileSettingsViewModel @Inject constructor(
     )
     private val accountErasureFlow = MutableStateFlow(AccountErasureState())
     private val editorDraftState = ProfileSettingsEditorDraftState(savedStateHandle)
+    private val healthActions = ProfileHealthSettingsActions(
+        healthRepository = healthRepository,
+        foodRepository = foodRepository,
+        mutableState = mutableState,
+        scope = viewModelScope,
+    )
 
     init {
         viewModelScope.launch {
             runCatching { accountRepository.ensureActiveAccount() }
                 .onFailure { error ->
                     mutableState.update {
-                        it.copy(message = error.message ?: "Could not prepare your local account.")
+                        it.copy(message = error.messageOr(R.string.profile_error_prepare_account))
                     }
                 }
         }
@@ -419,161 +429,28 @@ class ProfileSettingsViewModel @Inject constructor(
         initialValue = ProfileSettingsUiState(),
     )
 
-    fun refreshStatus() {
-        viewModelScope.launch {
-            runCatching {
-                val status = healthRepository.status()
-                val requestablePermissions = healthRepository.requestablePermissions()
-                val launchablePermissions = if (status.availability == HealthConnectAvailability.Available) {
-                    requestablePermissions
-                } else {
-                    emptySet()
-                }
-                mutableState.update {
-                    it.copy(
-                        availabilityLabel = status.availability.label(),
-                        grantedPermissionCount = status.grantedPermissions.size,
-                        requestablePermissionCount = requestablePermissions.size,
-                        requestablePermissions = launchablePermissions,
-                        canRequestPermissions = status.availability == HealthConnectAvailability.Available &&
-                            launchablePermissions.isNotEmpty(),
-                        message = status.toMessage(requestablePermissions.size),
-                    )
-                }
-                loadStepSources()
-            }.onFailure {
-                mutableState.update {
-                    it.copy(
-                        availabilityLabel = "Unknown",
-                        grantedPermissionCount = 0,
-                        requestablePermissionCount = 0,
-                        requestablePermissions = emptySet(),
-                        canRequestPermissions = false,
-                        message = "Unable to refresh Health Connect status right now. Try again from the Profile tab.",
-                    )
-                }
-            }
-        }
-    }
+    fun refreshStatus() = healthActions.refreshStatus()
 
-    fun importToday() {
-        viewModelScope.launch {
-            runCatching {
-                healthRepository.importDailySummary(LocalDate.now())
-            }.onSuccess { summary ->
-                mutableState.update {
-                    it.copy(message = summary.importMessage())
-                }
-            }.onFailure { error ->
-                mutableState.update {
-                    it.copy(message = error.message ?: "Unable to import from Health Connect.")
-                }
-            }
-        }
-    }
+    fun importToday() = healthActions.importToday()
 
-    fun syncRecentHealthData() {
-        viewModelScope.launch {
-            mutableState.update { it.copy(isHealthConnectSyncing = true) }
-            runCatching {
-                healthRepository.refreshRecentData(LocalDate.now())
-            }.onSuccess { result ->
-                mutableState.update {
-                    it.copy(
-                        isHealthConnectSyncing = false,
-                        message = result.toMessage(),
-                    )
-                }
-            }.onFailure { error ->
-                mutableState.update {
-                    it.copy(
-                        isHealthConnectSyncing = false,
-                        message = error.message ?: "Unable to sync Health Connect data.",
-                    )
-                }
-            }
-        }
-    }
+    fun syncRecentHealthData() = healthActions.syncRecentHealthData()
 
-    fun exportLatestWorkout() {
-        viewModelScope.launch {
-            runCatching {
-                healthRepository.exportLatestWorkout()
-            }.onSuccess { recordId ->
-                mutableState.update {
-                    it.copy(
-                        message = if (recordId != null) {
-                            "Exported latest workout to Health Connect."
-                        } else {
-                            "No workout was exported. Check permissions and log a workout first."
-                        },
-                    )
-                }
-            }.onFailure { error ->
-                mutableState.update {
-                    it.copy(message = error.message ?: "Unable to export workout to Health Connect.")
-                }
-            }
-        }
-    }
+    fun exportLatestWorkout() = healthActions.exportLatestWorkout()
 
-    fun selectStepSource(packageName: String?) {
-        if (mutableState.value.isHealthConnectSyncing) return
-        mutableState.update { it.copy(isHealthConnectSyncing = true) }
-        viewModelScope.launch {
-            runCatching {
-                healthRepository.setPreferredStepsPackage(packageName)
-                healthRepository.refreshRecentData(LocalDate.now())
-            }.onSuccess {
-                mutableState.update {
-                    it.copy(
-                        isHealthConnectSyncing = false,
-                        message = "Updated steps source. MusFit now shows " +
-                            "${stepSourceLabel(packageName, it.stepSources)}.",
-                    )
-                }
-            }.onFailure { error ->
-                mutableState.update {
-                    it.copy(
-                        isHealthConnectSyncing = false,
-                        message = error.message ?: "Unable to update steps source.",
-                    )
-                }
-            }
-        }
-    }
-
-    private fun loadStepSources() {
-        viewModelScope.launch {
-            val sources = runCatching { healthRepository.readStepSources(LocalDate.now()) }
-                .getOrDefault(emptyList())
-            mutableState.update { it.copy(stepSources = sources) }
-        }
-    }
+    fun selectStepSource(packageName: String?) = healthActions.selectStepSource(packageName)
 
     /**
      * Master switch for the burned-calorie budget adjustment. It writes the food goal's
      * `includeTrainingCalories` flag — the same value the Food goal editor toggles — so both
      * stay in sync. When off, Health Connect burned calories are never added to "kcal left".
      */
-    fun setIncludeBurnedCalories(enabled: Boolean) {
-        viewModelScope.launch {
-            runCatching {
-                val current = foodRepository.observeFoodGoal().first()
-                foodRepository.updateFoodGoal(current.copy(includeTrainingCalories = enabled))
-            }.onFailure { error ->
-                mutableState.update {
-                    it.copy(message = error.message ?: "Could not update the burned-calorie setting.")
-                }
-            }
-        }
-    }
+    fun setIncludeBurnedCalories(enabled: Boolean) = healthActions.setIncludeBurnedCalories(enabled)
 
     fun saveProfile(profile: UserProfile) {
         viewModelScope.launch {
             runCatching { profileRepository.saveProfile(profile) }
                 .onFailure { error ->
-                    mutableState.update { it.copy(message = error.message ?: "Could not save profile.") }
+                    mutableState.update { it.copy(message = error.messageOr(R.string.profile_error_save_profile)) }
                 }
         }
     }
@@ -582,7 +459,7 @@ class ProfileSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { profileRepository.logWeight(weightKg) }
                 .onFailure { error ->
-                    mutableState.update { it.copy(message = error.message ?: "Could not log weight.") }
+                    mutableState.update { it.copy(message = error.messageOr(R.string.profile_error_log_weight)) }
                 }
         }
     }
@@ -628,7 +505,7 @@ class ProfileSettingsViewModel @Inject constructor(
                 )
             }.getOrElse { error ->
                 accountErasureFlow.update { it.copy(inProgress = false) }
-                mutableState.update { it.copy(message = error.message ?: "Data erasure failed.") }
+                mutableState.update { it.copy(message = error.messageOr(R.string.profile_error_data_erasure)) }
                 return@launch
             }
             when (result) {
@@ -636,18 +513,20 @@ class ProfileSettingsViewModel @Inject constructor(
                     accountErasureFlow.value = AccountErasureState()
                     mutableState.update {
                         it.copy(
-                            message = if (scope == AccountErasureScope.AllAccounts) {
-                                "All local MusFit data was erased. A fresh local account is ready."
-                            } else {
-                                "The account and its local MusFit data were erased."
-                            },
+                            message = uiText(
+                                if (scope == AccountErasureScope.AllAccounts) {
+                                    R.string.profile_erased_all_data
+                                } else {
+                                    R.string.profile_erased_account_data
+                                },
+                            ),
                         )
                     }
                 }
 
                 is AccountErasureResult.HealthCleanupFailed -> {
                     accountErasureFlow.update { it.copy(inProgress = false) }
-                    mutableState.update { it.copy(message = result.message) }
+                    mutableState.update { it.copy(message = UiText.Verbatim(result.message)) }
                 }
             }
         }
@@ -664,7 +543,7 @@ class ProfileSettingsViewModel @Inject constructor(
     fun saveAccount() {
         val editor = editorDraftState.accountEditorFlow.value
         if (editor.nameInput.isBlank()) {
-            editorDraftState.updateAccount { it.copy(errorMessage = "Account name is required.") }
+            editorDraftState.updateAccount { it.copy(errorMessage = uiText(R.string.profile_account_name_required)) }
             return
         }
         viewModelScope.launch {
@@ -677,7 +556,7 @@ class ProfileSettingsViewModel @Inject constructor(
                 editorDraftState.setAccount(AccountEditorState())
             }.onFailure { error ->
                 editorDraftState.updateAccount {
-                    it.copy(errorMessage = error.message ?: "Could not save account.")
+                    it.copy(errorMessage = error.messageOr(R.string.profile_error_save_account))
                 }
             }
         }
@@ -691,13 +570,18 @@ class ProfileSettingsViewModel @Inject constructor(
 
     fun reportExternalSignInFailure(providerName: String, error: Throwable) {
         mutableState.update {
-            it.copy(message = error.message ?: "Could not sign in with $providerName.")
+            it.copy(
+                message = error.message?.let(UiText::Verbatim) ?: uiText(
+                    R.string.profile_error_sign_in_provider,
+                    UiText.Argument.Text(providerName),
+                ),
+            )
         }
     }
 
     fun signInWithGitHub() {
         if (!externalAuthRepository.isGitHubConfigured) {
-            mutableState.update { it.copy(message = "GitHub sign-in is not configured.") }
+            mutableState.update { it.copy(message = uiText(R.string.profile_github_not_configured)) }
             return
         }
         viewModelScope.launch {
@@ -705,7 +589,7 @@ class ProfileSettingsViewModel @Inject constructor(
                 it.copy(
                     githubSignInInProgress = true,
                     githubDeviceCode = null,
-                    message = "Starting GitHub sign-in.",
+                    message = uiText(R.string.profile_github_starting),
                 )
             }
             runCatching {
@@ -713,7 +597,10 @@ class ProfileSettingsViewModel @Inject constructor(
                     mutableState.update {
                         it.copy(
                             githubDeviceCode = authorization,
-                            message = "Enter ${authorization.userCode} at GitHub to finish sign-in.",
+                            message = uiText(
+                                R.string.profile_github_enter_code,
+                                UiText.Argument.Text(authorization.userCode),
+                            ),
                         )
                     }
                 }
@@ -723,7 +610,7 @@ class ProfileSettingsViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         githubSignInInProgress = false,
-                        message = error.message ?: "Could not sign in with GitHub.",
+                        message = error.messageOr(R.string.profile_error_sign_in_github),
                     )
                 }
             }
@@ -741,7 +628,10 @@ class ProfileSettingsViewModel @Inject constructor(
             mutableState.update {
                 it.copy(
                     githubSignInInProgress = false,
-                    message = "Signed in with ${profile.provider.messageLabel()}.",
+                    message = uiText(
+                        R.string.profile_signed_in_provider,
+                        UiText.Argument.Nested(profile.provider.messageLabel()),
+                    ),
                 )
             }
             editorDraftState.setAccount(AccountEditorState())
@@ -749,7 +639,7 @@ class ProfileSettingsViewModel @Inject constructor(
             mutableState.update {
                 it.copy(
                     githubSignInInProgress = false,
-                    message = error.message ?: "Could not sign in.",
+                    message = error.messageOr(R.string.profile_error_sign_in),
                 )
             }
         }
@@ -845,11 +735,11 @@ class ProfileSettingsViewModel @Inject constructor(
                 editorDraftState.setAiCoach(AiCoachEditorState())
                 // A previous test result no longer describes the new settings.
                 mutableState.update {
-                    it.copy(aiCoachMessage = "AI coach setup saved.", aiCoachTestState = AiCoachTestState.Idle)
+                    it.copy(aiCoachMessage = uiText(R.string.profile_ai_saved), aiCoachTestState = AiCoachTestState.Idle)
                 }
             }.onFailure { error ->
                 editorDraftState.updateAiCoach {
-                    it.copy(errorMessage = error.message ?: "Could not save AI coach setup.")
+                    it.copy(errorMessage = error.messageOr(R.string.profile_error_save_ai))
                 }
             }
         }
@@ -860,12 +750,12 @@ class ProfileSettingsViewModel @Inject constructor(
             runCatching { aiCoachRepository.clearApiKey() }
                 .onSuccess {
                     mutableState.update {
-                        it.copy(aiCoachMessage = "AI coach API key cleared.", aiCoachTestState = AiCoachTestState.Idle)
+                        it.copy(aiCoachMessage = uiText(R.string.profile_ai_key_cleared), aiCoachTestState = AiCoachTestState.Idle)
                     }
                 }
                 .onFailure { error ->
                     mutableState.update {
-                        it.copy(aiCoachMessage = error.message ?: "Could not clear AI coach API key.")
+                        it.copy(aiCoachMessage = error.messageOr(R.string.profile_error_clear_ai_key))
                     }
                 }
         }
@@ -873,7 +763,7 @@ class ProfileSettingsViewModel @Inject constructor(
 
     fun reportAiCoachLocalNetworkPermissionDenied(message: String) {
         mutableState.update {
-            it.copy(aiCoachMessage = message)
+            it.copy(aiCoachMessage = UiText.Verbatim(message))
         }
     }
 
@@ -883,7 +773,7 @@ class ProfileSettingsViewModel @Inject constructor(
                 it.copy(
                     isAiCoachTesting = true,
                     aiCoachTestState = AiCoachTestState.Testing,
-                    aiCoachMessage = "Testing AI coach connection...",
+                    aiCoachMessage = uiText(R.string.profile_ai_testing),
                 )
             }
             runCatching { aiCoachChatRepository.testConnection() }
@@ -892,7 +782,7 @@ class ProfileSettingsViewModel @Inject constructor(
                         it.copy(
                             isAiCoachTesting = false,
                             aiCoachTestState = AiCoachTestState.Success,
-                            aiCoachMessage = "AI coach connection is reachable.",
+                            aiCoachMessage = uiText(R.string.profile_ai_reachable),
                         )
                     }
                 }
@@ -901,7 +791,7 @@ class ProfileSettingsViewModel @Inject constructor(
                         it.copy(
                             isAiCoachTesting = false,
                             aiCoachTestState = AiCoachTestState.Failure,
-                            aiCoachMessage = error.message ?: "AI coach connection is not reachable.",
+                            aiCoachMessage = error.messageOr(R.string.profile_ai_not_reachable),
                         )
                     }
                 }
@@ -935,7 +825,7 @@ class ProfileSettingsViewModel @Inject constructor(
             }.onSuccess {
                 mutableState.update {
                     it.copy(
-                        message = "Applied your targets to Food goals.",
+                        message = uiText(R.string.profile_targets_applied),
                         targetApplyState = TargetApplyState.Success,
                         targetApplyTargets = targets,
                     )
@@ -943,7 +833,7 @@ class ProfileSettingsViewModel @Inject constructor(
             }.onFailure { error ->
                 mutableState.update {
                     it.copy(
-                        message = error.message ?: "Could not apply targets to Food.",
+                        message = error.messageOr(R.string.profile_error_apply_targets),
                         targetApplyState = TargetApplyState.Failure,
                         targetApplyTargets = targets,
                     )
@@ -953,14 +843,152 @@ class ProfileSettingsViewModel @Inject constructor(
     }
 }
 
+private class ProfileHealthSettingsActions(
+    private val healthRepository: HealthRepository,
+    private val foodRepository: FoodRepository,
+    private val mutableState: MutableStateFlow<HealthConnectState>,
+    private val scope: CoroutineScope,
+) {
+    fun refreshStatus() {
+        scope.launch {
+            runCatching {
+                val status = healthRepository.status()
+                val requestablePermissions = healthRepository.requestablePermissions()
+                val launchablePermissions = if (status.availability == HealthConnectAvailability.Available) {
+                    requestablePermissions
+                } else {
+                    emptySet()
+                }
+                mutableState.update {
+                    it.copy(
+                        availabilityLabel = status.availability.label(),
+                        grantedPermissionCount = status.grantedPermissions.size,
+                        requestablePermissionCount = requestablePermissions.size,
+                        requestablePermissions = launchablePermissions,
+                        canRequestPermissions = status.availability == HealthConnectAvailability.Available &&
+                            launchablePermissions.isNotEmpty(),
+                        message = status.toMessage(requestablePermissions.size),
+                    )
+                }
+                loadStepSources()
+            }.onFailure {
+                mutableState.update {
+                    it.copy(
+                        availabilityLabel = uiText(R.string.profile_unknown),
+                        grantedPermissionCount = 0,
+                        requestablePermissionCount = 0,
+                        requestablePermissions = emptySet(),
+                        canRequestPermissions = false,
+                        message = uiText(R.string.profile_error_refresh_health_status),
+                    )
+                }
+            }
+        }
+    }
+
+    fun importToday() {
+        scope.launch {
+            runCatching { healthRepository.importDailySummary(LocalDate.now()) }
+                .onSuccess { summary -> mutableState.update { it.copy(message = summary.importMessage()) } }
+                .onFailure { error ->
+                    mutableState.update { it.copy(message = error.messageOr(R.string.profile_error_import_health)) }
+                }
+        }
+    }
+
+    fun syncRecentHealthData() {
+        scope.launch {
+            mutableState.update { it.copy(isHealthConnectSyncing = true) }
+            runCatching { healthRepository.refreshRecentData(LocalDate.now()) }
+                .onSuccess { result ->
+                    mutableState.update { it.copy(isHealthConnectSyncing = false, message = result.toMessage()) }
+                }
+                .onFailure { error ->
+                    mutableState.update {
+                        it.copy(
+                            isHealthConnectSyncing = false,
+                            message = error.messageOr(R.string.profile_error_sync_health),
+                        )
+                    }
+                }
+        }
+    }
+
+    fun exportLatestWorkout() {
+        scope.launch {
+            runCatching { healthRepository.exportLatestWorkout() }
+                .onSuccess { recordId ->
+                    val message = if (recordId != null) {
+                        uiText(R.string.profile_exported_latest_workout)
+                    } else {
+                        uiText(R.string.profile_no_workout_exported)
+                    }
+                    mutableState.update { it.copy(message = message) }
+                }
+                .onFailure { error ->
+                    mutableState.update { it.copy(message = error.messageOr(R.string.profile_error_export_workout)) }
+                }
+        }
+    }
+
+    fun selectStepSource(packageName: String?) {
+        if (mutableState.value.isHealthConnectSyncing) return
+        mutableState.update { it.copy(isHealthConnectSyncing = true) }
+        scope.launch {
+            runCatching {
+                healthRepository.setPreferredStepsPackage(packageName)
+                healthRepository.refreshRecentData(LocalDate.now())
+            }.onSuccess {
+                mutableState.update {
+                    it.copy(
+                        isHealthConnectSyncing = false,
+                        message = uiText(
+                            R.string.profile_steps_source_updated,
+                            UiText.Argument.Nested(stepSourceLabel(packageName, it.stepSources)),
+                        ),
+                    )
+                }
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(
+                        isHealthConnectSyncing = false,
+                        message = error.messageOr(R.string.profile_error_update_steps_source),
+                    )
+                }
+            }
+        }
+    }
+
+    fun setIncludeBurnedCalories(enabled: Boolean) {
+        scope.launch {
+            runCatching {
+                val current = foodRepository.observeFoodGoal().first()
+                foodRepository.updateFoodGoal(current.copy(includeTrainingCalories = enabled))
+            }.onFailure { error ->
+                mutableState.update {
+                    it.copy(message = error.messageOr(R.string.profile_error_update_burned_calories))
+                }
+            }
+        }
+    }
+
+    private fun loadStepSources() {
+        scope.launch {
+            val sources = runCatching { healthRepository.readStepSources(LocalDate.now()) }
+                .getOrDefault(emptyList())
+            mutableState.update { it.copy(stepSources = sources) }
+        }
+    }
+}
+
 private fun <T> Result<T>.rethrowCancellation(): Result<T> = onFailure { error ->
     if (error is CancellationException) throw error
 }
 
-private fun AccountAuthProvider.messageLabel(): String = when (this) {
-    AccountAuthProvider.Local -> "local account"
-    AccountAuthProvider.Google -> "Google"
-    AccountAuthProvider.GitHub -> "GitHub"
+private fun AccountAuthProvider.messageLabel(): UiText = when (this) {
+    AccountAuthProvider.Local -> uiText(R.string.profile_local_account)
+    AccountAuthProvider.Google -> uiText(R.string.profile_google)
+    AccountAuthProvider.GitHub -> uiText(R.string.profile_github)
 }
 
 private fun AiCoachSettings.toUiState(): AiCoachSettingsUiState = AiCoachSettingsUiState(
@@ -970,112 +998,172 @@ private fun AiCoachSettings.toUiState(): AiCoachSettingsUiState = AiCoachSetting
     localAgentKind = localAgentKind,
     hasApiKey = hasApiKey,
     providerLabel = providerKind.displayLabel(localAgentKind),
-    endpointLabel = baseUrl.ifBlank { "Not set" },
-    modelLabel = modelName.ifBlank { "Not set" },
+    endpointLabel = baseUrl.takeIf(String::isNotBlank)?.let(UiText::Verbatim) ?: uiText(R.string.profile_not_set),
+    modelLabel = modelName.takeIf(String::isNotBlank)?.let(UiText::Verbatim) ?: uiText(R.string.profile_not_set),
     localAgentLabel = localAgentKind.displayLabel(),
-    apiKeyLabel = if (hasApiKey) "Key saved" else "No API key",
+    apiKeyLabel = uiText(if (hasApiKey) R.string.profile_key_saved else R.string.profile_no_api_key),
 )
 
-private fun AiCoachProviderKind.displayLabel(localAgentKind: LocalAgentKind): String = when (this) {
-    AiCoachProviderKind.Disabled -> "Off"
-    AiCoachProviderKind.OpenAiCompatible -> "API-compatible endpoint"
+private fun AiCoachProviderKind.displayLabel(localAgentKind: LocalAgentKind): UiText = when (this) {
+    AiCoachProviderKind.Disabled -> uiText(R.string.profile_off)
+    AiCoachProviderKind.OpenAiCompatible -> uiText(R.string.profile_api_compatible_endpoint)
     AiCoachProviderKind.LocalAgent -> localAgentKind.displayLabel()
 }
 
-private fun LocalAgentKind.displayLabel(): String = when (this) {
-    LocalAgentKind.OpenClaw -> "OpenClaw local agent"
-    LocalAgentKind.HermesAgent -> "Hermes agent"
-    LocalAgentKind.Custom -> "Custom local agent"
+private fun LocalAgentKind.displayLabel(): UiText = when (this) {
+    LocalAgentKind.OpenClaw -> uiText(R.string.profile_openclaw_agent)
+    LocalAgentKind.HermesAgent -> uiText(R.string.profile_hermes_agent)
+    LocalAgentKind.Custom -> uiText(R.string.profile_custom_local_agent)
 }
 
-private fun HealthConnectImportResult.importMessage(): String = when (this) {
+private fun HealthConnectImportResult.importMessage(): UiText = when (this) {
     is HealthConnectImportResult.Complete -> summary.importedSummaryMessage()
 
-    is HealthConnectImportResult.Partial ->
-        "Imported available Health Connect data, but ${failures.size} metric reads failed."
+    is HealthConnectImportResult.Partial -> uiText(
+        R.string.profile_health_import_partial,
+        UiText.Argument.Text(LocalizedFormatter.integer(failures.size.toLong())),
+    )
 
-    is HealthConnectImportResult.Empty -> "No Health Connect data was found for today."
+    is HealthConnectImportResult.Empty -> uiText(R.string.profile_health_import_empty)
 
-    is HealthConnectImportResult.Cleared -> "Health Connect no longer has data for today; cached values were cleared."
+    is HealthConnectImportResult.Cleared -> uiText(R.string.profile_health_import_cleared)
 
-    is HealthConnectImportResult.Unavailable -> message
+    is HealthConnectImportResult.Unavailable -> UiText.Verbatim(message)
 
-    is HealthConnectImportResult.Failure -> message
+    is HealthConnectImportResult.Failure -> UiText.Verbatim(message)
 }
 
-private fun com.musfit.domain.health.ImportedDailyHealthSummary.importedSummaryMessage(): String {
-    val stepsText = steps?.let { "$it steps" } ?: "health data"
-    val caloriesText = activeCaloriesKcal?.let { "${it.formatMetric()} kcal" }
-    val sleepText = sleepMinutes?.let { it.formatDuration() + " sleep" }
-    val exerciseText = exerciseMinutes?.let { it.formatDuration() + " exercise" }
-    val parts = listOfNotNull(stepsText, caloriesText, sleepText, exerciseText)
-    return "Imported ${parts.joinForSentence()} from Health Connect."
-}
-
-private fun HealthConnectRefreshResult.toMessage(): String {
-    if (importedDayCount == 0 && failedDayCount > 0) {
-        return "Health Connect sync failed for $failedDayCount ${if (failedDayCount == 1) "day" else "days"}."
+private fun com.musfit.domain.health.ImportedDailyHealthSummary.importedSummaryMessage(): UiText {
+    val stepsText = steps?.let {
+        uiText(
+            R.string.profile_health_steps,
+            UiText.Argument.Text(LocalizedFormatter.integer(it)),
+        )
+    } ?: uiText(R.string.profile_health_data)
+    val caloriesText = activeCaloriesKcal?.let {
+        uiText(R.string.profile_health_calories, UiText.Argument.Text(it.formatMetric()))
     }
-    val dayText = if (importedDayCount == 1) "1 day" else "$importedDayCount days"
+    val sleepText = sleepMinutes?.let {
+        uiText(R.string.profile_health_sleep, UiText.Argument.Nested(it.formatDuration()))
+    }
+    val exerciseText = exerciseMinutes?.let {
+        uiText(R.string.profile_health_exercise, UiText.Argument.Nested(it.formatDuration()))
+    }
+    val parts = listOfNotNull(stepsText, caloriesText, sleepText, exerciseText)
+    return uiText(R.string.profile_health_imported, UiText.Argument.Nested(parts.joinForSentence()))
+}
+
+private fun HealthConnectRefreshResult.toMessage(): UiText {
+    if (importedDayCount == 0 && failedDayCount > 0) {
+        return uiText(
+            R.string.profile_health_sync_failed,
+            UiText.Argument.Nested(failedDayCount.toDayCountText()),
+        )
+    }
+    val dayText = importedDayCount.toDayCountText()
     val metricText = when (bodyMetricCount) {
         0 -> null
-        1 -> "1 body metric"
-        else -> "$bodyMetricCount body metrics"
+
+        else -> pluralUiText(
+            R.plurals.profile_health_body_metrics,
+            bodyMetricCount,
+            UiText.Argument.Text(LocalizedFormatter.integer(bodyMetricCount.toLong())),
+        )
     }
     val warningText = when {
-        failedDayCount > 0 -> "$failedDayCount failed"
-        partialDayCount > 0 -> "$partialDayCount partial"
+        failedDayCount > 0 -> uiText(
+            R.string.profile_health_warning_failed,
+            UiText.Argument.Text(LocalizedFormatter.integer(failedDayCount.toLong())),
+        )
+
+        partialDayCount > 0 -> uiText(
+            R.string.profile_health_warning_partial,
+            UiText.Argument.Text(LocalizedFormatter.integer(partialDayCount.toLong())),
+        )
+
         else -> null
     }
-    return "Synced ${listOfNotNull(dayText, metricText, warningText).joinForSentence()} from Health Connect."
+    return uiText(
+        R.string.profile_health_synced,
+        UiText.Argument.Nested(listOfNotNull(dayText, metricText, warningText).joinForSentence()),
+    )
 }
 
-private fun Double.formatMetric(): String = if (this % 1.0 == 0.0) {
-    toInt().toString()
-} else {
-    String.format(Locale.US, "%.1f", this)
-}
+private fun Int.toDayCountText(): UiText = pluralUiText(
+    R.plurals.profile_health_days,
+    this,
+    UiText.Argument.Text(LocalizedFormatter.integer(toLong())),
+)
 
-private fun Long.formatDuration(): String {
+private fun Double.formatMetric(locale: Locale = Locale.getDefault()): String = LocalizedFormatter.number(this, maximumFractionDigits = 1, locale = locale)
+
+private fun Long.formatDuration(): UiText {
     val hours = this / 60L
     val minutes = this % 60L
     return if (hours > 0L) {
-        "${hours}h ${minutes.toString().padStart(2, '0')}m"
+        uiText(
+            R.string.profile_duration_hours_minutes,
+            UiText.Argument.Text(LocalizedFormatter.integer(hours)),
+            UiText.Argument.Text(LocalizedFormatter.integer(minutes)),
+        )
     } else {
-        "$minutes min"
+        pluralUiText(
+            R.plurals.profile_duration_minutes,
+            minutes.toInt(),
+            UiText.Argument.Text(LocalizedFormatter.integer(minutes)),
+        )
     }
 }
 
-private fun List<String>.joinForSentence(): String = when (size) {
-    0 -> "health data"
+private fun List<UiText>.joinForSentence(): UiText = when (size) {
+    0 -> uiText(R.string.profile_health_data)
+
     1 -> single()
-    2 -> "${this[0]} and ${this[1]}"
-    else -> dropLast(1).joinToString(", ") + ", and " + last()
+
+    2 -> uiText(
+        R.string.profile_join_and,
+        UiText.Argument.Nested(this[0]),
+        UiText.Argument.Nested(this[1]),
+    )
+
+    else -> uiText(
+        R.string.profile_join_comma_and,
+        UiText.Argument.Nested(
+            dropLast(1).reduce { accumulated, next ->
+                uiText(
+                    R.string.profile_join_comma,
+                    UiText.Argument.Nested(accumulated),
+                    UiText.Argument.Nested(next),
+                )
+            },
+        ),
+        UiText.Argument.Nested(last()),
+    )
 }
 
-private fun HealthConnectAvailability.label(): String = when (this) {
-    HealthConnectAvailability.Available -> "Available"
-    HealthConnectAvailability.NotInstalled -> "Install or update required"
-    HealthConnectAvailability.NotSupported -> "Not supported"
+private fun HealthConnectAvailability.label(): UiText = when (this) {
+    HealthConnectAvailability.Available -> uiText(R.string.profile_health_available)
+    HealthConnectAvailability.NotInstalled -> uiText(R.string.profile_health_install_required)
+    HealthConnectAvailability.NotSupported -> uiText(R.string.profile_health_not_supported)
 }
 
 private fun com.musfit.domain.health.HealthConnectStatus.toMessage(
     requestablePermissionCount: Int,
-): String = when (availability) {
+): UiText = when (availability) {
     HealthConnectAvailability.NotInstalled ->
-        "Install or update Health Connect to sync health data with MusFit."
+        uiText(R.string.profile_health_install_message)
 
     HealthConnectAvailability.NotSupported ->
-        "Health Connect is not supported on this device."
+        uiText(R.string.profile_health_not_supported_message)
 
     HealthConnectAvailability.Available -> when {
         grantedPermissions.isEmpty() ->
-            "No Health Connect permissions are granted. Tap Enable Health Connect sync to choose what MusFit can access."
+            uiText(R.string.profile_health_no_permissions)
 
         grantedPermissions.size < requestablePermissionCount ->
-            "Some Health Connect permissions are granted. Tap Enable Health Connect sync to review or add access."
+            uiText(R.string.profile_health_some_permissions)
 
         else ->
-            "Health Connect is ready. MusFit can read and write the enabled data types."
+            uiText(R.string.profile_health_ready_message)
     }
 }

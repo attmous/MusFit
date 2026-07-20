@@ -50,7 +50,10 @@ import com.musfit.domain.profile.ActivityLevel
 import com.musfit.domain.profile.GoalType
 import com.musfit.domain.profile.RecommendedTargets
 import com.musfit.domain.profile.Sex
+import com.musfit.feature.profile.R
 import com.musfit.testing.MainDispatcherRule
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.uiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -76,6 +79,24 @@ class ProfileSettingsViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
     private val dispatcher get() = mainDispatcherRule.dispatcher
+
+    private fun assertResource(expectedResourceId: Int, actual: UiText?) {
+        assertTrue(actual is UiText.Resource)
+        assertEquals(expectedResourceId, (actual as UiText.Resource).resourceId)
+    }
+
+    private fun UiText?.containsText(expected: String): Boolean = when (this) {
+        null -> false
+        is UiText.Verbatim -> value.contains(expected)
+        is UiText.Resource -> arguments.any { it.containsText(expected) }
+        is UiText.Plural -> arguments.any { it.containsText(expected) }
+    }
+
+    private fun UiText.Argument.containsText(expected: String): Boolean = when (this) {
+        is UiText.Argument.Text -> value.contains(expected)
+        is UiText.Argument.Nested -> value.containsText(expected)
+        else -> false
+    }
 
     private fun TestScope.settingsViewModel(
         healthRepository: HealthRepository = FakeHealthRepository(),
@@ -174,7 +195,7 @@ class ProfileSettingsViewModelTest {
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Available", viewModel.state.value.availabilityLabel)
+        assertEquals(uiText(R.string.profile_health_available), viewModel.state.value.availabilityLabel)
         assertEquals(1, viewModel.state.value.grantedPermissionCount)
         assertEquals(setOf("steps"), viewModel.state.value.requestablePermissions)
         assertEquals(true, viewModel.state.value.canRequestPermissions)
@@ -250,7 +271,7 @@ class ProfileSettingsViewModelTest {
             erasureRepository.requests,
         )
         assertEquals(null, viewModel.state.value.accountErasureScope)
-        assertEquals("The account and its local MusFit data were erased.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.profile_erased_account_data), viewModel.state.value.message)
     }
 
     @Test
@@ -267,15 +288,12 @@ class ProfileSettingsViewModelTest {
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Install or update required", viewModel.state.value.availabilityLabel)
+        assertEquals(uiText(R.string.profile_health_install_required), viewModel.state.value.availabilityLabel)
         assertEquals(0, viewModel.state.value.grantedPermissionCount)
         assertTrue(viewModel.state.value.requestablePermissions.isEmpty())
         assertEquals(1, viewModel.state.value.requestablePermissionCount)
         assertEquals(false, viewModel.state.value.canRequestPermissions)
-        assertEquals(
-            "Install or update Health Connect to sync health data with MusFit.",
-            viewModel.state.value.message,
-        )
+        assertEquals(uiText(R.string.profile_health_install_message), viewModel.state.value.message)
     }
 
     @Test
@@ -293,7 +311,7 @@ class ProfileSettingsViewModelTest {
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Not supported", viewModel.state.value.availabilityLabel)
+        assertEquals(uiText(R.string.profile_health_not_supported), viewModel.state.value.availabilityLabel)
         assertTrue(viewModel.state.value.requestablePermissions.isEmpty())
         assertEquals(2, viewModel.state.value.requestablePermissionCount)
         assertEquals(false, viewModel.state.value.canRequestPermissions)
@@ -314,10 +332,7 @@ class ProfileSettingsViewModelTest {
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(
-            "No Health Connect permissions are granted. Tap Enable Health Connect sync to choose what MusFit can access.",
-            viewModel.state.value.message,
-        )
+        assertEquals(uiText(R.string.profile_health_no_permissions), viewModel.state.value.message)
         assertEquals(setOf("steps", "weight"), viewModel.state.value.requestablePermissions)
     }
 
@@ -330,7 +345,11 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(LocalDate.now(), repository.importedDate)
-        assertEquals("Imported 1200 steps, 100 kcal, 7h 30m sleep, and 35 min exercise from Health Connect.", viewModel.state.value.message)
+        assertResource(R.string.profile_health_imported, viewModel.state.value.message)
+        assertTrue(viewModel.state.value.message.containsText("1,200"))
+        assertTrue(viewModel.state.value.message.containsText("100"))
+        assertTrue(viewModel.state.value.message.containsText("30"))
+        assertTrue(viewModel.state.value.message.containsText("35"))
     }
 
     @Test
@@ -341,7 +360,7 @@ class ProfileSettingsViewModelTest {
         viewModel.importToday()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Health Connect permissions were revoked.", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("Health Connect permissions were revoked."), viewModel.state.value.message)
     }
 
     @Test
@@ -354,7 +373,9 @@ class ProfileSettingsViewModelTest {
 
         assertEquals(LocalDate.now(), repository.refreshDate)
         assertFalse(viewModel.state.value.isHealthConnectSyncing)
-        assertEquals("Synced 7 days and 2 body metrics from Health Connect.", viewModel.state.value.message)
+        assertResource(R.string.profile_health_synced, viewModel.state.value.message)
+        assertTrue(viewModel.state.value.message.containsText("7"))
+        assertTrue(viewModel.state.value.message.containsText("2"))
     }
 
     @Test
@@ -371,7 +392,8 @@ class ProfileSettingsViewModelTest {
         viewModel.syncRecentHealthData()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Health Connect sync failed for 7 days.", viewModel.state.value.message)
+        assertResource(R.string.profile_health_sync_failed, viewModel.state.value.message)
+        assertTrue(viewModel.state.value.message.containsText("7"))
     }
 
     @Test
@@ -383,7 +405,7 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, repository.exportCalls)
-        assertEquals("Exported latest workout to Health Connect.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.profile_exported_latest_workout), viewModel.state.value.message)
     }
 
     @Test
@@ -394,7 +416,7 @@ class ProfileSettingsViewModelTest {
         viewModel.exportLatestWorkout()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("No workout was exported. Check permissions and log a workout first.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.profile_no_workout_exported), viewModel.state.value.message)
     }
 
     @Test
@@ -405,7 +427,7 @@ class ProfileSettingsViewModelTest {
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Available", viewModel.state.value.availabilityLabel)
+        assertEquals(uiText(R.string.profile_health_available), viewModel.state.value.availabilityLabel)
         assertEquals(1, viewModel.state.value.grantedPermissionCount)
         assertEquals(setOf("steps"), viewModel.state.value.requestablePermissions)
         assertEquals(true, viewModel.state.value.canRequestPermissions)
@@ -414,15 +436,12 @@ class ProfileSettingsViewModelTest {
         viewModel.refreshStatus()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Unknown", viewModel.state.value.availabilityLabel)
+        assertEquals(uiText(R.string.profile_unknown), viewModel.state.value.availabilityLabel)
         assertEquals(0, viewModel.state.value.grantedPermissionCount)
         assertEquals(0, viewModel.state.value.requestablePermissionCount)
         assertTrue(viewModel.state.value.requestablePermissions.isEmpty())
         assertEquals(false, viewModel.state.value.canRequestPermissions)
-        assertEquals(
-            "Unable to refresh Health Connect status right now. Try again from the Profile tab.",
-            viewModel.state.value.message,
-        )
+        assertEquals(uiText(R.string.profile_error_refresh_health_status), viewModel.state.value.message)
     }
 
     @Test
@@ -442,7 +461,7 @@ class ProfileSettingsViewModelTest {
         assertTrue(accountRepository.ensured) // init must guarantee an active account row exists
         assertEquals("Ava", viewModel.state.value.account.displayName)
         assertEquals("ava@example.com", viewModel.state.value.account.email)
-        assertEquals("Local account", viewModel.state.value.account.providerLabel)
+        assertEquals(uiText(R.string.profile_local_account_title), viewModel.state.value.account.providerLabel)
     }
 
     @Test
@@ -453,7 +472,7 @@ class ProfileSettingsViewModelTest {
         val viewModel = settingsViewModel(accountRepository = accountRepository)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("account table corrupt", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("account table corrupt"), viewModel.state.value.message)
     }
 
     @Test
@@ -466,7 +485,7 @@ class ProfileSettingsViewModelTest {
         viewModel.saveProfile(DEFAULT_USER_PROFILE)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("disk full", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("disk full"), viewModel.state.value.message)
     }
 
     @Test
@@ -507,8 +526,14 @@ class ProfileSettingsViewModelTest {
         assertEquals(AccountAuthProvider.Google, accountRepository.linkedProfile?.provider)
         assertEquals("Ava", viewModel.state.value.account.displayName)
         assertEquals("ava@gmail.com", viewModel.state.value.account.email)
-        assertEquals("Google", viewModel.state.value.account.providerLabel)
-        assertEquals("Signed in with Google.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.profile_google), viewModel.state.value.account.providerLabel)
+        assertEquals(
+            uiText(
+                R.string.profile_signed_in_provider,
+                UiText.Argument.Nested(uiText(R.string.profile_google)),
+            ),
+            viewModel.state.value.message,
+        )
     }
 
     @Test
@@ -529,7 +554,7 @@ class ProfileSettingsViewModelTest {
         )
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Google sign-in failed", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("Google sign-in failed"), viewModel.state.value.message)
     }
 
     @Test
@@ -556,7 +581,13 @@ class ProfileSettingsViewModelTest {
         assertEquals("WDJB-MJHT", viewModel.state.value.githubDeviceCode?.userCode)
         assertEquals("https://github.com/login/device", viewModel.state.value.githubDeviceCode?.verificationUri)
         assertEquals(AccountAuthProvider.GitHub, accountRepository.linkedProfile?.provider)
-        assertEquals("Signed in with GitHub.", viewModel.state.value.message)
+        assertEquals(
+            uiText(
+                R.string.profile_signed_in_provider,
+                UiText.Argument.Nested(uiText(R.string.profile_github)),
+            ),
+            viewModel.state.value.message,
+        )
     }
 
     @Test
@@ -575,7 +606,10 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(null, accountRepository.linkedProfile)
-        assertEquals("Enter WDJB-MJHT at GitHub to finish sign-in.", viewModel.state.value.message)
+        assertEquals(
+            uiText(R.string.profile_github_enter_code, UiText.Argument.Text("WDJB-MJHT")),
+            viewModel.state.value.message,
+        )
     }
 
     @Test
@@ -587,12 +621,12 @@ class ProfileSettingsViewModelTest {
         )
 
         assertEquals(false, actions.google.enabled)
-        assertEquals("Connect Google", actions.google.buttonLabel)
-        assertEquals("Setup needed", actions.google.statusLabel)
-        assertEquals("Missing Google OAuth client ID in this build.", actions.google.supportingText)
+        assertEquals(uiText(R.string.profile_connect_google), actions.google.buttonLabel)
+        assertEquals(uiText(R.string.profile_setup_needed), actions.google.statusLabel)
+        assertEquals(uiText(R.string.profile_google_missing_client), actions.google.supportingText)
         assertEquals(false, actions.github.enabled)
-        assertEquals("Setup needed", actions.github.statusLabel)
-        assertEquals("Missing GitHub OAuth client ID in this build.", actions.github.supportingText)
+        assertEquals(uiText(R.string.profile_setup_needed), actions.github.statusLabel)
+        assertEquals(uiText(R.string.profile_github_missing_client), actions.github.supportingText)
     }
 
     @Test
@@ -604,11 +638,11 @@ class ProfileSettingsViewModelTest {
         )
 
         assertEquals(false, actions.google.enabled)
-        assertEquals("Wait for GitHub to finish first.", actions.google.supportingText)
+        assertEquals(uiText(R.string.profile_wait_github_finish), actions.google.supportingText)
         assertEquals(false, actions.github.enabled)
-        assertEquals("Waiting for GitHub", actions.github.buttonLabel)
-        assertEquals("In progress", actions.github.statusLabel)
-        assertEquals("Enter the code in GitHub to finish linking your local account.", actions.github.supportingText)
+        assertEquals(uiText(R.string.profile_waiting_github), actions.github.buttonLabel)
+        assertEquals(uiText(R.string.profile_in_progress), actions.github.statusLabel)
+        assertEquals(uiText(R.string.profile_github_enter_code_supporting), actions.github.supportingText)
     }
 
     @Test
@@ -623,7 +657,7 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(true, viewModel.state.value.accountEditorOpen)
-        assertEquals("Account name is required.", viewModel.state.value.accountErrorMessage)
+        assertEquals(uiText(R.string.profile_account_name_required), viewModel.state.value.accountErrorMessage)
         assertEquals(null, accountRepository.updatedName)
     }
 
@@ -677,10 +711,10 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(AiCoachProviderKind.OpenAiCompatible, viewModel.state.value.aiCoach.providerKind)
-        assertEquals("API-compatible endpoint", viewModel.state.value.aiCoach.providerLabel)
-        assertEquals("https://api.example.com/", viewModel.state.value.aiCoach.endpointLabel)
-        assertEquals("gpt-4.1-mini", viewModel.state.value.aiCoach.modelLabel)
-        assertEquals("Key saved", viewModel.state.value.aiCoach.apiKeyLabel)
+        assertEquals(uiText(R.string.profile_api_compatible_endpoint), viewModel.state.value.aiCoach.providerLabel)
+        assertEquals(UiText.Verbatim("https://api.example.com/"), viewModel.state.value.aiCoach.endpointLabel)
+        assertEquals(UiText.Verbatim("gpt-4.1-mini"), viewModel.state.value.aiCoach.modelLabel)
+        assertEquals(uiText(R.string.profile_key_saved), viewModel.state.value.aiCoach.apiKeyLabel)
     }
 
     @Test
@@ -712,7 +746,7 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(false, viewModel.state.value.aiCoachEditorOpen)
-        assertEquals("AI coach setup saved.", viewModel.state.value.aiCoachMessage)
+        assertEquals(uiText(R.string.profile_ai_saved), viewModel.state.value.aiCoachMessage)
         assertEquals(
             AiCoachSettingsInput(
                 providerKind = AiCoachProviderKind.OpenAiCompatible,
@@ -761,7 +795,7 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(true, viewModel.state.value.aiCoachEditorOpen)
-        assertEquals("Enter a valid http(s) base URL.", viewModel.state.value.aiCoachErrorMessage)
+        assertEquals(UiText.Verbatim("Enter a valid http(s) base URL."), viewModel.state.value.aiCoachErrorMessage)
     }
 
     @Test
@@ -788,7 +822,7 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, chatRepository.testCalls)
-        assertEquals("AI coach connection is reachable.", viewModel.state.value.aiCoachMessage)
+        assertEquals(uiText(R.string.profile_ai_reachable), viewModel.state.value.aiCoachMessage)
         assertFalse(viewModel.state.value.isAiCoachTesting)
         assertEquals(AiCoachTestState.Success, viewModel.state.value.aiCoachTestState)
     }
@@ -803,7 +837,7 @@ class ProfileSettingsViewModelTest {
         viewModel.testAiCoachConnection()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Connection refused", viewModel.state.value.aiCoachMessage)
+        assertEquals(UiText.Verbatim("Connection refused"), viewModel.state.value.aiCoachMessage)
         assertFalse(viewModel.state.value.isAiCoachTesting)
         assertEquals(AiCoachTestState.Failure, viewModel.state.value.aiCoachTestState)
     }
@@ -845,7 +879,7 @@ class ProfileSettingsViewModelTest {
         assertEquals(77.0, saved.fatGrams, 0.001)
         assertEquals(true, saved.includeTrainingCalories)
         assertEquals(true, saved.useNetCarbs)
-        assertEquals("Applied your targets to Food goals.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.profile_targets_applied), viewModel.state.value.message)
         assertEquals(TargetApplyState.Success, viewModel.state.value.targetApplyState)
         assertEquals(
             RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
@@ -863,7 +897,7 @@ class ProfileSettingsViewModelTest {
         viewModel.applyRecommendedTargetsToFood(RecommendedTargets(2759.0, 144.0, 270.0, 77.0))
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("disk full", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("disk full"), viewModel.state.value.message)
         assertEquals(TargetApplyState.Failure, viewModel.state.value.targetApplyState)
         assertEquals(
             RecommendedTargets(2759.0, 144.0, 270.0, 77.0),
@@ -932,10 +966,7 @@ class ProfileSettingsViewModelTest {
         viewModel.reportAiCoachLocalNetworkPermissionDenied(deniedMessage)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(
-            deniedMessage,
-            viewModel.state.value.aiCoachMessage,
-        )
+        assertEquals(UiText.Verbatim(deniedMessage), viewModel.state.value.aiCoachMessage)
     }
 
     @Test
@@ -976,7 +1007,7 @@ class ProfileSettingsViewModelTest {
         viewModel.setIncludeBurnedCalories(true)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("disk full", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("disk full"), viewModel.state.value.message)
     }
 
     @Test
@@ -997,7 +1028,7 @@ class ProfileSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, aiCoachRepository.clearCalls)
-        assertEquals("AI coach API key cleared.", viewModel.state.value.aiCoachMessage)
+        assertEquals(uiText(R.string.profile_ai_key_cleared), viewModel.state.value.aiCoachMessage)
     }
 
     private fun TestScope.observeSettings(viewModel: ProfileSettingsViewModel): Job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {

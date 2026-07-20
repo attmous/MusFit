@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -43,10 +44,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musfit.data.repository.AiCoachProviderKind
 import com.musfit.data.repository.LocalAgentKind
+import com.musfit.feature.profile.R
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.SheetDragHandle
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 
@@ -65,7 +69,6 @@ internal fun AiCoachSettingsPage(
     onTestConnection: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val coach = state.aiCoach
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -75,8 +78,8 @@ internal fun AiCoachSettingsPage(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         InnerScreenHeader(
-            title = "AI coach",
-            subtitle = "The coach runs on your own model connection",
+            title = stringResource(R.string.profile_ai_title),
+            subtitle = stringResource(R.string.profile_ai_subtitle),
             onBack = onBack,
         )
 
@@ -86,7 +89,7 @@ internal fun AiCoachSettingsPage(
             onTestConnection = onTestConnection,
         )
 
-        val message = state.aiCoachMessage
+        val message = state.aiCoachMessage?.asString()
         if (message != null) {
             Text(
                 message,
@@ -96,31 +99,57 @@ internal fun AiCoachSettingsPage(
             )
         }
 
-        GroupLabel(
-            text = "Connection",
-            actionLabel = "Edit",
-            actionColor = accent.color,
-            onAction = onEdit,
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            CompactValueRow(title = "Provider", value = coach.providerLabel, shape = groupedShape(0, 4))
-            CompactValueRow(title = "Base URL", value = coach.endpointLabel, shape = groupedShape(1, 4))
-            CompactValueRow(title = "Model", value = coach.modelLabel, shape = groupedShape(2, 4))
-            ApiKeyRow(
-                hasApiKey = coach.hasApiKey,
-                accent = accent,
-                shape = groupedShape(3, 4),
-                onClear = onClearApiKey,
-            )
-        }
-
-        Text(
-            "Your key stays on this device.",
-            style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
-            color = MusFitTheme.colors.onSurfaceFaint,
-            modifier = Modifier.padding(horizontal = 4.dp),
+        AiCoachConnectionDetails(
+            coach = state.aiCoach,
+            accent = accent,
+            onEdit = onEdit,
+            onClearApiKey = onClearApiKey,
         )
     }
+}
+
+@Composable
+private fun AiCoachConnectionDetails(
+    coach: AiCoachSettingsUiState,
+    accent: TabAccent,
+    onEdit: () -> Unit,
+    onClearApiKey: () -> Unit,
+) {
+    GroupLabel(
+        text = stringResource(R.string.profile_connection),
+        actionLabel = stringResource(R.string.profile_edit),
+        actionColor = accent.color,
+        onAction = onEdit,
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        CompactValueRow(
+            title = stringResource(R.string.profile_provider),
+            value = coach.providerLabel.asString(),
+            shape = groupedShape(0, 4),
+        )
+        CompactValueRow(
+            title = stringResource(R.string.profile_base_url),
+            value = coach.endpointLabel.asString(),
+            shape = groupedShape(1, 4),
+        )
+        CompactValueRow(
+            title = stringResource(R.string.profile_model),
+            value = coach.modelLabel.asString(),
+            shape = groupedShape(2, 4),
+        )
+        ApiKeyRow(
+            hasApiKey = coach.hasApiKey,
+            accent = accent,
+            shape = groupedShape(3, 4),
+            onClear = onClearApiKey,
+        )
+    }
+    Text(
+        stringResource(R.string.profile_key_device_note),
+        style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
+        color = MusFitTheme.colors.onSurfaceFaint,
+        modifier = Modifier.padding(horizontal = 4.dp),
+    )
 }
 
 /** Tonal hero: white mark circle · name + status dot line · filled Test pill. */
@@ -145,14 +174,14 @@ private fun AiCoachConnectionHero(
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
-                    if (disabled) "Not set up" else coach.providerLabel,
+                    if (disabled) stringResource(R.string.profile_not_set_up) else coach.providerLabel.asString(),
                     style = MusFitTheme.typography.titleLarge.copy(fontSize = 19.sp, letterSpacing = (-0.3).sp),
                     color = accent.onContainer,
                 )
                 AiCoachStatusLine(state = state, accent = accent)
             }
             HeroActionPill(
-                text = if (state.isAiCoachTesting) "Testing" else "Test",
+                text = stringResource(if (state.isAiCoachTesting) R.string.profile_testing else R.string.profile_test),
                 accent = accent,
                 onClick = onTestConnection,
                 enabled = !disabled && !state.isAiCoachTesting,
@@ -166,16 +195,16 @@ private fun AiCoachConnectionHero(
 private fun AiCoachStatusLine(state: ProfileSettingsUiState, accent: TabAccent) {
     val disabled = state.aiCoach.providerKind == AiCoachProviderKind.Disabled
     val (dotColor, label) = when {
-        disabled -> MusFitTheme.colors.onSurfaceFaint to "Off"
+        disabled -> MusFitTheme.colors.onSurfaceFaint to stringResource(R.string.profile_off)
 
-        state.aiCoachTestState == AiCoachTestState.Testing -> accent.onContainerVariant to "Testing…"
+        state.aiCoachTestState == AiCoachTestState.Testing -> accent.onContainerVariant to stringResource(R.string.profile_ai_testing)
 
-        state.aiCoachTestState == AiCoachTestState.Success -> accent.color to "Connected"
+        state.aiCoachTestState == AiCoachTestState.Success -> accent.color to stringResource(R.string.profile_connected)
 
         state.aiCoachTestState == AiCoachTestState.Failure ->
-            MusFitTheme.colors.onDestructiveContainer to "Not reachable"
+            MusFitTheme.colors.onDestructiveContainer to stringResource(R.string.profile_not_reachable)
 
-        else -> accent.onContainerVariant to "Not tested yet"
+        else -> accent.onContainerVariant to stringResource(R.string.profile_not_tested)
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         Box(Modifier.size(7.dp).background(dotColor, CircleShape))
@@ -202,13 +231,13 @@ private fun ApiKeyRow(
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
-                    "API key",
+                    stringResource(R.string.profile_api_key),
                     style = MusFitTheme.typography.titleSmall.copy(fontSize = 14.5.sp),
                     color = MusFitTheme.colors.onSurface,
                 )
                 Text(
                     // The key is stored encrypted, so only its presence can be shown.
-                    if (hasApiKey) "•••• •••• saved" else "No key",
+                    stringResource(if (hasApiKey) R.string.profile_api_key_masked_saved else R.string.profile_no_key),
                     style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -224,7 +253,7 @@ private fun ApiKeyRow(
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
                         Text(
-                            "Clear",
+                            stringResource(R.string.profile_clear),
                             style = MusFitTheme.typography.labelLarge.copy(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.W800,
@@ -251,7 +280,7 @@ fun AiCoachEditorSheet(
     localAgentKind: LocalAgentKind,
     apiKey: String,
     hasSavedApiKey: Boolean,
-    error: String?,
+    error: UiText?,
     accent: TabAccent,
     onProviderChange: (AiCoachProviderKind) -> Unit,
     onBaseUrlChange: (String) -> Unit,
@@ -282,11 +311,11 @@ fun AiCoachEditorSheet(
         ) {
             Column {
                 Text(
-                    "AI coach setup",
+                    stringResource(R.string.profile_ai_setup),
                     style = MusFitTheme.typography.headlineMedium.copy(fontSize = 22.sp, lineHeight = 25.sp),
                 )
                 Text(
-                    "Bring your own agent or API-compatible endpoint",
+                    stringResource(R.string.profile_ai_setup_subtitle),
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),
@@ -303,7 +332,7 @@ fun AiCoachEditorSheet(
 
             if (provider != AiCoachProviderKind.Disabled) {
                 EditorTextTile(
-                    label = "Base URL",
+                    label = stringResource(R.string.profile_base_url),
                     value = baseUrl,
                     onValueChange = onBaseUrlChange,
                     placeholder = AI_COACH_BASE_URL_PLACEHOLDER,
@@ -322,9 +351,9 @@ fun AiCoachEditorSheet(
             if (provider != AiCoachProviderKind.Disabled) {
                 EditorTextTile(
                     label = if (provider == AiCoachProviderKind.OpenAiCompatible) {
-                        "Model"
+                        stringResource(R.string.profile_model)
                     } else {
-                        "Model or agent id (optional)"
+                        stringResource(R.string.profile_model_or_agent_id)
                     },
                     value = modelName,
                     onValueChange = onModelNameChange,
@@ -343,7 +372,7 @@ fun AiCoachEditorSheet(
             }
             if (error != null) {
                 Text(
-                    error,
+                    error.asString(),
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onDestructiveContainer,
                     modifier = Modifier.padding(horizontal = 4.dp),
@@ -357,7 +386,7 @@ fun AiCoachEditorSheet(
             )
 
             PillButton(
-                text = "Save",
+                text = stringResource(R.string.profile_save),
                 onClick = onSave,
                 containerColor = accent.color,
                 contentColor = accent.onColor,
@@ -453,24 +482,28 @@ private fun EditorTextTile(
     }
 }
 
+@Composable
 private fun AiCoachProviderKind.shortLabel(): String = when (this) {
-    AiCoachProviderKind.Disabled -> "Off"
-    AiCoachProviderKind.OpenAiCompatible -> "API"
-    AiCoachProviderKind.LocalAgent -> "Agent"
+    AiCoachProviderKind.Disabled -> stringResource(R.string.profile_off)
+    AiCoachProviderKind.OpenAiCompatible -> stringResource(R.string.profile_api_short)
+    AiCoachProviderKind.LocalAgent -> stringResource(R.string.profile_agent_short)
 }
 
+@Composable
 private fun LocalAgentKind.shortLabel(): String = when (this) {
-    LocalAgentKind.OpenClaw -> "OpenClaw"
-    LocalAgentKind.HermesAgent -> "Hermes"
-    LocalAgentKind.Custom -> "Custom"
+    LocalAgentKind.OpenClaw -> stringResource(R.string.profile_openclaw_short)
+    LocalAgentKind.HermesAgent -> stringResource(R.string.profile_hermes_short)
+    LocalAgentKind.Custom -> stringResource(R.string.profile_custom)
 }
 
+@Composable
 private fun apiKeyFieldLabel(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String = if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
-    "API_SERVER_KEY"
+    stringResource(R.string.profile_api_server_key)
 } else {
-    "API key (optional)"
+    stringResource(R.string.profile_api_key_optional)
 }
 
+@Composable
 private fun apiKeySupportingText(
     provider: AiCoachProviderKind,
     localAgentKind: LocalAgentKind,
@@ -478,15 +511,16 @@ private fun apiKeySupportingText(
 ): String {
     val isHermes = provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent
     return when {
-        isHermes && hasSavedApiKey -> "Leave blank to keep the saved API_SERVER_KEY."
-        isHermes -> "Paste API_SERVER_KEY from ~/.hermes/.env. Stored encrypted on this device."
-        hasSavedApiKey -> "Leave blank to keep the saved key."
-        else -> "Stored encrypted on this device."
+        isHermes && hasSavedApiKey -> stringResource(R.string.profile_keep_api_server_key)
+        isHermes -> stringResource(R.string.profile_paste_api_server_key)
+        hasSavedApiKey -> stringResource(R.string.profile_keep_saved_key)
+        else -> stringResource(R.string.profile_key_encrypted)
     }
 }
 
+@Composable
 private fun aiCoachSecurityNote(provider: AiCoachProviderKind, localAgentKind: LocalAgentKind): String = if (provider == AiCoachProviderKind.LocalAgent && localAgentKind == LocalAgentKind.HermesAgent) {
-    "Hermes requires the API_SERVER_KEY bearer token from ~/.hermes/.env. $AI_COACH_ENDPOINT_POLICY_NOTE"
+    stringResource(R.string.profile_hermes_security_note, stringResource(R.string.profile_ai_endpoint_policy_note))
 } else {
-    "Keys stay encrypted on this device. $AI_COACH_ENDPOINT_POLICY_NOTE"
+    stringResource(R.string.profile_key_security_note, stringResource(R.string.profile_ai_endpoint_policy_note))
 }

@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -37,29 +38,42 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musfit.data.repository.Account
+import com.musfit.data.repository.AccountAuthProvider
+import com.musfit.feature.profile.R
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.SheetDragHandle
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 
 data class AccountUiState(
-    val displayName: String = "You",
+    val displayName: String = "",
     val email: String? = null,
-    val providerLabel: String = "Local account",
+    val provider: AccountAuthProvider = AccountAuthProvider.Local,
+    val providerLabel: UiText = uiText(R.string.profile_local_account_title),
     val avatarUrl: String? = null,
 )
 
 internal fun Account.toUiState() = AccountUiState(
     displayName = displayName,
     email = email,
-    providerLabel = authProvider.displayName,
+    provider = authProvider,
+    providerLabel = authProvider.profileLabel(),
     avatarUrl = avatarUrl,
 )
+
+private fun AccountAuthProvider.profileLabel(): UiText = when (this) {
+    AccountAuthProvider.Local -> uiText(R.string.profile_local_account_title)
+    AccountAuthProvider.Google -> uiText(R.string.profile_google)
+    AccountAuthProvider.GitHub -> uiText(R.string.profile_github)
+}
 
 /** Initials monogram: first letters of the first two words ("Max Berger" → "MB"). */
 internal fun String.accountInitials(): String = trim().split(Regex("\\s+")).filter { it.isNotBlank() }
     .take(2)
-    .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+    .mapNotNull { word -> word.firstOrNull(Char::isLetterOrDigit)?.uppercaseChar() }
     .joinToString("")
     .ifEmpty { "Y" }
 
@@ -69,6 +83,7 @@ internal fun String.accountInitials(): String = trim().split(Regex("\\s+")).filt
  */
 @Composable
 internal fun LocalAccountHero(account: AccountUiState, accent: TabAccent, onEdit: () -> Unit) {
+    val displayName = account.displayName.ifBlank { stringResource(R.string.profile_you) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -89,24 +104,24 @@ internal fun LocalAccountHero(account: AccountUiState, accent: TabAccent, onEdit
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    account.displayName.accountInitials(),
+                    displayName.accountInitials(),
                     style = MusFitTheme.typography.titleLarge.copy(fontSize = 17.sp),
                     color = accent.onContainer,
                 )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    account.displayName,
+                    displayName,
                     style = MusFitTheme.typography.titleLarge.copy(fontSize = 17.sp, letterSpacing = (-0.2).sp),
                     color = accent.onContainer,
                 )
                 Text(
-                    "${account.providerLabel} · data stays on this device",
+                    stringResource(R.string.profile_account_device_summary, account.providerLabel.asString()),
                     style = MusFitTheme.typography.bodySmall,
                     color = accent.onContainerVariant,
                 )
             }
-            HeroChip(text = "Edit", accent = accent, onClick = onEdit)
+            HeroChip(text = stringResource(R.string.profile_edit), accent = accent, onClick = onEdit)
         }
     }
 }
@@ -119,7 +134,7 @@ internal fun LocalAccountHero(account: AccountUiState, accent: TabAccent, onEdit
 fun AccountEditSheet(
     name: String,
     email: String,
-    error: String?,
+    error: UiText?,
     accent: TabAccent,
     onNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
@@ -147,33 +162,33 @@ fun AccountEditSheet(
         ) {
             Column {
                 Text(
-                    "Local account",
+                    stringResource(R.string.profile_local_account_title),
                     style = MusFitTheme.typography.headlineMedium.copy(fontSize = 22.sp, lineHeight = 25.sp),
                 )
                 Text(
-                    "Stored on this device. Sync and sign-in are not enabled.",
+                    stringResource(R.string.profile_account_sheet_subtitle),
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
-            AccountTextTile(label = "Name", value = name, onValueChange = onNameChange)
+            AccountTextTile(label = stringResource(R.string.profile_name), value = name, onValueChange = onNameChange)
             AccountTextTile(
-                label = "Email (optional)",
+                label = stringResource(R.string.profile_email_optional),
                 value = email,
                 onValueChange = onEmailChange,
                 keyboardType = KeyboardType.Email,
             )
             if (error != null) {
                 Text(
-                    error,
+                    error.asString(),
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onDestructiveContainer,
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
             }
             PillButton(
-                text = "Save",
+                text = stringResource(R.string.profile_save),
                 onClick = onSave,
                 containerColor = accent.color,
                 contentColor = accent.onColor,

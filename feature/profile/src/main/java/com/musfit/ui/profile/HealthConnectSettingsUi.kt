@@ -22,16 +22,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musfit.domain.health.StepSource
+import com.musfit.feature.profile.R
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 
@@ -62,8 +67,8 @@ internal fun HealthConnectSettingsPage(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         InnerScreenHeader(
-            title = "Health Connect",
-            subtitle = "Mirrors steps, weight and heart rate",
+            title = stringResource(R.string.profile_health_connect),
+            subtitle = stringResource(R.string.profile_health_connect_subtitle),
             onBack = onBack,
         )
 
@@ -71,14 +76,14 @@ internal fun HealthConnectSettingsPage(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             TonalActionPill(
-                text = "Refresh",
+                text = stringResource(R.string.profile_refresh),
                 icon = Icons.Outlined.Refresh,
                 accent = accent,
                 onClick = onRefresh,
                 modifier = Modifier.weight(1f),
             )
             TonalActionPill(
-                text = if (state.isHealthConnectSyncing) "Syncing" else "Sync",
+                text = stringResource(if (state.isHealthConnectSyncing) R.string.profile_syncing else R.string.profile_sync),
                 icon = Icons.Outlined.Sync,
                 accent = accent,
                 onClick = onSync,
@@ -86,7 +91,7 @@ internal fun HealthConnectSettingsPage(
                 modifier = Modifier.weight(1f),
             )
             TonalActionPill(
-                text = "Export",
+                text = stringResource(R.string.profile_export),
                 icon = Icons.Outlined.Upload,
                 accent = accent,
                 onClick = onExport,
@@ -95,16 +100,15 @@ internal fun HealthConnectSettingsPage(
         }
 
         Text(
-            state.message,
+            state.message.asString(),
             style = MusFitTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
 
-        GroupLabel("Steps source")
+        GroupLabel(stringResource(R.string.profile_steps_source))
         Text(
-            "The combined total can read higher than a single app because it merges every source. " +
-                "Pick one to mirror it exactly.",
+            stringResource(R.string.profile_steps_source_explanation),
             style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
             color = MusFitTheme.colors.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp),
@@ -112,7 +116,7 @@ internal fun HealthConnectSettingsPage(
         StepSourceList(
             sources = state.stepSources,
             selectedPackage = state.preferredStepsPackage,
-            enabled = state.availabilityLabel == "Available" && !state.isHealthConnectSyncing,
+            enabled = state.availabilityLabel == uiText(R.string.profile_health_available) && !state.isHealthConnectSyncing,
             accent = accent,
             onSelect = onSelectStepSource,
         )
@@ -139,22 +143,26 @@ private fun PermissionsHero(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "DEVICE SYNC",
+                    stringResource(R.string.profile_device_sync),
                     style = MusFitTheme.typography.labelSmall.copy(fontWeight = FontWeight.W800, letterSpacing = 0.8.sp),
                     color = accent.onContainer,
                 )
-                HeroChip(text = availabilityPillLabel(state.availabilityLabel), accent = accent)
+                HeroChip(text = availabilityPillLabel(state.availabilityLabel).asString(), accent = accent)
             }
             if (total > 0) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        "$granted of $total",
+                        stringResource(
+                            R.string.profile_permissions_granted_count,
+                            LocalizedFormatter.integer(granted.toLong(), locale = LocalConfiguration.current.locales[0]),
+                            LocalizedFormatter.integer(total.toLong(), locale = LocalConfiguration.current.locales[0]),
+                        ),
                         style = MusFitTheme.typography.displayMedium.copy(fontSize = 44.sp, lineHeight = 44.sp),
                         color = accent.onContainer,
                         maxLines = 1,
                     )
                     Text(
-                        "permissions granted",
+                        stringResource(R.string.profile_permissions_granted),
                         style = MusFitTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                         fontWeight = FontWeight.Medium,
                         color = accent.onContainer,
@@ -164,7 +172,7 @@ private fun PermissionsHero(
                 PermissionSegments(granted = granted, total = total, accent = accent)
             } else {
                 Text(
-                    "Refresh to check available health permissions.",
+                    stringResource(R.string.profile_refresh_permissions),
                     style = MusFitTheme.typography.bodyMedium,
                     color = accent.onContainerVariant,
                 )
@@ -176,8 +184,14 @@ private fun PermissionsHero(
             ) {
                 Text(
                     text = when {
-                        total > 0 && missing == 0 -> "All permissions granted"
-                        total > 0 -> "$missing more to grant"
+                        total > 0 && missing == 0 -> stringResource(R.string.profile_all_permissions_granted)
+
+                        total > 0 -> pluralStringResource(
+                            R.plurals.profile_permissions_more_to_grant,
+                            missing,
+                            LocalizedFormatter.integer(missing.toLong(), locale = LocalConfiguration.current.locales[0]),
+                        )
+
                         else -> ""
                     },
                     style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
@@ -186,7 +200,15 @@ private fun PermissionsHero(
                 )
                 if (state.canRequestPermissions) {
                     HeroActionPill(
-                        text = if (missing > 0) "Grant $missing more" else "Review",
+                        text = if (missing > 0) {
+                            pluralStringResource(
+                                R.plurals.profile_grant_more,
+                                missing,
+                                LocalizedFormatter.integer(missing.toLong(), locale = LocalConfiguration.current.locales[0]),
+                            )
+                        } else {
+                            stringResource(R.string.profile_review)
+                        },
                         accent = accent,
                         onClick = onRequestPermissions,
                     )
@@ -210,8 +232,8 @@ private fun StepSourceList(
         modifier = Modifier.selectableGroup(),
     ) {
         StepSourceRow(
-            label = "All sources (unified)",
-            detail = buildAnnotatedString { append("Health Connect combined total") },
+            label = stringResource(R.string.profile_all_step_sources),
+            detail = stringResource(R.string.profile_health_combined_total),
             selected = selectedPackage == null,
             enabled = enabled,
             accent = accent,
@@ -221,12 +243,10 @@ private fun StepSourceList(
         sources.forEachIndexed { index, source ->
             StepSourceRow(
                 label = source.label,
-                detail = buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.W800, color = MusFitTheme.colors.onSurface)) {
-                        append("%,d".format(source.steps))
-                    }
-                    append(" steps today")
-                },
+                detail = stringResource(
+                    R.string.profile_steps_today,
+                    LocalizedFormatter.integer(source.steps, locale = LocalConfiguration.current.locales[0]),
+                ),
                 selected = selectedPackage == source.packageName,
                 enabled = enabled,
                 accent = accent,
@@ -236,7 +256,7 @@ private fun StepSourceList(
         }
         if (sources.isEmpty()) {
             Text(
-                "No step sources found for today yet. Sync or walk a little, then come back.",
+                stringResource(R.string.profile_no_step_sources),
                 style = MusFitTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -248,7 +268,7 @@ private fun StepSourceList(
 @Composable
 private fun StepSourceRow(
     label: String,
-    detail: androidx.compose.ui.text.AnnotatedString,
+    detail: String,
     selected: Boolean,
     enabled: Boolean,
     accent: TabAccent,
@@ -290,7 +310,7 @@ private fun StepSourceRow(
     }
 }
 
-private fun availabilityPillLabel(availabilityLabel: String): String = when (availabilityLabel) {
-    "Install or update required" -> "Needs app"
+private fun availabilityPillLabel(availabilityLabel: UiText): UiText = when (availabilityLabel) {
+    uiText(R.string.profile_health_install_required) -> uiText(R.string.profile_needs_app)
     else -> availabilityLabel
 }
