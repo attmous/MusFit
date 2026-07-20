@@ -322,6 +322,34 @@ foreach ($doc in $liveArchitectureDocs) {
 }
 Assert-FileContains "docs/architecture/README.md" '(?s)<!-- source-derived-facts:start -->.+<!-- source-derived-facts:end -->'
 Assert-FileContains "docs/architecture/README.md" 'ArchitectureBoundaryTest'
+Assert-FileExists "docs/architecture/experimental-adaptive-api-watchlist.md"
+Assert-FileContains "docs/architecture/README.md" 'experimental-adaptive-api-watchlist\.md'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'MediaQuery[\s\S]*Defer'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Non-lazy Grid[\s\S]*Defer'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'FlexBox[\s\S]*Defer'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Stable API proof'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Unmet user scenario'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Compatibility proof'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Behavior and accessibility coverage'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'Measured benefit'
+Assert-FileContains "docs/architecture/experimental-adaptive-api-watchlist.md" 'ADR and rollback'
+Assert-FileDoesNotContain "gradle/libs.versions.toml" 'androidx-compose-foundation-layout'
+$experimentalAdaptiveProductionUsage = @(
+    @(
+        "app/src/main",
+        "feature/food/src/main",
+        "feature/training/src/main",
+        "feature/profile/src/main",
+        "feature/today/src/main",
+        "core/designsystem/src/main"
+    ) | ForEach-Object {
+        Get-ChildItem -LiteralPath (Get-RepoPath $_) -Recurse -Filter "*.kt" -File |
+            Select-String -Pattern 'ComposeUiFlags\.isMediaQueryIntegrationEnabled|\b(?:derived)?mediaQuery\s*\{|@ExperimentalFlexBoxApi|androidx\.compose\.foundation\.layout\.(?:Grid|FlexBox)\b'
+    }
+)
+if ($experimentalAdaptiveProductionUsage.Count -gt 0) {
+    throw "Experimental adaptive APIs must remain absent from production: $($experimentalAdaptiveProductionUsage -join '; ')"
+}
 Assert-FileExists "app/src/test/java/com/musfit/architecture/ArchitectureBoundaryTest.kt"
 Assert-FileContains "app/src/test/java/com/musfit/architecture/ArchitectureBoundaryTest.kt" 'compiledProductionClasses_haveNoForbiddenArchitectureEdges'
 Assert-FileContains "app/src/test/java/com/musfit/architecture/ArchitectureBoundaryTest.kt" 'deliberateForbiddenEdges_areRejected'
