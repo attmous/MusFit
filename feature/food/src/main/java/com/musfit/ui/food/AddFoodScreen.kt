@@ -211,7 +211,10 @@ fun AddFoodScreen(
                         if (state.recentFoods.isNotEmpty()) {
                             item(key = "recents-heading") {
                                 AddFoodSectionWithGap {
-                                    SectionOverline(stringResource(R.string.food_recents).uppercase())
+                                    SectionOverline(
+                                        stringResource(R.string.food_recents)
+                                            .uppercase(LocalConfiguration.current.locales[0]),
+                                    )
                                 }
                             }
                             addFoodItems(

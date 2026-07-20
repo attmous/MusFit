@@ -8,10 +8,14 @@ import com.musfit.data.repository.WorkoutExerciseBlock
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutRecapSummary
+import com.musfit.feature.training.R
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.uiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 
 class TrainingHistoryContentTest {
@@ -121,8 +125,16 @@ class TrainingHistoryContentTest {
 
         val pr = displays.single()
         assertEquals("squat", pr.exerciseName)
-        assertEquals("100 kg × 5 · e1RM 116.7 kg", pr.meta)
-        assertEquals("+6.7 kg", pr.deltaLabel)
+        assertEquals(
+            uiText(
+                R.string.training_pr_meta,
+                UiText.Argument.Text("100"),
+                UiText.Argument.Integer(5),
+                UiText.Argument.Text("116.7"),
+            ),
+            pr.meta,
+        )
+        assertEquals(uiText(R.string.training_pr_delta, UiText.Argument.Text("6.7")), pr.deltaLabel)
     }
 
     @Test
@@ -137,28 +149,33 @@ class TrainingHistoryContentTest {
             historyDetail(blocks = listOf(firstEver), groupings = emptyList()),
         )
 
-        assertEquals("New PR", displays.single().deltaLabel)
+        assertEquals(uiText(R.string.training_new_pr), displays.single().deltaLabel)
     }
 
     @Test
     fun workoutCompleteCoachNote_prefersPrsThenSetsThenHonestFallback() {
-        assertTrue(
-            workoutCompleteCoachNote(WorkoutRecapSummary(personalRecordCount = 2))
-                .contains("2 personal records"),
+        assertEquals(
+            uiText(R.string.training_coach_strong_session_plural, UiText.Argument.Integer(2)),
+            workoutCompleteCoachNote(WorkoutRecapSummary(personalRecordCount = 2)),
         )
-        assertTrue(
-            workoutCompleteCoachNote(WorkoutRecapSummary(completedSetCount = 8, durationSeconds = 600))
-                .contains("8 sets in 10 min"),
+        assertEquals(
+            uiText(
+                R.string.training_coach_solid_work,
+                UiText.Argument.Integer(8),
+                UiText.Argument.Integer(10),
+            ),
+            workoutCompleteCoachNote(WorkoutRecapSummary(completedSetCount = 8, durationSeconds = 600)),
         )
-        assertTrue(
-            workoutCompleteCoachNote(WorkoutRecapSummary()).contains("Session logged"),
+        assertEquals(
+            uiText(R.string.training_coach_session_logged),
+            workoutCompleteCoachNote(WorkoutRecapSummary()),
         )
     }
 
     @Test
     fun historyMonthStats_sumsTheCalendarMonth() {
         val overview = TrainingHistoryOverview(
-            monthLabel = "July",
+            month = YearMonth.of(2026, 7),
             calendarWeeks = listOf(
                 listOf(
                     null,
@@ -187,7 +204,14 @@ class TrainingHistoryContentTest {
 
         val sections = historyWeekSections(history, today)
 
-        assertEquals(listOf("This week", "Last week", "Week of 15 Jun"), sections.map { it.title })
+        assertEquals(
+            listOf(
+                uiText(R.string.training_this_week),
+                uiText(R.string.training_last_week),
+                uiText(R.string.training_week_of, UiText.Argument.Text("15 Jun")),
+            ),
+            sections.map { it.title },
+        )
         assertEquals(listOf("this", "last", "older"), sections.flatMap { it.workouts }.map { it.sessionId })
     }
 

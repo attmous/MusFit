@@ -119,6 +119,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -150,6 +151,7 @@ import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.NeutralOutline
@@ -685,7 +687,7 @@ internal fun BarcodeComparisonPanel(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(highlight.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                            Text(highlight.label.asString(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                             Text(
                                 text = "${highlight.leftValue} / ${highlight.rightValue}",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -891,7 +893,7 @@ private fun SavedFoodDatabaseSummary(food: SavedFoodUiState, modifier: Modifier 
         )
         Text(
             text = listOfNotNull(
-                food.trust.label,
+                food.trust.label.asString(),
                 food.brand,
                 "${food.defaultServingGrams.roundToInt()} g",
                 "${food.caloriesPerServingKcal.roundToInt()} kcal",
@@ -1032,7 +1034,9 @@ internal fun macroSplitPercents(
 }
 
 /** The meal the add/detail flows currently target, lowercased for pill copy. */
-private fun FoodUiState.detailTargetMealLabel(): String = (visibleMealDefinitions.firstOrNull { it.id == mealType }?.title ?: selectedMealTitle).lowercase()
+@Composable
+private fun FoodUiState.detailTargetMealLabel(): String = (visibleMealDefinitions.firstOrNull { it.id == mealType }?.title ?: selectedMealTitle)
+    .lowercase(LocalConfiguration.current.locales[0])
 
 @Composable
 internal fun FoodDetailPanel(
@@ -1104,7 +1108,15 @@ internal fun FoodDetailPanel(
                 onClick = onEditClick,
             )
             PillButton(
-                text = "${state.foodEntryActionVerb()} to ${state.detailTargetMealLabel()} · ${amount.caloriesKcal.roundToInt()} kcal",
+                text = stringResource(
+                    R.string.food_detail_action,
+                    state.foodEntryActionVerb(),
+                    state.detailTargetMealLabel(),
+                    LocalizedFormatter.integer(
+                        amount.caloriesKcal.roundToInt().toLong(),
+                        locale = LocalConfiguration.current.locales[0],
+                    ),
+                ),
                 onClick = onLogClick,
                 icon = Icons.Filled.Add,
                 enabled = !state.isSaving,
@@ -1183,9 +1195,9 @@ private fun FoodDetailTrustRow(
                 FoodTrustChip(Icons.Outlined.Edit, MusFitTheme.colors.onSurfaceVariant, "Edited by you")
 
             FoodTrustLevel.NeedsReview ->
-                FoodTrustChip(Icons.Outlined.ErrorOutline, MusFitTheme.colors.warning, food.trust.label)
+                FoodTrustChip(Icons.Outlined.ErrorOutline, MusFitTheme.colors.warning, food.trust.label.asString())
         }
-        TrustActionChip(text = food.trust.actionLabel, onClick = onCorrectClick)
+        TrustActionChip(text = food.trust.actionLabel.asString(), onClick = onCorrectClick)
         TrustActionChip(
             text = if (food.trust.isReported) "Reported" else "Report",
             onClick = onReportClick,
@@ -1998,10 +2010,10 @@ internal fun SavedFoodEditorScreen(
                         FoodTrustChip(Icons.Outlined.Verified, MusFitTheme.colors.brand, savedSource.sourceLabel)
 
                     FoodTrustLevel.Manual ->
-                        FoodTrustChip(Icons.Outlined.Edit, MusFitTheme.colors.onSurfaceVariant, savedSource.trust.label)
+                        FoodTrustChip(Icons.Outlined.Edit, MusFitTheme.colors.onSurfaceVariant, savedSource.trust.label.asString())
 
                     FoodTrustLevel.NeedsReview ->
-                        FoodTrustChip(Icons.Outlined.ErrorOutline, MusFitTheme.colors.warning, savedSource.trust.label)
+                        FoodTrustChip(Icons.Outlined.ErrorOutline, MusFitTheme.colors.warning, savedSource.trust.label.asString())
                 }
             }
 
@@ -2542,14 +2554,18 @@ internal fun GoalEditorScreen(
                         modifier = Modifier.weight(1f),
                     ) {
                         val calories = editor.caloriesKcalInput.toDoubleOrNull()?.roundToInt() ?: 0
+                        val locale = LocalConfiguration.current.locales[0]
                         Text(
-                            text = "%,d".format(calories),
+                            text = LocalizedFormatter.integer(calories.toLong(), locale = locale),
                             style = HeroNumberMediumStyle.copy(letterSpacing = (-1).sp),
                             color = accent.onContainer,
                             maxLines = 1,
                         )
                         Text(
-                            text = "kcal daily target · ${editor.modeInput.label().lowercase()}",
+                            text = stringResource(
+                                R.string.food_kcal_daily_target,
+                                editor.modeInput.label().lowercase(locale),
+                            ),
                             style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                             color = accent.onContainerVariant,
                             modifier = Modifier.padding(top = 3.dp),
@@ -3463,7 +3479,12 @@ internal fun RecipeFeaturedCard(
 ) {
     val accent = tabAccentFor(TabAccentRole.Food)
     val sourceRecipeId = item.sourceRecipeId
-    val actionText = if (sourceRecipeId != null) "Plan ${mealTitle.lowercase()}" else "Review"
+    val locale = LocalConfiguration.current.locales[0]
+    val actionText = if (sourceRecipeId != null) {
+        stringResource(R.string.food_plan_meal, mealTitle.lowercase(locale))
+    } else {
+        stringResource(R.string.food_review)
+    }
     val onAction = {
         if (sourceRecipeId != null) onPlanClick(sourceRecipeId) else onReviewClick(item.id)
     }

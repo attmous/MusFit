@@ -64,9 +64,9 @@ internal fun FoodWeeklySummary.toWeeklyScoreUiState(): FoodWeeklyScoreUiState {
     val trainingFactor = WeeklyScoreFactor(
         score = 50,
         uiState = FoodRatingFactorUiState(
-            label = "Training signal",
-            valueLabel = "Not available",
-            explanation = "Food does not have a weekly training signal connected yet.",
+            label = uiText(R.string.food_training_signal),
+            valueLabel = uiText(R.string.food_not_available),
+            explanation = uiText(R.string.food_training_signal_unavailable),
             tone = FoodInsightTone.Neutral,
         ),
     )
@@ -232,9 +232,9 @@ private fun buildWeeklyNutritionFactor(days: List<FoodWeeklyDaySummary>, goal: F
         return WeeklyScoreFactor(
             score = 0,
             uiState = FoodRatingFactorUiState(
-                label = "Nutrition consistency",
-                valueLabel = "0%",
-                explanation = "No logged food days in this window.",
+                label = uiText(R.string.food_nutrition_consistency),
+                valueLabel = uiText(R.string.food_percentage, UiText.Argument.Integer(0)),
+                explanation = uiText(R.string.food_no_logged_days_window),
                 tone = FoodInsightTone.Warning,
             ),
         )
@@ -253,12 +253,12 @@ private fun buildWeeklyNutritionFactor(days: List<FoodWeeklyDaySummary>, goal: F
     return WeeklyScoreFactor(
         score = score,
         uiState = FoodRatingFactorUiState(
-            label = "Nutrition consistency",
-            valueLabel = "$score%",
+            label = uiText(R.string.food_nutrition_consistency),
+            valueLabel = uiText(R.string.food_percentage, UiText.Argument.Integer(score)),
             explanation = when {
-                score >= 80 -> "Most logged days align with calorie, protein, fiber, and sodium targets."
-                score >= 60 -> "Several logged days are close, with a few nutrition gaps."
-                else -> "Logged days often miss protein, fiber, sodium, or calorie targets."
+                score >= 80 -> uiText(R.string.food_nutrition_consistency_strong)
+                score >= 60 -> uiText(R.string.food_nutrition_consistency_mixed)
+                else -> uiText(R.string.food_nutrition_consistency_low)
             },
             tone = score.toWeeklyScoreTone(),
         ),
@@ -276,12 +276,12 @@ private fun buildWeeklyHydrationFactor(days: List<FoodWeeklyDaySummary>): Weekly
     return WeeklyScoreFactor(
         score = score,
         uiState = FoodRatingFactorUiState(
-            label = "Hydration",
-            valueLabel = "$score%",
+            label = uiText(R.string.food_hydration),
+            valueLabel = uiText(R.string.food_percentage, UiText.Argument.Integer(score)),
             explanation = when {
-                score >= 90 -> "Water is consistently close to goal on tracked days."
-                score >= 60 -> "Water is partly covered, but there is room to tighten consistency."
-                else -> "Water is a clear weekly opportunity."
+                score >= 90 -> uiText(R.string.food_hydration_consistency_strong)
+                score >= 60 -> uiText(R.string.food_hydration_consistency_mixed)
+                else -> uiText(R.string.food_hydration_consistency_low)
             },
             tone = score.toWeeklyScoreTone(),
         ),
@@ -304,13 +304,17 @@ private fun buildWeeklyHabitFactor(days: List<FoodWeeklyDaySummary>): WeeklyScor
     return WeeklyScoreFactor(
         score = score,
         uiState = FoodRatingFactorUiState(
-            label = "Habits",
-            valueLabel = "$matchedCount / 3",
+            label = uiText(R.string.food_habits),
+            valueLabel = uiText(
+                R.string.food_integer_ratio,
+                UiText.Argument.Integer(matchedCount),
+                UiText.Argument.Integer(3),
+            ),
             explanation = when (matchedCount) {
-                3 -> "Fruit, vegetables, and fish all appeared this week."
-                2 -> "Two weekly food habits appeared."
-                1 -> "One weekly food habit appeared."
-                else -> "Fruit, vegetables, and fish were not detected in logged food names."
+                3 -> uiText(R.string.food_weekly_habits_all)
+                2 -> uiText(R.string.food_weekly_habits_two)
+                1 -> uiText(R.string.food_weekly_habits_one)
+                else -> uiText(R.string.food_weekly_habits_none)
             },
             tone = score.toWeeklyScoreTone(),
         ),

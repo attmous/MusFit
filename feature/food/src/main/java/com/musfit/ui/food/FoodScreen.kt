@@ -1686,7 +1686,7 @@ private fun DayRatingCard(rating: FoodRatingUiState) {
                         color = MusFitTheme.colors.brandInk,
                     )
                     Text(
-                        text = rating.reason,
+                        text = rating.reason.asString(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         maxLines = 2,
@@ -1696,7 +1696,7 @@ private fun DayRatingCard(rating: FoodRatingUiState) {
                 RatingPill(rating)
             }
             Text(
-                text = rating.suggestion,
+                text = rating.suggestion.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = accent,
                 maxLines = 1,
@@ -1741,7 +1741,7 @@ private fun RatingFactorRow(factor: FoodRatingFactorUiState) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = factor.label,
+                    text = factor.label.asString(),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MusFitTheme.colors.brandInk,
@@ -1758,7 +1758,7 @@ private fun RatingFactorRow(factor: FoodRatingFactorUiState) {
                 )
             }
             Text(
-                text = factor.explanation,
+                text = factor.explanation.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -1823,7 +1823,7 @@ private fun HabitTrackerRow(habit: FoodHabitTrackerUiState) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = habit.label,
+                    text = habit.label.asString(),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MusFitTheme.colors.brandInk,
@@ -1831,7 +1831,7 @@ private fun HabitTrackerRow(habit: FoodHabitTrackerUiState) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = habit.suggestion,
+                    text = habit.suggestion.asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
@@ -1847,7 +1847,7 @@ private fun HabitTrackerRow(habit: FoodHabitTrackerUiState) {
                     maxLines = 1,
                 )
                 Text(
-                    text = habit.valueLabel,
+                    text = habit.valueLabel.asString(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
@@ -1898,7 +1898,7 @@ private fun DailyInsightCard(insight: FoodInsightUiState) {
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = insight.title,
+                    text = insight.title.asString(),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MusFitTheme.colors.brandInk,
@@ -1906,7 +1906,7 @@ private fun DailyInsightCard(insight: FoodInsightUiState) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = insight.body,
+                    text = insight.body.asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 2,
@@ -1924,7 +1924,7 @@ private fun RatingPill(rating: FoodRatingUiState) {
         shape = RoundedCornerShape(999.dp),
     ) {
         Text(
-            text = rating.label,
+            text = rating.label.asString(),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = rating.tone.ratingColor(),
@@ -2210,7 +2210,7 @@ private fun MoreNutritionSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            text = title.uppercase(),
+            text = title.uppercase(LocalConfiguration.current.locales[0]),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = MusFitTheme.colors.onSurfaceVariant,
@@ -2533,7 +2533,7 @@ private fun MealDetailSummaryHero(
                                 )
                             }
                             Text(
-                                text = rating?.label ?: stringResource(R.string.food_more_nutrition),
+                                text = rating?.label?.asString() ?: stringResource(R.string.food_more_nutrition),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.W800,
@@ -2729,6 +2729,30 @@ private fun MealSummaryRow(
 ) {
     val accent = tabAccentFor(TabAccentRole.Food)
     val summary = meal.mealDiarySummary()
+    val locale = LocalConfiguration.current.locales[0]
+    val summaryPrefix = if (summary.loggedCount > 0) {
+        stringResource(
+            R.string.food_meal_diary_item_prefix,
+            pluralStringResource(R.plurals.food_item_count, summary.loggedCount, summary.loggedCount),
+        )
+    } else {
+        ""
+    }
+    val summaryCalories = summary.caloriesKcal?.let { stringResource(R.string.food_integer_kcal, it) }.orEmpty()
+    val summaryQualifier = when (summary.qualifier) {
+        MealDiaryQualifier.None -> ""
+
+        MealDiaryQualifier.SoFar -> stringResource(R.string.food_meal_diary_so_far)
+
+        MealDiaryQualifier.Planned -> stringResource(R.string.food_meal_diary_planned)
+
+        MealDiaryQualifier.Empty -> stringResource(R.string.food_no_items_yet)
+
+        MealDiaryQualifier.Rating -> stringResource(
+            R.string.food_meal_diary_rating,
+            summary.ratingLabel?.asString()?.lowercase(locale).orEmpty(),
+        )
+    }
     Surface(
         onClick = onMealClick,
         color = MusFitTheme.colors.surface,
@@ -2758,18 +2782,18 @@ private fun MealSummaryRow(
                 )
                 Text(
                     text = buildAnnotatedString {
-                        append(summary.prefix)
-                        if (summary.kcal.isNotEmpty()) {
+                        append(summaryPrefix)
+                        if (summaryCalories.isNotEmpty()) {
                             withStyle(
                                 SpanStyle(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = accent.onContainer,
                                 ),
                             ) {
-                                append(summary.kcal)
+                                append(summaryCalories)
                             }
                         }
-                        append(summary.qualifier)
+                        append(summaryQualifier)
                     },
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,

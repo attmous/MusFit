@@ -35,6 +35,9 @@ sealed interface UiText {
 
         @JvmInline
         value class Decimal(val value: Double) : Argument
+
+        @JvmInline
+        value class Resource(@StringRes val resourceId: Int) : Argument
     }
 }
 
@@ -51,8 +54,8 @@ fun pluralUiText(
 
 @Suppress("SpreadOperator")
 fun UiText.resolve(resources: Resources): String = when (this) {
-    is UiText.Resource -> resources.getString(resourceId, *arguments.toFormatArguments())
-    is UiText.Plural -> resources.getQuantityString(resourceId, quantity, *arguments.toFormatArguments())
+    is UiText.Resource -> resources.getString(resourceId, *arguments.toFormatArguments(resources))
+    is UiText.Plural -> resources.getQuantityString(resourceId, quantity, *arguments.toFormatArguments(resources))
     is UiText.Verbatim -> value
 }
 
@@ -62,11 +65,12 @@ fun UiText.asString(): String {
     return resolve(LocalContext.current.resources)
 }
 
-private fun List<UiText.Argument>.toFormatArguments(): Array<Any> = map { argument ->
+private fun List<UiText.Argument>.toFormatArguments(resources: Resources): Array<Any> = map { argument ->
     when (argument) {
         is UiText.Argument.Text -> argument.value
         is UiText.Argument.Integer -> argument.value
         is UiText.Argument.LongInteger -> argument.value
         is UiText.Argument.Decimal -> argument.value
+        is UiText.Argument.Resource -> resources.getString(argument.resourceId)
     }
 }.toTypedArray()

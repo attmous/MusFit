@@ -1,5 +1,6 @@
 package com.musfit.ui.food
 
+import com.musfit.ui.text.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -21,9 +22,12 @@ class FoodDiaryPresentationTest {
             entries = listOf(foodMealEntry(name = "Item", caloriesKcal = 278.0)),
         )
 
-        assertEquals(MealDiarySummary("3 items · ", "545 kcal", " · great"), breakfast.mealDiarySummary())
-        assertEquals(MealDiarySummary("2 items · ", "620 kcal", ""), lunch.mealDiarySummary())
-        assertEquals(MealDiarySummary("1 item · ", "278 kcal", ""), single.mealDiarySummary())
+        assertEquals(
+            MealDiarySummary(3, 545, MealDiaryQualifier.Rating, UiText.Verbatim("Great")),
+            breakfast.mealDiarySummary(),
+        )
+        assertEquals(MealDiarySummary(2, 620, MealDiaryQualifier.None), lunch.mealDiarySummary())
+        assertEquals(MealDiarySummary(1, 278, MealDiaryQualifier.None), single.mealDiarySummary())
     }
 
     @Test
@@ -38,7 +42,10 @@ class FoodDiaryPresentationTest {
             rating = rating("Great"), // "so far" outranks the rating while items are pending
         )
 
-        assertEquals(MealDiarySummary("1 item · ", "278 kcal", " · so far"), dinner.mealDiarySummary())
+        assertEquals(
+            MealDiarySummary(1, 278, MealDiaryQualifier.SoFar, UiText.Verbatim("Great")),
+            dinner.mealDiarySummary(),
+        )
     }
 
     @Test
@@ -49,8 +56,8 @@ class FoodDiaryPresentationTest {
         )
         val emptyMeal = foodMealSection()
 
-        assertEquals(MealDiarySummary("", "245 kcal", " planned"), plannedMeal.mealDiarySummary())
-        assertEquals(MealDiarySummary("No items yet", "", ""), emptyMeal.mealDiarySummary())
+        assertEquals(MealDiarySummary(0, 245, MealDiaryQualifier.Planned), plannedMeal.mealDiarySummary())
+        assertEquals(MealDiarySummary(0, null, MealDiaryQualifier.Empty), emptyMeal.mealDiarySummary())
     }
 }
 

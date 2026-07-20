@@ -158,24 +158,46 @@ enum class FoodInsightTone {
 }
 
 data class FoodInsightUiState(
-    val title: String,
-    val body: String,
+    val title: UiText,
+    val body: UiText,
     val tone: FoodInsightTone,
-)
+) {
+    constructor(title: String, body: String, tone: FoodInsightTone) : this(
+        UiText.Verbatim(title),
+        UiText.Verbatim(body),
+        tone,
+    )
+}
 
 data class FoodRatingUiState(
-    val label: String,
-    val reason: String,
-    val suggestion: String,
+    val label: UiText,
+    val reason: UiText,
+    val suggestion: UiText,
     val tone: FoodInsightTone,
     val score: Int? = null,
     val factors: List<FoodRatingFactorUiState> = emptyList(),
-)
+) {
+    constructor(
+        label: String,
+        reason: String,
+        suggestion: String,
+        tone: FoodInsightTone,
+        score: Int? = null,
+        factors: List<FoodRatingFactorUiState> = emptyList(),
+    ) : this(
+        UiText.Verbatim(label),
+        UiText.Verbatim(reason),
+        UiText.Verbatim(suggestion),
+        tone,
+        score,
+        factors,
+    )
+}
 
 data class FoodRatingFactorUiState(
-    val label: String,
+    val label: UiText,
     val valueLabel: UiText,
-    val explanation: String,
+    val explanation: UiText,
     val tone: FoodInsightTone,
 ) {
     constructor(
@@ -183,7 +205,7 @@ data class FoodRatingFactorUiState(
         valueLabel: String,
         explanation: String,
         tone: FoodInsightTone,
-    ) : this(label, UiText.Verbatim(valueLabel), explanation, tone)
+    ) : this(UiText.Verbatim(label), UiText.Verbatim(valueLabel), UiText.Verbatim(explanation), tone)
 }
 
 data class NutritionLabelScanReviewUiState(
@@ -238,13 +260,31 @@ enum class FoodHabitStatus {
 
 data class FoodHabitTrackerUiState(
     val id: String,
-    val label: String,
-    val valueLabel: String,
+    val label: UiText,
+    val valueLabel: UiText,
     val progress: Double,
     val status: FoodHabitStatus,
     val tone: FoodInsightTone,
-    val suggestion: String,
-)
+    val suggestion: UiText,
+) {
+    constructor(
+        id: String,
+        label: String,
+        valueLabel: String,
+        progress: Double,
+        status: FoodHabitStatus,
+        tone: FoodInsightTone,
+        suggestion: String,
+    ) : this(
+        id,
+        UiText.Verbatim(label),
+        UiText.Verbatim(valueLabel),
+        progress,
+        status,
+        tone,
+        UiText.Verbatim(suggestion),
+    )
+}
 
 enum class EmptyDiaryActionType {
     Breakfast,
@@ -312,7 +352,6 @@ data class FoodMealSectionUiState(
 
 data class FoodPlanDayUiState(
     val date: LocalDate,
-    val dayLabel: String,
     val loggedCaloriesKcal: Double,
     val plannedCaloriesKcal: Double,
     val loggedEntryCount: Int,
@@ -352,11 +391,25 @@ enum class FoodTrustLevel {
 
 data class FoodTrustUiState(
     val level: FoodTrustLevel,
-    val label: String,
-    val explanation: String,
-    val actionLabel: String,
+    val label: UiText,
+    val explanation: UiText,
+    val actionLabel: UiText,
     val isReported: Boolean = false,
-)
+) {
+    constructor(
+        level: FoodTrustLevel,
+        label: String,
+        explanation: String,
+        actionLabel: String,
+        isReported: Boolean = false,
+    ) : this(
+        level,
+        UiText.Verbatim(label),
+        UiText.Verbatim(explanation),
+        UiText.Verbatim(actionLabel),
+        isReported,
+    )
+}
 
 data class SavedFoodUiState(
     val id: String,
@@ -442,11 +495,18 @@ data class BarcodeComparisonItemUiState(
 )
 
 data class BarcodeComparisonHighlightUiState(
-    val label: String,
+    val label: UiText,
     val leftValue: String,
     val rightValue: String,
     val winnerSide: BarcodeComparisonSide?,
-)
+) {
+    constructor(label: String, leftValue: String, rightValue: String, winnerSide: BarcodeComparisonSide?) : this(
+        UiText.Verbatim(label),
+        leftValue,
+        rightValue,
+        winnerSide,
+    )
+}
 
 data class BarcodeComparisonUiState(
     val leftBarcodeInput: String = "",
@@ -5658,12 +5718,12 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
     val sodium = diary.detailTotals.sodiumMilligrams
     return listOf(
         FoodRatingFactorUiState(
-            label = "Calories",
-            valueLabel = "${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal",
+            label = uiText(R.string.food_calories),
+            valueLabel = UiText.Verbatim("${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal"),
             explanation = when {
-                calories > calorieGoalKcal * 1.1 -> "Above today's calorie target."
-                calories < calorieGoalKcal * 0.5 -> "Still low for today."
-                else -> "Aligned with today's calorie target."
+                calories > calorieGoalKcal * 1.1 -> uiText(R.string.food_rating_calories_above_today)
+                calories < calorieGoalKcal * 0.5 -> uiText(R.string.food_rating_calories_low_today)
+                else -> uiText(R.string.food_rating_calories_aligned_today)
             },
             tone = when {
                 calories > calorieGoalKcal * 1.1 -> FoodInsightTone.Warning
@@ -5672,12 +5732,12 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
             },
         ),
         FoodRatingFactorUiState(
-            label = "Protein",
-            valueLabel = "${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g",
+            label = uiText(R.string.food_protein),
+            valueLabel = UiText.Verbatim("${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g"),
             explanation = when {
-                protein < proteinGoalGrams * 0.6 -> "Well below your protein target."
-                protein < proteinGoalGrams * 0.9 -> "A little short of your protein target."
-                else -> "On pace for your protein target."
+                protein < proteinGoalGrams * 0.6 -> uiText(R.string.food_rating_protein_well_below)
+                protein < proteinGoalGrams * 0.9 -> uiText(R.string.food_rating_protein_short)
+                else -> uiText(R.string.food_rating_protein_on_pace)
             },
             tone = when {
                 protein < proteinGoalGrams * 0.6 -> FoodInsightTone.Warning
@@ -5686,12 +5746,12 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
             },
         ),
         FoodRatingFactorUiState(
-            label = "Fiber",
-            valueLabel = "${fiber.formatNutritionDisplay()} / ${fiberGoalGrams.formatNutritionDisplay()} g",
+            label = uiText(R.string.food_fiber),
+            valueLabel = UiText.Verbatim("${fiber.formatNutritionDisplay()} / ${fiberGoalGrams.formatNutritionDisplay()} g"),
             explanation = when {
-                fiber < fiberGoalGrams * 0.5 -> "Low fiber for the day."
-                fiber < fiberGoalGrams * 0.8 -> "Some more fiber would help."
-                else -> "Fiber is in a strong range."
+                fiber < fiberGoalGrams * 0.5 -> uiText(R.string.food_rating_fiber_low)
+                fiber < fiberGoalGrams * 0.8 -> uiText(R.string.food_rating_fiber_more)
+                else -> uiText(R.string.food_rating_fiber_strong)
             },
             tone = when {
                 fiber < fiberGoalGrams * 0.5 -> FoodInsightTone.Warning
@@ -5700,12 +5760,12 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
             },
         ),
         FoodRatingFactorUiState(
-            label = "Sodium",
-            valueLabel = "${sodium.roundToInt()} / ${sodiumGoalMilligrams.roundToInt()} mg",
+            label = uiText(R.string.food_sodium),
+            valueLabel = UiText.Verbatim("${sodium.roundToInt()} / ${sodiumGoalMilligrams.roundToInt()} mg"),
             explanation = if (sodium > sodiumGoalMilligrams) {
-                "Above today's sodium target."
+                uiText(R.string.food_rating_sodium_above_today)
             } else {
-                "Within today's sodium target."
+                uiText(R.string.food_rating_sodium_within_today)
             },
             tone = if (sodium > sodiumGoalMilligrams) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
@@ -5717,12 +5777,12 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
     FoodGoalMode.HighProtein -> {
         val protein = diary.totals.proteinGrams
         FoodRatingFactorUiState(
-            label = "High protein focus",
-            valueLabel = "${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g",
+            label = uiText(R.string.food_high_protein_focus),
+            valueLabel = UiText.Verbatim("${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g"),
             explanation = if (protein >= proteinGoalGrams * 0.9) {
-                "High Protein mode is on track."
+                uiText(R.string.food_rating_high_protein_on_track)
             } else {
-                "High Protein mode needs more lean protein today."
+                uiText(R.string.food_rating_high_protein_needs_more)
             },
             tone = if (protein >= proteinGoalGrams * 0.9) FoodInsightTone.Positive else FoodInsightTone.Warning,
         )
@@ -5735,12 +5795,12 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
             diary.totals.carbsGrams
         }
         FoodRatingFactorUiState(
-            label = "Low-carb focus",
-            valueLabel = "${carbs.formatNutritionDisplay()} / ${carbsGoalGrams.formatNutritionDisplay()} g",
+            label = uiText(R.string.food_low_carb_focus),
+            valueLabel = UiText.Verbatim("${carbs.formatNutritionDisplay()} / ${carbsGoalGrams.formatNutritionDisplay()} g"),
             explanation = if (carbs <= carbsGoalGrams) {
-                "Low-carb mode is within today's carb target."
+                uiText(R.string.food_rating_low_carb_within)
             } else {
-                "Low-carb mode is over today's carb target."
+                uiText(R.string.food_rating_low_carb_over)
             },
             tone = if (carbs <= carbsGoalGrams) FoodInsightTone.Positive else FoodInsightTone.Warning,
         )
@@ -5749,12 +5809,12 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
     FoodGoalMode.MuscleGain -> {
         val calories = diary.totals.caloriesKcal
         FoodRatingFactorUiState(
-            label = "Muscle gain focus",
-            valueLabel = "${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal",
+            label = uiText(R.string.food_muscle_gain_focus),
+            valueLabel = UiText.Verbatim("${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal"),
             explanation = if (calories >= calorieGoalKcal * 0.85 && diary.totals.proteinGrams >= proteinGoalGrams * 0.9) {
-                "Muscle Gain mode has enough energy and protein."
+                uiText(R.string.food_rating_muscle_gain_enough)
             } else {
-                "Muscle Gain mode needs more calories or protein."
+                uiText(R.string.food_rating_muscle_gain_needs_more)
             },
             tone = if (calories >= calorieGoalKcal * 0.85 && diary.totals.proteinGrams >= proteinGoalGrams * 0.9) {
                 FoodInsightTone.Positive
@@ -5767,12 +5827,12 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
     FoodGoalMode.WeightLoss -> {
         val calories = diary.totals.caloriesKcal
         FoodRatingFactorUiState(
-            label = "Weight loss focus",
-            valueLabel = "${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal",
+            label = uiText(R.string.food_weight_loss_focus),
+            valueLabel = UiText.Verbatim("${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal"),
             explanation = if (calories <= calorieGoalKcal && diary.totals.proteinGrams >= proteinGoalGrams * 0.8) {
-                "Weight Loss mode is controlled without losing protein."
+                uiText(R.string.food_rating_weight_loss_controlled)
             } else {
-                "Weight Loss mode needs tighter calories or more protein."
+                uiText(R.string.food_rating_weight_loss_needs_adjustment)
             },
             tone = if (calories <= calorieGoalKcal && diary.totals.proteinGrams >= proteinGoalGrams * 0.8) {
                 FoodInsightTone.Positive
@@ -5784,33 +5844,33 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
 
     FoodGoalMode.MediterraneanStyle ->
         FoodRatingFactorUiState(
-            label = "Mediterranean focus",
+            label = uiText(R.string.food_mediterranean_focus),
             valueLabel = uiText(goalMode.labelResource()),
-            explanation = "Mediterranean-style mode emphasizes fiber, fish or legumes, and unsaturated fats.",
+            explanation = uiText(R.string.food_rating_mediterranean_explanation),
             tone = FoodInsightTone.Positive,
         )
 
     FoodGoalMode.CleanEating ->
         FoodRatingFactorUiState(
-            label = "Clean eating focus",
+            label = uiText(R.string.food_clean_eating_focus),
             valueLabel = uiText(goalMode.labelResource()),
-            explanation = "Clean Eating mode emphasizes protein, fiber, lower sugar, and calmer sodium.",
+            explanation = uiText(R.string.food_rating_clean_eating_explanation),
             tone = FoodInsightTone.Positive,
         )
 
     FoodGoalMode.Custom ->
         FoodRatingFactorUiState(
-            label = "Custom focus",
+            label = uiText(R.string.food_custom_focus),
             valueLabel = uiText(goalMode.labelResource()),
-            explanation = "Rated against your custom calorie and nutrient targets.",
+            explanation = uiText(R.string.food_rating_custom_explanation),
             tone = FoodInsightTone.Neutral,
         )
 
     FoodGoalMode.Balanced ->
         FoodRatingFactorUiState(
-            label = "Balanced focus",
+            label = uiText(R.string.food_balanced_focus),
             valueLabel = uiText(goalMode.labelResource()),
-            explanation = "Balanced mode checks calories, protein, fiber, and sodium together.",
+            explanation = uiText(R.string.food_rating_balanced_explanation),
             tone = FoodInsightTone.Positive,
         )
 }
@@ -5832,67 +5892,73 @@ private fun FoodDiaryMeal?.toFoodMealRating(calorieTargetKcal: Double): FoodRati
     }
 
     var score = 100
-    val reasons = mutableListOf<String>()
-    val suggestions = mutableListOf<String>()
+    val reasons = mutableListOf<UiText>()
+    val suggestions = mutableListOf<UiText>()
     if (meal.totals.proteinGrams < 20.0) {
         score -= 35
-        reasons += "Protein is low for this meal."
-        suggestions += "Add eggs, yogurt, fish, meat, tofu, or legumes."
+        reasons += uiText(R.string.food_meal_protein_low)
+        suggestions += uiText(R.string.food_meal_add_protein_sources)
     }
     if (meal.detailTotals.fiberGrams < 5.0) {
         score -= 15
-        reasons += "Fiber is light."
-        suggestions += "Add fruit, whole grains, or vegetables."
+        reasons += uiText(R.string.food_meal_fiber_light)
+        suggestions += uiText(R.string.food_meal_add_fiber_sources)
     }
     if (meal.detailTotals.sodiumMilligrams > 900.0) {
         score -= 25
-        reasons += "Sodium is high for one meal."
-        suggestions += "Balance it with lower-sodium choices later."
+        reasons += uiText(R.string.food_meal_sodium_high)
+        suggestions += uiText(R.string.food_meal_balance_sodium)
     }
     if (meal.totals.caloriesKcal > calorieTargetKcal * 1.15) {
         score -= 15
-        reasons += "Calories are above the meal target."
-        suggestions += "Keep the next meal lighter."
+        reasons += uiText(R.string.food_meal_calories_above)
+        suggestions += uiText(R.string.food_meal_keep_next_lighter)
     } else if (meal.totals.caloriesKcal < calorieTargetKcal * 0.35) {
         score -= 10
-        reasons += "This meal is very light."
-        suggestions += "Add protein or fiber if you are still hungry."
+        reasons += uiText(R.string.food_meal_very_light)
+        suggestions += uiText(R.string.food_meal_add_if_hungry)
     }
     val factors = listOf(
         FoodRatingFactorUiState(
-            label = "Calories",
-            valueLabel = "${meal.totals.caloriesKcal.roundToInt()} / ${calorieTargetKcal.roundToInt()} kcal",
+            label = uiText(R.string.food_calories),
+            valueLabel = UiText.Verbatim("${meal.totals.caloriesKcal.roundToInt()} / ${calorieTargetKcal.roundToInt()} kcal"),
             explanation = if (meal.totals.caloriesKcal > calorieTargetKcal * 1.15) {
-                "Above this meal's target."
+                uiText(R.string.food_meal_above_target)
             } else {
-                "Reasonable for this meal."
+                uiText(R.string.food_meal_reasonable)
             },
             tone = if (meal.totals.caloriesKcal > calorieTargetKcal * 1.15) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
         FoodRatingFactorUiState(
-            label = "Protein",
-            valueLabel = "${meal.totals.proteinGrams.formatNutritionDisplay()} g",
-            explanation = if (meal.totals.proteinGrams >= 20.0) "Protein anchor is covered." else "Add a protein anchor.",
+            label = uiText(R.string.food_protein),
+            valueLabel = UiText.Verbatim("${meal.totals.proteinGrams.formatNutritionDisplay()} g"),
+            explanation = uiText(
+                if (meal.totals.proteinGrams >= 20.0) R.string.food_meal_protein_covered else R.string.food_meal_add_protein_anchor,
+            ),
             tone = if (meal.totals.proteinGrams >= 20.0) FoodInsightTone.Positive else FoodInsightTone.Warning,
         ),
         FoodRatingFactorUiState(
-            label = "Fiber",
-            valueLabel = "${meal.detailTotals.fiberGrams.formatNutritionDisplay()} g",
-            explanation = if (meal.detailTotals.fiberGrams >= 5.0) "Fiber is helpful here." else "Fiber is light.",
+            label = uiText(R.string.food_fiber),
+            valueLabel = UiText.Verbatim("${meal.detailTotals.fiberGrams.formatNutritionDisplay()} g"),
+            explanation = uiText(
+                if (meal.detailTotals.fiberGrams >= 5.0) R.string.food_meal_fiber_helpful else R.string.food_meal_fiber_light,
+            ),
             tone = if (meal.detailTotals.fiberGrams >= 5.0) FoodInsightTone.Positive else FoodInsightTone.Neutral,
         ),
         FoodRatingFactorUiState(
-            label = "Sodium",
-            valueLabel = "${meal.detailTotals.sodiumMilligrams.roundToInt()} mg",
-            explanation = if (meal.detailTotals.sodiumMilligrams > 900.0) "High for one meal." else "Not high for one meal.",
+            label = uiText(R.string.food_sodium),
+            valueLabel = UiText.Verbatim("${meal.detailTotals.sodiumMilligrams.roundToInt()} mg"),
+            explanation = uiText(
+                if (meal.detailTotals.sodiumMilligrams > 900.0) R.string.food_meal_high_sodium else R.string.food_meal_not_high_sodium,
+            ),
             tone = if (meal.detailTotals.sodiumMilligrams > 900.0) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
     )
 
     return FoodRatingUiState(
-        label = score.toFoodRatingLabel(),
-        reason = reasons.firstOrNull() ?: "Protein, fiber, sodium, and calories look balanced.",
-        suggestion = suggestions.firstOrNull() ?: "Repeat this structure when it fits your day.",
+        label = score.toFoodRatingText(),
+        reason = reasons.firstOrNull() ?: uiText(R.string.food_rating_balanced_reason),
+        suggestion = suggestions.firstOrNull() ?: uiText(R.string.food_rating_repeat_structure),
         tone = score.toFoodRatingTone(),
         score = score.coerceIn(0, 100),
         factors = factors,
@@ -5905,65 +5971,73 @@ private fun FoodDiaryEntry.toFoodEntryRating(): FoodRatingUiState? {
     }
 
     var score = 100
-    val reasons = mutableListOf<String>()
-    val suggestions = mutableListOf<String>()
+    val reasons = mutableListOf<UiText>()
+    val suggestions = mutableListOf<UiText>()
     if (nutritionDetails.sugarGrams > 20.0) {
         score -= 35
-        reasons += "Sugar is high for one food."
-        suggestions += "Pair it with a lower-sugar choice next."
+        reasons += uiText(R.string.food_entry_sugar_high)
+        suggestions += uiText(R.string.food_entry_pair_lower_sugar)
     }
     if (nutritionDetails.sodiumMilligrams > 700.0) {
         score -= 25
-        reasons += "Sodium is high for one food."
-        suggestions += "Balance it with lower-sodium foods."
+        reasons += uiText(R.string.food_entry_sodium_high)
+        suggestions += uiText(R.string.food_entry_balance_sodium)
     }
     if (nutritionDetails.saturatedFatGrams > 7.0) {
         score -= 20
-        reasons += "Saturated fat is high."
-        suggestions += "Keep the next fat source lighter."
+        reasons += uiText(R.string.food_entry_saturated_fat_high)
+        suggestions += uiText(R.string.food_entry_keep_fat_lighter)
     }
     if (caloriesKcal >= 300.0 && proteinGrams < 10.0) {
         score -= 20
-        reasons += "Calories are not backed by much protein."
-        suggestions += "Add a protein-forward food nearby."
+        reasons += uiText(R.string.food_entry_calories_low_protein)
+        suggestions += uiText(R.string.food_entry_add_protein_nearby)
     }
     if (caloriesKcal >= 200.0 && nutritionDetails.fiberGrams < 2.0 && carbsGrams > 25.0) {
         score -= 10
-        reasons += "Fiber is light for the carbs."
-        suggestions += "Add fruit, veg, beans, or whole grains."
+        reasons += uiText(R.string.food_entry_fiber_light_for_carbs)
+        suggestions += uiText(R.string.food_entry_add_fiber_sources)
     }
 
     val factors = listOf(
         FoodRatingFactorUiState(
-            label = "Protein",
-            valueLabel = "${proteinGrams.formatNutritionDisplay()} g",
-            explanation = if (proteinGrams >= 10.0) "Useful protein contribution." else "Low protein contribution.",
+            label = uiText(R.string.food_protein),
+            valueLabel = UiText.Verbatim("${proteinGrams.formatNutritionDisplay()} g"),
+            explanation = uiText(
+                if (proteinGrams >= 10.0) R.string.food_entry_protein_useful else R.string.food_entry_protein_low,
+            ),
             tone = if (proteinGrams >= 10.0) FoodInsightTone.Positive else FoodInsightTone.Neutral,
         ),
         FoodRatingFactorUiState(
-            label = "Fiber",
-            valueLabel = "${nutritionDetails.fiberGrams.formatNutritionDisplay()} g",
-            explanation = if (nutritionDetails.fiberGrams >= 2.0) "Adds fiber." else "Little fiber.",
+            label = uiText(R.string.food_fiber),
+            valueLabel = UiText.Verbatim("${nutritionDetails.fiberGrams.formatNutritionDisplay()} g"),
+            explanation = uiText(
+                if (nutritionDetails.fiberGrams >= 2.0) R.string.food_entry_adds_fiber else R.string.food_entry_little_fiber,
+            ),
             tone = if (nutritionDetails.fiberGrams >= 2.0) FoodInsightTone.Positive else FoodInsightTone.Neutral,
         ),
         FoodRatingFactorUiState(
-            label = "Sugar",
-            valueLabel = "${nutritionDetails.sugarGrams.formatNutritionDisplay()} g",
-            explanation = if (nutritionDetails.sugarGrams > 20.0) "High sugar for one food." else "Sugar is not high.",
+            label = uiText(R.string.food_sugar),
+            valueLabel = UiText.Verbatim("${nutritionDetails.sugarGrams.formatNutritionDisplay()} g"),
+            explanation = uiText(
+                if (nutritionDetails.sugarGrams > 20.0) R.string.food_entry_sugar_high_short else R.string.food_entry_sugar_not_high,
+            ),
             tone = if (nutritionDetails.sugarGrams > 20.0) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
         FoodRatingFactorUiState(
-            label = "Sodium",
-            valueLabel = "${nutritionDetails.sodiumMilligrams.roundToInt()} mg",
-            explanation = if (nutritionDetails.sodiumMilligrams > 700.0) "High sodium for one food." else "Sodium is not high.",
+            label = uiText(R.string.food_sodium),
+            valueLabel = UiText.Verbatim("${nutritionDetails.sodiumMilligrams.roundToInt()} mg"),
+            explanation = uiText(
+                if (nutritionDetails.sodiumMilligrams > 700.0) R.string.food_entry_sodium_high_short else R.string.food_entry_sodium_not_high,
+            ),
             tone = if (nutritionDetails.sodiumMilligrams > 700.0) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
     )
 
     return FoodRatingUiState(
-        label = score.coerceIn(0, 100).toFoodRatingLabel(),
-        reason = reasons.firstOrNull() ?: "This food fits today's pattern well.",
-        suggestion = suggestions.firstOrNull() ?: "Keep it when it supports your meal.",
+        label = score.coerceIn(0, 100).toFoodRatingText(),
+        reason = reasons.firstOrNull() ?: uiText(R.string.food_entry_fits_pattern),
+        suggestion = suggestions.firstOrNull() ?: uiText(R.string.food_entry_keep_when_helpful),
         tone = score.coerceIn(0, 100).toFoodRatingTone(),
         score = score.coerceIn(0, 100),
         factors = factors,
@@ -5984,29 +6058,33 @@ internal fun buildHabitTrackers(
     return listOf(
         habitFromEntries(
             id = "fruit",
-            label = "Fruit",
+            label = uiText(R.string.food_fruit),
             entries = loggedEntries,
             keywords = fruitHabitKeywords,
-            suggestion = "Add fruit as a snack or side.",
+            suggestion = uiText(R.string.food_habit_add_fruit),
         ),
         habitFromEntries(
             id = "vegetables",
-            label = "Vegetables",
+            label = uiText(R.string.food_vegetables),
             entries = loggedEntries,
             keywords = vegetableHabitKeywords,
-            suggestion = "Add vegetables to a meal.",
+            suggestion = uiText(R.string.food_habit_add_vegetables),
         ),
         habitFromEntries(
             id = "fish",
-            label = "Fish",
+            label = uiText(R.string.food_fish),
             entries = loggedEntries,
             keywords = fishHabitKeywords,
-            suggestion = "Plan fish or seafood this week.",
+            suggestion = uiText(R.string.food_habit_plan_fish),
         ),
         FoodHabitTrackerUiState(
             id = "water",
-            label = "Water",
-            valueLabel = "${waterConsumedMilliliters.roundToInt()} / ${waterGoalMilliliters.roundToInt()} ml",
+            label = uiText(R.string.food_water),
+            valueLabel = uiText(
+                R.string.food_water_progress,
+                UiText.Argument.Integer(waterConsumedMilliliters.roundToInt()),
+                UiText.Argument.Integer(waterGoalMilliliters.roundToInt()),
+            ),
             progress = waterProgress,
             status = when {
                 waterProgress >= 1.0 -> FoodHabitStatus.Complete
@@ -6017,29 +6095,29 @@ internal fun buildHabitTrackers(
                 waterProgress >= 1.0 -> FoodInsightTone.Positive
                 else -> FoodInsightTone.Neutral
             },
-            suggestion = "Keep sipping through the day.",
+            suggestion = uiText(R.string.food_habit_keep_sipping),
         ),
     )
 }
 
 private fun habitFromEntries(
     id: String,
-    label: String,
+    label: UiText,
     entries: List<FoodDiaryEntry>,
     keywords: Set<String>,
-    suggestion: String,
+    suggestion: UiText,
 ): FoodHabitTrackerUiState {
     val matched = entries.any { entry -> entry.matchesHabitKeyword(keywords) }
     return FoodHabitTrackerUiState(
         id = id,
         label = label,
-        valueLabel = if (matched) "Logged" else "Not yet",
+        valueLabel = uiText(if (matched) R.string.food_logged else R.string.food_not_yet),
         progress = if (matched) 1.0 else 0.0,
         status = if (matched) FoodHabitStatus.Complete else FoodHabitStatus.Missing,
         // "Not yet" is incomplete, not a problem — keep it neutral so coral stays
         // reserved for real warnings (over-limit sodium, etc.).
         tone = if (matched) FoodInsightTone.Positive else FoodInsightTone.Neutral,
-        suggestion = if (matched) "Covered today." else suggestion,
+        suggestion = if (matched) uiText(R.string.food_covered_today) else suggestion,
     )
 }
 
@@ -6097,6 +6175,15 @@ internal fun Int.toFoodRatingLabel(): String = when {
     this >= 50 -> "Watch"
     else -> "Needs work"
 }
+
+internal fun Int.toFoodRatingText(): UiText = uiText(
+    when {
+        this >= 85 -> R.string.food_rating_great
+        this >= 70 -> R.string.food_rating_good
+        this >= 50 -> R.string.food_rating_watch
+        else -> R.string.food_rating_needs_work
+    },
+)
 
 internal fun Int.toFoodRatingTone(): FoodInsightTone = when {
     this >= 85 -> FoodInsightTone.Positive
@@ -6309,49 +6396,48 @@ private fun buildFoodTrust(
         isReported ->
             FoodTrustUiState(
                 level = FoodTrustLevel.NeedsReview,
-                label = "Needs review",
-                explanation = "Marked locally for correction. Review serving size and nutrition before relying on it.",
-                actionLabel = "Correct",
+                label = uiText(R.string.food_trust_needs_review),
+                explanation = uiText(R.string.food_trust_marked_for_correction),
+                actionLabel = uiText(R.string.food_correct),
                 isReported = true,
             )
 
         !hasNutrition ->
             FoodTrustUiState(
                 level = FoodTrustLevel.NeedsReview,
-                label = "Missing nutrition",
-                explanation = "This saved food has little nutrition data. Correct it before frequent logging.",
-                actionLabel = "Correct",
+                label = uiText(R.string.food_trust_missing_nutrition),
+                explanation = uiText(R.string.food_trust_missing_nutrition_explanation),
+                actionLabel = uiText(R.string.food_correct),
             )
 
         category.equals("Nutrition label", ignoreCase = true) ->
             FoodTrustUiState(
                 level = FoodTrustLevel.NeedsReview,
-                label = "Review label scan",
-                explanation = "Label scans are best-effort. Check extracted values before saving or repeated logging.",
-                actionLabel = "Review",
+                label = uiText(R.string.food_trust_review_label_scan),
+                explanation = uiText(R.string.food_trust_label_scan_explanation),
+                actionLabel = uiText(R.string.food_review),
             )
 
         sourceLabel == "Scanned" || !barcode.isNullOrBlank() ->
             FoodTrustUiState(
                 level = FoodTrustLevel.Imported,
-                label = "Barcode import",
-                explanation = "Imported from barcode data. Serving size and brand should still be checked.",
-                actionLabel = "Check",
+                label = uiText(R.string.food_trust_barcode_import),
+                explanation = uiText(R.string.food_trust_barcode_explanation),
+                actionLabel = uiText(R.string.food_check),
             )
 
         else ->
             FoodTrustUiState(
                 level = FoodTrustLevel.Manual,
-                label = "Manual entry",
-                explanation = "Created locally. Accuracy depends on the values entered in MusFit.",
-                actionLabel = "Edit",
+                label = uiText(R.string.food_manual_entry),
+                explanation = uiText(R.string.food_trust_manual_explanation),
+                actionLabel = uiText(R.string.food_edit),
             )
     }
 }
 
 private fun FoodPlanDay.toUiState(): FoodPlanDayUiState = FoodPlanDayUiState(
     date = date,
-    dayLabel = date.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.titlecase() },
     loggedCaloriesKcal = loggedTotals.caloriesKcal,
     plannedCaloriesKcal = plannedTotals.caloriesKcal,
     loggedEntryCount = loggedEntryCount,
@@ -6482,17 +6568,17 @@ private fun buildBarcodeComparisonHighlights(
         return emptyList()
     }
     return listOf(
-        barcodeComparisonHighlight("Calories", leftItem.caloriesPer100g, rightItem.caloriesPer100g, lowerIsBetter = true, unit = "kcal"),
-        barcodeComparisonHighlight("Protein", leftItem.proteinPer100g, rightItem.proteinPer100g, lowerIsBetter = false, unit = "g"),
-        barcodeComparisonHighlight("Carbs", leftItem.carbsPer100g, rightItem.carbsPer100g, lowerIsBetter = true, unit = "g"),
-        barcodeComparisonHighlight("Fat", leftItem.fatPer100g, rightItem.fatPer100g, lowerIsBetter = true, unit = "g"),
-        barcodeComparisonHighlight("Sugar", leftItem.sugarPer100g, rightItem.sugarPer100g, lowerIsBetter = true, unit = "g"),
-        barcodeComparisonHighlight("Sodium", leftItem.sodiumMgPer100g, rightItem.sodiumMgPer100g, lowerIsBetter = true, unit = "mg"),
+        barcodeComparisonHighlight(uiText(R.string.food_calories), leftItem.caloriesPer100g, rightItem.caloriesPer100g, lowerIsBetter = true, unit = "kcal"),
+        barcodeComparisonHighlight(uiText(R.string.food_protein), leftItem.proteinPer100g, rightItem.proteinPer100g, lowerIsBetter = false, unit = "g"),
+        barcodeComparisonHighlight(uiText(R.string.food_carbs), leftItem.carbsPer100g, rightItem.carbsPer100g, lowerIsBetter = true, unit = "g"),
+        barcodeComparisonHighlight(uiText(R.string.food_fat), leftItem.fatPer100g, rightItem.fatPer100g, lowerIsBetter = true, unit = "g"),
+        barcodeComparisonHighlight(uiText(R.string.food_sugar), leftItem.sugarPer100g, rightItem.sugarPer100g, lowerIsBetter = true, unit = "g"),
+        barcodeComparisonHighlight(uiText(R.string.food_sodium), leftItem.sodiumMgPer100g, rightItem.sodiumMgPer100g, lowerIsBetter = true, unit = "mg"),
     )
 }
 
 private fun barcodeComparisonHighlight(
-    label: String,
+    label: UiText,
     leftValue: Double,
     rightValue: Double,
     lowerIsBetter: Boolean,
@@ -6759,8 +6845,8 @@ private fun emptyMicronutrients(): List<FoodMicronutrientUiState> = NutritionDet
 
 private fun emptyDailyInsights(): List<FoodInsightUiState> = listOf(
     FoodInsightUiState(
-        title = "Start with a meal",
-        body = "Log a meal, favorite, or quick calories to see today clearly.",
+        title = uiText(R.string.food_insight_start_with_meal),
+        body = uiText(R.string.food_insight_start_with_meal_body),
         tone = FoodInsightTone.Neutral,
     ),
 )
@@ -6771,9 +6857,9 @@ private fun emptyRecipeDiscoveryItems(): List<RecipeDiscoveryItemUiState> = buil
 
 private fun emptyFoodTrust(): FoodTrustUiState = FoodTrustUiState(
     level = FoodTrustLevel.Manual,
-    label = "Manual entry",
-    explanation = "Created locally. Accuracy depends on the values entered in MusFit.",
-    actionLabel = "Edit",
+    label = uiText(R.string.food_manual_entry),
+    explanation = uiText(R.string.food_trust_manual_explanation),
+    actionLabel = uiText(R.string.food_edit),
 )
 
 private fun emptyHabitTrackers(): List<FoodHabitTrackerUiState> = buildHabitTrackers(
@@ -6783,9 +6869,9 @@ private fun emptyHabitTrackers(): List<FoodHabitTrackerUiState> = buildHabitTrac
 )
 
 internal fun emptyFoodRating(): FoodRatingUiState = FoodRatingUiState(
-    label = "No rating",
-    reason = "Log food to rate today.",
-    suggestion = "Start with a meal or favorite.",
+    label = uiText(R.string.food_no_rating),
+    reason = uiText(R.string.food_log_to_rate_today),
+    suggestion = uiText(R.string.food_start_meal_or_favorite),
     tone = FoodInsightTone.Neutral,
 )
 

@@ -572,7 +572,11 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(
-            listOf("Protein is low", "Fiber is below target", "Add protein next"),
+            listOf(
+                uiText(R.string.food_insight_protein_low),
+                uiText(R.string.food_insight_fiber_below),
+                uiText(R.string.food_insight_add_protein),
+            ),
             viewModel.state.value.dailyInsights.map { it.title },
         )
     }
@@ -613,8 +617,13 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         val insightTitles = viewModel.state.value.dailyInsights.map { it.title }
-        assertTrue("Sodium is high" in insightTitles)
-        assertTrue("Breakfast was balanced" in insightTitles)
+        assertTrue(uiText(R.string.food_insight_sodium_high) in insightTitles)
+        assertTrue(
+            uiText(
+                R.string.food_insight_meal_balanced,
+                UiText.Argument.Text("Breakfast"),
+            ) in insightTitles,
+        )
     }
 
     @Test
@@ -652,8 +661,11 @@ class FoodViewModelTest {
         val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Great", viewModel.state.value.dayRating.label)
-        assertEquals("Great", viewModel.state.value.mealSections.first { it.id == "breakfast" }.rating?.label)
+        assertEquals(uiText(R.string.food_rating_great), viewModel.state.value.dayRating.label)
+        assertEquals(
+            uiText(R.string.food_rating_great),
+            viewModel.state.value.mealSections.first { it.id == "breakfast" }.rating?.label,
+        )
     }
 
     @Test
@@ -691,11 +703,11 @@ class FoodViewModelTest {
         val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = repository)
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Needs work", viewModel.state.value.dayRating.label)
-        assertTrue(viewModel.state.value.dayRating.reason.contains("sodium"))
+        assertEquals(uiText(R.string.food_rating_needs_work), viewModel.state.value.dayRating.label)
+        assertEquals(uiText(R.string.food_day_high_sodium), viewModel.state.value.dayRating.reason)
         val breakfastRating = requireNotNull(viewModel.state.value.mealSections.first { it.id == "breakfast" }.rating)
-        assertEquals("Needs work", breakfastRating.label)
-        assertTrue(breakfastRating.reason.contains("Protein"))
+        assertEquals(uiText(R.string.food_rating_needs_work), breakfastRating.label)
+        assertEquals(uiText(R.string.food_meal_protein_low), breakfastRating.reason)
     }
 
     @Test
@@ -750,18 +762,18 @@ class FoodViewModelTest {
         assertTrue(dayRating.score != null && dayRating.score < 70)
         assertTrue(
             dayRating.factors.any { factor ->
-                factor.label == "High protein focus" &&
+                factor.label == uiText(R.string.food_high_protein_focus) &&
                     factor.tone == FoodInsightTone.Warning &&
-                    factor.explanation.contains("High Protein")
+                    factor.explanation == uiText(R.string.food_rating_high_protein_needs_more)
             },
         )
 
         val entries = viewModel.state.value.mealSections.first { it.id == "breakfast" }.entries
         val yogurtRating = requireNotNull(entries.first { it.id == "entry-yogurt" }.rating)
         val pastryRating = requireNotNull(entries.first { it.id == "entry-pastry" }.rating)
-        assertEquals("Great", yogurtRating.label)
-        assertEquals("Needs work", pastryRating.label)
-        assertTrue(pastryRating.reason.contains("sugar", ignoreCase = true))
+        assertEquals(uiText(R.string.food_rating_great), yogurtRating.label)
+        assertEquals(uiText(R.string.food_rating_needs_work), pastryRating.label)
+        assertEquals(uiText(R.string.food_entry_sugar_high), pastryRating.reason)
     }
 
     @Test
@@ -823,7 +835,14 @@ class FoodViewModelTest {
         assertEquals(FoodHabitStatus.Complete, habits.getValue("fish").status)
         assertEquals(FoodHabitStatus.InProgress, habits.getValue("water").status)
         assertEquals(0.75, habits.getValue("water").progress, 0.01)
-        assertEquals("1500 / 2000 ml", habits.getValue("water").valueLabel)
+        assertEquals(
+            uiText(
+                R.string.food_water_progress,
+                UiText.Argument.Integer(1500),
+                UiText.Argument.Integer(2000),
+            ),
+            habits.getValue("water").valueLabel,
+        )
     }
 
     @Test
@@ -967,11 +986,22 @@ class FoodViewModelTest {
             score.summary,
         )
         assertEquals(
-            listOf("Nutrition consistency", "Hydration", "Habits", "Training signal"),
+            listOf(
+                uiText(R.string.food_nutrition_consistency),
+                uiText(R.string.food_hydration),
+                uiText(R.string.food_habits),
+                uiText(R.string.food_training_signal),
+            ),
             score.factors.map { it.label },
         )
-        assertEquals(UiText.Verbatim("72%"), score.factors.first { it.label == "Hydration" }.valueLabel)
-        assertEquals(FoodInsightTone.Neutral, score.factors.first { it.label == "Training signal" }.tone)
+        assertEquals(
+            uiText(R.string.food_percentage, UiText.Argument.Integer(72)),
+            score.factors.first { it.label == uiText(R.string.food_hydration) }.valueLabel,
+        )
+        assertEquals(
+            FoodInsightTone.Neutral,
+            score.factors.first { it.label == uiText(R.string.food_training_signal) }.tone,
+        )
         assertEquals(uiText(R.string.food_suggestion_raise_water), score.suggestion)
     }
 
@@ -1642,12 +1672,12 @@ class FoodViewModelTest {
         val labelScan = viewModel.state.value.savedFoods.first { it.id == "food-3" }
 
         assertEquals(FoodTrustLevel.Imported, scanned.trust.level)
-        assertEquals("Barcode import", scanned.trust.label)
-        assertEquals("Check", scanned.trust.actionLabel)
+        assertEquals(uiText(R.string.food_trust_barcode_import), scanned.trust.label)
+        assertEquals(uiText(R.string.food_check), scanned.trust.actionLabel)
         assertEquals(FoodTrustLevel.Manual, manual.trust.level)
-        assertEquals("Manual entry", manual.trust.label)
+        assertEquals(uiText(R.string.food_manual_entry), manual.trust.label)
         assertEquals(FoodTrustLevel.NeedsReview, labelScan.trust.level)
-        assertEquals("Review label scan", labelScan.trust.label)
+        assertEquals(uiText(R.string.food_trust_review_label_scan), labelScan.trust.label)
     }
 
     @Test
@@ -4570,8 +4600,14 @@ class FoodViewModelTest {
         assertEquals("Saved food", comparison.leftItem?.sourceLabel)
         assertEquals("Protein bar", comparison.rightItem?.name)
         assertEquals("Open Food Facts", comparison.rightItem?.sourceLabel)
-        assertEquals(BarcodeComparisonSide.Right, comparison.highlights.first { it.label == "Protein" }.winnerSide)
-        assertEquals(BarcodeComparisonSide.Left, comparison.highlights.first { it.label == "Sugar" }.winnerSide)
+        assertEquals(
+            BarcodeComparisonSide.Right,
+            comparison.highlights.first { it.label == uiText(R.string.food_protein) }.winnerSide,
+        )
+        assertEquals(
+            BarcodeComparisonSide.Left,
+            comparison.highlights.first { it.label == uiText(R.string.food_sugar) }.winnerSide,
+        )
         assertEquals(uiText(R.string.food_message_compared_barcodes), viewModel.state.value.message)
     }
 
@@ -4658,9 +4694,12 @@ class FoodViewModelTest {
 
         val comparison = viewModel.state.value.barcodeComparison
         // Right product's sodium is 0.0 (unknown), so neither side is crowned the healthier on sodium.
-        assertTrue(comparison.highlights.first { it.label == "Sodium" }.winnerSide == null)
+        assertTrue(comparison.highlights.first { it.label == uiText(R.string.food_sodium) }.winnerSide == null)
         // Sugar is populated on both sides, so the lower one still wins.
-        assertEquals(BarcodeComparisonSide.Left, comparison.highlights.first { it.label == "Sugar" }.winnerSide)
+        assertEquals(
+            BarcodeComparisonSide.Left,
+            comparison.highlights.first { it.label == uiText(R.string.food_sugar) }.winnerSide,
+        )
     }
 
     @Test

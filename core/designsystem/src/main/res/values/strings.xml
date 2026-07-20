@@ -12,6 +12,7 @@
     <string name="common_remove">Remove</string>
     <string name="common_reset">Reset</string>
     <string name="common_save">Save</string>
+    <string name="common_selected_value">Selected: %1$s</string>
     <string name="common_search">Search</string>
     <string name="common_progress_count">%1$d / %2$d</string>
     <plurals name="common_item_count">

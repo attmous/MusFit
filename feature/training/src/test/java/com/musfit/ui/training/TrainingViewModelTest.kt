@@ -37,7 +37,10 @@ import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutSetInputData
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.TrainingTrendPoint
+import com.musfit.feature.training.R
 import com.musfit.testing.MainDispatcherRule
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.uiText
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -232,7 +235,7 @@ class TrainingViewModelTest {
         testScheduler.runCurrent()
 
         assertEquals("Sibling still active", viewModel.state.value.exercises.first().name)
-        assertEquals("routine observation failed", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("routine observation failed"), viewModel.state.value.message)
         collector.cancel()
     }
 
@@ -973,14 +976,28 @@ class TrainingViewModelTest {
 
         assertEquals("routine-upper-a" to "folder-starter-pack", repository.assignedRoutineFolder)
         assertEquals("Starter Pack", viewModel.state.value.homeRoutines.single { it.id == "routine-upper-a" }.folderName)
-        assertEquals("Upper A moved to Starter Pack.", viewModel.state.value.message)
+        assertEquals(
+            uiText(
+                R.string.training_message_routine_moved,
+                UiText.Argument.Text("Upper A"),
+                UiText.Argument.Text("Starter Pack"),
+            ),
+            viewModel.state.value.message,
+        )
 
         viewModel.assignRoutineToFolder("routine-upper-a", null)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("routine-upper-a" to null, repository.assignedRoutineFolder)
         assertEquals(null, viewModel.state.value.homeRoutines.single { it.id == "routine-upper-a" }.folderId)
-        assertEquals("Upper A moved to My routines.", viewModel.state.value.message)
+        assertEquals(
+            uiText(
+                R.string.training_message_routine_moved,
+                UiText.Argument.Text("Upper A"),
+                UiText.Argument.Text("My routines"),
+            ),
+            viewModel.state.value.message,
+        )
     }
 
     @Test
@@ -1193,7 +1210,7 @@ class TrainingViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(destinationPopped)
-        assertEquals("Routine not found.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.training_message_routine_not_found), viewModel.state.value.message)
     }
 
     @Test
@@ -1208,7 +1225,7 @@ class TrainingViewModelTest {
 
         assertTrue(destinationPopped)
         assertFalse(viewModel.state.value.routineEditor.isOpen)
-        assertEquals("Routine not found.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.training_message_routine_not_found), viewModel.state.value.message)
     }
 
     @Test
@@ -1460,7 +1477,7 @@ class TrainingViewModelTest {
         assertEquals("90", viewModel.state.value.restTimerDefaultSecondsInput)
         assertEquals("20", viewModel.state.value.plateBarWeightInput)
         assertEquals("25, 20, 15, 10, 5, 2.5, 1.25", viewModel.state.value.availablePlatesInput)
-        assertEquals("Rest timer saved.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.training_message_rest_timer_saved), viewModel.state.value.message)
 
         viewModel.resumeActiveWorkout()
         viewModel.toggleWorkoutSetCompletion("set-1", completed = true)
@@ -1763,7 +1780,7 @@ class TrainingViewModelTest {
 
         val todayCell = overview.calendarWeeks.flatten().filterNotNull().single { it.date == today }
 
-        assertEquals("June 2026", overview.monthLabel)
+        assertEquals(java.time.YearMonth.of(2026, 6), overview.month)
         assertEquals(5, overview.currentWeekWorkoutCount)
         assertEquals(4, overview.currentWeekTrainingDayCount)
         assertEquals(20, overview.currentWeekCompletedSetCount)

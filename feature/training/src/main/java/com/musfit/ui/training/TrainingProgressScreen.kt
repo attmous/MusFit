@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.musfit.data.repository.ExerciseSummary
+import com.musfit.feature.training.R
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
@@ -120,7 +122,14 @@ private fun TrainingProgressHeader(
     onBack: () -> Unit,
     onSelectPeriod: (TrainingProgressPeriod) -> Unit,
 ) {
-    InnerScreenHeader(title = "Progress", onBack = onBack) {
+    val periodLabels = mapOf(
+        TrainingProgressPeriod.TwelveWeeks to stringResource(TrainingProgressPeriod.TwelveWeeks.labelResource),
+        TrainingProgressPeriod.SixMonths to stringResource(TrainingProgressPeriod.SixMonths.labelResource),
+        TrainingProgressPeriod.Year to stringResource(TrainingProgressPeriod.Year.labelResource),
+    )
+    val selectedPeriodLabel = periodLabels.getValue(period)
+    val periodDescription = stringResource(R.string.training_period_description, selectedPeriodLabel)
+    InnerScreenHeader(title = stringResource(R.string.training_progress), onBack = onBack) {
         Box {
             var menuOpen by remember { mutableStateOf(false) }
             Surface(
@@ -131,7 +140,7 @@ private fun TrainingProgressHeader(
                 modifier = Modifier
                     .heightIn(min = 48.dp)
                     .semantics(mergeDescendants = true) {
-                        contentDescription = "Period, ${period.label}"
+                        contentDescription = periodDescription
                         role = Role.Button
                     },
             ) {
@@ -141,7 +150,7 @@ private fun TrainingProgressHeader(
                     modifier = Modifier.padding(start = 14.dp, end = 10.dp, top = 9.dp, bottom = 9.dp),
                 ) {
                     Text(
-                        text = period.label,
+                        text = selectedPeriodLabel,
                         style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
                         fontWeight = FontWeight.Bold,
                     )
@@ -155,7 +164,7 @@ private fun TrainingProgressHeader(
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 TrainingProgressPeriod.entries.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(option.label) },
+                        text = { Text(periodLabels.getValue(option)) },
                         onClick = {
                             menuOpen = false
                             onSelectPeriod(option)
@@ -199,7 +208,7 @@ private fun ProgressExercisePickerSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "All exercises",
+                text = stringResource(R.string.training_all_exercises),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Normal,
                 color = MusFitTheme.colors.onSurface,
@@ -207,7 +216,7 @@ private fun ProgressExercisePickerSheet(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Search exercises") },
+                label = { Text(stringResource(R.string.training_search_exercises)) },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 singleLine = true,
                 shape = MusFitTheme.shapes.medium,
@@ -223,7 +232,9 @@ private fun ProgressExercisePickerSheet(
                     ListItem(
                         headlineContent = { Text(exercise.name) },
                         supportingContent = {
-                            if (exercise.id in loggedExerciseIds) Text("Trained before")
+                            if (exercise.id in loggedExerciseIds) {
+                                Text(stringResource(R.string.training_trained_before))
+                            }
                         },
                         trailingContent = {
                             if (exercise.id == selectedExerciseId) {

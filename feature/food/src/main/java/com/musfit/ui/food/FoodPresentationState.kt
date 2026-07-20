@@ -9,7 +9,9 @@ import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.NutritionDetails
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.feature.food.R
 import com.musfit.ui.text.UiText
+import com.musfit.ui.text.uiText
 import java.time.LocalDate
 import java.util.Locale
 
@@ -398,8 +400,8 @@ internal fun FoodUiState.buildDailyInsights(diary: FoodDiary): List<FoodInsightU
     if (diary.totals.caloriesKcal <= 0.0) {
         return listOf(
             FoodInsightUiState(
-                title = "Start with a meal",
-                body = "Log a meal, favorite, or quick calories to see today clearly.",
+                title = uiText(R.string.food_insight_start_with_meal),
+                body = uiText(R.string.food_insight_start_with_meal_body),
                 tone = FoodInsightTone.Neutral,
             ),
         )
@@ -408,24 +410,33 @@ internal fun FoodUiState.buildDailyInsights(diary: FoodDiary): List<FoodInsightU
     val insights = mutableListOf<FoodInsightUiState>()
     if (diary.detailTotals.sodiumMilligrams > sodiumGoalMilligrams) {
         insights += FoodInsightUiState(
-            title = "Sodium is high",
-            body = "You are over ${sodiumGoalMilligrams.formatInputNumber()} mg. Choose lower-sodium foods next.",
+            title = uiText(R.string.food_insight_sodium_high),
+            body = uiText(
+                R.string.food_insight_sodium_high_body,
+                UiText.Argument.Text(sodiumGoalMilligrams.formatInputNumber()),
+            ),
             tone = FoodInsightTone.Warning,
         )
     }
     if (diary.totals.proteinGrams < proteinGoalGrams * 0.5) {
         val remainingProtein = (proteinGoalGrams - diary.totals.proteinGrams).coerceAtLeast(0.0)
         insights += FoodInsightUiState(
-            title = "Protein is low",
-            body = "Add about ${remainingProtein.coerceAtMost(35.0).formatInputNumber()} g protein to move toward goal.",
+            title = uiText(R.string.food_insight_protein_low),
+            body = uiText(
+                R.string.food_insight_protein_low_body,
+                UiText.Argument.Text(remainingProtein.coerceAtMost(35.0).formatInputNumber()),
+            ),
             tone = FoodInsightTone.Warning,
         )
     }
     if (diary.detailTotals.fiberGrams < fiberGoalGrams * 0.5) {
         val remainingFiber = (fiberGoalGrams - diary.detailTotals.fiberGrams).coerceAtLeast(0.0)
         insights += FoodInsightUiState(
-            title = "Fiber is below target",
-            body = "Add ${remainingFiber.coerceAtMost(10.0).formatInputNumber()} g fiber with fruit, oats, beans, or veg.",
+            title = uiText(R.string.food_insight_fiber_below),
+            body = uiText(
+                R.string.food_insight_fiber_below_body,
+                UiText.Argument.Text(remainingFiber.coerceAtMost(10.0).formatInputNumber()),
+            ),
             tone = FoodInsightTone.Warning,
         )
     }
@@ -433,14 +444,17 @@ internal fun FoodUiState.buildDailyInsights(diary: FoodDiary): List<FoodInsightU
     val balancedMeal = diary.meals.firstOrNull { meal -> meal.isBalancedLoggedMeal() }
     if (balancedMeal != null) {
         insights += FoodInsightUiState(
-            title = "${balancedMeal.type.mealTitle()} was balanced",
-            body = "Good protein and fiber for this meal.",
+            title = uiText(
+                R.string.food_insight_meal_balanced,
+                UiText.Argument.Text(balancedMeal.type.mealTitle()),
+            ),
+            body = uiText(R.string.food_insight_meal_balanced_body),
             tone = FoodInsightTone.Positive,
         )
     } else if (diary.isBalancedDay(this)) {
         insights += FoodInsightUiState(
-            title = "Balanced day",
-            body = "Calories, protein, fiber, and sodium are aligned with your goals.",
+            title = uiText(R.string.food_insight_balanced_day),
+            body = uiText(R.string.food_insight_balanced_day_body),
             tone = FoodInsightTone.Positive,
         )
     }
@@ -450,20 +464,20 @@ internal fun FoodUiState.buildDailyInsights(diary: FoodDiary): List<FoodInsightU
     val caloriesRemaining = (calorieGoalKcal - diary.totals.caloriesKcal).coerceAtLeast(0.0)
     when {
         proteinRemaining >= 25.0 -> insights += FoodInsightUiState(
-            title = "Add protein next",
-            body = "A lean protein serving would close the biggest gap.",
+            title = uiText(R.string.food_insight_add_protein),
+            body = uiText(R.string.food_insight_add_protein_body),
             tone = FoodInsightTone.Neutral,
         )
 
         fiberRemaining >= 8.0 -> insights += FoodInsightUiState(
-            title = "Add fiber next",
-            body = "A high-fiber side would improve today quickly.",
+            title = uiText(R.string.food_insight_add_fiber),
+            body = uiText(R.string.food_insight_add_fiber_body),
             tone = FoodInsightTone.Neutral,
         )
 
         caloriesRemaining >= 300.0 -> insights += FoodInsightUiState(
-            title = "Add a balanced meal",
-            body = "Use protein plus carbs or veg to finish the day cleanly.",
+            title = uiText(R.string.food_insight_add_balanced_meal),
+            body = uiText(R.string.food_insight_add_balanced_meal_body),
             tone = FoodInsightTone.Neutral,
         )
     }
@@ -471,8 +485,8 @@ internal fun FoodUiState.buildDailyInsights(diary: FoodDiary): List<FoodInsightU
     return insights.distinctBy { insight -> insight.title }.ifEmpty {
         listOf(
             FoodInsightUiState(
-                title = "Food is on track",
-                body = "Today is balanced against your current goals.",
+                title = uiText(R.string.food_insight_on_track),
+                body = uiText(R.string.food_insight_on_track_body),
                 tone = FoodInsightTone.Positive,
             ),
         )
@@ -483,41 +497,41 @@ internal fun FoodUiState.buildDayRating(diary: FoodDiary): FoodRatingUiState {
     if (diary.totals.caloriesKcal <= 0.0) return emptyFoodRating()
 
     var score = 100
-    val reasons = mutableListOf<String>()
-    val suggestions = mutableListOf<String>()
+    val reasons = mutableListOf<UiText>()
+    val suggestions = mutableListOf<UiText>()
     if (diary.detailTotals.sodiumMilligrams > sodiumGoalMilligrams) {
         score -= 30
-        reasons += "High sodium is pulling today down."
-        suggestions += "Choose lower-sodium foods for the next meal."
+        reasons += uiText(R.string.food_day_high_sodium)
+        suggestions += uiText(R.string.food_day_choose_lower_sodium)
     }
     if (diary.totals.proteinGrams < proteinGoalGrams * 0.6) {
         score -= 30
-        reasons += "Protein is well below target."
-        suggestions += "Add a protein-forward food next."
+        reasons += uiText(R.string.food_day_protein_well_below)
+        suggestions += uiText(R.string.food_day_add_protein_next)
     } else if (diary.totals.proteinGrams < proteinGoalGrams * 0.9) {
         score -= 15
-        reasons += "Protein is a little short."
-        suggestions += "Add a modest protein serving."
+        reasons += uiText(R.string.food_day_protein_short)
+        suggestions += uiText(R.string.food_day_add_modest_protein)
     }
     if (diary.detailTotals.fiberGrams < fiberGoalGrams * 0.5) {
         score -= 15
-        reasons += "Fiber is low for the day."
-        suggestions += "Add fruit, oats, beans, or vegetables."
+        reasons += uiText(R.string.food_day_fiber_low)
+        suggestions += uiText(R.string.food_day_add_fiber)
     }
     if (diary.totals.caloriesKcal > calorieGoalKcal * 1.1) {
         score -= 15
-        reasons += "Calories are above goal."
-        suggestions += "Keep the next choice lighter."
+        reasons += uiText(R.string.food_day_calories_above)
+        suggestions += uiText(R.string.food_day_choose_lighter)
     } else if (diary.totals.caloriesKcal < calorieGoalKcal * 0.5) {
         score -= 10
-        reasons += "Calories are still low."
-        suggestions += "Add a balanced meal."
+        reasons += uiText(R.string.food_day_calories_low)
+        suggestions += uiText(R.string.food_day_add_balanced_meal)
     }
 
     return FoodRatingUiState(
-        label = score.toFoodRatingLabel(),
-        reason = reasons.firstOrNull() ?: "Calories, protein, fiber, and sodium are aligned.",
-        suggestion = suggestions.firstOrNull() ?: "Keep the same pattern for the next meal.",
+        label = score.toFoodRatingText(),
+        reason = reasons.firstOrNull() ?: uiText(R.string.food_day_balanced),
+        suggestion = suggestions.firstOrNull() ?: uiText(R.string.food_day_repeat_pattern),
         tone = score.toFoodRatingTone(),
         score = score.coerceIn(0, 100),
         factors = buildDayRatingFactors(diary),

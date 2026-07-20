@@ -59,7 +59,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -84,9 +86,11 @@ import com.musfit.data.repository.TrainingPrRecord
 import com.musfit.data.repository.WeeklyTrainingVolume
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.TrainingTrendPoint
+import com.musfit.feature.training.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import java.time.LocalDate
@@ -201,6 +205,8 @@ private fun EstimatedOneRepMaxHero(
     onSelectDate: (Long) -> Unit,
     onOpenDataTable: () -> Unit,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
+    val estimatedOneRepMaxLabel = stringResource(R.string.training_estimated_one_rep_max)
     Surface(
         color = accent.container,
         shape = RoundedCornerShape(28.dp),
@@ -211,13 +217,13 @@ private fun EstimatedOneRepMaxHero(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = progressHeroOverline(progress?.exerciseName),
+                text = progressHeroOverline(progress?.exerciseName, estimatedOneRepMaxLabel, locale),
                 style = MaterialTheme.typography.labelSmall,
                 color = accent.onContainer,
             )
             if (progress == null || trend.isEmpty()) {
                 Text(
-                    text = "Complete workouts to build an e1RM trend.",
+                    text = stringResource(R.string.training_complete_for_e1rm),
                     style = MaterialTheme.typography.bodyMedium,
                     color = accent.onContainer.copy(alpha = 0.8f),
                     modifier = Modifier
@@ -227,7 +233,7 @@ private fun EstimatedOneRepMaxHero(
                             dates = emptyList(),
                             selectedIndex = -1,
                             summary = e1rmChartSummary(progress?.exerciseName, emptyList()),
-                            selectedState = "No data",
+                            selectedState = stringResource(R.string.training_no_data),
                             onSelectIndex = {},
                             onOpenDataTable = onOpenDataTable,
                         )
@@ -249,12 +255,12 @@ private fun EstimatedOneRepMaxHero(
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text(
-                                text = selectedPoint.bestEstimatedOneRepMaxKg.formatE1rm(),
+                                text = selectedPoint.bestEstimatedOneRepMaxKg.formatE1rm(locale),
                                 style = MaterialTheme.typography.displayMedium,
                                 color = accent.onContainer,
                             )
                             Text(
-                                text = " kg",
+                                text = stringResource(R.string.training_kilograms, "").trimEnd(),
                                 style = MaterialTheme.typography.titleLarge,
                                 color = accent.onContainer.copy(alpha = 0.8f),
                                 modifier = Modifier.padding(bottom = 6.dp),
@@ -280,7 +286,7 @@ private fun EstimatedOneRepMaxHero(
                                 modifier = Modifier.size(16.dp),
                             )
                             Text(
-                                text = deltaLabel(delta),
+                                text = deltaLabel(delta, locale),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontSize = 13.sp,
                                     textDirection = TextDirection.Ltr,
@@ -313,7 +319,7 @@ private fun EstimatedOneRepMaxHero(
                         .height(96.dp),
                 )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    val labels = monthLabelsFor(trend)
+                    val labels = monthLabelsFor(trend, LocalConfiguration.current.locales[0])
                     labels.forEachIndexed { index, label ->
                         val isCurrent = index == labels.lastIndex
                         Text(
@@ -437,6 +443,7 @@ private fun WeeklyVolumeCard(
     onOpenProgressData: () -> Unit,
     onOpenDataTable: () -> Unit,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     val selectedIndex = weeks.indexOfFirst { it.weekStartEpochDay == selectedWeekStartEpochDay }
         .takeIf { it >= 0 }
         ?: weeks.lastIndex
@@ -456,13 +463,17 @@ private fun WeeklyVolumeCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Weekly volume",
+                    text = stringResource(R.string.training_weekly_volume),
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
                     fontWeight = FontWeight.ExtraBold,
                     color = MusFitTheme.colors.onSurface,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     selectedWeek?.let { current ->
+                        val weekOfLabel = stringResource(
+                            R.string.training_week_of_lower,
+                            accessibleDate(current.weekStartEpochDay, locale),
+                        )
                         Text(
                             text = buildAnnotatedString {
                                 withStyle(
@@ -470,7 +481,7 @@ private fun WeeklyVolumeCard(
                                 ) {
                                     append(volumeTonsLabel(current.totalVolumeKg))
                                 }
-                                append(" · week of ${accessibleDate(current.weekStartEpochDay)}")
+                                append(" · $weekOfLabel")
                             },
                             style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr),
                             color = MusFitTheme.colors.onSurfaceVariant,
@@ -485,7 +496,7 @@ private fun WeeklyVolumeCard(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.TableChart,
-                            contentDescription = "View progress data",
+                            contentDescription = stringResource(R.string.training_view_progress_data),
                             tint = accent.color,
                         )
                     }
@@ -493,7 +504,7 @@ private fun WeeklyVolumeCard(
             }
             if (weeks.isEmpty()) {
                 Text(
-                    text = "Complete workouts to build weekly volume.",
+                    text = stringResource(R.string.training_complete_for_weekly_volume),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier
@@ -503,7 +514,7 @@ private fun WeeklyVolumeCard(
                             dates = emptyList(),
                             selectedIndex = -1,
                             summary = weeklyVolumeChartSummary(emptyList()),
-                            selectedState = "No data",
+                            selectedState = stringResource(R.string.training_no_data),
                             onSelectIndex = {},
                             onOpenDataTable = onOpenDataTable,
                         )
@@ -595,6 +606,9 @@ private fun Modifier.chartInteraction(
     var isFocused by remember { mutableStateOf(false) }
     val focusColor = MaterialTheme.colorScheme.primary
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val previousDataPoint = stringResource(R.string.training_previous_data_point)
+    val nextDataPoint = stringResource(R.string.training_next_data_point)
+    val showDataTable = stringResource(R.string.training_show_data_table)
     return this
         .drawBehind {
             if (isFocused) {
@@ -646,7 +660,7 @@ private fun Modifier.chartInteraction(
             customActions = buildList {
                 if (selectedIndex > 0) {
                     add(
-                        CustomAccessibilityAction("Previous data point") {
+                        CustomAccessibilityAction(previousDataPoint) {
                             onSelectIndex(selectedIndex - 1)
                             true
                         },
@@ -654,14 +668,14 @@ private fun Modifier.chartInteraction(
                 }
                 if (selectedIndex in 0 until dates.lastIndex) {
                     add(
-                        CustomAccessibilityAction("Next data point") {
+                        CustomAccessibilityAction(nextDataPoint) {
                             onSelectIndex(selectedIndex + 1)
                             true
                         },
                     )
                 }
                 add(
-                    CustomAccessibilityAction("Show data table") {
+                    CustomAccessibilityAction(showDataTable) {
                         onOpenDataTable()
                         true
                     },
@@ -736,9 +750,9 @@ internal fun chartIndexForKey(
     else -> null
 }
 
-private enum class ProgressDataTab(val label: String) {
-    EstimatedOneRepMax("e1RM"),
-    WeeklyVolume("Weekly volume"),
+private enum class ProgressDataTab(val labelResource: Int) {
+    EstimatedOneRepMax(R.string.training_e1rm),
+    WeeklyVolume(R.string.training_weekly_volume),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -755,6 +769,10 @@ private fun ProgressDataSheet(
     onDismiss: () -> Unit,
 ) {
     var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+    val tabLabels = mapOf(
+        ProgressDataTab.EstimatedOneRepMax to stringResource(ProgressDataTab.EstimatedOneRepMax.labelResource),
+        ProgressDataTab.WeeklyVolume to stringResource(ProgressDataTab.WeeklyVolume.labelResource),
+    )
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MusFitTheme.colors.surface,
@@ -772,7 +790,7 @@ private fun ProgressDataSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Progress data",
+                    text = stringResource(R.string.training_progress_data),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Normal,
                     color = MusFitTheme.colors.onSurface,
@@ -784,7 +802,7 @@ private fun ProgressDataSheet(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Close,
-                        contentDescription = "Close progress data",
+                        contentDescription = stringResource(R.string.training_close_progress_data),
                     )
                 }
             }
@@ -793,7 +811,7 @@ private fun ProgressDataSheet(
                     Tab(
                         selected = selectedTab == tab,
                         onClick = { selectedTab = tab },
-                        text = { Text(tab.label) },
+                        text = { Text(tabLabels.getValue(tab)) },
                         modifier = Modifier.heightIn(min = 48.dp),
                     )
                 }
@@ -828,7 +846,7 @@ private fun EstimatedOneRepMaxDataRows(
     ) {
         if (trend.isEmpty()) {
             item(key = "empty-e1rm") {
-                EmptyProgressDataMessage("No e1RM data yet.")
+                EmptyProgressDataMessage(stringResource(R.string.training_no_e1rm_data))
             }
         } else {
             items(
@@ -838,9 +856,15 @@ private fun EstimatedOneRepMaxDataRows(
                 key = { point -> point.dateEpochDay },
             ) { point ->
                 ProgressDataRow(
-                    primary = accessibleDate(point.dateEpochDay),
-                    value = "${point.bestEstimatedOneRepMaxKg.formatE1rm()} kg e1RM",
-                    supporting = "${volumeTonsLabel(point.volumeKg)} workout volume",
+                    primary = accessibleDate(point.dateEpochDay, LocalConfiguration.current.locales[0]),
+                    value = stringResource(
+                        R.string.training_kg_e1rm,
+                        point.bestEstimatedOneRepMaxKg.formatE1rm(LocalConfiguration.current.locales[0]),
+                    ),
+                    supporting = stringResource(
+                        R.string.training_workout_volume,
+                        volumeTonsLabel(point.volumeKg, LocalConfiguration.current.locales[0]),
+                    ),
                     association = e1rmDataRowDescription(point),
                     isSelected = point.dateEpochDay == selectedDateEpochDay,
                     onSelect = { onSelectDate(point.dateEpochDay) },
@@ -863,7 +887,7 @@ private fun WeeklyVolumeDataRows(
     ) {
         if (weeks.isEmpty()) {
             item(key = "empty-weekly-volume") {
-                EmptyProgressDataMessage("No weekly volume data yet.")
+                EmptyProgressDataMessage(stringResource(R.string.training_no_weekly_volume_data))
             }
         } else {
             items(
@@ -871,9 +895,16 @@ private fun WeeklyVolumeDataRows(
                 key = { week -> week.weekStartEpochDay },
             ) { week ->
                 ProgressDataRow(
-                    primary = "Week of ${accessibleDate(week.weekStartEpochDay)}",
-                    value = volumeTonsLabel(week.totalVolumeKg),
-                    supporting = "${week.workoutCount} workouts · ${week.completedSetCount} completed sets",
+                    primary = stringResource(
+                        R.string.training_week_of,
+                        accessibleDate(week.weekStartEpochDay, LocalConfiguration.current.locales[0]),
+                    ),
+                    value = volumeTonsLabel(week.totalVolumeKg, LocalConfiguration.current.locales[0]),
+                    supporting = stringResource(
+                        R.string.training_workout_set_summary,
+                        week.workoutCount,
+                        week.completedSetCount,
+                    ),
                     association = weeklyVolumeDataRowDescription(week),
                     isSelected = week.weekStartEpochDay == selectedWeekStartEpochDay,
                     onSelect = { onSelectWeek(week.weekStartEpochDay) },
@@ -893,6 +924,8 @@ private fun ProgressDataRow(
     isSelected: Boolean,
     onSelect: () -> Unit,
 ) {
+    val selectedState = stringResource(if (isSelected) R.string.training_selected else R.string.training_not_selected)
+    val selectDataPoint = stringResource(R.string.training_select_data_point)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -903,8 +936,8 @@ private fun ProgressDataRow(
                 contentDescription = association
                 role = Role.RadioButton
                 selected = isSelected
-                stateDescription = if (isSelected) "Selected" else "Not selected"
-                onClick(label = "Select data point") {
+                stateDescription = selectedState
+                onClick(label = selectDataPoint) {
                     onSelect()
                     true
                 }
@@ -955,11 +988,14 @@ private fun RecentPrsSection(
     onOpenAllExercises: () -> Unit,
 ) {
     val prs = recentPrs.take(RECENT_PR_COUNT)
+    val locale = LocalConfiguration.current.locales[0]
+    val todayLabel = stringResource(R.string.training_today_lower)
+    val yesterdayLabel = stringResource(R.string.training_yesterday)
     // PR rows plus the trailing "All exercises" link share one grouped list.
     val groupCount = prs.size + 1
     Column {
         Text(
-            text = "Recent PRs",
+            text = stringResource(R.string.training_recent_prs),
             style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
             fontWeight = FontWeight.ExtraBold,
             color = MusFitTheme.colors.onSurface,
@@ -967,7 +1003,7 @@ private fun RecentPrsSection(
         )
         if (prs.isEmpty()) {
             Text(
-                text = "Beat a previous best to log a PR.",
+                text = stringResource(R.string.training_beat_best_for_pr),
                 style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr),
                 color = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 10.dp, start = 4.dp),
@@ -1000,14 +1036,23 @@ private fun RecentPrsSection(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = prMetaLabel(pr, LocalDate.now()),
+                                text = prMetaLabel(
+                                    pr = pr,
+                                    today = LocalDate.now(),
+                                    locale = locale,
+                                    todayLabel = todayLabel,
+                                    yesterdayLabel = yesterdayLabel,
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MusFitTheme.colors.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 1.dp),
                             )
                         }
                         Text(
-                            text = "e1RM ${pr.estimatedOneRepMaxKg.formatE1rm()}",
+                            text = stringResource(
+                                R.string.training_kg_e1rm,
+                                pr.estimatedOneRepMaxKg.formatE1rm(LocalConfiguration.current.locales[0]),
+                            ),
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
                             fontWeight = FontWeight.ExtraBold,
                             color = MusFitTheme.colors.positive,
@@ -1028,7 +1073,7 @@ private fun RecentPrsSection(
                         .padding(vertical = 14.dp),
                 ) {
                     Text(
-                        text = "All exercises",
+                        text = stringResource(R.string.training_all_exercises),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = accent.color,
@@ -1042,9 +1087,13 @@ private fun RecentPrsSection(
 // --- Display helpers (pure, unit-tested) ---
 
 /** "BACK SQUAT · ESTIMATED 1RM" — the e1RM hero overline. */
-internal fun progressHeroOverline(exerciseName: String?): String = listOfNotNull(
-    exerciseName?.trim()?.takeIf(String::isNotBlank)?.uppercase(Locale.US),
-    "ESTIMATED 1RM",
+internal fun progressHeroOverline(
+    exerciseName: String?,
+    estimatedOneRepMaxLabel: String,
+    locale: Locale = Locale.getDefault(),
+): String = listOfNotNull(
+    exerciseName?.trim()?.takeIf(String::isNotBlank)?.uppercase(locale),
+    estimatedOneRepMaxLabel.uppercase(locale),
 ).joinToString(" · ")
 
 internal fun filterTrendByPeriod(
@@ -1062,13 +1111,16 @@ internal fun e1rmDeltaKg(trend: List<TrainingTrendPoint>): Double? {
     return trend.last().bestEstimatedOneRepMaxKg - trend.first().bestEstimatedOneRepMaxKg
 }
 
-internal fun deltaLabel(delta: Double): String {
-    val magnitude = kotlin.math.abs(delta).formatE1rm()
+internal fun deltaLabel(delta: Double, locale: Locale = Locale.getDefault()): String {
+    val magnitude = kotlin.math.abs(delta).formatE1rm(locale)
     return if (delta >= 0) "+$magnitude kg" else "−$magnitude kg"
 }
 
 /** Up to four month labels spread across the visible trend window. */
-internal fun monthLabelsFor(trend: List<TrainingTrendPoint>): List<String> {
+internal fun monthLabelsFor(
+    trend: List<TrainingTrendPoint>,
+    locale: Locale = Locale.getDefault(),
+): List<String> {
     if (trend.isEmpty()) return emptyList()
     val months = trend
         .map { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) }
@@ -1084,7 +1136,7 @@ internal fun monthLabelsFor(trend: List<TrainingTrendPoint>): List<String> {
             months.last(),
         ).distinct()
     }
-    return picked.map { it.atDay(1).format(DateTimeFormatter.ofPattern("MMM", Locale.US)) }
+    return picked.map { it.atDay(1).format(DateTimeFormatter.ofPattern("MMM", locale)) }
 }
 
 /** "W27" ISO week label for a volume bar. */
@@ -1117,7 +1169,7 @@ internal fun e1rmChartSelectionDescription(
         "point ${selectedIndex + 1} of ${trend.size}"
 }
 
-internal fun e1rmVisualSelectionTag(point: TrainingTrendPoint): String = "training-e1rm-selection-${point.dateEpochDay}-${point.bestEstimatedOneRepMaxKg.formatE1rm()}"
+internal fun e1rmVisualSelectionTag(point: TrainingTrendPoint): String = "training-e1rm-selection-${point.dateEpochDay}-${point.bestEstimatedOneRepMaxKg.formatE1rm(Locale.ROOT)}"
 
 internal fun weeklyVolumeChartSummary(weeks: List<WeeklyTrainingVolume>): String {
     if (weeks.isEmpty()) return "Weekly training volume chart. No data."
@@ -1137,7 +1189,7 @@ internal fun weeklyVolumeChartSelectionDescription(
         "week ${selectedIndex + 1} of ${weeks.size}"
 }
 
-internal fun weeklyVolumeVisualSelectionTag(week: WeeklyTrainingVolume): String = "training-weekly-volume-selection-${week.weekStartEpochDay}-${volumeTonsLabel(week.totalVolumeKg)}"
+internal fun weeklyVolumeVisualSelectionTag(week: WeeklyTrainingVolume): String = "training-weekly-volume-selection-${week.weekStartEpochDay}-${volumeTonsLabel(week.totalVolumeKg, Locale.ROOT)}"
 
 internal fun e1rmDataRowDescription(point: TrainingTrendPoint): String = "${accessibleDate(point.dateEpochDay)}, ${point.bestEstimatedOneRepMaxKg.formatE1rm()} kg estimated one rep max, " +
     "${volumeTonsLabel(point.volumeKg)} workout volume"
@@ -1160,35 +1212,40 @@ private fun workoutCountLabel(count: Int): String = if (count == 1) "workout" el
 
 private fun setCountLabel(count: Int): String = if (count == 1) "set" else "sets"
 
-private fun accessibleDate(epochDay: Long): String = LocalDate
+private fun accessibleDate(epochDay: Long, locale: Locale = Locale.getDefault()): String = LocalDate
     .ofEpochDay(epochDay)
-    .format(DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.US))
+    .format(DateTimeFormatter.ofPattern("MMMM d, yyyy", locale))
 
 /** "11.2 t" above a tonne, otherwise "840 kg". */
-internal fun volumeTonsLabel(volumeKg: Double): String = if (volumeKg >= 1000.0) {
+internal fun volumeTonsLabel(
+    volumeKg: Double,
+    locale: Locale = Locale.getDefault(),
+): String = if (volumeKg >= 1000.0) {
     val tons = volumeKg / 1000.0
-    if (tons % 1.0 == 0.0) "${tons.toInt()} t" else String.format(Locale.US, "%.1f t", tons)
+    "${LocalizedFormatter.number(tons, maximumFractionDigits = 1, locale = locale)} t"
 } else {
-    "${Math.round(volumeKg)} kg"
+    "${LocalizedFormatter.integer(Math.round(volumeKg), locale = locale)} kg"
 }
 
 /** PR row meta (mock 5b): "107.5 kg × 5 · Wed". */
-internal fun prMetaLabel(pr: TrainingPrRecord, today: LocalDate): String {
+internal fun prMetaLabel(
+    pr: TrainingPrRecord,
+    today: LocalDate,
+    locale: Locale = Locale.getDefault(),
+    todayLabel: String = "today",
+    yesterdayLabel: String = "yesterday",
+): String {
     val date = LocalDate.ofEpochDay(pr.dateEpochDay)
     val dateLabel = when {
-        date == today -> "today"
-        date == today.minusDays(1) -> "yesterday"
-        !date.isBefore(today.minusDays(6)) -> date.format(DateTimeFormatter.ofPattern("EEE", Locale.US))
-        else -> date.format(DateTimeFormatter.ofPattern("d MMM", Locale.US))
+        date == today -> todayLabel
+        date == today.minusDays(1) -> yesterdayLabel
+        !date.isBefore(today.minusDays(6)) -> date.format(DateTimeFormatter.ofPattern("EEE", locale))
+        else -> date.format(DateTimeFormatter.ofPattern("d MMM", locale))
     }
-    return "${pr.weightKg.formatE1rm()} kg × ${pr.reps} · $dateLabel"
+    return "${pr.weightKg.formatE1rm(locale)} kg × ${pr.reps} · $dateLabel"
 }
 
-internal fun Double.formatE1rm(): String = if (this % 1.0 == 0.0) {
-    toInt().toString()
-} else {
-    String.format(Locale.US, "%.1f", this)
-}
+internal fun Double.formatE1rm(locale: Locale = Locale.getDefault()): String = LocalizedFormatter.number(this, maximumFractionDigits = 1, locale = locale)
 
 private const val VOLUME_WEEK_COUNT = 6
 private const val RECENT_PR_COUNT = 5

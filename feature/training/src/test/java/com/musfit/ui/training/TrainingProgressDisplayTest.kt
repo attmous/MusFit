@@ -44,9 +44,9 @@ class TrainingProgressDisplayTest {
 
     @Test
     fun progressHeroOverline_uppercasesTheAnchoredExercise() {
-        assertEquals("BACK SQUAT · ESTIMATED 1RM", progressHeroOverline("Back Squat"))
-        assertEquals("ESTIMATED 1RM", progressHeroOverline(null))
-        assertEquals("ESTIMATED 1RM", progressHeroOverline("  "))
+        assertEquals("BACK SQUAT · ESTIMATED 1RM", progressHeroOverline("Back Squat", "Estimated 1RM"))
+        assertEquals("ESTIMATED 1RM", progressHeroOverline(null, "Estimated 1RM"))
+        assertEquals("ESTIMATED 1RM", progressHeroOverline("  ", "Estimated 1RM"))
     }
 
     @Test
