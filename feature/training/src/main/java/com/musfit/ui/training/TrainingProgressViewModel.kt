@@ -1,5 +1,6 @@
 package com.musfit.ui.training
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musfit.data.repository.ExerciseSummary
@@ -7,6 +8,7 @@ import com.musfit.data.repository.TrainingPrRecord
 import com.musfit.data.repository.TrainingProgressAnalytics
 import com.musfit.data.repository.TrainingRepository
 import com.musfit.domain.model.ExerciseProgress
+import com.musfit.feature.training.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -31,10 +33,10 @@ import kotlinx.coroutines.supervisorScope
 import javax.inject.Inject
 
 /** The Progress page's period selector (mock 5b): a dropdown, not chips. */
-enum class TrainingProgressPeriod(val label: String, val days: Long) {
-    TwelveWeeks("12 weeks", 84),
-    SixMonths("6 months", 183),
-    Year("1 year", 365),
+enum class TrainingProgressPeriod(@StringRes val labelResource: Int, val days: Long) {
+    TwelveWeeks(R.string.training_period_twelve_weeks, 84),
+    SixMonths(R.string.training_period_six_months, 183),
+    Year(R.string.training_period_year, 365),
 }
 
 data class TrainingProgressUiState(

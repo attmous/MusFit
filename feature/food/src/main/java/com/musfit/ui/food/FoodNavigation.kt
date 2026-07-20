@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -20,6 +21,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.musfit.feature.food.R
 
 data class FoodNavigationActions(
     val open: (FoodNavKey) -> Unit = {},
@@ -146,7 +148,7 @@ fun FoodNavigation(
             entry<FoodAddNavKey> { FoodEntry(it) }
             entry<FoodDatabaseNavKey>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { Text("Select a saved food") },
+                    detailPlaceholder = { Text(stringResource(R.string.food_select_saved_food)) },
                 ),
             ) { FoodEntry(it) }
             entry<FoodDetailNavKey>(metadata = ListDetailSceneStrategy.detailPane()) { FoodEntry(it) }
@@ -158,7 +160,7 @@ fun FoodNavigation(
             entry<FoodGoalEditorNavKey> { FoodEntry(it) }
             entry<FoodRecipeBrowserNavKey>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { Text("Select a recipe") },
+                    detailPlaceholder = { Text(stringResource(R.string.food_select_recipe)) },
                 ),
             ) { FoodEntry(it) }
             entry<FoodRecipeEditorNavKey>(metadata = ListDetailSceneStrategy.detailPane()) { FoodEntry(it) }

@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.musfit.feature.food.R
 import com.musfit.integrations.scanner.BarcodeScannerController
 import com.musfit.ui.theme.CameraSurface
 import com.musfit.ui.theme.CameraTranslucent
@@ -59,7 +61,7 @@ fun BarcodeScannerScreen(
 
     if (!cameraPermission.isGranted) {
         CameraPermissionDeniedContent(
-            message = "Camera permission is required to scan barcodes.",
+            message = stringResource(R.string.food_camera_permission_barcode),
             action = cameraPermission.action,
             onAction = cameraPermission.performAction,
         )
@@ -104,9 +106,9 @@ private fun BarcodeScannerCameraContent(
                 .padding(start = 20.dp, end = 20.dp, top = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CameraCircleButton(onClose, "Close scanner", Icons.Outlined.Close)
+            CameraCircleButton(onClose, stringResource(R.string.food_close_scanner), Icons.Outlined.Close)
             Text(
-                text = "Scan barcode",
+                text = stringResource(R.string.food_scan_barcode),
                 style = MusFitTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                 color = Cream,
                 modifier = Modifier.weight(1f),
@@ -118,7 +120,9 @@ private fun BarcodeScannerCameraContent(
                         torchEnabled = !torchEnabled
                         controller.setTorchEnabled(torchEnabled)
                     },
-                    contentDescription = if (torchEnabled) "Turn flashlight off" else "Turn flashlight on",
+                    contentDescription = stringResource(
+                        if (torchEnabled) R.string.food_turn_flashlight_off else R.string.food_turn_flashlight_on,
+                    ),
                     icon = if (torchEnabled) Icons.Outlined.FlashlightOff else Icons.Outlined.FlashlightOn,
                 )
             } else {
@@ -139,13 +143,13 @@ private fun BarcodeScannerCameraContent(
                 .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                 .clip(CircleShape)
                 .clickable(
-                    onClickLabel = "Enter barcode manually",
+                    onClickLabel = stringResource(R.string.food_enter_barcode_manually),
                     role = Role.Button,
                     onClick = onClose,
                 ),
         ) {
             Text(
-                text = "Or enter the code manually",
+                text = stringResource(R.string.food_or_enter_code_manually),
                 style = MusFitTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
 
@@ -157,7 +161,7 @@ private fun BarcodeScannerCameraContent(
 @Composable
 internal fun BarcodeScannerPermissionDeniedContent(onGrantCameraAccess: () -> Unit) {
     CameraPermissionDeniedContent(
-        message = "Camera permission is required to scan barcodes.",
+        message = stringResource(R.string.food_camera_permission_barcode),
         action = CameraPermissionAction.RequestPermission,
         onAction = onGrantCameraAccess,
     )

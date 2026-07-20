@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.musfit.core.designsystem.R
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.NeutralOutline
@@ -178,7 +180,7 @@ fun InnerScreenHeader(
     ) {
         TonalHeaderIconButton(
             icon = Icons.AutoMirrored.Outlined.ArrowBack,
-            contentDescription = "Back",
+            contentDescription = stringResource(R.string.common_back),
             onClick = onBack,
         )
         Column(modifier = Modifier.weight(1f)) {

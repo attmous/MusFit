@@ -1,5 +1,6 @@
 package com.musfit.ui.food
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -44,6 +45,11 @@ import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.nutrition.NutritionCalculator
+import com.musfit.feature.food.R
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +74,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.io.Serializable
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.Locale
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
@@ -130,6 +137,7 @@ data class FoodMacroProgressUiState(
     val label: String,
     val currentGrams: Double,
     val goalGrams: Double,
+    val labelText: UiText = UiText.Verbatim(label),
 )
 
 data class FoodNutrientProgressUiState(
@@ -138,12 +146,14 @@ data class FoodNutrientProgressUiState(
     val goalValue: Double,
     val unit: String,
     val isLimit: Boolean,
+    val labelText: UiText = UiText.Verbatim(label),
 )
 
 data class FoodMicronutrientUiState(
     val label: String,
     val value: Double,
     val unit: String,
+    val labelText: UiText = UiText.Verbatim(label),
 )
 
 enum class FoodInsightTone {
@@ -153,26 +163,55 @@ enum class FoodInsightTone {
 }
 
 data class FoodInsightUiState(
-    val title: String,
-    val body: String,
+    val title: UiText,
+    val body: UiText,
     val tone: FoodInsightTone,
-)
+) {
+    constructor(title: String, body: String, tone: FoodInsightTone) : this(
+        UiText.Verbatim(title),
+        UiText.Verbatim(body),
+        tone,
+    )
+}
 
 data class FoodRatingUiState(
-    val label: String,
-    val reason: String,
-    val suggestion: String,
+    val label: UiText,
+    val reason: UiText,
+    val suggestion: UiText,
     val tone: FoodInsightTone,
     val score: Int? = null,
     val factors: List<FoodRatingFactorUiState> = emptyList(),
-)
+) {
+    constructor(
+        label: String,
+        reason: String,
+        suggestion: String,
+        tone: FoodInsightTone,
+        score: Int? = null,
+        factors: List<FoodRatingFactorUiState> = emptyList(),
+    ) : this(
+        UiText.Verbatim(label),
+        UiText.Verbatim(reason),
+        UiText.Verbatim(suggestion),
+        tone,
+        score,
+        factors,
+    )
+}
 
 data class FoodRatingFactorUiState(
-    val label: String,
-    val valueLabel: String,
-    val explanation: String,
+    val label: UiText,
+    val valueLabel: UiText,
+    val explanation: UiText,
     val tone: FoodInsightTone,
-)
+) {
+    constructor(
+        label: String,
+        valueLabel: String,
+        explanation: String,
+        tone: FoodInsightTone,
+    ) : this(UiText.Verbatim(label), UiText.Verbatim(valueLabel), UiText.Verbatim(explanation), tone)
+}
 
 data class NutritionLabelScanReviewUiState(
     val confidenceLabel: String,
@@ -182,12 +221,12 @@ data class NutritionLabelScanReviewUiState(
 data class FoodProgramUiState(
     val id: String,
     val mode: FoodGoalMode,
-    val title: String,
-    val subtitle: String,
-    val description: String,
-    val macroTargetsLabel: String,
-    val suggestedHabits: List<String>,
-    val mealPlanningTip: String,
+    val title: UiText,
+    val subtitle: UiText,
+    val description: UiText,
+    val macroTargetsLabel: UiText,
+    val suggestedHabits: List<UiText>,
+    val mealPlanningTip: UiText,
     val isSelected: Boolean,
 )
 
@@ -216,6 +255,11 @@ data class RecipeDiscoveryItemUiState(
     val sourceRecipeId: String? = null,
     val mealTypeIds: List<String> = emptyList(),
     val thumbnailKey: String = "bowl",
+    val titleText: UiText = UiText.Verbatim(title),
+    val subtitleText: UiText = UiText.Verbatim(subtitle),
+    val categoryText: UiText = UiText.Verbatim(category),
+    val servingNameText: UiText = UiText.Verbatim(servingName),
+    val tagTexts: List<UiText> = tagLabels.map(UiText::Verbatim),
 )
 
 enum class FoodHabitStatus {
@@ -226,13 +270,31 @@ enum class FoodHabitStatus {
 
 data class FoodHabitTrackerUiState(
     val id: String,
-    val label: String,
-    val valueLabel: String,
+    val label: UiText,
+    val valueLabel: UiText,
     val progress: Double,
     val status: FoodHabitStatus,
     val tone: FoodInsightTone,
-    val suggestion: String,
-)
+    val suggestion: UiText,
+) {
+    constructor(
+        id: String,
+        label: String,
+        valueLabel: String,
+        progress: Double,
+        status: FoodHabitStatus,
+        tone: FoodInsightTone,
+        suggestion: String,
+    ) : this(
+        id,
+        UiText.Verbatim(label),
+        UiText.Verbatim(valueLabel),
+        progress,
+        status,
+        tone,
+        UiText.Verbatim(suggestion),
+    )
+}
 
 enum class EmptyDiaryActionType {
     Breakfast,
@@ -296,11 +358,13 @@ data class FoodMealSectionUiState(
     val micronutrients: List<FoodMicronutrientUiState> = emptyList(),
     val rating: FoodRatingUiState? = null,
     val entries: List<FoodMealEntryUiState>,
+    val titleText: UiText = UiText.Verbatim(title),
+    val recommendationText: UiText = UiText.Verbatim(recommendation),
+    val carbsLabelText: UiText = UiText.Verbatim(carbsLabel),
 )
 
 data class FoodPlanDayUiState(
     val date: LocalDate,
-    val dayLabel: String,
     val loggedCaloriesKcal: Double,
     val plannedCaloriesKcal: Double,
     val loggedEntryCount: Int,
@@ -315,6 +379,7 @@ data class ShoppingListItemUiState(
     val quantityLabel: String,
     val isChecked: Boolean,
     val isManual: Boolean,
+    val quantityLabelText: UiText = UiText.Verbatim(quantityLabel),
 )
 
 data class ShoppingListGroupUiState(
@@ -330,6 +395,8 @@ data class FoodMealDefinitionUiState(
     val sortOrder: Int,
     val isDefault: Boolean,
     val isHidden: Boolean = false,
+    val titleText: UiText = UiText.Verbatim(title),
+    val timeLabelText: UiText = UiText.Verbatim(timeLabel),
 )
 
 enum class FoodTrustLevel {
@@ -340,11 +407,25 @@ enum class FoodTrustLevel {
 
 data class FoodTrustUiState(
     val level: FoodTrustLevel,
-    val label: String,
-    val explanation: String,
-    val actionLabel: String,
+    val label: UiText,
+    val explanation: UiText,
+    val actionLabel: UiText,
     val isReported: Boolean = false,
-)
+) {
+    constructor(
+        level: FoodTrustLevel,
+        label: String,
+        explanation: String,
+        actionLabel: String,
+        isReported: Boolean = false,
+    ) : this(
+        level,
+        UiText.Verbatim(label),
+        UiText.Verbatim(explanation),
+        UiText.Verbatim(actionLabel),
+        isReported,
+    )
+}
 
 data class SavedFoodUiState(
     val id: String,
@@ -377,6 +458,7 @@ data class SavedFoodUiState(
     val sourceLabel: String = "Manual",
     val trust: FoodTrustUiState = emptyFoodTrust(),
     val servings: List<SavedFoodServingUiState> = emptyList(),
+    val sourceText: UiText = uiText(R.string.food_manual_entry),
 )
 
 data class SavedFoodServingUiState(
@@ -390,6 +472,7 @@ data class FoodDuplicateGroupUiState(
     val duplicateFoodIds: List<String>,
     val title: String,
     val reason: String,
+    val reasonText: UiText = UiText.Verbatim(reason),
 )
 
 data class OnlineFoodResultUiState(
@@ -427,14 +510,22 @@ data class BarcodeComparisonItemUiState(
     val sugarPer100g: Double,
     val sodiumMgPer100g: Double,
     val imageUrl: String? = null,
+    val sourceText: UiText = UiText.Verbatim(sourceLabel),
 )
 
 data class BarcodeComparisonHighlightUiState(
-    val label: String,
-    val leftValue: String,
-    val rightValue: String,
+    val label: UiText,
+    val leftValue: UiText,
+    val rightValue: UiText,
     val winnerSide: BarcodeComparisonSide?,
-)
+) {
+    constructor(label: String, leftValue: String, rightValue: String, winnerSide: BarcodeComparisonSide?) : this(
+        UiText.Verbatim(label),
+        UiText.Verbatim(leftValue),
+        UiText.Verbatim(rightValue),
+        winnerSide,
+    )
+}
 
 data class BarcodeComparisonUiState(
     val leftBarcodeInput: String = "",
@@ -450,10 +541,10 @@ data class BarcodeComparisonUiState(
 
 data class FastingProgramUiState(
     val id: String,
-    val title: String,
+    val title: UiText,
     val fastingHours: Double,
     val eatingHours: Double,
-    val description: String,
+    val description: UiText,
     val isSelected: Boolean,
 )
 
@@ -461,9 +552,12 @@ data class FastingTimerUiState(
     val selectedProgramId: String = "16-8",
     val programs: List<FastingProgramUiState> = emptyFastingPrograms("16-8", 16.0, 8.0),
     val fastingStartInput: String = "20:00",
-    val fastingWindowLabel: String = "20:00 - 12:00",
-    val eatingWindowLabel: String = "12:00 - 20:00",
-    val statusLabel: String = "16:8 fasting plan active",
+    val fastingWindowLabel: UiText = localizedFastingWindow(LocalTime.of(20, 0), LocalTime.of(12, 0)),
+    val eatingWindowLabel: UiText = localizedFastingWindow(LocalTime.of(12, 0), LocalTime.of(20, 0)),
+    val statusLabel: UiText = uiText(
+        R.string.food_fasting_plan_active,
+        UiText.Argument.Resource(R.string.food_fasting_sixteen_title),
+    ),
     val progress: Double = 16.0 / 24.0,
     val customFastingHoursInput: String = "16",
     val customEatingHoursInput: String = "8",
@@ -549,7 +643,7 @@ data class FavoriteAddItemUiState(
     val id: String,
     val type: FavoriteAddItemType,
     val title: String,
-    val subtitle: String,
+    val subtitleText: UiText,
 )
 
 data class DeletedDiaryEntrySnapshot(
@@ -721,6 +815,7 @@ private fun FoodRestorationState.toFoodUiStateOrNull(): FoodUiState? {
         addTab = AddTab.entries.firstOrNull { it.name == addTab } ?: AddTab.Recents,
         mealType = mealType,
         selectedMealTitle = selectedMealTitle,
+        selectedMealTitleText = mealType.mealTitleText(),
         foodDatabaseQuery = foodDatabaseQuery,
         barcode = barcode,
         productName = productName,
@@ -759,7 +854,7 @@ data class FoodUiState(
     val selectedDate: LocalDate = LocalDate.now(),
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
-    val message: String? = null,
+    val message: UiText? = null,
     val productName: String = "",
     val brand: String = "",
     val caloriesPer100g: String = "",
@@ -809,7 +904,7 @@ data class FoodUiState(
     val foodHealthConnectCanRequestPermissions: Boolean = false,
     val foodHealthConnectCanSync: Boolean = false,
     val foodHealthConnectRequestablePermissions: Set<String> = emptySet(),
-    val foodHealthConnectPermissionSummary: String = "Health Connect unavailable",
+    val foodHealthConnectPermissionSummary: UiText = uiText(R.string.food_health_connect_unavailable),
     val foodHealthConnectLastSyncAtEpochMillis: Long? = null,
     val foodHealthConnectLastFailureMessage: String? = null,
     val shoppingListGroups: List<ShoppingListGroupUiState> = emptyList(),
@@ -838,6 +933,7 @@ data class FoodUiState(
     val isAddPanelVisible: Boolean = false,
     val sheetMode: FoodSheetMode? = null,
     val selectedMealTitle: String = "Breakfast",
+    val selectedMealTitleText: UiText = uiText(R.string.food_meal_breakfast),
     val addMode: FoodAddMode = FoodAddMode.Saved,
     val savedFoodQuantityGrams: String = "100",
     val selectedSavedFoodDetail: SavedFoodUiState? = null,
@@ -848,8 +944,9 @@ data class FoodUiState(
     val quickFatGrams: String = "",
     val aiLoggingText: String = "",
     val aiLoggingHasDraft: Boolean = false,
-    val aiLoggingDraftSourceLabel: String? = null,
-    val aiLoggingDraftReview: String? = null,
+    val aiLoggingDraftNameText: UiText? = null,
+    val aiLoggingDraftSourceText: UiText? = null,
+    val aiLoggingDraftReviewText: UiText? = null,
     val nutritionLabelScanReview: NutritionLabelScanReviewUiState? = null,
     val keepAddingFoods: Boolean = false,
     val foodDatabaseQuery: String = "",
@@ -1068,7 +1165,10 @@ class FoodViewModel @Inject constructor(
                         val mealDefinitions = definitions.toMealDefinitionUiStates()
                         val updatedState = currentState.copy(mealDefinitions = mealDefinitions)
                         updatedState
-                            .copy(selectedMealTitle = updatedState.mealTitleFor(updatedState.mealType))
+                            .copy(
+                                selectedMealTitle = updatedState.mealTitleFor(updatedState.mealType),
+                                selectedMealTitleText = updatedState.mealTitleTextFor(updatedState.mealType),
+                            )
                             .withDiary(currentDiary)
                     }
                 }
@@ -1084,7 +1184,7 @@ class FoodViewModel @Inject constructor(
             throw error
         } catch (error: Exception) {
             mutableState.update { currentState ->
-                currentState.copy(message = error.message ?: FOOD_DATA_OBSERVATION_ERROR_MESSAGE)
+                currentState.copy(message = error.messageOr(R.string.food_message_data_refresh_failed))
             }
         }
     }
@@ -1125,7 +1225,7 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val targetDate = currentState.selectedDate.plusDays(1)
         if (!targetDate.isWithinFoodPlanningHorizon()) {
-            mutableState.update { it.copy(message = FOOD_PLANNING_LIMIT_MESSAGE) }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_planning_limit)) }
             return
         }
         if (!markSaving()) {
@@ -1141,7 +1241,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = "Planned tomorrow from this day",
+                        message = uiText(R.string.food_message_planned_tomorrow),
                     )
                 }
             } catch (error: CancellationException) {
@@ -1151,7 +1251,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to copy day",
+                        message = error.messageOr(R.string.food_message_failed_copy_day),
                     )
                 }
             }
@@ -1169,7 +1269,7 @@ class FoodViewModel @Inject constructor(
     fun removeCustomWater() {
         val amount = state.value.waterCustomAmountInput.parsePositiveNumberOrNull()
         if (amount == null) {
-            mutableState.update { it.copy(message = "Enter a valid water amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_water_amount)) }
             return
         }
         removeWaterAmount(amount, clearCustomAmount = true)
@@ -1182,7 +1282,7 @@ class FoodViewModel @Inject constructor(
     fun logCustomWater() {
         val amount = state.value.waterCustomAmountInput.parsePositiveNumberOrNull()
         if (amount == null) {
-            mutableState.update { it.copy(message = "Enter a valid water amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_water_amount)) }
             return
         }
         logWaterAmount(amount, clearCustomAmount = true)
@@ -1195,7 +1295,7 @@ class FoodViewModel @Inject constructor(
     fun saveWaterGoal() {
         val goalMilliliters = state.value.waterGoalInput.parsePositiveNumberOrNull()
         if (goalMilliliters == null) {
-            mutableState.update { it.copy(message = "Enter a valid water goal") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_water_goal)) }
             return
         }
         if (!markSaving()) {
@@ -1211,21 +1311,23 @@ class FoodViewModel @Inject constructor(
                         waterGoalMilliliters = goalMilliliters,
                         waterProgress = it.waterConsumedMilliliters.fractionOf(goalMilliliters),
                         waterGoalInput = goalMilliliters.formatInputNumber(),
-                        message = "Updated water goal",
+                        message = uiText(R.string.food_message_updated_water_goal),
                     )
                 }
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to update water goal") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_update_water_goal))
+                }
             }
         }
     }
 
     private fun logWaterAmount(amountMilliliters: Double, clearCustomAmount: Boolean) {
         if (!amountMilliliters.isFinite() || amountMilliliters <= 0.0) {
-            mutableState.update { it.copy(message = "Enter a valid water amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_water_amount)) }
             return
         }
         val date = state.value.selectedDate
@@ -1242,19 +1344,26 @@ class FoodViewModel @Inject constructor(
                         waterCustomAmountInput = if (clearCustomAmount) "" else it.waterCustomAmountInput,
                     )
                 }
-                showTransientMessage("Added ${amountMilliliters.formatInputNumber()} ml water")
+                showTransientMessage(
+                    uiText(
+                        R.string.food_message_added_water,
+                        UiText.Argument.Decimal(amountMilliliters),
+                    ),
+                )
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to log water") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_log_water))
+                }
             }
         }
     }
 
     private fun removeWaterAmount(amountMilliliters: Double, clearCustomAmount: Boolean) {
         if (!amountMilliliters.isFinite() || amountMilliliters <= 0.0) {
-            mutableState.update { it.copy(message = "Enter a valid water amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_water_amount)) }
             return
         }
         val date = state.value.selectedDate
@@ -1270,9 +1379,12 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         waterCustomAmountInput = if (clearCustomAmount) "" else it.waterCustomAmountInput,
                         message = if (removed > 0.0) {
-                            "Removed ${removed.formatInputNumber()} ml water"
+                            uiText(
+                                R.string.food_message_removed_water,
+                                UiText.Argument.Decimal(removed),
+                            )
                         } else {
-                            "No water to remove"
+                            uiText(R.string.food_message_no_water_to_remove)
                         },
                     )
                 }
@@ -1280,7 +1392,9 @@ class FoodViewModel @Inject constructor(
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to remove water") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_remove_water))
+                }
             }
         }
     }
@@ -1296,13 +1410,13 @@ class FoodViewModel @Inject constructor(
                 throw error
             } catch (error: Exception) {
                 mutableState.update {
-                    it.copy(message = error.message ?: "Failed to refresh Health Connect")
+                    it.copy(message = error.messageOr(R.string.food_message_failed_refresh_health_connect))
                 }
             }
         }
     }
 
-    private fun showTransientMessage(message: String) {
+    private fun showTransientMessage(message: UiText) {
         transientMessageJob?.cancel()
         mutableState.update { it.copy(message = message) }
         transientMessageJob = viewModelScope.launch {
@@ -1332,18 +1446,20 @@ class FoodViewModel @Inject constructor(
                     currentState
                         .withFoodHealthConnectSyncState(syncState)
                         .copy(
-                            message = if (isEnabled) {
-                                "Food Health Connect sync enabled"
-                            } else {
-                                "Food Health Connect sync disabled"
-                            },
+                            message = uiText(
+                                if (isEnabled) {
+                                    R.string.food_message_health_connect_enabled
+                                } else {
+                                    R.string.food_message_health_connect_disabled
+                                },
+                            ),
                         )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 mutableState.update {
-                    it.copy(message = error.message ?: "Failed to update Health Connect sync")
+                    it.copy(message = error.messageOr(R.string.food_message_failed_update_health_connect))
                 }
             }
         }
@@ -1373,7 +1489,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to sync Food to Health Connect",
+                        message = error.messageOr(R.string.food_message_failed_sync_health_connect),
                     )
                 }
             }
@@ -1388,6 +1504,7 @@ class FoodViewModel @Inject constructor(
                 sheetMode = FoodSheetMode.AddFood,
                 mealType = normalizedMealType,
                 selectedMealTitle = currentState.mealTitleFor(normalizedMealType),
+                selectedMealTitleText = currentState.mealTitleTextFor(normalizedMealType),
                 addMode = FoodAddMode.Saved,
                 addTab = AddTab.Recents,
                 message = null,
@@ -1435,20 +1552,22 @@ class FoodViewModel @Inject constructor(
     fun generateAiTextFoodDraft() {
         val text = state.value.aiLoggingText.trim()
         if (text.isBlank()) {
-            mutableState.update { it.copy(message = "Describe what you ate") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_describe_what_you_ate)) }
             return
         }
         val draft = text.toLocalAiNutritionDraft()
         mutableState.update {
             it.withAiLoggingDraft(
-                name = text.take(80),
-                sourceLabel = "Text",
-                caloriesPer100g = draft.caloriesKcal.formatInputNumber(),
-                proteinPer100g = draft.proteinGrams.formatInputNumber(),
-                carbsPer100g = draft.carbsGrams.formatInputNumber(),
-                fatPer100g = draft.fatGrams.formatInputNumber(),
-                review = draft.review,
-                message = "Review AI suggestion before logging.",
+                draft = AiLoggingDraft(
+                    name = text.take(80),
+                    sourceText = uiText(R.string.food_source_text),
+                    caloriesPer100g = draft.caloriesKcal.formatInputNumber(),
+                    proteinPer100g = draft.proteinGrams.formatInputNumber(),
+                    carbsPer100g = draft.carbsGrams.formatInputNumber(),
+                    fatPer100g = draft.fatGrams.formatInputNumber(),
+                    reviewText = draft.reviewText,
+                ),
+                message = uiText(R.string.food_message_review_ai_suggestion),
             )
         }
     }
@@ -1456,9 +1575,12 @@ class FoodViewModel @Inject constructor(
     fun startAiVoiceLoggingPlaceholder() {
         mutableState.update {
             it.withAiLoggingDraft(
-                name = "Voice draft",
-                sourceLabel = "Voice",
-                message = "Voice placeholder ready. Review before logging.",
+                draft = AiLoggingDraft(
+                    name = "",
+                    sourceText = uiText(R.string.food_source_voice),
+                    nameText = uiText(R.string.food_voice_draft),
+                ),
+                message = uiText(R.string.food_message_voice_placeholder),
             )
         }
     }
@@ -1466,9 +1588,12 @@ class FoodViewModel @Inject constructor(
     fun startAiPhotoLoggingPlaceholder() {
         mutableState.update {
             it.withAiLoggingDraft(
-                name = "Photo draft",
-                sourceLabel = "Photo",
-                message = "Photo placeholder ready. Review before logging.",
+                draft = AiLoggingDraft(
+                    name = "",
+                    sourceText = uiText(R.string.food_source_photo),
+                    nameText = uiText(R.string.food_photo_draft),
+                ),
+                message = uiText(R.string.food_message_photo_placeholder),
             )
         }
     }
@@ -1556,7 +1681,7 @@ class FoodViewModel @Inject constructor(
 
     fun selectFastingProgram(programId: String) {
         if (fastingProgramDefinitions.none { it.id == programId }) {
-            mutableState.update { it.copy(message = "Fasting program unavailable") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_fasting_unavailable)) }
             return
         }
         mutableState.update {
@@ -1610,7 +1735,7 @@ class FoodViewModel @Inject constructor(
         val fastingHours = currentTimer.customFastingHoursInput.parsePositiveNumberOrNull()
         val eatingHours = currentTimer.customEatingHoursInput.parsePositiveNumberOrNull()
         if (fastingHours == null || eatingHours == null || kotlin.math.abs((fastingHours + eatingHours) - 24.0) > 0.01) {
-            mutableState.update { it.copy(message = "Enter fasting and eating hours that total 24") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_invalid_fasting_split)) }
             return
         }
         mutableState.update {
@@ -1621,7 +1746,7 @@ class FoodViewModel @Inject constructor(
                     customFastingHoursInput = fastingHours.formatInputNumber(),
                     customEatingHoursInput = eatingHours.formatInputNumber(),
                 ),
-                message = "Custom fasting plan active",
+                message = uiText(R.string.food_message_custom_fasting_active),
             )
         }
     }
@@ -1646,7 +1771,7 @@ class FoodViewModel @Inject constructor(
         val leftBarcode = currentState.barcodeComparison.leftBarcodeInput
         val rightBarcode = currentState.barcodeComparison.rightBarcodeInput
         if (leftBarcode.isBlank() || rightBarcode.isBlank()) {
-            mutableState.update { it.copy(message = "Enter two barcodes to compare") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_two_barcodes)) }
             return
         }
         if (currentState.barcodeComparison.isLoading) {
@@ -1666,12 +1791,14 @@ class FoodViewModel @Inject constructor(
                             rightItem = rightItem,
                             highlights = buildBarcodeComparisonHighlights(leftItem, rightItem),
                         ),
-                        message = when {
-                            leftItem != null && rightItem != null -> "Compared barcode products"
-                            leftItem == null && rightItem == null -> "Products not found"
-                            leftItem == null -> "Left product not found"
-                            else -> "Right product not found"
-                        },
+                        message = uiText(
+                            when {
+                                leftItem != null && rightItem != null -> R.string.food_message_compared_barcodes
+                                leftItem == null && rightItem == null -> R.string.food_message_products_not_found
+                                leftItem == null -> R.string.food_message_left_product_not_found
+                                else -> R.string.food_message_right_product_not_found
+                            },
+                        ),
                     )
                 }
             } catch (error: CancellationException) {
@@ -1681,7 +1808,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         barcodeComparison = it.barcodeComparison.copy(isLoading = false),
-                        message = error.message ?: "Failed to compare barcodes",
+                        message = error.messageOr(R.string.food_message_failed_compare_barcodes),
                     )
                 }
             }
@@ -1767,7 +1894,10 @@ class FoodViewModel @Inject constructor(
             if (nextDate.isWithinFoodPlanningHorizon()) {
                 it.copy(recipeBrowserDate = nextDate, message = null)
             } else {
-                it.copy(recipeBrowserDate = it.recipeBrowserDate.coerceInFoodPlanningHorizon(), message = FOOD_PLANNING_LIMIT_MESSAGE)
+                it.copy(
+                    recipeBrowserDate = it.recipeBrowserDate.coerceInFoodPlanningHorizon(),
+                    message = uiText(R.string.food_message_planning_limit),
+                )
             }
         }
     }
@@ -1801,11 +1931,11 @@ class FoodViewModel @Inject constructor(
         val startDate = currentState.shoppingStartDateInput.parseDateOrNull()
         val endDate = currentState.shoppingEndDateInput.parseDateOrNull()
         if (startDate == null || endDate == null) {
-            mutableState.update { it.copy(message = "Enter dates as yyyy-MM-dd") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_invalid_dates)) }
             return
         }
         if (endDate.isBefore(startDate)) {
-            mutableState.update { it.copy(message = "End date must be after start date") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_end_after_start)) }
             return
         }
         if (!markSaving()) {
@@ -1819,7 +1949,7 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         shoppingListGroups = groups.map { group -> group.toUiState() },
-                        message = "Shopping list generated",
+                        message = uiText(R.string.food_message_shopping_generated),
                     )
                 }
             } catch (error: CancellationException) {
@@ -1827,7 +1957,7 @@ class FoodViewModel @Inject constructor(
                 throw error
             } catch (error: Exception) {
                 mutableState.update {
-                    it.copy(isSaving = false, message = error.message ?: "Failed to generate shopping list")
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_generate_shopping))
                 }
             }
         }
@@ -1838,11 +1968,11 @@ class FoodViewModel @Inject constructor(
         val name = currentState.manualShoppingNameInput.trim()
         val quantity = currentState.manualShoppingQuantityInput.parsePositiveNumberOrNull()
         if (name.isBlank()) {
-            mutableState.update { it.copy(message = "Enter an item name") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_item_name)) }
             return
         }
         if (quantity == null) {
-            mutableState.update { it.copy(message = "Enter a valid quantity") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_quantity)) }
             return
         }
         if (!markSaving()) {
@@ -1864,7 +1994,7 @@ class FoodViewModel @Inject constructor(
                         manualShoppingNameInput = "",
                         manualShoppingCategoryInput = "",
                         manualShoppingQuantityInput = "1",
-                        message = "Added shopping item",
+                        message = uiText(R.string.food_message_added_shopping_item),
                     )
                 }
             } catch (error: CancellationException) {
@@ -1872,7 +2002,7 @@ class FoodViewModel @Inject constructor(
                 throw error
             } catch (error: Exception) {
                 mutableState.update {
-                    it.copy(isSaving = false, message = error.message ?: "Failed to add shopping item")
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_add_shopping))
                 }
             }
         }
@@ -1882,11 +2012,11 @@ class FoodViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.toggleShoppingListItem(itemId, isChecked)
-                mutableState.update { it.copy(message = "Updated shopping item") }
+                mutableState.update { it.copy(message = uiText(R.string.food_message_updated_shopping_item)) }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(message = error.message ?: "Failed to update shopping item") }
+                mutableState.update { it.copy(message = error.messageOr(R.string.food_message_failed_update_shopping)) }
             }
         }
     }
@@ -1894,7 +2024,7 @@ class FoodViewModel @Inject constructor(
     fun openMealDefinitionEditor(mealId: String) {
         val meal = state.value.mealDefinitions.firstOrNull { it.id == mealId.normalizedMealType() }
         if (meal == null) {
-            mutableState.update { it.copy(message = "Meal not found") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_meal_not_found)) }
             return
         }
         mutableState.update {
@@ -1926,17 +2056,17 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val mealName = currentState.customMealNameInput.trim()
         if (mealName.isBlank()) {
-            mutableState.update { it.copy(message = "Enter a meal name") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_meal_name)) }
             return
         }
         val timeMinutes = currentState.customMealTimeInput.parseMealTimeMinutesOrNull()
         if (currentState.customMealTimeInput.isNotBlank() && timeMinutes == null) {
-            mutableState.update { it.copy(message = "Enter meal time as HH:mm") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_meal_time)) }
             return
         }
         val sortOrder = currentState.customMealSortOrderInput.toIntOrNull()
         if (sortOrder == null) {
-            mutableState.update { it.copy(message = "Enter a meal order") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_meal_order)) }
             return
         }
         if (!markSaving()) {
@@ -1967,11 +2097,13 @@ class FoodViewModel @Inject constructor(
                         customMealNameInput = "",
                         customMealTimeInput = "",
                         customMealSortOrderInput = it.nextMealSortOrder().toString(),
-                        message = if (currentState.editingMealDefinitionId == null) {
-                            "Saved custom meal"
-                        } else {
-                            "Saved meal"
-                        },
+                        message = uiText(
+                            if (currentState.editingMealDefinitionId == null) {
+                                R.string.food_message_saved_custom_meal
+                            } else {
+                                R.string.food_message_saved_meal
+                            },
+                        ),
                     )
                 }
             } catch (error: CancellationException) {
@@ -1981,7 +2113,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to save meal",
+                        message = error.messageOr(R.string.food_message_failed_save_meal),
                     )
                 }
             }
@@ -1994,7 +2126,7 @@ class FoodViewModel @Inject constructor(
         val meal = currentState.mealDefinitions.firstOrNull { it.id == normalizedId } ?: return
         val willHide = !meal.isHidden
         if (willHide && currentState.mealDefinitions.count { !it.isHidden } <= 1) {
-            mutableState.update { it.copy(message = "Keep at least one meal visible") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_keep_meal_visible)) }
             return
         }
         viewModelScope.launch {
@@ -2009,12 +2141,17 @@ class FoodViewModel @Inject constructor(
                     ),
                 )
                 mutableState.update {
-                    it.copy(message = if (willHide) "Hid ${meal.title}" else "Showing ${meal.title}")
+                    it.copy(
+                        message = uiText(
+                            if (willHide) R.string.food_message_hid_meal else R.string.food_message_showing_meal,
+                            UiText.Argument.Text(meal.title),
+                        ),
+                    )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(message = error.message ?: "Failed to update meal") }
+                mutableState.update { it.copy(message = error.messageOr(R.string.food_message_failed_update_meal)) }
             }
         }
     }
@@ -2079,7 +2216,7 @@ class FoodViewModel @Inject constructor(
         val item = state.value.recipeDiscovery.items.firstOrNull { it.id == itemId }
         return when {
             item == null -> {
-                mutableState.update { it.copy(message = "Recipe idea unavailable") }
+                mutableState.update { it.copy(message = uiText(R.string.food_message_recipe_idea_unavailable)) }
                 false
             }
 
@@ -2101,7 +2238,10 @@ class FoodViewModel @Inject constructor(
                             servingsCount = "1",
                             cookedYieldGrams = item.servingGrams.formatInputNumber(),
                         ),
-                        message = "Review and save ${item.title}",
+                        message = uiText(
+                            R.string.food_message_review_and_save,
+                            UiText.Argument.Text(item.title),
+                        ),
                     )
                 }
                 true
@@ -2122,7 +2262,9 @@ class FoodViewModel @Inject constructor(
     fun searchOnlineFoods() {
         val query = state.value.foodDatabaseQuery.trim()
         if (query.length < 2) {
-            mutableState.update { it.copy(message = "Enter at least 2 characters", onlineFoodResults = emptyList()) }
+            mutableState.update {
+                it.copy(message = uiText(R.string.food_message_enter_two_characters), onlineFoodResults = emptyList())
+            }
             return
         }
         viewModelScope.launch {
@@ -2137,7 +2279,11 @@ class FoodViewModel @Inject constructor(
                                 currentState.copy(
                                     isSearchingFoods = false,
                                     onlineFoodResults = result.products.map { it.toOnlineUiState() },
-                                    message = if (result.products.isEmpty()) "No online foods found" else null,
+                                    message = if (result.products.isEmpty()) {
+                                        uiText(R.string.food_message_no_online_foods)
+                                    } else {
+                                        null
+                                    },
                                 )
                             }
                         }
@@ -2148,7 +2294,7 @@ class FoodViewModel @Inject constructor(
                             it.copy(
                                 isSearchingFoods = false,
                                 onlineFoodResults = emptyList(),
-                                message = result.message,
+                                message = UiText.Verbatim(result.message),
                             )
                         }
                     }
@@ -2161,7 +2307,7 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSearchingFoods = false,
                         onlineFoodResults = emptyList(),
-                        message = "Online food search failed",
+                        message = uiText(R.string.food_message_online_search_failed),
                     )
                 }
             }
@@ -2172,7 +2318,7 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val result = currentState.onlineFoodResults.firstOrNull { it.barcode == barcode }
         if (result == null) {
-            mutableState.update { it.copy(message = "Online food not found") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_online_food_not_found)) }
             return
         }
         if (!markSaving()) {
@@ -2186,7 +2332,7 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         sheetMode = FoodSheetMode.FoodDatabase,
-                        message = "Saved online food",
+                        message = uiText(R.string.food_message_saved_online_food),
                     )
                 }
             } catch (error: CancellationException) {
@@ -2196,7 +2342,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to save online food",
+                        message = error.messageOr(R.string.food_message_failed_save_online_food),
                     )
                 }
             }
@@ -2206,7 +2352,7 @@ class FoodViewModel @Inject constructor(
     fun openSavedFoodDetail(foodId: String) {
         val savedFood = state.value.savedFoods.firstOrNull { it.id == foodId }
         if (savedFood == null) {
-            mutableState.update { it.copy(message = "Saved food not found") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_saved_food_not_found)) }
             return
         }
 
@@ -2222,7 +2368,7 @@ class FoodViewModel @Inject constructor(
 
     fun onSavedFoodServingSelected(foodId: String, grams: Double) {
         if (!grams.isFinite() || grams <= 0.0) {
-            mutableState.update { it.copy(message = "Enter a valid amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_amount)) }
             return
         }
         mutableState.update {
@@ -2237,7 +2383,7 @@ class FoodViewModel @Inject constructor(
     fun openMealTemplateEditor(templateId: String) {
         val template = state.value.mealTemplates.firstOrNull { it.id == templateId }
         if (template == null) {
-            mutableState.update { it.copy(message = "Template not found") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_template_not_found)) }
             return
         }
         mutableState.update {
@@ -2324,12 +2470,12 @@ class FoodViewModel @Inject constructor(
         val editor = currentState.mealTemplateEditor ?: return
         val food = currentState.savedFoods.firstOrNull { it.id == editor.newItemFoodId }
         if (food == null) {
-            mutableState.update { it.copy(message = "Choose a food") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_food)) }
             return
         }
         val quantity = editor.newItemQuantityGrams.parsePositiveNumberOrNull()
         if (quantity == null) {
-            mutableState.update { it.copy(message = "Enter item amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_item_amount)) }
             return
         }
         mutableState.update {
@@ -2353,12 +2499,12 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val editor = currentState.mealTemplateEditor
         if (editor == null) {
-            mutableState.update { it.copy(message = "Choose a template") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_template)) }
             return
         }
         val templateId = editor.id
         if (editor.name.isBlank()) {
-            mutableState.update { it.copy(message = "Enter a template name") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_template_name)) }
             return
         }
         val items =
@@ -2371,7 +2517,7 @@ class FoodViewModel @Inject constructor(
                 }
             }
         if (items.size != editor.items.size || items.isEmpty()) {
-            mutableState.update { it.copy(message = "Add at least one valid template item") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_template_item)) }
             return
         }
         if (!markSaving()) {
@@ -2391,7 +2537,7 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         mealTemplateEditor = null,
-                        message = "Updated meal template",
+                        message = uiText(R.string.food_message_updated_meal_template),
                     )
                 }
             } catch (error: CancellationException) {
@@ -2401,7 +2547,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to update template",
+                        message = error.messageOr(R.string.food_message_failed_update_template),
                     )
                 }
             }
@@ -2411,7 +2557,7 @@ class FoodViewModel @Inject constructor(
     fun duplicateMealTemplate(templateId: String) {
         val template = state.value.mealTemplates.firstOrNull { it.id == templateId }
         if (template == null) {
-            mutableState.update { it.copy(message = "Template not found") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_template_not_found)) }
             return
         }
         if (!markSaving()) {
@@ -2420,12 +2566,16 @@ class FoodViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.duplicateMealTemplate(templateId, "${template.name} copy")
-                mutableState.update { it.copy(isSaving = false, message = "Duplicated meal template") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = uiText(R.string.food_message_duplicated_meal_template))
+                }
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to duplicate template") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_duplicate_template))
+                }
             }
         }
     }
@@ -2441,14 +2591,16 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         mealTemplateEditor = null,
-                        message = "Deleted meal template",
+                        message = uiText(R.string.food_message_deleted_meal_template),
                     )
                 }
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to delete template") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_delete_template))
+                }
             }
         }
     }
@@ -2459,17 +2611,19 @@ class FoodViewModel @Inject constructor(
                 repository.toggleFavoriteMealTemplate(templateId, isFavorite)
                 mutableState.update {
                     it.copy(
-                        message = if (isFavorite) {
-                            "Template added to favorites"
-                        } else {
-                            "Template removed from favorites"
-                        },
+                        message = uiText(
+                            if (isFavorite) {
+                                R.string.food_message_template_favorite_added
+                            } else {
+                                R.string.food_message_template_favorite_removed
+                            },
+                        ),
                     )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(message = error.message ?: "Failed to update template favorite") }
+                mutableState.update { it.copy(message = error.messageOr(R.string.food_message_failed_template_favorite)) }
             }
         }
     }
@@ -2480,7 +2634,7 @@ class FoodViewModel @Inject constructor(
             section.entries.firstOrNull { entry -> entry.id == entryId }?.let { entry -> section to entry }
         }
         if (sectionAndEntry == null) {
-            mutableState.update { it.copy(message = "Diary item not found") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_diary_item_not_found)) }
             return
         }
 
@@ -2538,7 +2692,7 @@ class FoodViewModel @Inject constructor(
         mutableState.update { currentState ->
             val choice = currentState.diaryEntryEditor?.servingChoices?.firstOrNull { choice -> choice.id == choiceId }
             if (choice == null) {
-                currentState.copy(message = "Serving not found")
+                currentState.copy(message = uiText(R.string.food_message_serving_not_found))
             } else {
                 currentState.copy(
                     diaryEntryEditor = currentState.diaryEntryEditor?.copy(quantityGrams = choice.grams.formatInputNumber()),
@@ -2555,13 +2709,13 @@ class FoodViewModel @Inject constructor(
         }
         val editor = currentState.diaryEntryEditor
         if (editor == null) {
-            mutableState.update { it.copy(message = "Choose a diary item") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_diary_item)) }
             return
         }
         val mealItemId = editor.id
         val quantityGrams = editor.quantityGrams.parsePositiveNumberOrNull()
         if (quantityGrams == null) {
-            mutableState.update { it.copy(message = "Enter a valid amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_amount)) }
             return
         }
         if (!markSaving()) {
@@ -2584,7 +2738,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = false,
                         sheetMode = null,
                         diaryEntryEditor = null,
-                        message = "Updated diary item",
+                        message = uiText(R.string.food_message_updated_diary_item),
                     )
                 }
             } catch (error: CancellationException) {
@@ -2594,7 +2748,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to update diary item",
+                        message = error.messageOr(R.string.food_message_failed_update_diary_item),
                     )
                 }
             }
@@ -2608,7 +2762,7 @@ class FoodViewModel @Inject constructor(
         }
         val mealItemId = currentState.diaryEntryEditor?.id
         if (mealItemId == null) {
-            mutableState.update { it.copy(message = "Choose a diary item") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_diary_item)) }
             return
         }
         val deletedSnapshot = currentState.mealSections.firstNotNullOfOrNull { section ->
@@ -2634,7 +2788,7 @@ class FoodViewModel @Inject constructor(
                         sheetMode = null,
                         diaryEntryEditor = null,
                         lastDeletedDiaryEntry = deletedSnapshot,
-                        message = "Deleted diary item",
+                        message = uiText(R.string.food_message_deleted_diary_item),
                     )
                 }
             } catch (error: CancellationException) {
@@ -2644,7 +2798,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to delete diary item",
+                        message = error.messageOr(R.string.food_message_failed_delete_diary_item),
                     )
                 }
             }
@@ -2655,7 +2809,7 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val snapshot = currentState.lastDeletedDiaryEntry
         if (snapshot == null) {
-            mutableState.update { it.copy(message = "Nothing to restore") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_nothing_to_restore)) }
             return
         }
         if (!markSaving()) {
@@ -2676,7 +2830,7 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         lastDeletedDiaryEntry = null,
-                        message = "Restored diary item",
+                        message = uiText(R.string.food_message_restored_diary_item),
                     )
                 }
             } catch (error: CancellationException) {
@@ -2686,7 +2840,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to restore diary item",
+                        message = error.messageOr(R.string.food_message_failed_restore_diary_item),
                     )
                 }
             }
@@ -2697,7 +2851,7 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val mealItemId = currentState.diaryEntryEditor?.id
         if (mealItemId == null) {
-            mutableState.update { it.copy(message = "Choose a diary item") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_diary_item)) }
             return
         }
         if (!markSaving()) {
@@ -2717,7 +2871,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = false,
                         sheetMode = null,
                         diaryEntryEditor = null,
-                        message = "Copied diary item",
+                        message = uiText(R.string.food_message_copied_diary_item),
                     )
                 }
             } catch (error: CancellationException) {
@@ -2727,7 +2881,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to copy diary item",
+                        message = error.messageOr(R.string.food_message_failed_copy_diary_item),
                     )
                 }
             }
@@ -2738,12 +2892,12 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val editor = currentState.diaryEntryEditor
         if (editor == null) {
-            mutableState.update { it.copy(message = "Choose a diary item") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_diary_item)) }
             return
         }
         val mealItemId = editor.id
         if (!editor.isPlanned) {
-            mutableState.update { it.copy(message = "Diary item is already logged") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_already_logged)) }
             return
         }
         if (!markSaving()) {
@@ -2759,7 +2913,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = false,
                         sheetMode = null,
                         diaryEntryEditor = null,
-                        message = "Logged planned food",
+                        message = uiText(R.string.food_message_logged_planned_food),
                     )
                 }
             } catch (error: CancellationException) {
@@ -2769,7 +2923,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to log planned food",
+                        message = error.messageOr(R.string.food_message_failed_log_planned_food),
                     )
                 }
             }
@@ -2793,7 +2947,7 @@ class FoodViewModel @Inject constructor(
             it.copy(
                 isAddPanelVisible = true,
                 sheetMode = FoodSheetMode.NutritionLabelScan,
-                message = "Review extracted nutrition before saving.",
+                message = uiText(R.string.food_message_review_extracted_nutrition),
                 savedFoodEditor = SavedFoodEditorState(
                     name = "Scanned label",
                     caloriesPer100g = "250",
@@ -2811,7 +2965,7 @@ class FoodViewModel @Inject constructor(
     fun openSavedFoodEditor(foodId: String) {
         val savedFood = state.value.savedFoods.firstOrNull { it.id == foodId }
         if (savedFood == null) {
-            mutableState.update { it.copy(message = "Saved food not found") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_saved_food_not_found)) }
             return
         }
 
@@ -2852,18 +3006,18 @@ class FoodViewModel @Inject constructor(
     fun reportSavedFoodForReview(foodId: String) {
         val currentState = state.value
         if (currentState.savedFoods.none { it.id == foodId }) {
-            mutableState.update { it.copy(message = "Saved food not found") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_saved_food_not_found)) }
             return
         }
         mutableState.update {
             it.withReportedSavedFoodIds(it.reportedSavedFoodIds + foodId)
-                .copy(message = "Marked food for local review")
+                .copy(message = uiText(R.string.food_message_marked_local_review))
         }
     }
 
     fun startSavedFoodCorrection(foodId: String) {
         openSavedFoodEditor(foodId)
-        mutableState.update { it.copy(message = "Review and correct nutrition before saving.") }
+        mutableState.update { it.copy(message = uiText(R.string.food_message_correct_nutrition)) }
     }
 
     fun onSavedFoodNameChanged(value: String) {
@@ -2958,14 +3112,14 @@ class FoodViewModel @Inject constructor(
         val editor = currentState.savedFoodEditor ?: return
         val foodName = editor.name.trim()
         if (foodName.isBlank()) {
-            mutableState.update { it.copy(message = "Enter a food name") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_food_name)) }
             return
         }
         val servingGrams = editor.servingGrams.parsePositiveNumberOrNull()
         val nutrition = currentState.toSavedFoodNutritionOrNull()
         val nutritionDetails = currentState.toSavedFoodNutritionDetailsOrNull()
         if (servingGrams == null || nutrition == null || nutritionDetails == null) {
-            mutableState.update { it.copy(message = "Enter valid nutrition values") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_nutrition)) }
             return
         }
         if (!markSaving()) {
@@ -2995,7 +3149,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = true,
                         sheetMode = FoodSheetMode.FoodDatabase,
                         savedFoodEditor = null,
-                        message = "Saved food",
+                        message = uiText(R.string.food_message_saved_food),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3005,7 +3159,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to save food",
+                        message = error.messageOr(R.string.food_message_failed_save_food),
                     )
                 }
             }
@@ -3019,7 +3173,7 @@ class FoodViewModel @Inject constructor(
         }
         val foodId = currentState.savedFoodEditor?.id
         if (foodId == null) {
-            mutableState.update { it.copy(message = "Choose a saved food") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_saved_food)) }
             return
         }
         if (!markSaving()) {
@@ -3035,7 +3189,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = true,
                         sheetMode = FoodSheetMode.FoodDatabase,
                         savedFoodEditor = null,
-                        message = "Deleted food",
+                        message = uiText(R.string.food_message_deleted_food),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3045,7 +3199,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to delete food",
+                        message = error.messageOr(R.string.food_message_failed_delete_food),
                     )
                 }
             }
@@ -3059,12 +3213,12 @@ class FoodViewModel @Inject constructor(
         }
         val foodId = currentState.savedFoodEditor?.id
         if (foodId == null) {
-            mutableState.update { it.copy(message = "Choose a saved food") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_saved_food)) }
             return
         }
         val savedFood = currentState.savedFoods.firstOrNull { it.id == foodId }
         if (savedFood == null) {
-            mutableState.update { it.copy(message = "Saved food not found") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_saved_food_not_found)) }
             return
         }
         if (!markSaving()) {
@@ -3112,7 +3266,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = true,
                         sheetMode = FoodSheetMode.FoodDatabase,
                         savedFoodEditor = null,
-                        message = "Duplicated food",
+                        message = uiText(R.string.food_message_duplicated_food),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3122,7 +3276,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to duplicate food",
+                        message = error.messageOr(R.string.food_message_failed_duplicate_food),
                     )
                 }
             }
@@ -3134,7 +3288,7 @@ class FoodViewModel @Inject constructor(
             return
         }
         if (primaryFoodId.isBlank() || duplicateFoodIds.isEmpty()) {
-            mutableState.update { it.copy(message = "Choose duplicate foods to merge") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_duplicates)) }
             return
         }
         if (!markSaving()) {
@@ -3147,7 +3301,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = "Merged duplicate foods",
+                        message = uiText(R.string.food_message_merged_duplicates),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3157,7 +3311,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to merge foods",
+                        message = error.messageOr(R.string.food_message_failed_merge_foods),
                     )
                 }
             }
@@ -3168,11 +3322,17 @@ class FoodViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.toggleFavoriteFood(foodId, isFavorite)
-                mutableState.update { it.copy(message = if (isFavorite) "Added to favorites" else "Removed from favorites") }
+                mutableState.update {
+                    it.copy(
+                        message = uiText(
+                            if (isFavorite) R.string.food_message_favorite_added else R.string.food_message_favorite_removed,
+                        ),
+                    )
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(message = error.message ?: "Failed to update favorite") }
+                mutableState.update { it.copy(message = error.messageOr(R.string.food_message_failed_update_favorite)) }
             }
         }
     }
@@ -3187,7 +3347,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = "Imported starter foods",
+                        message = uiText(R.string.food_message_imported_starter_foods),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3197,7 +3357,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to import foods",
+                        message = error.messageOr(R.string.food_message_failed_import_foods),
                     )
                 }
             }
@@ -3260,9 +3420,12 @@ class FoodViewModel @Inject constructor(
                     parsedFieldCount = parsed.parsedFieldCount,
                 ),
                 message = if (parsed.hasAnyValue) {
-                    "${parsed.confidenceLabel}. Review the scanned values below."
+                    uiText(
+                        R.string.food_message_scanned_values,
+                        UiText.Argument.Text(parsed.confidenceLabel),
+                    )
                 } else {
-                    "Couldn't read the label — enter the values manually."
+                    uiText(R.string.food_message_label_unreadable)
                 },
             ).withAmountNutritionPreview()
         }
@@ -3305,6 +3468,7 @@ class FoodViewModel @Inject constructor(
             it.copy(
                 mealType = value,
                 selectedMealTitle = it.mealTitleFor(value),
+                selectedMealTitleText = it.mealTitleTextFor(value),
                 message = null,
             )
         }
@@ -3326,7 +3490,7 @@ class FoodViewModel @Inject constructor(
         mutableState.update { currentState ->
             val choice = currentState.amountServingChoices.firstOrNull { it.id == choiceId }
             if (choice == null) {
-                currentState.copy(message = "Serving choice not found")
+                currentState.copy(message = uiText(R.string.food_message_serving_choice_not_found))
             } else {
                 currentState.copy(
                     quantityGrams = choice.grams.formatInputNumber(),
@@ -3359,7 +3523,7 @@ class FoodViewModel @Inject constructor(
     fun lookupBarcode() {
         val barcode = state.value.barcode
         if (barcode.isBlank()) {
-            mutableState.update { it.copy(message = "Enter a barcode") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_barcode)) }
             return
         }
 
@@ -3415,7 +3579,7 @@ class FoodViewModel @Inject constructor(
                                 productName = "Barcode $barcode",
                                 quantityGrams = "100",
                                 amountServingChoices = defaultAmountServingChoices(),
-                                message = "Product not found. Add details to create it.",
+                                message = uiText(R.string.food_message_product_not_found),
                             )
                         }
                     }
@@ -3427,7 +3591,7 @@ class FoodViewModel @Inject constructor(
                         } else {
                             currentState.clearedEditableFields().copy(
                                 isLoading = false,
-                                message = result.message,
+                                message = UiText.Verbatim(result.message),
                             )
                         }
                     }
@@ -3441,12 +3605,12 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val productName = currentState.productName.trim()
         if (productName.isBlank()) {
-            mutableState.update { it.copy(message = "Enter a food name") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_food_name)) }
             return
         }
         val editedNutrition = currentState.toEditedNutritionOrNull()
         if (editedNutrition == null) {
-            mutableState.update { it.copy(message = "Enter valid nutrition values") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_nutrition)) }
             return
         }
         val editedNutritionDetails = currentState.toEditedNutritionDetailsOrNull()
@@ -3454,11 +3618,11 @@ class FoodViewModel @Inject constructor(
         val customBarcode = currentState.barcode.takeIf { it.isNotBlank() }
         val customServingGrams = currentState.quantityGrams.parsePositiveNumberOrNull()
         if (result == null && customBarcode == null) {
-            mutableState.update { it.copy(message = "Enter a barcode") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_barcode)) }
             return
         }
         if (result == null && customServingGrams == null) {
-            mutableState.update { it.copy(message = "Enter a valid amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_amount)) }
             return
         }
         if (!markSaving()) {
@@ -3492,7 +3656,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = "Saved product to database",
+                        message = uiText(R.string.food_message_saved_product),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3502,7 +3666,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to save product",
+                        message = error.messageOr(R.string.food_message_failed_save_product),
                     )
                 }
             }
@@ -3516,18 +3680,18 @@ class FoodViewModel @Inject constructor(
         }
         val productName = currentState.productName.trim()
         if (productName.isBlank()) {
-            mutableState.update { it.copy(message = "Enter a food name") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_food_name)) }
             return
         }
         val editedNutrition = currentState.toEditedNutritionOrNull()
         if (editedNutrition == null) {
-            mutableState.update { it.copy(message = "Enter valid nutrition values") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_nutrition)) }
             return
         }
         val editedNutritionDetails = currentState.toEditedNutritionDetailsOrNull()
         val quantityGrams = currentState.quantityGrams.parsePositiveNumberOrNull()
         if (quantityGrams == null) {
-            mutableState.update { it.copy(message = "Enter a valid amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_amount)) }
             return
         }
         if (!markSaving()) {
@@ -3554,7 +3718,7 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         isAddPanelVisible = currentState.keepAddingFoods,
-                        message = "Logged food",
+                        message = uiText(R.string.food_message_logged_food),
                         lookupResult = null,
                     )
                 }
@@ -3565,7 +3729,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to save food",
+                        message = error.messageOr(R.string.food_message_failed_save_food),
                     )
                 }
             }
@@ -3578,12 +3742,12 @@ class FoodViewModel @Inject constructor(
             return
         }
         if (currentState.isPlanningMode && !currentState.selectedDate.isWithinFoodPlanningHorizon()) {
-            mutableState.update { it.copy(message = FOOD_PLANNING_LIMIT_MESSAGE) }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_planning_limit)) }
             return
         }
         val quantityGrams = currentState.savedFoodQuantityGrams.parsePositiveNumberOrNull()
         if (quantityGrams == null) {
-            mutableState.update { it.copy(message = "Enter a valid amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_amount)) }
             return
         }
         if (!markSaving()) {
@@ -3607,7 +3771,13 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         isAddPanelVisible = currentState.keepAddingFoods,
-                        message = if (currentState.isPlanningMode) "Planned food" else "Logged food",
+                        message = uiText(
+                            if (currentState.isPlanningMode) {
+                                R.string.food_message_planned_food
+                            } else {
+                                R.string.food_message_logged_food
+                            },
+                        ),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3617,7 +3787,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to log food",
+                        message = error.messageOr(R.string.food_message_failed_log_food),
                     )
                 }
             }
@@ -3630,7 +3800,7 @@ class FoodViewModel @Inject constructor(
             return
         }
         if (currentState.isPlanningMode && !currentState.selectedDate.isWithinFoodPlanningHorizon()) {
-            mutableState.update { it.copy(message = FOOD_PLANNING_LIMIT_MESSAGE) }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_planning_limit)) }
             return
         }
         val items = currentState.sameAsYesterday
@@ -3656,12 +3826,19 @@ class FoodViewModel @Inject constructor(
                         repository.logSavedFood(input)
                     }
                 }
-                val noun = if (items.size == 1) "food" else "${items.size} foods"
                 mutableState.update {
                     it.copy(
                         isSaving = false,
                         isAddPanelVisible = currentState.keepAddingFoods,
-                        message = if (currentState.isPlanningMode) "Planned $noun" else "Logged $noun",
+                        message = pluralUiText(
+                            if (currentState.isPlanningMode) {
+                                R.plurals.food_message_planned_food_count
+                            } else {
+                                R.plurals.food_message_logged_food_count
+                            },
+                            items.size,
+                            UiText.Argument.Integer(items.size),
+                        ),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3671,7 +3848,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to log foods",
+                        message = error.messageOr(R.string.food_message_failed_log_foods),
                     )
                 }
             }
@@ -3688,7 +3865,7 @@ class FoodViewModel @Inject constructor(
         val carbsGrams = currentState.quickCarbsGrams.parseNonNegativeNumberOrZero()
         val fatGrams = currentState.quickFatGrams.parseNonNegativeNumberOrZero()
         if (caloriesKcal == null || proteinGrams == null || carbsGrams == null || fatGrams == null) {
-            mutableState.update { it.copy(message = "Enter valid quick calories") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_quick_calories)) }
             return
         }
         if (!markSaving()) {
@@ -3711,7 +3888,7 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         isAddPanelVisible = currentState.keepAddingFoods,
-                        message = "Logged quick calories",
+                        message = uiText(R.string.food_message_logged_quick_calories),
                         quickCaloriesKcal = "",
                         quickProteinGrams = "",
                         quickCarbsGrams = "",
@@ -3725,7 +3902,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to log calories",
+                        message = error.messageOr(R.string.food_message_failed_log_calories),
                     )
                 }
             }
@@ -3742,7 +3919,7 @@ class FoodViewModel @Inject constructor(
         val carbsGrams = currentState.quickCarbsGrams.parseNonNegativeNumberOrZero()
         val fatGrams = currentState.quickFatGrams.parseNonNegativeNumberOrZero()
         if (caloriesKcal == null || proteinGrams == null || carbsGrams == null || fatGrams == null) {
-            mutableState.update { it.copy(message = "Enter valid quick calories") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_valid_quick_calories)) }
             return
         }
         if (!markSaving()) {
@@ -3761,12 +3938,16 @@ class FoodViewModel @Inject constructor(
                         isFavorite = true,
                     ),
                 )
-                mutableState.update { it.copy(isSaving = false, message = "Saved quick log favorite") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = uiText(R.string.food_message_saved_quick_favorite))
+                }
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to save quick log") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_save_quick_log))
+                }
             }
         }
     }
@@ -3787,14 +3968,16 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         isAddPanelVisible = currentState.keepAddingFoods,
-                        message = "Logged favorite quick log",
+                        message = uiText(R.string.food_message_logged_quick_favorite),
                     )
                 }
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to log quick favorite") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_log_quick_favorite))
+                }
             }
         }
     }
@@ -3805,17 +3988,19 @@ class FoodViewModel @Inject constructor(
                 repository.toggleFavoriteQuickLog(presetId, isFavorite)
                 mutableState.update {
                     it.copy(
-                        message = if (isFavorite) {
-                            "Quick log added to favorites"
-                        } else {
-                            "Quick log removed from favorites"
-                        },
+                        message = uiText(
+                            if (isFavorite) {
+                                R.string.food_message_quick_favorite_added
+                            } else {
+                                R.string.food_message_quick_favorite_removed
+                            },
+                        ),
                     )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(message = error.message ?: "Failed to update quick favorite") }
+                mutableState.update { it.copy(message = error.messageOr(R.string.food_message_failed_update_quick_favorite)) }
             }
         }
     }
@@ -3836,7 +4021,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = "Copied meal from yesterday",
+                        message = uiText(R.string.food_message_copied_yesterday_meal),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3846,7 +4031,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to copy meal",
+                        message = error.messageOr(R.string.food_message_failed_copy_meal),
                     )
                 }
             }
@@ -3857,7 +4042,7 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val mealType = currentState.selectedMealDetailId ?: currentState.mealType
         if (name.isBlank()) {
-            mutableState.update { it.copy(message = "Enter a template name") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_template_name)) }
             return
         }
         if (!markSaving()) {
@@ -3873,7 +4058,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = "Saved meal template",
+                        message = uiText(R.string.food_message_saved_meal_template),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3883,7 +4068,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to save template",
+                        message = error.messageOr(R.string.food_message_failed_save_template),
                     )
                 }
             }
@@ -3906,7 +4091,7 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         isAddPanelVisible = currentState.keepAddingFoods,
-                        message = "Logged meal template",
+                        message = uiText(R.string.food_message_logged_meal_template),
                     )
                 }
             } catch (error: CancellationException) {
@@ -3916,7 +4101,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to log template",
+                        message = error.messageOr(R.string.food_message_failed_log_template),
                     )
                 }
             }
@@ -3992,31 +4177,11 @@ class FoodViewModel @Inject constructor(
         val program = foodProgramDefinitions.firstOrNull { it.id == programId }
         val preset = program?.mode?.goalPreset()
         if (program == null || preset == null) {
-            mutableState.update { it.copy(message = "Food program unavailable") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_program_unavailable)) }
             return
         }
         val currentState = state.value
-        val includeTrainingCalories =
-            if (currentState.sheetMode == FoodSheetMode.GoalEditor) {
-                currentState.goalEditor.includeTrainingInput
-            } else {
-                currentState.includeTrainingCalories
-            }
-        val goal =
-            FoodGoal(
-                dailyCaloriesKcal = preset.dailyCaloriesKcal,
-                proteinGrams = preset.proteinGrams,
-                carbsGrams = preset.carbsGrams,
-                fatGrams = preset.fatGrams,
-                fiberGrams = preset.fiberGrams,
-                sugarGrams = preset.sugarGrams,
-                saturatedFatGrams = preset.saturatedFatGrams,
-                sodiumMilligrams = preset.sodiumMilligrams,
-                mode = program.mode,
-                includeTrainingCalories = includeTrainingCalories,
-                useNetCarbs = preset.useNetCarbs,
-                waterGoalMilliliters = currentState.waterGoalMilliliters,
-            )
+        val goal = currentState.goalForProgram(program, preset)
         if (!markSaving()) {
             return
         }
@@ -4030,7 +4195,10 @@ class FoodViewModel @Inject constructor(
                             isSaving = false,
                             isAddPanelVisible = false,
                             sheetMode = null,
-                            message = "Applied ${program.title} program",
+                            message = uiText(
+                                R.string.food_message_applied_program,
+                                UiText.Argument.Resource(program.titleResourceId),
+                            ),
                         )
                 }
             } catch (error: CancellationException) {
@@ -4040,7 +4208,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to apply food program",
+                        message = error.messageOr(R.string.food_message_failed_apply_program),
                     )
                 }
             }
@@ -4053,7 +4221,7 @@ class FoodViewModel @Inject constructor(
         val goal =
             FoodGoal(
                 dailyCaloriesKcal = editor.caloriesKcalInput.parsePositiveNumberOrNull() ?: run {
-                    mutableState.update { it.copy(message = "Enter a valid calorie goal") }
+                    mutableState.update { it.copy(message = uiText(R.string.food_message_valid_calorie_goal)) }
                     return
                 },
                 proteinGrams = editor.proteinGramsInput.parseNonNegativeNumberOrZero() ?: return invalidGoal(),
@@ -4081,7 +4249,7 @@ class FoodViewModel @Inject constructor(
                             isSaving = false,
                             isAddPanelVisible = false,
                             sheetMode = null,
-                            message = "Updated nutrition goals",
+                            message = uiText(R.string.food_message_updated_goals),
                         )
                 }
             } catch (error: CancellationException) {
@@ -4091,7 +4259,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to save goals",
+                        message = error.messageOr(R.string.food_message_failed_save_goals),
                     )
                 }
             }
@@ -4099,7 +4267,7 @@ class FoodViewModel @Inject constructor(
     }
 
     private fun invalidGoal() {
-        mutableState.update { it.copy(message = "Enter valid goal values") }
+        mutableState.update { it.copy(message = uiText(R.string.food_message_valid_goal_values)) }
     }
 
     fun onRecipeNameChanged(value: String) {
@@ -4214,12 +4382,12 @@ class FoodViewModel @Inject constructor(
         val editor = currentState.recipeEditor ?: return
         val food = currentState.savedFoods.firstOrNull { it.id == editor.ingredientFoodId }
         if (food == null) {
-            mutableState.update { it.copy(message = "Choose an ingredient") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_choose_ingredient)) }
             return
         }
         val quantity = editor.ingredientQuantityGrams.parsePositiveNumberOrNull()
         if (quantity == null) {
-            mutableState.update { it.copy(message = "Enter ingredient amount") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_ingredient_amount)) }
             return
         }
         val servingChoice =
@@ -4265,7 +4433,7 @@ class FoodViewModel @Inject constructor(
             cookedYieldGrams == null ||
             editor.ingredients.isEmpty()
         ) {
-            mutableState.update { it.copy(message = "Complete the recipe") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_complete_recipe)) }
             return
         }
         if (!markSaving()) {
@@ -4299,7 +4467,7 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = false,
                         sheetMode = null,
                         recipeEditor = null,
-                        message = "Saved recipe",
+                        message = uiText(R.string.food_message_saved_recipe),
                     )
                 }
             } catch (error: CancellationException) {
@@ -4309,7 +4477,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to save recipe",
+                        message = error.messageOr(R.string.food_message_failed_save_recipe),
                     )
                 }
             }
@@ -4329,14 +4497,16 @@ class FoodViewModel @Inject constructor(
                         isAddPanelVisible = false,
                         sheetMode = null,
                         recipeEditor = null,
-                        message = "Deleted recipe",
+                        message = uiText(R.string.food_message_deleted_recipe),
                     )
                 }
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to delete recipe") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_delete_recipe))
+                }
             }
         }
     }
@@ -4347,17 +4517,19 @@ class FoodViewModel @Inject constructor(
                 repository.toggleFavoriteRecipe(recipeId, isFavorite)
                 mutableState.update {
                     it.copy(
-                        message = if (isFavorite) {
-                            "Recipe added to favorites"
-                        } else {
-                            "Recipe removed from favorites"
-                        },
+                        message = uiText(
+                            if (isFavorite) {
+                                R.string.food_message_recipe_favorite_added
+                            } else {
+                                R.string.food_message_recipe_favorite_removed
+                            },
+                        ),
                     )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(message = error.message ?: "Failed to update recipe favorite") }
+                mutableState.update { it.copy(message = error.messageOr(R.string.food_message_failed_recipe_favorite)) }
             }
         }
     }
@@ -4374,14 +4546,16 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = "Duplicated recipe",
+                        message = uiText(R.string.food_message_duplicated_recipe),
                     )
                 }
             } catch (error: CancellationException) {
                 mutableState.update { it.copy(isSaving = false) }
                 throw error
             } catch (error: Exception) {
-                mutableState.update { it.copy(isSaving = false, message = error.message ?: "Failed to duplicate recipe") }
+                mutableState.update {
+                    it.copy(isSaving = false, message = error.messageOr(R.string.food_message_failed_duplicate_recipe))
+                }
             }
         }
     }
@@ -4390,7 +4564,7 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val servings = currentState.recipeServingsToLog.parsePositiveNumberOrNull()
         if (servings == null) {
-            mutableState.update { it.copy(message = "Enter recipe servings") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_recipe_servings)) }
             return
         }
         if (!markSaving()) {
@@ -4408,7 +4582,7 @@ class FoodViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         isAddPanelVisible = currentState.keepAddingFoods,
-                        message = "Logged recipe",
+                        message = uiText(R.string.food_message_logged_recipe),
                     )
                 }
             } catch (error: CancellationException) {
@@ -4418,7 +4592,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to log recipe",
+                        message = error.messageOr(R.string.food_message_failed_log_recipe),
                     )
                 }
             }
@@ -4429,7 +4603,7 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val servings = currentState.recipeServingsToLog.parsePositiveNumberOrNull()
         if (servings == null) {
-            mutableState.update { it.copy(message = "Enter recipe servings") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_recipe_servings)) }
             return
         }
         if (!markSaving()) {
@@ -4448,7 +4622,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = true,
                         sheetMode = FoodSheetMode.RecipeBrowser,
-                        message = "Logged recipe",
+                        message = uiText(R.string.food_message_logged_recipe),
                     )
                 }
             } catch (error: CancellationException) {
@@ -4458,7 +4632,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to log recipe",
+                        message = error.messageOr(R.string.food_message_failed_log_recipe),
                     )
                 }
             }
@@ -4469,11 +4643,11 @@ class FoodViewModel @Inject constructor(
         val currentState = state.value
         val servings = currentState.recipeServingsToLog.parsePositiveNumberOrNull()
         if (servings == null) {
-            mutableState.update { it.copy(message = "Enter recipe servings") }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_enter_recipe_servings)) }
             return
         }
         if (!currentState.recipeBrowserDate.isWithinFoodPlanningHorizon()) {
-            mutableState.update { it.copy(message = FOOD_PLANNING_LIMIT_MESSAGE) }
+            mutableState.update { it.copy(message = uiText(R.string.food_message_planning_limit)) }
             return
         }
         if (!markSaving()) {
@@ -4492,7 +4666,7 @@ class FoodViewModel @Inject constructor(
                         isSaving = false,
                         isAddPanelVisible = true,
                         sheetMode = FoodSheetMode.RecipeBrowser,
-                        message = "Planned recipe",
+                        message = uiText(R.string.food_message_planned_recipe),
                     )
                 }
             } catch (error: CancellationException) {
@@ -4502,7 +4676,7 @@ class FoodViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         isSaving = false,
-                        message = error.message ?: "Failed to plan recipe",
+                        message = error.messageOr(R.string.food_message_failed_plan_recipe),
                     )
                 }
             }
@@ -4665,25 +4839,19 @@ class FoodViewModel @Inject constructor(
     }
 
     private fun FoodUiState.withAiLoggingDraft(
-        name: String,
-        sourceLabel: String,
-        caloriesPer100g: String = "250",
-        proteinPer100g: String = "12",
-        carbsPer100g: String = "30",
-        fatPer100g: String = "8",
-        review: String? = "Local estimate: generic meal",
-        message: String,
+        draft: AiLoggingDraft,
+        message: UiText,
     ): FoodUiState = copy(
         isAddPanelVisible = true,
         sheetMode = FoodSheetMode.AddFood,
         addMode = FoodAddMode.Ai,
-        productName = name,
+        productName = draft.name,
         brand = "",
         quantityGrams = "100",
-        caloriesPer100g = caloriesPer100g,
-        proteinPer100g = proteinPer100g,
-        carbsPer100g = carbsPer100g,
-        fatPer100g = fatPer100g,
+        caloriesPer100g = draft.caloriesPer100g,
+        proteinPer100g = draft.proteinPer100g,
+        carbsPer100g = draft.carbsPer100g,
+        fatPer100g = draft.fatPer100g,
         fiberPer100g = "",
         sugarPer100g = "",
         saturatedFatPer100g = "",
@@ -4691,8 +4859,9 @@ class FoodViewModel @Inject constructor(
         amountServingChoices = defaultAmountServingChoices(),
         lookupResult = null,
         aiLoggingHasDraft = true,
-        aiLoggingDraftSourceLabel = sourceLabel,
-        aiLoggingDraftReview = review,
+        aiLoggingDraftNameText = draft.nameText,
+        aiLoggingDraftSourceText = draft.sourceText,
+        aiLoggingDraftReviewText = draft.reviewText,
         nutritionLabelScanReview = null,
         message = message,
     ).withAmountNutritionPreview()
@@ -4712,16 +4881,30 @@ class FoodViewModel @Inject constructor(
         amountServingChoices = emptyList(),
         lookupResult = null,
         aiLoggingHasDraft = false,
-        aiLoggingDraftSourceLabel = null,
-        aiLoggingDraftReview = null,
+        aiLoggingDraftNameText = null,
+        aiLoggingDraftSourceText = null,
+        aiLoggingDraftReviewText = null,
         nutritionLabelScanReview = null,
     )
 }
 
+private data class AiLoggingDraft(
+    val name: String,
+    val sourceText: UiText,
+    val nameText: UiText? = null,
+    val caloriesPer100g: String = "250",
+    val proteinPer100g: String = "12",
+    val carbsPer100g: String = "30",
+    val fatPer100g: String = "8",
+    val reviewText: UiText? = uiText(R.string.food_local_estimate_generic),
+)
+
 private data class MealDefinition(
     val id: String,
     val title: String,
+    @StringRes val titleResourceId: Int,
     val recommendation: String,
+    @StringRes val recommendationResourceId: Int,
     val calorieTargetKcal: Double,
     val sortOrder: Int,
     val timeMinutes: Int? = null,
@@ -4742,35 +4925,61 @@ private data class GoalPreset(
 private data class FoodProgramDefinition(
     val id: String,
     val mode: FoodGoalMode,
-    val title: String,
-    val subtitle: String,
-    val description: String,
-    val suggestedHabits: List<String>,
-    val mealPlanningTip: String,
+    @StringRes val titleResourceId: Int,
+    @StringRes val subtitleResourceId: Int,
+    @StringRes val descriptionResourceId: Int,
+    val suggestedHabitResourceIds: List<Int>,
+    @StringRes val mealPlanningTipResourceId: Int,
+)
+
+private fun FoodUiState.goalForProgram(
+    program: FoodProgramDefinition,
+    preset: GoalPreset,
+): FoodGoal = FoodGoal(
+    dailyCaloriesKcal = preset.dailyCaloriesKcal,
+    proteinGrams = preset.proteinGrams,
+    carbsGrams = preset.carbsGrams,
+    fatGrams = preset.fatGrams,
+    fiberGrams = preset.fiberGrams,
+    sugarGrams = preset.sugarGrams,
+    saturatedFatGrams = preset.saturatedFatGrams,
+    sodiumMilligrams = preset.sodiumMilligrams,
+    mode = program.mode,
+    includeTrainingCalories = if (sheetMode == FoodSheetMode.GoalEditor) {
+        goalEditor.includeTrainingInput
+    } else {
+        includeTrainingCalories
+    },
+    useNetCarbs = preset.useNetCarbs,
+    waterGoalMilliliters = waterGoalMilliliters,
 )
 
 private data class RecipeCatalogItem(
     val id: String,
     val title: String,
+    @StringRes val titleResourceId: Int,
     val category: String,
+    @StringRes val categoryResourceId: Int,
     val mealTypeIds: List<String>,
     val thumbnailKey: String,
     val servingName: String,
+    @StringRes val servingNameResourceId: Int,
     val servingGrams: Double,
     val caloriesKcal: Double,
     val proteinGrams: Double,
     val carbsGrams: Double,
     val fatGrams: Double,
     val tags: List<String>,
+    val tagResourceIds: List<Int>,
     val relevantModes: Set<FoodGoalMode>,
 )
 
 private data class FastingProgramDefinition(
     val id: String,
-    val title: String,
+    @StringRes val titleResourceId: Int,
     val fastingHours: Double,
     val eatingHours: Double,
-    val description: String,
+    @StringRes val descriptionResourceId: Int,
 )
 
 private data class LocalAiNutritionDraft(
@@ -4778,15 +4987,47 @@ private data class LocalAiNutritionDraft(
     val proteinGrams: Double,
     val carbsGrams: Double,
     val fatGrams: Double,
-    val review: String,
+    val reviewText: UiText,
 )
 
 private val mealDefinitions =
     listOf(
-        MealDefinition("breakfast", "Breakfast", "Recommended 417 - 625 kcal", 625.0, sortOrder = 0),
-        MealDefinition("lunch", "Lunch", "Recommended 625 - 833 kcal", 833.0, sortOrder = 10),
-        MealDefinition("dinner", "Dinner", "Recommended 625 - 833 kcal", 833.0, sortOrder = 20),
-        MealDefinition("snacks", "Snacks", "Recommended 104 - 208 kcal", 208.0, sortOrder = 30),
+        MealDefinition(
+            id = "breakfast",
+            title = "Breakfast",
+            titleResourceId = R.string.food_meal_breakfast,
+            recommendation = "Recommended 417 - 625 kcal",
+            recommendationResourceId = R.string.food_meal_breakfast_recommendation,
+            calorieTargetKcal = 625.0,
+            sortOrder = 0,
+        ),
+        MealDefinition(
+            id = "lunch",
+            title = "Lunch",
+            titleResourceId = R.string.food_meal_lunch,
+            recommendation = "Recommended 625 - 833 kcal",
+            recommendationResourceId = R.string.food_meal_lunch_recommendation,
+            calorieTargetKcal = 833.0,
+            sortOrder = 10,
+        ),
+        MealDefinition(
+            id = "dinner",
+            title = "Dinner",
+            titleResourceId = R.string.food_meal_dinner,
+            recommendation = "Recommended 625 - 833 kcal",
+            recommendationResourceId = R.string.food_meal_dinner_recommendation,
+            calorieTargetKcal = 833.0,
+            sortOrder = 20,
+        ),
+        MealDefinition(
+            id = "snacks",
+            title = "Snacks",
+            titleResourceId = R.string.food_meal_snacks,
+            recommendation = "Recommended 104 - 208 kcal",
+            recommendationResourceId = R.string.food_meal_snacks_recommendation,
+            calorieTargetKcal = 208.0,
+            sortOrder = 30,
+        ),
     )
 
 private val defaultMealDefinitionIds = mealDefinitions.map { it.id }.toSet()
@@ -4802,8 +5043,8 @@ internal const val SODIUM_GOAL_MILLIGRAMS = 2300.0
 private const val WATER_GOAL_MILLILITERS = 2000.0
 private const val TRANSIENT_MESSAGE_DISMISS_MILLIS = 3_000L
 private const val FOOD_PLANNING_LIMIT_DAYS = 7L
-private const val FOOD_PLANNING_LIMIT_MESSAGE = "You can plan up to 1 week ahead."
-private const val FOOD_DATA_OBSERVATION_ERROR_MESSAGE = "Some food data couldn't be refreshed."
+
+private fun Throwable.messageOr(fallbackResourceId: Int): UiText = message?.takeIf(String::isNotBlank)?.let(UiText::Verbatim) ?: uiText(fallbackResourceId)
 
 private fun foodPlanningMaxDate(): LocalDate = LocalDate.now().plusDays(FOOD_PLANNING_LIMIT_DAYS)
 
@@ -4816,65 +5057,93 @@ private val foodProgramDefinitions =
         FoodProgramDefinition(
             id = "balanced",
             mode = FoodGoalMode.Balanced,
-            title = "Balanced",
-            subtitle = "Steady everyday nutrition",
-            description = "A practical calorie and macro split for general tracking.",
-            suggestedHabits = listOf("Water daily", "Fruit or vegetables at two meals", "Protein with each main meal"),
-            mealPlanningTip = "Plan simple repeatable meals, then adjust portions by hunger and progress.",
+            titleResourceId = R.string.food_program_balanced_title,
+            subtitleResourceId = R.string.food_program_balanced_subtitle,
+            descriptionResourceId = R.string.food_program_balanced_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_balanced_habit_water,
+                R.string.food_program_balanced_habit_produce,
+                R.string.food_program_balanced_habit_protein,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_balanced_tip,
         ),
         FoodProgramDefinition(
             id = "high-protein",
             mode = FoodGoalMode.HighProtein,
-            title = "High protein",
-            subtitle = "Protein-forward meals",
-            description = "Raises protein while keeping carbs and fats moderate.",
-            suggestedHabits = listOf("Lean protein each meal", "High-protein snack", "Fiber side with protein meals"),
-            mealPlanningTip = "Build templates around eggs, yogurt, fish, meat, tofu, or legumes.",
+            titleResourceId = R.string.food_program_high_protein_title,
+            subtitleResourceId = R.string.food_program_high_protein_subtitle,
+            descriptionResourceId = R.string.food_program_high_protein_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_high_protein_habit_meals,
+                R.string.food_program_high_protein_habit_snack,
+                R.string.food_program_high_protein_habit_fiber,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_high_protein_tip,
         ),
         FoodProgramDefinition(
             id = "muscle-gain",
             mode = FoodGoalMode.MuscleGain,
-            title = "Muscle gain",
-            subtitle = "More energy with protein",
-            description = "Adds calories and carbs while keeping protein high.",
-            suggestedHabits = listOf("Protein every 3-5 hours", "Carbs around training", "Consistent water"),
-            mealPlanningTip = "Plan larger lunches and dinners so calories do not pile up late.",
+            titleResourceId = R.string.food_program_muscle_gain_title,
+            subtitleResourceId = R.string.food_program_muscle_gain_subtitle,
+            descriptionResourceId = R.string.food_program_muscle_gain_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_muscle_gain_habit_protein,
+                R.string.food_program_muscle_gain_habit_carbs,
+                R.string.food_program_muscle_gain_habit_water,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_muscle_gain_tip,
         ),
         FoodProgramDefinition(
             id = "weight-loss",
             mode = FoodGoalMode.WeightLoss,
-            title = "Weight loss",
-            subtitle = "Controlled energy, high satiety",
-            description = "Moderates calories while protecting protein and fiber.",
-            suggestedHabits = listOf("Protein first", "Vegetables daily", "Lower-sugar snacks"),
-            mealPlanningTip = "Pre-plan snacks and dinner portions before the day gets busy.",
+            titleResourceId = R.string.food_program_weight_loss_title,
+            subtitleResourceId = R.string.food_program_weight_loss_subtitle,
+            descriptionResourceId = R.string.food_program_weight_loss_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_weight_loss_habit_protein,
+                R.string.food_program_weight_loss_habit_vegetables,
+                R.string.food_program_weight_loss_habit_snacks,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_weight_loss_tip,
         ),
         FoodProgramDefinition(
             id = "keto-low-carb",
             mode = FoodGoalMode.KetoLowCarb,
-            title = "Keto low carb",
-            subtitle = "Lower carbs with net-carb tracking",
-            description = "Keeps carbs low and uses fats for more energy.",
-            suggestedHabits = listOf("Track net carbs", "Electrolyte-aware hydration", "Non-starchy vegetables"),
-            mealPlanningTip = "Plan protein plus low-carb vegetables before adding fats.",
+            titleResourceId = R.string.food_program_keto_title,
+            subtitleResourceId = R.string.food_program_keto_subtitle,
+            descriptionResourceId = R.string.food_program_keto_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_keto_habit_net_carbs,
+                R.string.food_program_keto_habit_hydration,
+                R.string.food_program_keto_habit_vegetables,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_keto_tip,
         ),
         FoodProgramDefinition(
             id = "mediterranean-style",
             mode = FoodGoalMode.MediterraneanStyle,
-            title = "Mediterranean-style",
-            subtitle = "Fiber, fish, olive oil, legumes",
-            description = "Emphasizes higher fiber carbs, unsaturated fats, and fish or legumes.",
-            suggestedHabits = listOf("Olive oil or nuts", "Fish weekly", "Beans, grains, fruit, and vegetables"),
-            mealPlanningTip = "Plan bowls, salads, fish dinners, and legume-based lunches.",
+            titleResourceId = R.string.food_program_mediterranean_title,
+            subtitleResourceId = R.string.food_program_mediterranean_subtitle,
+            descriptionResourceId = R.string.food_program_mediterranean_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_mediterranean_habit_fats,
+                R.string.food_program_mediterranean_habit_fish,
+                R.string.food_program_mediterranean_habit_plants,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_mediterranean_tip,
         ),
         FoodProgramDefinition(
             id = "clean-eating",
             mode = FoodGoalMode.CleanEating,
-            title = "Clean eating",
-            subtitle = "Simple whole-food structure",
-            description = "Focuses on protein, fiber, lower sugar, and less sodium.",
-            suggestedHabits = listOf("Whole-food protein", "Vegetables twice daily", "Limit sugary packaged snacks"),
-            mealPlanningTip = "Prep a protein, a grain or potato, and chopped vegetables for fast meals.",
+            titleResourceId = R.string.food_program_clean_title,
+            subtitleResourceId = R.string.food_program_clean_subtitle,
+            descriptionResourceId = R.string.food_program_clean_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_clean_habit_protein,
+                R.string.food_program_clean_habit_vegetables,
+                R.string.food_program_clean_habit_snacks,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_clean_tip,
         ),
     )
 
@@ -4883,151 +5152,199 @@ private val recipeCatalogItems =
         RecipeCatalogItem(
             id = "catalog-high-protein-chicken-bowl",
             title = "High-protein chicken bowl",
+            titleResourceId = R.string.food_recipe_catalog_chicken_bowl,
             category = "Lunch",
+            categoryResourceId = R.string.food_meal_lunch,
             mealTypeIds = listOf("lunch", "dinner"),
             thumbnailKey = "chicken-bowl",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 420.0,
             caloriesKcal = 520.0,
             proteinGrams = 48.0,
             carbsGrams = 48.0,
             fatGrams = 14.0,
             tags = listOf("High protein", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_high_protein, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain),
         ),
         RecipeCatalogItem(
             id = "catalog-keto-salmon-plate",
             title = "Low-carb salmon plate",
+            titleResourceId = R.string.food_recipe_catalog_salmon_plate,
             category = "Dinner",
+            categoryResourceId = R.string.food_meal_dinner,
             mealTypeIds = listOf("dinner"),
             thumbnailKey = "salmon-plate",
             servingName = "Plate",
+            servingNameResourceId = R.string.food_serving_plate,
             servingGrams = 360.0,
             caloriesKcal = 610.0,
             proteinGrams = 42.0,
             carbsGrams = 16.0,
             fatGrams = 42.0,
             tags = listOf("High protein", "Low carb"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_high_protein, R.string.food_recipe_tag_low_carb),
             relevantModes = setOf(FoodGoalMode.KetoLowCarb, FoodGoalMode.HighProtein, FoodGoalMode.MediterraneanStyle),
         ),
         RecipeCatalogItem(
             id = "catalog-mediterranean-chickpea-bowl",
             title = "Mediterranean chickpea bowl",
+            titleResourceId = R.string.food_recipe_catalog_chickpea_bowl,
             category = "Vegetarian",
+            categoryResourceId = R.string.food_recipe_category_vegetarian,
             mealTypeIds = listOf("lunch", "dinner"),
             thumbnailKey = "chickpea-bowl",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 380.0,
             caloriesKcal = 470.0,
             proteinGrams = 24.0,
             carbsGrams = 62.0,
             fatGrams = 15.0,
             tags = listOf("Vegetarian", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-clean-breakfast-bowl",
             title = "Clean breakfast bowl",
+            titleResourceId = R.string.food_recipe_catalog_breakfast_bowl,
             category = "Breakfast",
+            categoryResourceId = R.string.food_meal_breakfast,
             mealTypeIds = listOf("breakfast"),
             thumbnailKey = "breakfast-bowl",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 330.0,
             caloriesKcal = 430.0,
             proteinGrams = 32.0,
             carbsGrams = 46.0,
             fatGrams = 12.0,
             tags = listOf("High protein", "Vegetarian", "Quick"),
+            tagResourceIds = listOf(
+                R.string.food_recipe_tag_high_protein,
+                R.string.food_recipe_tag_vegetarian,
+                R.string.food_recipe_tag_quick,
+            ),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-overnight-oats",
             title = "Silken tofu overnight oats",
+            titleResourceId = R.string.food_recipe_catalog_overnight_oats,
             category = "Breakfast",
+            categoryResourceId = R.string.food_meal_breakfast,
             mealTypeIds = listOf("breakfast"),
             thumbnailKey = "overnight-oats",
             servingName = "Jar",
+            servingNameResourceId = R.string.food_serving_jar,
             servingGrams = 340.0,
             caloriesKcal = 495.0,
             proteinGrams = 31.0,
             carbsGrams = 58.0,
             fatGrams = 14.0,
             tags = listOf("High protein", "Vegetarian", "Quick"),
+            tagResourceIds = listOf(
+                R.string.food_recipe_tag_high_protein,
+                R.string.food_recipe_tag_vegetarian,
+                R.string.food_recipe_tag_quick,
+            ),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.CleanEating),
         ),
         RecipeCatalogItem(
             id = "catalog-sweet-potato-muffins",
             title = "Sweet potato protein muffins",
+            titleResourceId = R.string.food_recipe_catalog_protein_muffins,
             category = "Breakfast",
+            categoryResourceId = R.string.food_meal_breakfast,
             mealTypeIds = listOf("breakfast", "snacks"),
             thumbnailKey = "muffins",
             servingName = "Plate",
+            servingNameResourceId = R.string.food_serving_plate,
             servingGrams = 180.0,
             caloriesKcal = 280.0,
             proteinGrams = 18.0,
             carbsGrams = 38.0,
             fatGrams = 7.0,
             tags = listOf("Vegetarian", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.WeightLoss, FoodGoalMode.CleanEating),
         ),
         RecipeCatalogItem(
             id = "catalog-apple-kale-salad",
             title = "Apple, walnut, and kale salad",
+            titleResourceId = R.string.food_recipe_catalog_kale_salad,
             category = "Lunch",
+            categoryResourceId = R.string.food_meal_lunch,
             mealTypeIds = listOf("lunch"),
             thumbnailKey = "kale-salad",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 320.0,
             caloriesKcal = 343.0,
             proteinGrams = 14.0,
             carbsGrams = 34.0,
             fatGrams = 19.0,
             tags = listOf("Vegetarian", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-avocado-bean-dip",
             title = "Avocado and bean dip",
+            titleResourceId = R.string.food_recipe_catalog_bean_dip,
             category = "Lunch",
+            categoryResourceId = R.string.food_meal_lunch,
             mealTypeIds = listOf("lunch", "snacks"),
             thumbnailKey = "bean-dip",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 250.0,
             caloriesKcal = 225.0,
             proteinGrams = 11.0,
             carbsGrams = 27.0,
             fatGrams = 9.0,
             tags = listOf("Vegetarian", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-tomato-lentil-soup",
             title = "Tomato lentil soup",
+            titleResourceId = R.string.food_recipe_catalog_lentil_soup,
             category = "Dinner",
+            categoryResourceId = R.string.food_meal_dinner,
             mealTypeIds = listOf("dinner", "lunch"),
             thumbnailKey = "soup",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 420.0,
             caloriesKcal = 390.0,
             proteinGrams = 24.0,
             carbsGrams = 52.0,
             fatGrams = 10.0,
             tags = listOf("Vegetarian"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-protein-snack-box",
             title = "Protein snack box",
+            titleResourceId = R.string.food_recipe_catalog_snack_box,
             category = "Snacks",
+            categoryResourceId = R.string.food_meal_snacks,
             mealTypeIds = listOf("snacks"),
             thumbnailKey = "snack-box",
             servingName = "Box",
+            servingNameResourceId = R.string.food_serving_box,
             servingGrams = 220.0,
             caloriesKcal = 310.0,
             proteinGrams = 30.0,
             carbsGrams = 22.0,
             fatGrams = 12.0,
             tags = listOf("High protein", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_high_protein, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain),
         ),
     )
@@ -5036,31 +5353,31 @@ private val fastingProgramDefinitions =
     listOf(
         FastingProgramDefinition(
             id = "12-12",
-            title = "12:12",
+            titleResourceId = R.string.food_fasting_twelve_title,
             fastingHours = 12.0,
             eatingHours = 12.0,
-            description = "A gentle overnight fast with an even eating window.",
+            descriptionResourceId = R.string.food_fasting_twelve_description,
         ),
         FastingProgramDefinition(
             id = "14-10",
-            title = "14:10",
+            titleResourceId = R.string.food_fasting_fourteen_title,
             fastingHours = 14.0,
             eatingHours = 10.0,
-            description = "A moderate fast that still leaves room for three meals.",
+            descriptionResourceId = R.string.food_fasting_fourteen_description,
         ),
         FastingProgramDefinition(
             id = "16-8",
-            title = "16:8",
+            titleResourceId = R.string.food_fasting_sixteen_title,
             fastingHours = 16.0,
             eatingHours = 8.0,
-            description = "A focused daily fasting window with a compact eating window.",
+            descriptionResourceId = R.string.food_fasting_sixteen_description,
         ),
         FastingProgramDefinition(
             id = "custom",
-            title = "Custom 16:8",
+            titleResourceId = R.string.food_fasting_custom_title,
             fastingHours = 16.0,
             eatingHours = 8.0,
-            description = "Set a custom fasting and eating split that totals 24 hours.",
+            descriptionResourceId = R.string.food_fasting_custom_description,
         ),
     )
 
@@ -5144,17 +5461,18 @@ private fun buildFoodProgramUiStates(selectedMode: FoodGoalMode): List<FoodProgr
     FoodProgramUiState(
         id = program.id,
         mode = program.mode,
-        title = program.title,
-        subtitle = program.subtitle,
-        description = program.description,
-        macroTargetsLabel = listOf(
-            "${preset.dailyCaloriesKcal.formatInputNumber()} kcal",
-            "${preset.proteinGrams.formatInputNumber()} g protein",
-            "${preset.carbsGrams.formatInputNumber()} g carbs",
-            "${preset.fatGrams.formatInputNumber()} g fat",
-        ).joinToString(" - "),
-        suggestedHabits = program.suggestedHabits,
-        mealPlanningTip = program.mealPlanningTip,
+        title = uiText(program.titleResourceId),
+        subtitle = uiText(program.subtitleResourceId),
+        description = uiText(program.descriptionResourceId),
+        macroTargetsLabel = uiText(
+            R.string.food_program_macro_targets,
+            UiText.Argument.Decimal(preset.dailyCaloriesKcal),
+            UiText.Argument.Decimal(preset.proteinGrams),
+            UiText.Argument.Decimal(preset.carbsGrams),
+            UiText.Argument.Decimal(preset.fatGrams),
+        ),
+        suggestedHabits = program.suggestedHabitResourceIds.map(::uiText),
+        mealPlanningTip = uiText(program.mealPlanningTipResourceId),
         isSelected = program.mode == selectedMode,
     )
 }
@@ -5166,7 +5484,7 @@ private fun buildRecipeDiscoveryItems(
     recipeCatalogItems.map { item -> item.toDiscoveryItem(goalMode) }
 
 private fun RecipeUiState.toDiscoveryItem(goalMode: FoodGoalMode): RecipeDiscoveryItemUiState {
-    val searchableText = listOf(name, category.orEmpty(), itemSummary).joinToString(" ").lowercase()
+    val searchableText = listOf(name, category.orEmpty(), itemSummary).joinToString(" ").lowercase(Locale.ROOT)
     val tagLabels = buildRecipeTags(
         proteinGrams = proteinPerServingGrams,
         carbsGrams = carbsPerServingGrams,
@@ -5199,6 +5517,15 @@ private fun RecipeUiState.toDiscoveryItem(goalMode: FoodGoalMode): RecipeDiscove
         sourceRecipeId = id,
         mealTypeIds = recipeMealTypeIds(category.orEmpty(), searchableText),
         thumbnailKey = recipeThumbnailKey(searchableText),
+        titleText = UiText.Verbatim(name),
+        subtitleText = listOfNotNull(
+            category?.takeIf { it.isNotBlank() },
+            itemSummary.takeIf { it.isNotBlank() },
+        ).joinToString(" - ").takeIf { it.isNotBlank() }?.let(UiText::Verbatim)
+            ?: uiText(R.string.food_saved_recipe),
+        categoryText = UiText.Verbatim(category.orEmpty()),
+        servingNameText = UiText.Verbatim(servingName),
+        tagTexts = tagLabels.map(::recipeTagUiText),
     )
 }
 
@@ -5221,6 +5548,14 @@ private fun RecipeCatalogItem.toDiscoveryItem(goalMode: FoodGoalMode): RecipeDis
         programRelevant = goalMode in relevantModes,
         mealTypeIds = mealTypeIds,
         thumbnailKey = thumbnailKey,
+        titleText = uiText(titleResourceId),
+        subtitleText = uiText(
+            R.string.food_recipe_idea_calories,
+            UiText.Argument.Decimal(caloriesKcal),
+        ),
+        categoryText = uiText(categoryResourceId),
+        servingNameText = uiText(servingNameResourceId),
+        tagTexts = tagResourceIds.map(::uiText),
     )
 }
 
@@ -5247,6 +5582,16 @@ private fun buildRecipeTags(
     }
 }
 
+private fun recipeTagUiText(tag: String): UiText = uiText(
+    when (tag) {
+        "High protein" -> R.string.food_recipe_tag_high_protein
+        "Low carb" -> R.string.food_recipe_tag_low_carb
+        "Vegetarian" -> R.string.food_recipe_tag_vegetarian
+        "Quick" -> R.string.food_recipe_tag_quick
+        else -> return UiText.Verbatim(tag)
+    },
+)
+
 private fun isRecipeRelevantForProgram(
     goalMode: FoodGoalMode,
     tagLabels: List<String>,
@@ -5272,7 +5617,7 @@ private fun isRecipeRelevantForProgram(
 }
 
 private fun recipeMealTypeIds(category: String, searchableText: String): List<String> {
-    val normalizedCategory = category.lowercase()
+    val normalizedCategory = category.lowercase(Locale.ROOT)
     val matches = buildList {
         if ("breakfast" in normalizedCategory || listOf("breakfast", "oat", "muffin", "yogurt").any { it in searchableText }) {
             add("breakfast")
@@ -5315,7 +5660,7 @@ private fun List<RecipeDiscoveryItemUiState>.filterForRecipeDiscovery(
             RecipeDiscoveryFilter.Favorites -> filter { it.isFavorite }
             RecipeDiscoveryFilter.Program -> filter { it.programRelevant }
         }
-    val terms = query.trim().lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }
+    val terms = query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotBlank() }
     if (terms.isEmpty()) {
         return filteredByChip
     }
@@ -5328,7 +5673,7 @@ private fun List<RecipeDiscoveryItemUiState>.filterForRecipeDiscovery(
                 item.servingName,
                 item.tagLabels.joinToString(" "),
                 item.mealTypeIds.joinToString(" "),
-            ).joinToString(" ").lowercase()
+            ).joinToString(" ").lowercase(Locale.ROOT)
         terms.all { term -> term in searchableText }
     }
 }
@@ -5345,20 +5690,41 @@ private fun buildFastingTimerUiState(
     val selectedProgram = programs.firstOrNull { it.id == selectedProgramId } ?: programs.first { it.id == "16-8" }
     val startTime = fastingStartInput.toFastingStartTimeOrDefault()
     val fastingEndTime = startTime.plusMinutes((selectedProgram.fastingHours * 60.0).roundToInt().toLong())
-    val startLabel = startTime.toHourMinuteLabel()
-    val fastingEndLabel = fastingEndTime.toHourMinuteLabel()
+    val inputStartLabel = startTime.toHourMinuteInput()
     return FastingTimerUiState(
         selectedProgramId = selectedProgram.id,
         programs = programs,
-        fastingStartInput = startLabel,
-        fastingWindowLabel = "$startLabel - $fastingEndLabel",
-        eatingWindowLabel = "$fastingEndLabel - $startLabel",
-        statusLabel = "${selectedProgram.title} fasting plan active",
+        fastingStartInput = inputStartLabel,
+        fastingWindowLabel = localizedFastingWindow(startTime, fastingEndTime),
+        eatingWindowLabel = localizedFastingWindow(fastingEndTime, startTime),
+        statusLabel = if (selectedProgram.id == "custom") {
+            uiText(
+                R.string.food_fasting_plan_active,
+                UiText.Argument.Text(
+                    "${selectedProgram.fastingHours.formatInputNumber()}:${selectedProgram.eatingHours.formatInputNumber()}",
+                ),
+            )
+        } else {
+            val definition = fastingProgramDefinitions.first { it.id == selectedProgram.id }
+            uiText(
+                R.string.food_fasting_plan_active,
+                UiText.Argument.Resource(definition.titleResourceId),
+            )
+        },
         progress = selectedProgram.fastingHours.fractionOf(24.0),
         customFastingHoursInput = customFastingHoursInput,
         customEatingHoursInput = customEatingHoursInput,
     )
 }
+
+private fun localizedFastingWindow(
+    startTime: LocalTime,
+    endTime: LocalTime,
+): UiText = uiText(
+    R.string.food_time_window,
+    UiText.Argument.Text(LocalizedFormatter.time(startTime)),
+    UiText.Argument.Text(LocalizedFormatter.time(endTime)),
+)
 
 private fun emptyFastingPrograms(
     selectedProgramId: String,
@@ -5370,13 +5736,17 @@ private fun emptyFastingPrograms(
     FastingProgramUiState(
         id = program.id,
         title = if (program.id == "custom") {
-            "Custom ${fastingHours.formatInputNumber()}:${eatingHours.formatInputNumber()}"
+            uiText(
+                R.string.food_fasting_custom_title,
+                UiText.Argument.Text(fastingHours.formatInputNumber()),
+                UiText.Argument.Text(eatingHours.formatInputNumber()),
+            )
         } else {
-            program.title
+            uiText(program.titleResourceId)
         },
         fastingHours = fastingHours,
         eatingHours = eatingHours,
-        description = program.description,
+        description = uiText(program.descriptionResourceId),
         isSelected = program.id == selectedProgramId,
     )
 }
@@ -5400,7 +5770,7 @@ private fun String.toFastingStartTimeOrDefault(): LocalTime {
     }
 }
 
-private fun LocalTime.toHourMinuteLabel(): String = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+private fun LocalTime.toHourMinuteInput(): String = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
 
 private fun String.toLocalAiNutritionDraft(): LocalAiNutritionDraft {
     val lower = lowercase()
@@ -5443,14 +5813,23 @@ private fun String.toLocalAiNutritionDraft(): LocalAiNutritionDraft {
     }
 
     if (matched.isEmpty()) {
-        return LocalAiNutritionDraft(250.0, 12.0, 30.0, 8.0, "Local estimate: generic meal")
+        return LocalAiNutritionDraft(
+            250.0,
+            12.0,
+            30.0,
+            8.0,
+            uiText(R.string.food_local_estimate_generic),
+        )
     }
     return LocalAiNutritionDraft(
         caloriesKcal = calories,
         proteinGrams = protein,
         carbsGrams = carbs,
         fatGrams = fat,
-        review = "Local estimate: ${matched.joinToString(", ")}",
+        reviewText = uiText(
+            R.string.food_local_estimate_named,
+            UiText.Argument.Text(matched.joinToString(", ")),
+        ),
     )
 }
 
@@ -5521,28 +5900,33 @@ private fun FoodUiState.withFoodHealthConnectSyncState(syncState: FoodHealthConn
     foodHealthConnectLastFailureMessage = syncState.lastFailureMessage,
 )
 
-private fun FoodHealthConnectSyncState.permissionSummary(): String = when (availability) {
+private fun FoodHealthConnectSyncState.permissionSummary(): UiText = when (availability) {
     HealthConnectAvailability.Available ->
         if (requestablePermissionCount == 0) {
-            "No Food permissions requested"
+            uiText(R.string.food_health_permissions_none)
         } else {
-            "$grantedPermissionCount / $requestablePermissionCount Food permissions granted"
+            pluralUiText(
+                R.plurals.food_health_permissions_granted,
+                requestablePermissionCount,
+                UiText.Argument.Integer(grantedPermissionCount),
+                UiText.Argument.Integer(requestablePermissionCount),
+            )
         }
 
-    HealthConnectAvailability.NotInstalled -> "Health Connect needs install or update"
+    HealthConnectAvailability.NotInstalled -> uiText(R.string.food_health_connect_needs_install)
 
-    HealthConnectAvailability.NotSupported -> "Health Connect unavailable"
+    HealthConnectAvailability.NotSupported -> uiText(R.string.food_health_connect_unavailable)
 }
 
-private fun FoodHealthConnectSyncResult.toFoodHealthConnectMessage(): String {
-    val mealText = when (nutritionRecordCount) {
-        0 -> "no meals"
-        1 -> "1 meal"
-        else -> "$nutritionRecordCount meals"
-    }
-    val waterText = if (hydrationRecordCount > 0) " and water" else ""
-    return "Synced $mealText$waterText to Health Connect"
-}
+private fun FoodHealthConnectSyncResult.toFoodHealthConnectMessage(): UiText = pluralUiText(
+    resourceId = if (hydrationRecordCount > 0) {
+        R.plurals.food_message_synced_meals_and_water
+    } else {
+        R.plurals.food_message_synced_meals
+    },
+    quantity = nutritionRecordCount,
+    UiText.Argument.Integer(nutritionRecordCount),
+)
 
 internal fun FoodDiary.isEmptyLoggedDiary(): Boolean = meals
     .flatMap { meal -> meal.entries }
@@ -5556,12 +5940,16 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
     val sodium = diary.detailTotals.sodiumMilligrams
     return listOf(
         FoodRatingFactorUiState(
-            label = "Calories",
-            valueLabel = "${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal",
+            label = uiText(R.string.food_calories),
+            valueLabel = uiText(
+                R.string.food_value_ratio_kcal,
+                UiText.Argument.Text(LocalizedFormatter.integer(calories.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(calorieGoalKcal.roundToInt().toLong())),
+            ),
             explanation = when {
-                calories > calorieGoalKcal * 1.1 -> "Above today's calorie target."
-                calories < calorieGoalKcal * 0.5 -> "Still low for today."
-                else -> "Aligned with today's calorie target."
+                calories > calorieGoalKcal * 1.1 -> uiText(R.string.food_rating_calories_above_today)
+                calories < calorieGoalKcal * 0.5 -> uiText(R.string.food_rating_calories_low_today)
+                else -> uiText(R.string.food_rating_calories_aligned_today)
             },
             tone = when {
                 calories > calorieGoalKcal * 1.1 -> FoodInsightTone.Warning
@@ -5570,12 +5958,16 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
             },
         ),
         FoodRatingFactorUiState(
-            label = "Protein",
-            valueLabel = "${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g",
+            label = uiText(R.string.food_protein),
+            valueLabel = uiText(
+                R.string.food_value_ratio_grams,
+                UiText.Argument.Text(protein.formatNutritionDisplay()),
+                UiText.Argument.Text(proteinGoalGrams.formatNutritionDisplay()),
+            ),
             explanation = when {
-                protein < proteinGoalGrams * 0.6 -> "Well below your protein target."
-                protein < proteinGoalGrams * 0.9 -> "A little short of your protein target."
-                else -> "On pace for your protein target."
+                protein < proteinGoalGrams * 0.6 -> uiText(R.string.food_rating_protein_well_below)
+                protein < proteinGoalGrams * 0.9 -> uiText(R.string.food_rating_protein_short)
+                else -> uiText(R.string.food_rating_protein_on_pace)
             },
             tone = when {
                 protein < proteinGoalGrams * 0.6 -> FoodInsightTone.Warning
@@ -5584,12 +5976,16 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
             },
         ),
         FoodRatingFactorUiState(
-            label = "Fiber",
-            valueLabel = "${fiber.formatNutritionDisplay()} / ${fiberGoalGrams.formatNutritionDisplay()} g",
+            label = uiText(R.string.food_fiber),
+            valueLabel = uiText(
+                R.string.food_value_ratio_grams,
+                UiText.Argument.Text(fiber.formatNutritionDisplay()),
+                UiText.Argument.Text(fiberGoalGrams.formatNutritionDisplay()),
+            ),
             explanation = when {
-                fiber < fiberGoalGrams * 0.5 -> "Low fiber for the day."
-                fiber < fiberGoalGrams * 0.8 -> "Some more fiber would help."
-                else -> "Fiber is in a strong range."
+                fiber < fiberGoalGrams * 0.5 -> uiText(R.string.food_rating_fiber_low)
+                fiber < fiberGoalGrams * 0.8 -> uiText(R.string.food_rating_fiber_more)
+                else -> uiText(R.string.food_rating_fiber_strong)
             },
             tone = when {
                 fiber < fiberGoalGrams * 0.5 -> FoodInsightTone.Warning
@@ -5598,12 +5994,16 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
             },
         ),
         FoodRatingFactorUiState(
-            label = "Sodium",
-            valueLabel = "${sodium.roundToInt()} / ${sodiumGoalMilligrams.roundToInt()} mg",
+            label = uiText(R.string.food_sodium),
+            valueLabel = uiText(
+                R.string.food_value_ratio_milligrams,
+                UiText.Argument.Text(LocalizedFormatter.integer(sodium.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(sodiumGoalMilligrams.roundToInt().toLong())),
+            ),
             explanation = if (sodium > sodiumGoalMilligrams) {
-                "Above today's sodium target."
+                uiText(R.string.food_rating_sodium_above_today)
             } else {
-                "Within today's sodium target."
+                uiText(R.string.food_rating_sodium_within_today)
             },
             tone = if (sodium > sodiumGoalMilligrams) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
@@ -5615,12 +6015,16 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
     FoodGoalMode.HighProtein -> {
         val protein = diary.totals.proteinGrams
         FoodRatingFactorUiState(
-            label = "High protein focus",
-            valueLabel = "${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g",
+            label = uiText(R.string.food_high_protein_focus),
+            valueLabel = uiText(
+                R.string.food_value_ratio_grams,
+                UiText.Argument.Text(protein.formatNutritionDisplay()),
+                UiText.Argument.Text(proteinGoalGrams.formatNutritionDisplay()),
+            ),
             explanation = if (protein >= proteinGoalGrams * 0.9) {
-                "High Protein mode is on track."
+                uiText(R.string.food_rating_high_protein_on_track)
             } else {
-                "High Protein mode needs more lean protein today."
+                uiText(R.string.food_rating_high_protein_needs_more)
             },
             tone = if (protein >= proteinGoalGrams * 0.9) FoodInsightTone.Positive else FoodInsightTone.Warning,
         )
@@ -5633,12 +6037,16 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
             diary.totals.carbsGrams
         }
         FoodRatingFactorUiState(
-            label = "Low-carb focus",
-            valueLabel = "${carbs.formatNutritionDisplay()} / ${carbsGoalGrams.formatNutritionDisplay()} g",
+            label = uiText(R.string.food_low_carb_focus),
+            valueLabel = uiText(
+                R.string.food_value_ratio_grams,
+                UiText.Argument.Text(carbs.formatNutritionDisplay()),
+                UiText.Argument.Text(carbsGoalGrams.formatNutritionDisplay()),
+            ),
             explanation = if (carbs <= carbsGoalGrams) {
-                "Low-carb mode is within today's carb target."
+                uiText(R.string.food_rating_low_carb_within)
             } else {
-                "Low-carb mode is over today's carb target."
+                uiText(R.string.food_rating_low_carb_over)
             },
             tone = if (carbs <= carbsGoalGrams) FoodInsightTone.Positive else FoodInsightTone.Warning,
         )
@@ -5647,12 +6055,16 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
     FoodGoalMode.MuscleGain -> {
         val calories = diary.totals.caloriesKcal
         FoodRatingFactorUiState(
-            label = "Muscle gain focus",
-            valueLabel = "${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal",
+            label = uiText(R.string.food_muscle_gain_focus),
+            valueLabel = uiText(
+                R.string.food_value_ratio_kcal,
+                UiText.Argument.Text(LocalizedFormatter.integer(calories.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(calorieGoalKcal.roundToInt().toLong())),
+            ),
             explanation = if (calories >= calorieGoalKcal * 0.85 && diary.totals.proteinGrams >= proteinGoalGrams * 0.9) {
-                "Muscle Gain mode has enough energy and protein."
+                uiText(R.string.food_rating_muscle_gain_enough)
             } else {
-                "Muscle Gain mode needs more calories or protein."
+                uiText(R.string.food_rating_muscle_gain_needs_more)
             },
             tone = if (calories >= calorieGoalKcal * 0.85 && diary.totals.proteinGrams >= proteinGoalGrams * 0.9) {
                 FoodInsightTone.Positive
@@ -5665,12 +6077,16 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
     FoodGoalMode.WeightLoss -> {
         val calories = diary.totals.caloriesKcal
         FoodRatingFactorUiState(
-            label = "Weight loss focus",
-            valueLabel = "${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal",
+            label = uiText(R.string.food_weight_loss_focus),
+            valueLabel = uiText(
+                R.string.food_value_ratio_kcal,
+                UiText.Argument.Text(LocalizedFormatter.integer(calories.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(calorieGoalKcal.roundToInt().toLong())),
+            ),
             explanation = if (calories <= calorieGoalKcal && diary.totals.proteinGrams >= proteinGoalGrams * 0.8) {
-                "Weight Loss mode is controlled without losing protein."
+                uiText(R.string.food_rating_weight_loss_controlled)
             } else {
-                "Weight Loss mode needs tighter calories or more protein."
+                uiText(R.string.food_rating_weight_loss_needs_adjustment)
             },
             tone = if (calories <= calorieGoalKcal && diary.totals.proteinGrams >= proteinGoalGrams * 0.8) {
                 FoodInsightTone.Positive
@@ -5682,33 +6098,33 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
 
     FoodGoalMode.MediterraneanStyle ->
         FoodRatingFactorUiState(
-            label = "Mediterranean focus",
-            valueLabel = goalMode.label,
-            explanation = "Mediterranean-style mode emphasizes fiber, fish or legumes, and unsaturated fats.",
+            label = uiText(R.string.food_mediterranean_focus),
+            valueLabel = uiText(goalMode.labelResource()),
+            explanation = uiText(R.string.food_rating_mediterranean_explanation),
             tone = FoodInsightTone.Positive,
         )
 
     FoodGoalMode.CleanEating ->
         FoodRatingFactorUiState(
-            label = "Clean eating focus",
-            valueLabel = goalMode.label,
-            explanation = "Clean Eating mode emphasizes protein, fiber, lower sugar, and calmer sodium.",
+            label = uiText(R.string.food_clean_eating_focus),
+            valueLabel = uiText(goalMode.labelResource()),
+            explanation = uiText(R.string.food_rating_clean_eating_explanation),
             tone = FoodInsightTone.Positive,
         )
 
     FoodGoalMode.Custom ->
         FoodRatingFactorUiState(
-            label = "Custom focus",
-            valueLabel = goalMode.label,
-            explanation = "Rated against your custom calorie and nutrient targets.",
+            label = uiText(R.string.food_custom_focus),
+            valueLabel = uiText(goalMode.labelResource()),
+            explanation = uiText(R.string.food_rating_custom_explanation),
             tone = FoodInsightTone.Neutral,
         )
 
     FoodGoalMode.Balanced ->
         FoodRatingFactorUiState(
-            label = "Balanced focus",
-            valueLabel = goalMode.label,
-            explanation = "Balanced mode checks calories, protein, fiber, and sodium together.",
+            label = uiText(R.string.food_balanced_focus),
+            valueLabel = uiText(goalMode.labelResource()),
+            explanation = uiText(R.string.food_rating_balanced_explanation),
             tone = FoodInsightTone.Positive,
         )
 }
@@ -5719,7 +6135,7 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
  * counts as fruit ("berry"). Keyword sets carry both singular and plural forms.
  */
 internal fun FoodDiaryEntry.matchesHabitKeyword(keywords: Set<String>): Boolean {
-    val tokens = "$name ${brand.orEmpty()}".lowercase().split(Regex("[^a-z]+"))
+    val tokens = "$name ${brand.orEmpty()}".lowercase(Locale.ROOT).split(Regex("[^a-z]+"))
     return tokens.any { it.isNotEmpty() && it in keywords }
 }
 
@@ -5730,67 +6146,86 @@ private fun FoodDiaryMeal?.toFoodMealRating(calorieTargetKcal: Double): FoodRati
     }
 
     var score = 100
-    val reasons = mutableListOf<String>()
-    val suggestions = mutableListOf<String>()
+    val reasons = mutableListOf<UiText>()
+    val suggestions = mutableListOf<UiText>()
     if (meal.totals.proteinGrams < 20.0) {
         score -= 35
-        reasons += "Protein is low for this meal."
-        suggestions += "Add eggs, yogurt, fish, meat, tofu, or legumes."
+        reasons += uiText(R.string.food_meal_protein_low)
+        suggestions += uiText(R.string.food_meal_add_protein_sources)
     }
     if (meal.detailTotals.fiberGrams < 5.0) {
         score -= 15
-        reasons += "Fiber is light."
-        suggestions += "Add fruit, whole grains, or vegetables."
+        reasons += uiText(R.string.food_meal_fiber_light)
+        suggestions += uiText(R.string.food_meal_add_fiber_sources)
     }
     if (meal.detailTotals.sodiumMilligrams > 900.0) {
         score -= 25
-        reasons += "Sodium is high for one meal."
-        suggestions += "Balance it with lower-sodium choices later."
+        reasons += uiText(R.string.food_meal_sodium_high)
+        suggestions += uiText(R.string.food_meal_balance_sodium)
     }
     if (meal.totals.caloriesKcal > calorieTargetKcal * 1.15) {
         score -= 15
-        reasons += "Calories are above the meal target."
-        suggestions += "Keep the next meal lighter."
+        reasons += uiText(R.string.food_meal_calories_above)
+        suggestions += uiText(R.string.food_meal_keep_next_lighter)
     } else if (meal.totals.caloriesKcal < calorieTargetKcal * 0.35) {
         score -= 10
-        reasons += "This meal is very light."
-        suggestions += "Add protein or fiber if you are still hungry."
+        reasons += uiText(R.string.food_meal_very_light)
+        suggestions += uiText(R.string.food_meal_add_if_hungry)
     }
     val factors = listOf(
         FoodRatingFactorUiState(
-            label = "Calories",
-            valueLabel = "${meal.totals.caloriesKcal.roundToInt()} / ${calorieTargetKcal.roundToInt()} kcal",
+            label = uiText(R.string.food_calories),
+            valueLabel = uiText(
+                R.string.food_value_ratio_kcal,
+                UiText.Argument.Text(LocalizedFormatter.integer(meal.totals.caloriesKcal.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(calorieTargetKcal.roundToInt().toLong())),
+            ),
             explanation = if (meal.totals.caloriesKcal > calorieTargetKcal * 1.15) {
-                "Above this meal's target."
+                uiText(R.string.food_meal_above_target)
             } else {
-                "Reasonable for this meal."
+                uiText(R.string.food_meal_reasonable)
             },
             tone = if (meal.totals.caloriesKcal > calorieTargetKcal * 1.15) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
         FoodRatingFactorUiState(
-            label = "Protein",
-            valueLabel = "${meal.totals.proteinGrams.formatNutritionDisplay()} g",
-            explanation = if (meal.totals.proteinGrams >= 20.0) "Protein anchor is covered." else "Add a protein anchor.",
+            label = uiText(R.string.food_protein),
+            valueLabel = uiText(
+                R.string.food_value_grams,
+                UiText.Argument.Text(meal.totals.proteinGrams.formatNutritionDisplay()),
+            ),
+            explanation = uiText(
+                if (meal.totals.proteinGrams >= 20.0) R.string.food_meal_protein_covered else R.string.food_meal_add_protein_anchor,
+            ),
             tone = if (meal.totals.proteinGrams >= 20.0) FoodInsightTone.Positive else FoodInsightTone.Warning,
         ),
         FoodRatingFactorUiState(
-            label = "Fiber",
-            valueLabel = "${meal.detailTotals.fiberGrams.formatNutritionDisplay()} g",
-            explanation = if (meal.detailTotals.fiberGrams >= 5.0) "Fiber is helpful here." else "Fiber is light.",
+            label = uiText(R.string.food_fiber),
+            valueLabel = uiText(
+                R.string.food_value_grams,
+                UiText.Argument.Text(meal.detailTotals.fiberGrams.formatNutritionDisplay()),
+            ),
+            explanation = uiText(
+                if (meal.detailTotals.fiberGrams >= 5.0) R.string.food_meal_fiber_helpful else R.string.food_meal_fiber_light,
+            ),
             tone = if (meal.detailTotals.fiberGrams >= 5.0) FoodInsightTone.Positive else FoodInsightTone.Neutral,
         ),
         FoodRatingFactorUiState(
-            label = "Sodium",
-            valueLabel = "${meal.detailTotals.sodiumMilligrams.roundToInt()} mg",
-            explanation = if (meal.detailTotals.sodiumMilligrams > 900.0) "High for one meal." else "Not high for one meal.",
+            label = uiText(R.string.food_sodium),
+            valueLabel = uiText(
+                R.string.food_value_milligrams,
+                UiText.Argument.Text(LocalizedFormatter.integer(meal.detailTotals.sodiumMilligrams.roundToInt().toLong())),
+            ),
+            explanation = uiText(
+                if (meal.detailTotals.sodiumMilligrams > 900.0) R.string.food_meal_high_sodium else R.string.food_meal_not_high_sodium,
+            ),
             tone = if (meal.detailTotals.sodiumMilligrams > 900.0) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
     )
 
     return FoodRatingUiState(
-        label = score.toFoodRatingLabel(),
-        reason = reasons.firstOrNull() ?: "Protein, fiber, sodium, and calories look balanced.",
-        suggestion = suggestions.firstOrNull() ?: "Repeat this structure when it fits your day.",
+        label = score.toFoodRatingText(),
+        reason = reasons.firstOrNull() ?: uiText(R.string.food_rating_balanced_reason),
+        suggestion = suggestions.firstOrNull() ?: uiText(R.string.food_rating_repeat_structure),
         tone = score.toFoodRatingTone(),
         score = score.coerceIn(0, 100),
         factors = factors,
@@ -5803,65 +6238,82 @@ private fun FoodDiaryEntry.toFoodEntryRating(): FoodRatingUiState? {
     }
 
     var score = 100
-    val reasons = mutableListOf<String>()
-    val suggestions = mutableListOf<String>()
+    val reasons = mutableListOf<UiText>()
+    val suggestions = mutableListOf<UiText>()
     if (nutritionDetails.sugarGrams > 20.0) {
         score -= 35
-        reasons += "Sugar is high for one food."
-        suggestions += "Pair it with a lower-sugar choice next."
+        reasons += uiText(R.string.food_entry_sugar_high)
+        suggestions += uiText(R.string.food_entry_pair_lower_sugar)
     }
     if (nutritionDetails.sodiumMilligrams > 700.0) {
         score -= 25
-        reasons += "Sodium is high for one food."
-        suggestions += "Balance it with lower-sodium foods."
+        reasons += uiText(R.string.food_entry_sodium_high)
+        suggestions += uiText(R.string.food_entry_balance_sodium)
     }
     if (nutritionDetails.saturatedFatGrams > 7.0) {
         score -= 20
-        reasons += "Saturated fat is high."
-        suggestions += "Keep the next fat source lighter."
+        reasons += uiText(R.string.food_entry_saturated_fat_high)
+        suggestions += uiText(R.string.food_entry_keep_fat_lighter)
     }
     if (caloriesKcal >= 300.0 && proteinGrams < 10.0) {
         score -= 20
-        reasons += "Calories are not backed by much protein."
-        suggestions += "Add a protein-forward food nearby."
+        reasons += uiText(R.string.food_entry_calories_low_protein)
+        suggestions += uiText(R.string.food_entry_add_protein_nearby)
     }
     if (caloriesKcal >= 200.0 && nutritionDetails.fiberGrams < 2.0 && carbsGrams > 25.0) {
         score -= 10
-        reasons += "Fiber is light for the carbs."
-        suggestions += "Add fruit, veg, beans, or whole grains."
+        reasons += uiText(R.string.food_entry_fiber_light_for_carbs)
+        suggestions += uiText(R.string.food_entry_add_fiber_sources)
     }
 
     val factors = listOf(
         FoodRatingFactorUiState(
-            label = "Protein",
-            valueLabel = "${proteinGrams.formatNutritionDisplay()} g",
-            explanation = if (proteinGrams >= 10.0) "Useful protein contribution." else "Low protein contribution.",
+            label = uiText(R.string.food_protein),
+            valueLabel = uiText(R.string.food_value_grams, UiText.Argument.Text(proteinGrams.formatNutritionDisplay())),
+            explanation = uiText(
+                if (proteinGrams >= 10.0) R.string.food_entry_protein_useful else R.string.food_entry_protein_low,
+            ),
             tone = if (proteinGrams >= 10.0) FoodInsightTone.Positive else FoodInsightTone.Neutral,
         ),
         FoodRatingFactorUiState(
-            label = "Fiber",
-            valueLabel = "${nutritionDetails.fiberGrams.formatNutritionDisplay()} g",
-            explanation = if (nutritionDetails.fiberGrams >= 2.0) "Adds fiber." else "Little fiber.",
+            label = uiText(R.string.food_fiber),
+            valueLabel = uiText(
+                R.string.food_value_grams,
+                UiText.Argument.Text(nutritionDetails.fiberGrams.formatNutritionDisplay()),
+            ),
+            explanation = uiText(
+                if (nutritionDetails.fiberGrams >= 2.0) R.string.food_entry_adds_fiber else R.string.food_entry_little_fiber,
+            ),
             tone = if (nutritionDetails.fiberGrams >= 2.0) FoodInsightTone.Positive else FoodInsightTone.Neutral,
         ),
         FoodRatingFactorUiState(
-            label = "Sugar",
-            valueLabel = "${nutritionDetails.sugarGrams.formatNutritionDisplay()} g",
-            explanation = if (nutritionDetails.sugarGrams > 20.0) "High sugar for one food." else "Sugar is not high.",
+            label = uiText(R.string.food_sugar),
+            valueLabel = uiText(
+                R.string.food_value_grams,
+                UiText.Argument.Text(nutritionDetails.sugarGrams.formatNutritionDisplay()),
+            ),
+            explanation = uiText(
+                if (nutritionDetails.sugarGrams > 20.0) R.string.food_entry_sugar_high_short else R.string.food_entry_sugar_not_high,
+            ),
             tone = if (nutritionDetails.sugarGrams > 20.0) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
         FoodRatingFactorUiState(
-            label = "Sodium",
-            valueLabel = "${nutritionDetails.sodiumMilligrams.roundToInt()} mg",
-            explanation = if (nutritionDetails.sodiumMilligrams > 700.0) "High sodium for one food." else "Sodium is not high.",
+            label = uiText(R.string.food_sodium),
+            valueLabel = uiText(
+                R.string.food_value_milligrams,
+                UiText.Argument.Text(LocalizedFormatter.integer(nutritionDetails.sodiumMilligrams.roundToInt().toLong())),
+            ),
+            explanation = uiText(
+                if (nutritionDetails.sodiumMilligrams > 700.0) R.string.food_entry_sodium_high_short else R.string.food_entry_sodium_not_high,
+            ),
             tone = if (nutritionDetails.sodiumMilligrams > 700.0) FoodInsightTone.Warning else FoodInsightTone.Positive,
         ),
     )
 
     return FoodRatingUiState(
-        label = score.coerceIn(0, 100).toFoodRatingLabel(),
-        reason = reasons.firstOrNull() ?: "This food fits today's pattern well.",
-        suggestion = suggestions.firstOrNull() ?: "Keep it when it supports your meal.",
+        label = score.coerceIn(0, 100).toFoodRatingText(),
+        reason = reasons.firstOrNull() ?: uiText(R.string.food_entry_fits_pattern),
+        suggestion = suggestions.firstOrNull() ?: uiText(R.string.food_entry_keep_when_helpful),
         tone = score.coerceIn(0, 100).toFoodRatingTone(),
         score = score.coerceIn(0, 100),
         factors = factors,
@@ -5882,29 +6334,33 @@ internal fun buildHabitTrackers(
     return listOf(
         habitFromEntries(
             id = "fruit",
-            label = "Fruit",
+            label = uiText(R.string.food_fruit),
             entries = loggedEntries,
             keywords = fruitHabitKeywords,
-            suggestion = "Add fruit as a snack or side.",
+            suggestion = uiText(R.string.food_habit_add_fruit),
         ),
         habitFromEntries(
             id = "vegetables",
-            label = "Vegetables",
+            label = uiText(R.string.food_vegetables),
             entries = loggedEntries,
             keywords = vegetableHabitKeywords,
-            suggestion = "Add vegetables to a meal.",
+            suggestion = uiText(R.string.food_habit_add_vegetables),
         ),
         habitFromEntries(
             id = "fish",
-            label = "Fish",
+            label = uiText(R.string.food_fish),
             entries = loggedEntries,
             keywords = fishHabitKeywords,
-            suggestion = "Plan fish or seafood this week.",
+            suggestion = uiText(R.string.food_habit_plan_fish),
         ),
         FoodHabitTrackerUiState(
             id = "water",
-            label = "Water",
-            valueLabel = "${waterConsumedMilliliters.roundToInt()} / ${waterGoalMilliliters.roundToInt()} ml",
+            label = uiText(R.string.food_water),
+            valueLabel = uiText(
+                R.string.food_water_progress,
+                UiText.Argument.Integer(waterConsumedMilliliters.roundToInt()),
+                UiText.Argument.Integer(waterGoalMilliliters.roundToInt()),
+            ),
             progress = waterProgress,
             status = when {
                 waterProgress >= 1.0 -> FoodHabitStatus.Complete
@@ -5915,29 +6371,29 @@ internal fun buildHabitTrackers(
                 waterProgress >= 1.0 -> FoodInsightTone.Positive
                 else -> FoodInsightTone.Neutral
             },
-            suggestion = "Keep sipping through the day.",
+            suggestion = uiText(R.string.food_habit_keep_sipping),
         ),
     )
 }
 
 private fun habitFromEntries(
     id: String,
-    label: String,
+    label: UiText,
     entries: List<FoodDiaryEntry>,
     keywords: Set<String>,
-    suggestion: String,
+    suggestion: UiText,
 ): FoodHabitTrackerUiState {
     val matched = entries.any { entry -> entry.matchesHabitKeyword(keywords) }
     return FoodHabitTrackerUiState(
         id = id,
         label = label,
-        valueLabel = if (matched) "Logged" else "Not yet",
+        valueLabel = uiText(if (matched) R.string.food_logged else R.string.food_not_yet),
         progress = if (matched) 1.0 else 0.0,
         status = if (matched) FoodHabitStatus.Complete else FoodHabitStatus.Missing,
         // "Not yet" is incomplete, not a problem — keep it neutral so coral stays
         // reserved for real warnings (over-limit sodium, etc.).
         tone = if (matched) FoodInsightTone.Positive else FoodInsightTone.Neutral,
-        suggestion = if (matched) "Covered today." else suggestion,
+        suggestion = if (matched) uiText(R.string.food_covered_today) else suggestion,
     )
 }
 
@@ -5989,12 +6445,14 @@ internal val fishHabitKeywords =
         "prawn",
     )
 
-internal fun Int.toFoodRatingLabel(): String = when {
-    this >= 85 -> "Great"
-    this >= 70 -> "Good"
-    this >= 50 -> "Watch"
-    else -> "Needs work"
-}
+internal fun Int.toFoodRatingText(): UiText = uiText(
+    when {
+        this >= 85 -> R.string.food_rating_great
+        this >= 70 -> R.string.food_rating_good
+        this >= 50 -> R.string.food_rating_watch
+        else -> R.string.food_rating_needs_work
+    },
+)
 
 internal fun Int.toFoodRatingTone(): FoodInsightTone = when {
     this >= 85 -> FoodInsightTone.Positive
@@ -6013,7 +6471,7 @@ private fun FoodMealSectionUiState.sortedForDetail(sortMode: MealDetailSortMode)
             MealDetailSortMode.Logged -> entries
             MealDetailSortMode.Calories -> entries.sortedByDescending { entry -> entry.caloriesKcal }
             MealDetailSortMode.Protein -> entries.sortedByDescending { entry -> entry.proteinGrams }
-            MealDetailSortMode.Name -> entries.sortedBy { entry -> entry.name.lowercase() }
+            MealDetailSortMode.Name -> entries.sortedBy { entry -> entry.name.lowercase(Locale.ROOT) }
         }
     return copy(entries = sortedEntries)
 }
@@ -6042,6 +6500,8 @@ internal fun FoodDiary.toMealSections(
                     timeLabel = "No time",
                     sortOrder = 100 + index,
                     isDefault = false,
+                    titleText = mealType.mealTitleText(),
+                    timeLabelText = uiText(R.string.food_no_time),
                 )
             }
 
@@ -6117,6 +6577,11 @@ internal fun FoodDiary.toMealSections(
                     imageUrl = entry.imageUrl,
                 )
             },
+            titleText = definition.titleText,
+            recommendationText = definition.timeMinutes?.toLocalizedMealTimeLabel()?.let(UiText::Verbatim)
+                ?: defaultDefinition?.recommendationText()
+                ?: uiText(R.string.food_custom_meal),
+            carbsLabelText = uiText(if (useNetCarbs) R.string.food_net_carbs else R.string.food_carbs),
         )
     }
 }
@@ -6176,6 +6641,7 @@ private fun SavedFoodItem.toUiState(isReported: Boolean = false): SavedFoodUiSta
                 grams = serving.grams,
             )
         },
+        sourceText = sourceLabel.toSourceUiText(),
     )
 }
 
@@ -6207,49 +6673,48 @@ private fun buildFoodTrust(
         isReported ->
             FoodTrustUiState(
                 level = FoodTrustLevel.NeedsReview,
-                label = "Needs review",
-                explanation = "Marked locally for correction. Review serving size and nutrition before relying on it.",
-                actionLabel = "Correct",
+                label = uiText(R.string.food_trust_needs_review),
+                explanation = uiText(R.string.food_trust_marked_for_correction),
+                actionLabel = uiText(R.string.food_correct),
                 isReported = true,
             )
 
         !hasNutrition ->
             FoodTrustUiState(
                 level = FoodTrustLevel.NeedsReview,
-                label = "Missing nutrition",
-                explanation = "This saved food has little nutrition data. Correct it before frequent logging.",
-                actionLabel = "Correct",
+                label = uiText(R.string.food_trust_missing_nutrition),
+                explanation = uiText(R.string.food_trust_missing_nutrition_explanation),
+                actionLabel = uiText(R.string.food_correct),
             )
 
         category.equals("Nutrition label", ignoreCase = true) ->
             FoodTrustUiState(
                 level = FoodTrustLevel.NeedsReview,
-                label = "Review label scan",
-                explanation = "Label scans are best-effort. Check extracted values before saving or repeated logging.",
-                actionLabel = "Review",
+                label = uiText(R.string.food_trust_review_label_scan),
+                explanation = uiText(R.string.food_trust_label_scan_explanation),
+                actionLabel = uiText(R.string.food_review),
             )
 
         sourceLabel == "Scanned" || !barcode.isNullOrBlank() ->
             FoodTrustUiState(
                 level = FoodTrustLevel.Imported,
-                label = "Barcode import",
-                explanation = "Imported from barcode data. Serving size and brand should still be checked.",
-                actionLabel = "Check",
+                label = uiText(R.string.food_trust_barcode_import),
+                explanation = uiText(R.string.food_trust_barcode_explanation),
+                actionLabel = uiText(R.string.food_check),
             )
 
         else ->
             FoodTrustUiState(
                 level = FoodTrustLevel.Manual,
-                label = "Manual entry",
-                explanation = "Created locally. Accuracy depends on the values entered in MusFit.",
-                actionLabel = "Edit",
+                label = uiText(R.string.food_manual_entry),
+                explanation = uiText(R.string.food_trust_manual_explanation),
+                actionLabel = uiText(R.string.food_edit),
             )
     }
 }
 
 private fun FoodPlanDay.toUiState(): FoodPlanDayUiState = FoodPlanDayUiState(
     date = date,
-    dayLabel = date.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.titlecase() },
     loggedCaloriesKcal = loggedTotals.caloriesKcal,
     plannedCaloriesKcal = plannedTotals.caloriesKcal,
     loggedEntryCount = loggedEntryCount,
@@ -6269,6 +6734,10 @@ private fun ShoppingListItem.toUiState(): ShoppingListItemUiState = ShoppingList
     quantityLabel = "${quantityGrams.formatInputNumber()} g",
     isChecked = isChecked,
     isManual = isManual,
+    quantityLabelText = uiText(
+        R.string.food_value_grams,
+        UiText.Argument.Text(quantityGrams.formatNutritionDisplay()),
+    ),
 )
 
 private fun SavedFoodItem.sourceLabel(): String = when {
@@ -6276,6 +6745,14 @@ private fun SavedFoodItem.sourceLabel(): String = when {
     !barcode.isNullOrBlank() -> "Scanned"
     else -> "Manual"
 }
+
+private fun String.toSourceUiText(): UiText = uiText(
+    when (this) {
+        "Label" -> R.string.food_source_label
+        "Scanned" -> R.string.food_source_scanned
+        else -> R.string.food_source_manual
+    },
+)
 
 private fun SavedFoodUiState.toRecipeIngredientServingChoices(): List<RecipeIngredientServingChoiceUiState> {
     val choices = mutableListOf(
@@ -6305,11 +6782,11 @@ private fun List<SavedFoodUiState>.toDuplicateFoodGroups(): List<FoodDuplicateGr
     val groupedFoodIds = mutableSetOf<String>()
 
     filter { !it.barcode.isNullOrBlank() }
-        .groupBy { it.barcode.orEmpty().trim().lowercase() }
+        .groupBy { it.barcode.orEmpty().trim().lowercase(Locale.ROOT) }
         .values
         .filter { it.size > 1 }
         .forEach { duplicateFoods ->
-            val sortedFoods = duplicateFoods.sortedBy { it.name.lowercase() }
+            val sortedFoods = duplicateFoods.sortedBy { it.name.lowercase(Locale.ROOT) }
             val primaryFood = sortedFoods.first()
             val duplicateIds = sortedFoods.drop(1).map { it.id }
             groups += FoodDuplicateGroupUiState(
@@ -6317,22 +6794,32 @@ private fun List<SavedFoodUiState>.toDuplicateFoodGroups(): List<FoodDuplicateGr
                 duplicateFoodIds = duplicateIds,
                 title = primaryFood.name,
                 reason = "Barcode ${primaryFood.barcode}",
+                reasonText = uiText(
+                    R.string.food_duplicate_barcode,
+                    UiText.Argument.Text(primaryFood.barcode.orEmpty()),
+                ),
             )
             groupedFoodIds += sortedFoods.map { it.id }
         }
 
     filter { it.id !in groupedFoodIds }
-        .groupBy { "${it.name.trim().lowercase()}|${it.brand.orEmpty().trim().lowercase()}" }
+        .groupBy {
+            "${it.name.trim().lowercase(Locale.ROOT)}|" +
+                it.brand.orEmpty().trim().lowercase(Locale.ROOT)
+        }
         .values
         .filter { it.size > 1 }
         .forEach { duplicateFoods ->
-            val sortedFoods = duplicateFoods.sortedWith(compareBy<SavedFoodUiState> { it.name.lowercase() }.thenBy { it.id })
+            val sortedFoods = duplicateFoods.sortedWith(
+                compareBy<SavedFoodUiState> { it.name.lowercase(Locale.ROOT) }.thenBy { it.id },
+            )
             val primaryFood = sortedFoods.first()
             groups += FoodDuplicateGroupUiState(
                 primaryFoodId = primaryFood.id,
                 duplicateFoodIds = sortedFoods.drop(1).map { it.id },
                 title = primaryFood.name,
                 reason = "Name and brand",
+                reasonText = uiText(R.string.food_duplicate_name_brand),
             )
         }
 
@@ -6351,6 +6838,7 @@ private fun SavedFoodUiState.toBarcodeComparisonItem(): BarcodeComparisonItemUiS
     sugarPer100g = sugarPer100g,
     sodiumMgPer100g = sodiumMgPer100g,
     imageUrl = imageUrl,
+    sourceText = uiText(R.string.food_source_saved_food),
 )
 
 private fun ProductLookupResult.Found.toBarcodeComparisonItem(): BarcodeComparisonItemUiState = BarcodeComparisonItemUiState(
@@ -6365,6 +6853,7 @@ private fun ProductLookupResult.Found.toBarcodeComparisonItem(): BarcodeComparis
     sugarPer100g = nutritionDetailsPer100g.sugarGrams,
     sodiumMgPer100g = nutritionDetailsPer100g.sodiumMilligrams,
     imageUrl = imageUrl,
+    sourceText = uiText(R.string.food_source_open_food_facts),
 )
 
 private fun buildBarcodeComparisonHighlights(
@@ -6375,25 +6864,25 @@ private fun buildBarcodeComparisonHighlights(
         return emptyList()
     }
     return listOf(
-        barcodeComparisonHighlight("Calories", leftItem.caloriesPer100g, rightItem.caloriesPer100g, lowerIsBetter = true, unit = "kcal"),
-        barcodeComparisonHighlight("Protein", leftItem.proteinPer100g, rightItem.proteinPer100g, lowerIsBetter = false, unit = "g"),
-        barcodeComparisonHighlight("Carbs", leftItem.carbsPer100g, rightItem.carbsPer100g, lowerIsBetter = true, unit = "g"),
-        barcodeComparisonHighlight("Fat", leftItem.fatPer100g, rightItem.fatPer100g, lowerIsBetter = true, unit = "g"),
-        barcodeComparisonHighlight("Sugar", leftItem.sugarPer100g, rightItem.sugarPer100g, lowerIsBetter = true, unit = "g"),
-        barcodeComparisonHighlight("Sodium", leftItem.sodiumMgPer100g, rightItem.sodiumMgPer100g, lowerIsBetter = true, unit = "mg"),
+        barcodeComparisonHighlight(uiText(R.string.food_calories), leftItem.caloriesPer100g, rightItem.caloriesPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_kcal),
+        barcodeComparisonHighlight(uiText(R.string.food_protein), leftItem.proteinPer100g, rightItem.proteinPer100g, lowerIsBetter = false, valueResourceId = R.string.food_value_grams),
+        barcodeComparisonHighlight(uiText(R.string.food_carbs), leftItem.carbsPer100g, rightItem.carbsPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_grams),
+        barcodeComparisonHighlight(uiText(R.string.food_fat), leftItem.fatPer100g, rightItem.fatPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_grams),
+        barcodeComparisonHighlight(uiText(R.string.food_sugar), leftItem.sugarPer100g, rightItem.sugarPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_grams),
+        barcodeComparisonHighlight(uiText(R.string.food_sodium), leftItem.sodiumMgPer100g, rightItem.sodiumMgPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_milligrams),
     )
 }
 
 private fun barcodeComparisonHighlight(
-    label: String,
+    label: UiText,
     leftValue: Double,
     rightValue: Double,
     lowerIsBetter: Boolean,
-    unit: String,
+    @StringRes valueResourceId: Int,
 ): BarcodeComparisonHighlightUiState = BarcodeComparisonHighlightUiState(
     label = label,
-    leftValue = leftValue.toComparisonValueLabel(unit),
-    rightValue = rightValue.toComparisonValueLabel(unit),
+    leftValue = leftValue.toComparisonValueLabel(valueResourceId),
+    rightValue = rightValue.toComparisonValueLabel(valueResourceId),
     winnerSide = when {
         leftValue == rightValue -> null
 
@@ -6411,7 +6900,10 @@ private fun barcodeComparisonHighlight(
     },
 )
 
-private fun Double.toComparisonValueLabel(unit: String): String = "${formatInputNumber()} $unit"
+private fun Double.toComparisonValueLabel(@StringRes valueResourceId: Int): UiText = uiText(
+    valueResourceId,
+    UiText.Argument.Text(formatNutritionDisplay()),
+)
 
 private fun MealTemplate.toUiState(): MealTemplateUiState = MealTemplateUiState(
     id = id,
@@ -6505,7 +6997,7 @@ private fun SavedFoodUiState.toDiaryEntryServingChoices(): List<FoodAmountServin
             )
         }
 
-    return choices.distinctBy { choice -> "${choice.label.trim().lowercase()}|${choice.grams}" }
+    return choices.distinctBy { choice -> "${choice.label.trim().lowercase(Locale.ROOT)}|${choice.grams}" }
 }
 
 private fun ProductLookupResult.Found.toOnlineUiState(): OnlineFoodResultUiState = OnlineFoodResultUiState(
@@ -6578,6 +7070,8 @@ private fun emptyMealSections(): List<FoodMealSectionUiState> = mealDefinitions.
         carbsGrams = 0.0,
         fatGrams = 0.0,
         entries = emptyList(),
+        titleText = uiText(definition.titleResourceId),
+        recommendationText = uiText(definition.recommendationResourceId),
     )
 }
 
@@ -6603,7 +7097,10 @@ private fun List<FoodMealDefinition>.toMealDefinitionUiStates(): List<FoodMealDe
 
     return (defaultDefinitions + customDefinitions)
         .distinctBy { definition -> definition.id }
-        .sortedWith(compareBy<FoodMealDefinitionUiState> { it.sortOrder }.thenBy { it.title.lowercase() })
+        .sortedWith(
+            compareBy<FoodMealDefinitionUiState> { it.sortOrder }
+                .thenBy { it.title.lowercase(Locale.ROOT) },
+        )
 }
 
 private fun MealDefinition.toUiState(): FoodMealDefinitionUiState = FoodMealDefinitionUiState(
@@ -6614,10 +7111,13 @@ private fun MealDefinition.toUiState(): FoodMealDefinitionUiState = FoodMealDefi
     sortOrder = sortOrder,
     isDefault = true,
     isHidden = false,
+    titleText = uiText(titleResourceId),
+    timeLabelText = timeMinutes?.toLocalizedMealTimeLabel()?.let(UiText::Verbatim) ?: uiText(R.string.food_no_time),
 )
 
 private fun FoodMealDefinition.toUiState(): FoodMealDefinitionUiState {
     val mealId = id.normalizedMealType()
+    val defaultDefinition = mealDefinitions.firstOrNull { it.id == mealId }
     return FoodMealDefinitionUiState(
         id = mealId,
         title = name,
@@ -6626,6 +7126,12 @@ private fun FoodMealDefinition.toUiState(): FoodMealDefinitionUiState {
         sortOrder = sortOrder,
         isDefault = mealId in defaultMealDefinitionIds,
         isHidden = isHidden,
+        titleText = if (defaultDefinition != null && name == defaultDefinition.title) {
+            uiText(defaultDefinition.titleResourceId)
+        } else {
+            UiText.Verbatim(name)
+        },
+        timeLabelText = timeMinutes?.toLocalizedMealTimeLabel()?.let(UiText::Verbatim) ?: uiText(R.string.food_no_time),
     )
 }
 
@@ -6633,11 +7139,20 @@ private fun FoodMealDefinitionUiState.recommendation(): String = timeMinutes?.to
     ?: mealDefinitions.firstOrNull { it.id == id }?.recommendation
     ?: "Custom meal"
 
+private fun FoodMealDefinitionUiState.recommendationText(): UiText = timeMinutes?.toLocalizedMealTimeLabel()?.let(UiText::Verbatim)
+    ?: mealDefinitions.firstOrNull { it.id == id }?.let { uiText(it.recommendationResourceId) }
+    ?: uiText(R.string.food_custom_meal)
+
 private fun FoodMealDefinitionUiState.calorieTargetKcal(): Double = mealDefinitions.firstOrNull { it.id == id }?.calorieTargetKcal
     ?: (CALORIE_GOAL_KCAL / 4.0)
 
 private fun FoodUiState.mealTitleFor(mealType: String): String = mealDefinitions.firstOrNull { it.id == mealType.normalizedMealType() }?.title
     ?: mealType.mealTitle()
+
+private fun FoodUiState.mealTitleTextFor(mealType: String): UiText = mealDefinitions
+    .firstOrNull { it.id == mealType.normalizedMealType() }
+    ?.titleText
+    ?: mealType.mealTitleText()
 
 private fun FoodUiState.nextMealSortOrder(): Int = (mealDefinitions.maxOfOrNull { it.sortOrder } ?: 30) + 10
 
@@ -6649,8 +7164,8 @@ private fun emptyMicronutrients(): List<FoodMicronutrientUiState> = NutritionDet
 
 private fun emptyDailyInsights(): List<FoodInsightUiState> = listOf(
     FoodInsightUiState(
-        title = "Start with a meal",
-        body = "Log a meal, favorite, or quick calories to see today clearly.",
+        title = uiText(R.string.food_insight_start_with_meal),
+        body = uiText(R.string.food_insight_start_with_meal_body),
         tone = FoodInsightTone.Neutral,
     ),
 )
@@ -6661,9 +7176,9 @@ private fun emptyRecipeDiscoveryItems(): List<RecipeDiscoveryItemUiState> = buil
 
 private fun emptyFoodTrust(): FoodTrustUiState = FoodTrustUiState(
     level = FoodTrustLevel.Manual,
-    label = "Manual entry",
-    explanation = "Created locally. Accuracy depends on the values entered in MusFit.",
-    actionLabel = "Edit",
+    label = uiText(R.string.food_manual_entry),
+    explanation = uiText(R.string.food_trust_manual_explanation),
+    actionLabel = uiText(R.string.food_edit),
 )
 
 private fun emptyHabitTrackers(): List<FoodHabitTrackerUiState> = buildHabitTrackers(
@@ -6673,14 +7188,14 @@ private fun emptyHabitTrackers(): List<FoodHabitTrackerUiState> = buildHabitTrac
 )
 
 internal fun emptyFoodRating(): FoodRatingUiState = FoodRatingUiState(
-    label = "No rating",
-    reason = "Log food to rate today.",
-    suggestion = "Start with a meal or favorite.",
+    label = uiText(R.string.food_no_rating),
+    reason = uiText(R.string.food_log_to_rate_today),
+    suggestion = uiText(R.string.food_start_meal_or_favorite),
     tone = FoodInsightTone.Neutral,
 )
 
 private fun String.normalizedMealType(): String {
-    val normalized = trim().lowercase()
+    val normalized = trim().lowercase(Locale.ROOT)
     return when (normalized) {
         "snack" -> "snacks"
         else -> normalized.ifBlank { "breakfast" }
@@ -6694,9 +7209,18 @@ internal fun String.mealTitle(): String = mealDefinitions.firstOrNull { it.id ==
         .split(" ")
         .filter { it.isNotBlank() }
         .joinToString(" ") { word ->
-            word.lowercase().replaceFirstChar { char -> char.uppercase() }
+            word.lowercase(Locale.getDefault()).replaceFirstChar { char -> char.titlecase(Locale.getDefault()) }
         }
         .ifBlank { "Meal" }
+
+internal fun String.mealTitleText(): UiText = mealDefinitions.firstOrNull { it.id == normalizedMealType() }
+    ?.let { uiText(it.titleResourceId) }
+    ?: mealTitle().takeIf { it.isNotBlank() && it != "Meal" }?.let(UiText::Verbatim)
+    ?: uiText(R.string.food_meal)
+
+internal fun String.mealTitleArgument(): UiText.Argument = mealDefinitions.firstOrNull { it.id == normalizedMealType() }
+    ?.let { UiText.Argument.Resource(it.titleResourceId) }
+    ?: UiText.Argument.Text(mealTitle())
 
 private fun String.parseMealTimeMinutesOrNull(): Int? {
     val parts = trim().split(":")
@@ -6712,6 +7236,8 @@ private fun String.parseMealTimeMinutesOrNull(): Int? {
 }
 
 private fun Int.toMealTimeLabel(): String = "${(this / 60).toString().padStart(2, '0')}:${(this % 60).toString().padStart(2, '0')}"
+
+private fun Int.toLocalizedMealTimeLabel(): String = LocalizedFormatter.time(LocalTime.of(this / 60, this % 60))
 
 private fun String.parseNutritionValue(): Double? = trim()
     .takeIf { it.isNotEmpty() }

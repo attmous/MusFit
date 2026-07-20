@@ -3,6 +3,8 @@ package com.musfit.ui.food
 import com.musfit.data.repository.FoodDiary
 import com.musfit.data.repository.NutritionDetails
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.feature.food.R
+import com.musfit.ui.text.uiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -27,7 +29,11 @@ class FoodPresentationReducersTest {
         )
 
         assertEquals(
-            listOf("Protein is low", "Fiber is below target", "Add protein next"),
+            listOf(
+                uiText(R.string.food_insight_protein_low),
+                uiText(R.string.food_insight_fiber_below),
+                uiText(R.string.food_insight_add_protein),
+            ),
             state.buildDailyInsights(diary).map { it.title },
         )
         assertEquals(

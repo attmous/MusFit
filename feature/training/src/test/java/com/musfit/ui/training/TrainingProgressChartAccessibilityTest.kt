@@ -28,9 +28,12 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.repository.WeeklyTrainingVolume
 import com.musfit.domain.model.ExerciseProgress
 import com.musfit.domain.model.TrainingTrendPoint
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.resolve
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import org.junit.Assert.assertEquals
@@ -41,6 +44,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import com.musfit.ui.training.e1rmChartSelectionDescription as typedE1rmChartSelectionDescription
+import com.musfit.ui.training.e1rmChartSummary as typedE1rmChartSummary
+import com.musfit.ui.training.e1rmDataRowDescription as typedE1rmDataRowDescription
+import com.musfit.ui.training.weeklyVolumeChartSelectionDescription as typedWeeklyVolumeChartSelectionDescription
+import com.musfit.ui.training.weeklyVolumeChartSummary as typedWeeklyVolumeChartSummary
+import com.musfit.ui.training.weeklyVolumeDataRowDescription as typedWeeklyVolumeDataRowDescription
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w400dp-h1600dp-mdpi")
@@ -464,6 +473,20 @@ class TrainingProgressChartAccessibilityTest {
         bestWorkoutVolumeKg = 2_000.0,
         trend = trend,
     )
+
+    private fun e1rmChartSummary(exerciseName: String?, trend: List<TrainingTrendPoint>): String = typedE1rmChartSummary(exerciseName, trend).resolveForTest()
+
+    private fun e1rmChartSelectionDescription(trend: List<TrainingTrendPoint>, selectedIndex: Int): String = typedE1rmChartSelectionDescription(trend, selectedIndex).resolveForTest()
+
+    private fun weeklyVolumeChartSummary(weeks: List<WeeklyTrainingVolume>): String = typedWeeklyVolumeChartSummary(weeks).resolveForTest()
+
+    private fun weeklyVolumeChartSelectionDescription(weeks: List<WeeklyTrainingVolume>, selectedIndex: Int): String = typedWeeklyVolumeChartSelectionDescription(weeks, selectedIndex).resolveForTest()
+
+    private fun e1rmDataRowDescription(point: TrainingTrendPoint): String = typedE1rmDataRowDescription(point).resolveForTest()
+
+    private fun weeklyVolumeDataRowDescription(week: WeeklyTrainingVolume): String = typedWeeklyVolumeDataRowDescription(week).resolveForTest()
+
+    private fun UiText.resolveForTest(): String = resolve(ApplicationProvider.getApplicationContext<android.content.Context>().resources)
 
     private fun customActionLabels(
         actions: List<androidx.compose.ui.semantics.CustomAccessibilityAction>,

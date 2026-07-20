@@ -2,10 +2,15 @@ package com.musfit.ui.training
 
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.WorkoutHistorySummary
+import com.musfit.feature.training.R
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 
 class TrainingDashboardDisplayTest {
     // Wednesday 8 Jul 2026.
@@ -87,19 +92,36 @@ class TrainingDashboardDisplayTest {
 
     @Test
     fun trainingWeekVolumeFigure_switchesToTonnesAtOneThousandKg() {
-        assertEquals("3.8 t", trainingWeekVolumeFigure(3800.0))
-        assertEquals("950 kg", trainingWeekVolumeFigure(950.0))
+        assertEquals(
+            uiText(R.string.training_tonnes, UiText.Argument.Text("3.8")),
+            trainingWeekVolumeFigure(3800.0),
+        )
+        assertEquals(
+            uiText(R.string.training_kilograms, UiText.Argument.Text("950")),
+            trainingWeekVolumeFigure(950.0),
+        )
     }
 
     @Test
     fun trainingHeroOverline_usesLeadMuscleGroupWhenPresent() {
-        assertEquals("TODAY · QUADS DAY", trainingHeroOverline(routine(muscleGroups = listOf("quads", "glutes"))))
-        assertEquals("TODAY", trainingHeroOverline(routine(muscleGroups = emptyList())))
+        assertEquals(
+            uiText(R.string.training_today_muscle_day, UiText.Argument.Text("QUADS")),
+            trainingHeroOverline(routine(muscleGroups = listOf("quads", "glutes"))),
+        )
+        assertEquals(uiText(R.string.training_today), trainingHeroOverline(routine(muscleGroups = emptyList())))
     }
 
     @Test
     fun trainingHeroMeta_summarizesSizeAndDuration() {
-        assertEquals("5 exercises · ~40 min", trainingHeroMeta(routine(exerciseCount = 5, targetSetCount = 13)))
+        assertEquals(
+            pluralUiText(
+                R.plurals.training_exercises_minutes,
+                5,
+                UiText.Argument.Integer(5),
+                UiText.Argument.Integer(40),
+            ),
+            trainingHeroMeta(routine(exerciseCount = 5, targetSetCount = 13)),
+        )
     }
 
     @Test
@@ -107,48 +129,85 @@ class TrainingDashboardDisplayTest {
         val routine = routine(name = "Full Body A", exerciseCount = 5, targetSetCount = 13)
 
         assertEquals(
-            "last: today",
-            routineLastPerformedMeta(routine, listOf(workout("Full Body A", today)), today),
+            uiText(R.string.training_last_today),
+            routineLastPerformedMeta(routine, listOf(workout("Full Body A", today)), today, Locale.UK),
         )
         assertEquals(
-            "last: yesterday",
-            routineLastPerformedMeta(routine, listOf(workout("Full Body A", today.minusDays(1))), today),
+            uiText(R.string.training_last_yesterday),
+            routineLastPerformedMeta(routine, listOf(workout("Full Body A", today.minusDays(1))), today, Locale.UK),
         )
         assertEquals(
-            "last: Fri",
-            routineLastPerformedMeta(routine, listOf(workout("full body a", LocalDate.of(2026, 7, 3))), today),
+            uiText(R.string.training_last_performed, UiText.Argument.Text("Fri")),
+            routineLastPerformedMeta(
+                routine,
+                listOf(workout("full body a", LocalDate.of(2026, 7, 3))),
+                today,
+                Locale.UK,
+            ),
         )
         assertEquals(
-            "last: 26 Jun",
-            routineLastPerformedMeta(routine, listOf(workout("Full Body A", LocalDate.of(2026, 6, 26))), today),
+            uiText(R.string.training_last_performed, UiText.Argument.Text("26 Jun 2026")),
+            routineLastPerformedMeta(
+                routine,
+                listOf(workout("Full Body A", LocalDate.of(2026, 6, 26))),
+                today,
+                Locale.UK,
+            ),
         )
         assertEquals(
-            "5 exercises · ~40 min",
-            routineLastPerformedMeta(routine, listOf(workout("Other Routine", today)), today),
+            pluralUiText(
+                R.plurals.training_exercises_minutes,
+                5,
+                UiText.Argument.Integer(5),
+                UiText.Argument.Integer(40),
+            ),
+            routineLastPerformedMeta(routine, listOf(workout("Other Routine", today)), today, Locale.UK),
         )
     }
 
     @Test
     fun trainingCoachCue_reflectsWeeklyState() {
         assertEquals(
-            "No sessions yet this week — Full Body A would be a good start.",
+            uiText(R.string.training_no_sessions_routine, UiText.Argument.Text("Full Body A")),
             trainingCoachCue(TrainingHistoryOverview(currentWeekWorkoutCount = 0), "Full Body A"),
         )
         assertEquals(
-            "2 of 3 sessions this week — Full Body B is up next.",
+            pluralUiText(
+                R.plurals.training_sessions_next_routine,
+                2,
+                UiText.Argument.Integer(2),
+                UiText.Argument.Integer(3),
+                UiText.Argument.Text("Full Body B"),
+            ),
             trainingCoachCue(TrainingHistoryOverview(currentWeekWorkoutCount = 2), "Full Body B"),
         )
         assertEquals(
-            "Weekly goal done — 3 of 3 sessions. Recovery counts too.",
+            pluralUiText(
+                R.plurals.training_week_goal_done,
+                3,
+                UiText.Argument.Integer(3),
+                UiText.Argument.Integer(3),
+            ),
             trainingCoachCue(TrainingHistoryOverview(currentWeekWorkoutCount = 3), "Full Body A"),
         )
         assertEquals(
-            "1 of 3 sessions this week — one more keeps the plan on track.",
+            pluralUiText(
+                R.plurals.training_sessions_one_more,
+                1,
+                UiText.Argument.Integer(1),
+                UiText.Argument.Integer(3),
+            ),
             trainingCoachCue(TrainingHistoryOverview(currentWeekWorkoutCount = 1), null),
         )
         // The cue honors the user's weekly session target from the Today editor.
         assertEquals(
-            "2 of 4 sessions this week — Full Body B is up next.",
+            pluralUiText(
+                R.plurals.training_sessions_next_routine,
+                2,
+                UiText.Argument.Integer(2),
+                UiText.Argument.Integer(4),
+                UiText.Argument.Text("Full Body B"),
+            ),
             trainingCoachCue(TrainingHistoryOverview(currentWeekWorkoutCount = 2), "Full Body B", weeklyTarget = 4),
         )
     }

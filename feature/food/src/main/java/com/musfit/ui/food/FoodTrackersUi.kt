@@ -20,13 +20,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.musfit.feature.food.R
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import kotlin.math.roundToInt
+import com.musfit.core.designsystem.R as DesignR
 
 // Self-contained tracker panels (water + Health Connect sync) rendered inside
 // the Food modal sheets. The sheet container is already colors.surface, so the
@@ -56,15 +60,19 @@ internal fun WaterTrackerCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Water", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.food_water), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${state.waterConsumedMilliliters.roundToInt()} / ${state.waterGoalMilliliters.roundToInt()} ml",
+                    stringResource(
+                        R.string.food_water_progress,
+                        state.waterConsumedMilliliters.roundToInt(),
+                        state.waterGoalMilliliters.roundToInt(),
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
             Text(
-                "${(state.waterProgress * 100).roundToInt()}%",
+                stringResource(R.string.food_percentage, (state.waterProgress * 100).roundToInt()),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
                 color = MusFitTheme.colors.brand,
@@ -99,7 +107,7 @@ internal fun WaterTrackerCard(
             OutlinedTextField(
                 value = state.waterCustomAmountInput,
                 onValueChange = onCustomAmountChanged,
-                label = { Text("Custom ml") },
+                label = { Text(stringResource(R.string.food_custom_milliliters)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
@@ -108,14 +116,14 @@ internal fun WaterTrackerCard(
                 onClick = onCustomRemoveClick,
                 enabled = !state.isSaving && canRemoveWater,
             ) {
-                Text("Remove")
+                Text(stringResource(DesignR.string.common_remove))
             }
             Button(
                 onClick = onCustomAddClick,
                 enabled = !state.isSaving,
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text("Add")
+                Text(stringResource(DesignR.string.common_add))
             }
         }
 
@@ -125,13 +133,13 @@ internal fun WaterTrackerCard(
             OutlinedTextField(
                 value = state.waterGoalInput,
                 onValueChange = onGoalChanged,
-                label = { Text("Goal ml") },
+                label = { Text(stringResource(R.string.food_goal_milliliters)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
             )
             MusFitOutlinedButton(onClick = onGoalSaveClick, enabled = !state.isSaving) {
-                Text("Save")
+                Text(stringResource(DesignR.string.common_save))
             }
         }
     }
@@ -150,7 +158,7 @@ private fun WaterQuickStepperRow(
     onRemove: (Double) -> Unit,
     onAdd: (Double) -> Unit,
 ) {
-    val label = "${amountMilliliters.roundToInt()} ml"
+    val label = stringResource(R.string.food_milliliters, amountMilliliters.roundToInt())
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -160,7 +168,7 @@ private fun WaterQuickStepperRow(
             onClick = { onRemove(amountMilliliters) },
             enabled = removeEnabled,
         ) {
-            Icon(Icons.Filled.Remove, contentDescription = "Remove $label")
+            Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.food_remove_amount, label))
         }
         Text(
             text = label,
@@ -174,7 +182,7 @@ private fun WaterQuickStepperRow(
             onClick = { onAdd(amountMilliliters) },
             enabled = addEnabled,
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "Add $label")
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.food_add_amount, label))
         }
     }
 }
@@ -200,9 +208,9 @@ internal fun FoodHealthConnectSyncCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Health Connect", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.food_health_connect), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    state.foodHealthConnectPermissionSummary,
+                    state.foodHealthConnectPermissionSummary.asString(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -215,7 +223,7 @@ internal fun FoodHealthConnectSyncCard(
         }
 
         Text(
-            text = "Writes logged meals and water from Food.",
+            text = stringResource(R.string.food_health_connect_write_summary),
             style = MaterialTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
         )
@@ -234,14 +242,14 @@ internal fun FoodHealthConnectSyncCard(
                 enabled = state.foodHealthConnectCanRequestPermissions && !state.isSaving,
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Permissions", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.food_permissions), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             MusFitOutlinedButton(
                 onClick = onRefreshClick,
                 enabled = !state.isSaving,
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Refresh", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.food_refresh), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
 
@@ -251,7 +259,7 @@ internal fun FoodHealthConnectSyncCard(
             colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Sync Food to Health Connect")
+            Text(stringResource(R.string.food_sync_to_health_connect))
         }
     }
 }

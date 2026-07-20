@@ -30,10 +30,10 @@ class FoodDetailPresentationTest {
 
     @Test
     fun percentOfDayLabelRoundsAndGuardsMissingBudget() {
-        assertEquals("4% of day", percentOfDayLabel(98.0, 2450.0))
-        assertEquals("100% of day", percentOfDayLabel(2450.0, 2450.0))
-        assertNull(percentOfDayLabel(98.0, 0.0))
-        assertNull(percentOfDayLabel(98.0, -10.0))
+        assertEquals(4, percentOfDayValue(98.0, 2450.0))
+        assertEquals(100, percentOfDayValue(2450.0, 2450.0))
+        assertNull(percentOfDayValue(98.0, 0.0))
+        assertNull(percentOfDayValue(98.0, -10.0))
     }
 
     @Test

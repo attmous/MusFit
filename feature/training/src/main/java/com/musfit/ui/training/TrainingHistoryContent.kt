@@ -16,9 +16,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -29,6 +29,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -46,6 +49,7 @@ import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutRecapSummary
 import com.musfit.domain.training.WorkoutCalculator
+import com.musfit.feature.training.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenTitleStyle
@@ -53,6 +57,11 @@ import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import java.time.Instant
@@ -77,6 +86,7 @@ fun WorkoutCompleteContent(
     showCloseAction: Boolean = true,
 ) {
     val recap = detail.effectiveRecap()
+    val locale = LocalConfiguration.current.locales[0]
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -85,12 +95,12 @@ fun WorkoutCompleteContent(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Workout complete",
+                    text = stringResource(R.string.training_workout_complete),
                     style = InnerScreenTitleStyle,
                     color = MusFitTheme.colors.onSurface,
                 )
                 Text(
-                    text = workoutCompleteSubtitle(detail.summary),
+                    text = workoutCompleteSubtitle(detail.summary, locale).asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.padding(top = 1.dp),
@@ -99,7 +109,7 @@ fun WorkoutCompleteContent(
             if (showCloseAction) {
                 TonalHeaderIconButton(
                     icon = Icons.Outlined.Close,
-                    contentDescription = "Close workout summary",
+                    contentDescription = stringResource(R.string.training_close_workout_summary),
                     onClick = onClose,
                 )
             }
@@ -107,11 +117,11 @@ fun WorkoutCompleteContent(
 
         WorkoutDurationHero(recap = recap, accent = accent)
 
-        val prs = workoutPrDisplays(detail)
+        val prs = workoutPrDisplays(detail, locale)
         if (prs.isNotEmpty()) {
             Column {
                 Text(
-                    text = "Personal records",
+                    text = stringResource(R.string.training_personal_records),
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
                     fontWeight = FontWeight.ExtraBold,
                     color = MusFitTheme.colors.onSurface,
@@ -144,14 +154,14 @@ fun WorkoutCompleteContent(
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     Text(
-                                        text = pr.meta,
+                                        text = pr.meta.asString(),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MusFitTheme.colors.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 1.dp),
                                     )
                                 }
                                 Text(
-                                    text = pr.deltaLabel,
+                                    text = pr.deltaLabel.asString(),
                                     style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
                                     fontWeight = FontWeight.ExtraBold,
                                     color = MusFitTheme.colors.positive,
@@ -173,7 +183,7 @@ fun WorkoutCompleteContent(
         }
 
         PillButton(
-            text = "Done",
+            text = stringResource(R.string.training_done),
             onClick = onClose,
             containerColor = accent.color,
             contentColor = accent.onColor,
@@ -202,7 +212,7 @@ private fun WorkoutDurationHero(recap: WorkoutRecapSummary, accent: TabAccent) {
                     color = accent.onContainer,
                 )
                 Text(
-                    text = " min",
+                    text = stringResource(R.string.training_minutes_suffix),
                     style = MaterialTheme.typography.titleLarge,
                     color = accent.onContainer.copy(alpha = 0.8f),
                     modifier = Modifier.padding(bottom = 8.dp),
@@ -216,19 +226,21 @@ private fun WorkoutDurationHero(recap: WorkoutRecapSummary, accent: TabAccent) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WorkoutStatChip(
                     figure = recap.completedSetCount.toString(),
-                    caption = if (recap.completedSetCount == 1) "set" else "sets",
+                    caption = pluralStringResource(R.plurals.training_set_word, recap.completedSetCount),
                     chipColor = chipColor,
                     contentColor = accent.onContainer,
                 )
                 WorkoutStatChip(
                     figure = workoutVolumeChipFigure(recap.totalVolumeKg),
-                    caption = "kg volume",
+                    caption = stringResource(R.string.training_kg_volume),
                     chipColor = chipColor,
                     contentColor = accent.onContainer,
                 )
                 WorkoutStatChip(
                     figure = recap.personalRecordCount.toString(),
-                    caption = if (recap.personalRecordCount == 1) "PR" else "PRs",
+                    caption = stringResource(
+                        if (recap.personalRecordCount == 1) R.string.training_pr else R.string.training_prs,
+                    ),
                     chipColor = chipColor,
                     contentColor = accent.onContainer,
                 )
@@ -262,7 +274,7 @@ private fun WorkoutStatChip(
 
 /** Coach note (10b): 7dp coral dot, one deterministic sentence, "Ask Coach". */
 @Composable
-private fun WorkoutCoachNoteCard(note: String, onOpenCoach: () -> Unit) {
+private fun WorkoutCoachNoteCard(note: UiText, onOpenCoach: () -> Unit) {
     Surface(
         color = MusFitTheme.colors.surface,
         shape = RoundedCornerShape(24.dp),
@@ -280,13 +292,13 @@ private fun WorkoutCoachNoteCard(note: String, onOpenCoach: () -> Unit) {
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = note,
+                    text = note.asString(),
                     style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
                     color = MusFitTheme.colors.onSurface,
                 )
                 TextButton(onClick = onOpenCoach) {
                     Text(
-                        text = "Ask Coach",
+                        text = stringResource(R.string.training_ask_coach),
                         style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
                         fontWeight = FontWeight.ExtraBold,
                         color = MusFitTheme.colors.accent,
@@ -311,7 +323,8 @@ fun TrainingHistoryContent(
     onOpenDetail: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sections = historyWeekSections(history, LocalDate.now())
+    val locale = LocalConfiguration.current.locales[0]
+    val sections = historyWeekSections(history, LocalDate.now(), locale)
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 88.dp),
@@ -337,7 +350,7 @@ fun TrainingHistoryContent(
         if (history.isEmpty()) {
             item(key = "history-empty", contentType = "history-empty") {
                 Text(
-                    "Finish a workout to build history.",
+                    stringResource(R.string.training_finish_to_build_history),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -349,7 +362,7 @@ fun TrainingHistoryContent(
                 contentType = "history-section",
             ) {
                 Text(
-                    text = section.title,
+                    text = section.title.asString(),
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
                     fontWeight = FontWeight.ExtraBold,
                     color = MusFitTheme.colors.onSurface,
@@ -383,6 +396,19 @@ fun TrainingHistoryContent(
 @Composable
 private fun HistoryMonthHero(overview: TrainingHistoryOverview, accent: TabAccent) {
     val (sessions, volumeKg) = historyMonthStats(overview)
+    val locale = LocalConfiguration.current.locales[0]
+    val monthLabel = overview.month
+        ?.atDay(1)
+        ?.format(DateTimeFormatter.ofPattern("MMMM yyyy", locale))
+        ?: stringResource(R.string.training_this_month)
+    val sessionWord = pluralStringResource(R.plurals.training_session_word, sessions)
+    val volumeFigure = trainingWeekVolumeFigure(volumeKg, locale).asString()
+    val monthMeta = stringResource(
+        R.string.training_history_month_meta,
+        sessionWord,
+        volumeFigure,
+        stringResource(R.string.training_volume),
+    )
     Surface(
         color = accent.container,
         shape = RoundedCornerShape(28.dp),
@@ -390,18 +416,18 @@ private fun HistoryMonthHero(overview: TrainingHistoryOverview, accent: TabAccen
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = overview.monthLabel.ifBlank { "This month" }.uppercase(Locale.US),
+                text = monthLabel.uppercase(locale),
                 style = MaterialTheme.typography.labelSmall,
                 color = accent.onContainer,
             )
             Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 2.dp)) {
                 Text(
-                    text = sessions.toString(),
+                    text = LocalizedFormatter.integer(sessions.toLong(), locale = locale),
                     style = MaterialTheme.typography.displayMedium,
                     color = accent.onContainer,
                 )
                 Text(
-                    text = " ${if (sessions == 1) "session" else "sessions"} · ${trainingWeekVolumeFigure(volumeKg)} volume",
+                    text = " $monthMeta",
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                     fontWeight = FontWeight.SemiBold,
                     color = accent.onContainer.copy(alpha = 0.85f),
@@ -421,7 +447,9 @@ private fun HistorySessionRow(
     badgeShape: ExpressiveBadgeShape,
     onClick: () -> Unit,
 ) {
-    val meta = historyRowMeta(workout)
+    val meta = historyRowMeta(workout, LocalConfiguration.current.locales[0])
+    val volumeLabel = meta.volumeLabel.asString()
+    val durationLabel = meta.durationLabel?.asString()
     Surface(
         onClick = onClick,
         color = MusFitTheme.colors.surface,
@@ -454,9 +482,9 @@ private fun HistorySessionRow(
                         withStyle(
                             SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface),
                         ) {
-                            append(meta.volumeLabel)
+                            append(volumeLabel)
                         }
-                        meta.durationLabel?.let { append(" · $it") }
+                        durationLabel?.let { append(" · $it") }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
@@ -466,7 +494,7 @@ private fun HistorySessionRow(
                 )
             }
             Icon(
-                imageVector = Icons.Outlined.ChevronRight,
+                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = null,
                 tint = MusFitTheme.colors.onSurfaceFaint,
                 modifier = Modifier.size(20.dp),
@@ -480,9 +508,14 @@ private fun HistoryCalendarGrid(
     overview: TrainingHistoryOverview,
     accent: TabAccent,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
+    val weekdayFormatter = DateTimeFormatter.ofPattern("EEEEE", locale)
+    val weekdayLabels = (0L..6L).map { offset ->
+        LocalDate.of(2024, 1, 1).plusDays(offset).format(weekdayFormatter)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            listOf("M", "T", "W", "T", "F", "S", "S").forEach { label ->
+            weekdayLabels.forEach { label ->
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
@@ -548,7 +581,7 @@ private fun HistorySupersetGroupCard(
             ) {
                 Surface(color = accent.container, shape = RoundedCornerShape(99.dp)) {
                     Text(
-                        text = "Superset",
+                        text = stringResource(R.string.training_superset),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = accent.onContainer,
@@ -556,7 +589,11 @@ private fun HistorySupersetGroupCard(
                     )
                 }
                 Text(
-                    text = "${group.exerciseBlocks.size} exercises",
+                    text = pluralStringResource(
+                        R.plurals.training_exercise_count,
+                        group.exerciseBlocks.size,
+                        group.exerciseBlocks.size,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -592,6 +629,7 @@ private fun HistoryExerciseBlockSection(
     accent: TabAccent,
     modifier: Modifier = Modifier,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -620,28 +658,33 @@ private fun HistoryExerciseBlockSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = historySetLabel(index, set.setType),
+                    text = historySetLabel(index, set.setType).asString(),
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.weight(0.35f),
                 )
                 Text(
-                    text = set.setType.replaceFirstChar { it.uppercase() },
+                    text = set.setType.replaceFirstChar { it.uppercase(locale) },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.weight(0.9f),
                 )
                 Text(
-                    text = "${set.weightKg?.formatKg() ?: "-"} kg",
+                    text = stringResource(
+                        R.string.training_kilograms,
+                        set.weightKg?.formatKg(locale) ?: "-",
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(0.9f),
                 )
                 Text(
-                    text = "${set.reps ?: "-"} reps",
+                    text = stringResource(R.string.training_reps_value, set.reps?.toString() ?: "-"),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(0.9f),
                 )
                 Text(
-                    text = set.rpe?.let { "RPE ${it.formatKg()}" } ?: "",
+                    text = set.rpe?.let {
+                        stringResource(R.string.training_rpe_value, it.formatKg(locale))
+                    }.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.weight(0.9f),
@@ -661,26 +704,36 @@ internal fun historyDetailGroupingsForDisplay(detail: WorkoutHistoryDetail): Lis
 }
 
 /** "Thu 2 Jul · Full Body A" under the Workout complete title. */
-internal fun workoutCompleteSubtitle(summary: WorkoutHistorySummary): String {
+internal fun workoutCompleteSubtitle(
+    summary: WorkoutHistorySummary,
+    locale: Locale = Locale.getDefault(),
+): UiText {
     val date = Instant.ofEpochMilli(summary.startedAtEpochMillis)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
-        .format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.US))
-    return "$date · ${summary.title}"
+        .let { LocalizedFormatter.date(it, java.time.format.FormatStyle.MEDIUM, locale) }
+    return uiText(
+        R.string.training_date_and_title,
+        UiText.Argument.Text(date),
+        UiText.Argument.Text(summary.title),
+    )
 }
 
 /** Whole minutes for the duration hero; a sub-minute session still reads "1". */
 internal fun workoutDurationMinutes(durationSeconds: Int): Int = if (durationSeconds <= 0) 0 else (durationSeconds / 60).coerceAtLeast(1)
 
 /** "4,120" — grouped kilogram figure for the volume stat chip. */
-internal fun workoutVolumeChipFigure(volumeKg: Double): String = String.format(Locale.US, "%,d", Math.round(volumeKg))
+internal fun workoutVolumeChipFigure(
+    volumeKg: Double,
+    locale: Locale = Locale.getDefault(),
+): String = LocalizedFormatter.integer(Math.round(volumeKg), locale = locale)
 
 internal data class WorkoutPrDisplay(
     val exerciseName: String,
     /** "107.5 kg × 5 · e1RM 128 kg" */
-    val meta: String,
+    val meta: UiText,
     /** "+9 kg" e1RM improvement over the prior best. */
-    val deltaLabel: String,
+    val deltaLabel: UiText,
 )
 
 /**
@@ -688,10 +741,13 @@ internal data class WorkoutPrDisplay(
  * beats the pre-session best e1RM, the winning set and the improvement.
  * Mirrors the recap's [personalRecordCount] rule (warm-ups and drops excluded).
  */
-internal fun workoutPrDisplays(detail: WorkoutHistoryDetail): List<WorkoutPrDisplay> = detail.exerciseBlocks.mapNotNull { block ->
+internal fun workoutPrDisplays(
+    detail: WorkoutHistoryDetail,
+    locale: Locale = Locale.getDefault(),
+): List<WorkoutPrDisplay> = detail.exerciseBlocks.mapNotNull { block ->
     val best = block.sets
         .filter { set ->
-            val type = set.setType.lowercase(Locale.US)
+            val type = set.setType.lowercase(Locale.ROOT)
             set.completed &&
                 type != "warmup" && type != "warm-up" && type != "drop" &&
                 set.reps != null && set.weightKg != null
@@ -704,26 +760,42 @@ internal fun workoutPrDisplays(detail: WorkoutHistoryDetail): List<WorkoutPrDisp
     if (bestE1rm <= prior + 1e-6) return@mapNotNull null
     WorkoutPrDisplay(
         exerciseName = block.exercise.name,
-        meta = "${bestWeightKg.formatKg()} kg × ${best.reps} · e1RM ${bestE1rm.formatKg()} kg",
+        meta = uiText(
+            R.string.training_pr_meta,
+            UiText.Argument.Text(bestWeightKg.formatKg(locale)),
+            UiText.Argument.Integer(requireNotNull(best.reps)),
+            UiText.Argument.Text(bestE1rm.formatKg(locale)),
+        ),
         // A first-ever lift has no prior best — "+128 kg" would be noise.
-        deltaLabel = if (prior > 0.0) "+${(bestE1rm - prior).formatKg()} kg" else "New PR",
+        deltaLabel = if (prior > 0.0) {
+            uiText(
+                R.string.training_pr_delta,
+                UiText.Argument.Text((bestE1rm - prior).formatKg(locale)),
+            )
+        } else {
+            uiText(R.string.training_new_pr)
+        },
     )
 }
 
 /** One deterministic coach sentence for the finished session — no prose engine. */
-internal fun workoutCompleteCoachNote(recap: WorkoutRecapSummary): String {
+internal fun workoutCompleteCoachNote(recap: WorkoutRecapSummary): UiText {
     val minutes = workoutDurationMinutes(recap.durationSeconds)
     return when {
-        recap.personalRecordCount > 0 ->
-            "Strong session — ${recap.personalRecordCount} " +
-                "${if (recap.personalRecordCount == 1) "personal record" else "personal records"}. " +
-                "Recover well and repeat the pattern."
+        recap.personalRecordCount > 0 -> pluralUiText(
+            R.plurals.training_coach_strong_session,
+            recap.personalRecordCount,
+            UiText.Argument.Integer(recap.personalRecordCount),
+        )
 
-        recap.completedSetCount > 0 ->
-            "Solid work — ${recap.completedSetCount} sets in $minutes min. Consistency beats intensity."
+        recap.completedSetCount > 0 -> pluralUiText(
+            R.plurals.training_coach_solid_work,
+            recap.completedSetCount,
+            UiText.Argument.Integer(recap.completedSetCount),
+            UiText.Argument.Integer(minutes),
+        )
 
-        else ->
-            "Session logged. Even a short visit keeps the habit alive."
+        else -> uiText(R.string.training_coach_session_logged)
     }
 }
 
@@ -734,7 +806,7 @@ internal fun historyMonthStats(overview: TrainingHistoryOverview): Pair<Int, Dou
 }
 
 internal data class HistoryWeekSection(
-    val title: String,
+    val title: UiText,
     val workouts: List<WorkoutHistorySummary>,
 )
 
@@ -742,6 +814,7 @@ internal data class HistoryWeekSection(
 internal fun historyWeekSections(
     history: List<WorkoutHistorySummary>,
     today: LocalDate,
+    locale: Locale = Locale.getDefault(),
 ): List<HistoryWeekSection> {
     val thisWeekStart = today.minusDays((today.dayOfWeek.value - 1).toLong())
     return history
@@ -756,9 +829,16 @@ internal fun historyWeekSections(
         .sortedByDescending { (weekStart, _) -> weekStart }
         .map { (weekStart, workouts) ->
             val title = when (weekStart) {
-                thisWeekStart -> "This week"
-                thisWeekStart.minusWeeks(1) -> "Last week"
-                else -> "Week of ${weekStart.format(DateTimeFormatter.ofPattern("d MMM", Locale.US))}"
+                thisWeekStart -> uiText(R.string.training_this_week)
+
+                thisWeekStart.minusWeeks(1) -> uiText(R.string.training_last_week)
+
+                else -> uiText(
+                    R.string.training_week_of,
+                    UiText.Argument.Text(
+                        LocalizedFormatter.date(weekStart, java.time.format.FormatStyle.MEDIUM, locale),
+                    ),
+                )
             }
             HistoryWeekSection(title = title, workouts = workouts)
         }
@@ -766,25 +846,33 @@ internal fun historyWeekSections(
 
 internal data class HistoryRowMeta(
     val dateLabel: String,
-    val volumeLabel: String,
-    val durationLabel: String?,
+    val volumeLabel: UiText,
+    val durationLabel: UiText?,
 )
 
 /** Row subline parts (10g): "Thu 2 Jul" · "1.9 t" (emphasized) · "41 min". */
-internal fun historyRowMeta(summary: WorkoutHistorySummary): HistoryRowMeta {
+internal fun historyRowMeta(
+    summary: WorkoutHistorySummary,
+    locale: Locale = Locale.getDefault(),
+): HistoryRowMeta {
     val dateLabel = Instant.ofEpochMilli(summary.startedAtEpochMillis)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
-        .format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.US))
+        .let { LocalizedFormatter.date(it, java.time.format.FormatStyle.MEDIUM, locale) }
     val durationSeconds = summary.endedAtEpochMillis
         ?.let { ((it - summary.startedAtEpochMillis) / 1000L).toInt() }
         ?.coerceAtLeast(0)
     val durationLabel = durationSeconds
         ?.takeIf { it > 0 }
-        ?.let { "${workoutDurationMinutes(it)} min" }
+        ?.let { minutes ->
+            uiText(
+                R.string.training_minutes_value,
+                UiText.Argument.Integer(workoutDurationMinutes(minutes)),
+            )
+        }
     return HistoryRowMeta(
         dateLabel = dateLabel,
-        volumeLabel = trainingWeekVolumeFigure(summary.totalVolumeKg),
+        volumeLabel = trainingWeekVolumeFigure(summary.totalVolumeKg, locale),
         durationLabel = durationLabel,
     )
 }
@@ -814,15 +902,11 @@ private fun WorkoutHistorySummary.durationSeconds(): Int {
     return ((endedAt - startedAtEpochMillis).coerceAtLeast(0L) / 1000L).toInt()
 }
 
-private fun historySetLabel(index: Int, setType: String): String = when (setType.lowercase()) {
-    "warmup" -> "W"
-    "drop" -> "D"
-    "failure" -> "F"
-    else -> "${index + 1}"
+private fun historySetLabel(index: Int, setType: String): UiText = when (setType.lowercase(Locale.ROOT)) {
+    "warmup" -> uiText(R.string.training_set_type_warmup_short)
+    "drop" -> uiText(R.string.training_set_type_drop_short)
+    "failure" -> uiText(R.string.training_set_type_failure_short)
+    else -> UiText.Verbatim(LocalizedFormatter.integer((index + 1).toLong()))
 }
 
-private fun Double.formatKg(): String = if (this % 1.0 == 0.0) {
-    toInt().toString()
-} else {
-    String.format(Locale.US, "%.1f", this)
-}
+private fun Double.formatKg(locale: Locale = Locale.getDefault()): String = LocalizedFormatter.number(this, maximumFractionDigits = 1, locale = locale)

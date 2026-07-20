@@ -1,0 +1,22 @@
+<resources>
+    <string name="common_add">Add</string>
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_clear">Clear</string>
+    <string name="common_close">Close</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_done">Done</string>
+    <string name="common_edit">Edit</string>
+    <string name="common_next">Next</string>
+    <string name="common_previous">Previous</string>
+    <string name="common_remove">Remove</string>
+    <string name="common_reset">Reset</string>
+    <string name="common_save">Save</string>
+    <string name="common_selected_value">Selected: %1$s</string>
+    <string name="common_search">Search</string>
+    <string name="common_progress_count">%1$d / %2$d</string>
+    <plurals name="common_item_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+</resources>

@@ -67,6 +67,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -91,12 +92,18 @@ import com.musfit.domain.training.PlateCalculator
 import com.musfit.domain.training.WarmupSetCalculator
 import com.musfit.domain.training.WarmupSetSuggestion
 import com.musfit.domain.training.WorkoutCalculator
+import com.musfit.feature.training.R
 import com.musfit.ui.components.CircularWavyRing
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
@@ -222,7 +229,7 @@ fun TrainingActiveWorkoutContent(
         if (focusedIndex < blocks.lastIndex) {
             Column {
                 Text(
-                    text = "Up next",
+                    text = stringResource(R.string.training_up_next),
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
                     fontWeight = FontWeight.ExtraBold,
                     color = MusFitTheme.colors.onSurface,
@@ -310,8 +317,8 @@ private fun ActiveWorkoutHeader(
         totalVolumeKg = workout.totalVolumeKg,
         completedSetCount = workout.completedSetCount,
         totalSetCount = totalSets,
-    )
-    val clock = statLine.substringBefore(" · ")
+    ).asString()
+    val clock = elapsedSeconds.toElapsedClock()
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -320,7 +327,7 @@ private fun ActiveWorkoutHeader(
     ) {
         TonalHeaderIconButton(
             icon = Icons.AutoMirrored.Outlined.ArrowBack,
-            contentDescription = "Back",
+            contentDescription = stringResource(R.string.training_back),
             onClick = onClose,
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -347,7 +354,7 @@ private fun ActiveWorkoutHeader(
             )
         }
         PillButton(
-            text = "Finish",
+            text = stringResource(R.string.training_finish),
             onClick = onFinish,
             containerColor = accent.color,
             contentColor = accent.onColor,
@@ -358,28 +365,28 @@ private fun ActiveWorkoutHeader(
             IconButton(onClick = { menu = true }, modifier = Modifier.size(MinimumInteractiveSize)) {
                 Icon(
                     imageVector = Icons.Outlined.MoreVert,
-                    contentDescription = "Workout options",
+                    contentDescription = stringResource(R.string.training_workout_options),
                     tint = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.size(22.dp),
                 )
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
-                    text = { Text("Workout notes") },
+                    text = { Text(stringResource(R.string.training_workout_notes)) },
                     onClick = {
                         menu = false
                         onOpenNotes()
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Rest timer") },
+                    text = { Text(stringResource(R.string.training_rest_timer)) },
                     onClick = {
                         menu = false
                         onOpenRestSettings()
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Discard workout", color = MusFitTheme.colors.warning) },
+                    text = { Text(stringResource(R.string.training_discard_workout), color = MusFitTheme.colors.warning) },
                     onClick = {
                         menu = false
                         onDiscard()
@@ -405,6 +412,7 @@ private fun RestTimerHero(
 ) {
     if (!restTimer.isVisible) return
     val quietPill = MusFitTheme.colors.surface.copy(alpha = 0.75f)
+    val remainingDescription = restTimerRemainingContentDescription(restTimer.remainingSeconds).asString()
     Surface(
         color = accent.container,
         shape = RoundedCornerShape(28.dp),
@@ -430,13 +438,11 @@ private fun RestTimerHero(
                         style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
                         color = accent.onContainer,
                         modifier = Modifier.semantics {
-                            contentDescription = restTimerRemainingContentDescription(
-                                restTimer.remainingSeconds,
-                            )
+                            contentDescription = remainingDescription
                         },
                     )
                     Text(
-                        text = "of ${restTimer.durationSeconds.toMinSec()}",
+                        text = stringResource(R.string.training_of_time, restTimer.durationSeconds.toMinSec()),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, letterSpacing = 0.sp),
                         fontWeight = FontWeight.Medium,
                         color = accent.onContainer.copy(alpha = 0.7f),
@@ -445,14 +451,14 @@ private fun RestTimerHero(
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "REST",
+                    text = stringResource(R.string.training_rest),
                     style = MaterialTheme.typography.labelSmall,
                     color = accent.onContainer,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
                     RestAdjustSegment(
-                        label = "−30s",
-                        contentDescription = "Shorten rest by 30 seconds",
+                        label = stringResource(R.string.training_minus_thirty_seconds),
+                        contentDescription = stringResource(R.string.training_shorten_rest),
                         color = quietPill,
                         contentColor = accent.onContainer,
                         shape = RoundedCornerShape(topStart = 99.dp, bottomStart = 99.dp, topEnd = 8.dp, bottomEnd = 8.dp),
@@ -460,8 +466,8 @@ private fun RestTimerHero(
                         modifier = Modifier.weight(1f),
                     )
                     RestAdjustSegment(
-                        label = "+30s",
-                        contentDescription = "Extend rest by 30 seconds",
+                        label = stringResource(R.string.training_plus_thirty_seconds),
+                        contentDescription = stringResource(R.string.training_extend_rest),
                         color = quietPill,
                         contentColor = accent.onContainer,
                         shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 99.dp, bottomEnd = 99.dp),
@@ -470,7 +476,7 @@ private fun RestTimerHero(
                     )
                 }
                 PillButton(
-                    text = "Skip",
+                    text = stringResource(R.string.training_skip),
                     onClick = onSkip,
                     containerColor = accent.color,
                     contentColor = accent.onColor,
@@ -529,6 +535,8 @@ private fun CollapsedExerciseRow(
     onClick: () -> Unit,
 ) {
     val isComplete = block.sets.isNotEmpty() && block.sets.all { it.completed }
+    val completeDescription = stringResource(R.string.training_complete)
+    val upNextDescription = upNextTarget(block).asString()
     Surface(
         onClick = onClick,
         color = MusFitTheme.colors.surface,
@@ -537,7 +545,7 @@ private fun CollapsedExerciseRow(
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
                 contentDescription = block.exercise.name
-                stateDescription = if (isComplete) "Complete" else upNextTarget(block)
+                stateDescription = if (isComplete) completeDescription else upNextDescription
                 role = Role.Button
             },
     ) {
@@ -568,21 +576,34 @@ private fun CollapsedExerciseRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (isComplete) {
-                Icon(
-                    imageVector = Icons.Outlined.Check,
-                    contentDescription = null,
-                    tint = accent.color,
-                    modifier = Modifier.size(18.dp),
-                )
-            } else {
-                Text(
-                    text = upNextTarget(block),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
+            CollapsedExerciseStatus(
+                isComplete = isComplete,
+                upNextDescription = upNextDescription,
+                accent = accent,
+            )
         }
+    }
+}
+
+@Composable
+private fun CollapsedExerciseStatus(
+    isComplete: Boolean,
+    upNextDescription: String,
+    accent: TabAccent,
+) {
+    if (isComplete) {
+        Icon(
+            imageVector = Icons.Outlined.Check,
+            contentDescription = null,
+            tint = accent.color,
+            modifier = Modifier.size(18.dp),
+        )
+    } else {
+        Text(
+            text = upNextDescription,
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
     }
 }
 
@@ -610,6 +631,8 @@ private fun FocusedExerciseSection(
     onReplaceExercise: (String) -> Unit,
     onOpenCoach: () -> Unit,
 ) {
+    val exerciseOptionsDescription = stringResource(R.string.training_exercise_options)
+    val addSetDescription = stringResource(R.string.training_add_set)
     var optionsOpen by remember { mutableStateOf(false) }
     val warmupSuggestions = warmupSuggestionsFor(block, barWeightKg)
     val rows = formatWorkoutSetRowsForDisplay(block.sets, block.priorBestEstimatedOneRepMaxKg)
@@ -644,7 +667,7 @@ private fun FocusedExerciseSection(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.MoreVert,
-                        contentDescription = "Exercise options",
+                        contentDescription = exerciseOptionsDescription,
                         tint = MusFitTheme.colors.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
@@ -679,7 +702,7 @@ private fun FocusedExerciseSection(
                     modifier = Modifier
                         .heightIn(min = MinimumInteractiveSize)
                         .semantics(mergeDescendants = true) {
-                            contentDescription = "Add set"
+                            contentDescription = addSetDescription
                             role = Role.Button
                         },
                 ) {
@@ -694,13 +717,13 @@ private fun FocusedExerciseSection(
                             modifier = Modifier.size(15.dp),
                         )
                         Text(
-                            text = "Set",
+                            text = stringResource(R.string.training_set),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.ExtraBold,
                         )
                     }
                 }
-                plateSummary(block, barWeightKg, availablePlatesKg)?.let { plates ->
+                plateSummary(block, barWeightKg, availablePlatesKg)?.asString()?.let { plates ->
                     Text(
                         text = plates,
                         style = MaterialTheme.typography.bodySmall,
@@ -756,8 +779,8 @@ private fun SetColumnHeaderRow() {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    SetColumnHeader("SET", Modifier.width(SetColumnWidth))
-                    SetColumnHeader("LAST", Modifier.width(LastColumnWidth))
+                    SetColumnHeader(stringResource(R.string.training_set), Modifier.width(SetColumnWidth))
+                    SetColumnHeader(stringResource(R.string.training_last), Modifier.width(LastColumnWidth))
                     Spacer(modifier = Modifier.weight(1f))
                     Spacer(modifier = Modifier.width(CheckButtonSize))
                 }
@@ -765,8 +788,8 @@ private fun SetColumnHeaderRow() {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    SetColumnHeader("KG", Modifier.weight(1f), TextAlign.Center)
-                    SetColumnHeader("REPS", Modifier.weight(1f), TextAlign.Center)
+                    SetColumnHeader(stringResource(R.string.training_kg), Modifier.weight(1f), TextAlign.Center)
+                    SetColumnHeader(stringResource(R.string.training_reps), Modifier.weight(1f), TextAlign.Center)
                 }
             }
         } else {
@@ -775,10 +798,10 @@ private fun SetColumnHeaderRow() {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                SetColumnHeader("SET", Modifier.width(SetColumnWidth))
-                SetColumnHeader("LAST", Modifier.width(LastColumnWidth))
-                SetColumnHeader("KG", Modifier.weight(1f), TextAlign.Center)
-                SetColumnHeader("REPS", Modifier.weight(1f), TextAlign.Center)
+                SetColumnHeader(stringResource(R.string.training_set), Modifier.width(SetColumnWidth))
+                SetColumnHeader(stringResource(R.string.training_last), Modifier.width(LastColumnWidth))
+                SetColumnHeader(stringResource(R.string.training_kg), Modifier.weight(1f), TextAlign.Center)
+                SetColumnHeader(stringResource(R.string.training_reps), Modifier.weight(1f), TextAlign.Center)
                 Spacer(modifier = Modifier.width(CheckButtonSize))
             }
         }
@@ -810,7 +833,7 @@ private fun CoachGlyphButton(onClick: () -> Unit) {
         Box(modifier = Modifier.size(22.dp)) {
             Icon(
                 imageVector = Icons.Filled.ChatBubble,
-                contentDescription = "Ask coach about this workout",
+                contentDescription = stringResource(R.string.training_ask_coach_workout),
                 tint = BrandCoral,
                 modifier = Modifier.size(22.dp),
             )
@@ -852,6 +875,19 @@ private fun FocusedSetRow(
     var notes by remember(set.id) { mutableStateOf(set.notes.orEmpty()) }
     var detailsOpen by remember(set.id) { mutableStateOf(!set.notes.isNullOrBlank()) }
     var setMenuOpen by remember(set.id) { mutableStateOf(false) }
+    val setOptionsDescription = stringResource(R.string.training_set_options, row.setLabel)
+    val personalRecordDescription = stringResource(R.string.training_personal_record_lower)
+    val weightDescription = stringResource(R.string.training_weight_kilograms)
+    val repetitionsDescription = stringResource(R.string.training_repetitions)
+    val completionDescription = stringResource(
+        if (set.completed) R.string.training_mark_incomplete else R.string.training_mark_complete,
+    )
+    val setTypeOptions = listOf(
+        SET_TYPE_WARMUP to stringResource(R.string.training_set_type_warmup),
+        SET_TYPE_WORKING to stringResource(R.string.training_set_type_working),
+        SET_TYPE_DROP to stringResource(R.string.training_set_type_drop),
+        SET_TYPE_FAILURE to stringResource(R.string.training_set_type_failure),
+    )
 
     LaunchedEffect(set.reps, set.weightKg, set.rpe, set.notes) {
         reps = row.reps
@@ -883,8 +919,8 @@ private fun FocusedSetRow(
                     .fillMaxSize()
                     .semantics(mergeDescendants = true) {
                         contentDescription = buildString {
-                            append("Set ${row.setLabel} options")
-                            if (row.isPr) append(", personal record")
+                            append(setOptionsDescription)
+                            if (row.isPr) append(", $personalRecordDescription")
                         }
                     }
                     .clickable(role = Role.Button) { setMenuOpen = true },
@@ -909,7 +945,7 @@ private fun FocusedSetRow(
                 }
             }
             DropdownMenu(expanded = setMenuOpen, onDismissRequest = { setMenuOpen = false }) {
-                SET_TYPE_OPTIONS.forEach { (type, label) ->
+                setTypeOptions.forEach { (type, label) ->
                     DropdownMenuItem(
                         text = { Text(label) },
                         onClick = {
@@ -920,28 +956,39 @@ private fun FocusedSetRow(
                 }
                 HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
                 DropdownMenuItem(
-                    text = { Text(if (detailsOpen) "Hide details" else "RPE & notes") },
+                    text = {
+                        Text(
+                            stringResource(
+                                if (detailsOpen) R.string.training_hide_details else R.string.training_rpe_notes,
+                            ),
+                        )
+                    },
                     onClick = {
                         setMenuOpen = false
                         detailsOpen = !detailsOpen
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Move up") },
+                    text = { Text(stringResource(R.string.training_move_up)) },
                     onClick = {
                         setMenuOpen = false
                         onMoveSetUp(set.id)
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Move down") },
+                    text = { Text(stringResource(R.string.training_move_down)) },
                     onClick = {
                         setMenuOpen = false
                         onMoveSetDown(set.id)
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Delete set", color = MusFitTheme.colors.warning) },
+                    text = {
+                        Text(
+                            stringResource(R.string.training_delete_set),
+                            color = MusFitTheme.colors.warning,
+                        )
+                    },
                     onClick = {
                         setMenuOpen = false
                         onDeleteSet(set.id)
@@ -963,7 +1010,7 @@ private fun FocusedSetRow(
     }
     val weightField: @Composable (Modifier) -> Unit = { fieldModifier ->
         SetValueField(
-            label = "Weight, kilograms",
+            label = weightDescription,
             value = weightKg,
             onValueChange = {
                 weightKg = it
@@ -978,7 +1025,7 @@ private fun FocusedSetRow(
     }
     val repsField: @Composable (Modifier) -> Unit = { fieldModifier ->
         SetValueField(
-            label = "Repetitions",
+            label = repetitionsDescription,
             value = reps,
             onValueChange = {
                 reps = it
@@ -998,7 +1045,7 @@ private fun FocusedSetRow(
                 .clip(RoundedCornerShape(14.dp))
                 .background(if (set.completed) accent.color else MusFitTheme.colors.surfaceVariant)
                 .semantics(mergeDescendants = true) {
-                    contentDescription = if (set.completed) "Mark incomplete" else "Mark complete"
+                    contentDescription = completionDescription
                 }
                 .clickable(role = Role.Button) { onToggleSet(set.id, !set.completed) },
             contentAlignment = Alignment.Center,
@@ -1178,7 +1225,7 @@ private fun AddExerciseRow(
                     )
                 }
                 Text(
-                    text = "Add exercise",
+                    text = stringResource(R.string.training_add_exercise),
                     style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
                     fontWeight = FontWeight.ExtraBold,
                     color = accent.color,
@@ -1194,7 +1241,7 @@ private fun AddExerciseRow(
                 leadingIcon = {
                     Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
                 },
-                placeholder = { Text("Search exercise") },
+                placeholder = { Text(stringResource(R.string.training_search_exercise)) },
                 shape = MusFitTheme.shapes.medium,
             )
             suggestions.forEach { exercise ->
@@ -1215,7 +1262,7 @@ private fun AddExerciseRow(
             }
             if (query.isNotBlank() && suggestions.isEmpty()) {
                 Text(
-                    text = "No matching exercises",
+                    text = stringResource(R.string.training_no_matching_exercises),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp),
@@ -1235,7 +1282,7 @@ private fun WorkoutNotesDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Workout notes") },
+        title = { Text(stringResource(R.string.training_workout_notes)) },
         text = {
             OutlinedTextField(
                 value = notes,
@@ -1251,11 +1298,11 @@ private fun WorkoutNotesDialog(
                 onClick = onSave,
                 colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
             ) {
-                Text("Save")
+                Text(stringResource(R.string.training_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.training_cancel)) }
         },
     )
 }
@@ -1270,18 +1317,18 @@ private fun RestTimerDefaultDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rest timer") },
+        title = { Text(stringResource(R.string.training_rest_timer)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = restTimerSettingsSummaryText(restTimerDefaultSecondsInput),
+                    text = restTimerSettingsSummaryText(restTimerDefaultSecondsInput).asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
                 OutlinedTextField(
                     value = restTimerDefaultSecondsInput,
                     onValueChange = onValueChange,
-                    label = { Text("Seconds after set") },
+                    label = { Text(stringResource(R.string.training_seconds_after_set)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     shape = MusFitTheme.shapes.medium,
@@ -1294,11 +1341,11 @@ private fun RestTimerDefaultDialog(
                 onClick = onSave,
                 colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
             ) {
-                Text("Save")
+                Text(stringResource(R.string.training_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.training_cancel)) }
         },
     )
 }
@@ -1320,6 +1367,7 @@ private fun RestTimerTicker(
 /** Exercise options bottom sheet (M3 list items). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("LongMethod")
 private fun ExerciseOptionsSheet(
     exerciseName: String,
     canMakeSuperset: Boolean,
@@ -1346,40 +1394,68 @@ private fun ExerciseOptionsSheet(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             if (hasWarmupSuggestions) {
-                ExerciseSheetItem(Icons.Outlined.FitnessCenter, "Add suggested warm-up sets", MusFitTheme.colors.onSurface) {
+                ExerciseSheetItem(
+                    Icons.Outlined.FitnessCenter,
+                    stringResource(R.string.training_add_warmup_sets),
+                    MusFitTheme.colors.onSurface,
+                ) {
                     onAddWarmupSets()
                     onDismiss()
                 }
             }
             if (canMoveUp) {
-                ExerciseSheetItem(Icons.Outlined.KeyboardArrowUp, "Move up", MusFitTheme.colors.onSurface) {
+                ExerciseSheetItem(
+                    Icons.Outlined.KeyboardArrowUp,
+                    stringResource(R.string.training_move_up),
+                    MusFitTheme.colors.onSurface,
+                ) {
                     onMoveUp()
                     onDismiss()
                 }
             }
             if (canMoveDown) {
-                ExerciseSheetItem(Icons.Outlined.KeyboardArrowDown, "Move down", MusFitTheme.colors.onSurface) {
+                ExerciseSheetItem(
+                    Icons.Outlined.KeyboardArrowDown,
+                    stringResource(R.string.training_move_down),
+                    MusFitTheme.colors.onSurface,
+                ) {
                     onMoveDown()
                     onDismiss()
                 }
             }
-            ExerciseSheetItem(Icons.Outlined.SwapHoriz, "Replace exercise", MusFitTheme.colors.onSurface) {
+            ExerciseSheetItem(
+                Icons.Outlined.SwapHoriz,
+                stringResource(R.string.training_replace_exercise),
+                MusFitTheme.colors.onSurface,
+            ) {
                 onReplace()
                 onDismiss()
             }
             if (canMakeSuperset) {
-                ExerciseSheetItem(Icons.Outlined.Add, "Add to superset", MusFitTheme.colors.onSurface) {
+                ExerciseSheetItem(
+                    Icons.Outlined.Add,
+                    stringResource(R.string.training_add_to_superset),
+                    MusFitTheme.colors.onSurface,
+                ) {
                     onMakeSuperset()
                     onDismiss()
                 }
             }
             if (inSuperset && onDissolveSuperset != null) {
-                ExerciseSheetItem(Icons.Outlined.Close, "Dissolve superset", MusFitTheme.colors.onSurface) {
+                ExerciseSheetItem(
+                    Icons.Outlined.Close,
+                    stringResource(R.string.training_dissolve_superset),
+                    MusFitTheme.colors.onSurface,
+                ) {
                     onDissolveSuperset()
                     onDismiss()
                 }
             }
-            ExerciseSheetItem(Icons.Outlined.Delete, "Remove exercise", MusFitTheme.colors.warning) {
+            ExerciseSheetItem(
+                Icons.Outlined.Delete,
+                stringResource(R.string.training_remove_exercise),
+                MusFitTheme.colors.warning,
+            ) {
                 onRemove()
                 onDismiss()
             }
@@ -1428,7 +1504,7 @@ private fun ReplaceExercisePickerSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MusFitTheme.colors.surface) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
             Text(
-                "Replace exercise",
+                stringResource(R.string.training_replace_exercise),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
                 color = MusFitTheme.colors.onSurface,
@@ -1437,7 +1513,7 @@ private fun ReplaceExercisePickerSheet(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Search exercises") },
+                label = { Text(stringResource(R.string.training_search_exercises)) },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 singleLine = true,
                 shape = MusFitTheme.shapes.medium,
@@ -1496,6 +1572,7 @@ private fun CompactRpeField(
     onValueChange: (String) -> Unit,
     modifier: Modifier,
 ) {
+    val rpeDescription = stringResource(R.string.training_rpe)
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -1507,7 +1584,7 @@ private fun CompactRpeField(
         ),
         modifier = modifier
             .heightIn(min = 48.dp)
-            .semantics { contentDescription = "RPE" },
+            .semantics { contentDescription = rpeDescription },
         decorationBox = { innerTextField ->
             Box(
                 modifier = Modifier
@@ -1520,7 +1597,7 @@ private fun CompactRpeField(
             ) {
                 if (value.isBlank()) {
                     Text(
-                        "RPE",
+                        stringResource(R.string.training_rpe),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -1539,6 +1616,7 @@ private fun CompactNotesField(
     onValueChange: (String) -> Unit,
     modifier: Modifier,
 ) {
+    val notesDescription = stringResource(R.string.training_set_notes)
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -1546,7 +1624,7 @@ private fun CompactNotesField(
         textStyle = MaterialTheme.typography.bodyMedium.copy(color = MusFitTheme.colors.onSurface),
         modifier = modifier
             .heightIn(min = 48.dp)
-            .semantics { contentDescription = "Set notes" },
+            .semantics { contentDescription = notesDescription },
         decorationBox = { innerTextField ->
             Box(
                 modifier = Modifier
@@ -1559,7 +1637,7 @@ private fun CompactNotesField(
             ) {
                 if (value.isBlank()) {
                     Text(
-                        "Add notes here...",
+                        stringResource(R.string.training_add_notes_here),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         modifier = Modifier.clearAndSetSemantics { },
@@ -1589,7 +1667,7 @@ internal fun formatWorkoutSetRowsForDisplay(
 ): List<WorkoutSetRowDisplay> {
     var workingSetNumber = 0
     return sets.map { set ->
-        val normalizedSetType = set.setType.lowercase(Locale.US)
+        val normalizedSetType = set.setType.lowercase(Locale.ROOT)
         val isWarmup = normalizedSetType == SET_TYPE_WARMUP || normalizedSetType == "warm-up"
         val isDropSet = normalizedSetType == SET_TYPE_DROP
         val isFailureSet = normalizedSetType == SET_TYPE_FAILURE
@@ -1643,25 +1721,42 @@ internal fun activeWorkoutStatLine(
     totalVolumeKg: Double,
     completedSetCount: Int,
     totalSetCount: Int,
-): String {
-    val parts = mutableListOf(
-        elapsedSeconds.toElapsedClock(),
-        "${totalVolumeKg.formatKg()} kg",
+): UiText {
+    val parts = mutableListOf<UiText>(
+        UiText.Verbatim(elapsedSeconds.toElapsedClock()),
+        uiText(
+            R.string.training_kilograms,
+            UiText.Argument.Text(totalVolumeKg.formatKg()),
+        ),
     )
     if (totalSetCount > 0) {
-        parts += "set ${(completedSetCount + 1).coerceAtMost(totalSetCount)} of $totalSetCount"
+        parts += uiText(
+            R.string.training_set_position,
+            UiText.Argument.Integer((completedSetCount + 1).coerceAtMost(totalSetCount)),
+            UiText.Argument.Integer(totalSetCount),
+        )
     }
-    return parts.joinToString(" · ")
+    return parts.joinedWithMiddleDot()
 }
 
 /** Up-next trailing target: "3 × 8" from the planned sets, or a plain set count. */
-internal fun upNextTarget(block: WorkoutExerciseBlock): String {
+internal fun upNextTarget(block: WorkoutExerciseBlock): UiText {
     val setCount = block.sets.size
     val reps = block.targetReps?.trim()?.takeIf(String::isNotBlank)
     return when {
-        setCount == 0 -> "no sets"
-        reps != null -> "$setCount × $reps"
-        else -> "$setCount ${if (setCount == 1) "set" else "sets"}"
+        setCount == 0 -> uiText(R.string.training_no_sets)
+
+        reps != null -> uiText(
+            R.string.training_sets_by_reps,
+            UiText.Argument.Integer(setCount),
+            UiText.Argument.Text(reps),
+        )
+
+        else -> pluralUiText(
+            R.plurals.training_set_count,
+            setCount,
+            UiText.Argument.Integer(setCount),
+        )
     }
 }
 
@@ -1710,21 +1805,31 @@ internal fun plateSummary(
     block: WorkoutExerciseBlock,
     barWeightKg: Double,
     availablePlatesKg: List<Double>,
-): String? {
-    val weight = block.sets.lastOrNull { (it.weightKg ?: 0.0) > 0.0 }?.weightKg ?: return null
-    val plates = PlateCalculator.platesPerSide(weight, barWeightKg, availablePlatesKg)
-    if (plates.isEmpty()) return null
-    return "Plates ${plates.joinToString(" + ") { it.formatPlate() }}"
+): UiText? {
+    val plates = block.sets
+        .lastOrNull { (it.weightKg ?: 0.0) > 0.0 }
+        ?.weightKg
+        ?.let { weight -> PlateCalculator.platesPerSide(weight, barWeightKg, availablePlatesKg) }
+        .orEmpty()
+    return plates.takeIf(List<Double>::isNotEmpty)?.let { available ->
+        uiText(
+            R.string.training_plates,
+            UiText.Argument.Text(available.joinToString(" + ") { it.formatPlate() }),
+        )
+    }
 }
 
 internal fun plateLineText(
     weightKg: Double,
     barWeightKg: Double,
     availablePlatesKg: List<Double>,
-): String? {
+): UiText? {
     val plates = PlateCalculator.platesPerSide(weightKg, barWeightKg, availablePlatesKg)
     if (plates.isEmpty()) return null
-    return "Plates · ${plates.joinToString(" + ") { it.formatPlate() }} / side"
+    return uiText(
+        R.string.training_plates_per_side,
+        UiText.Argument.Text(plates.joinToString(" + ") { it.formatPlate() }),
+    )
 }
 
 internal fun compactExerciseSuggestions(
@@ -1749,48 +1854,70 @@ internal fun compactExerciseSuggestions(
     return filtered.take(limit)
 }
 
-internal fun restTimerSettingsSummaryText(restTimerDefaultSecondsInput: String): String {
+internal fun restTimerSettingsSummaryText(restTimerDefaultSecondsInput: String): UiText {
     val seconds = restTimerDefaultSecondsInput.trim().takeIf(String::isNotBlank)
     return if (seconds == null) {
-        "Set rest after each completed set"
+        uiText(R.string.training_rest_after_each_set_default)
     } else {
-        "$seconds sec after each completed set"
+        uiText(
+            R.string.training_rest_after_each_set_value,
+            UiText.Argument.Text(seconds),
+        )
     }
 }
 
-internal fun restTimerDisplayText(restTimer: RestTimerState): String = when {
-    !restTimer.isVisible || restTimer.remainingSeconds <= 0 -> "Rest Timer: OFF"
-    restTimer.isRunning -> "Rest Timer: ${restTimer.remainingSeconds.formatDuration()}"
-    else -> "Rest Timer: Paused at ${restTimer.remainingSeconds.formatDuration()}"
+internal fun restTimerDisplayText(restTimer: RestTimerState): UiText = when {
+    !restTimer.isVisible || restTimer.remainingSeconds <= 0 -> uiText(R.string.training_rest_timer_off)
+
+    restTimer.isRunning -> uiText(
+        R.string.training_rest_timer_running,
+        UiText.Argument.Nested(restTimer.remainingSeconds.formatDuration()),
+    )
+
+    else -> uiText(
+        R.string.training_rest_timer_paused,
+        UiText.Argument.Nested(restTimer.remainingSeconds.formatDuration()),
+    )
 }
 
-internal fun restTimerRemainingContentDescription(remainingSeconds: Int): String = "Rest timer ${remainingSeconds.coerceAtLeast(0)} seconds remaining"
+internal fun restTimerRemainingContentDescription(remainingSeconds: Int): UiText {
+    val safeSeconds = remainingSeconds.coerceAtLeast(0)
+    return pluralUiText(
+        R.plurals.training_rest_seconds_remaining,
+        safeSeconds,
+        UiText.Argument.Integer(safeSeconds),
+    )
+}
 
 private fun Double?.formatCompact(): String = when {
     this == null -> ""
-    this % 1.0 == 0.0 -> toInt().toString()
-    else -> String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
+    else -> LocalizedFormatter.number(this, grouping = false)
 }
 
-private fun Double.formatPlate(): String = if (this % 1.0 == 0.0) {
-    toInt().toString()
-} else {
-    String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
-}
+private fun Double.formatPlate(): String = LocalizedFormatter.number(this, grouping = false)
 
 private fun Int.toMinSec(): String {
     val minutes = this / 60
     val seconds = this % 60
-    return String.format(Locale.US, "%d:%02d", minutes, seconds)
+    return String.format(Locale.getDefault(), "%d:%02d", minutes, seconds)
 }
 
-private fun Int.formatDuration(): String {
+private fun Int.formatDuration(): UiText {
     val minutes = this / 60
     val seconds = this % 60
     return if (minutes > 0) {
-        "${minutes}min ${seconds}s"
+        pluralUiText(
+            R.plurals.training_duration_minutes_seconds,
+            minutes,
+            UiText.Argument.Integer(minutes),
+            UiText.Argument.Integer(seconds),
+        )
     } else {
-        "${seconds}s"
+        pluralUiText(
+            R.plurals.training_duration_seconds,
+            seconds,
+            UiText.Argument.Integer(seconds),
+        )
     }
 }
 
@@ -1799,25 +1926,15 @@ private fun Long.toElapsedClock(): String {
     val minutes = (this % 3600) / 60
     val seconds = this % 60
     return if (hours > 0) {
-        String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+        String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
     } else {
-        String.format(Locale.US, "%d:%02d", minutes, seconds)
+        String.format(Locale.getDefault(), "%d:%02d", minutes, seconds)
     }
 }
 
-private fun Double.formatKg(): String = if (this % 1.0 == 0.0) {
-    toInt().toString()
-} else {
-    String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
-}
+private fun Double.formatKg(): String = LocalizedFormatter.number(this, grouping = false)
 
 private const val SET_TYPE_WARMUP = "warmup"
 private const val SET_TYPE_WORKING = "working"
 private const val SET_TYPE_DROP = "drop"
 private const val SET_TYPE_FAILURE = "failure"
-private val SET_TYPE_OPTIONS = listOf(
-    SET_TYPE_WARMUP to "Warmup",
-    SET_TYPE_WORKING to "Working",
-    SET_TYPE_DROP to "Drop set",
-    SET_TYPE_FAILURE to "Failure",
-)

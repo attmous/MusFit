@@ -19,18 +19,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -57,17 +48,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.musfit.feature.food.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
 import com.musfit.ui.components.topGroupShape
-import com.musfit.ui.theme.BrandCoral
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.NeutralOutline
 import com.musfit.ui.theme.NeutralOutlineDark
 import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
+import com.musfit.core.designsystem.R as DesignR
 
 // Shared Food-package building blocks for the Turn 9 inner-screen restyle:
 // sheet chrome, chips, mode row, and the dense grouped list row.
@@ -82,6 +75,7 @@ internal fun FoodSheetHeader(
     leading: (@Composable () -> Unit)? = null,
     chip: (@Composable () -> Unit)? = null,
 ) {
+    val closeLabel = stringResource(DesignR.string.common_close)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -111,10 +105,10 @@ internal fun FoodSheetHeader(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(48.dp)
-                .semantics { contentDescription = "Close" }
+                .semantics { contentDescription = closeLabel }
                 .clip(CircleShape)
                 .clickable(
-                    onClickLabel = "Close",
+                    onClickLabel = closeLabel,
                     role = Role.Button,
                     onClick = onClose,
                 ),
@@ -162,7 +156,7 @@ internal fun MealTargetChip(
                 )
                 Icon(
                     Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = "Change meal",
+                    contentDescription = stringResource(R.string.food_change_meal),
                     modifier = Modifier.size(17.dp),
                 )
             }
@@ -170,7 +164,7 @@ internal fun MealTargetChip(
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             meals.forEach { meal ->
                 DropdownMenuItem(
-                    text = { Text(meal.title) },
+                    text = { Text(meal.titleText.asString()) },
                     onClick = {
                         expanded = false
                         onMealSelected(meal.id)
@@ -267,7 +261,7 @@ internal fun KeepAddingPill(
             modifier = Modifier.padding(start = 16.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
         ) {
             Text(
-                text = "Keep adding",
+                text = stringResource(R.string.food_keep_adding),
                 style = MusFitTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W800),
                 color = MusFitTheme.colors.onSurface,
                 maxLines = 1,
@@ -283,92 +277,6 @@ internal fun KeepAddingPill(
                     uncheckedBorderColor = Color.Transparent,
                 ),
             )
-        }
-    }
-}
-
-private fun addModeLabel(mode: FoodAddMode): String = when (mode) {
-    FoodAddMode.Saved -> "Saved"
-    FoodAddMode.Manual -> "Manual"
-    FoodAddMode.Barcode -> "Barcode"
-    FoodAddMode.Quick -> "Quick"
-    FoodAddMode.Ai -> "AI"
-}
-
-// Filled icon on the selected brand tile, outlined on unselected white tiles.
-private fun addModeIcon(mode: FoodAddMode, selected: Boolean): ImageVector = when (mode) {
-    FoodAddMode.Saved -> if (selected) Icons.Filled.Bookmark else Icons.Outlined.Bookmark
-    FoodAddMode.Manual -> if (selected) Icons.Filled.EditNote else Icons.Outlined.EditNote
-    FoodAddMode.Barcode -> if (selected) Icons.Filled.QrCodeScanner else Icons.Outlined.QrCodeScanner
-    FoodAddMode.Quick -> if (selected) Icons.Filled.Bolt else Icons.Outlined.Bolt
-    FoodAddMode.Ai -> if (selected) Icons.Filled.AutoAwesome else Icons.Outlined.AutoAwesome
-}
-
-/**
- * The 5-mode entry row (9b): equal 52dp tiles + 11sp labels. The row's top
- * outer corners are 22dp, every other corner 8dp (positional, per the kit);
- * fills/inks morph with the effects spring on selection.
- */
-@Composable
-internal fun FoodAddModeRow(
-    selected: FoodAddMode,
-    onSelect: (FoodAddMode) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val accent = tabAccentFor(TabAccentRole.Food)
-    val modes = FoodAddMode.entries
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        modes.forEachIndexed { index, mode ->
-            val isSelected = mode == selected
-            val container by animateColorAsState(
-                targetValue = if (isSelected) MusFitTheme.colors.brand else MusFitTheme.colors.surface,
-                animationSpec = MusFitMotion.effects(),
-                label = "modeTileFill",
-            )
-            val iconTint by animateColorAsState(
-                targetValue = when {
-                    isSelected -> MusFitTheme.colors.onBrand
-                    mode == FoodAddMode.Ai -> BrandCoral
-                    else -> MusFitTheme.colors.onSurfaceVariant
-                },
-                animationSpec = MusFitMotion.effects(),
-                label = "modeTileIcon",
-            )
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.weight(1f),
-            ) {
-                Surface(
-                    onClick = { onSelect(mode) },
-                    color = container,
-                    shape = topGroupShape(index, modes.size, outer = 22.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            addModeIcon(mode, isSelected),
-                            contentDescription = addModeLabel(mode),
-                            tint = iconTint,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                }
-                Text(
-                    text = addModeLabel(mode),
-                    style = MusFitTheme.typography.labelSmall.copy(
-                        fontWeight = if (isSelected) FontWeight.W800 else FontWeight.W500,
-                        letterSpacing = 0.sp,
-                    ),
-                    color = if (isSelected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
         }
     }
 }

@@ -28,10 +28,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BreakfastDining
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DinnerDining
 import androidx.compose.material.icons.filled.Icecream
 import androidx.compose.material.icons.filled.LocalDining
@@ -81,6 +81,9 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -96,6 +99,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.musfit.data.repository.FoodGoalMode
+import com.musfit.feature.food.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.HeroNumberMediumStyle
@@ -109,11 +113,16 @@ import com.musfit.ui.components.TonalIconSquare
 import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
+import java.time.format.FormatStyle
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -518,16 +527,16 @@ internal fun DiscardRecipeChangesDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Discard recipe changes?") },
-        text = { Text("Your unsaved recipe edits will be lost.") },
+        title = { Text(stringResource(R.string.food_discard_recipe_changes)) },
+        text = { Text(stringResource(R.string.food_unsaved_recipe_edits)) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Discard changes")
+                Text(stringResource(R.string.food_discard_changes))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Keep editing")
+                Text(stringResource(R.string.food_keep_editing))
             }
         },
     )
@@ -576,6 +585,10 @@ private fun FoodProjectedSurface(
         return
     }
     val selectedMealDetail = state.selectedMealDetailForDisplay()
+    val selectedMealTemplateName = stringResource(R.string.food_template_name, state.selectedMealTitleText.asString())
+    val selectedMealDetailTemplateName = selectedMealDetail?.let { meal ->
+        stringResource(R.string.food_template_name, meal.titleText.asString())
+    }
     val isRecipeFullScreen =
         state.isAddPanelVisible &&
             (state.sheetMode == FoodSheetMode.RecipeBrowser || state.sheetMode == FoodSheetMode.RecipeEditor)
@@ -719,7 +732,9 @@ private fun FoodProjectedSurface(
                     navigation.open(FoodGoalEditorNavKey)
                 },
                 onCopyYesterday = viewModel::copySelectedMealFromYesterday,
-                onSaveTemplate = { viewModel.saveSelectedMealAsTemplate("${state.selectedMealTitle} template") },
+                onSaveTemplate = {
+                    viewModel.saveSelectedMealAsTemplate(selectedMealTemplateName)
+                },
                 onScanLabel = onLabelScanClick,
                 onProductNameChanged = viewModel::onProductNameChanged,
                 onBrandChanged = viewModel::onBrandChanged,
@@ -740,27 +755,33 @@ private fun FoodProjectedSurface(
             MealDetailScreen(
                 meal = selectedMealDetail,
                 sortMode = state.mealDetailSortMode,
-                selectedDate = state.selectedDate,
-                dayCalorieBudgetKcal = state.effectiveCalorieBudgetKcal,
-                message = state.message,
-                canUndoDelete = state.lastDeletedDiaryEntry != null,
-                onBackClick = navigation.back,
-                onAddFoodClick = {
-                    viewModel.openAddFoodFromMealDetail()
-                    navigation.open(FoodAddNavKey(state.selectedMealDetailId.orEmpty()))
-                },
-                onCopyYesterdayClick = viewModel::copySelectedMealFromYesterday,
-                onSaveTemplateClick = { viewModel.saveSelectedMealAsTemplate("${selectedMealDetail.title} template") },
-                onMealSettingsClick = {
-                    viewModel.openMealSettings()
-                    navigation.open(FoodMealSettingsNavKey)
-                },
-                onSortModeChanged = viewModel::onMealDetailSortChanged,
-                onEntryClick = { entryId ->
-                    viewModel.openDiaryEntryEditor(entryId)
-                    navigation.open(FoodDiaryEntryEditorNavKey(entryId))
-                },
-                onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
+                presentation = MealDetailPresentation(
+                    selectedDate = state.selectedDate,
+                    dayCalorieBudgetKcal = state.effectiveCalorieBudgetKcal,
+                    message = state.message,
+                    canUndoDelete = state.lastDeletedDiaryEntry != null,
+                ),
+                actions = MealDetailActions(
+                    onBackClick = navigation.back,
+                    onAddFoodClick = {
+                        viewModel.openAddFoodFromMealDetail()
+                        navigation.open(FoodAddNavKey(state.selectedMealDetailId.orEmpty()))
+                    },
+                    onCopyYesterdayClick = viewModel::copySelectedMealFromYesterday,
+                    onSaveTemplateClick = {
+                        viewModel.saveSelectedMealAsTemplate(selectedMealDetailTemplateName.orEmpty())
+                    },
+                    onMealSettingsClick = {
+                        viewModel.openMealSettings()
+                        navigation.open(FoodMealSettingsNavKey)
+                    },
+                    onSortModeChanged = viewModel::onMealDetailSortChanged,
+                    onEntryClick = { entryId ->
+                        viewModel.openDiaryEntryEditor(entryId)
+                        navigation.open(FoodDiaryEntryEditorNavKey(entryId))
+                    },
+                    onUndoDeleteClick = viewModel::undoDeleteDiaryEntry,
+                ),
             )
         }
     }
@@ -1057,7 +1078,7 @@ private fun FoodDiaryHome(
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             MusFitScreenHeader(
-                title = "Food",
+                title = stringResource(R.string.food_title),
                 actions = {
                     FoodDateChip(
                         date = state.selectedDate,
@@ -1182,6 +1203,10 @@ private fun FoodDateChip(
     onTodayClick: () -> Unit,
 ) {
     val accent = tabAccentFor(TabAccentRole.Food)
+    val locale = LocalConfiguration.current.locales[0]
+    val formattedDate = remember(date, locale) {
+        LocalizedFormatter.date(date, FormatStyle.MEDIUM, locale)
+    }
     Surface(
         color = MusFitTheme.colors.surface,
         shape = CircleShape,
@@ -1194,14 +1219,14 @@ private fun FoodDateChip(
         ) {
             IconButton(onClick = onPreviousDayClick, modifier = Modifier.size(48.dp)) {
                 Icon(
-                    Icons.Filled.ChevronLeft,
-                    contentDescription = "Previous day",
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.food_previous_day),
                     tint = MusFitTheme.colors.onSurface,
                     modifier = Modifier.size(18.dp),
                 )
             }
             Text(
-                text = date.format(java.time.format.DateTimeFormatter.ofPattern("EEE · d MMM")),
+                text = formattedDate,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = accent.onContainer,
@@ -1210,7 +1235,7 @@ private fun FoodDateChip(
                     .defaultMinSize(minHeight = 48.dp)
                     .clip(CircleShape)
                     .clickable(
-                        onClickLabel = "Jump to today",
+                        onClickLabel = stringResource(R.string.food_jump_to_today),
                         role = Role.Button,
                         onClick = onTodayClick,
                     )
@@ -1218,8 +1243,8 @@ private fun FoodDateChip(
             )
             IconButton(onClick = onNextDayClick, modifier = Modifier.size(48.dp)) {
                 Icon(
-                    Icons.Filled.ChevronRight,
-                    contentDescription = "Next day",
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = stringResource(R.string.food_next_day),
                     tint = MusFitTheme.colors.onSurface,
                     modifier = Modifier.size(18.dp),
                 )
@@ -1246,6 +1271,17 @@ private fun FoodWaterRow(
 ) {
     val waterColor = MusFitTheme.colors.water
     val emptyColor = MusFitTheme.colors.waterFill
+    val consumedLiters = LocalizedFormatter.number(
+        consumedMilliliters / 1000.0,
+        minimumFractionDigits = 1,
+        maximumFractionDigits = 1,
+    )
+    val goalLiters = LocalizedFormatter.number(
+        goalMilliliters / 1000.0,
+        minimumFractionDigits = 1,
+        maximumFractionDigits = 1,
+    )
+    val waterProgress = stringResource(R.string.food_water_liters_progress, consumedLiters, goalLiters)
     // Each segment is one 250 ml glass (so the "+" fills exactly one).
     val segmentCount = (goalMilliliters / WATER_QUICK_ADD_MILLILITERS).roundToInt().coerceIn(1, 12)
     val filledSegments = (consumedMilliliters / WATER_QUICK_ADD_MILLILITERS).roundToInt().coerceIn(0, segmentCount)
@@ -1276,24 +1312,14 @@ private fun FoodWaterRow(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Water",
+                        text = stringResource(R.string.food_water),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MusFitTheme.colors.onSurface,
                         maxLines = 1,
                     )
                     Text(
-                        text = buildAnnotatedString {
-                            withStyle(
-                                SpanStyle(
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MusFitTheme.colors.onSurface,
-                                ),
-                            ) {
-                                append("%.1f".format(consumedMilliliters / 1000.0))
-                            }
-                            append(" / %.1f L".format(goalMilliliters / 1000.0))
-                        },
+                        text = waterProgress,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Medium,
                         color = MusFitTheme.colors.onSurfaceVariant,
@@ -1323,7 +1349,7 @@ private fun FoodWaterRow(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Filled.Add,
-                        contentDescription = "Add water",
+                        contentDescription = stringResource(R.string.food_add_water),
                         tint = waterColor,
                         modifier = Modifier.size(20.dp),
                     )
@@ -1349,16 +1375,21 @@ private fun waterSegmentShape(index: Int, count: Int, filledCount: Int): Rounded
     return RoundedCornerShape(topStart = left, bottomStart = left, topEnd = right, bottomEnd = right)
 }
 
-internal val FoodUiState.foodEntryActionVerb: String
-    get() = if (isPlanningMode) "Plan" else "Log"
+@Composable
+internal fun FoodUiState.foodEntryActionVerb(): String = stringResource(if (isPlanningMode) R.string.food_plan else R.string.food_log)
 
-internal val FoodUiState.foodEntryActionProgressLabel: String
-    get() = if (isPlanningMode) "Planning" else "Logging"
+@Composable
+internal fun FoodUiState.foodEntryActionProgressLabel(): String = stringResource(if (isPlanningMode) R.string.food_planning else R.string.food_logging)
 
-internal fun FoodUiState.foodEntryActionLabel(target: String): String = "$foodEntryActionVerb $target"
+@Composable
+internal fun FoodUiState.foodEntryActionLabel(@androidx.annotation.StringRes targetResourceId: Int): String = stringResource(
+    R.string.food_action_target,
+    foodEntryActionVerb(),
+    stringResource(targetResourceId),
+)
 
-internal val FoodUiState.saveAndFoodEntryActionLabel: String
-    get() = if (isPlanningMode) "Save and plan" else "Save and log"
+@Composable
+internal fun FoodUiState.saveAndFoodEntryActionLabel(): String = stringResource(if (isPlanningMode) R.string.food_save_and_plan else R.string.food_save_and_log)
 
 @Composable
 @Suppress("LongParameterList")
@@ -1376,43 +1407,47 @@ private fun FoodDiaryOverflowAction(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     IconButton(onClick = { menuOpen = true }) {
-        Icon(Icons.Filled.MoreVert, contentDescription = "More actions", tint = MusFitTheme.colors.onSurfaceVariant)
+        Icon(
+            Icons.Filled.MoreVert,
+            contentDescription = stringResource(R.string.food_more_actions),
+            tint = MusFitTheme.colors.onSurfaceVariant,
+        )
     }
     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-        DropdownMenuItem(text = { Text("Recipes") }, onClick = {
+        DropdownMenuItem(text = { Text(stringResource(R.string.food_recipes)) }, onClick = {
             menuOpen = false
             onRecipesClick()
         })
-        DropdownMenuItem(text = { Text("Goals") }, onClick = {
+        DropdownMenuItem(text = { Text(stringResource(R.string.food_goals)) }, onClick = {
             menuOpen = false
             onGoalClick()
         })
-        DropdownMenuItem(text = { Text("Meals") }, onClick = {
+        DropdownMenuItem(text = { Text(stringResource(R.string.food_meals)) }, onClick = {
             menuOpen = false
             onMealsClick()
         })
-        DropdownMenuItem(text = { Text("Templates") }, onClick = {
+        DropdownMenuItem(text = { Text(stringResource(R.string.food_templates)) }, onClick = {
             menuOpen = false
             onTemplatesClick()
         })
-        DropdownMenuItem(text = { Text("Shopping list") }, onClick = {
+        DropdownMenuItem(text = { Text(stringResource(R.string.food_shopping_list)) }, onClick = {
             menuOpen = false
             onShoppingClick()
         })
-        DropdownMenuItem(text = { Text("Fasting") }, onClick = {
+        DropdownMenuItem(text = { Text(stringResource(R.string.food_fasting)) }, onClick = {
             menuOpen = false
             onFastingClick()
         })
-        DropdownMenuItem(text = { Text("Health Connect") }, onClick = {
+        DropdownMenuItem(text = { Text(stringResource(R.string.food_health_connect)) }, onClick = {
             menuOpen = false
             onHealthConnectClick()
         })
-        DropdownMenuItem(text = { Text("Food database") }, onClick = {
+        DropdownMenuItem(text = { Text(stringResource(R.string.food_database)) }, onClick = {
             menuOpen = false
             onFoodDatabaseClick()
         })
         DropdownMenuItem(
-            text = { Text("Copy day to tomorrow") },
+            text = { Text(stringResource(R.string.food_copy_day_to_tomorrow)) },
             enabled = !isSaving,
             onClick = {
                 menuOpen = false
@@ -1455,13 +1490,13 @@ private fun FoodDiarySummaryCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 GaugeFooterStat(
-                    figure = state.eatenCaloriesKcal.roundToInt().toString(),
-                    label = "eaten",
+                    figure = LocalizedFormatter.integer(state.eatenCaloriesKcal.roundToInt().toLong()),
+                    label = stringResource(R.string.food_eaten),
                     accent = accent,
                 )
                 GaugeFooterStat(
-                    figure = state.calorieGoalKcal.roundToInt().toString(),
-                    label = "goal",
+                    figure = LocalizedFormatter.integer(state.calorieGoalKcal.roundToInt().toLong()),
+                    label = stringResource(R.string.food_goal),
                     accent = accent,
                 )
             }
@@ -1547,13 +1582,13 @@ private fun CalorieGauge(
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = remainingCalories.roundToInt().toString(),
+                text = LocalizedFormatter.integer(remainingCalories.roundToInt().toLong()),
                 style = MaterialTheme.typography.displayMedium,
                 color = accent.onContainer,
                 maxLines = 1,
             )
             Text(
-                text = "kcal left",
+                text = stringResource(R.string.food_kcal_left),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = accent.onContainerVariant,
@@ -1601,14 +1636,18 @@ private fun MacroProgressColumn(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = macro.label,
+                text = macro.labelText.asString(),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = MusFitTheme.colors.onSurface,
                 maxLines = 1,
             )
             Text(
-                text = "${macro.currentGrams.roundToInt()}/${macro.goalGrams.roundToInt()}",
+                text = stringResource(
+                    R.string.food_macro_progress,
+                    LocalizedFormatter.integer(macro.currentGrams.roundToInt().toLong()),
+                    LocalizedFormatter.integer(macro.goalGrams.roundToInt().toLong()),
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
                 color = MusFitTheme.colors.onSurfaceVariant,
@@ -1645,13 +1684,13 @@ private fun DayRatingCard(rating: FoodRatingUiState) {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Day rating",
+                        text = stringResource(R.string.food_day_rating),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MusFitTheme.colors.brandInk,
                     )
                     Text(
-                        text = rating.reason,
+                        text = rating.reason.asString(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         maxLines = 2,
@@ -1661,7 +1700,7 @@ private fun DayRatingCard(rating: FoodRatingUiState) {
                 RatingPill(rating)
             }
             Text(
-                text = rating.suggestion,
+                text = rating.suggestion.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = accent,
                 maxLines = 1,
@@ -1706,7 +1745,7 @@ private fun RatingFactorRow(factor: FoodRatingFactorUiState) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = factor.label,
+                    text = factor.label.asString(),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MusFitTheme.colors.brandInk,
@@ -1715,7 +1754,7 @@ private fun RatingFactorRow(factor: FoodRatingFactorUiState) {
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = factor.valueLabel,
+                    text = factor.valueLabel.asString(),
                     style = MaterialTheme.typography.labelMedium,
                     color = accent,
                     maxLines = 1,
@@ -1723,7 +1762,7 @@ private fun RatingFactorRow(factor: FoodRatingFactorUiState) {
                 )
             }
             Text(
-                text = factor.explanation,
+                text = factor.explanation.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -1754,13 +1793,17 @@ private fun FoodHabitTrackerSection(habits: List<FoodHabitTrackerUiState>) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Daily habits",
+                    text = stringResource(R.string.food_daily_habits),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MusFitTheme.colors.brandInk,
                 )
                 Text(
-                    text = "${habits.count { it.status == FoodHabitStatus.Complete }} / ${habits.size}",
+                    text = stringResource(
+                        R.string.food_macro_progress,
+                        LocalizedFormatter.integer(habits.count { it.status == FoodHabitStatus.Complete }.toLong()),
+                        LocalizedFormatter.integer(habits.size.toLong()),
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                     color = MusFitTheme.colors.brand,
                     fontWeight = FontWeight.SemiBold,
@@ -1784,7 +1827,7 @@ private fun HabitTrackerRow(habit: FoodHabitTrackerUiState) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = habit.label,
+                    text = habit.label.asString(),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MusFitTheme.colors.brandInk,
@@ -1792,7 +1835,7 @@ private fun HabitTrackerRow(habit: FoodHabitTrackerUiState) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = habit.suggestion,
+                    text = habit.suggestion.asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
@@ -1801,14 +1844,14 @@ private fun HabitTrackerRow(habit: FoodHabitTrackerUiState) {
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = habit.status.label,
+                    text = habit.status.label(),
                     style = MaterialTheme.typography.labelSmall,
                     color = accent,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                 )
                 Text(
-                    text = habit.valueLabel,
+                    text = habit.valueLabel.asString(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
@@ -1827,7 +1870,7 @@ private fun DailyInsightsSection(insights: List<FoodInsightUiState>) {
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "Insights",
+            text = stringResource(R.string.food_insights),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MusFitTheme.colors.brandInk,
@@ -1859,7 +1902,7 @@ private fun DailyInsightCard(insight: FoodInsightUiState) {
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = insight.title,
+                    text = insight.title.asString(),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MusFitTheme.colors.brandInk,
@@ -1867,7 +1910,7 @@ private fun DailyInsightCard(insight: FoodInsightUiState) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = insight.body,
+                    text = insight.body.asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 2,
@@ -1885,7 +1928,7 @@ private fun RatingPill(rating: FoodRatingUiState) {
         shape = RoundedCornerShape(999.dp),
     ) {
         Text(
-            text = rating.label,
+            text = rating.label.asString(),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = rating.tone.ratingColor(),
@@ -1902,13 +1945,14 @@ internal fun FoodInsightTone.ratingColor(): Color = when (this) {
     FoodInsightTone.Neutral -> MusFitTheme.colors.onSurfaceVariant
 }
 
-private val FoodHabitStatus.label: String
-    get() =
-        when (this) {
-            FoodHabitStatus.Complete -> "Done"
-            FoodHabitStatus.InProgress -> "In progress"
-            FoodHabitStatus.Missing -> "Not yet"
-        }
+@Composable
+private fun FoodHabitStatus.label(): String = stringResource(
+    when (this) {
+        FoodHabitStatus.Complete -> R.string.food_status_done
+        FoodHabitStatus.InProgress -> R.string.food_status_in_progress
+        FoodHabitStatus.Missing -> R.string.food_status_not_yet
+    },
+)
 
 @Composable
 private fun AdvancedNutritionProgressRow(nutrients: List<FoodNutrientProgressUiState>) {
@@ -1962,15 +2006,15 @@ private fun AdvancedNutritionProgressListRow(nutrient: FoodNutrientProgressUiSta
         }
     val currentText =
         if (nutrient.unit == "mg") {
-            nutrient.currentValue.roundToInt().toString()
+            LocalizedFormatter.integer(nutrient.currentValue.roundToInt().toLong())
         } else {
-            nutrient.currentValue.formatNutritionDisplay()
+            LocalizedFormatter.number(nutrient.currentValue, maximumFractionDigits = 1)
         }
     val goalText =
         if (nutrient.unit == "mg") {
-            nutrient.goalValue.roundToInt().toString()
+            LocalizedFormatter.integer(nutrient.goalValue.roundToInt().toLong())
         } else {
-            nutrient.goalValue.formatNutritionDisplay()
+            LocalizedFormatter.number(nutrient.goalValue, maximumFractionDigits = 1)
         }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1980,7 +2024,7 @@ private fun AdvancedNutritionProgressListRow(nutrient: FoodNutrientProgressUiSta
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = nutrient.label,
+                text = nutrient.labelText.asString(),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MusFitTheme.colors.brandInk,
@@ -1997,7 +2041,7 @@ private fun AdvancedNutritionProgressListRow(nutrient: FoodNutrientProgressUiSta
                     maxLines = 1,
                 )
                 Text(
-                    text = " / $goalText ${nutrient.unit}",
+                    text = stringResource(R.string.food_nutrient_goal, goalText, nutrient.unit),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
@@ -2028,17 +2072,16 @@ private fun AdvancedNutritionProgressCard(
         }
     val currentText =
         if (nutrient.unit == "mg") {
-            nutrient.currentValue.roundToInt().toString()
+            LocalizedFormatter.integer(nutrient.currentValue.roundToInt().toLong())
         } else {
-            nutrient.currentValue.formatNutritionDisplay()
+            LocalizedFormatter.number(nutrient.currentValue, maximumFractionDigits = 1)
         }
     val goalText =
         if (nutrient.unit == "mg") {
-            nutrient.goalValue.roundToInt().toString()
+            LocalizedFormatter.integer(nutrient.goalValue.roundToInt().toLong())
         } else {
-            nutrient.goalValue.formatNutritionDisplay()
+            LocalizedFormatter.number(nutrient.goalValue, maximumFractionDigits = 1)
         }
-    val separator = if (nutrient.isLimit) "/" else "/"
 
     Surface(
         modifier = modifier.height(82.dp),
@@ -2050,14 +2093,19 @@ private fun AdvancedNutritionProgressCard(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = nutrient.label,
+                text = nutrient.labelText.asString(),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "$currentText$separator$goalText ${nutrient.unit}",
+                text = stringResource(
+                    R.string.food_nutrient_progress,
+                    currentText,
+                    goalText,
+                    nutrient.unit,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -2135,7 +2183,7 @@ private fun MicronutrientStat(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = micronutrient.label,
+            text = micronutrient.labelText.asString(),
             style = MaterialTheme.typography.bodyMedium,
             color = MusFitTheme.colors.onSurfaceVariant,
             maxLines = 1,
@@ -2143,7 +2191,14 @@ private fun MicronutrientStat(
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = "${micronutrient.value.formatMicronutrientDisplay()} ${micronutrient.unit}",
+            text = stringResource(
+                R.string.food_value_with_unit,
+                LocalizedFormatter.number(
+                    micronutrient.value,
+                    maximumFractionDigits = if (micronutrient.value < 10.0) 1 else 0,
+                ),
+                micronutrient.unit,
+            ),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = MusFitTheme.colors.brandInk,
@@ -2159,7 +2214,7 @@ private fun MoreNutritionSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            text = title.uppercase(),
+            text = title.uppercase(LocalConfiguration.current.locales[0]),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = MusFitTheme.colors.onSurfaceVariant,
@@ -2183,14 +2238,21 @@ private fun MicronutrientCard(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = micronutrient.label,
+                text = micronutrient.labelText.asString(),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${micronutrient.value.formatMicronutrientDisplay()} ${micronutrient.unit}",
+                text = stringResource(
+                    R.string.food_value_with_unit,
+                    LocalizedFormatter.number(
+                        micronutrient.value,
+                        maximumFractionDigits = if (micronutrient.value < 10.0) 1 else 0,
+                    ),
+                    micronutrient.unit,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -2209,20 +2271,16 @@ private fun MicronutrientCard(
 private fun MealDetailScreen(
     meal: FoodMealSectionUiState,
     sortMode: MealDetailSortMode,
-    selectedDate: java.time.LocalDate,
-    dayCalorieBudgetKcal: Double,
-    message: String?,
-    canUndoDelete: Boolean,
-    onBackClick: () -> Unit,
-    onAddFoodClick: () -> Unit,
-    onCopyYesterdayClick: () -> Unit,
-    onSaveTemplateClick: () -> Unit,
-    onMealSettingsClick: () -> Unit,
-    onSortModeChanged: (MealDetailSortMode) -> Unit,
-    onEntryClick: (String) -> Unit,
-    onUndoDeleteClick: () -> Unit,
+    presentation: MealDetailPresentation,
+    actions: MealDetailActions,
 ) {
+    val selectedDate = presentation.selectedDate
+    val dayCalorieBudgetKcal = presentation.dayCalorieBudgetKcal
     val accent = tabAccentFor(TabAccentRole.Food)
+    val locale = LocalConfiguration.current.locales[0]
+    val selectedDateLabel = remember(selectedDate, locale) {
+        LocalizedFormatter.date(selectedDate, FormatStyle.MEDIUM, locale)
+    }
     var detailExpanded by rememberSaveable(meal.id) { mutableStateOf(false) }
     val hasDetail = meal.rating?.factors?.isNotEmpty() == true ||
         meal.advancedNutritionProgress.isNotEmpty() ||
@@ -2236,40 +2294,40 @@ private fun MealDetailScreen(
                 .padding(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            val itemsLabel = if (meal.entries.size == 1) "1 item" else "${meal.entries.size} items"
+            val itemsLabel = pluralStringResource(R.plurals.food_item_count, meal.entries.size, meal.entries.size)
             InnerScreenHeader(
-                title = meal.title,
-                onBack = onBackClick,
-                subtitle = "${selectedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM"))} · $itemsLabel",
+                title = meal.titleText.asString(),
+                onBack = actions.onBackClick,
+                subtitle = stringResource(R.string.food_meal_summary, selectedDateLabel, itemsLabel),
                 trailing = {
                     Box {
                         var menuOpen by remember { mutableStateOf(false) }
                         TonalHeaderIconButton(
                             icon = Icons.Outlined.MoreHoriz,
-                            contentDescription = "Meal actions",
+                            contentDescription = stringResource(R.string.food_meal_actions),
                             onClick = { menuOpen = true },
                             modifier = Modifier.size(48.dp),
                         )
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
-                                text = { Text("Copy yesterday") },
+                                text = { Text(stringResource(R.string.food_copy_yesterday)) },
                                 onClick = {
                                     menuOpen = false
-                                    onCopyYesterdayClick()
+                                    actions.onCopyYesterdayClick()
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("Save as template") },
+                                text = { Text(stringResource(R.string.food_save_as_template)) },
                                 onClick = {
                                     menuOpen = false
-                                    onSaveTemplateClick()
+                                    actions.onSaveTemplateClick()
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("Meal settings") },
+                                text = { Text(stringResource(R.string.food_meal_settings)) },
                                 onClick = {
                                     menuOpen = false
-                                    onMealSettingsClick()
+                                    actions.onMealSettingsClick()
                                 },
                             )
                         }
@@ -2278,9 +2336,9 @@ private fun MealDetailScreen(
             )
 
             MessageBanner(
-                message = message,
-                canUndoDelete = canUndoDelete,
-                onUndoDeleteClick = onUndoDeleteClick,
+                message = presentation.message,
+                canUndoDelete = presentation.canUndoDelete,
+                onUndoDeleteClick = actions.onUndoDeleteClick,
             )
 
             MealDetailSummaryHero(
@@ -2305,12 +2363,12 @@ private fun MealDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            text = "No food logged yet",
+                            text = stringResource(R.string.food_no_food_logged),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            text = "Add food to build this meal.",
+                            text = stringResource(R.string.food_add_food_to_meal),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MusFitTheme.colors.onSurfaceVariant,
                         )
@@ -2325,26 +2383,37 @@ private fun MealDetailScreen(
                 ) {
                     MealDetailSortChoices.forEach { choice ->
                         SelectableChip(
-                            text = choice.label,
+                            text = choice.label(),
                             selected = sortMode == choice,
-                            onClick = { onSortModeChanged(choice) },
+                            onClick = { actions.onSortModeChanged(choice) },
                         )
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     meal.entries.forEachIndexed { index, entry ->
-                        val quantityLabel = "${entry.quantityGrams.roundToInt()} g"
+                        val quantityLabel = stringResource(
+                            R.string.food_grams,
+                            entry.quantityGrams.roundToInt(),
+                        )
+                        val carbs = LocalizedFormatter.number(entry.carbsGrams, maximumFractionDigits = 1)
+                        val protein = LocalizedFormatter.number(entry.proteinGrams, maximumFractionDigits = 1)
+                        val fat = LocalizedFormatter.number(entry.fatGrams, maximumFractionDigits = 1)
                         FoodListItemRow(
                             index = index,
                             count = meal.entries.size,
                             title = entry.name,
-                            subtitle = "$quantityLabel · C ${entry.carbsGrams.formatNutritionDisplay()} · " +
-                                "P ${entry.proteinGrams.formatNutritionDisplay()} · F ${entry.fatGrams.formatNutritionDisplay()}",
-                            onClick = { onEntryClick(entry.id) },
+                            subtitle = stringResource(
+                                R.string.food_entry_macros,
+                                quantityLabel,
+                                carbs,
+                                protein,
+                                fat,
+                            ),
+                            onClick = { actions.onEntryClick(entry.id) },
                             imageUrl = entry.imageUrl,
                             fallbackIcon = mealDetailEntryIcon(meal.id, meal.title),
-                            trailingTop = "${entry.caloriesKcal.roundToInt()}",
-                            trailingSub = if (entry.isPlanned) "Planned" else quantityLabel,
+                            trailingTop = LocalizedFormatter.integer(entry.caloriesKcal.roundToInt().toLong()),
+                            trailingSub = if (entry.isPlanned) stringResource(R.string.food_planned) else quantityLabel,
                         )
                     }
                 }
@@ -2360,26 +2429,44 @@ private fun MealDetailScreen(
                 .padding(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 18.dp),
         ) {
             PillButton(
-                text = "Add food",
-                onClick = onAddFoodClick,
+                text = stringResource(R.string.food_add_food),
+                onClick = actions.onAddFoodClick,
                 icon = Icons.Filled.Add,
                 modifier = Modifier.weight(1f),
             )
             TonalIconSquare(
                 icon = Icons.Outlined.ContentCopy,
-                contentDescription = "Copy yesterday's ${meal.title}",
-                onClick = onCopyYesterdayClick,
+                contentDescription = stringResource(R.string.food_copy_yesterdays_meal, meal.titleText.asString()),
+                onClick = actions.onCopyYesterdayClick,
                 containerColor = accent.container,
                 contentColor = accent.onContainer,
             )
             TonalIconSquare(
                 icon = Icons.Outlined.Edit,
-                contentDescription = "Meal settings",
-                onClick = onMealSettingsClick,
+                contentDescription = stringResource(R.string.food_meal_settings),
+                onClick = actions.onMealSettingsClick,
             )
         }
     }
 }
+
+private data class MealDetailPresentation(
+    val selectedDate: java.time.LocalDate,
+    val dayCalorieBudgetKcal: Double,
+    val message: UiText?,
+    val canUndoDelete: Boolean,
+)
+
+private data class MealDetailActions(
+    val onBackClick: () -> Unit,
+    val onAddFoodClick: () -> Unit,
+    val onCopyYesterdayClick: () -> Unit,
+    val onSaveTemplateClick: () -> Unit,
+    val onMealSettingsClick: () -> Unit,
+    val onSortModeChanged: (MealDetailSortMode) -> Unit,
+    val onEntryClick: (String) -> Unit,
+    val onUndoDeleteClick: () -> Unit,
+)
 
 /**
  * The 9a summary hero: kcal on the Food container, a white-glass rating chip
@@ -2415,12 +2502,12 @@ private fun MealDetailSummaryHero(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        text = "${meal.caloriesKcal.roundToInt()}",
+                        text = LocalizedFormatter.integer(meal.caloriesKcal.roundToInt().toLong()),
                         style = HeroNumberMediumStyle,
                         color = accent.onContainer,
                     )
                     Text(
-                        text = "kcal",
+                        text = stringResource(R.string.food_kcal),
                         style = MaterialTheme.typography.labelMedium,
                         color = accent.onContainerVariant,
                         modifier = Modifier.padding(bottom = 5.dp),
@@ -2450,7 +2537,7 @@ private fun MealDetailSummaryHero(
                                 )
                             }
                             Text(
-                                text = rating?.label ?: "More nutrition",
+                                text = rating?.label?.asString() ?: stringResource(R.string.food_more_nutrition),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.W800,
@@ -2465,7 +2552,7 @@ private fun MealDetailSummaryHero(
 
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 MealDetailHeroMacro(
-                    label = meal.carbsLabel,
+                    label = meal.carbsLabelText.asString(),
                     grams = meal.effectiveCarbsGrams,
                     goalGrams = meal.carbsGoalGrams,
                     color = MusFitTheme.colors.macroColors[0],
@@ -2474,7 +2561,7 @@ private fun MealDetailSummaryHero(
                     modifier = Modifier.weight(1f),
                 )
                 MealDetailHeroMacro(
-                    label = "Protein",
+                    label = stringResource(R.string.food_protein),
                     grams = meal.proteinGrams,
                     goalGrams = meal.proteinGoalGrams,
                     color = MusFitTheme.colors.macroColors[1],
@@ -2483,7 +2570,7 @@ private fun MealDetailSummaryHero(
                     modifier = Modifier.weight(1f),
                 )
                 MealDetailHeroMacro(
-                    label = "Fat",
+                    label = stringResource(R.string.food_fat),
                     grams = meal.fatGrams,
                     goalGrams = meal.fatGoalGrams,
                     color = MusFitTheme.colors.macroColors[2],
@@ -2496,7 +2583,11 @@ private fun MealDetailSummaryHero(
             if (dayCalorieBudgetKcal > 0) {
                 val percentOfDay = ((meal.caloriesKcal / dayCalorieBudgetKcal) * 100).roundToInt()
                 Text(
-                    text = "$percentOfDay% of today's ${dayCalorieBudgetKcal.roundToInt()} kcal goal",
+                    text = stringResource(
+                        R.string.food_percent_of_daily_goal,
+                        percentOfDay,
+                        dayCalorieBudgetKcal.roundToInt(),
+                    ),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                     color = accent.onContainerVariant,
                 )
@@ -2531,7 +2622,7 @@ private fun MealDetailHeroMacro(
                 maxLines = 1,
             )
             Text(
-                text = "${grams.roundToInt()} g",
+                text = stringResource(R.string.food_grams, grams.roundToInt()),
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                 color = accent.onContainerVariant,
                 maxLines = 1,
@@ -2558,17 +2649,17 @@ private fun MealDetailDrillDownCard(meal: FoodMealSectionUiState) {
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             meal.rating?.factors?.takeIf { it.isNotEmpty() }?.let {
-                MoreNutritionSection(title = "Rating breakdown") {
+                MoreNutritionSection(title = stringResource(R.string.food_rating_breakdown)) {
                     RatingFactorColumn(it)
                 }
             }
             if (meal.advancedNutritionProgress.isNotEmpty()) {
-                MoreNutritionSection(title = "Nutrients") {
+                MoreNutritionSection(title = stringResource(R.string.food_nutrients)) {
                     AdvancedNutritionProgressColumn(meal.advancedNutritionProgress)
                 }
             }
             if (meal.micronutrients.isNotEmpty()) {
-                MoreNutritionSection(title = "Micronutrients") {
+                MoreNutritionSection(title = stringResource(R.string.food_micronutrients)) {
                     MicronutrientGrid(meal.micronutrients)
                 }
             }
@@ -2579,7 +2670,7 @@ private fun MealDetailDrillDownCard(meal: FoodMealSectionUiState) {
 // Filled badge icon for meal-detail item rows (food badges are always filled;
 // entries carry no per-food icon, so the meal's own icon stands in).
 private fun mealDetailEntryIcon(id: String, title: String): ImageVector {
-    val key = "$id $title".lowercase()
+    val key = "$id $title".lowercase(Locale.ROOT)
     return when {
         "breakfast" in key -> Icons.Filled.BreakfastDining
         "lunch" in key -> Icons.Filled.LunchDining
@@ -2591,7 +2682,7 @@ private fun mealDetailEntryIcon(id: String, title: String): ImageVector {
 
 @Composable
 private fun MessageBanner(
-    message: String?,
+    message: com.musfit.ui.text.UiText?,
     canUndoDelete: Boolean,
     onUndoDeleteClick: () -> Unit,
 ) {
@@ -2609,7 +2700,7 @@ private fun MessageBanner(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = message,
+                text = message.asString(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurface,
                 modifier = Modifier.weight(1f),
@@ -2619,7 +2710,7 @@ private fun MessageBanner(
                     onClick = onUndoDeleteClick,
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                 ) {
-                    Text("Undo")
+                    Text(stringResource(R.string.food_undo))
                 }
             }
         }
@@ -2642,6 +2733,30 @@ private fun MealSummaryRow(
 ) {
     val accent = tabAccentFor(TabAccentRole.Food)
     val summary = meal.mealDiarySummary()
+    val locale = LocalConfiguration.current.locales[0]
+    val summaryPrefix = if (summary.loggedCount > 0) {
+        stringResource(
+            R.string.food_meal_diary_item_prefix,
+            pluralStringResource(R.plurals.food_item_count, summary.loggedCount, summary.loggedCount),
+        )
+    } else {
+        ""
+    }
+    val summaryCalories = summary.caloriesKcal?.let { stringResource(R.string.food_integer_kcal, it) }.orEmpty()
+    val summaryQualifier = when (summary.qualifier) {
+        MealDiaryQualifier.None -> ""
+
+        MealDiaryQualifier.SoFar -> stringResource(R.string.food_meal_diary_so_far)
+
+        MealDiaryQualifier.Planned -> stringResource(R.string.food_meal_diary_planned)
+
+        MealDiaryQualifier.Empty -> stringResource(R.string.food_no_items_yet)
+
+        MealDiaryQualifier.Rating -> stringResource(
+            R.string.food_meal_diary_rating,
+            summary.ratingLabel?.asString()?.lowercase(locale).orEmpty(),
+        )
+    }
     Surface(
         onClick = onMealClick,
         color = MusFitTheme.colors.surface,
@@ -2663,7 +2778,7 @@ private fun MealSummaryRow(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = meal.title,
+                    text = meal.titleText.asString(),
                     style = MaterialTheme.typography.titleLarge,
                     color = MusFitTheme.colors.onSurface,
                     maxLines = 1,
@@ -2671,18 +2786,18 @@ private fun MealSummaryRow(
                 )
                 Text(
                     text = buildAnnotatedString {
-                        append(summary.prefix)
-                        if (summary.kcal.isNotEmpty()) {
+                        append(summaryPrefix)
+                        if (summaryCalories.isNotEmpty()) {
                             withStyle(
                                 SpanStyle(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = accent.onContainer,
                                 ),
                             ) {
-                                append(summary.kcal)
+                                append(summaryCalories)
                             }
                         }
-                        append(summary.qualifier)
+                        append(summaryQualifier)
                     },
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,
@@ -2701,7 +2816,7 @@ private fun MealSummaryRow(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Filled.Add,
-                        contentDescription = "Add to ${meal.title}",
+                        contentDescription = stringResource(R.string.food_add_to_meal, meal.titleText.asString()),
                         modifier = Modifier.size(22.dp),
                     )
                 }
@@ -2710,28 +2825,30 @@ private fun MealSummaryRow(
     }
 }
 
-internal val FoodGoalMode.label: String
-    get() =
-        when (this) {
-            FoodGoalMode.Balanced -> "Balanced"
-            FoodGoalMode.HighProtein -> "High protein"
-            FoodGoalMode.KetoLowCarb -> "Keto low carb"
-            FoodGoalMode.MuscleGain -> "Muscle gain"
-            FoodGoalMode.WeightLoss -> "Weight loss"
-            FoodGoalMode.MediterraneanStyle -> "Mediterranean-style"
-            FoodGoalMode.CleanEating -> "Clean eating"
-            FoodGoalMode.Custom -> "Custom"
-        }
+@Composable
+internal fun FoodGoalMode.label(): String = stringResource(labelResource())
 
-internal val FoodAddMode.label: String
-    get() =
-        when (this) {
-            FoodAddMode.Saved -> "Saved"
-            FoodAddMode.Manual -> "Manual"
-            FoodAddMode.Barcode -> "Barcode"
-            FoodAddMode.Quick -> "Quick"
-            FoodAddMode.Ai -> "AI"
-        }
+internal fun FoodGoalMode.labelResource(): Int = when (this) {
+    FoodGoalMode.Balanced -> R.string.food_goal_mode_balanced
+    FoodGoalMode.HighProtein -> R.string.food_goal_mode_high_protein
+    FoodGoalMode.KetoLowCarb -> R.string.food_goal_mode_keto_low_carb
+    FoodGoalMode.MuscleGain -> R.string.food_goal_mode_muscle_gain
+    FoodGoalMode.WeightLoss -> R.string.food_goal_mode_weight_loss
+    FoodGoalMode.MediterraneanStyle -> R.string.food_goal_mode_mediterranean
+    FoodGoalMode.CleanEating -> R.string.food_goal_mode_clean_eating
+    FoodGoalMode.Custom -> R.string.food_goal_mode_custom
+}
+
+@Composable
+internal fun FoodAddMode.label(): String = stringResource(
+    when (this) {
+        FoodAddMode.Saved -> R.string.food_add_mode_saved
+        FoodAddMode.Manual -> R.string.food_add_mode_manual
+        FoodAddMode.Barcode -> R.string.food_add_mode_barcode
+        FoodAddMode.Quick -> R.string.food_add_mode_quick
+        FoodAddMode.Ai -> R.string.food_add_mode_ai
+    },
+)
 
 private val MealDetailSortChoices =
     listOf(
@@ -2741,11 +2858,12 @@ private val MealDetailSortChoices =
         MealDetailSortMode.Name,
     )
 
-private val MealDetailSortMode.label: String
-    get() =
-        when (this) {
-            MealDetailSortMode.Logged -> "Logged"
-            MealDetailSortMode.Calories -> "Calories"
-            MealDetailSortMode.Protein -> "Protein"
-            MealDetailSortMode.Name -> "Name"
-        }
+@Composable
+private fun MealDetailSortMode.label(): String = stringResource(
+    when (this) {
+        MealDetailSortMode.Logged -> R.string.food_sort_logged
+        MealDetailSortMode.Calories -> R.string.food_sort_calories
+        MealDetailSortMode.Protein -> R.string.food_sort_protein
+        MealDetailSortMode.Name -> R.string.food_sort_name
+    },
+)

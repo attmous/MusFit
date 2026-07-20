@@ -97,6 +97,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -124,6 +127,7 @@ import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.domain.training.RoutineDisplayCalculator
 import com.musfit.feature.training.BuildConfig
+import com.musfit.feature.training.R
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.PillButton
@@ -133,11 +137,17 @@ import com.musfit.ui.components.asShape
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.NeutralOutline
 import com.musfit.ui.theme.NeutralOutlineDark
 import com.musfit.ui.theme.TabAccent
+import java.util.Locale
 import kotlin.math.roundToInt
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 
@@ -194,7 +204,7 @@ fun TrainingHomeContent(
             libraryRoutines?.let { library ->
                 item(key = "routine-library-heading", contentType = "routine-heading") {
                     Text(
-                        text = "Pre-made routines",
+                        text = stringResource(R.string.training_premade_routines),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = MusFitTheme.colors.onSurfaceVariant,
@@ -204,7 +214,7 @@ fun TrainingHomeContent(
                 if (library.isEmpty()) {
                     item(key = "routine-library-empty", contentType = "routine-empty") {
                         Text(
-                            text = "No pre-made routines available.",
+                            text = stringResource(R.string.training_no_premade_routines),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MusFitTheme.colors.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 8.dp),
@@ -289,7 +299,7 @@ private fun TrainingRoutineWorkspaceLazy(
             if (draggedRoutine != null && folders.isNotEmpty()) {
                 item(key = "routine-drag-help", contentType = "routine-help") {
                     Text(
-                        text = "Drop the routine onto a folder to move it, or onto My routines to take it out.",
+                        text = stringResource(R.string.training_drag_routine_help),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = accent.color,
@@ -300,7 +310,7 @@ private fun TrainingRoutineWorkspaceLazy(
             if (groups.isEmpty()) {
                 item(key = "routine-empty", contentType = "routine-empty") {
                     Text(
-                        text = "Create a routine and it will appear here. Add folders to group them, then drag routines in.",
+                        text = stringResource(R.string.training_create_routine_folder_help),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 8.dp),
@@ -313,6 +323,11 @@ private fun TrainingRoutineWorkspaceLazy(
                 val groupKey = group.folderId ?: group.title
                 val isActiveDropTarget = draggedRoutine != null && isDroppable && activeDropTarget == target
                 item(key = "routine-group-$groupKey", contentType = "routine-group") {
+                    val groupTitle = if (group.title == MY_ROUTINES_GROUP_TITLE) {
+                        stringResource(R.string.training_my_routines)
+                    } else {
+                        group.title
+                    }
                     RoutineDropTargetArea(
                         areaId = "routine-group-$groupKey",
                         target = target.takeIf { isDroppable },
@@ -327,7 +342,7 @@ private fun TrainingRoutineWorkspaceLazy(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = group.title,
+                                    text = groupTitle,
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (isActiveDropTarget) accent.color else MusFitTheme.colors.onSurfaceVariant,
@@ -340,7 +355,7 @@ private fun TrainingRoutineWorkspaceLazy(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Outlined.Edit,
-                                            contentDescription = "Edit ${group.title}",
+                                            contentDescription = stringResource(R.string.training_edit_named, groupTitle),
                                             tint = MusFitTheme.colors.onSurfaceVariant,
                                             modifier = Modifier.size(18.dp),
                                         )
@@ -349,7 +364,13 @@ private fun TrainingRoutineWorkspaceLazy(
                             }
                             if (group.routines.isEmpty()) {
                                 Text(
-                                    text = if (isDroppable && draggedRoutine != null) "Drop here to add" else "No routines yet",
+                                    text = stringResource(
+                                        if (isDroppable && draggedRoutine != null) {
+                                            R.string.training_drop_here_to_add
+                                        } else {
+                                            R.string.training_no_routines_yet
+                                        },
+                                    ),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MusFitTheme.colors.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
@@ -490,11 +511,11 @@ private fun TrainingHomePrimaryActions(
         ) {
             Icon(imageVector = Icons.Outlined.Add, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("New routine", color = accent.color, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(stringResource(R.string.training_new_routine), color = accent.color, fontWeight = FontWeight.Medium, maxLines = 1)
         }
         if (!hasActiveWorkout) {
             Text(
-                text = "or",
+                text = stringResource(R.string.training_or),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -502,7 +523,7 @@ private fun TrainingHomePrimaryActions(
                 onClick = onStartBlankWorkout,
                 modifier = Modifier.heightIn(min = 48.dp),
             ) {
-                Text("empty workout", color = accent.color, fontWeight = FontWeight.Medium, maxLines = 1)
+                Text(stringResource(R.string.training_empty_workout), color = accent.color, fontWeight = FontWeight.Medium, maxLines = 1)
             }
         }
     }
@@ -529,7 +550,7 @@ private fun RoutineOrganizeActions(
         ) {
             Icon(imageVector = Icons.Outlined.Add, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("New folder", color = accent.color, fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.training_new_folder), color = accent.color, fontWeight = FontWeight.Medium)
         }
         Spacer(modifier = Modifier.weight(1f))
         if (showLibraryLink) {
@@ -539,7 +560,7 @@ private fun RoutineOrganizeActions(
             ) {
                 Icon(imageVector = Icons.Outlined.FitnessCenter, contentDescription = null, tint = accent.color, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Browse library", color = accent.color, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.training_browse_library), color = accent.color, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -566,10 +587,11 @@ private fun RoutineRow(
     enableMoveControls: Boolean = folders.isNotEmpty(),
 ) {
     val estimatedMinutes = RoutineDisplayCalculator.estimatedMinutes(routine.targetSetCount)
-    val meta = buildString {
-        append("${routine.exerciseCount} exercises · ${routine.targetSetCount} sets")
-        if (estimatedMinutes > 0) append(" · ~$estimatedMinutes min")
-    }
+    val meta = listOfNotNull(
+        pluralStringResource(R.plurals.training_exercise_count, routine.exerciseCount, routine.exerciseCount),
+        pluralStringResource(R.plurals.training_set_count, routine.targetSetCount, routine.targetSetCount),
+        estimatedMinutes.takeIf { it > 0 }?.let { stringResource(R.string.training_approx_minutes, it) },
+    ).joinToString(" · ")
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -603,7 +625,7 @@ private fun RoutineRow(
             )
             routineDescription(routine)?.let { description ->
                 Text(
-                    description,
+                    description.asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -626,7 +648,7 @@ private fun RoutineRow(
         IconButton(onClick = onStart, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = Icons.Filled.PlayCircle,
-                contentDescription = "Start ${routine.name}",
+                contentDescription = stringResource(R.string.training_start_named, routine.name),
                 tint = accent.color,
                 modifier = Modifier.size(26.dp),
             )
@@ -645,7 +667,7 @@ private fun RoutineLeadingIcon(name: String) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = name.firstOrNull()?.uppercase() ?: "?",
+            text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
             style = MaterialTheme.typography.titleSmall,
             color = MusFitTheme.colors.onSurface,
         )
@@ -665,14 +687,15 @@ private fun RoutineMoveMenu(
         IconButton(onClick = { open = true }) {
             Icon(
                 imageVector = Icons.Outlined.KeyboardArrowDown,
-                contentDescription = "Move $routineName",
+                contentDescription = stringResource(R.string.training_move_named, routineName),
                 tint = MusFitTheme.colors.onSurfaceVariant,
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             routineFolderMoveTargets(folders).forEach { target ->
+                val targetLabel = if (target.folderId == null) stringResource(R.string.training_my_routines) else target.label
                 DropdownMenuItem(
-                    text = { Text(target.label) },
+                    text = { Text(targetLabel) },
                     leadingIcon = if (target.folderId == selectedFolderId) {
                         {
                             Icon(
@@ -800,10 +823,11 @@ fun RoutineDetailContent(
         limit = 4,
     )
     val actions = routineCardActions(detail.isStarter)
-    val meta = buildString {
-        append("${detail.exercises.size} exercises · $totalSets sets")
-        if (estimatedMinutes > 0) append(" · ~$estimatedMinutes min")
-    }
+    val meta = listOfNotNull(
+        pluralStringResource(R.plurals.training_exercise_count, detail.exercises.size, detail.exercises.size),
+        pluralStringResource(R.plurals.training_set_count, totalSets, totalSets),
+        estimatedMinutes.takeIf { it > 0 }?.let { stringResource(R.string.training_approx_minutes, it) },
+    ).joinToString(" · ")
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -813,7 +837,7 @@ fun RoutineDetailContent(
             if (showBackAction) {
                 TonalHeaderIconButton(
                     icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                    contentDescription = "Back",
+                    contentDescription = stringResource(R.string.training_back),
                     onClick = onClose,
                 )
             }
@@ -830,7 +854,7 @@ fun RoutineDetailContent(
             ) {
                 Icon(imageVector = Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Start")
+                Text(stringResource(R.string.training_start))
             }
         }
         Text(meta, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.onSurfaceVariant)
@@ -849,7 +873,7 @@ fun RoutineDetailContent(
         }
         if (detail.exercises.isEmpty()) {
             Text(
-                "This routine has no exercises yet.",
+                stringResource(R.string.training_routine_has_no_exercises),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -882,17 +906,17 @@ fun RoutineDetailContent(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (ROUTINE_ACTION_EDIT in actions) {
                 TextButton(onClick = onEdit, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
-                    Text("Edit")
+                    Text(stringResource(R.string.training_edit))
                 }
             }
             if (ROUTINE_ACTION_DUPLICATE in actions) {
                 TextButton(onClick = onDuplicate, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
-                    Text("Duplicate")
+                    Text(stringResource(R.string.training_duplicate))
                 }
             }
             if (ROUTINE_ACTION_DELETE in actions) {
                 TextButton(onClick = onDelete, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                    Text("Delete")
+                    Text(stringResource(R.string.training_delete))
                 }
             }
         }
@@ -907,15 +931,23 @@ private fun RoutineDetailExerciseRow(
     onOpen: (target: String) -> Unit,
 ) {
     val target = if (!exercise.targetReps.isNullOrBlank()) {
-        "${exercise.targetSets} x ${exercise.targetReps}"
+        uiText(
+            R.string.training_sets_by_reps,
+            UiText.Argument.Integer(exercise.targetSets),
+            UiText.Argument.Text(exercise.targetReps.orEmpty()),
+        ).asString()
     } else {
-        "${exercise.targetSets} sets"
+        pluralUiText(
+            R.plurals.training_set_count,
+            exercise.targetSets,
+            UiText.Argument.Integer(exercise.targetSets),
+        ).asString()
     }
     val setTypeSummary = exercise.setPlans
         .takeIf { it.isNotEmpty() }
-        ?.mapIndexed { index, setPlan -> routineSetTypeToken(setPlan.setType, index) }
+        ?.mapIndexed { index, setPlan -> routineSetTypeToken(setPlan.setType, index).asString() }
         ?.joinToString(" ")
-    val restSummary = exercise.restSeconds?.let { "Rest ${it}s" }
+    val restSummary = exercise.restSeconds?.let { stringResource(R.string.training_rest_seconds, it) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1009,7 +1041,9 @@ private fun RoutineFolderEditorCard(
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = if (editor.folderId == null) "New folder" else "Edit folder",
+                text = stringResource(
+                    if (editor.folderId == null) R.string.training_new_folder else R.string.training_edit_folder,
+                ),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MusFitTheme.colors.onSurface,
@@ -1017,7 +1051,7 @@ private fun RoutineFolderEditorCard(
             OutlinedTextField(
                 value = editor.name,
                 onValueChange = onNameChange,
-                label = { Text("Folder name") },
+                label = { Text(stringResource(R.string.training_folder_name)) },
                 singleLine = true,
                 colors = fieldColors,
                 modifier = Modifier.fillMaxWidth(),
@@ -1028,14 +1062,14 @@ private fun RoutineFolderEditorCard(
                     enabled = editor.name.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
                 ) {
-                    Text("Save")
+                    Text(stringResource(R.string.training_save))
                 }
                 TextButton(onClick = onCancel) {
-                    Text("Cancel", color = accent.color)
+                    Text(stringResource(R.string.training_cancel), color = accent.color)
                 }
                 if (onDelete != null) {
                     TextButton(onClick = onDelete) {
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.training_delete), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -1061,7 +1095,7 @@ private fun RoutineMuscleChip(label: String) {
 
 internal fun nextQuickLogExpanded(current: Boolean): Boolean = !current
 
-internal const val MY_ROUTINES_GROUP_TITLE = "My routines"
+internal const val MY_ROUTINES_GROUP_TITLE = "__my_routines__"
 
 internal data class RoutineGroup(
     val title: String,
@@ -1085,7 +1119,9 @@ private data class RoutineDragState(
     val position: Offset,
 )
 
-internal fun routineFolderMoveTargets(folders: List<RoutineFolder>): List<RoutineFolderMoveTarget> = listOf(RoutineFolderMoveTarget(folderId = null, label = "My routines")) +
+internal fun routineFolderMoveTargets(folders: List<RoutineFolder>): List<RoutineFolderMoveTarget> = listOf(
+    RoutineFolderMoveTarget(folderId = null, label = MY_ROUTINES_GROUP_TITLE),
+) +
     folders.map { folder -> RoutineFolderMoveTarget(folderId = folder.id, label = folder.name) }
 
 internal fun groupRoutineSummariesByFolder(
@@ -1142,8 +1178,11 @@ internal fun routineCardActions(isStarter: Boolean): List<String> = if (isStarte
     listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_EDIT, ROUTINE_ACTION_DUPLICATE, ROUTINE_ACTION_DELETE)
 }
 
-internal fun routineDescription(routine: RoutineSummary): String? = routine.notes?.trim()?.takeIf(String::isNotBlank)
-    ?: if (routine.isStarter) "Pre-saved routine" else null
+internal fun routineDescription(routine: RoutineSummary): UiText? = routine.notes
+    ?.trim()
+    ?.takeIf(String::isNotBlank)
+    ?.let(UiText::Verbatim)
+    ?: if (routine.isStarter) uiText(R.string.training_pre_saved_routine) else null
 
 private const val ROUTINE_ACTION_START = "Start"
 private const val ROUTINE_ACTION_EDIT = "Edit"
@@ -1153,7 +1192,7 @@ private const val ROUTINE_ACTION_DELETE = "Delete"
 /** Result of validating a routine target field for display (storage still coerces independently). */
 sealed interface TargetFieldResult {
     object Valid : TargetFieldResult
-    data class Invalid(val message: String) : TargetFieldResult
+    data class Invalid(val message: UiText) : TargetFieldResult
 }
 
 internal fun validateTargetSets(raw: String): TargetFieldResult {
@@ -1161,14 +1200,14 @@ internal fun validateTargetSets(raw: String): TargetFieldResult {
     return if (sets != null && sets in 1..20) {
         TargetFieldResult.Valid
     } else {
-        TargetFieldResult.Invalid("Enter 1-20 sets")
+        TargetFieldResult.Invalid(uiText(R.string.training_enter_sets_range))
     }
 }
 
 internal fun validateTargetReps(raw: String): TargetFieldResult {
     val trimmed = raw.trim()
     if (trimmed.isEmpty()) return TargetFieldResult.Valid
-    val invalid = TargetFieldResult.Invalid("Use a number or range, e.g. 8 or 8-12")
+    val invalid = TargetFieldResult.Invalid(uiText(R.string.training_enter_reps_or_range))
     if (trimmed.contains('-')) {
         val parts = trimmed.split('-').map { it.trim() }
         if (parts.size != 2) return invalid
@@ -1181,46 +1220,80 @@ internal fun validateTargetReps(raw: String): TargetFieldResult {
 }
 
 /** Collapsed-row subline (mock 5f): "3 × 8 · 150s rest" — one line, nothing else. */
-internal fun routineExerciseSubline(exercise: RoutineExerciseInput): String {
+internal fun routineExerciseSubline(exercise: RoutineExerciseInput): UiText {
     val sets = if (exercise.setPlans.isNotEmpty()) exercise.setPlans.size else exercise.targetSets
     val reps = exercise.targetReps?.trim()?.takeIf(String::isNotBlank)
-    val base = if (reps != null) "$sets × $reps" else "$sets ${if (sets == 1) "set" else "sets"}"
-    val rest = exercise.restSeconds?.let { "${it}s rest" }
-    return listOfNotNull(base, rest).joinToString(" · ")
+    val base = if (reps != null) {
+        uiText(
+            R.string.training_sets_by_reps,
+            UiText.Argument.Integer(sets),
+            UiText.Argument.Text(reps),
+        )
+    } else {
+        pluralUiText(R.plurals.training_set_count, sets, UiText.Argument.Integer(sets))
+    }
+    val rest = exercise.restSeconds?.let { seconds ->
+        uiText(R.string.training_seconds_rest, UiText.Argument.Integer(seconds))
+    }
+    return listOfNotNull(base, rest).joinedWithMiddleDot()
 }
 
 /** One quiet sentence describing what the per-set plan holds beyond straight working sets. */
-internal fun setPlanSummaryLabel(setPlans: List<RoutineSetInput>): String {
-    if (setPlans.isEmpty()) return "Straight sets"
-    val parts = mutableListOf<String>()
+internal fun setPlanSummaryLabel(setPlans: List<RoutineSetInput>): UiText {
+    if (setPlans.isEmpty()) return uiText(R.string.training_straight_sets)
+    val parts = mutableListOf<UiText>()
     val warmups = setPlans.count { it.setType.equals("warmup", ignoreCase = true) }
-    if (warmups == 1) parts += "1 warm-up set"
-    if (warmups > 1) parts += "$warmups warm-up sets"
+    if (warmups > 0) {
+        parts += pluralUiText(
+            R.plurals.training_warmup_set_count,
+            warmups,
+            UiText.Argument.Integer(warmups),
+        )
+    }
     val failureIndex = setPlans.indexOfFirst { it.setType.equals("failure", ignoreCase = true) }
     when {
-        failureIndex == 0 -> parts += "First set to failure"
-        failureIndex > 0 -> parts += "Set ${failureIndex + 1} to failure"
+        failureIndex == 0 -> parts += uiText(R.string.training_first_set_to_failure)
+
+        failureIndex > 0 -> parts += uiText(
+            R.string.training_numbered_set_to_failure,
+            UiText.Argument.Integer(failureIndex + 1),
+        )
     }
     val drops = setPlans.count { it.setType.equals("drop", ignoreCase = true) }
-    if (drops == 1) parts += "1 drop set"
-    if (drops > 1) parts += "$drops drop sets"
-    return if (parts.isEmpty()) "Straight sets" else parts.joinToString(" · ")
+    if (drops > 0) {
+        parts += pluralUiText(
+            R.plurals.training_drop_set_count,
+            drops,
+            UiText.Argument.Integer(drops),
+        )
+    }
+    return if (parts.isEmpty()) uiText(R.string.training_straight_sets) else parts.joinedWithMiddleDot()
 }
 
 /** Editor meta line (mock 5f): "Strength block · 5 exercises · ~40 min". */
-internal fun routineEditorMetaLine(editor: RoutineEditorState): String {
-    val block = editor.folderName.trim().takeIf(String::isNotBlank)
-        ?: if (editor.isStarter) "Pre-made routine" else "Routine"
+internal fun routineEditorMetaLine(editor: RoutineEditorState): UiText {
+    val block = editor.folderName
+        .trim()
+        .takeIf(String::isNotBlank)
+        ?.let(UiText::Verbatim)
+        ?: uiText(if (editor.isStarter) R.string.training_pre_made_routine else R.string.training_routine)
     val exerciseCount = editor.exercises.size
     val totalSets = editor.exercises.sumOf { exercise ->
         if (exercise.setPlans.isNotEmpty()) exercise.setPlans.size else exercise.targetSets
     }
     val estimatedMinutes = RoutineDisplayCalculator.estimatedMinutes(totalSets)
-    return buildString {
-        append(block)
-        append(" · $exerciseCount ${if (exerciseCount == 1) "exercise" else "exercises"}")
-        if (estimatedMinutes > 0) append(" · ~$estimatedMinutes min")
+    val parts = mutableListOf(
+        block,
+        pluralUiText(
+            R.plurals.training_exercise_count_plain,
+            exerciseCount,
+            UiText.Argument.Integer(exerciseCount),
+        ),
+    )
+    if (estimatedMinutes > 0) {
+        parts += uiText(R.string.training_approx_minutes, UiText.Argument.Integer(estimatedMinutes))
     }
+    return parts.joinedWithMiddleDot()
 }
 
 internal fun routineEditorCanSave(name: String, exercises: List<RoutineExerciseInput>): Boolean {
@@ -1235,7 +1308,7 @@ internal fun routineEditorCanSave(name: String, exercises: List<RoutineExerciseI
             setPlans.isNotEmpty() &&
             setPlans.all { setPlan ->
                 val targetWeightKg = setPlan.targetWeightKg
-                setPlan.setType.lowercase() in setOf("warmup", "working", "failure", "drop") &&
+                setPlan.setType.lowercase(java.util.Locale.ROOT) in setOf("warmup", "working", "failure", "drop") &&
                     validateTargetReps(setPlan.targetReps.orEmpty()) is TargetFieldResult.Valid &&
                     (targetWeightKg == null || targetWeightKg > 0.0)
             }
@@ -1291,7 +1364,7 @@ fun TrainingRoutineEditor(
         ) {
             TonalHeaderIconButton(
                 icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = "Cancel",
+                contentDescription = stringResource(R.string.training_cancel),
                 onClick = onCancel,
             )
             RoutineEditorTitleField(
@@ -1301,7 +1374,7 @@ fun TrainingRoutineEditor(
                 modifier = Modifier.weight(1f),
             )
             PillButton(
-                text = "Save",
+                text = stringResource(R.string.training_save),
                 onClick = onSave,
                 enabled = routineEditorCanSave(editor.name, editor.exercises),
                 containerColor = accent.color,
@@ -1316,7 +1389,7 @@ fun TrainingRoutineEditor(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = routineEditorMetaLine(editor),
+                text = routineEditorMetaLine(editor).asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -1325,7 +1398,7 @@ fun TrainingRoutineEditor(
             )
             TextButton(onClick = { detailsOpen = true }) {
                 Text(
-                    text = "Details",
+                    text = stringResource(R.string.training_details),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.ExtraBold,
                     color = accent.color,
@@ -1335,7 +1408,7 @@ fun TrainingRoutineEditor(
 
         if (editor.exercises.isEmpty()) {
             Text(
-                text = "Add at least one exercise to start this routine",
+                text = stringResource(R.string.training_add_exercise_to_start),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.padding(start = 4.dp),
@@ -1348,7 +1421,7 @@ fun TrainingRoutineEditor(
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             editor.exercises.forEachIndexed { index, exercise ->
                 val exerciseSummary = exerciseMap[exercise.exerciseId]
-                val exerciseName = exerciseSummary?.name ?: "Unknown exercise"
+                val exerciseName = exerciseSummary?.name ?: stringResource(R.string.training_unknown_exercise)
                 if (expandedExerciseId == exercise.exerciseId) {
                     RoutineEditorExpandedCard(
                         exerciseIndex = index,
@@ -1357,7 +1430,7 @@ fun TrainingRoutineEditor(
                         exerciseMeta = listOfNotNull(
                             exerciseSummary?.equipment,
                             exerciseSummary?.targetMuscles?.takeIf(String::isNotBlank),
-                        ).joinToString(" · ") { it.lowercase(java.util.Locale.US) },
+                        ).joinToString(" · "),
                         accent = accent,
                         fieldColors = fieldColors,
                         onCollapse = { expandedExerciseId = null },
@@ -1416,7 +1489,7 @@ fun TrainingRoutineEditor(
                         )
                     }
                     Text(
-                        text = "Add exercise",
+                        text = stringResource(R.string.training_add_exercise),
                         style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
                         fontWeight = FontWeight.ExtraBold,
                         color = accent.color,
@@ -1452,6 +1525,13 @@ private fun RoutineEditorCollapsedRow(
     onMoveUp: (Int) -> Unit,
     onMoveDown: (Int) -> Unit,
 ) {
+    val collapsedDescription = stringResource(R.string.training_collapsed)
+    val exerciseSubline = routineExerciseSubline(exercise).asString()
+    val stateDescriptionText = stringResource(
+        R.string.training_description_state,
+        exerciseSubline,
+        collapsedDescription,
+    )
     Surface(
         onClick = onExpand,
         color = MusFitTheme.colors.surface,
@@ -1460,7 +1540,7 @@ private fun RoutineEditorCollapsedRow(
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
                 contentDescription = exerciseName
-                stateDescription = "${routineExerciseSubline(exercise)}. Collapsed"
+                stateDescription = stateDescriptionText
                 role = Role.Button
             },
     ) {
@@ -1486,7 +1566,7 @@ private fun RoutineEditorCollapsedRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = routineExerciseSubline(exercise),
+                    text = exerciseSubline,
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.padding(top = 1.dp),
@@ -1507,7 +1587,7 @@ private fun RoutineEditorCollapsedRow(
  * position through the existing move-up/move-down actions.
  */
 @Composable
-@Suppress("LongParameterList")
+@Suppress("LongMethod", "LongParameterList")
 private fun RoutineEditorDragHandle(
     exerciseId: String,
     currentIndexOf: (String) -> Int,
@@ -1516,17 +1596,20 @@ private fun RoutineEditorDragHandle(
     onMoveUp: (Int) -> Unit,
     onMoveDown: (Int) -> Unit,
 ) {
+    val reorderDescription = stringResource(R.string.training_reorder_exercise)
+    val moveUpDescription = stringResource(R.string.training_move_exercise_up)
+    val moveDownDescription = stringResource(R.string.training_move_exercise_down)
     Box(
         modifier = Modifier
             .size(48.dp)
             .semantics(mergeDescendants = true) {
-                contentDescription = "Reorder exercise"
+                contentDescription = reorderDescription
                 role = Role.Button
                 val currentIndex = currentIndexOf(exerciseId)
                 customActions = buildList {
                     if (currentIndex > 0) {
                         add(
-                            CustomAccessibilityAction("Move exercise up") {
+                            CustomAccessibilityAction(moveUpDescription) {
                                 onMoveUp(currentIndexOf(exerciseId))
                                 true
                             },
@@ -1534,7 +1617,7 @@ private fun RoutineEditorDragHandle(
                     }
                     if (currentIndex in 0 until lastIndex) {
                         add(
-                            CustomAccessibilityAction("Move exercise down") {
+                            CustomAccessibilityAction(moveDownDescription) {
                                 onMoveDown(currentIndexOf(exerciseId))
                                 true
                             },
@@ -1596,9 +1679,10 @@ private fun RoutineEditorExpandedCard(
     onRemoveExercise: () -> Unit,
 ) {
     var perSetPlanOpen by rememberSaveable(exercise.exerciseId) { mutableStateOf(false) }
-    val setsError = (validateTargetSets(exercise.targetSets.toString()) as? TargetFieldResult.Invalid)?.message
-    val repsError = (validateTargetReps(exercise.targetReps.orEmpty()) as? TargetFieldResult.Invalid)?.message
+    val setsError = (validateTargetSets(exercise.targetSets.toString()) as? TargetFieldResult.Invalid)?.message?.asString()
+    val repsError = (validateTargetReps(exercise.targetReps.orEmpty()) as? TargetFieldResult.Invalid)?.message?.asString()
     val setPlans = exercise.setPlans.ifEmpty { defaultRoutineEditorSetPlans(exercise.targetSets, exercise.targetReps) }
+    val expandedDescription = stringResource(R.string.training_expanded)
 
     Surface(
         color = MusFitTheme.colors.surface,
@@ -1616,7 +1700,7 @@ private fun RoutineEditorExpandedCard(
                     .clickable(onClick = onCollapse)
                     .semantics(mergeDescendants = true) {
                         contentDescription = exerciseName
-                        stateDescription = if (exerciseMeta.isBlank()) "Expanded" else "$exerciseMeta. Expanded"
+                        stateDescription = if (exerciseMeta.isBlank()) expandedDescription else "$exerciseMeta. $expandedDescription"
                         role = Role.Button
                     },
                 verticalAlignment = Alignment.CenterVertically,
@@ -1653,25 +1737,29 @@ private fun RoutineEditorExpandedCard(
                 )
             }
 
+            val restLabel = stringResource(R.string.training_rest_short)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 RoutineEditorMiniField(
-                    label = "Sets",
+                    label = stringResource(R.string.training_sets),
                     value = exercise.targetSets.toString(),
-                    isError = setsError != null,
+                    options = RoutineEditorMiniFieldOptions(isError = setsError != null),
                     onValueChange = onTargetSetsChange,
                     modifier = Modifier.weight(1f),
                 )
                 RoutineEditorMiniField(
-                    label = "Reps",
+                    label = stringResource(R.string.training_reps),
                     value = exercise.targetReps.orEmpty(),
-                    isError = repsError != null,
+                    options = RoutineEditorMiniFieldOptions(isError = repsError != null),
                     onValueChange = onTargetRepsChange,
                     modifier = Modifier.weight(1f),
                 )
                 RoutineEditorMiniField(
-                    label = "Rest",
+                    label = restLabel,
                     value = exercise.restSeconds?.toString().orEmpty(),
-                    suffix = "s",
+                    options = RoutineEditorMiniFieldOptions(
+                        suffix = stringResource(R.string.training_seconds_symbol),
+                        contentDescription = stringResource(R.string.training_seconds_field, restLabel),
+                    ),
                     onValueChange = onRestSecondsChange,
                     modifier = Modifier.weight(1f),
                 )
@@ -1690,13 +1778,15 @@ private fun RoutineEditorExpandedCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = setPlanSummaryLabel(setPlans),
+                    text = setPlanSummaryLabel(setPlans).asString(),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
                 TextButton(onClick = { perSetPlanOpen = !perSetPlanOpen }) {
                     Text(
-                        text = if (perSetPlanOpen) "Hide per-set plan" else "Per-set plan",
+                        text = stringResource(
+                            if (perSetPlanOpen) R.string.training_hide_per_set_plan else R.string.training_per_set_plan,
+                        ),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
                         fontWeight = FontWeight.Medium,
                         color = accent.color,
@@ -1727,13 +1817,13 @@ private fun RoutineEditorExpandedCard(
                         TextButton(onClick = onAddSet, colors = ButtonDefaults.textButtonColors(contentColor = accent.color)) {
                             Icon(imageVector = Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Set")
+                            Text(stringResource(R.string.training_set))
                         }
                         TextButton(
                             onClick = onRemoveExercise,
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                         ) {
-                            Text("Remove exercise")
+                            Text(stringResource(R.string.training_remove_exercise_lower))
                         }
                     }
                 }
@@ -1743,14 +1833,19 @@ private fun RoutineEditorExpandedCard(
 }
 
 /** Quiet cream input tile (10e): 11sp label over a 16/800 value on a 14dp-radius fill. */
+private data class RoutineEditorMiniFieldOptions(
+    val suffix: String? = null,
+    val contentDescription: String? = null,
+    val isError: Boolean = false,
+)
+
 @Composable
 private fun RoutineEditorMiniField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    suffix: String? = null,
-    isError: Boolean = false,
+    options: RoutineEditorMiniFieldOptions = RoutineEditorMiniFieldOptions(),
 ) {
     Column(
         modifier = modifier
@@ -1762,7 +1857,7 @@ private fun RoutineEditorMiniField(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.sp),
             fontWeight = FontWeight.Medium,
-            color = if (isError) MaterialTheme.colorScheme.error else MusFitTheme.colors.onSurfaceVariant,
+            color = if (options.isError) MaterialTheme.colorScheme.error else MusFitTheme.colors.onSurfaceVariant,
             modifier = Modifier.clearAndSetSemantics { },
         )
         Row(
@@ -1784,7 +1879,7 @@ private fun RoutineEditorMiniField(
                     .widthIn(min = 20.dp)
                     .heightIn(min = 48.dp)
                     .semantics {
-                        contentDescription = if (suffix == "s") "$label, seconds" else label
+                        contentDescription = options.contentDescription ?: label
                     },
                 decorationBox = { innerTextField ->
                     Box(
@@ -1795,9 +1890,9 @@ private fun RoutineEditorMiniField(
                     }
                 },
             )
-            if (suffix != null && value.isNotBlank()) {
+            if (options.suffix != null && value.isNotBlank()) {
                 Text(
-                    text = " $suffix",
+                    text = " ${options.suffix}",
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.ExtraBold),
                     color = MusFitTheme.colors.onSurface,
                     modifier = Modifier.clearAndSetSemantics { },
@@ -1831,14 +1926,14 @@ private fun RoutineEditorDetailsSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
-                text = "Details",
+                text = stringResource(R.string.training_details),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Normal,
                 color = MusFitTheme.colors.onSurface,
             )
             editor.folderName.takeIf { it.isNotBlank() }?.let { folder ->
                 Text(
-                    text = "Folder · $folder",
+                    text = stringResource(R.string.training_folder_meta, folder),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -1846,7 +1941,7 @@ private fun RoutineEditorDetailsSheet(
             OutlinedTextField(
                 value = editor.notes,
                 onValueChange = onNotesChange,
-                label = { Text("Notes") },
+                label = { Text(stringResource(R.string.training_notes)) },
                 minLines = 2,
                 shape = MusFitTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
@@ -1860,7 +1955,7 @@ private fun RoutineEditorDetailsSheet(
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = accent.color),
                     ) {
-                        Text("Duplicate")
+                        Text(stringResource(R.string.training_duplicate))
                     }
                 }
                 if (editor.routineId != null && !editor.isStarter && onDelete != null) {
@@ -1871,7 +1966,7 @@ private fun RoutineEditorDetailsSheet(
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) {
-                        Text("Delete")
+                        Text(stringResource(R.string.training_delete))
                     }
                 }
             }
@@ -1892,6 +1987,7 @@ private fun RoutineEditorTitleField(
     modifier: Modifier = Modifier,
 ) {
     val titleStyle = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp, lineHeight = 30.sp)
+    val routineNameDescription = stringResource(R.string.training_routine_name)
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -1900,7 +1996,7 @@ private fun RoutineEditorTitleField(
         singleLine = true,
         modifier = modifier
             .heightIn(min = 48.dp)
-            .semantics { contentDescription = "Routine name" },
+            .semantics { contentDescription = routineNameDescription },
         decorationBox = { innerTextField ->
             Row(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
@@ -1910,7 +2006,7 @@ private fun RoutineEditorTitleField(
                 Box(modifier = Modifier.weight(1f, fill = false)) {
                     if (value.isEmpty()) {
                         Text(
-                            text = "Name your routine",
+                            text = stringResource(R.string.training_name_your_routine),
                             style = titleStyle,
                             color = MusFitTheme.colors.onSurfaceFaint,
                             maxLines = 1,
@@ -1967,6 +2063,7 @@ fun RoutineExercisePickerPage(
     onConfirm: () -> Unit,
 ) {
     val options = routineExercisePickerOptions(exercises)
+    val locale = LocalConfiguration.current.locales[0]
     val availableExercises = exercises.filterNot { it.id in currentRoutineExerciseIds }
     val visibleExercises = routineExercisePickerSuggestions(
         exercises = availableExercises,
@@ -1985,7 +2082,7 @@ fun RoutineExercisePickerPage(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         InnerScreenHeader(
-            title = "Add exercises",
+            title = stringResource(R.string.training_add_exercises),
             onBack = onCancel,
             modifier = Modifier.padding(top = 14.dp),
         )
@@ -2014,7 +2111,11 @@ fun RoutineExercisePickerPage(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = pickerFilterSummary(filters),
+                    text = pickerFilterSummary(
+                        filters = filters,
+                        doneBeforeLabel = stringResource(R.string.training_done_before),
+                        locale = locale,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = MusFitTheme.colors.onSurface,
@@ -2023,7 +2124,7 @@ fun RoutineExercisePickerPage(
                 )
                 TextButton(onClick = onClearFilters) {
                     Text(
-                        text = "Clear",
+                        text = stringResource(R.string.training_clear),
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
                         color = accent.color,
@@ -2037,7 +2138,11 @@ fun RoutineExercisePickerPage(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = "${visibleExercises.size} results",
+                    text = pluralStringResource(
+                        R.plurals.training_result_count,
+                        visibleExercises.size,
+                        visibleExercises.size,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceFaint,
                 )
@@ -2064,7 +2169,7 @@ fun RoutineExercisePickerPage(
                         span = { GridItemSpan(maxLineSpan) },
                     ) {
                         Text(
-                            "No matching exercises",
+                            stringResource(R.string.training_no_matching_exercises),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MusFitTheme.colors.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 14.dp),
@@ -2138,7 +2243,7 @@ fun RoutineExercisePickerPage(
                                 )
                             }
                             Text(
-                                text = "Create custom exercise",
+                                text = stringResource(R.string.training_create_custom_exercise),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = accent.color,
@@ -2150,7 +2255,15 @@ fun RoutineExercisePickerPage(
         }
 
         PillButton(
-            text = pickerConfirmLabel(selectedExerciseIds.size),
+            text = if (selectedExerciseIds.isEmpty()) {
+                stringResource(R.string.training_select_exercises)
+            } else {
+                pluralStringResource(
+                    R.plurals.training_add_exercise_count,
+                    selectedExerciseIds.size,
+                    selectedExerciseIds.size,
+                )
+            },
             onClick = onConfirm,
             enabled = selectedExerciseIds.isNotEmpty(),
             containerColor = accent.color,
@@ -2215,6 +2328,7 @@ private fun PickerSearchField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val searchDescription = stringResource(R.string.training_search_exercises)
     Row(
         modifier = modifier
             .height(52.dp)
@@ -2239,7 +2353,7 @@ private fun PickerSearchField(
             modifier = Modifier
                 .weight(1f)
                 .heightIn(min = 48.dp)
-                .semantics { contentDescription = "Search exercises" },
+                .semantics { contentDescription = searchDescription },
             decorationBox = { innerTextField ->
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -2247,7 +2361,7 @@ private fun PickerSearchField(
                 ) {
                     if (value.isEmpty()) {
                         Text(
-                            text = "Search exercises…",
+                            text = stringResource(R.string.training_search_exercises_ellipsis),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MusFitTheme.colors.onSurfaceFaint,
                             modifier = Modifier.clearAndSetSemantics { },
@@ -2267,6 +2381,11 @@ private fun PickerFilterButton(
     accent: TabAccent,
     onClick: () -> Unit,
 ) {
+    val filterDescription = if (activeCount == 0) {
+        stringResource(R.string.training_filters)
+    } else {
+        pluralStringResource(R.plurals.training_filters_active, activeCount, activeCount)
+    }
     Box {
         Box(
             modifier = Modifier
@@ -2275,7 +2394,7 @@ private fun PickerFilterButton(
                 .background(accent.container)
                 .clickable(onClick = onClick)
                 .semantics(mergeDescendants = true) {
-                    contentDescription = if (activeCount == 0) "Filters" else "Filters, $activeCount active"
+                    contentDescription = filterDescription
                     role = Role.Button
                 },
             contentAlignment = Alignment.Center,
@@ -2353,13 +2472,13 @@ private fun ExercisePickerFilterSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = "Filters",
+                    text = stringResource(R.string.training_filters),
                     style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
                     color = MusFitTheme.colors.onSurface,
                 )
                 TextButton(onClick = onReset) {
                     Text(
-                        text = "Reset",
+                        text = stringResource(R.string.training_reset),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = accent.color,
@@ -2367,7 +2486,7 @@ private fun ExercisePickerFilterSheet(
                 }
             }
 
-            FilterSectionLabel("Equipment")
+            FilterSectionLabel(stringResource(R.string.training_equipment))
             EquipmentTileGrid(
                 options = equipmentOptions,
                 selected = filters.equipment,
@@ -2375,7 +2494,7 @@ private fun ExercisePickerFilterSheet(
                 onToggle = onToggleEquipment,
             )
 
-            FilterSectionLabel("Muscle group")
+            FilterSectionLabel(stringResource(R.string.training_muscle_group))
             MuscleRowGrid(
                 options = muscleOptions,
                 counts = muscleCounts,
@@ -2396,12 +2515,16 @@ private fun ExercisePickerFilterSheet(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Only exercises I've done",
+                            text = stringResource(R.string.training_only_exercises_done),
                             style = MaterialTheme.typography.titleSmall,
                             color = MusFitTheme.colors.onSurface,
                         )
                         Text(
-                            text = "$historyCount ${if (historyCount == 1) "exercise" else "exercises"} with history",
+                            text = pluralStringResource(
+                                R.plurals.training_exercises_with_history,
+                                historyCount,
+                                historyCount,
+                            ),
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                             color = MusFitTheme.colors.onSurfaceFaint,
                             modifier = Modifier.padding(top = 1.dp),
@@ -2419,7 +2542,11 @@ private fun ExercisePickerFilterSheet(
             }
 
             PillButton(
-                text = "Show $resultCount ${if (resultCount == 1) "exercise" else "exercises"}",
+                text = pluralStringResource(
+                    R.plurals.training_show_exercise_count,
+                    resultCount,
+                    resultCount,
+                ),
                 onClick = onDismiss,
                 containerColor = accent.color,
                 contentColor = accent.onColor,
@@ -2448,6 +2575,7 @@ private fun EquipmentTileGrid(
     accent: TabAccent,
     onToggle: (String) -> Unit,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     val rows = options.chunked(3)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         rows.forEachIndexed { rowIndex, row ->
@@ -2478,7 +2606,7 @@ private fun EquipmentTileGrid(
                                     modifier = Modifier.size(24.dp),
                                 )
                                 Text(
-                                    text = option.displayExerciseToken(),
+                                    text = option.displayExerciseToken(locale),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.sp),
                                     fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
                                     color = if (isSelected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
@@ -2526,6 +2654,7 @@ private fun MuscleRowGrid(
     accent: TabAccent,
     onToggle: (String) -> Unit,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     val rows = options.chunked(2)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         rows.forEachIndexed { rowIndex, row ->
@@ -2560,7 +2689,7 @@ private fun MuscleRowGrid(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
-                                        text = muscleMonogram(option),
+                                        text = muscleMonogram(option, locale),
                                         style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
                                         fontWeight = FontWeight.ExtraBold,
                                         color = if (isSelected) accent.onContainer else MusFitTheme.colors.onSurfaceVariant,
@@ -2569,16 +2698,20 @@ private fun MuscleRowGrid(
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = option.displayExerciseToken(),
+                                    text = option.displayExerciseToken(locale),
                                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
                                     fontWeight = FontWeight.Bold,
                                     color = if (isSelected) accent.onContainer else MusFitTheme.colors.onSurface,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                                counts[option.lowercase()]?.let { count ->
+                                counts[option.lowercase(java.util.Locale.ROOT)]?.let { count ->
                                     Text(
-                                        text = "$count ${if (count == 1) "exercise" else "exercises"}",
+                                        text = pluralStringResource(
+                                            R.plurals.training_exercise_count_plain,
+                                            count,
+                                            count,
+                                        ),
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.sp),
                                         fontWeight = FontWeight.Normal,
                                         color = if (isSelected) {
@@ -2633,7 +2766,7 @@ private fun CustomExerciseSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Custom exercise",
+                text = stringResource(R.string.training_custom_exercise),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Normal,
                 color = MusFitTheme.colors.onSurface,
@@ -2641,7 +2774,7 @@ private fun CustomExerciseSheet(
             OutlinedTextField(
                 value = editor.name,
                 onValueChange = onNameChange,
-                label = { Text("Name") },
+                label = { Text(stringResource(R.string.training_name)) },
                 singleLine = true,
                 shape = MusFitTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
@@ -2650,7 +2783,7 @@ private fun CustomExerciseSheet(
                 OutlinedTextField(
                     value = editor.category,
                     onValueChange = onCategoryChange,
-                    label = { Text("Category") },
+                    label = { Text(stringResource(R.string.training_category)) },
                     singleLine = true,
                     shape = MusFitTheme.shapes.medium,
                     modifier = Modifier.weight(1f),
@@ -2658,7 +2791,7 @@ private fun CustomExerciseSheet(
                 OutlinedTextField(
                     value = editor.equipment,
                     onValueChange = onEquipmentChange,
-                    label = { Text("Equipment") },
+                    label = { Text(stringResource(R.string.training_equipment)) },
                     singleLine = true,
                     shape = MusFitTheme.shapes.medium,
                     modifier = Modifier.weight(1f),
@@ -2667,7 +2800,7 @@ private fun CustomExerciseSheet(
             OutlinedTextField(
                 value = editor.targetMuscles,
                 onValueChange = onTargetMusclesChange,
-                label = { Text("Target muscles") },
+                label = { Text(stringResource(R.string.training_target_muscles)) },
                 singleLine = true,
                 shape = MusFitTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
@@ -2678,10 +2811,10 @@ private fun CustomExerciseSheet(
                     enabled = editor.name.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
                 ) {
-                    Text("Save")
+                    Text(stringResource(R.string.training_save))
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("Cancel", color = accent.color)
+                    Text(stringResource(R.string.training_cancel), color = accent.color)
                 }
             }
         }
@@ -2704,6 +2837,7 @@ private fun RoutineExercisePickerRow(
     badgeShape: ExpressiveBadgeShape,
     onToggle: () -> Unit,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     val rowColor by animateColorAsState(
         targetValue = if (selected) accent.container else MusFitTheme.colors.surface,
         animationSpec = MusFitMotion.effects(),
@@ -2757,7 +2891,7 @@ private fun RoutineExercisePickerRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = pickerRowSubline(exercise),
+                    text = pickerRowSubline(exercise, locale),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = if (selected) {
                         accent.onContainer.copy(alpha = 0.8f)
@@ -2771,7 +2905,7 @@ private fun RoutineExercisePickerRow(
             }
             if (selected) {
                 Text(
-                    text = "Added",
+                    text = stringResource(R.string.training_added),
                     style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
                     fontWeight = FontWeight.ExtraBold,
                     color = accent.onContainer,
@@ -2803,7 +2937,7 @@ private fun pickerThumbBenchmarkProbe(
     return PickerThumbBenchmarkProbe(
         useFixture = true,
         onDataSourceChanged = { dataSource ->
-            val source = dataSource.name.lowercase()
+            val source = dataSource.name.lowercase(java.util.Locale.ROOT)
             resourceTag.value = "training-exercise-thumbnail-loaded-$source-$exerciseId"
         },
         onLoading = {
@@ -2887,6 +3021,7 @@ private fun RoutineEditorSetRow(
     onSetWeightChange: (String) -> Unit,
     onRemove: () -> Unit,
 ) {
+    val changeSetTypeDescription = stringResource(R.string.training_change_set_type, setPlan.setType)
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -2899,13 +3034,13 @@ private fun RoutineEditorSetRow(
             modifier = Modifier
                 .size(48.dp)
                 .semantics(mergeDescendants = true) {
-                    contentDescription = "Change set type from ${setPlan.setType}"
+                    contentDescription = changeSetTypeDescription
                     role = Role.Button
                 },
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    routineSetTypeToken(setPlan.setType, setIndex),
+                    routineSetTypeToken(setPlan.setType, setIndex).asString(),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = routineSetTypeContentColor(setPlan.setType, accent),
@@ -2915,7 +3050,7 @@ private fun RoutineEditorSetRow(
         OutlinedTextField(
             value = setPlan.targetWeightKg?.formatRoutineWeight().orEmpty(),
             onValueChange = onSetWeightChange,
-            label = { Text("Kg") },
+            label = { Text(stringResource(R.string.training_kg)) },
             singleLine = true,
             colors = fieldColors,
             modifier = Modifier.weight(1f),
@@ -2923,7 +3058,7 @@ private fun RoutineEditorSetRow(
         OutlinedTextField(
             value = setPlan.targetReps.orEmpty(),
             onValueChange = onSetRepsChange,
-            label = { Text("Reps") },
+            label = { Text(stringResource(R.string.training_reps)) },
             singleLine = true,
             colors = fieldColors,
             modifier = Modifier.weight(1f),
@@ -2931,7 +3066,7 @@ private fun RoutineEditorSetRow(
         IconButton(onClick = onRemove, enabled = canRemove) {
             Icon(
                 imageVector = Icons.Outlined.Delete,
-                contentDescription = "Remove set",
+                contentDescription = stringResource(R.string.training_remove_set),
                 tint = if (canRemove) MaterialTheme.colorScheme.error else MusFitTheme.colors.onSurfaceVariant,
             )
         }
@@ -2945,11 +3080,11 @@ internal data class RoutineExercisePickerOptions(
 
 internal fun routineExercisePickerOptions(exercises: List<ExerciseSummary>): RoutineExercisePickerOptions = RoutineExercisePickerOptions(
     equipment = exercises.mapNotNull { it.equipment?.trim()?.takeIf(String::isNotBlank) }
-        .distinctBy { it.lowercase() }
-        .sortedBy { it.lowercase() },
+        .distinctBy { it.lowercase(java.util.Locale.ROOT) }
+        .sortedBy { it.lowercase(java.util.Locale.ROOT) },
     muscles = exercises.flatMap { it.pickerMuscles() }
-        .distinctBy { it.lowercase() }
-        .sortedBy { it.lowercase() },
+        .distinctBy { it.lowercase(java.util.Locale.ROOT) }
+        .sortedBy { it.lowercase(java.util.Locale.ROOT) },
 )
 
 internal fun routineExercisePickerSuggestions(
@@ -2984,39 +3119,54 @@ internal fun routineExercisePickerSuggestions(
 }
 
 /** "Barbell · Quads" — title-cased active filters for the picker's summary line. */
-internal fun pickerFilterSummary(filters: TrainingPickerFilters): String = buildList {
-    addAll(filters.equipment.map { it.displayExerciseToken() })
-    addAll(filters.muscles.map { it.displayExerciseToken() })
-    if (filters.onlyDone) add("Done before")
+internal fun pickerFilterSummary(
+    filters: TrainingPickerFilters,
+    doneBeforeLabel: String,
+    locale: Locale = Locale.getDefault(),
+): String = buildList {
+    addAll(filters.equipment.map { it.displayExerciseToken(locale) })
+    addAll(filters.muscles.map { it.displayExerciseToken(locale) })
+    if (filters.onlyDone) add(doneBeforeLabel)
 }.joinToString(" · ")
 
-internal fun pickerConfirmLabel(selectedCount: Int): String = when (selectedCount) {
-    0 -> "Add exercises"
-    1 -> "Add 1 exercise"
-    else -> "Add $selectedCount exercises"
+internal fun pickerConfirmLabel(selectedCount: Int): UiText = if (selectedCount == 0) {
+    uiText(R.string.training_add_exercises)
+} else {
+    pluralUiText(
+        R.plurals.training_add_exercise_count,
+        selectedCount,
+        UiText.Argument.Integer(selectedCount),
+    )
 }
 
 /** Picker row subline (10c): "Quads · barbell" — lead muscle + equipment. */
-internal fun pickerRowSubline(exercise: ExerciseSummary): String = listOfNotNull(
-    exercise.pickerMuscles().firstOrNull()?.displayExerciseToken(),
-    exercise.equipment?.trim()?.takeIf(String::isNotBlank)?.lowercase(),
+internal fun pickerRowSubline(
+    exercise: ExerciseSummary,
+    locale: Locale = Locale.getDefault(),
+): String = listOfNotNull(
+    exercise.pickerMuscles().firstOrNull()?.displayExerciseToken(locale),
+    exercise.equipment?.trim()?.takeIf(String::isNotBlank)?.lowercase(locale),
 ).joinToString(" · ")
 
 /** Exercises per muscle (lowercase key) — the counts on the filter sheet's rows. */
 internal fun pickerMuscleCounts(exercises: List<ExerciseSummary>): Map<String, Int> = exercises
-    .flatMap { exercise -> exercise.pickerMuscles().map { it.lowercase() }.distinct() }
+    .flatMap { exercise -> exercise.pickerMuscles().map { it.lowercase(java.util.Locale.ROOT) }.distinct() }
     .groupingBy { it }
     .eachCount()
 
 /** Two-letter monogram badge text ("quads" → "Qu") — a muscle-art stand-in. */
-internal fun muscleMonogram(muscle: String): String {
+internal fun muscleMonogram(
+    muscle: String,
+    locale: Locale = Locale.getDefault(),
+): String {
     val cleaned = muscle.trim().filter(Char::isLetter)
     if (cleaned.isEmpty()) return "?"
-    return cleaned.take(2).lowercase().replaceFirstChar { it.titlecase() }
+    return cleaned.take(2).lowercase(locale).replaceFirstChar { it.titlecase(locale) }
 }
 
 /** The filter sheet's muscle pills: the catalog's most common muscles, not an alphabetical slice. */
-internal fun topPickerMuscles(exercises: List<ExerciseSummary>, limit: Int): List<String> = exercises.flatMap { it.pickerMuscles().map { muscle -> muscle.lowercase() }.distinct() }
+internal fun topPickerMuscles(exercises: List<ExerciseSummary>, limit: Int): List<String> = exercises
+    .flatMap { exercise -> exercise.pickerMuscles().map { it.lowercase(Locale.ROOT) }.distinct() }
     .groupingBy { it }
     .eachCount()
     .entries
@@ -3025,7 +3175,8 @@ internal fun topPickerMuscles(exercises: List<ExerciseSummary>, limit: Int): Lis
     .map { it.key }
 
 /** The filter sheet's equipment pills, ranked by how much of the catalog each covers. */
-internal fun topPickerEquipment(exercises: List<ExerciseSummary>, limit: Int): List<String> = exercises.mapNotNull { it.equipment?.trim()?.takeIf(String::isNotBlank)?.lowercase() }
+internal fun topPickerEquipment(exercises: List<ExerciseSummary>, limit: Int): List<String> = exercises
+    .mapNotNull { it.equipment?.trim()?.takeIf(String::isNotBlank)?.lowercase(Locale.ROOT) }
     .groupingBy { it }
     .eachCount()
     .entries
@@ -3044,7 +3195,7 @@ internal const val MUSCLE_OPTION_LIMIT = 8
  * glyph and the label disambiguates.
  */
 internal fun equipmentGlyphFor(equipment: String): ImageVector {
-    val token = equipment.lowercase(java.util.Locale.US)
+    val token = equipment.lowercase(java.util.Locale.ROOT)
     return when {
         token.contains("cable") || token.contains("band") || token.contains("rope") -> Icons.Outlined.Cable
 
@@ -3061,7 +3212,7 @@ internal fun defaultRoutineEditorSetPlans(targetSets: Int, targetReps: String?):
     RoutineSetInput(setType = "working", targetReps = targetReps)
 }
 
-private fun nextRoutineSetType(current: String): String = when (current.lowercase()) {
+private fun nextRoutineSetType(current: String): String = when (current.lowercase(java.util.Locale.ROOT)) {
     "warmup" -> "working"
     "working" -> "failure"
     "failure" -> "drop"
@@ -3069,21 +3220,21 @@ private fun nextRoutineSetType(current: String): String = when (current.lowercas
     else -> "working"
 }
 
-private fun routineSetTypeToken(setType: String, setIndex: Int): String = when (setType.lowercase()) {
-    "warmup" -> "W"
-    "failure" -> "F"
-    "drop" -> "D"
-    else -> (setIndex + 1).toString()
+private fun routineSetTypeToken(setType: String, setIndex: Int): UiText = when (setType.lowercase(java.util.Locale.ROOT)) {
+    "warmup" -> uiText(R.string.training_set_type_warmup_short)
+    "failure" -> uiText(R.string.training_set_type_failure_short)
+    "drop" -> uiText(R.string.training_set_type_drop_short)
+    else -> UiText.Verbatim(LocalizedFormatter.integer((setIndex + 1).toLong()))
 }
 
-private fun routineSetTypeColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color = when (setType.lowercase()) {
+private fun routineSetTypeColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color = when (setType.lowercase(java.util.Locale.ROOT)) {
     "warmup" -> androidx.compose.ui.graphics.Color(0xFFFFF3CD)
     "failure" -> androidx.compose.ui.graphics.Color(0xFFFFE1DD)
     "drop" -> androidx.compose.ui.graphics.Color(0xFFE0F2FE)
     else -> accent.container
 }
 
-private fun routineSetTypeContentColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color = when (setType.lowercase()) {
+private fun routineSetTypeContentColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color = when (setType.lowercase(java.util.Locale.ROOT)) {
     "warmup" -> androidx.compose.ui.graphics.Color(0xFF9A6700)
     "failure" -> androidx.compose.ui.graphics.Color(0xFFB42318)
     "drop" -> androidx.compose.ui.graphics.Color(0xFF0277BD)
@@ -3101,9 +3252,9 @@ private fun ExerciseSummary.pickerMuscles(): List<String> = listOf(targetMuscles
     .map { it.trim() }
     .filter { it.isNotBlank() }
 
-private fun String.displayExerciseToken(): String = trim()
+private fun String.displayExerciseToken(locale: Locale): String = trim()
     .splitToSequence(' ', '-', '_')
     .filter { it.isNotBlank() }
     .joinToString(" ") { token ->
-        token.replaceFirstChar { char -> char.titlecase() }
+        token.replaceFirstChar { char -> char.titlecase(locale) }
     }

@@ -30,12 +30,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
 import com.musfit.ui.theme.MusFitTheme
+import java.util.Locale
 import kotlin.math.roundToInt
 
 // Shared leaf composables and small formatting helpers used across the Food
@@ -78,7 +82,7 @@ internal fun SectionTitle(text: String) {
 
 // Filled glyphs per the Turn 8 (8b) diary badges: bakery / lunch / dinner dining.
 internal fun mealTypeIcon(id: String, title: String): ImageVector {
-    val key = "$id $title".lowercase()
+    val key = "$id $title".lowercase(Locale.ROOT)
     return when {
         "breakfast" in key -> Icons.Filled.BakeryDining
         "lunch" in key -> Icons.Filled.LunchDining
@@ -104,7 +108,7 @@ internal fun defaultAddMealId(
         in 16..21 -> "dinner"
         else -> "snack"
     }
-    val match = sections.firstOrNull { keyword in "${it.id} ${it.title}".lowercase() }
+    val match = sections.firstOrNull { keyword in "${it.id} ${it.title}".lowercase(Locale.ROOT) }
     return (match ?: sections.first()).id
 }
 
@@ -166,7 +170,7 @@ internal fun FoodAvatar(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = text.firstOrNull()?.uppercase().orEmpty(),
+            text = text.firstOrNull()?.uppercase(LocalConfiguration.current.locales[0]).orEmpty(),
             style = MaterialTheme.typography.titleMedium,
             color = MusFitTheme.colors.brandInk,
             fontWeight = FontWeight.Bold,
@@ -218,16 +222,11 @@ internal fun SmallNumberField(
     )
 }
 
-internal fun Double.formatNutritionDisplay(): String {
-    val tenths = (this * 10.0).roundToInt()
-    val whole = tenths / 10
-    val decimal = tenths % 10
-    return if (decimal == 0) {
-        whole.toString()
-    } else {
-        "$whole.$decimal"
-    }
-}
+internal fun Double.formatNutritionDisplay(): String = LocalizedFormatter.number(
+    value = this,
+    maximumFractionDigits = 1,
+    grouping = false,
+)
 
 internal fun Double.formatMicronutrientDisplay(): String = if (this < 10.0 && this != roundToInt().toDouble()) {
     formatNutritionDisplay()
@@ -240,10 +239,19 @@ internal fun Double.formatMicronutrientDisplay(): String = if (this < 10.0 && th
  * the kcal segment in emphasized green ink: "3 items · **545 kcal** · great".
  */
 internal data class MealDiarySummary(
-    val prefix: String,
-    val kcal: String,
-    val qualifier: String,
+    val loggedCount: Int,
+    val caloriesKcal: Int?,
+    val qualifier: MealDiaryQualifier,
+    val ratingLabel: UiText? = null,
 )
+
+internal enum class MealDiaryQualifier {
+    None,
+    SoFar,
+    Planned,
+    Empty,
+    Rating,
+}
 
 internal fun FoodMealSectionUiState.mealDiarySummary(): MealDiarySummary {
     val loggedCount = entries.count { !it.isPlanned }
@@ -251,20 +259,29 @@ internal fun FoodMealSectionUiState.mealDiarySummary(): MealDiarySummary {
     val plannedCalories = plannedCaloriesKcal.roundToInt()
     return when {
         loggedCount > 0 -> MealDiarySummary(
-            prefix = "$loggedCount ${if (loggedCount == 1) "item" else "items"} · ",
-            kcal = "$loggedCalories kcal",
+            loggedCount = loggedCount,
+            caloriesKcal = loggedCalories,
             qualifier = when {
                 // Pending planned items outrank the rating: the meal is still open.
-                plannedCalories > 0 -> " · so far"
+                plannedCalories > 0 -> MealDiaryQualifier.SoFar
 
-                rating != null -> " · ${rating.label.lowercase()}"
+                rating != null -> MealDiaryQualifier.Rating
 
-                else -> ""
+                else -> MealDiaryQualifier.None
             },
+            ratingLabel = rating?.label,
         )
 
-        plannedCalories > 0 -> MealDiarySummary(prefix = "", kcal = "$plannedCalories kcal", qualifier = " planned")
+        plannedCalories > 0 -> MealDiarySummary(
+            loggedCount = 0,
+            caloriesKcal = plannedCalories,
+            qualifier = MealDiaryQualifier.Planned,
+        )
 
-        else -> MealDiarySummary(prefix = "No items yet", kcal = "", qualifier = "")
+        else -> MealDiarySummary(
+            loggedCount = 0,
+            caloriesKcal = null,
+            qualifier = MealDiaryQualifier.Empty,
+        )
     }
 }

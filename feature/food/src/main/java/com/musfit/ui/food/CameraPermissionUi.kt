@@ -27,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -34,6 +35,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.musfit.feature.food.R
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.theme.CameraSurface
 import com.musfit.ui.theme.Cream
@@ -112,7 +114,13 @@ internal fun CameraPermissionDeniedContent(
     ) {
         Text(text = message, style = MusFitTheme.typography.bodyLarge, color = Cream)
         PillButton(
-            text = if (action == CameraPermissionAction.OpenAppSettings) "Open app settings" else "Grant camera access",
+            text = stringResource(
+                if (action == CameraPermissionAction.OpenAppSettings) {
+                    R.string.food_open_app_settings
+                } else {
+                    R.string.food_grant_camera_access
+                },
+            ),
             onClick = onAction,
             modifier = Modifier.fillMaxWidth(),
         )

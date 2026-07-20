@@ -1,5 +1,7 @@
 package com.musfit.ui.food
 
+import com.musfit.feature.food.R
+import com.musfit.ui.text.uiText
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -57,13 +59,44 @@ class FoodRecipeBrowserUiTest {
         val lanes = recipeBrowserMealLanes(
             items = listOf(breakfastIdea, lunchAndDinnerRecipe),
             mealDefinitions = listOf(
-                FoodMealDefinitionUiState("breakfast", "Breakfast", null, "", 0, true),
-                FoodMealDefinitionUiState("lunch", "Lunch", null, "", 10, true),
-                FoodMealDefinitionUiState("dinner", "Dinner", null, "", 20, true),
+                FoodMealDefinitionUiState(
+                    "breakfast",
+                    "Breakfast",
+                    null,
+                    "",
+                    0,
+                    true,
+                    titleText = uiText(R.string.food_meal_breakfast),
+                ),
+                FoodMealDefinitionUiState(
+                    "lunch",
+                    "Lunch",
+                    null,
+                    "",
+                    10,
+                    true,
+                    titleText = uiText(R.string.food_meal_lunch),
+                ),
+                FoodMealDefinitionUiState(
+                    "dinner",
+                    "Dinner",
+                    null,
+                    "",
+                    20,
+                    true,
+                    titleText = uiText(R.string.food_meal_dinner),
+                ),
             ),
         )
 
-        assertEquals(listOf("Breakfast", "Lunch", "Dinner"), lanes.map { it.title })
+        assertEquals(
+            listOf(
+                uiText(R.string.food_meal_breakfast),
+                uiText(R.string.food_meal_lunch),
+                uiText(R.string.food_meal_dinner),
+            ),
+            lanes.map { it.titleText },
+        )
         assertEquals(listOf("Breakfast oats"), lanes[0].items.map { it.title })
         assertEquals(listOf("Chicken bowl"), lanes[1].items.map { it.title })
         assertEquals(listOf("Chicken bowl"), lanes[2].items.map { it.title })

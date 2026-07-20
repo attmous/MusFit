@@ -50,6 +50,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -68,6 +71,7 @@ import com.musfit.data.repository.ExerciseDetail
 import com.musfit.data.repository.RoutineSummary
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.domain.training.RoutineDisplayCalculator
+import com.musfit.feature.training.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.InnerScreenHeader
@@ -77,6 +81,11 @@ import com.musfit.ui.components.SectionHeader
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.TabAccentRole
@@ -85,6 +94,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 
 @Composable
@@ -302,7 +312,11 @@ private fun TrainingProjectedSurface(
         return
     }
     if (routeKey is TrainingRoutineEditorNavKey) {
-        TrainingRoutePlaceholder("Routine editor", state.message ?: "Loading routine...", navigation.back)
+        TrainingRoutePlaceholder(
+            uiText(R.string.training_routine_editor),
+            state.message ?: uiText(R.string.training_loading_routine),
+            navigation.back,
+        )
         return
     }
 
@@ -328,7 +342,11 @@ private fun TrainingProjectedSurface(
         return
     }
     if (routeKey is TrainingExerciseDetailNavKey) {
-        TrainingRoutePlaceholder("Exercise", state.message ?: "Loading exercise...", navigation.back)
+        TrainingRoutePlaceholder(
+            uiText(R.string.training_exercise),
+            state.message ?: uiText(R.string.training_loading_exercise),
+            navigation.back,
+        )
         return
     }
 
@@ -368,7 +386,11 @@ private fun TrainingProjectedSurface(
         return
     }
     if (routeKey is TrainingRoutineDetailNavKey) {
-        TrainingRoutePlaceholder("Routine", state.message ?: "Loading routine...", navigation.back)
+        TrainingRoutePlaceholder(
+            uiText(R.string.training_routine),
+            state.message ?: uiText(R.string.training_loading_routine),
+            navigation.back,
+        )
         return
     }
 
@@ -388,7 +410,11 @@ private fun TrainingProjectedSurface(
         routeKey is TrainingWorkoutHistoryDetailNavKey &&
         workoutDetail?.summary?.sessionId != routeKey.sessionId
     ) {
-        TrainingRoutePlaceholder("Workout", state.message ?: "Loading workout...", navigation.back)
+        TrainingRoutePlaceholder(
+            uiText(R.string.training_workout),
+            state.message ?: uiText(R.string.training_loading_workout),
+            navigation.back,
+        )
         return
     }
 
@@ -453,10 +479,10 @@ private fun TrainingProjectedSurface(
 }
 
 /** The dashboard's connected-button-group destinations (mock 6c). */
-private enum class TrainingDashboardSegment(val label: String) {
-    Routines("Routines"),
-    History("History"),
-    Progress("Progress"),
+private enum class TrainingDashboardSegment(val labelResource: Int) {
+    Routines(R.string.training_routines),
+    History(R.string.training_history),
+    Progress(R.string.training_progress),
 }
 
 /**
@@ -480,12 +506,16 @@ private fun TrainingDashboard(
     onOpenProgress: () -> Unit,
     onOpenCoach: () -> Unit,
 ) {
+    val segmentLabels = TrainingDashboardSegment.entries.associateWith { segment ->
+        stringResource(segment.labelResource)
+    }
+    val locale = LocalConfiguration.current.locales[0]
     MusFitScreenScaffold(
-        title = "Training",
+        title = stringResource(R.string.training_title),
         actions = {
             TonalHeaderIconButton(
                 icon = Icons.Outlined.History,
-                contentDescription = "Workout history",
+                contentDescription = stringResource(R.string.training_workout_history),
                 onClick = onOpenHistory,
             )
         },
@@ -505,16 +535,18 @@ private fun TrainingDashboard(
                 history = state.workoutHistory,
                 today = LocalDate.now(),
                 weeklyTarget = state.weeklySessionTarget,
+                locale = locale,
             ),
             weeklyTarget = state.weeklySessionTarget,
             accent = accent,
+            locale = locale,
         )
 
         MusFitSegmented(
             options = TrainingDashboardSegment.entries,
             selected = TrainingDashboardSegment.Routines,
             accent = accent,
-            label = { it.label },
+            label = segmentLabels::getValue,
             onSelect = { segment ->
                 when (segment) {
                     TrainingDashboardSegment.Routines -> Unit
@@ -536,14 +568,14 @@ private fun TrainingDashboard(
             ) {
                 Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text(
-                    text = "Start empty workout",
+                    text = stringResource(R.string.training_start_empty_workout),
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.5.sp),
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
             TextButton(onClick = onNewRoutine) {
                 Text(
-                    text = "New routine",
+                    text = stringResource(R.string.training_new_routine),
                     style = MaterialTheme.typography.labelLarge,
                     color = accent.color,
                 )
@@ -569,7 +601,7 @@ private fun TrainingDashboard(
         )
 
         state.message?.let { message ->
-            Text(text = message, style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
+            Text(text = message.asString(), style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
         }
     }
 }
@@ -587,7 +619,13 @@ private fun TrainingResumeHero(
     onDiscard: () -> Unit,
 ) {
     val sets = summary.completedSetCount
-    val meta = "$sets ${if (sets == 1) "set" else "sets"} · ${summary.totalVolumeKg.formatKg()} kg"
+    val locale = LocalConfiguration.current.locales[0]
+    val meta = pluralStringResource(
+        R.plurals.training_sets_volume,
+        sets,
+        sets,
+        summary.totalVolumeKg.formatKg(locale),
+    )
     Surface(color = accent.container, shape = MusFitTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(20.dp),
@@ -596,7 +634,7 @@ private fun TrainingResumeHero(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "IN PROGRESS",
+                    text = stringResource(R.string.training_in_progress).uppercase(locale),
                     style = MaterialTheme.typography.labelSmall,
                     color = accent.onContainer,
                 )
@@ -639,7 +677,7 @@ private fun TrainingResumeSplitButton(
                 .semantics { role = Role.Button },
         ) {
             Text(
-                text = "Resume",
+                text = stringResource(R.string.training_resume),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 13.dp),
             )
@@ -657,17 +695,17 @@ private fun TrainingResumeSplitButton(
                 Box(modifier = Modifier.padding(horizontal = 10.dp, vertical = 13.dp)) {
                     Icon(
                         imageVector = Icons.Filled.ExpandMore,
-                        contentDescription = "Workout options",
+                        contentDescription = stringResource(R.string.training_workout_options),
                         modifier = Modifier.size(20.dp),
                     )
                 }
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(text = { Text("View details") }, onClick = {
+                DropdownMenuItem(text = { Text(stringResource(R.string.training_view_details)) }, onClick = {
                     menuOpen = false
                     onResume()
                 })
-                DropdownMenuItem(text = { Text("Discard") }, onClick = {
+                DropdownMenuItem(text = { Text(stringResource(R.string.training_discard)) }, onClick = {
                     menuOpen = false
                     onDiscard()
                 })
@@ -688,6 +726,7 @@ private fun TrainingWeekCard(
     days: List<TrainingWeekDay>,
     weeklyTarget: Int,
     accent: TabAccent,
+    locale: Locale,
 ) {
     Surface(
         color = MusFitTheme.colors.surface,
@@ -704,13 +743,13 @@ private fun TrainingWeekCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "This week",
+                    text = stringResource(R.string.training_this_week),
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
                     fontWeight = FontWeight.ExtraBold,
                     color = MusFitTheme.colors.onSurface,
                 )
                 Text(
-                    text = trainingWeekHeaderMeta(overview, weeklyTarget),
+                    text = trainingWeekHeaderMeta(overview, weeklyTarget, locale),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
@@ -728,26 +767,44 @@ private fun TrainingWeekCard(
 
 /** "2 of 3 sessions · 3.8 t volume" with the numbers in emphasized ink. */
 @Composable
-private fun trainingWeekHeaderMeta(overview: TrainingHistoryOverview, weeklyTarget: Int) = buildAnnotatedString {
-    val emphasized = SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface)
-    withStyle(emphasized) {
-        append(
-            if (weeklyTarget > 0) {
-                "${overview.currentWeekWorkoutCount} of $weeklyTarget"
-            } else {
-                "${overview.currentWeekWorkoutCount}"
-            },
+private fun trainingWeekHeaderMeta(
+    overview: TrainingHistoryOverview,
+    weeklyTarget: Int,
+    locale: Locale,
+): androidx.compose.ui.text.AnnotatedString {
+    val sessionCount = if (weeklyTarget > 0) {
+        stringResource(
+            R.string.training_week_sessions_target,
+            overview.currentWeekWorkoutCount,
+            weeklyTarget,
         )
+    } else {
+        stringResource(R.string.training_week_sessions_count, overview.currentWeekWorkoutCount)
     }
-    append(if (overview.currentWeekWorkoutCount == 1 && weeklyTarget <= 0) " session · " else " sessions · ")
-    withStyle(emphasized) { append(trainingWeekVolumeFigure(overview.currentWeekVolumeKg)) }
-    append(" volume")
+    val sessionUnit = pluralStringResource(R.plurals.training_session_unit, overview.currentWeekWorkoutCount)
+    val volumeFigure = trainingWeekVolumeFigure(overview.currentWeekVolumeKg, locale).asString()
+    val volumeLabel = stringResource(R.string.training_volume)
+    return buildAnnotatedString {
+        val emphasized = SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface)
+        withStyle(emphasized) { append(sessionCount) }
+        append(" ")
+        append(sessionUnit)
+        withStyle(emphasized) { append(volumeFigure) }
+        append(" ")
+        append(volumeLabel)
+    }
 }
 
-internal fun trainingWeekVolumeFigure(volumeKg: Double): String = if (volumeKg >= 1000.0) {
-    String.format(Locale.US, "%.1f t", volumeKg / 1000.0)
+internal fun trainingWeekVolumeFigure(
+    volumeKg: Double,
+    locale: Locale = Locale.getDefault(),
+): UiText = if (volumeKg >= 1000.0) {
+    uiText(
+        R.string.training_tonnes,
+        UiText.Argument.Text(LocalizedFormatter.number(volumeKg / 1000.0, maximumFractionDigits = 1, locale = locale)),
+    )
 } else {
-    "${volumeKg.formatKg()} kg"
+    uiText(R.string.training_kilograms, UiText.Argument.Text(volumeKg.formatKg(locale)))
 }
 
 @Composable
@@ -821,14 +878,14 @@ private fun DashboardRoutineList(
 ) {
     Column {
         SectionHeader(
-            title = "Routines",
-            trailingActionLabel = "All",
+            title = stringResource(R.string.training_routines),
+            trailingActionLabel = stringResource(R.string.training_all),
             trailingActionColor = accent.color,
             onTrailingAction = onOpenAllRoutines,
         )
         if (routines.isEmpty()) {
             Text(
-                text = "Create a routine and it will appear here.",
+                text = stringResource(R.string.training_create_routine_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 10.dp),
@@ -866,7 +923,12 @@ private fun DashboardRoutineList(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = routineLastPerformedMeta(routine, history, LocalDate.now()),
+                                text = routineLastPerformedMeta(
+                                    routine = routine,
+                                    history = history,
+                                    today = LocalDate.now(),
+                                    locale = LocalConfiguration.current.locales[0],
+                                ).asString(),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MusFitTheme.colors.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 1.dp),
@@ -884,7 +946,7 @@ private fun DashboardRoutineList(
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Filled.PlayArrow,
-                                    contentDescription = "Start ${routine.name}",
+                                    contentDescription = stringResource(R.string.training_start_named, routine.name),
                                     modifier = Modifier.size(22.dp),
                                 )
                             }
@@ -898,7 +960,7 @@ private fun DashboardRoutineList(
 
 /** The coach shrunk to a hairline row: 7dp azure dot, one sentence, one text action. */
 @Composable
-private fun TrainingCoachRow(cue: String, onView: () -> Unit) {
+private fun TrainingCoachRow(cue: UiText, onView: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -910,14 +972,14 @@ private fun TrainingCoachRow(cue: String, onView: () -> Unit) {
                 .background(MusFitTheme.colors.accent, CircleShape),
         )
         Text(
-            text = cue,
+            text = cue.asString(),
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp, lineHeight = 19.sp),
             color = MusFitTheme.colors.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
         TextButton(onClick = onView) {
             Text(
-                text = "View",
+                text = stringResource(R.string.training_view),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = MusFitTheme.colors.accent,
@@ -946,10 +1008,12 @@ private fun TrainingHistoryListPage(
             .padding(start = MusFitTheme.spacing.xl, end = MusFitTheme.spacing.xl, top = MusFitTheme.spacing.lg),
         verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.xl),
     ) {
-        InnerScreenHeader(title = "History", onBack = onBack) {
+        InnerScreenHeader(title = stringResource(R.string.training_history), onBack = onBack) {
             TonalHeaderIconButton(
                 icon = Icons.Outlined.CalendarMonth,
-                contentDescription = if (calendarOpen) "Hide calendar" else "Show calendar",
+                contentDescription = stringResource(
+                    if (calendarOpen) R.string.training_hide_calendar else R.string.training_show_calendar,
+                ),
                 onClick = { calendarOpen = !calendarOpen },
             )
         }
@@ -1006,7 +1070,7 @@ private fun RoutineLibraryPage(
             .padding(start = MusFitTheme.spacing.xl, end = MusFitTheme.spacing.xl, top = MusFitTheme.spacing.lg),
         verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.xl),
     ) {
-        InnerScreenHeader(title = "Routines", onBack = onBack)
+        InnerScreenHeader(title = stringResource(R.string.training_routines), onBack = onBack)
         TrainingHomeContent(
             hasActiveWorkout = state.activeWorkoutSummary != null,
             routines = state.homeRoutines,
@@ -1067,31 +1131,31 @@ private fun ActiveWorkoutPlaceholder(state: TrainingUiState, onBack: () -> Unit)
         modifier = Modifier.fillMaxSize().background(MusFitTheme.colors.background).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text = "Active workout", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MusFitTheme.colors.onSurface)
+        Text(text = stringResource(R.string.training_active_workout), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MusFitTheme.colors.onSurface)
         Surface(color = MusFitTheme.colors.surface, shape = MusFitTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = state.activeWorkoutSummary?.title ?: "Workout in progress", style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
-                TextButton(onClick = onBack) { Text("Back to home") }
+                Text(text = state.activeWorkoutSummary?.title ?: stringResource(R.string.training_workout_in_progress), style = MaterialTheme.typography.titleMedium, color = MusFitTheme.colors.onSurface)
+                TextButton(onClick = onBack) { Text(stringResource(R.string.training_back_to_home)) }
             }
         }
     }
 }
 
 @Composable
-private fun TrainingRoutePlaceholder(title: String, message: String, onBack: () -> Unit) {
+private fun TrainingRoutePlaceholder(title: UiText, message: UiText, onBack: () -> Unit) {
     TrainingPageContainer {
         Text(
-            text = title,
+            text = title.asString(),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MusFitTheme.colors.onSurface,
         )
         Text(
-            text = message,
+            text = message.asString(),
             style = MaterialTheme.typography.bodyMedium,
             color = MusFitTheme.colors.onSurfaceVariant,
         )
-        TextButton(onClick = onBack) { Text("Back") }
+        TextButton(onClick = onBack) { Text(stringResource(R.string.training_back)) }
     }
 }
 
@@ -1112,11 +1176,12 @@ private fun ExerciseDetailPage(
     onClose: () -> Unit,
     showBackAction: Boolean = true,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (showBackAction) {
             TonalHeaderIconButton(
                 icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = "Back",
+                contentDescription = stringResource(R.string.training_back),
                 onClick = onClose,
             )
         }
@@ -1175,17 +1240,17 @@ private fun ExerciseDetailPage(
         }
         Text(
             listOfNotNull(
-                detail.equipment?.replaceFirstChar { it.titlecase(Locale.US) },
-                detail.category.replaceFirstChar { it.titlecase(Locale.US) },
-                if (detail.isCustom) "Custom" else "Library",
+                detail.equipment?.replaceFirstChar { it.titlecase(locale) },
+                detail.category.replaceFirstChar { it.titlecase(locale) },
+                stringResource(if (detail.isCustom) R.string.training_custom else R.string.training_library),
             ).joinToString(" · "),
             style = MaterialTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
         )
 
-        MuscleChipRow(label = "Primary", muscles = detail.primaryMuscles, accent = accent, primary = true)
+        MuscleChipRow(label = stringResource(R.string.training_primary), muscles = detail.primaryMuscles, accent = accent, primary = true)
         if (detail.secondaryMuscles.isNotBlank()) {
-            MuscleChipRow(label = "Secondary", muscles = detail.secondaryMuscles, accent = accent, primary = false)
+            MuscleChipRow(label = stringResource(R.string.training_secondary), muscles = detail.secondaryMuscles, accent = accent, primary = false)
         }
 
         detail.instructions?.takeIf { it.isNotBlank() }?.let { instructions ->
@@ -1193,11 +1258,11 @@ private fun ExerciseDetailPage(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Your notes", style = MaterialTheme.typography.labelLarge, color = MusFitTheme.colors.onSurfaceVariant)
+            Text(stringResource(R.string.training_your_notes), style = MaterialTheme.typography.labelLarge, color = MusFitTheme.colors.onSurfaceVariant)
             OutlinedTextField(
                 value = notesInput,
                 onValueChange = onNotesChange,
-                placeholder = { Text("Add a cue, weight, or reminder") },
+                placeholder = { Text(stringResource(R.string.training_notes_hint)) },
                 minLines = 2,
                 shape = MusFitTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
@@ -1206,7 +1271,7 @@ private fun ExerciseDetailPage(
                 onClick = onSaveNotes,
                 colors = ButtonDefaults.buttonColors(containerColor = accent.color, contentColor = accent.onColor),
             ) {
-                Text("Save notes")
+                Text(stringResource(R.string.training_save_notes))
             }
         }
     }
@@ -1214,10 +1279,11 @@ private fun ExerciseDetailPage(
 
 @Composable
 private fun MuscleChipRow(label: String, muscles: String, accent: TabAccent, primary: Boolean) {
+    val locale = LocalConfiguration.current.locales[0]
     val items = muscles.split(",")
         .map { it.trim() }
         .filter { it.isNotBlank() }
-        .map { it.replaceFirstChar { ch -> ch.titlecase(Locale.US) } }
+        .map { it.replaceFirstChar { ch -> ch.titlecase(locale) } }
     if (items.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.bodySmall, color = MusFitTheme.colors.onSurfaceVariant)
@@ -1266,21 +1332,29 @@ private fun ActiveWorkoutConfirmationDialogs(
     if (state.finishConfirmationOpen && workout != null) {
         AlertDialog(
             onDismissRequest = onCancelFinish,
-            title = { Text("Finish workout?") },
+            title = { Text(stringResource(R.string.training_finish_workout_question)) },
             text = {
                 Text(
-                    "${workout.title}\n" +
-                        "${workout.completedSetCount} sets - ${workout.totalVolumeKg.formatKg()} kg",
+                    stringResource(
+                        R.string.training_workout_summary,
+                        workout.title,
+                        pluralStringResource(
+                            R.plurals.training_sets_volume,
+                            workout.completedSetCount,
+                            workout.completedSetCount,
+                            workout.totalVolumeKg.formatKg(LocalConfiguration.current.locales[0]),
+                        ),
+                    ),
                 )
             },
             confirmButton = {
                 Button(onClick = onConfirmFinish) {
-                    Text("Finish")
+                    Text(stringResource(R.string.training_finish))
                 }
             },
             dismissButton = {
                 TextButton(onClick = onCancelFinish) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.training_cancel))
                 }
             },
         )
@@ -1288,16 +1362,16 @@ private fun ActiveWorkoutConfirmationDialogs(
     if (state.discardConfirmationOpen && workout != null) {
         AlertDialog(
             onDismissRequest = onCancelDiscard,
-            title = { Text("Discard workout?") },
-            text = { Text("This removes the active workout from your log.") },
+            title = { Text(stringResource(R.string.training_discard_workout_question)) },
+            text = { Text(stringResource(R.string.training_discard_workout_explanation)) },
             confirmButton = {
                 Button(onClick = onConfirmDiscard) {
-                    Text("Discard")
+                    Text(stringResource(R.string.training_discard))
                 }
             },
             dismissButton = {
                 TextButton(onClick = onCancelDiscard) {
-                    Text("Keep workout")
+                    Text(stringResource(R.string.training_keep_workout))
                 }
             },
         )
@@ -1321,6 +1395,7 @@ internal fun trainingWeekDays(
     history: List<WorkoutHistorySummary>,
     today: LocalDate,
     weeklyTarget: Int = 0,
+    locale: Locale = Locale.getDefault(),
 ): List<TrainingWeekDay> {
     val startOfWeek = today.minusDays((today.dayOfWeek.value - 1).toLong())
     val trainedDays = history
@@ -1330,7 +1405,7 @@ internal fun trainingWeekDays(
     val plannedDay = nextPlannedSessionDay(trainedDays, weekDates, today, weeklyTarget)
     return weekDates.map { date ->
         TrainingWeekDay(
-            label = date.format(DateTimeFormatter.ofPattern("EEE", Locale.US)),
+            label = date.format(DateTimeFormatter.ofPattern("EEE", locale)),
             isDone = date in trainedDays,
             isToday = date == today,
             isPlanned = date == plannedDay,
@@ -1358,16 +1433,33 @@ internal fun nextPlannedSessionDay(
 }
 
 /** Hero overline: "TODAY · QUADS DAY" from the routine's lead muscle group, else just "TODAY". */
-internal fun trainingHeroOverline(routine: RoutineSummary): String {
+internal fun trainingHeroOverline(
+    routine: RoutineSummary,
+    locale: Locale = Locale.getDefault(),
+): UiText {
     val muscle = routine.muscleGroups.firstOrNull()?.trim()?.takeIf(String::isNotBlank)
-    return if (muscle == null) "TODAY" else "TODAY · ${muscle.uppercase(Locale.US)} DAY"
+    return if (muscle == null) {
+        uiText(R.string.training_today)
+    } else {
+        uiText(R.string.training_today_muscle_day, UiText.Argument.Text(muscle.uppercase(locale)))
+    }
 }
 
-internal fun trainingHeroMeta(routine: RoutineSummary): String {
+internal fun trainingHeroMeta(routine: RoutineSummary): UiText {
     val estimatedMinutes = RoutineDisplayCalculator.estimatedMinutes(routine.targetSetCount)
-    return buildString {
-        append("${routine.exerciseCount} ${if (routine.exerciseCount == 1) "exercise" else "exercises"}")
-        if (estimatedMinutes > 0) append(" · ~$estimatedMinutes min")
+    return if (estimatedMinutes > 0) {
+        pluralUiText(
+            R.plurals.training_exercises_minutes,
+            routine.exerciseCount,
+            UiText.Argument.Integer(routine.exerciseCount),
+            UiText.Argument.Integer(estimatedMinutes),
+        )
+    } else {
+        pluralUiText(
+            R.plurals.training_exercise_count,
+            routine.exerciseCount,
+            UiText.Argument.Integer(routine.exerciseCount),
+        )
     }
 }
 
@@ -1379,22 +1471,32 @@ internal fun routineLastPerformedMeta(
     routine: RoutineSummary,
     history: List<WorkoutHistorySummary>,
     today: LocalDate,
-): String {
+    locale: Locale = Locale.getDefault(),
+): UiText {
     val lastRun = history
         .filter { it.title.equals(routine.name, ignoreCase = true) }
         .maxByOrNull { it.startedAtEpochMillis }
         ?.let { Instant.ofEpochMilli(it.startedAtEpochMillis).atZone(ZoneId.systemDefault()).toLocalDate() }
     if (lastRun != null) {
-        return "last: ${lastRun.recencyLabel(today)}"
+        return lastRun.recencyLabel(today, locale)
     }
     return trainingHeroMeta(routine)
 }
 
-private fun LocalDate.recencyLabel(today: LocalDate): String = when {
-    this == today -> "today"
-    this == today.minusDays(1) -> "yesterday"
-    !isBefore(today.minusDays(6)) -> format(DateTimeFormatter.ofPattern("EEE", Locale.US))
-    else -> format(DateTimeFormatter.ofPattern("d MMM", Locale.US))
+private fun LocalDate.recencyLabel(today: LocalDate, locale: Locale): UiText = when {
+    this == today -> uiText(R.string.training_last_today)
+
+    this == today.minusDays(1) -> uiText(R.string.training_last_yesterday)
+
+    !isBefore(today.minusDays(6)) -> uiText(
+        R.string.training_last_performed,
+        UiText.Argument.Text(format(DateTimeFormatter.ofPattern("EEE", locale))),
+    )
+
+    else -> uiText(
+        R.string.training_last_performed,
+        UiText.Argument.Text(LocalizedFormatter.date(this, FormatStyle.MEDIUM, locale)),
+    )
 }
 
 /** One deterministic coaching sentence for the hairline coach row — data-derived, no prose engine. */
@@ -1402,31 +1504,42 @@ internal fun trainingCoachCue(
     overview: TrainingHistoryOverview,
     nextRoutineName: String?,
     weeklyTarget: Int = DEFAULT_WEEKLY_SESSION_TARGET,
-): String {
+): UiText {
     val goal = if (weeklyTarget > 0) weeklyTarget else DEFAULT_WEEKLY_SESSION_TARGET
     val done = overview.currentWeekWorkoutCount
     return when {
-        done >= goal ->
-            "Weekly goal done — $done of $goal sessions. Recovery counts too."
+        done >= goal -> pluralUiText(
+            R.plurals.training_week_goal_done,
+            goal,
+            UiText.Argument.Integer(done),
+            UiText.Argument.Integer(goal),
+        )
 
         done == 0 ->
             if (nextRoutineName != null) {
-                "No sessions yet this week — $nextRoutineName would be a good start."
+                uiText(R.string.training_no_sessions_routine, UiText.Argument.Text(nextRoutineName))
             } else {
-                "No sessions yet this week — start with an empty workout."
+                uiText(R.string.training_no_sessions_empty)
             }
 
         else ->
             if (nextRoutineName != null) {
-                "$done of $goal sessions this week — $nextRoutineName is up next."
+                pluralUiText(
+                    R.plurals.training_sessions_next_routine,
+                    done,
+                    UiText.Argument.Integer(done),
+                    UiText.Argument.Integer(goal),
+                    UiText.Argument.Text(nextRoutineName),
+                )
             } else {
-                "$done of $goal sessions this week — one more keeps the plan on track."
+                pluralUiText(
+                    R.plurals.training_sessions_one_more,
+                    done,
+                    UiText.Argument.Integer(done),
+                    UiText.Argument.Integer(goal),
+                )
             }
     }
 }
 
-private fun Double.formatKg(): String = if (this % 1.0 == 0.0) {
-    toInt().toString()
-} else {
-    String.format(Locale.US, "%.1f", this)
-}
+private fun Double.formatKg(locale: Locale = Locale.getDefault()): String = LocalizedFormatter.number(this, maximumFractionDigits = 1, locale = locale)

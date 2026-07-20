@@ -1,11 +1,24 @@
 package com.musfit.ui.training
 
+import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.LoggedWorkoutSetDetail
 import com.musfit.data.repository.WorkoutExerciseBlock
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.resolve
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import com.musfit.ui.training.activeWorkoutStatLine as typedActiveWorkoutStatLine
+import com.musfit.ui.training.plateLineText as typedPlateLineText
+import com.musfit.ui.training.restTimerDisplayText as typedRestTimerDisplayText
+import com.musfit.ui.training.restTimerSettingsSummaryText as typedRestTimerSettingsSummaryText
+import com.musfit.ui.training.upNextTarget as typedUpNextTarget
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class TrainingActiveWorkoutContentTest {
     @Test
     fun compactExerciseSuggestions_collapsedDoesNotShowLibraryItems() {
@@ -288,6 +301,32 @@ class TrainingActiveWorkoutContentTest {
             ),
         )
     }
+
+    private fun restTimerDisplayText(restTimer: RestTimerState): String = typedRestTimerDisplayText(restTimer).resolveForTest()
+
+    private fun restTimerSettingsSummaryText(input: String): String = typedRestTimerSettingsSummaryText(input).resolveForTest()
+
+    private fun activeWorkoutStatLine(
+        elapsedSeconds: Long,
+        totalVolumeKg: Double,
+        completedSetCount: Int,
+        totalSetCount: Int,
+    ): String = typedActiveWorkoutStatLine(
+        elapsedSeconds = elapsedSeconds,
+        totalVolumeKg = totalVolumeKg,
+        completedSetCount = completedSetCount,
+        totalSetCount = totalSetCount,
+    ).resolveForTest()
+
+    private fun upNextTarget(block: WorkoutExerciseBlock): String = typedUpNextTarget(block).resolveForTest()
+
+    private fun plateLineText(
+        weightKg: Double,
+        barWeightKg: Double,
+        availablePlatesKg: List<Double>,
+    ): String? = typedPlateLineText(weightKg, barWeightKg, availablePlatesKg)?.resolveForTest()
+
+    private fun UiText.resolveForTest(): String = resolve(ApplicationProvider.getApplicationContext<android.content.Context>().resources)
 
     private fun set(
         id: String,

@@ -8,11 +8,17 @@ import com.musfit.data.repository.WorkoutExerciseBlock
 import com.musfit.data.repository.WorkoutHistoryDetail
 import com.musfit.data.repository.WorkoutHistorySummary
 import com.musfit.data.repository.WorkoutRecapSummary
+import com.musfit.feature.training.R
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
+import java.util.Locale
 
 class TrainingHistoryContentTest {
     @Test
@@ -92,9 +98,17 @@ class TrainingHistoryContentTest {
                 completedSetCount = 0,
                 totalVolumeKg = 0.0,
             ),
+            locale = Locale.US,
         )
 
-        assertEquals("Thu 2 Jul · Full Body A", subtitle)
+        assertEquals(
+            uiText(
+                R.string.training_date_and_title,
+                UiText.Argument.Text("Jul 2, 2026"),
+                UiText.Argument.Text("Full Body A"),
+            ),
+            subtitle,
+        )
     }
 
     @Test
@@ -121,8 +135,16 @@ class TrainingHistoryContentTest {
 
         val pr = displays.single()
         assertEquals("squat", pr.exerciseName)
-        assertEquals("100 kg × 5 · e1RM 116.7 kg", pr.meta)
-        assertEquals("+6.7 kg", pr.deltaLabel)
+        assertEquals(
+            uiText(
+                R.string.training_pr_meta,
+                UiText.Argument.Text("100"),
+                UiText.Argument.Integer(5),
+                UiText.Argument.Text("116.7"),
+            ),
+            pr.meta,
+        )
+        assertEquals(uiText(R.string.training_pr_delta, UiText.Argument.Text("6.7")), pr.deltaLabel)
     }
 
     @Test
@@ -137,28 +159,38 @@ class TrainingHistoryContentTest {
             historyDetail(blocks = listOf(firstEver), groupings = emptyList()),
         )
 
-        assertEquals("New PR", displays.single().deltaLabel)
+        assertEquals(uiText(R.string.training_new_pr), displays.single().deltaLabel)
     }
 
     @Test
     fun workoutCompleteCoachNote_prefersPrsThenSetsThenHonestFallback() {
-        assertTrue(
-            workoutCompleteCoachNote(WorkoutRecapSummary(personalRecordCount = 2))
-                .contains("2 personal records"),
+        assertEquals(
+            pluralUiText(
+                R.plurals.training_coach_strong_session,
+                2,
+                UiText.Argument.Integer(2),
+            ),
+            workoutCompleteCoachNote(WorkoutRecapSummary(personalRecordCount = 2)),
         )
-        assertTrue(
-            workoutCompleteCoachNote(WorkoutRecapSummary(completedSetCount = 8, durationSeconds = 600))
-                .contains("8 sets in 10 min"),
+        assertEquals(
+            pluralUiText(
+                R.plurals.training_coach_solid_work,
+                8,
+                UiText.Argument.Integer(8),
+                UiText.Argument.Integer(10),
+            ),
+            workoutCompleteCoachNote(WorkoutRecapSummary(completedSetCount = 8, durationSeconds = 600)),
         )
-        assertTrue(
-            workoutCompleteCoachNote(WorkoutRecapSummary()).contains("Session logged"),
+        assertEquals(
+            uiText(R.string.training_coach_session_logged),
+            workoutCompleteCoachNote(WorkoutRecapSummary()),
         )
     }
 
     @Test
     fun historyMonthStats_sumsTheCalendarMonth() {
         val overview = TrainingHistoryOverview(
-            monthLabel = "July",
+            month = YearMonth.of(2026, 7),
             calendarWeeks = listOf(
                 listOf(
                     null,
@@ -185,9 +217,16 @@ class TrainingHistoryContentTest {
             summary("older", at(LocalDate.of(2026, 6, 16))),
         )
 
-        val sections = historyWeekSections(history, today)
+        val sections = historyWeekSections(history, today, Locale.US)
 
-        assertEquals(listOf("This week", "Last week", "Week of 15 Jun"), sections.map { it.title })
+        assertEquals(
+            listOf(
+                uiText(R.string.training_this_week),
+                uiText(R.string.training_last_week),
+                uiText(R.string.training_week_of, UiText.Argument.Text("Jun 15, 2026")),
+            ),
+            sections.map { it.title },
+        )
         assertEquals(listOf("this", "last", "older"), sections.flatMap { it.workouts }.map { it.sessionId })
     }
 
@@ -204,14 +243,24 @@ class TrainingHistoryContentTest {
                 endedAtEpochMillis = startedAt + 41 * 60 * 1000L,
                 totalVolumeKg = 1_900.0,
             ),
+            locale = Locale.US,
         )
 
-        assertEquals("Thu 2 Jul", meta.dateLabel)
-        assertEquals("1.9 t", meta.volumeLabel)
-        assertEquals("41 min", meta.durationLabel)
+        assertEquals("Jul 2, 2026", meta.dateLabel)
+        assertEquals(
+            uiText(R.string.training_tonnes, UiText.Argument.Text("1.9")),
+            meta.volumeLabel,
+        )
+        assertEquals(
+            uiText(R.string.training_minutes_value, UiText.Argument.Integer(41)),
+            meta.durationLabel,
+        )
 
         // Sessions without an end time drop the duration part instead of showing 0.
-        val openEnded = historyRowMeta(summary(sessionId = "s2", startedAtEpochMillis = startedAt))
+        val openEnded = historyRowMeta(
+            summary(sessionId = "s2", startedAtEpochMillis = startedAt),
+            locale = Locale.US,
+        )
         assertEquals(null, openEnded.durationLabel)
     }
 

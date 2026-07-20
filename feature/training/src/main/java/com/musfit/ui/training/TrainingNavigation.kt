@@ -7,6 +7,7 @@ import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
@@ -14,6 +15,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.musfit.feature.training.R
 
 data class TrainingNavigationActions(
     val open: (TrainingNavKey) -> Unit = {},
@@ -92,7 +94,7 @@ internal fun TrainingNavigationHost(
             entry<TrainingHomeNavKey> { TrainingEntry(it) }
             entry<TrainingRoutineLibraryNavKey>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { Text("Select a routine") },
+                    detailPlaceholder = { Text(stringResource(R.string.training_select_routine)) },
                 ),
             ) { TrainingEntry(it) }
             entry<TrainingRoutineDetailNavKey>(metadata = ListDetailSceneStrategy.detailPane()) { TrainingEntry(it) }
@@ -101,7 +103,7 @@ internal fun TrainingNavigationHost(
             entry<TrainingExercisePickerNavKey> { TrainingEntry(it) }
             entry<TrainingHistoryNavKey>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { Text("Select a workout") },
+                    detailPlaceholder = { Text(stringResource(R.string.training_select_workout)) },
                 ),
             ) { TrainingEntry(it) }
             entry<TrainingWorkoutHistoryDetailNavKey>(metadata = ListDetailSceneStrategy.detailPane()) { TrainingEntry(it) }

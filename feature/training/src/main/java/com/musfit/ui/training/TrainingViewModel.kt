@@ -28,6 +28,9 @@ import com.musfit.domain.model.WorkoutSetInput
 import com.musfit.domain.training.PlateCalculator
 import com.musfit.domain.training.WarmupSetCalculator
 import com.musfit.domain.training.WorkoutCalculator
+import com.musfit.feature.training.R
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.uiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -48,7 +51,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import javax.inject.Inject
 
@@ -119,7 +121,7 @@ data class TrainingHistoryCalendarDay(
 )
 
 data class TrainingHistoryOverview(
-    val monthLabel: String = "",
+    val month: YearMonth? = null,
     val calendarWeeks: List<List<TrainingHistoryCalendarDay?>> = emptyList(),
     val currentWeekWorkoutCount: Int = 0,
     val currentWeekTrainingDayCount: Int = 0,
@@ -183,7 +185,7 @@ data class TrainingUiState(
     val restTimer: RestTimerState = RestTimerState(),
     val finishConfirmationOpen: Boolean = false,
     val discardConfirmationOpen: Boolean = false,
-    val message: String? = null,
+    val message: UiText? = null,
 )
 
 @HiltViewModel
@@ -348,7 +350,7 @@ class TrainingViewModel @Inject constructor(
             throw error
         } catch (error: Exception) {
             mutableState.update { current ->
-                current.copy(message = error.message ?: TRAINING_DATA_OBSERVATION_ERROR_MESSAGE)
+                current.copy(message = error.message?.let(UiText::Verbatim) ?: uiText(R.string.training_message_refresh_failed))
             }
         }
     }
@@ -540,7 +542,16 @@ class TrainingViewModel @Inject constructor(
         viewModelScope.launch {
             repository.assignRoutineToFolder(routineId, targetFolderId)
             mutableState.update {
-                it.copy(message = "${routine.name} moved to ${targetFolder?.name ?: "My routines"}.")
+                it.copy(
+                    message = uiText(
+                        R.string.training_message_routine_moved,
+                        UiText.Argument.Text(routine.name),
+                        UiText.Argument.Nested(
+                            targetFolder?.name?.let(UiText::Verbatim)
+                                ?: uiText(R.string.training_my_routines),
+                        ),
+                    ),
+                )
             }
         }
     }
@@ -551,7 +562,7 @@ class TrainingViewModel @Inject constructor(
             val detail = routineId?.let { repository.getRoutineDetail(it) }
             if (!routineEditorLoad.isCurrent(request)) return@launch
             if (routineId != null && detail == null) {
-                mutableState.update { it.copy(message = "Routine not found.") }
+                mutableState.update { it.copy(message = uiText(R.string.training_message_routine_not_found)) }
                 onMissing()
                 return@launch
             }
@@ -596,7 +607,7 @@ class TrainingViewModel @Inject constructor(
             if (!routineDetailLoad.isCurrent(request)) return@launch
             mutableState.update {
                 if (detail == null) {
-                    it.copy(message = "Routine not found.")
+                    it.copy(message = uiText(R.string.training_message_routine_not_found))
                 } else {
                     it.copy(
                         selectedRoutineDetail = detail,
@@ -932,7 +943,7 @@ class TrainingViewModel @Inject constructor(
 
     fun deleteRoutine(routineId: String, onDeleted: () -> Unit = {}) {
         if (isStarterRoutine(routineId)) {
-            mutableState.update { it.copy(message = "Starter routines are read-only templates.") }
+            mutableState.update { it.copy(message = uiText(R.string.training_message_starter_read_only)) }
             return
         }
         viewModelScope.launch {
@@ -1020,7 +1031,7 @@ class TrainingViewModel @Inject constructor(
             if (!exerciseDetailLoad.isCurrent(request)) return@launch
             mutableState.update {
                 if (detail == null) {
-                    it.copy(message = "Exercise not found.")
+                    it.copy(message = uiText(R.string.training_message_exercise_not_found))
                 } else {
                     it.copy(
                         selectedSection = if (switchToExercises) TrainingSection.Exercises else it.selectedSection,
@@ -1065,7 +1076,7 @@ class TrainingViewModel @Inject constructor(
                         current.copy(
                             selectedExerciseDetail = updated,
                             exerciseDetailNotesInput = notes.orEmpty(),
-                            message = "Exercise notes saved.",
+                            message = uiText(R.string.training_message_exercise_notes_saved),
                         )
                     }
                 }
@@ -1105,7 +1116,7 @@ class TrainingViewModel @Inject constructor(
         val editor = state.value.exerciseEditor
         val name = editor.name.trim()
         if (name.isBlank()) {
-            mutableState.update { it.copy(message = "Exercise name is required.") }
+            mutableState.update { it.copy(message = uiText(R.string.training_message_exercise_name_required)) }
             return
         }
         val input = ExerciseInput(
@@ -1119,7 +1130,7 @@ class TrainingViewModel @Inject constructor(
             mutableState.update {
                 it.copy(
                     exerciseEditor = ExerciseEditorState(),
-                    message = "Exercise saved.",
+                    message = uiText(R.string.training_message_exercise_saved),
                 ).withFilteredExercises()
             }
         }
@@ -1306,7 +1317,7 @@ class TrainingViewModel @Inject constructor(
                     } else {
                         it.restTimer.copy(durationSeconds = input.defaultRestSeconds)
                     },
-                    message = "Rest timer saved.",
+                    message = uiText(R.string.training_message_rest_timer_saved),
                 )
             }
         }
@@ -1448,7 +1459,7 @@ class TrainingViewModel @Inject constructor(
             mutableState.update {
                 it.copy(
                     activeWorkoutNotesInput = notes.orEmpty(),
-                    message = "Workout notes saved.",
+                    message = uiText(R.string.training_message_workout_notes_saved),
                 )
             }
         }
@@ -1785,7 +1796,7 @@ private fun List<RoutineSetInput>.resizeSetPlans(targetSets: Int, targetReps: St
     }
 }
 
-private fun String.normalizedRoutineSetType(): String = when (lowercase().trim()) {
+private fun String.normalizedRoutineSetType(): String = when (lowercase(Locale.ROOT).trim()) {
     "warmup", "warm-up", "warm_up" -> "warmup"
     "drop", "drop-set", "drop_set" -> "drop"
     "failure", "fail" -> "failure"
@@ -1826,7 +1837,7 @@ internal fun buildTrainingHistoryOverview(
     val trainingDays = workoutsByDate.keys.sorted()
 
     return TrainingHistoryOverview(
-        monthLabel = currentMonth.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)),
+        month = currentMonth,
         calendarWeeks = monthCells.chunked(7),
         currentWeekWorkoutCount = currentWeekWorkouts.size,
         currentWeekTrainingDayCount = currentWeekWorkouts.map { it.trainingDate() }.distinct().size,
@@ -1878,4 +1889,3 @@ private fun bestStreakDays(trainingDays: List<LocalDate>): Int {
 }
 
 private const val DEFAULT_REST_TIMER_SECONDS = 120
-private const val TRAINING_DATA_OBSERVATION_ERROR_MESSAGE = "Training data could not be refreshed"

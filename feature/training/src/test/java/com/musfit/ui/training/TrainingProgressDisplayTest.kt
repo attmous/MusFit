@@ -1,13 +1,30 @@
 package com.musfit.ui.training
 
 import androidx.compose.ui.input.key.Key
+import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.repository.TrainingPrRecord
 import com.musfit.data.repository.WeeklyTrainingVolume
 import com.musfit.domain.model.TrainingTrendPoint
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.resolve
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.LocalDate
+import com.musfit.ui.training.deltaLabel as typedDeltaLabel
+import com.musfit.ui.training.e1rmChartSelectionDescription as typedE1rmChartSelectionDescription
+import com.musfit.ui.training.e1rmChartSummary as typedE1rmChartSummary
+import com.musfit.ui.training.prMetaLabel as typedPrMetaLabel
+import com.musfit.ui.training.progressHeroOverline as typedProgressHeroOverline
+import com.musfit.ui.training.volumeTonsLabel as typedVolumeTonsLabel
+import com.musfit.ui.training.weekLabel as typedWeekLabel
+import com.musfit.ui.training.weeklyVolumeChartSelectionDescription as typedWeeklyVolumeChartSelectionDescription
+import com.musfit.ui.training.weeklyVolumeChartSummary as typedWeeklyVolumeChartSummary
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class TrainingProgressDisplayTest {
     private val today: LocalDate = LocalDate.of(2026, 7, 8)
 
@@ -44,9 +61,9 @@ class TrainingProgressDisplayTest {
 
     @Test
     fun progressHeroOverline_uppercasesTheAnchoredExercise() {
-        assertEquals("BACK SQUAT · ESTIMATED 1RM", progressHeroOverline("Back Squat"))
-        assertEquals("ESTIMATED 1RM", progressHeroOverline(null))
-        assertEquals("ESTIMATED 1RM", progressHeroOverline("  "))
+        assertEquals("BACK SQUAT · ESTIMATED 1RM", progressHeroOverline("Back Squat", "Estimated 1RM"))
+        assertEquals("ESTIMATED 1RM", progressHeroOverline(null, "Estimated 1RM"))
+        assertEquals("ESTIMATED 1RM", progressHeroOverline("  ", "Estimated 1RM"))
     }
 
     @Test
@@ -205,10 +222,35 @@ class TrainingProgressDisplayTest {
             prMetaLabel(pr(date = LocalDate.of(2026, 7, 6), reps = 5, weightKg = 107.5), today),
         )
         assertEquals(
-            "90 kg × 8 · 27 Jun",
+            "90 kg × 8 · Jun 27, 2026",
             prMetaLabel(pr(date = LocalDate.of(2026, 6, 27), reps = 8, weightKg = 90.0), today),
         )
     }
+
+    private fun deltaLabel(delta: Double): String = typedDeltaLabel(delta).resolveForTest()
+
+    private fun progressHeroOverline(exerciseName: String?, estimatedOneRepMaxLabel: String): String = typedProgressHeroOverline(exerciseName, estimatedOneRepMaxLabel).resolveForTest()
+
+    private fun weekLabel(weekStartEpochDay: Long): String = typedWeekLabel(weekStartEpochDay).resolveForTest()
+
+    private fun volumeTonsLabel(volumeKg: Double): String = typedVolumeTonsLabel(volumeKg).resolveForTest()
+
+    private fun e1rmChartSummary(exerciseName: String?, trend: List<TrainingTrendPoint>): String = typedE1rmChartSummary(exerciseName, trend).resolveForTest()
+
+    private fun e1rmChartSelectionDescription(trend: List<TrainingTrendPoint>, selectedIndex: Int): String = typedE1rmChartSelectionDescription(trend, selectedIndex).resolveForTest()
+
+    private fun weeklyVolumeChartSummary(weeks: List<WeeklyTrainingVolume>): String = typedWeeklyVolumeChartSummary(weeks).resolveForTest()
+
+    private fun weeklyVolumeChartSelectionDescription(weeks: List<WeeklyTrainingVolume>, selectedIndex: Int): String = typedWeeklyVolumeChartSelectionDescription(weeks, selectedIndex).resolveForTest()
+
+    private fun prMetaLabel(pr: TrainingPrRecord, today: LocalDate): String = typedPrMetaLabel(
+        pr = pr,
+        today = today,
+        todayLabel = "today",
+        yesterdayLabel = "yesterday",
+    ).resolveForTest()
+
+    private fun UiText.resolveForTest(): String = resolve(ApplicationProvider.getApplicationContext<android.content.Context>().resources)
 
     private fun point(daysAgo: Long, e1rm: Double): TrainingTrendPoint = TrainingTrendPoint(
         dateEpochDay = today.minusDays(daysAgo).toEpochDay(),

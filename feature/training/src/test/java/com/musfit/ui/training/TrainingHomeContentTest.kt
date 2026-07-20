@@ -1,15 +1,28 @@
 package com.musfit.ui.training
 
+import androidx.test.core.app.ApplicationProvider
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.RoutineExerciseInput
 import com.musfit.data.repository.RoutineFolder
 import com.musfit.data.repository.RoutineSetInput
 import com.musfit.data.repository.RoutineSummary
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.resolve
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import com.musfit.ui.training.pickerConfirmLabel as typedPickerConfirmLabel
+import com.musfit.ui.training.routineDescription as typedRoutineDescription
+import com.musfit.ui.training.routineEditorMetaLine as typedRoutineEditorMetaLine
+import com.musfit.ui.training.routineExerciseSubline as typedRoutineExerciseSubline
+import com.musfit.ui.training.setPlanSummaryLabel as typedSetPlanSummaryLabel
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class TrainingHomeContentTest {
     @Test
     fun validateTargetSets_enforces1To20() {
@@ -124,7 +137,7 @@ class TrainingHomeContentTest {
             ),
         )
 
-        assertEquals(listOf("PPL System", "Starter Pack", "My routines"), groups.map { it.title })
+        assertEquals(listOf("PPL System", "Starter Pack", MY_ROUTINES_GROUP_TITLE), groups.map { it.title })
         assertEquals(listOf("Push A", "Push B"), groups.first().routines.map { it.name })
         assertEquals(listOf("Garage Day"), groups.last().routines.map { it.name })
     }
@@ -142,7 +155,7 @@ class TrainingHomeContentTest {
             ),
         )
 
-        assertEquals(listOf("PPL System", "Powerbuilding", "My routines"), groups.map { it.title })
+        assertEquals(listOf("PPL System", "Powerbuilding", MY_ROUTINES_GROUP_TITLE), groups.map { it.title })
         assertEquals(listOf("Push A"), groups[0].routines.map { it.name })
         assertEquals(emptyList<String>(), groups[1].routines.map { it.name })
         assertEquals(listOf("Garage Day"), groups[2].routines.map { it.name })
@@ -167,7 +180,7 @@ class TrainingHomeContentTest {
 
         assertEquals(
             listOf(
-                RoutineFolderMoveTarget(folderId = null, label = "My routines"),
+                RoutineFolderMoveTarget(folderId = null, label = MY_ROUTINES_GROUP_TITLE),
                 RoutineFolderMoveTarget(folderId = "folder-full-body", label = "Full Body"),
                 RoutineFolderMoveTarget(folderId = "folder-ppl", label = "Push Pull Legs"),
             ),
@@ -258,11 +271,17 @@ class TrainingHomeContentTest {
     fun pickerFilterSummary_titleCasesActiveFilters() {
         assertEquals(
             "Barbell · Quads",
-            pickerFilterSummary(TrainingPickerFilters(equipment = setOf("barbell"), muscles = setOf("quads"))),
+            pickerFilterSummary(
+                TrainingPickerFilters(equipment = setOf("barbell"), muscles = setOf("quads")),
+                doneBeforeLabel = "Done before",
+            ),
         )
         assertEquals(
             "Dumbbell · Done before",
-            pickerFilterSummary(TrainingPickerFilters(equipment = setOf("dumbbell"), onlyDone = true)),
+            pickerFilterSummary(
+                TrainingPickerFilters(equipment = setOf("dumbbell"), onlyDone = true),
+                doneBeforeLabel = "Done before",
+            ),
         )
     }
 
@@ -406,6 +425,18 @@ class TrainingHomeContentTest {
             routineEditorMetaLine(RoutineEditorState(name = "New")),
         )
     }
+
+    private fun routineDescription(routine: RoutineSummary): String? = typedRoutineDescription(routine)?.resolveForTest()
+
+    private fun pickerConfirmLabel(selectedCount: Int): String = typedPickerConfirmLabel(selectedCount).resolveForTest()
+
+    private fun routineExerciseSubline(exercise: RoutineExerciseInput): String = typedRoutineExerciseSubline(exercise).resolveForTest()
+
+    private fun setPlanSummaryLabel(setPlans: List<RoutineSetInput>): String = typedSetPlanSummaryLabel(setPlans).resolveForTest()
+
+    private fun routineEditorMetaLine(editor: RoutineEditorState): String = typedRoutineEditorMetaLine(editor).resolveForTest()
+
+    private fun UiText.resolveForTest(): String = resolve(ApplicationProvider.getApplicationContext<android.content.Context>().resources)
 
     private fun routine(
         id: String,

@@ -259,6 +259,32 @@ Missing/malformed results, failed device tests, and parser/self-test failures
 still fail the job. Omit `-ReportOnly` on a controlled runner or local comparison
 to enforce the strict exit code.
 
+## Food and Training localization comparison (2026-07-20)
+
+S17 ran the Food and Training production-shaped journeys from exact candidate
+source `14a4e639b75726f81d56ce7c371024395918ab2b` on the API 37 managed device.
+Each exact benchmark ID was compared independently with the checked-in approved
+baseline and a strict 5% regression threshold. All eight approved measurements
+passed.
+
+| Journey metric | Approved | Candidate | Change |
+| --- | ---: | ---: | ---: |
+| Food frame CPU P90 | 104.6214 ms | 40.7240 ms | -61.07% |
+| Food frame overrun P90 | 130.0770 ms | 41.0571 ms | -68.44% |
+| Food maximum heap | 22,664 KB | 22,596 KB | -0.30% |
+| Food maximum anonymous RSS | 108,560 KB | 99,152 KB | -8.67% |
+| Training frame CPU P90 | 256.9968 ms | 81.6320 ms | -68.24% |
+| Training frame overrun P90 | 441.3738 ms | 99.9025 ms | -77.37% |
+| Training maximum heap | 22,672 KB | 16,908 KB | -25.42% |
+| Training maximum anonymous RSS | 99,844 KB | 95,904 KB | -3.95% |
+
+The seeded `MusFit_API36` emulator supplied final compact-layout captures and UI
+trees for Food under `en-XA` at 1.5x font scale, Training under `ar-XB` at 1.5x
+font scale and RTL, and Training under `de-DE`. The live `en-XA` pass exposed a
+screen-header width collapse that was fixed by stacking trailing actions below
+the title at large font scales. The reviewed Roborazzi baselines retain that
+header regression plus Food add, Training RTL, and expanded German coverage.
+
 ## CI and evidence
 
 `.github/workflows/performance.yml` runs for performance-relevant pull requests,
