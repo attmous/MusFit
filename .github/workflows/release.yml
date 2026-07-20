@@ -238,6 +238,8 @@ jobs:
           Device/UI verification run: $DEVICE_VERIFICATION_RUN_ID
           Performance verification run: $PERFORMANCE_VERIFICATION_RUN_ID
           Play track: internal
+          Obtainium artifact: Google-signed universal APK (arm64-v8a, armeabi-v7a, x86, x86_64)
+          ABI-specific APK exception: W5-SIZE-02-GOOGLE-MANAGED-SIGNING
           SHA-256 checksums are attached in SHA256SUMS." \
             release-candidate/musfit-universal.apk \
             release-candidate/musfit-play-upload.aab \

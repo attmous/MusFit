@@ -149,6 +149,10 @@ if ($Tests.Count -eq 0 -and $Preset -eq "Full") {
     & (Join-Path $repoRoot "scripts\quality\test-static-quality.ps1") -SelfTest
     Write-Host "Verifying the maintained Material icon subset."
     & (Join-Path $repoRoot "scripts\quality\test-icon-subset.ps1") -SelfTest
+    Write-Host "Verifying the Google-signed Obtainium distribution policy."
+    & (Join-Path $repoRoot "scripts\release\test-obtainium-distribution-policy.ps1") -SelfTest
+    Write-Host "Verifying the ABI APK measurement contract."
+    & (Join-Path $repoRoot "scripts\release\measure-abi-apk.ps1") -SelfTest
     Write-Host "Verifying actionable coverage policy and aggregation fixtures."
     & (Join-Path $repoRoot "scripts\coverage\test-coverage-policy.ps1") -SelfTest
 }

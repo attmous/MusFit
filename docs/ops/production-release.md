@@ -30,6 +30,40 @@ Obtainium may install. The locally built production APK and the upload-key-signe
 AAB are never mislabeled as the app-signing artifact. The legacy migration
 bridge and internal APK are never release assets.
 
+## W5-SIZE-02 distribution decision
+
+MusFit retains the Google-signed universal APK for Obtainium under measured
+exception `W5-SIZE-02-GOOGLE-MANAGED-SIGNING`. This is a security constraint,
+not a preference for a larger artifact:
+
+- Google Play App Signing is already active for `com.musfit`; release
+  `v0.1.0.531` proves the permanent Google-managed certificate is in use.
+- The app has minSdk 28. Bundletool creates standalone APK shards only for
+  pre-Android-5 delivery; current devices receive an install-multiple split set.
+- Obtainium consumes a single APK release asset. Publishing the locally built
+  arm64 APK would sign it with the replaceable upload key, so Android would
+  reject it as an update to the Google-signed installed app.
+
+The final S19 optimized arm64-only unsigned size probe is
+29,017,790 bytes (27.67 MiB), comfortably below the 60 MiB target. It contains
+only `arm64-v8a` native code and retains the bundled ML Kit scanner/OCR models.
+The same source's Play AAB is 40,674,855 bytes (38.79 MiB), below 40 MiB. The
+probe demonstrates that ABI filtering works technically, but its filename and
+metadata explicitly mark it as unsigned and not for publication.
+
+Future release metadata uses schema 2 and records:
+
+- `obtainiumMode = google-play-universal`;
+- all four supported ABIs: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`;
+- Google-managed app-signing custody;
+- `abiSpecificApksPublished = false` and the measured-exception identifier.
+
+`test-obtainium-distribution-policy.ps1` rejects release metadata or workflow
+assets that substitute upload-key-signed ABI APKs. `measure-abi-apk.ps1` keeps
+the ≤60 MiB arm64 budget executable without making the unsigned probe a release
+candidate. Users on any supported ABI choose `musfit-universal.apk`; the Play
+AAB continues normal split delivery.
+
 ## Required protected environment
 
 Create a GitHub environment named `production-release`. Require an explicit

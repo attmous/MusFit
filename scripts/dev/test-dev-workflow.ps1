@@ -394,7 +394,7 @@ Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPP
 Assert-FileContains "scripts/android/android-env.ps1" '(?s)if\s*\(\$env:LOCALAPPDATA\)\s*\{[^}]*Android[\\/]Sdk'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$windows\)\s*\{\s*"gradlew\.bat"\s*\}\s*else\s*\{\s*"gradlew"\s*\}'
 Assert-FileContains "scripts/dev/verify-musfit.ps1" '&\s*\$gradleWrapper\s+@Arguments'
-Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$Tests\.Count\s*-eq\s*0\s*-and\s*\$Preset\s*-eq\s*"Full"\).{0,1200}test-dev-workflow\.ps1.{0,1200}if\s*\(\$gradleArgs\.Count\s*-gt\s*0\)'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" '(?s)if\s*\(\$Tests\.Count\s*-eq\s*0\s*-and\s*\$Preset\s*-eq\s*"Full"\).{0,2400}test-dev-workflow\.ps1.{0,2400}if\s*\(\$gradleArgs\.Count\s*-gt\s*0\)'
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "EvidenceDir"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "Assert-LastExitCode"
 Assert-FileContains "scripts/android/install-seed-musfit.ps1" "pm clear"
@@ -562,12 +562,20 @@ Assert-FileContains "scripts/release/invoke-play-option-a.ps1" 'Invoke-WebReques
 Assert-FileExists "scripts/release/complete-play-internal-release.ps1"
 Assert-FileExists "scripts/release/verify-release-candidate.ps1"
 Assert-FileExists "scripts/release/write-release-candidate-metadata.ps1"
+Assert-FileExists "scripts/release/test-obtainium-distribution-policy.ps1"
+Assert-FileExists "scripts/release/measure-abi-apk.ps1"
 Assert-PowerShellParses "scripts/release/assert-verified-release-commit.ps1"
 Assert-PowerShellParses "scripts/release/prepare-play-upload-bundle.ps1"
 Assert-PowerShellParses "scripts/release/invoke-play-option-a.ps1"
 Assert-PowerShellParses "scripts/release/complete-play-internal-release.ps1"
 Assert-PowerShellParses "scripts/release/verify-release-candidate.ps1"
 Assert-PowerShellParses "scripts/release/write-release-candidate-metadata.ps1"
+Assert-PowerShellParses "scripts/release/test-obtainium-distribution-policy.ps1"
+Assert-PowerShellParses "scripts/release/measure-abi-apk.ps1"
+Assert-FileContains "scripts/release/write-release-candidate-metadata.ps1" 'W5-SIZE-02-GOOGLE-MANAGED-SIGNING'
+Assert-FileContains "scripts/release/verify-release-candidate.ps1" 'test-obtainium-distribution-policy\.ps1'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" 'test-obtainium-distribution-policy\.ps1'
+Assert-FileContains "scripts/dev/verify-musfit.ps1" 'measure-abi-apk\.ps1'
 Assert-FileContains ".gitignore" 'gha-creds-\*\.json'
 Assert-FileContains "docs/ops/production-release.md" "Google-managed app-signing key"
 Assert-FileContains "docs/ops/production-release.md" "generatedapks"
