@@ -3,6 +3,7 @@ package com.musfit.ui.profile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.musfit.data.repository.DEFAULT_USER_PROFILE
 import com.musfit.domain.profile.GoalType
@@ -49,6 +51,32 @@ class ProfileScreenshotRegressionTest {
                 onDismiss = {},
                 onSave = { _, _ -> },
             )
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "en-rXA-w400dp-h800dp-mdpi")
+    fun profileWeightHero_phone_pseudo_largeFont() {
+        capture("profile-weight-hero-phone-pseudo-font-150.png", fontScale = 1.5f) {
+            Box(Modifier.padding(16.dp)) {
+                WeightHeroCardPreview(
+                    state = ProfileUiState(
+                        profile = DEFAULT_USER_PROFILE.copy(goalType = GoalType.Gain, goalPaceKgPerWeek = 0.2),
+                        hero = WeightHeroState(
+                            latestWeightKg = 80.5,
+                            deltaKg = 0.5,
+                            goalWeightKg = 82.0,
+                            goalProgressFraction = 0.5,
+                            bmi = 25.0,
+                            chartSeries = listOf(79.5, 80.0, 80.5),
+                            hasAnyEntry = true,
+                        ),
+                    ),
+                    accent = tabAccentFor(TabAccentRole.Profile),
+                    onOpenEntries = {},
+                    onLogWeight = {},
+                )
+            }
         }
     }
 

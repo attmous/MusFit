@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -318,31 +319,7 @@ private fun WeightHeroCard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (hero.hasAnyEntry) {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
-                            Text(
-                                hero.latestWeightKg!!.format1(LocalConfiguration.current.locales[0]),
-                                style = MusFitTheme.typography.displayLarge.copy(fontSize = 52.sp, lineHeight = 52.sp),
-                                color = accent.onContainer,
-                                maxLines = 1,
-                            )
-                            Text(
-                                stringResource(R.string.profile_unit_kg),
-                                style = MusFitTheme.typography.titleLarge.copy(fontSize = 19.sp),
-                                fontWeight = FontWeight.Medium,
-                                color = accent.onContainer,
-                                maxLines = 1,
-                                modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
-                            )
-                        }
-                        WeightMetaLine(hero = hero, accent = accent)
-                    }
-                    if (hero.goalWeightKg != null) {
-                        HeroChip(text = goalChipText(state), accent = accent)
-                    }
-                }
+                WeightHeroSummary(state = state, accent = accent)
                 when {
                     hero.chartSeries.size >= 2 ->
                         ProfileTrendChart(
@@ -372,30 +349,107 @@ private fun WeightHeroCard(
                     color = accent.onContainerVariant,
                 )
             }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = if (hero.hasAnyEntry) {
-                        hero.goalProgressFraction?.let {
-                            stringResource(
-                                R.string.profile_30_days_to_goal,
-                                LocalizedFormatter.integer((it * 100).roundToInt().toLong(), locale = LocalConfiguration.current.locales[0]),
-                            )
-                        } ?: stringResource(R.string.profile_30_days)
-                    } else {
-                        ""
-                    },
-                    style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = accent.onContainerVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                HeroActionPill(
-                    text = stringResource(R.string.profile_log_weight),
-                    icon = Icons.Outlined.Add,
-                    accent = accent,
-                    onClick = onLogWeight,
-                )
-            }
+            WeightHeroFooter(hero = hero, accent = accent, onLogWeight = onLogWeight)
         }
+    }
+}
+
+@Composable
+internal fun WeightHeroCardPreview(
+    state: ProfileUiState,
+    accent: TabAccent,
+    onOpenEntries: () -> Unit,
+    onLogWeight: () -> Unit,
+) = WeightHeroCard(state, accent, onOpenEntries, onLogWeight)
+
+@Composable
+private fun WeightHeroFooter(
+    hero: WeightHeroState,
+    accent: TabAccent,
+    onLogWeight: () -> Unit,
+) {
+    val progressText = if (hero.hasAnyEntry) {
+        hero.goalProgressFraction?.let {
+            stringResource(
+                R.string.profile_30_days_to_goal,
+                LocalizedFormatter.integer((it * 100).roundToInt().toLong(), locale = LocalConfiguration.current.locales[0]),
+            )
+        } ?: stringResource(R.string.profile_30_days)
+    } else {
+        ""
+    }
+    val action: @Composable () -> Unit = {
+        HeroActionPill(
+            text = stringResource(R.string.profile_log_weight),
+            icon = Icons.Outlined.Add,
+            accent = accent,
+            onClick = onLogWeight,
+        )
+    }
+    if (LocalDensity.current.fontScale >= 1.3f) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(progressText, style = MusFitTheme.typography.bodySmall, color = accent.onContainerVariant)
+            action()
+        }
+    } else {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                progressText,
+                style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = accent.onContainerVariant,
+                modifier = Modifier.weight(1f),
+            )
+            action()
+        }
+    }
+}
+
+@Composable
+private fun WeightHeroSummary(state: ProfileUiState, accent: TabAccent) {
+    val hero = state.hero
+    val goalChip: @Composable () -> Unit = {
+        if (hero.goalWeightKg != null) {
+            HeroChip(text = goalChipText(state), accent = accent)
+        }
+    }
+    if (LocalDensity.current.fontScale >= 1.3f) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            WeightHeroValue(hero = hero, accent = accent)
+            goalChip()
+        }
+    } else {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            WeightHeroValue(hero = hero, accent = accent, modifier = Modifier.weight(1f))
+            goalChip()
+        }
+    }
+}
+
+@Composable
+private fun WeightHeroValue(
+    hero: WeightHeroState,
+    accent: TabAccent,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            // hasAnyEntry ⇔ latestWeightKg != null by construction (both from the same series).
+            Text(
+                hero.latestWeightKg!!.format1(LocalConfiguration.current.locales[0]),
+                style = MusFitTheme.typography.displayLarge.copy(fontSize = 52.sp, lineHeight = 52.sp),
+                color = accent.onContainer,
+                maxLines = 1,
+            )
+            Text(
+                stringResource(R.string.profile_unit_kg),
+                style = MusFitTheme.typography.titleLarge.copy(fontSize = 19.sp),
+                fontWeight = FontWeight.Medium,
+                color = accent.onContainer,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
+            )
+        }
+        WeightMetaLine(hero = hero, accent = accent)
     }
 }
 
