@@ -259,6 +259,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             enableUnitTestCoverage = true
             enableAndroidTestCoverage = true
+            isPseudoLocalesEnabled = true
         }
         release {
             isDebuggable = false
