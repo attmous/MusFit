@@ -1,5 +1,6 @@
 package com.musfit.ui
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -23,5 +24,12 @@ class AppNavigationChromeTest {
             "The bar should keep fixed bottom clearance before system-bar insets.",
             MusFitBottomNavMetrics.RowBottomPadding.value >= 14f,
         )
+    }
+
+    @Test
+    fun compactNavigation_usesIconOnlyLayoutAtLargeFontScales() {
+        assertTrue(compactNavigationShowsLabels(1.0f))
+        assertFalse(compactNavigationShowsLabels(1.3f))
+        assertFalse(compactNavigationShowsLabels(1.5f))
     }
 }

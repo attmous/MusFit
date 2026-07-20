@@ -1,10 +1,14 @@
 package com.musfit.ui.transfer
 
 import android.net.Uri
+import com.musfit.R
 import com.musfit.data.transfer.DataTransferReceipt
 import com.musfit.data.transfer.DataTransferReport
 import com.musfit.data.transfer.DataTransferRepository
 import com.musfit.testing.MainDispatcherRule
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -30,7 +34,15 @@ class DataTransferViewModelTest {
         viewModel.export(Uri.parse("content://backup/export"), "long migration passphrase")
         advanceUntilIdle()
 
-        assertEquals("Encrypted backup saved: 6 rows · abcdef012345", viewModel.state.value.message)
+        assertEquals(
+            pluralUiText(
+                R.plurals.data_transfer_export_success,
+                6,
+                UiText.Argument.LongInteger(6L),
+                UiText.Argument.Text("abcdef012345"),
+            ),
+            viewModel.state.value.message,
+        )
         assertFalse(viewModel.state.value.busy)
         assertTrue(repository.receivedSecret?.all { it == '\u0000' } == true)
     }
@@ -42,7 +54,7 @@ class DataTransferViewModelTest {
 
         viewModel.export(Uri.EMPTY, "too short")
 
-        assertEquals("Passphrase must be at least 12 characters.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.data_transfer_short_passphrase), viewModel.state.value.message)
         assertEquals(0, repository.exportCalls)
     }
 
@@ -55,7 +67,7 @@ class DataTransferViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            "Transfer failed. Check the backup, passphrase, and available storage.",
+            uiText(R.string.data_transfer_failed),
             viewModel.state.value.message,
         )
         assertFalse(viewModel.state.value.busy)

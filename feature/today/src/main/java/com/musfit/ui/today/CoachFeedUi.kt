@@ -61,7 +61,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -79,7 +81,9 @@ import com.musfit.data.repository.AiCoachChatRole
 import com.musfit.data.repository.CoachMessage
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCategory
+import com.musfit.feature.today.R
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitTheme
 import java.time.Instant
@@ -88,7 +92,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 
-private fun currentTimeFormatter(): DateTimeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.getDefault())
+private fun currentTimeFormatter(locale: Locale): DateTimeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
 
 /**
  * The feed body: day-grouped coach messages, newest first, each group rendered
@@ -100,10 +104,11 @@ fun CoachFeed(
     onAction: (CoachAction) -> Unit,
     onDismiss: (Long) -> Unit,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     Column(verticalArrangement = Arrangement.spacedBy(MusFitTheme.spacing.xs)) {
         groups.forEach { group ->
             Text(
-                text = group.label.uppercase(),
+                text = group.label.asString().uppercase(locale),
                 style = MusFitTheme.typography.labelSmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.padding(top = MusFitTheme.spacing.sm, bottom = MusFitTheme.spacing.xs),
@@ -155,6 +160,8 @@ private fun CoachMessageCard(
 ) {
     // White cards on the cream ground; the coral accent carries the overline,
     // the unread dot, and the tonal action pill.
+    val unread = stringResource(R.string.today_unread)
+    val dismissMessage = stringResource(R.string.today_dismiss_message)
     Surface(
         color = MusFitTheme.colors.surface,
         shape = shape,
@@ -165,9 +172,9 @@ private fun CoachMessageCard(
                 detectTapGestures(onLongPress = { onLongPress() })
             }
             .semantics(mergeDescendants = true) {
-                if (!message.isRead) stateDescription = "Unread"
+                if (!message.isRead) stateDescription = unread
                 customActions = listOf(
-                    CustomAccessibilityAction(label = "Dismiss message") {
+                    CustomAccessibilityAction(label = dismissMessage) {
                         onLongPress()
                         true
                     },
@@ -198,6 +205,7 @@ private fun CoachMessageCard(
 
 @Composable
 private fun CoachMessageHeader(message: CoachMessage) {
+    val locale = LocalConfiguration.current.locales[0]
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             message.category.icon(),
@@ -207,13 +215,13 @@ private fun CoachMessageHeader(message: CoachMessage) {
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            text = message.category.displayLabel().uppercase(),
+            text = message.category.displayLabel().uppercase(locale),
             style = MusFitTheme.typography.labelSmall,
             color = MusFitTheme.colors.accent,
         )
         Spacer(Modifier.weight(1f))
         Text(
-            text = currentTimeFormatter().format(
+            text = currentTimeFormatter(locale).format(
                 Instant.ofEpochMilli(message.firstSeenAtEpochMillis).atZone(ZoneId.systemDefault()),
             ),
             style = MusFitTheme.typography.labelSmall,
@@ -259,11 +267,12 @@ private fun CoachActionButton(
     }
 }
 
+@Composable
 internal fun coachActionLabel(action: CoachAction): String = when (action) {
-    CoachAction.OpenFood -> "Open Food"
-    CoachAction.OpenTraining -> "Open Training"
-    CoachAction.OpenHealth -> "Open Profile"
-    is CoachAction.StartRoutine -> "Start workout"
+    CoachAction.OpenFood -> stringResource(R.string.today_open_food)
+    CoachAction.OpenTraining -> stringResource(R.string.today_open_training)
+    CoachAction.OpenHealth -> stringResource(R.string.today_open_profile)
+    is CoachAction.StartRoutine -> stringResource(R.string.today_start_workout)
 }
 
 /**
@@ -278,13 +287,14 @@ internal fun coachActionDestination(action: CoachAction): TodayNavigationTarget 
     is CoachAction.StartRoutine -> TodayNavigationTarget.Training
 }
 
+@Composable
 private fun CoachMessageCategory.displayLabel(): String = when (this) {
-    CoachMessageCategory.Plan -> "Plan"
-    CoachMessageCategory.Nutrition -> "Nutrition"
-    CoachMessageCategory.Training -> "Training"
-    CoachMessageCategory.Trend -> "Trend"
-    CoachMessageCategory.Achievement -> "Achievement"
-    CoachMessageCategory.Recap -> "Recap"
+    CoachMessageCategory.Plan -> stringResource(R.string.today_category_plan)
+    CoachMessageCategory.Nutrition -> stringResource(R.string.today_category_nutrition)
+    CoachMessageCategory.Training -> stringResource(R.string.today_category_training)
+    CoachMessageCategory.Trend -> stringResource(R.string.today_category_trend)
+    CoachMessageCategory.Achievement -> stringResource(R.string.today_category_achievement)
+    CoachMessageCategory.Recap -> stringResource(R.string.today_category_recap)
 }
 
 private fun CoachMessageCategory.icon(): ImageVector = when (this) {
@@ -326,7 +336,7 @@ fun ChatPreviewFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
             Box(modifier = Modifier.size(28.dp)) {
                 Icon(
                     Icons.Filled.ChatBubble,
-                    contentDescription = "Ask coach",
+                    contentDescription = stringResource(R.string.today_ask_coach),
                     tint = Color.White,
                     modifier = Modifier.size(28.dp),
                 )
@@ -400,13 +410,13 @@ fun ChatPreviewSheet(
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Ask coach",
+                        text = stringResource(R.string.today_ask_coach),
                         style = MusFitTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MusFitTheme.colors.onSurface,
                     )
                     Text(
-                        text = state.providerLabel,
+                        text = state.providerLabel.asString(),
                         style = MusFitTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                     )
@@ -416,21 +426,21 @@ fun ChatPreviewSheet(
                     enabled = state.messages.isNotEmpty(),
                     modifier = Modifier.size(48.dp).semantics { role = Role.Button },
                 ) {
-                    Icon(Icons.Outlined.DeleteOutline, contentDescription = "Clear coach chat")
+                    Icon(Icons.Outlined.DeleteOutline, contentDescription = stringResource(R.string.today_clear_coach_chat))
                 }
                 IconButton(
                     onClick = onDismiss,
                     modifier = Modifier.size(48.dp).semantics { role = Role.Button },
                 ) {
-                    Icon(Icons.Outlined.Close, contentDescription = "Close coach chat")
+                    Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.today_close_coach_chat))
                 }
             }
 
             if (!state.isConfigured) {
                 CoachChatEmptyState(
-                    title = "Coach connection is off",
-                    body = "Choose Hermes or another endpoint in Profile settings.",
-                    actionLabel = "Configure",
+                    title = stringResource(R.string.today_coach_connection_off),
+                    body = stringResource(R.string.today_configure_coach_body),
+                    actionLabel = stringResource(R.string.today_configure),
                     onAction = {
                         onDismiss()
                         onConfigure()
@@ -450,7 +460,7 @@ fun ChatPreviewSheet(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             Text(
-                                text = message,
+                                text = message.asString(),
                                 style = MusFitTheme.typography.bodySmall,
                                 color = MusFitTheme.colors.onSurfaceVariant,
                                 modifier = Modifier.weight(1f),
@@ -458,7 +468,7 @@ fun ChatPreviewSheet(
                             TextButton(
                                 onClick = { runWithLocalNetworkPermission(viewModel::testConnection) },
                             ) {
-                                Text("Retry")
+                                Text(stringResource(R.string.today_retry))
                             }
                         }
                     }
@@ -482,6 +492,10 @@ internal fun CoachChatComposer(
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val coachMessageDescription = stringResource(R.string.today_coach_message)
+    val sendDescription = stringResource(
+        if (isSending) R.string.today_sending_coach_message else R.string.today_send_coach_message,
+    )
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -490,50 +504,56 @@ internal fun CoachChatComposer(
         OutlinedTextField(
             value = input,
             onValueChange = onInputChanged,
-            placeholder = { Text("Ask about today") },
+            placeholder = { Text(stringResource(R.string.today_ask_about_today)) },
             singleLine = false,
             minLines = 1,
             maxLines = 4,
             modifier = Modifier
                 .weight(1f)
-                .semantics { contentDescription = "Coach message" },
+                .semantics { contentDescription = coachMessageDescription },
         )
         val canSend = input.isNotBlank() && !isSending
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .clickable(
-                    enabled = canSend,
-                    role = Role.Button,
-                    onClick = onSend,
-                )
-                .semantics {
-                    role = Role.Button
-                    contentDescription = if (isSending) "Sending coach message" else "Send coach message"
-                },
+        CoachSendButton(canSend, isSending, sendDescription, onSend)
+    }
+}
+
+@Composable
+private fun CoachSendButton(
+    enabled: Boolean,
+    isSending: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics {
+                role = Role.Button
+                this.contentDescription = contentDescription
+            },
+    ) {
+        Surface(
+            color = if (enabled) MusFitTheme.colors.accent else MusFitTheme.colors.surfaceVariant,
+            shape = CircleShape,
+            modifier = Modifier.size(40.dp),
         ) {
-            Surface(
-                color = if (canSend) MusFitTheme.colors.accent else MusFitTheme.colors.surfaceVariant,
-                shape = CircleShape,
-                modifier = Modifier.size(40.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (isSending) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.dp,
-                            color = MusFitTheme.colors.onSurfaceVariant,
-                        )
-                    } else {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.Send,
-                            contentDescription = null,
-                            tint = if (canSend) MusFitTheme.colors.onAccent else MusFitTheme.colors.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
+            Box(contentAlignment = Alignment.Center) {
+                if (isSending) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = MusFitTheme.colors.onSurfaceVariant,
+                    )
+                } else {
+                    Icon(
+                        Icons.AutoMirrored.Outlined.Send,
+                        contentDescription = null,
+                        tint = if (enabled) MusFitTheme.colors.onAccent else MusFitTheme.colors.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
+                    )
                 }
             }
         }
@@ -548,8 +568,8 @@ private fun CoachChatMessages(
 ) {
     if (messages.isEmpty()) {
         CoachChatEmptyState(
-            title = "Coach is ready",
-            body = "Ask about today's food, hydration, training, or recovery.",
+            title = stringResource(R.string.today_coach_ready),
+            body = stringResource(R.string.today_coach_ready_body),
             actionLabel = null,
             onAction = {},
             modifier = modifier,
@@ -567,7 +587,7 @@ private fun CoachChatMessages(
             item {
                 Surface(color = MusFitTheme.colors.surfaceVariant, shape = MusFitTheme.shapes.medium) {
                     Text(
-                        text = "Thinking...",
+                        text = stringResource(R.string.today_thinking),
                         style = MusFitTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -599,7 +619,7 @@ private fun CoachChatBubble(message: AiCoachChatMessage) {
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Text(
                     text = when {
-                        message.status == AiCoachChatMessageStatus.Sending -> "Thinking..."
+                        message.status == AiCoachChatMessageStatus.Sending -> stringResource(R.string.today_thinking)
                         else -> message.content
                     },
                     style = MusFitTheme.typography.bodyMedium,

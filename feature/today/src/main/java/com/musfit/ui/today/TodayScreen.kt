@@ -37,6 +37,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -48,13 +50,19 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.musfit.domain.coach.CoachAction
+import com.musfit.feature.today.R
 import com.musfit.ui.components.EmptyState
 import com.musfit.ui.components.MusFitScreenScaffold
 import com.musfit.ui.components.TonalHeaderIconButton
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 internal enum class TodayNavigationTarget { Food, Training, Profile }
 
@@ -92,6 +100,7 @@ fun TodayScreen(
     val todayAccent = tabAccentFor(TabAccentRole.Today)
     val healthAccent = tabAccentFor(TabAccentRole.Profile)
     val pullRefreshState = rememberPullToRefreshState()
+    val locale = LocalConfiguration.current.locales[0]
 
     Box(
         modifier = Modifier
@@ -103,8 +112,8 @@ fun TodayScreen(
             ),
     ) {
         MusFitScreenScaffold(
-            title = "Today",
-            subtitle = todayHeaderDate(java.time.LocalDate.now()),
+            title = stringResource(R.string.today_title),
+            subtitle = todayHeaderDate(state.date, locale),
             actions = {
                 state.readiness?.let { readiness ->
                     ReadinessHeaderChip(
@@ -116,7 +125,7 @@ fun TodayScreen(
                 }
                 TonalHeaderIconButton(
                     icon = Icons.Outlined.Edit,
-                    contentDescription = "Edit dashboard",
+                    contentDescription = stringResource(R.string.today_edit_dashboard),
                     onClick = viewModel::openDashboardEditor,
                 )
             },
@@ -130,10 +139,10 @@ fun TodayScreen(
             if (state.feed.isEmpty()) {
                 EmptyState(
                     icon = Icons.Outlined.ChatBubbleOutline,
-                    title = "Let's get started",
-                    body = "Log your first meal and I'll take it from there.",
+                    title = stringResource(R.string.today_get_started),
+                    body = stringResource(R.string.today_get_started_body),
                     accent = todayAccent,
-                    actionLabel = "Log a meal",
+                    actionLabel = stringResource(R.string.today_log_meal),
                     onAction = onOpenFood,
                 )
             } else {
@@ -193,14 +202,17 @@ fun TodayScreen(
 }
 
 /** The header's quiet date line under the emphasized "Today" title. */
-internal fun todayHeaderDate(date: java.time.LocalDate): String = date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM"))
+internal fun todayHeaderDate(
+    date: LocalDate,
+    locale: Locale = Locale.getDefault(),
+): String = date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale))
 
 /** "Coach" section header with the 7dp coral unread dot from the mock. */
 @Composable
 private fun CoachSectionHeader(hasUnread: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = "Coach",
+            text = stringResource(R.string.today_coach),
             style = MusFitTheme.typography.titleMedium,
             color = MusFitTheme.colors.onSurface,
         )
@@ -223,6 +235,10 @@ internal fun ReadinessHeaderChip(
     onClick: () -> Unit,
     accent: TabAccent,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
+    val levelLabel = readiness.levelLabel.asString()
+    val scoreLabel = LocalizedFormatter.integer(readiness.score.toLong(), locale = locale)
+    val readinessDescription = stringResource(R.string.today_readiness_estimate, scoreLabel, levelLabel)
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -230,7 +246,7 @@ internal fun ReadinessHeaderChip(
             .clip(CircleShape)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics {
-                contentDescription = "Readiness estimate ${readiness.score}, ${readiness.levelLabel}"
+                contentDescription = readinessDescription
             },
     ) {
         Surface(
@@ -248,7 +264,7 @@ internal fun ReadinessHeaderChip(
                     tint = accent.onContainer,
                 )
                 Text(
-                    text = readiness.label,
+                    text = readiness.label.asString(),
                     style = MusFitTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium,
                     color = accent.onContainer,

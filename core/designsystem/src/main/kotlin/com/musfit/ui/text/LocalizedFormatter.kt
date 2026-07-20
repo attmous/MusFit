@@ -25,8 +25,10 @@ object LocalizedFormatter {
         value: Long,
         grouping: Boolean = true,
         locale: Locale = Locale.getDefault(),
+        minimumIntegerDigits: Int = 1,
     ): String = NumberFormat.getIntegerInstance(locale).run {
         isGroupingUsed = grouping
+        this.minimumIntegerDigits = minimumIntegerDigits
         format(value)
     }
 

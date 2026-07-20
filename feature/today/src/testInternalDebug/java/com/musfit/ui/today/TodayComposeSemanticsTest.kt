@@ -24,8 +24,8 @@ import androidx.compose.ui.unit.dp
 import com.musfit.data.repository.CoachMessage
 import com.musfit.domain.coach.CoachAction
 import com.musfit.domain.coach.CoachMessageCategory
-import com.musfit.domain.today.MetricValue
 import com.musfit.domain.today.TodayMetric
+import com.musfit.ui.text.UiText
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
@@ -127,7 +127,7 @@ class TodayComposeSemanticsTest {
         compose.setContent {
             MusFitTheme {
                 ReadinessHeaderChip(
-                    readiness = TodayReadinessUiState(score = 82, levelLabel = "Good"),
+                    readiness = TodayReadinessUiState(score = 82, levelLabel = UiText.Verbatim("Good")),
                     onClick = {},
                     accent = tabAccentFor(TabAccentRole.Today),
                 )
@@ -149,8 +149,12 @@ class TodayComposeSemanticsTest {
                     vitals = listOf(
                         MetricCardUiState(
                             metric = TodayMetric.Calories,
-                            label = "Calories",
-                            value = MetricValue.WithGoal("10", "of 20 kcal", 0.5f),
+                            label = UiText.Verbatim("Calories"),
+                            value = MetricValueUiState.WithGoal(
+                                figure = UiText.Verbatim("10"),
+                                caption = UiText.Verbatim("of 20 kcal"),
+                                progress = 0.5f,
+                            ),
                         ),
                     ),
                     onMetricClick = opened::add,
@@ -158,7 +162,7 @@ class TodayComposeSemanticsTest {
             }
         }
 
-        val tile = compose.onNodeWithContentDescription("Eaten: 10 of 20 kcal")
+        val tile = compose.onNodeWithContentDescription("Calories: 10 of 20 kcal")
             .assert(hasClickAction())
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
         assertMinimumTouchTarget(tile)
@@ -211,7 +215,7 @@ class TodayComposeSemanticsTest {
             }
         }
 
-        val calories = compose.onNodeWithText(TodayMetric.Calories.label)
+        val calories = compose.onNodeWithText("Eaten")
             .assert(hasClickAction())
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, ToggleableState.On))
@@ -219,9 +223,9 @@ class TodayComposeSemanticsTest {
         calories.performClick()
         assertEquals(listOf(TodayMetric.Calories), toggled)
 
-        val moveUp = compose.onNodeWithContentDescription("Move Calories up").assertIsNotEnabled()
+        val moveUp = compose.onNodeWithContentDescription("Move Eaten up").assertIsNotEnabled()
         assertMinimumTouchTarget(moveUp)
-        val moveDown = compose.onNodeWithContentDescription("Move Calories down")
+        val moveDown = compose.onNodeWithContentDescription("Move Eaten down")
             .assert(hasClickAction())
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
         assertMinimumTouchTarget(moveDown)
@@ -237,7 +241,7 @@ class TodayComposeSemanticsTest {
         compose.setContent {
             MusFitTheme {
                 CoachFeed(
-                    groups = listOf(CoachFeedDayGroup(label = "Today", messages = listOf(message))),
+                    groups = listOf(CoachFeedDayGroup(label = UiText.Verbatim("Today"), messages = listOf(message))),
                     onAction = onAction,
                     onDismiss = onDismiss,
                 )

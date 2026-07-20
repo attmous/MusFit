@@ -19,6 +19,22 @@ enum class HealthPermissionAccess {
     Write,
 }
 
+enum class HealthPermissionRationale {
+    Steps,
+    ActiveCalories,
+    TotalCalories,
+    Distance,
+    Sleep,
+    ExerciseSessions,
+    Weight,
+    BodyFat,
+    RestingHeartRate,
+    HeartRateVariability,
+    Workouts,
+    MealsAndNutrition,
+    Water,
+}
+
 internal enum class HealthPermissionRequestGroup {
     HealthAndWorkout,
     Food,
@@ -27,8 +43,7 @@ internal enum class HealthPermissionRequestGroup {
 class HealthPermissionRationaleItem internal constructor(
     val permission: String,
     val access: HealthPermissionAccess,
-    val label: String,
-    val purpose: String,
+    val rationale: HealthPermissionRationale,
     private val requestGroup: HealthPermissionRequestGroup,
 ) {
     internal fun belongsTo(group: HealthPermissionRequestGroup): Boolean = requestGroup == group
@@ -54,52 +69,44 @@ object HealthPermissionInventory {
     val writeHydrationPermission = HealthPermission.getWritePermission(HydrationRecord::class)
 
     val rationaleItems: List<HealthPermissionRationaleItem> = listOf(
-        readItem(readStepsPermission, "Steps", "Show daily movement and progress."),
+        readItem(readStepsPermission, HealthPermissionRationale.Steps),
         readItem(
             readActiveCaloriesPermission,
-            "Active calories",
-            "Show energy burned through activity.",
+            HealthPermissionRationale.ActiveCalories,
         ),
         readItem(
             readTotalCaloriesPermission,
-            "Total calories",
-            "Show total energy burned during the day.",
+            HealthPermissionRationale.TotalCalories,
         ),
-        readItem(readDistancePermission, "Distance", "Show distance-based activity progress."),
-        readItem(readSleepPermission, "Sleep", "Show sleep duration in your health summary."),
+        readItem(readDistancePermission, HealthPermissionRationale.Distance),
+        readItem(readSleepPermission, HealthPermissionRationale.Sleep),
         readItem(
             readExercisePermission,
-            "Exercise sessions",
-            "Show completed exercise and time spent training.",
+            HealthPermissionRationale.ExerciseSessions,
         ),
-        readItem(readWeightPermission, "Weight", "Show weight measurements and trends."),
-        readItem(readBodyFatPermission, "Body fat", "Show body-fat measurements and trends."),
+        readItem(readWeightPermission, HealthPermissionRationale.Weight),
+        readItem(readBodyFatPermission, HealthPermissionRationale.BodyFat),
         readItem(
             readRestingHeartRatePermission,
-            "Resting heart rate",
-            "Show resting heart-rate trends.",
+            HealthPermissionRationale.RestingHeartRate,
         ),
         readItem(
             readHeartRateVariabilityPermission,
-            "Heart rate variability",
-            "Show recovery trends from heart-rate variability.",
+            HealthPermissionRationale.HeartRateVariability,
         ),
         writeItem(
             permission = writeExercisePermission,
-            label = "Workouts",
-            purpose = "Save workouts you log in MusFit.",
+            rationale = HealthPermissionRationale.Workouts,
             requestGroup = HealthPermissionRequestGroup.HealthAndWorkout,
         ),
         writeItem(
             permission = writeNutritionPermission,
-            label = "Meals and nutrition",
-            purpose = "Save meals and their nutrition when you choose Food sync.",
+            rationale = HealthPermissionRationale.MealsAndNutrition,
             requestGroup = HealthPermissionRequestGroup.Food,
         ),
         writeItem(
             permission = writeHydrationPermission,
-            label = "Water",
-            purpose = "Save water totals when you choose Food sync.",
+            rationale = HealthPermissionRationale.Water,
             requestGroup = HealthPermissionRequestGroup.Food,
         ),
     )
@@ -114,26 +121,22 @@ object HealthPermissionInventory {
 
     private fun readItem(
         permission: String,
-        label: String,
-        purpose: String,
+        rationale: HealthPermissionRationale,
     ) = HealthPermissionRationaleItem(
         permission = permission,
         access = HealthPermissionAccess.Read,
-        label = label,
-        purpose = purpose,
+        rationale = rationale,
         requestGroup = HealthPermissionRequestGroup.HealthAndWorkout,
     )
 
     private fun writeItem(
         permission: String,
-        label: String,
-        purpose: String,
+        rationale: HealthPermissionRationale,
         requestGroup: HealthPermissionRequestGroup,
     ) = HealthPermissionRationaleItem(
         permission = permission,
         access = HealthPermissionAccess.Write,
-        label = label,
-        purpose = purpose,
+        rationale = rationale,
         requestGroup = requestGroup,
     )
 }

@@ -26,4 +26,17 @@ class LocalizedFormatterTest {
             LocalizedFormatter.date(LocalDate.of(2026, 7, 20), locale = Locale.GERMANY),
         )
     }
+
+    @Test
+    fun `display integers support locale-aware zero padding`() {
+        assertEquals(
+            "08",
+            LocalizedFormatter.integer(
+                8,
+                grouping = false,
+                locale = Locale.US,
+                minimumIntegerDigits = 2,
+            ),
+        )
+    }
 }

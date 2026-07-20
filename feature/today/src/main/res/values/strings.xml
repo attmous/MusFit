@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="today_title">Today</string>
+    <string name="today_edit_dashboard">Edit dashboard</string>
+    <string name="today_get_started">Let\'s get started</string>
+    <string name="today_get_started_body">Log your first meal and I\'ll take it from there.</string>
+    <string name="today_log_meal">Log a meal</string>
+    <string name="today_coach">Coach</string>
+    <string name="today_readiness_estimate">Readiness estimate %1$s, %2$s</string>
+    <string name="today_ready_score">Ready %1$s</string>
+    <string name="today_readiness_low">Low</string>
+    <string name="today_readiness_moderate">Moderate</string>
+    <string name="today_readiness_high">High</string>
+    <string name="today_day_today">Today</string>
+    <string name="today_day_yesterday">Yesterday</string>
+
+    <string name="today_metric_eaten">Eaten</string>
+    <string name="today_metric_protein">Protein</string>
+    <string name="today_metric_carbs">Carbs</string>
+    <string name="today_metric_fat">Fat</string>
+    <string name="today_metric_water">Water</string>
+    <string name="today_metric_steps">Steps</string>
+    <string name="today_metric_weight">Weight</string>
+    <string name="today_metric_body_fat">Body fat</string>
+    <string name="today_metric_sessions">Sessions</string>
+    <string name="today_metric_sleep">Sleep</string>
+    <string name="today_metric_exercise">Exercise</string>
+    <string name="today_metric_active_calories">Active kcal</string>
+    <string name="today_metric_resting_heart_rate">Resting HR</string>
+    <string name="today_metric_balance">Balance</string>
+    <string name="today_metric_logging_streak">Streak</string>
+    <string name="today_of_kcal_percent">of %1$s kcal &#183; %2$s%%</string>
+    <string name="today_of_value_percent">of %1$s &#183; %2$s%%</string>
+    <string name="today_of_grams_percent">of %1$s g &#183; %2$s%%</string>
+    <string name="today_kcal_eaten">kcal eaten</string>
+    <string name="today_today">today</string>
+    <string name="today_steps">steps</string>
+    <string name="today_value_kg">%1$s kg</string>
+    <string name="today_weight_delta_7_days">%1$s%2$s kg &#183; 7d</string>
+    <string name="today_latest">latest</string>
+    <string name="today_no_data">No data</string>
+    <string name="today_not_connected">Not connected</string>
+    <string name="today_value_percent">%1$s%%</string>
+    <string name="today_body_fat_delta">%1$s%2$s pts</string>
+    <string name="today_sessions_fraction">%1$s/%2$s</string>
+    <string name="today_this_week">this week</string>
+    <string name="today_sleep">sleep</string>
+    <string name="today_exercise">exercise</string>
+    <string name="today_active_kcal">active kcal</string>
+    <string name="today_value_bpm">%1$s bpm</string>
+    <string name="today_resting">resting</string>
+    <string name="today_kcal_in_out">kcal in &#8722; out</string>
+    <string name="today_value_days_short">%1$s d</string>
+    <string name="today_logging_streak">logging streak</string>
+    <string name="today_value_grams">%1$s g</string>
+    <string name="today_value_liters">%1$s L</string>
+    <string name="today_duration_hours_minutes">%1$sh %2$sm</string>
+    <string name="today_duration_minutes">%1$sm</string>
+    <plurals name="today_sessions">
+        <item quantity="one">%1$s session</item>
+        <item quantity="other">%1$s sessions</item>
+    </plurals>
+
+    <string name="today_unread">Unread</string>
+    <string name="today_dismiss_message">Dismiss message</string>
+    <string name="today_open_food">Open Food</string>
+    <string name="today_open_training">Open Training</string>
+    <string name="today_open_profile">Open Profile</string>
+    <string name="today_start_workout">Start workout</string>
+    <string name="today_category_plan">Plan</string>
+    <string name="today_category_nutrition">Nutrition</string>
+    <string name="today_category_training">Training</string>
+    <string name="today_category_trend">Trend</string>
+    <string name="today_category_achievement">Achievement</string>
+    <string name="today_category_recap">Recap</string>
+    <string name="today_ask_coach">Ask coach</string>
+    <string name="today_clear_coach_chat">Clear coach chat</string>
+    <string name="today_close_coach_chat">Close coach chat</string>
+    <string name="today_coach_connection_off">Coach connection is off</string>
+    <string name="today_configure_coach_body">Choose Hermes or another endpoint in Profile settings.</string>
+    <string name="today_configure">Configure</string>
+    <string name="today_retry">Retry</string>
+    <string name="today_ask_about_today">Ask about today</string>
+    <string name="today_coach_message">Coach message</string>
+    <string name="today_sending_coach_message">Sending coach message</string>
+    <string name="today_send_coach_message">Send coach message</string>
+    <string name="today_coach_ready">Coach is ready</string>
+    <string name="today_coach_ready_body">Ask about today\'s food, hydration, training, or recovery.</string>
+    <string name="today_thinking">Thinking&#8230;</string>
+    <string name="today_coach_off">Off</string>
+    <string name="today_api_coach">API coach</string>
+    <string name="today_hermes" translatable="false">Hermes</string>
+    <string name="today_openclaw" translatable="false">OpenClaw</string>
+    <string name="today_local_agent">Local agent</string>
+    <string name="today_error_coach_not_reachable">Coach is not reachable.</string>
+    <string name="today_error_clear_chat">Could not clear coach chat.</string>
+
+    <string name="today_dashboard">Dashboard</string>
+    <string name="today_dashboard_explanation">Pin the metrics you\'re focused on. Each pin is one tile on the grid.</string>
+    <string name="today_move_metric_up">Move %1$s up</string>
+    <string name="today_move_metric_down">Move %1$s down</string>
+    <string name="today_goals">Goals</string>
+    <string name="today_daily_step_goal">Daily step goal</string>
+    <string name="today_workouts_per_week">Workouts per week</string>
+    <string name="today_save_dashboard">Save dashboard</string>
+</resources>
