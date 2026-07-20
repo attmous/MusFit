@@ -48,9 +48,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -62,7 +61,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.BakeryDining
 import androidx.compose.material.icons.outlined.Bookmark
-import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Cookie
 import androidx.compose.material.icons.outlined.Delete
@@ -122,6 +120,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -136,6 +136,7 @@ import coil.compose.AsyncImage
 import com.musfit.data.repository.FoodGoalMode
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.nutrition.NutritionCalculator
+import com.musfit.feature.food.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.HairlineDetailRow
 import com.musfit.ui.components.HeroNumberMediumStyle
@@ -149,6 +150,7 @@ import com.musfit.ui.components.WavyProgressBar
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.NeutralOutline
 import com.musfit.ui.theme.NeutralOutlineDark
@@ -157,6 +159,7 @@ import com.musfit.ui.theme.tabAccentFor
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import com.musfit.core.designsystem.R as DesignR
 
 private fun LazyListScope.verticalGap(key: String, height: Dp) {
     item(key = key, contentType = "vertical-gap") {
@@ -191,6 +194,7 @@ internal fun ShoppingListPanel(
     onAddManualClick: () -> Unit,
     onToggleItem: (String, Boolean) -> Unit,
 ) {
+    val manualLabel = stringResource(R.string.food_manual)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -199,21 +203,21 @@ internal fun ShoppingListPanel(
             .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Shopping list", style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.food_shopping_list), style = MaterialTheme.typography.headlineSmall)
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = state.shoppingStartDateInput,
                     onValueChange = onStartDateChanged,
-                    label = { Text("Start") },
+                    label = { Text(stringResource(R.string.food_start)) },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(
                     value = state.shoppingEndDateInput,
                     onValueChange = onEndDateChanged,
-                    label = { Text("End") },
+                    label = { Text(stringResource(R.string.food_end)) },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
@@ -224,18 +228,22 @@ internal fun ShoppingListPanel(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text(if (state.isSaving) "Generating" else "Generate from plan")
+                Text(
+                    stringResource(
+                        if (state.isSaving) R.string.food_generating else R.string.food_generate_from_plan,
+                    ),
+                )
             }
         }
 
         HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionTitle("Manual item")
+            SectionTitle(stringResource(R.string.food_manual_item))
             OutlinedTextField(
                 value = state.manualShoppingNameInput,
                 onValueChange = onManualNameChanged,
-                label = { Text("Item") },
+                label = { Text(stringResource(R.string.food_item)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -243,27 +251,27 @@ internal fun ShoppingListPanel(
                 OutlinedTextField(
                     value = state.manualShoppingCategoryInput,
                     onValueChange = onManualCategoryChanged,
-                    label = { Text("Category") },
+                    label = { Text(stringResource(R.string.food_category)) },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(
                     value = state.manualShoppingQuantityInput,
                     onValueChange = onManualQuantityChanged,
-                    label = { Text("g") },
+                    label = { Text(stringResource(R.string.food_gram_abbreviation)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
             }
             MusFitOutlinedButton(onClick = onAddManualClick, enabled = !state.isSaving, modifier = Modifier.fillMaxWidth()) {
-                Text("Add item")
+                Text(stringResource(R.string.food_add_item))
             }
         }
 
         state.message?.let { message ->
             Text(
-                text = message,
+                text = message.asString(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.brand,
             )
@@ -271,7 +279,7 @@ internal fun ShoppingListPanel(
 
         if (state.shoppingListGroups.isEmpty()) {
             Text(
-                text = "No shopping items yet",
+                text = stringResource(R.string.food_no_shopping_items),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -298,7 +306,7 @@ internal fun ShoppingListPanel(
                                     Text(
                                         text = buildList {
                                             add(item.quantityLabel)
-                                            if (item.isManual) add("Manual")
+                                            if (item.isManual) add(manualLabel)
                                         }.joinToString(" - "),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MusFitTheme.colors.onSurfaceVariant,
@@ -309,7 +317,13 @@ internal fun ShoppingListPanel(
                                 FilterChip(
                                     selected = item.isChecked,
                                     onClick = { onToggleItem(item.id, !item.isChecked) },
-                                    label = { Text(if (item.isChecked) "Checked" else "Needed") },
+                                    label = {
+                                        Text(
+                                            stringResource(
+                                                if (item.isChecked) R.string.food_checked else R.string.food_needed,
+                                            ),
+                                        )
+                                    },
                                 )
                             }
                             HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
@@ -351,9 +365,13 @@ internal fun FoodDatabasePanel(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Food database", style = MaterialTheme.typography.headlineSmall)
+                    Text(text = stringResource(R.string.food_database), style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        text = "${state.savedFoods.size} saved foods",
+                        text = pluralStringResource(
+                            R.plurals.food_saved_food_count,
+                            state.savedFoods.size,
+                            state.savedFoods.size,
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MusFitTheme.colors.onSurfaceVariant,
                     )
@@ -362,7 +380,7 @@ internal fun FoodDatabasePanel(
                     onClick = onNewFoodClick,
                     colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
                 ) {
-                    Text("New")
+                    Text(stringResource(R.string.food_new))
                 }
             }
         }
@@ -370,14 +388,14 @@ internal fun FoodDatabasePanel(
 
         item(key = "import") {
             MusFitOutlinedButton(onClick = onImportStarterFoodsClick, modifier = Modifier.fillMaxWidth()) {
-                Text("Import starter foods")
+                Text(stringResource(R.string.food_import_starter_foods))
             }
         }
         verticalGap("gap-after-import", 14.dp)
 
         item(key = "compare") {
             MusFitOutlinedButton(onClick = onBarcodeCompareClick, modifier = Modifier.fillMaxWidth()) {
-                Text("Compare barcodes")
+                Text(stringResource(R.string.food_compare_barcodes))
             }
         }
         verticalGap("gap-after-compare", 14.dp)
@@ -386,7 +404,7 @@ internal fun FoodDatabasePanel(
             OutlinedTextField(
                 value = state.foodDatabaseQuery,
                 onValueChange = onSearchChanged,
-                label = { Text("Search foods") },
+                label = { Text(stringResource(R.string.food_search_foods)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -400,20 +418,24 @@ internal fun FoodDatabasePanel(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text(if (state.isSearchingFoods) "Searching" else "Search online foods")
+                Text(
+                    stringResource(
+                        if (state.isSearchingFoods) R.string.food_searching else R.string.food_search_online_foods,
+                    ),
+                )
             }
         }
         verticalGap("gap-after-online-search", 14.dp)
 
         state.message?.let { message ->
             item(key = "message") {
-                Text(text = message, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.brand)
+                Text(text = message.asString(), style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.brand)
             }
             verticalGap("gap-after-message", 14.dp)
         }
 
         if (state.onlineFoodResults.isNotEmpty()) {
-            item(key = "online-heading") { SectionTitle("Online results") }
+            item(key = "online-heading") { SectionTitle(stringResource(R.string.food_online_results)) }
             verticalGap("gap-after-online-heading", 4.dp)
             items(
                 items = state.onlineFoodResults,
@@ -430,7 +452,7 @@ internal fun FoodDatabasePanel(
         }
 
         if (state.duplicateFoodGroups.isNotEmpty()) {
-            item(key = "duplicates-heading") { SectionTitle("Potential duplicates") }
+            item(key = "duplicates-heading") { SectionTitle(stringResource(R.string.food_potential_duplicates)) }
             verticalGap("gap-after-duplicates-heading", 4.dp)
             items(
                 items = state.duplicateFoodGroups,
@@ -446,12 +468,18 @@ internal fun FoodDatabasePanel(
             verticalGap("gap-after-duplicates", 14.dp)
         }
 
-        item(key = "saved-heading") { SectionTitle("Saved foods") }
+        item(key = "saved-heading") { SectionTitle(stringResource(R.string.food_saved_foods)) }
         verticalGap("gap-after-saved-heading", 4.dp)
         if (foods.isEmpty()) {
             item(key = "saved-empty") {
                 Text(
-                    text = if (state.foodDatabaseQuery.isBlank()) "No saved foods yet" else "No matching foods",
+                    text = stringResource(
+                        if (state.foodDatabaseQuery.isBlank()) {
+                            R.string.food_no_saved_foods
+                        } else {
+                            R.string.food_no_matching_foods
+                        },
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -493,7 +521,7 @@ internal fun FastingTimerPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Fasting timer", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.food_fasting_timer), style = MaterialTheme.typography.headlineSmall)
             Text(
                 text = timer.statusLabel,
                 style = MaterialTheme.typography.bodyMedium,
@@ -512,10 +540,18 @@ internal fun FastingTimerPanel(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionTitle("Today")
+            SectionTitle(stringResource(R.string.food_today))
             ProgressBar(progress = timer.progress.toFloat(), color = MusFitTheme.colors.brand)
-            NutritionFactRow("Fast", timer.fastingWindowLabel, "Fasting window")
-            NutritionFactRow("Eat", timer.eatingWindowLabel, "Eating window")
+            NutritionFactRow(
+                stringResource(R.string.food_fast),
+                timer.fastingWindowLabel,
+                stringResource(R.string.food_fasting_window),
+            )
+            NutritionFactRow(
+                stringResource(R.string.food_eat),
+                timer.eatingWindowLabel,
+                stringResource(R.string.food_eating_window),
+            )
         }
 
         HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
@@ -523,19 +559,19 @@ internal fun FastingTimerPanel(
         OutlinedTextField(
             value = timer.fastingStartInput,
             onValueChange = onStartTimeChanged,
-            label = { Text("Fast starts") },
+            label = { Text(stringResource(R.string.food_fast_starts)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionTitle("Custom split")
+            SectionTitle(stringResource(R.string.food_custom_split))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = timer.customFastingHoursInput,
                     onValueChange = onCustomFastingChanged,
-                    label = { Text("Fast h") },
+                    label = { Text(stringResource(R.string.food_fast_hours)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
@@ -543,7 +579,7 @@ internal fun FastingTimerPanel(
                 OutlinedTextField(
                     value = timer.customEatingHoursInput,
                     onValueChange = onCustomEatingChanged,
-                    label = { Text("Eat h") },
+                    label = { Text(stringResource(R.string.food_eat_hours)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
@@ -554,12 +590,12 @@ internal fun FastingTimerPanel(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text("Apply custom")
+                Text(stringResource(R.string.food_apply_custom))
             }
         }
 
         state.message?.let { message ->
-            Text(message, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.brand)
+            Text(message.asString(), style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.brand)
         }
     }
 }
@@ -580,9 +616,9 @@ internal fun BarcodeComparisonPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Barcode comparison", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.food_barcode_comparison), style = MaterialTheme.typography.headlineSmall)
             Text(
-                text = "Compare saved foods or Open Food Facts products per 100 g.",
+                text = stringResource(R.string.food_barcode_comparison_summary),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -592,7 +628,7 @@ internal fun BarcodeComparisonPanel(
             OutlinedTextField(
                 value = comparison.leftBarcodeInput,
                 onValueChange = { onBarcodeChanged(BarcodeComparisonSide.Left, it) },
-                label = { Text("Left barcode") },
+                label = { Text(stringResource(R.string.food_left_barcode)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
@@ -600,7 +636,7 @@ internal fun BarcodeComparisonPanel(
             OutlinedTextField(
                 value = comparison.rightBarcodeInput,
                 onValueChange = { onBarcodeChanged(BarcodeComparisonSide.Right, it) },
-                label = { Text("Right barcode") },
+                label = { Text(stringResource(R.string.food_right_barcode)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
@@ -613,21 +649,25 @@ internal fun BarcodeComparisonPanel(
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
         ) {
-            Text(if (state.barcodeComparison.isLoading) "Comparing" else "Compare")
+            Text(
+                stringResource(
+                    if (state.barcodeComparison.isLoading) R.string.food_comparing else R.string.food_compare,
+                ),
+            )
         }
 
         state.message?.let { message ->
-            Text(message, style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.brand)
+            Text(message.asString(), style = MaterialTheme.typography.bodyMedium, color = MusFitTheme.colors.brand)
         }
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             BarcodeComparisonItemCard(
-                title = "Left",
+                title = stringResource(R.string.food_left),
                 item = comparison.leftItem,
                 modifier = Modifier.weight(1f),
             )
             BarcodeComparisonItemCard(
-                title = "Right",
+                title = stringResource(R.string.food_right),
                 item = comparison.rightItem,
                 modifier = Modifier.weight(1f),
             )
@@ -635,7 +675,7 @@ internal fun BarcodeComparisonPanel(
 
         if (comparison.highlights.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                SectionTitle("Per 100 g comparison")
+                SectionTitle(stringResource(R.string.food_per_hundred_grams_comparison))
                 Column(modifier = Modifier.fillMaxWidth()) {
                     comparison.highlights.forEach { highlight ->
                         Row(
@@ -653,9 +693,9 @@ internal fun BarcodeComparisonPanel(
                             )
                             Text(
                                 text = when (highlight.winnerSide) {
-                                    BarcodeComparisonSide.Left -> "Left"
-                                    BarcodeComparisonSide.Right -> "Right"
-                                    null -> "Even"
+                                    BarcodeComparisonSide.Left -> stringResource(R.string.food_left)
+                                    BarcodeComparisonSide.Right -> stringResource(R.string.food_right)
+                                    null -> stringResource(R.string.food_even)
                                 },
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MusFitTheme.colors.brand,
@@ -679,7 +719,7 @@ private fun BarcodeComparisonItemCard(
         Text(title, style = MaterialTheme.typography.labelLarge, color = MusFitTheme.colors.brand)
         if (item == null) {
             Text(
-                text = "No product loaded",
+                text = stringResource(R.string.food_no_product_loaded),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -693,7 +733,13 @@ private fun BarcodeComparisonItemCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${item.caloriesPer100g.formatNutritionDisplay()} kcal - P ${item.proteinPer100g.formatNutritionDisplay()} - C ${item.carbsPer100g.formatNutritionDisplay()} - F ${item.fatPer100g.formatNutritionDisplay()}",
+                text = stringResource(
+                    R.string.food_per_hundred_grams_macros,
+                    item.caloriesPer100g.formatNutritionDisplay(),
+                    item.proteinPer100g.formatNutritionDisplay(),
+                    item.carbsPer100g.formatNutritionDisplay(),
+                    item.fatPer100g.formatNutritionDisplay(),
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 2,
@@ -721,7 +767,11 @@ private fun OnlineFoodResultRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(result.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    text = listOfNotNull(result.brand, result.category, "${result.caloriesPer100g.roundToInt()} kcal / 100g").joinToString(" - "),
+                    text = listOfNotNull(
+                        result.brand,
+                        result.category,
+                        stringResource(R.string.food_calories_per_hundred_grams, result.caloriesPer100g.roundToInt()),
+                    ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 2,
@@ -729,7 +779,7 @@ private fun OnlineFoodResultRow(
                 )
             }
             MusFitOutlinedButton(onClick = onSaveClick, enabled = !isSaving) {
-                Text("Save")
+                Text(stringResource(DesignR.string.common_save))
             }
         }
         HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
@@ -758,7 +808,15 @@ private fun DuplicateFoodGroupRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${group.reason} - ${group.duplicateFoodIds.size + 1} foods",
+                    text = stringResource(
+                        R.string.food_duplicate_reason,
+                        group.reason,
+                        pluralStringResource(
+                            R.plurals.food_food_count,
+                            group.duplicateFoodIds.size + 1,
+                            group.duplicateFoodIds.size + 1,
+                        ),
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -767,7 +825,7 @@ private fun DuplicateFoodGroupRow(
                 onClick = { onMergeDuplicateFoodsClick(group.primaryFoodId, group.duplicateFoodIds) },
                 enabled = !isSaving,
             ) {
-                Text("Merge")
+                Text(stringResource(R.string.food_merge))
             }
         }
         HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
@@ -855,10 +913,12 @@ private fun SavedFoodDatabaseTextActions(
     onEditClick: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        MusFitOutlinedButton(onClick = onFavoriteClick) { Text(if (food.isFavorite) "Starred" else "Star") }
-        MusFitOutlinedButton(onClick = onReportClick) { Text("Report") }
-        MusFitOutlinedButton(onClick = onDetailClick) { Text("Detail") }
-        MusFitOutlinedButton(onClick = onEditClick) { Text("Edit") }
+        MusFitOutlinedButton(onClick = onFavoriteClick) {
+            Text(stringResource(if (food.isFavorite) R.string.food_starred else R.string.food_star))
+        }
+        MusFitOutlinedButton(onClick = onReportClick) { Text(stringResource(R.string.food_report)) }
+        MusFitOutlinedButton(onClick = onDetailClick) { Text(stringResource(R.string.food_detail)) }
+        MusFitOutlinedButton(onClick = onEditClick) { Text(stringResource(DesignR.string.common_edit)) }
     }
 }
 
@@ -881,26 +941,36 @@ private fun SavedFoodDatabaseIconActions(
         ) {
             Icon(
                 imageVector = if (food.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                contentDescription = if (food.isFavorite) "Remove ${food.name} from favorites" else "Add ${food.name} to favorites",
+                contentDescription = stringResource(
+                    if (food.isFavorite) {
+                        R.string.food_remove_named_from_favorites
+                    } else {
+                        R.string.food_add_named_to_favorites
+                    },
+                    food.name,
+                ),
             )
         }
         IconButton(
             onClick = onReportClick,
             modifier = Modifier.size(48.dp),
         ) {
-            Icon(Icons.Outlined.ErrorOutline, contentDescription = "Report ${food.name}")
+            Icon(Icons.Outlined.ErrorOutline, contentDescription = stringResource(R.string.food_report_named, food.name))
         }
         IconButton(
             onClick = onDetailClick,
             modifier = Modifier.size(48.dp),
         ) {
-            Icon(Icons.Outlined.ChevronRight, contentDescription = "View ${food.name} details")
+            Icon(
+                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = stringResource(R.string.food_view_named_details, food.name),
+            )
         }
         IconButton(
             onClick = onEditClick,
             modifier = Modifier.size(48.dp),
         ) {
-            Icon(Icons.Outlined.Edit, contentDescription = "Edit ${food.name}")
+            Icon(Icons.Outlined.Edit, contentDescription = stringResource(R.string.food_edit_named, food.name))
         }
     }
 }
@@ -986,7 +1056,7 @@ internal fun FoodDetailPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (food == null) {
-            Text("Food not found", style = MusFitTheme.typography.titleMedium)
+            Text(stringResource(R.string.food_not_found), style = MusFitTheme.typography.titleMedium)
             return@Column
         }
         val grams = state.savedFoodQuantityGrams.toDoubleOrNull() ?: food.defaultServingGrams
@@ -1023,18 +1093,18 @@ internal fun FoodDetailPanel(
             FoodDetailMacrosCard(amount = amount, state = state)
             FoodDetailDetailsList(food = food, grams = grams)
             state.message?.let {
-                Text(it, style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.brand)
+                Text(it.asString(), style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.brand)
             }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             TonalIconSquare(
                 icon = Icons.Outlined.Edit,
-                contentDescription = "Edit food",
+                contentDescription = stringResource(R.string.food_edit_food),
                 onClick = onEditClick,
             )
             PillButton(
-                text = "${state.foodEntryActionVerb} to ${state.detailTargetMealLabel()} · ${amount.caloriesKcal.roundToInt()} kcal",
+                text = "${state.foodEntryActionVerb()} to ${state.detailTargetMealLabel()} · ${amount.caloriesKcal.roundToInt()} kcal",
                 onClick = onLogClick,
                 icon = Icons.Filled.Add,
                 enabled = !state.isSaving,
@@ -1162,7 +1232,7 @@ private fun FoodDetailAmountCard(
             ) {
                 StepperCircleButton(
                     icon = Icons.Outlined.Remove,
-                    contentDescription = "Remove 10 grams",
+                    contentDescription = stringResource(R.string.food_remove_ten_grams),
                     onClick = { onQuantityChanged(steppedGramsInput(quantityInput, -10.0)) },
                 )
                 Row(
@@ -1190,7 +1260,7 @@ private fun FoodDetailAmountCard(
                 }
                 StepperCircleButton(
                     icon = Icons.Outlined.Add,
-                    contentDescription = "Add 10 grams",
+                    contentDescription = stringResource(R.string.food_add_ten_grams),
                     filled = true,
                     onClick = { onQuantityChanged(steppedGramsInput(quantityInput, 10.0)) },
                 )
@@ -1453,7 +1523,7 @@ private fun FoodDetailDetailsList(food: SavedFoodUiState, grams: Double) {
                     modifier = Modifier.weight(1f),
                 )
                 Icon(
-                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Outlined.ChevronRight,
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = null,
                     tint = MusFitTheme.colors.brand,
                     modifier = Modifier.size(18.dp),
@@ -1582,7 +1652,7 @@ internal fun DiaryEntryEditorPanel(
 
         state.message?.let { message ->
             Text(
-                text = message,
+                text = message.asString(),
                 style = MusFitTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.brand,
             )
@@ -1639,7 +1709,7 @@ internal fun DiaryEntryEditorPanel(
     }
     if (confirmDelete) {
         ConfirmDeleteDialog(
-            title = "Delete from diary?",
+            title = stringResource(R.string.food_delete_from_diary),
             body = "This removes \"${editor.name.ifBlank { "this item" }}\" from the day. You can undo right after.",
             onConfirm = {
                 confirmDelete = false
@@ -1664,11 +1734,11 @@ private fun ConfirmDeleteDialog(
         text = { Text(body) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Delete", color = MusFitTheme.colors.onDestructiveContainer)
+                Text(stringResource(DesignR.string.common_delete), color = MusFitTheme.colors.onDestructiveContainer)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(DesignR.string.common_cancel)) }
         },
         containerColor = MusFitTheme.colors.surface,
     )
@@ -1754,6 +1824,9 @@ internal fun MealSettingsPanel(
     onSortOrderChanged: (String) -> Unit,
     onSaveClick: () -> Unit,
 ) {
+    val defaultLabel = stringResource(R.string.food_default)
+    val customLabel = stringResource(R.string.food_custom)
+    val hiddenLabel = stringResource(R.string.food_hidden)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1762,9 +1835,9 @@ internal fun MealSettingsPanel(
             .padding(start = 18.dp, end = 18.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Meal settings", style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.food_meal_settings), style = MaterialTheme.typography.headlineSmall)
         Text(
-            "Turn a meal off to hide it from the diary. Anything already logged there still counts toward your day.",
+            stringResource(R.string.food_meal_settings_summary),
             style = MaterialTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
         )
@@ -1782,10 +1855,10 @@ internal fun MealSettingsPanel(
                         Text(meal.title, style = MaterialTheme.typography.titleSmall)
                         Text(
                             listOfNotNull(
-                                if (meal.isDefault) "Default" else "Custom",
+                                if (meal.isDefault) defaultLabel else customLabel,
                                 meal.timeLabel,
-                                "Order ${meal.sortOrder}",
-                                if (meal.isHidden) "Hidden" else null,
+                                stringResource(R.string.food_order_value, meal.sortOrder),
+                                if (meal.isHidden) hiddenLabel else null,
                             ).joinToString(" - "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MusFitTheme.colors.onSurfaceVariant,
@@ -1798,7 +1871,7 @@ internal fun MealSettingsPanel(
                         onCheckedChange = { onToggleHidden(meal.id) },
                     )
                     MusFitOutlinedButton(onClick = { onEditClick(meal.id) }) {
-                        Text("Edit")
+                        Text(stringResource(DesignR.string.common_edit))
                     }
                 }
                 HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
@@ -1806,11 +1879,19 @@ internal fun MealSettingsPanel(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionTitle(if (state.editingMealDefinitionId == null) "Add custom meal" else "Edit meal")
+            SectionTitle(
+                stringResource(
+                    if (state.editingMealDefinitionId == null) {
+                        R.string.food_add_custom_meal
+                    } else {
+                        R.string.food_edit_meal
+                    },
+                ),
+            )
             OutlinedTextField(
                 value = state.customMealNameInput,
                 onValueChange = onNameChanged,
-                label = { Text("Meal name") },
+                label = { Text(stringResource(R.string.food_meal_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -1818,14 +1899,14 @@ internal fun MealSettingsPanel(
                 OutlinedTextField(
                     value = state.customMealTimeInput,
                     onValueChange = onTimeChanged,
-                    label = { Text("Time HH:mm") },
+                    label = { Text(stringResource(R.string.food_time_hh_mm)) },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(
                     value = state.customMealSortOrderInput,
                     onValueChange = onSortOrderChanged,
-                    label = { Text("Order") },
+                    label = { Text(stringResource(R.string.food_order)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
@@ -1837,11 +1918,11 @@ internal fun MealSettingsPanel(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
             ) {
-                Text(if (state.isSaving) "Saving" else "Save meal")
+                Text(stringResource(if (state.isSaving) R.string.food_saving else R.string.food_save_meal))
             }
         }
 
-        state.message?.let { Text(it, color = MusFitTheme.colors.brand) }
+        state.message?.let { Text(it.asString(), color = MusFitTheme.colors.brand) }
     }
 }
 
@@ -2041,7 +2122,7 @@ internal fun SavedFoodEditorScreen(
 
             state.message?.let { message ->
                 Text(
-                    text = message,
+                    text = message.asString(),
                     style = MusFitTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.brand,
                 )
@@ -2082,7 +2163,7 @@ internal fun SavedFoodEditorScreen(
     }
     if (confirmDelete) {
         ConfirmDeleteDialog(
-            title = "Delete saved food?",
+            title = stringResource(R.string.food_delete_saved_food),
             body = "\"${editor.name.ifBlank { "This food" }}\" is removed from your database. Diary entries keep their logged values.",
             onConfirm = {
                 confirmDelete = false
@@ -2159,13 +2240,13 @@ internal fun NutritionLabelScanPanel(
             enabled = false,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Capture label photo")
+            Text(stringResource(R.string.food_capture_label_photo))
         }
 
         OutlinedTextField(
             value = editor.name,
             onValueChange = onNameChanged,
-            label = { Text("Food name") },
+            label = { Text(stringResource(R.string.food_food_name)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -2177,14 +2258,14 @@ internal fun NutritionLabelScanPanel(
             OutlinedTextField(
                 value = editor.brand,
                 onValueChange = onBrandChanged,
-                label = { Text("Brand") },
+                label = { Text(stringResource(R.string.food_brand)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
                 value = editor.servingGrams,
                 onValueChange = onServingChanged,
-                label = { Text("Serving g") },
+                label = { Text(stringResource(R.string.food_serving_grams_label)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(1f),
@@ -2198,14 +2279,14 @@ internal fun NutritionLabelScanPanel(
             OutlinedTextField(
                 value = editor.servingName,
                 onValueChange = onServingNameChanged,
-                label = { Text("Serving") },
+                label = { Text(stringResource(R.string.food_serving)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
                 value = editor.category,
                 onValueChange = onCategoryChanged,
-                label = { Text("Category") },
+                label = { Text(stringResource(R.string.food_category)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
@@ -2231,7 +2312,7 @@ internal fun NutritionLabelScanPanel(
 
         state.message?.let { message ->
             Text(
-                text = message,
+                text = message.asString(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.brand,
             )
@@ -2331,7 +2412,7 @@ private fun SavedFoodNutritionFields(
                     modifier = Modifier.weight(1f),
                 )
                 Icon(
-                    imageVector = if (showMicronutrients) Icons.Filled.ExpandLess else Icons.Outlined.ChevronRight,
+                    imageVector = if (showMicronutrients) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = null,
                     tint = colors.brand,
                     modifier = Modifier.size(18.dp),
@@ -2425,7 +2506,7 @@ internal fun GoalEditorScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         InnerScreenHeader(
-            title = "Nutrition goals",
+            title = stringResource(R.string.food_nutrition_goals),
             onBack = onBack,
             trailing = {
                 PillButton(
@@ -2453,7 +2534,7 @@ internal fun GoalEditorScreen(
                 ) {
                     StepperCircleButton(
                         icon = Icons.Outlined.Remove,
-                        contentDescription = "Remove 50 kcal",
+                        contentDescription = stringResource(R.string.food_remove_fifty_kcal),
                         onClick = { onCaloriesChanged(steppedCaloriesInput(editor.caloriesKcalInput, -50)) },
                     )
                     Column(
@@ -2468,7 +2549,7 @@ internal fun GoalEditorScreen(
                             maxLines = 1,
                         )
                         Text(
-                            text = "kcal daily target · ${editor.modeInput.label.lowercase()}",
+                            text = "kcal daily target · ${editor.modeInput.label().lowercase()}",
                             style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                             color = accent.onContainerVariant,
                             modifier = Modifier.padding(top = 3.dp),
@@ -2477,7 +2558,7 @@ internal fun GoalEditorScreen(
                     }
                     StepperCircleButton(
                         icon = Icons.Outlined.Add,
-                        contentDescription = "Add 50 kcal",
+                        contentDescription = stringResource(R.string.food_add_fifty_kcal),
                         filled = true,
                         onClick = { onCaloriesChanged(steppedCaloriesInput(editor.caloriesKcalInput, 50)) },
                     )
@@ -2564,7 +2645,7 @@ internal fun GoalEditorScreen(
                         color = colors.brand,
                     )
                     Icon(
-                        imageVector = Icons.Outlined.ChevronRight,
+                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                         contentDescription = null,
                         tint = colors.brand,
                         modifier = Modifier.size(17.dp),
@@ -2613,7 +2694,7 @@ internal fun GoalEditorScreen(
             }
 
             state.message?.let {
-                Text(it, style = MusFitTheme.typography.bodyMedium, color = colors.brand)
+                Text(it.asString(), style = MusFitTheme.typography.bodyMedium, color = colors.brand)
             }
         }
     }
@@ -2648,7 +2729,7 @@ private fun GoalMacroSplitCard(editor: GoalEditorState) {
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = editor.modeInput.label,
+                    text = editor.modeInput.label(),
                     style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = colors.onSurfaceVariant,
                 )
@@ -2960,12 +3041,12 @@ private fun RecipeBrowserHome(
 
     Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         InnerScreenHeader(
-            title = "Recipes",
+            title = stringResource(R.string.food_recipes),
             onBack = onBackClick,
             trailing = {
                 TonalHeaderIconButton(
                     icon = Icons.Outlined.Search,
-                    contentDescription = "Search recipes",
+                    contentDescription = stringResource(R.string.food_search_recipes),
                     onClick = { searchVisible = !searchVisible },
                     modifier = Modifier.size(48.dp),
                 )
@@ -3039,7 +3120,7 @@ private fun RecipeBrowserHome(
                     span = { GridItemSpan(maxLineSpan) },
                 ) {
                     Text(
-                        text = it,
+                        text = it.asString(),
                         style = MusFitTheme.typography.bodyMedium,
                         color = colors.brand,
                         maxLines = 2,
@@ -3089,7 +3170,7 @@ private fun RecipeBrowserHome(
                     key = "empty",
                     span = { GridItemSpan(maxLineSpan) },
                 ) {
-                    RecipeBrowserEmptyText("No recipes match this search yet.")
+                    RecipeBrowserEmptyText(stringResource(R.string.food_no_recipes_match))
                 }
                 if (showMyRecipes) {
                     verticalGap("gap-after-empty", 12.dp)
@@ -3129,7 +3210,7 @@ private fun RecipeBrowserHome(
                         key = "my-recipes-empty",
                         span = { GridItemSpan(maxLineSpan) },
                     ) {
-                        RecipeBrowserEmptyText("No saved recipes yet — build one with New recipe.")
+                        RecipeBrowserEmptyText(stringResource(R.string.food_no_saved_recipes))
                     }
                 } else {
                     gridItemsIndexed(
@@ -3174,7 +3255,10 @@ private fun RecipeBrowserHome(
                                             Box(contentAlignment = Alignment.Center) {
                                                 Icon(
                                                     imageVector = Icons.Outlined.Add,
-                                                    contentDescription = "${state.foodEntryActionVerb} recipe",
+                                                    contentDescription = stringResource(
+                                                        R.string.food_action_recipe,
+                                                        state.foodEntryActionVerb(),
+                                                    ),
                                                     modifier = Modifier.size(20.dp),
                                                 )
                                             }
@@ -3297,7 +3381,11 @@ private fun RecipePlanDateControls(
     val colors = MusFitTheme.colors
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
         IconButton(onClick = onPreviousDayClick) {
-            Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day", tint = colors.onSurface)
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.food_previous_day),
+                tint = colors.onSurface,
+            )
         }
         Column(
             verticalArrangement = Arrangement.Center,
@@ -3326,7 +3414,11 @@ private fun RecipePlanDateControls(
             )
         }
         IconButton(onClick = onNextDayClick) {
-            Icon(Icons.Filled.ChevronRight, contentDescription = "Next day", tint = colors.onSurface)
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = stringResource(R.string.food_next_day),
+                tint = colors.onSurface,
+            )
         }
     }
 }
@@ -3670,7 +3762,7 @@ internal fun RecipeEditorPanel(
                 }
             }
         }
-        state.message?.let { Text(it, style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.brand) }
+        state.message?.let { Text(it.asString(), style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.brand) }
         PillButton(
             text = if (state.isSaving) "Saving" else "Save recipe",
             onClick = onSaveClick,
@@ -3692,7 +3784,7 @@ internal fun RecipeEditorPanel(
     }
     if (confirmDelete) {
         ConfirmDeleteDialog(
-            title = "Delete recipe?",
+            title = stringResource(R.string.food_delete_recipe),
             body = "\"${editor.name.ifBlank { "This recipe" }}\" is removed from your recipes.",
             onConfirm = {
                 confirmDelete = false
@@ -3741,10 +3833,10 @@ private fun SavedRecipesSection(
                             Text(if (recipe.isFavorite) "Starred" else "Star")
                         }
                         MusFitOutlinedButton(onClick = { onEditRecipeClick(recipe.id) }) {
-                            Text("Edit")
+                            Text(stringResource(DesignR.string.common_edit))
                         }
                         MusFitOutlinedButton(onClick = { onDuplicateRecipeClick(recipe.id) }) {
-                            Text("Copy")
+                            Text(stringResource(R.string.food_copy))
                         }
                     }
                 }
@@ -3901,7 +3993,7 @@ private fun RecipeDiscoveryCatalog(
                             }
                         }
                         Button(onClick = { onItemClick(item.id) }, modifier = Modifier.width(96.dp)) {
-                            Text(if (item.isSavedRecipe) state.foodEntryActionVerb else "Use")
+                            Text(if (item.isSavedRecipe) state.foodEntryActionVerb() else "Use")
                         }
                     }
                     HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
@@ -3935,7 +4027,7 @@ internal fun MealTemplatesPanel(
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 28.dp),
     ) {
         item(key = "meal-template-title") {
-            Text("Meal templates", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.food_meal_templates), style = MaterialTheme.typography.headlineSmall)
         }
         verticalGap("gap-after-meal-template-title", 14.dp)
         state.mealTemplateEditor?.let { editor ->
@@ -3945,7 +4037,7 @@ internal fun MealTemplatesPanel(
                     OutlinedTextField(
                         value = editor.name,
                         onValueChange = onNameChanged,
-                        label = { Text("Name") },
+                        label = { Text(stringResource(R.string.food_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -3954,7 +4046,7 @@ internal fun MealTemplatesPanel(
                         mealDefinitions = state.visibleMealDefinitions,
                         onMealChanged = onMealTypeChanged,
                     )
-                    Text("Items", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.food_items), style = MaterialTheme.typography.titleSmall)
                     editor.items.forEachIndexed { index, templateItem ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -3974,7 +4066,7 @@ internal fun MealTemplatesPanel(
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                                 modifier = Modifier.width(104.dp),
                             ) {
-                                Text("Remove")
+                                Text(stringResource(DesignR.string.common_remove))
                             }
                         }
                     }
@@ -3995,13 +4087,13 @@ internal fun MealTemplatesPanel(
                         OutlinedTextField(
                             value = editor.newItemQuantityGrams,
                             onValueChange = onTemplateNewItemQuantityChanged,
-                            label = { Text("Amount g") },
+                            label = { Text(stringResource(R.string.food_amount_grams_short)) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.weight(1f),
                         )
                         Button(onClick = onTemplateAddItemClick, modifier = Modifier.width(96.dp)) {
-                            Text("Add")
+                            Text(stringResource(DesignR.string.common_add))
                         }
                     }
                     Button(
@@ -4022,7 +4114,7 @@ internal fun MealTemplatesPanel(
         }
         if (state.mealTemplates.isEmpty()) {
             item(key = "meal-template-empty") {
-                Text("No meal templates yet", color = MusFitTheme.colors.onSurfaceVariant)
+                Text(stringResource(R.string.food_no_meal_templates), color = MusFitTheme.colors.onSurfaceVariant)
             }
         } else {
             items(items = state.mealTemplates, key = MealTemplateUiState::id) { template ->
@@ -4043,27 +4135,31 @@ internal fun MealTemplatesPanel(
                             overflow = TextOverflow.Ellipsis,
                         )
                         if (template.isFavorite) {
-                            Text("Favorite", color = MusFitTheme.colors.brand, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                stringResource(R.string.food_favorite),
+                                color = MusFitTheme.colors.brand,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                     Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         MusFitOutlinedButton(onClick = { onTemplateClick(template.id) }) {
-                            Text(state.foodEntryActionVerb)
+                            Text(state.foodEntryActionVerb())
                         }
                         MusFitOutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
                             Text(if (template.isFavorite) "Starred" else "Star")
                         }
                         MusFitOutlinedButton(onClick = { onEditClick(template.id) }) {
-                            Text("Edit")
+                            Text(stringResource(DesignR.string.common_edit))
                         }
                         MusFitOutlinedButton(onClick = { onDuplicateClick(template.id) }) {
-                            Text("Duplicate")
+                            Text(stringResource(R.string.food_duplicate))
                         }
                         OutlinedButton(
                             onClick = { onDeleteClick(template.id) },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                         ) {
-                            Text("Delete")
+                            Text(stringResource(DesignR.string.common_delete))
                         }
                     }
                 }
@@ -4073,7 +4169,7 @@ internal fun MealTemplatesPanel(
         state.message?.let { message ->
             verticalGap("gap-before-meal-template-message", 14.dp)
             item(key = "meal-template-message") {
-                Text(message, color = MusFitTheme.colors.brand)
+                Text(message.asString(), color = MusFitTheme.colors.brand)
             }
         }
     }

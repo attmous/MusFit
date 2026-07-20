@@ -7,6 +7,10 @@ import com.musfit.data.repository.FoodGoal
 import com.musfit.data.repository.FoodProgressSummary
 import com.musfit.data.repository.FoodWeeklyDaySummary
 import com.musfit.data.repository.FoodWeeklySummary
+import com.musfit.feature.food.R
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import kotlin.math.roundToInt
 
 // Nutrition trends: the weekly MusFit score and the 7/28-day progress stats. Moved out of
@@ -15,10 +19,10 @@ import kotlin.math.roundToInt
 // too); this file references them as same-package `internal` members.
 
 data class FoodWeeklyScoreUiState(
-    val title: String,
+    val title: UiText,
     val score: Int,
-    val summary: String,
-    val suggestion: String,
+    val summary: UiText,
+    val suggestion: UiText,
     val tone: FoodInsightTone,
     val factors: List<FoodRatingFactorUiState>,
 )
@@ -29,15 +33,15 @@ data class FoodProgressStatsUiState(
 )
 
 data class FoodProgressMetricUiState(
-    val caption: String,
-    val value: String,
+    val caption: UiText,
+    val value: UiText,
 )
 
 data class FoodProgressPeriodUiState(
-    val title: String,
-    val trackedDaysLabel: String,
+    val title: UiText,
+    val trackedDaysLabel: UiText,
     val metrics: List<FoodProgressMetricUiState>,
-    val trendLabel: String,
+    val trendLabel: UiText,
 )
 
 private data class WeeklyScoreFactor(
@@ -77,9 +81,13 @@ internal fun FoodWeeklySummary.toWeeklyScoreUiState(): FoodWeeklyScoreUiState {
             .coerceIn(0, 100)
 
     return FoodWeeklyScoreUiState(
-        title = "Weekly MusFit score",
+        title = uiText(R.string.food_weekly_musfit_score),
         score = score,
-        summary = "${foodTrackedDays.size} tracked days in this 7-day window.",
+        summary = pluralUiText(
+            R.plurals.food_tracked_days_window,
+            foodTrackedDays.size,
+            UiText.Argument.Integer(foodTrackedDays.size),
+        ),
         suggestion = weeklyScoreSuggestion(nutritionFactor.score, hydrationFactor.score, habitFactor.score),
         tone = score.toWeeklyScoreTone(),
         factors = factors.map { factor -> factor.uiState },
@@ -89,13 +97,19 @@ internal fun FoodWeeklySummary.toWeeklyScoreUiState(): FoodWeeklyScoreUiState {
 internal fun FoodProgressSummary.toProgressStatsUiState(): FoodProgressStatsUiState {
     val rangeDays = days.take(dayCount)
     return FoodProgressStatsUiState(
-        weekly = rangeDays.takeLast(7).toProgressPeriodUiState(title = "Last 7 days", goal = goal),
-        monthly = rangeDays.takeLast(28).toProgressPeriodUiState(title = "Last 28 days", goal = goal),
+        weekly = rangeDays.takeLast(7).toProgressPeriodUiState(
+            title = uiText(R.string.food_last_seven_days),
+            goal = goal,
+        ),
+        monthly = rangeDays.takeLast(28).toProgressPeriodUiState(
+            title = uiText(R.string.food_last_twenty_eight_days),
+            goal = goal,
+        ),
     )
 }
 
 private fun List<FoodWeeklyDaySummary>.toProgressPeriodUiState(
-    title: String,
+    title: UiText,
     goal: FoodGoal,
 ): FoodProgressPeriodUiState {
     val trackedDays = filter { day -> day.diary.hasTrackedNutrition() }
@@ -121,19 +135,72 @@ private fun List<FoodWeeklyDaySummary>.toProgressPeriodUiState(
         }
     return FoodProgressPeriodUiState(
         title = title,
-        trackedDaysLabel = "$trackedCount tracked days",
-        metrics = listOf(
-            FoodProgressMetricUiState("Avg calories", "${averageCalories.roundToInt()} kcal"),
-            FoodProgressMetricUiState("Avg protein", "${averageProtein.roundToInt()} g"),
-            FoodProgressMetricUiState("Calorie target", "$calorieTargetDays/$trackedCount days"),
-            FoodProgressMetricUiState("Hydration", "$hydrationDays/$trackedCount days"),
-            FoodProgressMetricUiState("Habit days", "$habitDays/$trackedCount"),
+        trackedDaysLabel = pluralUiText(
+            R.plurals.food_tracked_days,
+            trackedCount,
+            UiText.Argument.Integer(trackedCount),
+        ),
+        metrics = buildProgressMetrics(
+            ProgressMetricInputs(
+                averageCalories = averageCalories,
+                averageProtein = averageProtein,
+                calorieTargetDays = calorieTargetDays,
+                hydrationDays = hydrationDays,
+                habitDays = habitDays,
+                trackedCount = trackedCount,
+            ),
         ),
         trendLabel = trendLabelForCalories(),
     )
 }
 
-private fun List<FoodWeeklyDaySummary>.trendLabelForCalories(): String {
+private data class ProgressMetricInputs(
+    val averageCalories: Double,
+    val averageProtein: Double,
+    val calorieTargetDays: Int,
+    val hydrationDays: Int,
+    val habitDays: Int,
+    val trackedCount: Int,
+)
+
+private fun buildProgressMetrics(inputs: ProgressMetricInputs): List<FoodProgressMetricUiState> = listOf(
+    FoodProgressMetricUiState(
+        uiText(R.string.food_average_calories),
+        uiText(R.string.food_integer_kcal, UiText.Argument.Integer(inputs.averageCalories.roundToInt())),
+    ),
+    FoodProgressMetricUiState(
+        uiText(R.string.food_average_protein),
+        uiText(R.string.food_integer_grams, UiText.Argument.Integer(inputs.averageProtein.roundToInt())),
+    ),
+    FoodProgressMetricUiState(
+        uiText(R.string.food_calorie_target),
+        pluralUiText(
+            R.plurals.food_days_ratio,
+            inputs.trackedCount,
+            UiText.Argument.Integer(inputs.calorieTargetDays),
+            UiText.Argument.Integer(inputs.trackedCount),
+        ),
+    ),
+    FoodProgressMetricUiState(
+        uiText(R.string.food_hydration),
+        pluralUiText(
+            R.plurals.food_days_ratio,
+            inputs.trackedCount,
+            UiText.Argument.Integer(inputs.hydrationDays),
+            UiText.Argument.Integer(inputs.trackedCount),
+        ),
+    ),
+    FoodProgressMetricUiState(
+        uiText(R.string.food_habit_days),
+        uiText(
+            R.string.food_integer_ratio,
+            UiText.Argument.Integer(inputs.habitDays),
+            UiText.Argument.Integer(inputs.trackedCount),
+        ),
+    ),
+)
+
+private fun List<FoodWeeklyDaySummary>.trendLabelForCalories(): UiText {
     // Split the tracked days (not the calendar window, which includes untracked days) in half so each
     // half holds a comparable number of real data points regardless of where logging happened to fall.
     val trackedCalories = filter { it.diary.hasTrackedNutrition() }.map { it.diary.totals.caloriesKcal }
@@ -141,13 +208,13 @@ private fun List<FoodWeeklyDaySummary>.trendLabelForCalories(): String {
     val firstAverage = trackedCalories.take(midpoint).averageOrNull()
     val secondAverage = trackedCalories.drop(midpoint).averageOrNull()
     if (firstAverage == null || secondAverage == null) {
-        return "Trend needs more tracked days"
+        return uiText(R.string.food_trend_needs_more_days)
     }
     val difference = secondAverage - firstAverage
     return when {
-        kotlin.math.abs(difference) < 100.0 -> "Calories stable"
-        difference > 0.0 -> "Calories trending up"
-        else -> "Calories trending down"
+        kotlin.math.abs(difference) < 100.0 -> uiText(R.string.food_calories_stable)
+        difference > 0.0 -> uiText(R.string.food_calories_trending_up)
+        else -> uiText(R.string.food_calories_trending_down)
     }
 }
 
@@ -288,11 +355,11 @@ private fun Double.weeklyLimitScore(goal: Double, soft: Double, high: Double): D
     }
 }
 
-private fun weeklyScoreSuggestion(nutritionScore: Int, hydrationScore: Int, habitScore: Int): String = when {
-    hydrationScore < 80 -> "Raise water consistency on tracked days first."
-    nutritionScore < 80 -> "Anchor the week with protein, fiber, and calmer sodium."
-    habitScore < 67 -> "Plan fruit, vegetables, and one fish meal into the week."
-    else -> "Keep this pattern and repeat the strongest logged days."
+private fun weeklyScoreSuggestion(nutritionScore: Int, hydrationScore: Int, habitScore: Int): UiText = when {
+    hydrationScore < 80 -> uiText(R.string.food_suggestion_raise_water)
+    nutritionScore < 80 -> uiText(R.string.food_suggestion_anchor_nutrition)
+    habitScore < 67 -> uiText(R.string.food_suggestion_plan_habits)
+    else -> uiText(R.string.food_suggestion_repeat_strong_days)
 }
 
 private fun Int.toWeeklyScoreTone(): FoodInsightTone = when {
@@ -302,28 +369,61 @@ private fun Int.toWeeklyScoreTone(): FoodInsightTone = when {
 }
 
 internal fun emptyWeeklyScore(): FoodWeeklyScoreUiState = FoodWeeklyScoreUiState(
-    title = "Weekly MusFit score",
+    title = uiText(R.string.food_weekly_musfit_score),
     score = 0,
-    summary = "Log food to build a weekly score.",
-    suggestion = "Track a few meals and water to see weekly patterns.",
+    summary = uiText(R.string.food_log_to_build_weekly_score),
+    suggestion = uiText(R.string.food_track_meals_for_patterns),
     tone = FoodInsightTone.Neutral,
     factors = emptyList(),
 )
 
 internal fun emptyProgressStats(): FoodProgressStatsUiState = FoodProgressStatsUiState(
-    weekly = emptyProgressPeriod("Last 7 days"),
-    monthly = emptyProgressPeriod("Last 28 days"),
+    weekly = emptyProgressPeriod(uiText(R.string.food_last_seven_days)),
+    monthly = emptyProgressPeriod(uiText(R.string.food_last_twenty_eight_days)),
 )
 
-private fun emptyProgressPeriod(title: String): FoodProgressPeriodUiState = FoodProgressPeriodUiState(
+private fun emptyProgressPeriod(title: UiText): FoodProgressPeriodUiState = FoodProgressPeriodUiState(
     title = title,
-    trackedDaysLabel = "0 tracked days",
-    metrics = listOf(
-        FoodProgressMetricUiState("Avg calories", "0 kcal"),
-        FoodProgressMetricUiState("Avg protein", "0 g"),
-        FoodProgressMetricUiState("Calorie target", "0/0 days"),
-        FoodProgressMetricUiState("Hydration", "0/0 days"),
-        FoodProgressMetricUiState("Habit days", "0/0"),
+    trackedDaysLabel = pluralUiText(
+        R.plurals.food_tracked_days,
+        0,
+        UiText.Argument.Integer(0),
     ),
-    trendLabel = "Trend needs more tracked days",
+    metrics = listOf(
+        FoodProgressMetricUiState(
+            uiText(R.string.food_average_calories),
+            uiText(R.string.food_integer_kcal, UiText.Argument.Integer(0)),
+        ),
+        FoodProgressMetricUiState(
+            uiText(R.string.food_average_protein),
+            uiText(R.string.food_integer_grams, UiText.Argument.Integer(0)),
+        ),
+        FoodProgressMetricUiState(
+            uiText(R.string.food_calorie_target),
+            pluralUiText(
+                R.plurals.food_days_ratio,
+                0,
+                UiText.Argument.Integer(0),
+                UiText.Argument.Integer(0),
+            ),
+        ),
+        FoodProgressMetricUiState(
+            uiText(R.string.food_hydration),
+            pluralUiText(
+                R.plurals.food_days_ratio,
+                0,
+                UiText.Argument.Integer(0),
+                UiText.Argument.Integer(0),
+            ),
+        ),
+        FoodProgressMetricUiState(
+            uiText(R.string.food_habit_days),
+            uiText(
+                R.string.food_integer_ratio,
+                UiText.Argument.Integer(0),
+                UiText.Argument.Integer(0),
+            ),
+        ),
+    ),
+    trendLabel = uiText(R.string.food_trend_needs_more_days),
 )

@@ -15,9 +15,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.musfit.feature.food.R
 import com.musfit.integrations.scanner.NutritionLabelScanResult
 import com.musfit.integrations.scanner.NutritionLabelScannerController
 
@@ -42,7 +44,7 @@ fun NutritionLabelScannerScreen(onLabelCaptured: (String) -> Unit) {
 
     if (!cameraPermission.isGranted) {
         CameraPermissionDeniedContent(
-            message = "Camera permission is required to scan nutrition labels.",
+            message = stringResource(R.string.food_camera_permission_nutrition_label),
             action = cameraPermission.action,
             onAction = cameraPermission.performAction,
         )
@@ -52,7 +54,7 @@ fun NutritionLabelScannerScreen(onLabelCaptured: (String) -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(factory = { controller.previewView }, modifier = Modifier.fillMaxSize())
         Text(
-            text = "Point at the nutrition label, then capture",
+            text = stringResource(R.string.food_point_at_nutrition_label),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(16.dp),
         )
@@ -65,7 +67,11 @@ fun NutritionLabelScannerScreen(onLabelCaptured: (String) -> Unit) {
             enabled = latestResult != null,
             modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp),
         ) {
-            Text(if (latestResult == null) "Reading..." else "Capture label")
+            Text(
+                stringResource(
+                    if (latestResult == null) R.string.food_nutrition_label_reading else R.string.food_capture_label,
+                ),
+            )
         }
     }
 }

@@ -9,7 +9,9 @@ import com.musfit.data.repository.FoodDiaryMeal
 import com.musfit.data.repository.FoodWaterSummary
 import com.musfit.data.repository.NutritionDetails
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.ui.text.UiText
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * Presentation state consumed by the Food diary route.
@@ -21,7 +23,7 @@ import java.time.LocalDate
 data class FoodDiaryUiState(
     val selectedDate: LocalDate,
     val isSaving: Boolean,
-    val message: String?,
+    val message: UiText?,
     val canUndoDelete: Boolean,
     val calorieGoalKcal: Double,
     val eatenCaloriesKcal: Double,
@@ -572,11 +574,11 @@ internal fun NutritionDetails.toMicronutrients(): List<FoodMicronutrientUiState>
 )
 
 internal fun List<SavedFoodUiState>.filterForDatabaseQuery(query: String): List<SavedFoodUiState> {
-    val normalizedQuery = query.trim().lowercase()
+    val normalizedQuery = query.trim().lowercase(Locale.ROOT)
     if (normalizedQuery.isBlank()) return this
     return filter { food ->
         listOf(food.name, food.brand.orEmpty(), food.barcode.orEmpty(), food.category.orEmpty())
-            .any { value -> value.lowercase().contains(normalizedQuery) }
+            .any { value -> value.lowercase(Locale.ROOT).contains(normalizedQuery) }
     }
 }
 

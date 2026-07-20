@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.musfit.feature.food.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.groupedShape
@@ -68,6 +70,7 @@ import com.musfit.ui.theme.NeutralOutline
 import com.musfit.ui.theme.NeutralOutlineDark
 import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
+import com.musfit.core.designsystem.R as DesignR
 
 // Shared Food-package building blocks for the Turn 9 inner-screen restyle:
 // sheet chrome, chips, mode row, and the dense grouped list row.
@@ -82,6 +85,7 @@ internal fun FoodSheetHeader(
     leading: (@Composable () -> Unit)? = null,
     chip: (@Composable () -> Unit)? = null,
 ) {
+    val closeLabel = stringResource(DesignR.string.common_close)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -111,10 +115,10 @@ internal fun FoodSheetHeader(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(48.dp)
-                .semantics { contentDescription = "Close" }
+                .semantics { contentDescription = closeLabel }
                 .clip(CircleShape)
                 .clickable(
-                    onClickLabel = "Close",
+                    onClickLabel = closeLabel,
                     role = Role.Button,
                     onClick = onClose,
                 ),
@@ -162,7 +166,7 @@ internal fun MealTargetChip(
                 )
                 Icon(
                     Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = "Change meal",
+                    contentDescription = stringResource(R.string.food_change_meal),
                     modifier = Modifier.size(17.dp),
                 )
             }
@@ -267,7 +271,7 @@ internal fun KeepAddingPill(
             modifier = Modifier.padding(start = 16.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
         ) {
             Text(
-                text = "Keep adding",
+                text = stringResource(R.string.food_keep_adding),
                 style = MusFitTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W800),
                 color = MusFitTheme.colors.onSurface,
                 maxLines = 1,
@@ -287,13 +291,16 @@ internal fun KeepAddingPill(
     }
 }
 
-private fun addModeLabel(mode: FoodAddMode): String = when (mode) {
-    FoodAddMode.Saved -> "Saved"
-    FoodAddMode.Manual -> "Manual"
-    FoodAddMode.Barcode -> "Barcode"
-    FoodAddMode.Quick -> "Quick"
-    FoodAddMode.Ai -> "AI"
-}
+@Composable
+private fun addModeLabel(mode: FoodAddMode): String = stringResource(
+    when (mode) {
+        FoodAddMode.Saved -> R.string.food_add_mode_saved
+        FoodAddMode.Manual -> R.string.food_add_mode_manual
+        FoodAddMode.Barcode -> R.string.food_add_mode_barcode
+        FoodAddMode.Quick -> R.string.food_add_mode_quick
+        FoodAddMode.Ai -> R.string.food_add_mode_ai
+    },
+)
 
 // Filled icon on the selected brand tile, outlined on unselected white tiles.
 private fun addModeIcon(mode: FoodAddMode, selected: Boolean): ImageVector = when (mode) {

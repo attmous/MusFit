@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.musfit.ui.theme.MusFitTheme
+import java.util.Locale
 import kotlin.math.roundToInt
 
 // Shared leaf composables and small formatting helpers used across the Food
@@ -78,7 +79,7 @@ internal fun SectionTitle(text: String) {
 
 // Filled glyphs per the Turn 8 (8b) diary badges: bakery / lunch / dinner dining.
 internal fun mealTypeIcon(id: String, title: String): ImageVector {
-    val key = "$id $title".lowercase()
+    val key = "$id $title".lowercase(Locale.ROOT)
     return when {
         "breakfast" in key -> Icons.Filled.BakeryDining
         "lunch" in key -> Icons.Filled.LunchDining
@@ -104,7 +105,7 @@ internal fun defaultAddMealId(
         in 16..21 -> "dinner"
         else -> "snack"
     }
-    val match = sections.firstOrNull { keyword in "${it.id} ${it.title}".lowercase() }
+    val match = sections.firstOrNull { keyword in "${it.id} ${it.title}".lowercase(Locale.ROOT) }
     return (match ?: sections.first()).id
 }
 

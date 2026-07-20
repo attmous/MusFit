@@ -46,7 +46,11 @@ import com.musfit.data.repository.WaterLogInput
 import com.musfit.domain.health.HealthConnectAvailability
 import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
+import com.musfit.feature.food.R
 import com.musfit.testing.MainDispatcherRule
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -175,7 +179,7 @@ class FoodViewModelTest {
 
         assertEquals(0, repository.savedFoodsSubscriptions)
         assertEquals(1, repository.diarySubscriptions)
-        assertEquals("Saved foods unavailable", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("Saved foods unavailable"), viewModel.state.value.message)
 
         repository.updateDiary(
             FoodDiary(
@@ -247,8 +251,22 @@ class FoodViewModelTest {
 
         assertEquals(1, repository.weeklySummarySubscriptions)
         assertEquals(1, repository.progressSummarySubscriptions)
-        assertTrue(viewModel.state.value.weeklyScore.summary.contains("3 tracked days"))
-        assertEquals("3 tracked days", viewModel.state.value.progressStats.weekly.trackedDaysLabel)
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_tracked_days_window,
+                quantity = 3,
+                UiText.Argument.Integer(3),
+            ),
+            viewModel.state.value.weeklyScore.summary,
+        )
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_tracked_days,
+                quantity = 3,
+                UiText.Argument.Integer(3),
+            ),
+            viewModel.state.value.progressStats.weekly.trackedDaysLabel,
+        )
     }
 
     @Test
@@ -267,12 +285,26 @@ class FoodViewModelTest {
 
         assertEquals(0, repository.weeklySummarySubscriptions)
         assertEquals(1, repository.progressSummarySubscriptions)
-        assertTrue(viewModel.state.value.weeklyScore.summary.contains("3 tracked days"))
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_tracked_days_window,
+                quantity = 3,
+                UiText.Argument.Integer(3),
+            ),
+            viewModel.state.value.weeklyScore.summary,
+        )
 
         repository.updateProgressSummary(progressSummaryForStats(LocalDate.now().minusDays(27)))
         testScheduler.runCurrent()
 
-        assertEquals("3 tracked days", viewModel.state.value.progressStats.weekly.trackedDaysLabel)
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_tracked_days,
+                quantity = 3,
+                UiText.Argument.Integer(3),
+            ),
+            viewModel.state.value.progressStats.weekly.trackedDaysLabel,
+        )
     }
 
     @Test
@@ -291,12 +323,26 @@ class FoodViewModelTest {
 
         assertEquals(1, repository.weeklySummarySubscriptions)
         assertEquals(0, repository.progressSummarySubscriptions)
-        assertEquals("3 tracked days", viewModel.state.value.progressStats.weekly.trackedDaysLabel)
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_tracked_days,
+                quantity = 3,
+                UiText.Argument.Integer(3),
+            ),
+            viewModel.state.value.progressStats.weekly.trackedDaysLabel,
+        )
 
         repository.updateWeeklySummary(weeklySummaryForScore(LocalDate.now().minusDays(6)))
         testScheduler.runCurrent()
 
-        assertTrue(viewModel.state.value.weeklyScore.summary.contains("3 tracked days"))
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_tracked_days_window,
+                quantity = 3,
+                UiText.Argument.Integer(3),
+            ),
+            viewModel.state.value.weeklyScore.summary,
+        )
     }
 
     @Test
@@ -441,7 +487,7 @@ class FoodViewModelTest {
         viewModel.lookupBarcode()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Enter a barcode", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_enter_barcode), viewModel.state.value.message)
         assertFalse(viewModel.state.value.isLoading)
     }
 
@@ -910,16 +956,23 @@ class FoodViewModelTest {
         testScheduler.runCurrent()
 
         val score = viewModel.state.value.weeklyScore
-        assertEquals("Weekly MusFit score", score.title)
+        assertEquals(uiText(R.string.food_weekly_musfit_score), score.title)
         assertTrue(score.score in 60..85)
-        assertTrue(score.summary.contains("3 tracked days"))
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_tracked_days_window,
+                quantity = 3,
+                UiText.Argument.Integer(3),
+            ),
+            score.summary,
+        )
         assertEquals(
             listOf("Nutrition consistency", "Hydration", "Habits", "Training signal"),
             score.factors.map { it.label },
         )
-        assertTrue(score.factors.first { it.label == "Hydration" }.valueLabel.contains("72%"))
+        assertEquals(UiText.Verbatim("72%"), score.factors.first { it.label == "Hydration" }.valueLabel)
         assertEquals(FoodInsightTone.Neutral, score.factors.first { it.label == "Training signal" }.tone)
-        assertTrue(score.suggestion.contains("water", ignoreCase = true) || score.suggestion.contains("protein", ignoreCase = true))
+        assertEquals(uiText(R.string.food_suggestion_raise_water), score.suggestion)
     }
 
     @Test
@@ -950,16 +1003,42 @@ class FoodViewModelTest {
 
         val stats = viewModel.state.value.progressStats
 
-        assertEquals("Last 7 days", stats.weekly.title)
-        assertEquals("3 tracked days", stats.weekly.trackedDaysLabel)
+        assertEquals(uiText(R.string.food_last_seven_days), stats.weekly.title)
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_tracked_days,
+                quantity = 3,
+                UiText.Argument.Integer(3),
+            ),
+            stats.weekly.trackedDaysLabel,
+        )
         val weeklyMetrics = stats.weekly.metrics.associate { it.caption to it.value }
-        assertEquals("2160 kcal", weeklyMetrics["Avg calories"])
-        assertEquals("96 g", weeklyMetrics["Avg protein"])
-        assertEquals("2/3 days", weeklyMetrics["Calorie target"])
-        assertEquals("2/3 days", weeklyMetrics["Hydration"])
-        assertEquals("Last 28 days", stats.monthly.title)
-        assertTrue(stats.monthly.trackedDaysLabel.contains("5 tracked days"))
-        assertTrue(stats.monthly.trendLabel.contains("up", ignoreCase = true))
+        assertEquals(
+            uiText(R.string.food_integer_kcal, UiText.Argument.Integer(2160)),
+            weeklyMetrics[uiText(R.string.food_average_calories)],
+        )
+        assertEquals(
+            uiText(R.string.food_integer_grams, UiText.Argument.Integer(96)),
+            weeklyMetrics[uiText(R.string.food_average_protein)],
+        )
+        val twoOfThreeDays = pluralUiText(
+            R.plurals.food_days_ratio,
+            quantity = 3,
+            UiText.Argument.Integer(2),
+            UiText.Argument.Integer(3),
+        )
+        assertEquals(twoOfThreeDays, weeklyMetrics[uiText(R.string.food_calorie_target)])
+        assertEquals(twoOfThreeDays, weeklyMetrics[uiText(R.string.food_hydration)])
+        assertEquals(uiText(R.string.food_last_twenty_eight_days), stats.monthly.title)
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_tracked_days,
+                quantity = 5,
+                UiText.Argument.Integer(5),
+            ),
+            stats.monthly.trackedDaysLabel,
+        )
+        assertEquals(uiText(R.string.food_calories_trending_up), stats.monthly.trendLabel)
     }
 
     @Test
@@ -1029,7 +1108,7 @@ class FoodViewModelTest {
         viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Logged food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_food), viewModel.state.value.message)
         assertEquals("Edited Yogurt", repository.savedLog?.name)
         assertNull(repository.savedLog?.brand)
         assertEquals("snack", repository.savedLog?.mealType)
@@ -1125,7 +1204,7 @@ class FoodViewModelTest {
         viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Logged food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_food), viewModel.state.value.message)
         assertNull(repository.savedLog?.lookupResult)
         assertEquals("Oats", repository.savedLog?.name)
         assertEquals("Pantry", repository.savedLog?.brand)
@@ -1195,7 +1274,7 @@ class FoodViewModelTest {
         viewModel.lookupBarcode()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Product not found. Add details to create it.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_product_not_found), viewModel.state.value.message)
         assertNull(viewModel.state.value.lookupResult)
     }
 
@@ -1210,7 +1289,7 @@ class FoodViewModelTest {
         viewModel.lookupBarcode()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Lookup failed", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("Lookup failed"), viewModel.state.value.message)
         assertNull(viewModel.state.value.lookupResult)
     }
 
@@ -1300,7 +1379,7 @@ class FoodViewModelTest {
         repository.completeSave()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Logged food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_food), viewModel.state.value.message)
     }
 
     @Test
@@ -1319,7 +1398,7 @@ class FoodViewModelTest {
         viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Enter valid nutrition values", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_valid_nutrition), viewModel.state.value.message)
         assertNull(repository.savedLog)
     }
 
@@ -1344,7 +1423,7 @@ class FoodViewModelTest {
         viewModel.saveScannedProductToDatabase()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Saved product to database", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_saved_product), viewModel.state.value.message)
         assertEquals("Edited yogurt", repository.confirmedProductSave?.editedName)
         assertNull(repository.confirmedProductSave?.editedBrand)
         assertEquals(61.0, repository.confirmedProductSave?.editedNutrition?.caloriesKcal ?: 0.0, 0.01)
@@ -1367,7 +1446,7 @@ class FoodViewModelTest {
         viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Enter valid nutrition values", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_valid_nutrition), viewModel.state.value.message)
         assertNull(repository.savedLog)
     }
 
@@ -1387,7 +1466,7 @@ class FoodViewModelTest {
         viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Enter valid nutrition values", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_valid_nutrition), viewModel.state.value.message)
         assertNull(repository.savedLog)
     }
 
@@ -1592,7 +1671,7 @@ class FoodViewModelTest {
         viewModel.openSavedFoodDetail("food-1")
         viewModel.reportSavedFoodForReview("food-1")
 
-        assertEquals("Marked food for local review", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_marked_local_review), viewModel.state.value.message)
         assertTrue(viewModel.state.value.reportedSavedFoodIds.contains("food-1"))
         assertEquals(FoodTrustLevel.NeedsReview, viewModel.state.value.savedFoods.single().trust.level)
         assertEquals(FoodTrustLevel.NeedsReview, viewModel.state.value.selectedSavedFoodDetail?.trust?.level)
@@ -1603,7 +1682,7 @@ class FoodViewModelTest {
         val editor = requireNotNull(viewModel.state.value.savedFoodEditor)
         assertEquals(FoodSheetMode.SavedFoodEditor, viewModel.state.value.sheetMode)
         assertEquals("Greek yogurt", editor.name)
-        assertEquals("Review and correct nutrition before saving.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_correct_nutrition), viewModel.state.value.message)
     }
 
     @Test
@@ -1618,7 +1697,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(MergeDuplicateFoodsCall("food-1", listOf("food-2", "food-3")), repository.mergeDuplicateFoodsCall)
-        assertEquals("Merged duplicate foods", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_merged_duplicates), viewModel.state.value.message)
     }
 
     @Test
@@ -1957,7 +2036,7 @@ class FoodViewModelTest {
         val input = requireNotNull(repository.customMealDefinitionUpsert)
         assertEquals("Post-workout", input.name)
         assertEquals(18 * 60 + 45, input.timeMinutes)
-        assertEquals("Saved custom meal", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_saved_custom_meal), viewModel.state.value.message)
     }
 
     @Test
@@ -1978,7 +2057,7 @@ class FoodViewModelTest {
         assertEquals("Morning", input.name)
         assertEquals(7 * 60 + 30, input.timeMinutes)
         assertEquals(12, input.sortOrder)
-        assertEquals("Saved meal", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_saved_meal), viewModel.state.value.message)
     }
 
     @Test
@@ -2059,7 +2138,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertNull(repository.customMealDefinitionUpsert)
-        assertEquals("Keep at least one meal visible", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_keep_meal_visible), viewModel.state.value.message)
     }
 
     @Test
@@ -2115,7 +2194,7 @@ class FoodViewModelTest {
         assertEquals("food-1", repository.savedFoodLog?.foodId)
         assertEquals("dinner", repository.savedFoodLog?.mealType)
         assertEquals(75.0, repository.savedFoodLog?.quantityGrams ?: 0.0, 0.01)
-        assertEquals("Logged food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_food), viewModel.state.value.message)
         assertFalse(viewModel.state.value.isAddPanelVisible)
     }
 
@@ -2170,7 +2249,14 @@ class FoodViewModelTest {
         assertEquals(listOf("lunch", "lunch"), repository.savedFoodLogs.map { it.mealType })
         assertEquals(200.0, repository.savedFoodLogs[0].quantityGrams, 0.01)
         assertEquals(40.0, repository.savedFoodLogs[1].quantityGrams, 0.01)
-        assertEquals("Logged 2 foods", viewModel.state.value.message)
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_message_logged_food_count,
+                quantity = 2,
+                UiText.Argument.Integer(2),
+            ),
+            viewModel.state.value.message,
+        )
         assertFalse(viewModel.state.value.isAddPanelVisible)
     }
 
@@ -2196,7 +2282,7 @@ class FoodViewModelTest {
         assertEquals(22.0, repository.quickLog?.proteinGrams ?: 0.0, 0.01)
         assertEquals(36.0, repository.quickLog?.carbsGrams ?: 0.0, 0.01)
         assertEquals(9.0, repository.quickLog?.fatGrams ?: 0.0, 0.01)
-        assertEquals("Logged quick calories", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_quick_calories), viewModel.state.value.message)
         assertFalse(viewModel.state.value.isAddPanelVisible)
     }
 
@@ -2220,7 +2306,7 @@ class FoodViewModelTest {
         assertEquals(36.0, preset.carbsGrams, 0.01)
         assertEquals(9.0, preset.fatGrams, 0.01)
         assertTrue(preset.isFavorite)
-        assertEquals("Saved quick log favorite", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_saved_quick_favorite), viewModel.state.value.message)
     }
 
     @Test
@@ -2249,7 +2335,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(LogFavoriteQuickLogCall("quick-1", "snacks", LocalDate.now()), repository.logFavoriteQuickLogCall)
-        assertEquals("Logged favorite quick log", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_quick_favorite), viewModel.state.value.message)
     }
 
     @Test
@@ -2364,7 +2450,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("lunch", repository.savedLog?.mealType)
-        assertEquals("Logged food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_food), viewModel.state.value.message)
     }
 
     @Test
@@ -2415,7 +2501,7 @@ class FoodViewModelTest {
             ),
             repository.diaryEntryUpdate,
         )
-        assertEquals("Updated diary item", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_updated_diary_item), viewModel.state.value.message)
         assertFalse(viewModel.state.value.isAddPanelVisible)
     }
 
@@ -2571,7 +2657,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("entry-1", repository.deletedDiaryEntryId)
-        assertEquals("Deleted diary item", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_deleted_diary_item), viewModel.state.value.message)
         assertFalse(viewModel.state.value.isAddPanelVisible)
     }
 
@@ -2709,7 +2795,7 @@ class FoodViewModelTest {
             repository.savedFoodUpsert,
         )
         assertEquals(FoodSheetMode.FoodDatabase, viewModel.state.value.sheetMode)
-        assertEquals("Saved food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_saved_food), viewModel.state.value.message)
     }
 
     @Test
@@ -2743,7 +2829,7 @@ class FoodViewModelTest {
 
         assertEquals("food-1", repository.deletedSavedFoodId)
         assertEquals(FoodSheetMode.FoodDatabase, viewModel.state.value.sheetMode)
-        assertEquals("Deleted food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_deleted_food), viewModel.state.value.message)
     }
 
     @Test
@@ -2853,7 +2939,7 @@ class FoodViewModelTest {
             repository.savedFoodUpsert,
         )
         assertEquals(FoodSheetMode.FoodDatabase, viewModel.state.value.sheetMode)
-        assertEquals("Duplicated food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_duplicated_food), viewModel.state.value.message)
     }
 
     @Test
@@ -2876,7 +2962,7 @@ class FoodViewModelTest {
             assertEquals("12", editor.proteinPer100g)
             assertEquals("30", editor.carbsPer100g)
             assertEquals("8", editor.fatPer100g)
-            assertEquals("Review extracted nutrition before saving.", message)
+            assertEquals(uiText(R.string.food_message_review_extracted_nutrition), message)
         }
 
         viewModel.onSavedFoodNameChanged("Protein cereal")
@@ -3025,7 +3111,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("entry-1", repository.markedLoggedEntryId)
-        assertEquals("Logged planned food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_planned_food), viewModel.state.value.message)
     }
 
     @Test
@@ -3053,7 +3139,7 @@ class FoodViewModelTest {
 
         assertEquals(LocalDate.now().plusDays(8), viewModel.state.value.selectedDate)
         assertEquals(null, repository.plannedFoodLog)
-        assertEquals("You can plan up to 1 week ahead.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_planning_limit), viewModel.state.value.message)
     }
 
     @Test
@@ -3065,7 +3151,7 @@ class FoodViewModelTest {
         repeat(8) { viewModel.goToNextRecipeBrowserDay() }
 
         assertEquals(LocalDate.now().plusDays(7), viewModel.state.value.recipeBrowserDate)
-        assertEquals("You can plan up to 1 week ahead.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_planning_limit), viewModel.state.value.message)
     }
 
     @Test
@@ -3122,7 +3208,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("shopping-1" to true, repository.toggledShoppingItem)
-        assertEquals("Updated shopping item", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_updated_shopping_item), viewModel.state.value.message)
     }
 
     @Test
@@ -3148,7 +3234,10 @@ class FoodViewModelTest {
         dispatcher.scheduler.runCurrent()
 
         assertEquals(WaterLogInput(today, 250.0), repository.waterLogInput)
-        assertEquals("Added 250 ml water", viewModel.state.value.message)
+        assertEquals(
+            uiText(R.string.food_message_added_water, UiText.Argument.Decimal(250.0)),
+            viewModel.state.value.message,
+        )
 
         viewModel.onWaterCustomAmountChanged("333")
         viewModel.logCustomWater()
@@ -3162,7 +3251,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(2400.0, repository.waterGoalMilliliters ?: -1.0, 0.01)
-        assertEquals("Updated water goal", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_updated_water_goal), viewModel.state.value.message)
     }
 
     @Test
@@ -3178,12 +3267,18 @@ class FoodViewModelTest {
         viewModel.logQuickWater(250.0)
         dispatcher.scheduler.runCurrent()
 
-        assertEquals("Added 250 ml water", viewModel.state.value.message)
+        assertEquals(
+            uiText(R.string.food_message_added_water, UiText.Argument.Decimal(250.0)),
+            viewModel.state.value.message,
+        )
 
         dispatcher.scheduler.advanceTimeBy(2_999)
         dispatcher.scheduler.runCurrent()
 
-        assertEquals("Added 250 ml water", viewModel.state.value.message)
+        assertEquals(
+            uiText(R.string.food_message_added_water, UiText.Argument.Decimal(250.0)),
+            viewModel.state.value.message,
+        )
 
         dispatcher.scheduler.advanceTimeBy(1)
         dispatcher.scheduler.runCurrent()
@@ -3206,7 +3301,10 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(WaterLogInput(today, 250.0), repository.waterRemoveInput)
-        assertEquals("Removed 250 ml water", viewModel.state.value.message)
+        assertEquals(
+            uiText(R.string.food_message_removed_water, UiText.Argument.Decimal(250.0)),
+            viewModel.state.value.message,
+        )
     }
 
     @Test
@@ -3226,7 +3324,10 @@ class FoodViewModelTest {
 
         assertEquals(WaterLogInput(today, 333.0), repository.waterRemoveInput)
         assertEquals("", viewModel.state.value.waterCustomAmountInput)
-        assertEquals("Removed 333 ml water", viewModel.state.value.message)
+        assertEquals(
+            uiText(R.string.food_message_removed_water, UiText.Argument.Decimal(333.0)),
+            viewModel.state.value.message,
+        )
     }
 
     @Test
@@ -3244,7 +3345,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(WaterLogInput(today, 250.0), repository.waterRemoveInput)
-        assertEquals("No water to remove", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_no_water_to_remove), viewModel.state.value.message)
     }
 
     @Test
@@ -3278,7 +3379,7 @@ class FoodViewModelTest {
             ),
             repository.logTemplateCall,
         )
-        assertEquals("Logged meal template", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_meal_template), viewModel.state.value.message)
     }
 
     @Test
@@ -3308,7 +3409,7 @@ class FoodViewModelTest {
         assertEquals(FoodGoalMode.Custom, repository.foodGoalUpdate?.mode)
         assertTrue(repository.foodGoalUpdate?.includeTrainingCalories == true)
         assertEquals(2400.0, viewModel.state.value.calorieGoalKcal, 0.01)
-        assertEquals("Updated nutrition goals", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_updated_goals), viewModel.state.value.message)
     }
 
     @Test
@@ -3369,7 +3470,13 @@ class FoodViewModelTest {
         assertEquals(240.0, repository.foodGoalUpdate?.carbsGrams ?: 0.0, 0.01)
         assertEquals(77.0, repository.foodGoalUpdate?.fatGrams ?: 0.0, 0.01)
         assertTrue(viewModel.state.value.foodPrograms.first { it.id == "mediterranean-style" }.isSelected)
-        assertEquals("Applied Mediterranean-style program", viewModel.state.value.message)
+        assertEquals(
+            uiText(
+                R.string.food_message_applied_program,
+                UiText.Argument.Text("Mediterranean-style"),
+            ),
+            viewModel.state.value.message,
+        )
     }
 
     @Test
@@ -3594,7 +3701,7 @@ class FoodViewModelTest {
             ),
             repository.savedFoodLog,
         )
-        assertEquals("Restored diary item", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_restored_diary_item), viewModel.state.value.message)
     }
 
     @Test
@@ -3611,7 +3718,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isAddPanelVisible)
-        assertEquals("Logged food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_food), viewModel.state.value.message)
     }
 
     @Test
@@ -3672,7 +3779,7 @@ class FoodViewModelTest {
             ),
             repository.logRecipeCall,
         )
-        assertEquals("Logged recipe", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_recipe), viewModel.state.value.message)
     }
 
     @Test
@@ -3717,7 +3824,7 @@ class FoodViewModelTest {
         viewModel.saveOnlineFoodResult("5000108236832")
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Saved online food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_saved_online_food), viewModel.state.value.message)
         assertEquals("Oats so simple", repository.savedFoodUpsert?.name)
         assertEquals("5000108236832", repository.savedFoodUpsert?.barcode)
         assertEquals("Breakfast cereals", repository.savedFoodUpsert?.category)
@@ -3739,7 +3846,7 @@ class FoodViewModelTest {
 
         assertFalse(viewModel.state.value.isSearchingFoods)
         assertTrue(viewModel.state.value.onlineFoodResults.isEmpty())
-        assertEquals("Online food search failed", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_online_search_failed), viewModel.state.value.message)
     }
 
     @Test
@@ -3896,7 +4003,7 @@ class FoodViewModelTest {
             ),
             repository.templateUpdate,
         )
-        assertEquals("Updated meal template", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_updated_meal_template), viewModel.state.value.message)
     }
 
     @Test
@@ -3922,7 +4029,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("template-1" to true, repository.favoriteTemplateToggle)
-        assertEquals("Template added to favorites", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_template_favorite_added), viewModel.state.value.message)
     }
 
     @Test
@@ -4046,7 +4153,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(DuplicateRecipeCall("recipe-1", "Chicken bowl copy"), repository.duplicateRecipeCall)
-        assertEquals("Duplicated recipe", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_duplicated_recipe), viewModel.state.value.message)
     }
 
     @Test
@@ -4076,7 +4183,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("recipe-1" to true, repository.favoriteRecipeToggle)
-        assertEquals("Recipe added to favorites", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_recipe_favorite_added), viewModel.state.value.message)
     }
 
     @Test
@@ -4187,7 +4294,13 @@ class FoodViewModelTest {
         assertEquals("Mediterranean chickpea bowl", editor.name)
         assertEquals("Vegetarian", editor.category)
         assertEquals("Bowl", editor.servingName)
-        assertEquals("Review and save Mediterranean chickpea bowl", viewModel.state.value.message)
+        assertEquals(
+            uiText(
+                R.string.food_message_review_and_save,
+                UiText.Argument.Text("Mediterranean chickpea bowl"),
+            ),
+            viewModel.state.value.message,
+        )
         assertTrue(editor.ingredients.isEmpty())
     }
 
@@ -4231,7 +4344,7 @@ class FoodViewModelTest {
             ),
             repository.planRecipeCall,
         )
-        assertEquals("Planned recipe", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_planned_recipe), viewModel.state.value.message)
     }
 
     @Test
@@ -4273,7 +4386,7 @@ class FoodViewModelTest {
             ),
             repository.logRecipeCall,
         )
-        assertEquals("Logged recipe", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_recipe), viewModel.state.value.message)
     }
 
     @Test
@@ -4354,7 +4467,7 @@ class FoodViewModelTest {
             CopyDiaryEntryCall("entry-1", "dinner", LocalDate.now().plusDays(1)),
             repository.copyDiaryEntryCall,
         )
-        assertEquals("Copied diary item", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_copied_diary_item), viewModel.state.value.message)
     }
 
     @Test
@@ -4372,7 +4485,7 @@ class FoodViewModelTest {
         assertEquals("999", viewModel.state.value.barcode)
         assertEquals("Barcode 999", viewModel.state.value.productName)
         assertEquals("100", viewModel.state.value.quantityGrams)
-        assertEquals("Product not found. Add details to create it.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_product_not_found), viewModel.state.value.message)
     }
 
     @Test
@@ -4400,7 +4513,7 @@ class FoodViewModelTest {
 
         val savedFood = requireNotNull(repository.savedFoodUpsert)
         assertNull(repository.savedLog)
-        assertEquals("Saved product to database", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_saved_product), viewModel.state.value.message)
         assertEquals("Tahini bar", savedFood.name)
         assertEquals("Kitchen", savedFood.brand)
         assertEquals("999", savedFood.barcode)
@@ -4459,7 +4572,7 @@ class FoodViewModelTest {
         assertEquals("Open Food Facts", comparison.rightItem?.sourceLabel)
         assertEquals(BarcodeComparisonSide.Right, comparison.highlights.first { it.label == "Protein" }.winnerSide)
         assertEquals(BarcodeComparisonSide.Left, comparison.highlights.first { it.label == "Sugar" }.winnerSide)
-        assertEquals("Compared barcode products", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_compared_barcodes), viewModel.state.value.message)
     }
 
     @Test
@@ -4589,13 +4702,13 @@ class FoodViewModelTest {
         assertEquals("custom", viewModel.state.value.fastingTimer.selectedProgramId)
         assertEquals("Custom 18:6", custom.title)
         assertEquals("20:00 - 14:00", viewModel.state.value.fastingTimer.fastingWindowLabel)
-        assertEquals("Custom fasting plan active", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_custom_fasting_active), viewModel.state.value.message)
 
         viewModel.onCustomFastingHoursChanged("19")
         viewModel.onCustomEatingHoursChanged("8")
         viewModel.applyCustomFastingProgram()
 
-        assertEquals("Enter fasting and eating hours that total 24", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_invalid_fasting_split), viewModel.state.value.message)
         assertEquals("custom", viewModel.state.value.fastingTimer.selectedProgramId)
     }
 
@@ -4617,13 +4730,13 @@ class FoodViewModelTest {
         assertEquals("19", viewModel.state.value.carbsPer100g)
         assertEquals("11", viewModel.state.value.fatPer100g)
         assertEquals("Local estimate: eggs, toast", viewModel.state.value.aiLoggingDraftReview)
-        assertEquals("Review AI suggestion before logging.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_review_ai_suggestion), viewModel.state.value.message)
 
         viewModel.onCaloriesChanged("360")
         viewModel.logFood()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Logged food", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_logged_food), viewModel.state.value.message)
         assertEquals("2 eggs and toast", repository.savedLog?.name)
         assertEquals(360.0, repository.savedLog?.nutritionPer100g?.caloriesKcal ?: 0.0, 0.01)
     }
@@ -4668,7 +4781,7 @@ class FoodViewModelTest {
         assertNull(repository.savedLog)
         assertTrue(viewModel.state.value.aiLoggingHasDraft)
         assertEquals("Voice draft", viewModel.state.value.productName)
-        assertEquals("Voice placeholder ready. Review before logging.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_voice_placeholder), viewModel.state.value.message)
 
         viewModel.startAiPhotoLoggingPlaceholder()
         dispatcher.scheduler.advanceUntilIdle()
@@ -4676,7 +4789,7 @@ class FoodViewModelTest {
         assertNull(repository.savedLog)
         assertTrue(viewModel.state.value.aiLoggingHasDraft)
         assertEquals("Photo draft", viewModel.state.value.productName)
-        assertEquals("Photo placeholder ready. Review before logging.", viewModel.state.value.message)
+        assertEquals(uiText(R.string.food_message_photo_placeholder), viewModel.state.value.message)
     }
 
     @Test
@@ -4712,7 +4825,14 @@ class FoodViewModelTest {
         assertEquals(setOf("write-nutrition", "write-hydration"), viewModel.state.value.foodHealthConnectRequestablePermissions)
         assertTrue(viewModel.state.value.foodHealthConnectCanRequestPermissions)
         assertTrue(viewModel.state.value.foodHealthConnectCanSync)
-        assertEquals("Synced 2 meals and water to Health Connect", viewModel.state.value.message)
+        assertEquals(
+            pluralUiText(
+                R.plurals.food_message_synced_meals_and_water,
+                quantity = 2,
+                UiText.Argument.Integer(2),
+            ),
+            viewModel.state.value.message,
+        )
     }
 
     @Test
@@ -4737,7 +4857,7 @@ class FoodViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertFalse(viewModel.state.value.isSaving)
-        assertEquals("Check Health Connect permissions", viewModel.state.value.message)
+        assertEquals(UiText.Verbatim("Check Health Connect permissions"), viewModel.state.value.message)
     }
 
     private data class CopyMealCall(

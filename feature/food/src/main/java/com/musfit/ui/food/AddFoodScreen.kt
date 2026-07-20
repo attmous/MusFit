@@ -47,12 +47,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.musfit.feature.food.R
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.SectionOverline
 import com.musfit.ui.components.TonalHeaderIconButton
@@ -102,6 +106,8 @@ fun AddFoodScreen(
 ) {
     val mealLabel = state.visibleMealDefinitions.firstOrNull { it.id == state.mealType }?.title
         ?: state.selectedMealTitle
+    val actionVerb = state.foodEntryActionVerb()
+    val locale = LocalConfiguration.current.locales[0]
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -109,12 +115,12 @@ fun AddFoodScreen(
             .imePadding(),
     ) {
         InnerScreenHeader(
-            title = "Add food",
+            title = stringResource(R.string.food_add_food),
             onBack = onBack,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp),
         ) {
             MealTargetChip(
-                label = "to $mealLabel",
+                label = stringResource(R.string.food_to_meal, mealLabel),
                 meals = state.visibleMealDefinitions,
                 onMealSelected = onMealRetarget,
             )
@@ -122,24 +128,24 @@ fun AddFoodScreen(
                 var menuOpen by remember { mutableStateOf(false) }
                 TonalHeaderIconButton(
                     icon = Icons.Outlined.MoreHoriz,
-                    contentDescription = "More actions",
+                    contentDescription = stringResource(R.string.food_more_actions),
                     onClick = { menuOpen = true },
                     modifier = Modifier.size(48.dp),
                 )
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("Quick track") }, onClick = {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.food_quick_track)) }, onClick = {
                         menuOpen = false
                         onQuickTrack()
                     })
-                    DropdownMenuItem(text = { Text("Copy yesterday") }, onClick = {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.food_copy_yesterday)) }, onClick = {
                         menuOpen = false
                         onCopyYesterday()
                     })
-                    DropdownMenuItem(text = { Text("Save as template") }, onClick = {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.food_save_as_template)) }, onClick = {
                         menuOpen = false
                         onSaveTemplate()
                     })
-                    DropdownMenuItem(text = { Text("Adjust goals") }, onClick = {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.food_adjust_goals)) }, onClick = {
                         menuOpen = false
                         onAdjustGoals()
                     })
@@ -189,7 +195,7 @@ fun AddFoodScreen(
                                     SameAsYesterdayCard(
                                         items = state.sameAsYesterday,
                                         mealLabel = mealLabel,
-                                        actionVerb = state.foodEntryActionVerb,
+                                        actionVerb = actionVerb,
                                         onLogAll = {
                                             if (onLogAllYesterday != null) {
                                                 onLogAllYesterday()
@@ -204,11 +210,13 @@ fun AddFoodScreen(
                         }
                         if (state.recentFoods.isNotEmpty()) {
                             item(key = "recents-heading") {
-                                AddFoodSectionWithGap { SectionOverline("RECENTS") }
+                                AddFoodSectionWithGap {
+                                    SectionOverline(stringResource(R.string.food_recents).uppercase())
+                                }
                             }
                             addFoodItems(
                                 foods = state.recentFoods,
-                                actionVerb = state.foodEntryActionVerb,
+                                actionVerb = actionVerb,
                                 onFoodClick = onFoodClick,
                                 sectionGapAfter = true,
                             )
@@ -217,8 +225,10 @@ fun AddFoodScreen(
                             item(key = "recents-empty") {
                                 AddFoodSectionWithGap {
                                     EmptyHint(
-                                        "Search or scan a barcode to " +
-                                            "${state.foodEntryActionVerb.lowercase()} your first food.",
+                                        stringResource(
+                                            R.string.food_first_food_hint,
+                                            actionVerb.lowercase(locale),
+                                        ),
                                     )
                                 }
                             }
@@ -227,25 +237,27 @@ fun AddFoodScreen(
                     } else {
                         if (state.visibleSavedFoods.isEmpty()) {
                             item(key = "search-empty") {
-                                EmptyHint("No saved food matches \"$query\". Scan a barcode or create it.")
+                                EmptyHint(stringResource(R.string.food_no_saved_match, query))
                             }
                         }
-                        addFoodItems(state.visibleSavedFoods, state.foodEntryActionVerb, onFoodClick)
+                        addFoodItems(state.visibleSavedFoods, actionVerb, onFoodClick)
                     }
 
                 AddTab.Favorites -> {
                     val favorites = state.savedFoods.filter { it.isFavorite }
                     if (favorites.isEmpty()) {
-                        val actionNoun = if (state.isPlanningMode) "planning" else "logging"
                         item(key = "favorites-empty") {
+                            val actionNoun = stringResource(
+                                if (state.isPlanningMode) R.string.food_planning_noun else R.string.food_logging_noun,
+                            )
                             AddFoodSectionWithGap {
-                                EmptyHint("Foods you favorite show up here for one-tap $actionNoun.")
+                                EmptyHint(stringResource(R.string.food_favorites_hint, actionNoun))
                             }
                         }
                     }
                     addFoodItems(
                         foods = favorites,
-                        actionVerb = state.foodEntryActionVerb,
+                        actionVerb = actionVerb,
                         onFoodClick = onFoodClick,
                         sectionGapAfter = true,
                     )
@@ -299,6 +311,7 @@ private fun AddFoodSearchPill(
     onQueryChange: (String) -> Unit,
     onScanClick: () -> Unit,
 ) {
+    val scanBarcodeLabel = stringResource(R.string.food_scan_barcode)
     Surface(
         color = MusFitTheme.colors.surface,
         shape = RoundedCornerShape(99.dp),
@@ -331,7 +344,7 @@ private fun AddFoodSearchPill(
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (query.isEmpty()) {
                             Text(
-                                text = "Search foods, brands, recipes…",
+                                text = stringResource(R.string.food_search_foods_hint),
                                 style = textStyle,
                                 color = MusFitTheme.colors.onSurfaceFaint,
                                 maxLines = 1,
@@ -348,10 +361,10 @@ private fun AddFoodSearchPill(
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .semantics { contentDescription = "Scan barcode" }
+                    .semantics { contentDescription = scanBarcodeLabel }
                     .clip(CircleShape)
                     .clickable(
-                        onClickLabel = "Scan barcode",
+                        onClickLabel = scanBarcodeLabel,
                         role = Role.Button,
                         onClick = onScanClick,
                     ),
@@ -401,18 +414,18 @@ private fun AddFoodTabChips(
     ) {
         AddTab.entries.forEach { tab ->
             SelectableChip(
-                text = tab.label,
+                text = tab.label(),
                 selected = selected == tab,
                 onClick = { onTabSelected(tab) },
             )
         }
         SelectableChip(
-            text = "Templates",
+            text = stringResource(R.string.food_templates),
             selected = null,
             onClick = onOpenTemplates,
         )
         SelectableChip(
-            text = "Recipes",
+            text = stringResource(R.string.food_recipes),
             selected = null,
             onClick = onOpenRecipes,
         )
@@ -458,13 +471,18 @@ private fun SameAsYesterdayCard(
                 modifier = Modifier.weight(1f),
             ) {
                 Text(
-                    text = "Same as yesterday",
+                    text = stringResource(R.string.food_same_as_yesterday),
                     style = MusFitTheme.typography.bodyMedium.copy(fontSize = 14.5.sp, fontWeight = FontWeight.W800),
                     color = accent.onContainer,
                     maxLines = 1,
                 )
                 Text(
-                    text = "$mealLabel · ${items.size} items · $totalKcal kcal",
+                    text = stringResource(
+                        R.string.food_same_as_yesterday_summary,
+                        mealLabel,
+                        pluralStringResource(R.plurals.food_item_count, items.size, items.size),
+                        totalKcal,
+                    ),
                     style = MusFitTheme.typography.bodySmall,
                     color = accent.onContainerVariant,
                     maxLines = 1,
@@ -477,7 +495,7 @@ private fun SameAsYesterdayCard(
                 contentColor = MusFitTheme.colors.onBrand,
             ) {
                 Text(
-                    text = "$actionVerb all",
+                    text = stringResource(R.string.food_action_all, actionVerb),
                     style = MusFitTheme.typography.labelMedium.copy(fontWeight = FontWeight.W800),
                     maxLines = 1,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -526,8 +544,8 @@ private fun AddFoodListItem(
 ) {
     val accent = tabAccentFor(TabAccentRole.Food)
     val kcal = food.caloriesPerServingKcal.roundToInt()
-    val subtitle = food.servingName?.let { "1 $it · $kcal kcal" }
-        ?: "${food.defaultServingGrams.roundToInt()} g · $kcal kcal"
+    val subtitle = food.servingName?.let { stringResource(R.string.food_serving_named, it, kcal) }
+        ?: stringResource(R.string.food_serving_grams, food.defaultServingGrams.roundToInt(), kcal)
     FoodListItemRow(
         index = index,
         count = count,
@@ -549,7 +567,7 @@ private fun AddFoodListItem(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Outlined.Add,
-                        contentDescription = "$actionVerb ${food.name}",
+                        contentDescription = stringResource(R.string.food_action_named_food, actionVerb, food.name),
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -583,13 +601,17 @@ private fun DailyIntakeStrip(state: FoodUiState) {
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
         ) {
             Text(
-                text = "Daily intake",
+                text = stringResource(R.string.food_daily_intake),
                 style = MusFitTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
                 color = accent.onContainerVariant,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "${state.eatenCaloriesKcal.roundToInt()} / ${state.calorieGoalKcal.roundToInt()} kcal",
+                text = stringResource(
+                    R.string.food_calorie_progress,
+                    state.eatenCaloriesKcal.roundToInt(),
+                    state.calorieGoalKcal.roundToInt(),
+                ),
                 style = MusFitTheme.typography.labelMedium.copy(fontWeight = FontWeight.W800),
                 color = accent.onContainer,
             )
@@ -597,12 +619,14 @@ private fun DailyIntakeStrip(state: FoodUiState) {
     }
 }
 
-private val AddTab.label: String
-    get() = when (this) {
-        AddTab.Recents -> "Recents"
-        AddTab.Favorites -> "Favorites"
-        AddTab.Create -> "Create"
-    }
+@Composable
+private fun AddTab.label(): String = stringResource(
+    when (this) {
+        AddTab.Recents -> R.string.food_recents
+        AddTab.Favorites -> R.string.food_favorites
+        AddTab.Create -> R.string.food_create
+    },
+)
 
 @Composable
 private fun EmptyHint(text: String) {

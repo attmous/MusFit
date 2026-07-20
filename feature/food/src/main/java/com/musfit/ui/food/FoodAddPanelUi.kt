@@ -55,17 +55,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.musfit.feature.food.R
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.SectionOverline
 import com.musfit.ui.components.StepperCircleButton
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.gridGroupShape
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccentRole
@@ -163,7 +166,7 @@ internal fun AddFoodPanel(
 
         state.message?.let { message ->
             Text(
-                text = message,
+                text = message.asString(),
                 style = MusFitTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.brand,
             )
@@ -182,8 +185,8 @@ internal fun AddFoodPanel(
                         FavoriteAddSection(
                             items = state.favoriteAddItems,
                             isSaving = state.isSaving,
-                            actionVerb = state.foodEntryActionVerb,
-                            actionProgressLabel = state.foodEntryActionProgressLabel,
+                            actionVerb = state.foodEntryActionVerb(),
+                            actionProgressLabel = state.foodEntryActionProgressLabel(),
                             onFoodClick = onSavedFoodClick,
                             onTemplateClick = onTemplateClick,
                             onRecipeClick = onRecipeClick,
@@ -197,7 +200,7 @@ internal fun AddFoodPanel(
                         )
                         TemplateQuickList(
                             templates = state.mealTemplates,
-                            actionVerb = state.foodEntryActionVerb,
+                            actionVerb = state.foodEntryActionVerb(),
                             onTemplateClick = onTemplateClick,
                             onFavoriteClick = onTemplateFavoriteClick,
                         )
@@ -295,7 +298,7 @@ internal fun AddFoodPanel(
                     )
                     PillButton(
                         text = if (state.isSaving) {
-                            state.foodEntryActionProgressLabel
+                            state.foodEntryActionProgressLabel()
                         } else {
                             state.foodEntryActionLabel("food")
                         },
@@ -338,9 +341,9 @@ internal fun AddFoodPanel(
                     )
                     PillButton(
                         text = if (state.isSaving) {
-                            state.foodEntryActionProgressLabel
+                            state.foodEntryActionProgressLabel()
                         } else {
-                            "${state.foodEntryActionVerb} $kcal kcal"
+                            "${state.foodEntryActionVerb()} $kcal kcal"
                         },
                         onClick = onQuickLogClick,
                         icon = Icons.Outlined.Bolt,
@@ -366,7 +369,7 @@ internal fun AddFoodPanel(
                             modifier = Modifier.weight(1f),
                         )
                         PillButton(
-                            text = if (state.isSaving) state.foodEntryActionProgressLabel else "Log draft",
+                            text = if (state.isSaving) state.foodEntryActionProgressLabel() else "Log draft",
                             onClick = onLogFoodClick,
                             icon = Icons.Outlined.Add,
                             enabled = !state.isSaving,
@@ -387,13 +390,14 @@ internal fun AddFoodPanel(
 }
 
 /** Log-pill label for the barcode mode: match → serving-aware, no match → save-and-log. */
+@Composable
 private fun FoodUiState.barcodeLogLabel(): String {
     val result = lookupResult
     return when {
-        isSaving -> foodEntryActionProgressLabel
+        isSaving -> foodEntryActionProgressLabel()
         result != null && result.servingQuantityGrams != null -> foodEntryActionLabel("1 serving")
         result != null -> foodEntryActionLabel("food")
-        barcode.isNotBlank() -> saveAndFoodEntryActionLabel
+        barcode.isNotBlank() -> saveAndFoodEntryActionLabel()
         else -> foodEntryActionLabel("food")
     }
 }
@@ -469,7 +473,7 @@ private fun SavedFoodPicker(
         OutlinedTextField(
             value = state.savedFoodQuantityGrams,
             onValueChange = onQuantityChanged,
-            label = { Text("Amount (g)") },
+            label = { Text(stringResource(R.string.food_amount_grams)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
@@ -486,8 +490,8 @@ private fun SavedFoodPicker(
                 SavedFoodPickerRow(
                     food = food,
                     isSaving = state.isSaving,
-                    actionVerb = state.foodEntryActionVerb,
-                    actionProgressLabel = state.foodEntryActionProgressLabel,
+                    actionVerb = state.foodEntryActionVerb(),
+                    actionProgressLabel = state.foodEntryActionProgressLabel(),
                     selectedServingGrams = state.selectedSavedFoodServingGramsByFoodId[food.id],
                     onServingSelected = { grams -> onServingSelected(food.id, grams) },
                     onClick = { onSavedFoodClick(food.id) },
@@ -622,7 +626,7 @@ private fun RecipeQuickList(
         OutlinedTextField(
             value = state.recipeServingsToLog,
             onValueChange = onRecipeServingsChanged,
-            label = { Text("Recipe servings") },
+            label = { Text(stringResource(R.string.food_recipe_servings)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
@@ -655,7 +659,7 @@ private fun RecipeQuickList(
                             Text(if (recipe.isFavorite) "Starred" else "Star")
                         }
                         MusFitOutlinedButton(onClick = { onRecipeClick(recipe.id) }) {
-                            Text(state.foodEntryActionVerb)
+                            Text(state.foodEntryActionVerb())
                         }
                     }
                 }
@@ -736,7 +740,7 @@ private fun AiLoggingForm(
                 IconButton(onClick = onAiVoiceClick) {
                     Icon(
                         Icons.Outlined.Mic,
-                        contentDescription = "Voice input",
+                        contentDescription = stringResource(R.string.food_voice_input),
                         tint = MusFitTheme.colors.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
@@ -812,7 +816,7 @@ private fun AiLoggingForm(
                 trailingContent = {
                     Icon(
                         Icons.Outlined.Edit,
-                        contentDescription = "Adjust draft",
+                        contentDescription = stringResource(R.string.food_adjust_draft),
                         tint = MusFitTheme.colors.onSurfaceVariant,
                         modifier = Modifier.size(19.dp),
                     )
@@ -1281,7 +1285,7 @@ internal fun CreateFoodForm(
             )
             PillButton(
                 text = when {
-                    state.isSaving -> state.foodEntryActionProgressLabel
+                    state.isSaving -> state.foodEntryActionProgressLabel()
                     state.lookupResult?.servingQuantityGrams != null -> state.foodEntryActionLabel("1 serving")
                     else -> state.foodEntryActionLabel("food")
                 },
@@ -1295,7 +1299,7 @@ internal fun CreateFoodForm(
 
         HorizontalDivider(color = MusFitTheme.colors.outline)
         TextButton(onClick = onCreateRecipe, modifier = Modifier.fillMaxWidth()) {
-            Text("Create a meal or recipe instead")
+            Text(stringResource(R.string.food_create_meal_or_recipe))
         }
     }
 }
@@ -1518,7 +1522,7 @@ private fun QuickCalorieForm(
             ) {
                 StepperCircleButton(
                     icon = Icons.Outlined.Remove,
-                    contentDescription = "Decrease calories",
+                    contentDescription = stringResource(R.string.food_decrease_calories),
                     onClick = { onQuickCaloriesChanged(quickStepperNext(state.quickCaloriesKcal, -QUICK_KCAL_STEP)) },
                     size = 56.dp,
                 )
@@ -1540,7 +1544,7 @@ private fun QuickCalorieForm(
                 }
                 StepperCircleButton(
                     icon = Icons.Outlined.Add,
-                    contentDescription = "Increase calories",
+                    contentDescription = stringResource(R.string.food_increase_calories),
                     onClick = { onQuickCaloriesChanged(quickStepperNext(state.quickCaloriesKcal, QUICK_KCAL_STEP)) },
                     size = 56.dp,
                     filled = true,

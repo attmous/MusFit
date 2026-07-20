@@ -29,12 +29,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.musfit.feature.food.R
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
+import com.musfit.core.designsystem.R as DesignR
 
 @Composable
 fun NutritionTrendsScreen(
@@ -71,17 +75,17 @@ private fun NutritionTrendsHeader(onBack: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(DesignR.string.common_back))
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "Nutrition trends",
+                stringResource(R.string.food_nutrition_trends),
                 style = MusFitTheme.typography.headlineMedium,
                 color = MusFitTheme.colors.onSurface,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                "Weekly MusFit score and 7/28-day progress.",
+                stringResource(R.string.food_nutrition_trends_summary),
                 style = MusFitTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -108,13 +112,13 @@ private fun WeeklyMusFitScoreCard(score: FoodWeeklyScoreUiState) {
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = score.title,
+                        text = score.title.asString(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MusFitTheme.colors.brandInk,
                     )
                     Text(
-                        text = score.summary,
+                        text = score.summary.asString(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                         maxLines = 2,
@@ -139,7 +143,7 @@ private fun WeeklyMusFitScoreCard(score: FoodWeeklyScoreUiState) {
             }
             ProgressBar(progress = score.score / 100f, color = accent)
             Text(
-                text = score.suggestion,
+                text = score.suggestion.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = accent,
                 maxLines = 2,
@@ -165,7 +169,7 @@ private fun FoodProgressStatsCard(stats: FoodProgressStatsUiState) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Progress stats",
+                text = stringResource(R.string.food_progress_stats),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MusFitTheme.colors.brandInk,
@@ -185,9 +189,9 @@ private fun FoodProgressPeriodRow(period: FoodProgressPeriodUiState) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(period.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(period.title.asString(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(
-                period.trackedDaysLabel,
+                period.trackedDaysLabel.asString(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MusFitTheme.colors.brand,
                 maxLines = 1,
@@ -209,7 +213,7 @@ private fun FoodProgressPeriodRow(period: FoodProgressPeriodUiState) {
             }
         }
         Text(
-            text = period.trendLabel,
+            text = period.trendLabel.asString(),
             style = MaterialTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
             maxLines = 1,
@@ -225,14 +229,14 @@ private fun FoodProgressMetricCell(
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(1.dp)) {
         Text(
-            text = metric.caption,
+            text = metric.caption.asString(),
             style = MaterialTheme.typography.labelSmall,
             color = MusFitTheme.colors.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = metric.value,
+            text = metric.value.asString(),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = MusFitTheme.colors.onSurface,
