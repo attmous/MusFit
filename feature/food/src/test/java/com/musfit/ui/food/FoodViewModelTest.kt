@@ -74,6 +74,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FoodViewModelTest {
@@ -4721,43 +4722,49 @@ class FoodViewModelTest {
 
     @Test
     fun fastingProgramsExposePresetWindowsAndStartTimeSchedule() = runTest {
-        val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = FakeFoodRepository())
-        dispatcher.scheduler.advanceUntilIdle()
+        val originalLocale = Locale.getDefault()
+        Locale.setDefault(Locale.US)
+        try {
+            val viewModel = FoodViewModel(provider = FakeProductProvider(), repository = FakeFoodRepository())
+            dispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.openFastingTimer()
+            viewModel.openFastingTimer()
 
-        assertEquals(FoodSheetMode.FastingTimer, viewModel.state.value.sheetMode)
-        assertEquals(
-            listOf("12-12", "14-10", "16-8", "custom"),
-            viewModel.state.value.fastingTimer.programs.map { it.id },
-        )
-        assertEquals("16-8", viewModel.state.value.fastingTimer.selectedProgramId)
-        val initialStart = LocalizedFormatter.time(LocalTime.of(20, 0))
-        val initialEnd = LocalizedFormatter.time(LocalTime.of(12, 0))
-        assertEquals(
-            uiText(R.string.food_time_window, UiText.Argument.Text(initialStart), UiText.Argument.Text(initialEnd)),
-            viewModel.state.value.fastingTimer.fastingWindowLabel,
-        )
-        assertEquals(
-            uiText(R.string.food_time_window, UiText.Argument.Text(initialEnd), UiText.Argument.Text(initialStart)),
-            viewModel.state.value.fastingTimer.eatingWindowLabel,
-        )
-        assertEquals(16.0 / 24.0, viewModel.state.value.fastingTimer.progress, 0.01)
+            assertEquals(FoodSheetMode.FastingTimer, viewModel.state.value.sheetMode)
+            assertEquals(
+                listOf("12-12", "14-10", "16-8", "custom"),
+                viewModel.state.value.fastingTimer.programs.map { it.id },
+            )
+            assertEquals("16-8", viewModel.state.value.fastingTimer.selectedProgramId)
+            val initialStart = LocalizedFormatter.time(LocalTime.of(20, 0))
+            val initialEnd = LocalizedFormatter.time(LocalTime.of(12, 0))
+            assertEquals(
+                uiText(R.string.food_time_window, UiText.Argument.Text(initialStart), UiText.Argument.Text(initialEnd)),
+                viewModel.state.value.fastingTimer.fastingWindowLabel,
+            )
+            assertEquals(
+                uiText(R.string.food_time_window, UiText.Argument.Text(initialEnd), UiText.Argument.Text(initialStart)),
+                viewModel.state.value.fastingTimer.eatingWindowLabel,
+            )
+            assertEquals(16.0 / 24.0, viewModel.state.value.fastingTimer.progress, 0.01)
 
-        viewModel.selectFastingProgram("14-10")
-        viewModel.onFastingStartTimeChanged("21:30")
+            viewModel.selectFastingProgram("14-10")
+            viewModel.onFastingStartTimeChanged("21:30")
 
-        assertEquals("14-10", viewModel.state.value.fastingTimer.selectedProgramId)
-        val updatedStart = LocalizedFormatter.time(LocalTime.of(21, 30))
-        val updatedEnd = LocalizedFormatter.time(LocalTime.of(11, 30))
-        assertEquals(
-            uiText(R.string.food_time_window, UiText.Argument.Text(updatedStart), UiText.Argument.Text(updatedEnd)),
-            viewModel.state.value.fastingTimer.fastingWindowLabel,
-        )
-        assertEquals(
-            uiText(R.string.food_time_window, UiText.Argument.Text(updatedEnd), UiText.Argument.Text(updatedStart)),
-            viewModel.state.value.fastingTimer.eatingWindowLabel,
-        )
+            assertEquals("14-10", viewModel.state.value.fastingTimer.selectedProgramId)
+            val updatedStart = LocalizedFormatter.time(LocalTime.of(21, 30))
+            val updatedEnd = LocalizedFormatter.time(LocalTime.of(11, 30))
+            assertEquals(
+                uiText(R.string.food_time_window, UiText.Argument.Text(updatedStart), UiText.Argument.Text(updatedEnd)),
+                viewModel.state.value.fastingTimer.fastingWindowLabel,
+            )
+            assertEquals(
+                uiText(R.string.food_time_window, UiText.Argument.Text(updatedEnd), UiText.Argument.Text(updatedStart)),
+                viewModel.state.value.fastingTimer.eatingWindowLabel,
+            )
+        } finally {
+            Locale.setDefault(originalLocale)
+        }
     }
 
     @Test

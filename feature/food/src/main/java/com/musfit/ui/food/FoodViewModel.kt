@@ -552,16 +552,8 @@ data class FastingTimerUiState(
     val selectedProgramId: String = "16-8",
     val programs: List<FastingProgramUiState> = emptyFastingPrograms("16-8", 16.0, 8.0),
     val fastingStartInput: String = "20:00",
-    val fastingWindowLabel: UiText = uiText(
-        R.string.food_time_window,
-        UiText.Argument.Text("20:00"),
-        UiText.Argument.Text("12:00"),
-    ),
-    val eatingWindowLabel: UiText = uiText(
-        R.string.food_time_window,
-        UiText.Argument.Text("12:00"),
-        UiText.Argument.Text("20:00"),
-    ),
+    val fastingWindowLabel: UiText = localizedFastingWindow(LocalTime.of(20, 0), LocalTime.of(12, 0)),
+    val eatingWindowLabel: UiText = localizedFastingWindow(LocalTime.of(12, 0), LocalTime.of(20, 0)),
     val statusLabel: UiText = uiText(
         R.string.food_fasting_plan_active,
         UiText.Argument.Resource(R.string.food_fasting_sixteen_title),
@@ -5699,22 +5691,12 @@ private fun buildFastingTimerUiState(
     val startTime = fastingStartInput.toFastingStartTimeOrDefault()
     val fastingEndTime = startTime.plusMinutes((selectedProgram.fastingHours * 60.0).roundToInt().toLong())
     val inputStartLabel = startTime.toHourMinuteInput()
-    val startLabel = LocalizedFormatter.time(startTime)
-    val fastingEndLabel = LocalizedFormatter.time(fastingEndTime)
     return FastingTimerUiState(
         selectedProgramId = selectedProgram.id,
         programs = programs,
         fastingStartInput = inputStartLabel,
-        fastingWindowLabel = uiText(
-            R.string.food_time_window,
-            UiText.Argument.Text(startLabel),
-            UiText.Argument.Text(fastingEndLabel),
-        ),
-        eatingWindowLabel = uiText(
-            R.string.food_time_window,
-            UiText.Argument.Text(fastingEndLabel),
-            UiText.Argument.Text(startLabel),
-        ),
+        fastingWindowLabel = localizedFastingWindow(startTime, fastingEndTime),
+        eatingWindowLabel = localizedFastingWindow(fastingEndTime, startTime),
         statusLabel = if (selectedProgram.id == "custom") {
             uiText(
                 R.string.food_fasting_plan_active,
@@ -5734,6 +5716,15 @@ private fun buildFastingTimerUiState(
         customEatingHoursInput = customEatingHoursInput,
     )
 }
+
+private fun localizedFastingWindow(
+    startTime: LocalTime,
+    endTime: LocalTime,
+): UiText = uiText(
+    R.string.food_time_window,
+    UiText.Argument.Text(LocalizedFormatter.time(startTime)),
+    UiText.Argument.Text(LocalizedFormatter.time(endTime)),
+)
 
 private fun emptyFastingPrograms(
     selectedProgramId: String,
