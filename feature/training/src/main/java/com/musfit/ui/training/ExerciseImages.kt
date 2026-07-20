@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,7 @@ import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.musfit.feature.training.BuildConfig
+import com.musfit.feature.training.R
 import com.musfit.ui.theme.TabAccent
 
 internal const val EXERCISE_MEDIA_MODE_PARAMETER = "exercise-media-mode"
@@ -176,7 +178,7 @@ fun ExerciseGif(
                 shape = shape,
                 iconSize = 32.dp,
                 loading = true,
-                label = "Loading demo",
+                label = stringResource(R.string.training_loading_demo),
             )
         },
         error = {
@@ -186,7 +188,7 @@ fun ExerciseGif(
                 modifier = Modifier.fillMaxWidth().height(height),
                 shape = shape,
                 iconSize = 32.dp,
-                label = "Demo unavailable",
+                label = stringResource(R.string.training_demo_unavailable),
             )
         },
         onError = {

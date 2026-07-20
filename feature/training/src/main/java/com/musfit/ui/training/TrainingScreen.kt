@@ -94,6 +94,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 
 @Composable
@@ -781,7 +782,7 @@ private fun trainingWeekHeaderMeta(
         stringResource(R.string.training_week_sessions_count, overview.currentWeekWorkoutCount)
     }
     val sessionUnit = pluralStringResource(R.plurals.training_session_unit, overview.currentWeekWorkoutCount)
-    val volumeFigure = trainingWeekVolumeFigure(overview.currentWeekVolumeKg, locale)
+    val volumeFigure = trainingWeekVolumeFigure(overview.currentWeekVolumeKg, locale).asString()
     val volumeLabel = stringResource(R.string.training_volume)
     return buildAnnotatedString {
         val emphasized = SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface)
@@ -797,10 +798,13 @@ private fun trainingWeekHeaderMeta(
 internal fun trainingWeekVolumeFigure(
     volumeKg: Double,
     locale: Locale = Locale.getDefault(),
-): String = if (volumeKg >= 1000.0) {
-    "${LocalizedFormatter.number(volumeKg / 1000.0, maximumFractionDigits = 1, locale = locale)} t"
+): UiText = if (volumeKg >= 1000.0) {
+    uiText(
+        R.string.training_tonnes,
+        UiText.Argument.Text(LocalizedFormatter.number(volumeKg / 1000.0, maximumFractionDigits = 1, locale = locale)),
+    )
 } else {
-    "${volumeKg.formatKg(locale)} kg"
+    uiText(R.string.training_kilograms, UiText.Argument.Text(volumeKg.formatKg(locale)))
 }
 
 @Composable
@@ -1491,7 +1495,7 @@ private fun LocalDate.recencyLabel(today: LocalDate, locale: Locale): UiText = w
 
     else -> uiText(
         R.string.training_last_performed,
-        UiText.Argument.Text(format(DateTimeFormatter.ofPattern("d MMM", locale))),
+        UiText.Argument.Text(LocalizedFormatter.date(this, FormatStyle.MEDIUM, locale)),
     )
 }
 
@@ -1504,8 +1508,9 @@ internal fun trainingCoachCue(
     val goal = if (weeklyTarget > 0) weeklyTarget else DEFAULT_WEEKLY_SESSION_TARGET
     val done = overview.currentWeekWorkoutCount
     return when {
-        done >= goal -> uiText(
-            R.string.training_week_goal_done,
+        done >= goal -> pluralUiText(
+            R.plurals.training_week_goal_done,
+            goal,
             UiText.Argument.Integer(done),
             UiText.Argument.Integer(goal),
         )
@@ -1519,15 +1524,17 @@ internal fun trainingCoachCue(
 
         else ->
             if (nextRoutineName != null) {
-                uiText(
-                    R.string.training_sessions_next_routine,
+                pluralUiText(
+                    R.plurals.training_sessions_next_routine,
+                    done,
                     UiText.Argument.Integer(done),
                     UiText.Argument.Integer(goal),
                     UiText.Argument.Text(nextRoutineName),
                 )
             } else {
-                uiText(
-                    R.string.training_sessions_one_more,
+                pluralUiText(
+                    R.plurals.training_sessions_one_more,
+                    done,
                     UiText.Argument.Integer(done),
                     UiText.Argument.Integer(goal),
                 )

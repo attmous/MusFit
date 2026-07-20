@@ -980,7 +980,7 @@ class TrainingViewModelTest {
             uiText(
                 R.string.training_message_routine_moved,
                 UiText.Argument.Text("Upper A"),
-                UiText.Argument.Text("Starter Pack"),
+                UiText.Argument.Nested(UiText.Verbatim("Starter Pack")),
             ),
             viewModel.state.value.message,
         )
@@ -994,7 +994,7 @@ class TrainingViewModelTest {
             uiText(
                 R.string.training_message_routine_moved,
                 UiText.Argument.Text("Upper A"),
-                UiText.Argument.Text("My routines"),
+                UiText.Argument.Nested(uiText(R.string.training_my_routines)),
             ),
             viewModel.state.value.message,
         )

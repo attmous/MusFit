@@ -152,7 +152,9 @@ import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.components.groupedShape
 import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
 import com.musfit.ui.text.asString
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.NeutralOutline
 import com.musfit.ui.theme.NeutralOutlineDark
@@ -307,7 +309,7 @@ internal fun ShoppingListPanel(
                                     )
                                     Text(
                                         text = buildList {
-                                            add(item.quantityLabel)
+                                            add(item.quantityLabelText.asString())
                                             if (item.isManual) add(manualLabel)
                                         }.joinToString(" - "),
                                         style = MaterialTheme.typography.bodySmall,
@@ -525,7 +527,7 @@ internal fun FastingTimerPanel(
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.food_fasting_timer), style = MaterialTheme.typography.headlineSmall)
             Text(
-                text = timer.statusLabel,
+                text = timer.statusLabel.asString(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -536,7 +538,7 @@ internal fun FastingTimerPanel(
                 FilterChip(
                     selected = program.isSelected,
                     onClick = { onProgramSelected(program.id) },
-                    label = { Text(program.title) },
+                    label = { Text(program.title.asString()) },
                 )
             }
         }
@@ -546,12 +548,12 @@ internal fun FastingTimerPanel(
             ProgressBar(progress = timer.progress.toFloat(), color = MusFitTheme.colors.brand)
             NutritionFactRow(
                 stringResource(R.string.food_fast),
-                timer.fastingWindowLabel,
+                timer.fastingWindowLabel.asString(),
                 stringResource(R.string.food_fasting_window),
             )
             NutritionFactRow(
                 stringResource(R.string.food_eat),
-                timer.eatingWindowLabel,
+                timer.eatingWindowLabel.asString(),
                 stringResource(R.string.food_eating_window),
             )
         }
@@ -689,7 +691,11 @@ internal fun BarcodeComparisonPanel(
                         ) {
                             Text(highlight.label.asString(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                             Text(
-                                text = "${highlight.leftValue} / ${highlight.rightValue}",
+                                text = stringResource(
+                                    R.string.food_comparison_values,
+                                    highlight.leftValue.asString(),
+                                    highlight.rightValue.asString(),
+                                ),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MusFitTheme.colors.onSurfaceVariant,
                             )
@@ -728,7 +734,7 @@ private fun BarcodeComparisonItemCard(
         } else {
             Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
-                text = listOfNotNull(item.sourceLabel, item.brand, item.barcode).joinToString(" - "),
+                text = listOfNotNull(item.sourceText.asString(), item.brand, item.barcode).joinToString(" - "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 2,
@@ -812,7 +818,7 @@ private fun DuplicateFoodGroupRow(
                 Text(
                     text = stringResource(
                         R.string.food_duplicate_reason,
-                        group.reason,
+                        group.reasonText.asString(),
                         pluralStringResource(
                             R.plurals.food_food_count,
                             group.duplicateFoodIds.size + 1,
@@ -895,9 +901,9 @@ private fun SavedFoodDatabaseSummary(food: SavedFoodUiState, modifier: Modifier 
             text = listOfNotNull(
                 food.trust.label.asString(),
                 food.brand,
-                "${food.defaultServingGrams.roundToInt()} g",
-                "${food.caloriesPerServingKcal.roundToInt()} kcal",
-            ).joinToString(" - "),
+                stringResource(R.string.food_value_grams, food.defaultServingGrams.formatNutritionDisplay()),
+                stringResource(R.string.food_value_kcal, food.caloriesPerServingKcal.formatNutritionDisplay()),
+            ).joinToString(stringResource(R.string.food_separator)),
             style = MaterialTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
             maxLines = 1,
@@ -997,7 +1003,11 @@ internal fun steppedCaloriesInput(current: String, deltaKcal: Int): String {
 }
 
 /** "% of day" chip label, or null when no positive day budget exists. */
-internal fun percentOfDayLabel(amountKcal: Double, dayBudgetKcal: Double): String? = if (dayBudgetKcal > 0.0) "${(amountKcal / dayBudgetKcal * 100).roundToInt()}% of day" else null
+internal fun percentOfDayValue(amountKcal: Double, dayBudgetKcal: Double): Int? = if (dayBudgetKcal > 0.0) {
+    (amountKcal / dayBudgetKcal * 100).roundToInt()
+} else {
+    null
+}
 
 /**
  * Wavy-bar fill for a macro amount: fraction of the daily gram target when one
@@ -1035,7 +1045,10 @@ internal fun macroSplitPercents(
 
 /** The meal the add/detail flows currently target, lowercased for pill copy. */
 @Composable
-private fun FoodUiState.detailTargetMealLabel(): String = (visibleMealDefinitions.firstOrNull { it.id == mealType }?.title ?: selectedMealTitle)
+private fun FoodUiState.detailTargetMealLabel(): String = (
+    visibleMealDefinitions.firstOrNull { it.id == mealType }?.titleText?.asString()
+        ?: selectedMealTitleText.asString()
+    )
     .lowercase(LocalConfiguration.current.locales[0])
 
 @Composable
@@ -1159,7 +1172,7 @@ private fun FoodDetailHeader(food: SavedFoodUiState, onFavoriteClick: () -> Unit
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = listOfNotNull(food.brand, food.category).joinToString(" · ").ifBlank { food.sourceLabel },
+                text = listOfNotNull(food.brand, food.category).joinToString(" · ").ifBlank { food.sourceText.asString() },
                 style = MusFitTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -1169,7 +1182,9 @@ private fun FoodDetailHeader(food: SavedFoodUiState, onFavoriteClick: () -> Unit
         IconButton(onClick = onFavoriteClick) {
             Icon(
                 imageVector = if (food.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                contentDescription = if (food.isFavorite) "Remove from favorites" else "Add to favorites",
+                contentDescription = stringResource(
+                    if (food.isFavorite) R.string.food_remove_from_favorites else R.string.food_add_to_favorites,
+                ),
                 tint = if (food.isFavorite) MusFitTheme.colors.macroProtein else MusFitTheme.colors.onSurfaceVariant,
                 modifier = Modifier.size(24.dp),
             )
@@ -1189,17 +1204,21 @@ private fun FoodDetailTrustRow(
     ) {
         when (food.trust.level) {
             FoodTrustLevel.Imported ->
-                FoodTrustChip(Icons.Outlined.Verified, MusFitTheme.colors.brand, food.sourceLabel)
+                FoodTrustChip(Icons.Outlined.Verified, MusFitTheme.colors.brand, food.sourceText.asString())
 
             FoodTrustLevel.Manual ->
-                FoodTrustChip(Icons.Outlined.Edit, MusFitTheme.colors.onSurfaceVariant, "Edited by you")
+                FoodTrustChip(
+                    Icons.Outlined.Edit,
+                    MusFitTheme.colors.onSurfaceVariant,
+                    stringResource(R.string.food_edited_by_you),
+                )
 
             FoodTrustLevel.NeedsReview ->
                 FoodTrustChip(Icons.Outlined.ErrorOutline, MusFitTheme.colors.warning, food.trust.label.asString())
         }
         TrustActionChip(text = food.trust.actionLabel.asString(), onClick = onCorrectClick)
         TrustActionChip(
-            text = if (food.trust.isReported) "Reported" else "Report",
+            text = stringResource(if (food.trust.isReported) R.string.food_reported else R.string.food_report),
             onClick = onReportClick,
             enabled = !food.trust.isReported,
         )
@@ -1264,7 +1283,7 @@ private fun FoodDetailAmountCard(
                         maxLines = 1,
                     )
                     Text(
-                        text = "g",
+                        text = stringResource(R.string.food_gram_abbreviation),
                         style = MusFitTheme.typography.bodyMedium.copy(fontSize = 14.sp, fontWeight = FontWeight.W600),
                         color = MusFitTheme.colors.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
@@ -1291,14 +1310,18 @@ private fun FoodDetailAmountCard(
                 ) {
                     val matchesServing = food.servings.any { quantityInput == it.grams.formatNutritionDisplay() }
                     SelectableChip(
-                        text = "grams",
+                        text = stringResource(R.string.food_grams_word),
                         selected = !matchesServing,
                         onClick = { onQuantityChanged(food.defaultServingGrams.formatNutritionDisplay()) },
                         unselectedContainer = MusFitTheme.colors.surfaceVariant,
                     )
                     food.servings.forEach { serving ->
                         SelectableChip(
-                            text = "${serving.label} · ${serving.grams.formatNutritionDisplay()} g",
+                            text = stringResource(
+                                R.string.food_named_serving_grams,
+                                serving.label,
+                                serving.grams.formatNutritionDisplay(),
+                            ),
                             selected = quantityInput == serving.grams.formatNutritionDisplay(),
                             onClick = { onServingSelected(food.id, serving.grams) },
                             unselectedContainer = MusFitTheme.colors.surfaceVariant,
@@ -1311,6 +1334,7 @@ private fun FoodDetailAmountCard(
 }
 
 @Composable
+@Suppress("LongMethod")
 private fun FoodDetailPreviewHero(
     food: SavedFoodUiState,
     grams: Double,
@@ -1328,7 +1352,10 @@ private fun FoodDetailPreviewHero(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = "${amountKcal.roundToInt()}",
+                        text = LocalizedFormatter.integer(
+                            amountKcal.roundToInt().toLong(),
+                            locale = LocalConfiguration.current.locales[0],
+                        ),
                         style = MusFitTheme.typography.displaySmall.copy(
                             fontSize = 36.sp,
                             lineHeight = 38.sp,
@@ -1338,26 +1365,30 @@ private fun FoodDetailPreviewHero(
                         color = accent.onContainer,
                     )
                     Text(
-                        text = "kcal",
+                        text = stringResource(R.string.food_kcal),
                         style = MusFitTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.W600),
                         color = accent.onContainerVariant,
                         modifier = Modifier.padding(start = 5.dp, bottom = 5.dp),
                     )
                 }
                 Text(
-                    text = "for ${grams.formatNutritionDisplay()} g · ${food.caloriesPer100g.roundToInt()} kcal / 100 g",
+                    text = stringResource(
+                        R.string.food_detail_amount_calories,
+                        grams.formatNutritionDisplay(),
+                        food.caloriesPer100g.roundToInt(),
+                    ),
                     style = MusFitTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                     color = accent.onContainerVariant,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            percentOfDayLabel(amountKcal, dayBudgetKcal)?.let { label ->
+            percentOfDayValue(amountKcal, dayBudgetKcal)?.let { percent ->
                 Surface(
                     color = MusFitTheme.colors.surface.copy(alpha = 0.75f),
                     shape = RoundedCornerShape(99.dp),
                 ) {
                     Text(
-                        text = label,
+                        text = stringResource(R.string.food_percent_of_day, percent),
                         style = MusFitTheme.typography.labelSmall.copy(
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.W800,
@@ -1376,9 +1407,9 @@ private fun FoodDetailPreviewHero(
 private fun FoodDetailMacrosCard(amount: FoodNutrition, state: FoodUiState) {
     val colors = MusFitTheme.colors
     val entries = listOf(
-        Triple("Carbs", amount.carbsGrams, state.carbsGoalGrams),
-        Triple("Protein", amount.proteinGrams, state.proteinGoalGrams),
-        Triple("Fat", amount.fatGrams, state.fatGoalGrams),
+        Triple(stringResource(R.string.food_carbs), amount.carbsGrams, state.carbsGoalGrams),
+        Triple(stringResource(R.string.food_protein), amount.proteinGrams, state.proteinGoalGrams),
+        Triple(stringResource(R.string.food_fat), amount.fatGrams, state.fatGoalGrams),
     )
     Surface(
         color = colors.surface,
@@ -1440,7 +1471,7 @@ private fun FoodDetailMacroLabels(
     stackLabels: Boolean,
 ) {
     val colors = MusFitTheme.colors
-    val value = "${amountGrams.formatNutritionDisplay()} g"
+    val value = stringResource(R.string.food_value_grams, amountGrams.formatNutritionDisplay())
     if (stackLabels) {
         Text(
             text = label,
@@ -1494,26 +1525,27 @@ private fun FoodDetailDetailsList(food: SavedFoodUiState, grams: Double) {
     val scale = grams / 100.0
     var expanded by rememberSaveable { mutableStateOf(false) }
     // Only real per-100g fields, scaled to the chosen amount — never invented.
-    val micronutrientRows = listOf(
-        "Sat fat" to "${(food.saturatedFatPer100g * scale).formatNutritionDisplay()} g",
-        "Potassium" to "${(food.potassiumMgPer100g * scale).formatMicronutrientDisplay()} mg",
-        "Calcium" to "${(food.calciumMgPer100g * scale).formatMicronutrientDisplay()} mg",
-        "Iron" to "${(food.ironMgPer100g * scale).formatMicronutrientDisplay()} mg",
-        "Vitamin D" to "${(food.vitaminDMcgPer100g * scale).formatMicronutrientDisplay()} mcg",
-        "Vitamin C" to "${(food.vitaminCMgPer100g * scale).formatMicronutrientDisplay()} mg",
-        "Magnesium" to "${(food.magnesiumMgPer100g * scale).formatMicronutrientDisplay()} mg",
-    )
+    val micronutrientRows = foodDetailMicronutrientRows(food = food, scale = scale)
     Surface(color = MusFitTheme.colors.surface, shape = RoundedCornerShape(24.dp)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 6.dp),
         ) {
-            HairlineDetailRow("Sugar", "${(food.sugarPer100g * scale).formatNutritionDisplay()} g")
-            HairlineDetailRow("Fiber", "${(food.fiberPer100g * scale).formatNutritionDisplay()} g")
             HairlineDetailRow(
-                label = "Salt",
-                value = "${saltGramsFromSodiumMg(food.sodiumMgPer100g * scale).formatNutritionDisplay()} g",
+                stringResource(R.string.food_sugar),
+                stringResource(R.string.food_value_grams, (food.sugarPer100g * scale).formatNutritionDisplay()),
+            )
+            HairlineDetailRow(
+                stringResource(R.string.food_fiber),
+                stringResource(R.string.food_value_grams, (food.fiberPer100g * scale).formatNutritionDisplay()),
+            )
+            HairlineDetailRow(
+                label = stringResource(R.string.food_salt),
+                value = stringResource(
+                    R.string.food_value_grams,
+                    saltGramsFromSodiumMg(food.sodiumMgPer100g * scale).formatNutritionDisplay(),
+                ),
                 showDivider = expanded,
             )
             if (expanded) {
@@ -1521,27 +1553,83 @@ private fun FoodDetailDetailsList(food: SavedFoodUiState, grams: Double) {
                     HairlineDetailRow(label, value)
                 }
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded }
-                    .padding(vertical = 11.dp),
-            ) {
-                Text(
-                    text = if (expanded) "Hide micronutrients" else "All micronutrients (${micronutrientRows.size})",
-                    style = MusFitTheme.typography.bodyMedium.copy(fontSize = 13.5.sp, fontWeight = FontWeight.W800),
-                    color = MusFitTheme.colors.brand,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = null,
-                    tint = MusFitTheme.colors.brand,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
+            FoodDetailMicronutrientToggle(
+                expanded = expanded,
+                micronutrientCount = micronutrientRows.size,
+                onToggle = { expanded = !expanded },
+            )
         }
+    }
+}
+
+@Composable
+private fun foodDetailMicronutrientRows(
+    food: SavedFoodUiState,
+    scale: Double,
+): List<Pair<String, String>> = listOf(
+    stringResource(R.string.food_saturated_fat) to stringResource(
+        R.string.food_value_grams,
+        (food.saturatedFatPer100g * scale).formatNutritionDisplay(),
+    ),
+    stringResource(R.string.food_potassium) to stringResource(
+        R.string.food_value_milligrams,
+        (food.potassiumMgPer100g * scale).formatMicronutrientDisplay(),
+    ),
+    stringResource(R.string.food_calcium) to stringResource(
+        R.string.food_value_milligrams,
+        (food.calciumMgPer100g * scale).formatMicronutrientDisplay(),
+    ),
+    stringResource(R.string.food_iron) to stringResource(
+        R.string.food_value_milligrams,
+        (food.ironMgPer100g * scale).formatMicronutrientDisplay(),
+    ),
+    stringResource(R.string.food_vitamin_d) to stringResource(
+        R.string.food_value_micrograms,
+        (food.vitaminDMcgPer100g * scale).formatMicronutrientDisplay(),
+    ),
+    stringResource(R.string.food_vitamin_c) to stringResource(
+        R.string.food_value_milligrams,
+        (food.vitaminCMgPer100g * scale).formatMicronutrientDisplay(),
+    ),
+    stringResource(R.string.food_magnesium) to stringResource(
+        R.string.food_value_milligrams,
+        (food.magnesiumMgPer100g * scale).formatMicronutrientDisplay(),
+    ),
+)
+
+@Composable
+private fun FoodDetailMicronutrientToggle(
+    expanded: Boolean,
+    micronutrientCount: Int,
+    onToggle: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 11.dp),
+    ) {
+        Text(
+            text = if (expanded) {
+                stringResource(R.string.food_hide_micronutrients)
+            } else {
+                pluralStringResource(
+                    R.plurals.food_all_micronutrients_count,
+                    micronutrientCount,
+                    micronutrientCount,
+                )
+            },
+            style = MusFitTheme.typography.bodyMedium.copy(fontSize = 13.5.sp, fontWeight = FontWeight.W800),
+            color = MusFitTheme.colors.brand,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+            contentDescription = null,
+            tint = MusFitTheme.colors.brand,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -1591,12 +1679,12 @@ internal fun DiaryEntryEditorPanel(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = "Edit diary item",
+                text = stringResource(R.string.food_edit_diary_item),
                 style = MusFitTheme.typography.headlineSmall.copy(fontSize = 22.sp, fontWeight = FontWeight.W800),
                 color = MusFitTheme.colors.onSurface,
             )
             Text(
-                text = editor.name.ifBlank { "Food item" },
+                text = editor.name.ifBlank { stringResource(R.string.food_food_item) },
                 style = MusFitTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -1611,7 +1699,7 @@ internal fun DiaryEntryEditorPanel(
         )
 
         FieldCell(
-            label = "Amount (g)",
+            label = stringResource(R.string.food_amount_grams),
             value = editor.quantityGrams,
             onValueChange = onQuantityChanged,
             shape = RoundedCornerShape(20.dp),
@@ -1643,18 +1731,23 @@ internal fun DiaryEntryEditorPanel(
                     .padding(horizontal = 18.dp, vertical = 14.dp),
             ) {
                 Text(
-                    text = "Preview",
+                    text = stringResource(R.string.food_preview),
                     style = MusFitTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
                     color = accent.onContainer,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = "${editor.previewCaloriesKcal.roundToInt()} kcal",
+                    text = stringResource(R.string.food_integer_kcal, editor.previewCaloriesKcal.roundToInt()),
                     style = MusFitTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.W800),
                     color = accent.onContainer,
                 )
                 Text(
-                    text = " · C ${editor.previewCarbsGrams.formatNutritionDisplay()} · P ${editor.previewProteinGrams.formatNutritionDisplay()} · F ${editor.previewFatGrams.formatNutritionDisplay()}",
+                    text = stringResource(
+                        R.string.food_macro_summary_values,
+                        editor.previewCarbsGrams.formatNutritionDisplay(),
+                        editor.previewProteinGrams.formatNutritionDisplay(),
+                        editor.previewFatGrams.formatNutritionDisplay(),
+                    ),
                     style = MusFitTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                     color = accent.onContainerVariant,
                     maxLines = 1,
@@ -1671,7 +1764,7 @@ internal fun DiaryEntryEditorPanel(
         }
 
         PillButton(
-            text = if (state.isSaving) "Saving" else "Save changes",
+            text = stringResource(if (state.isSaving) R.string.food_saving else R.string.food_save_changes),
             onClick = onSaveClick,
             enabled = !state.isSaving,
             modifier = Modifier.fillMaxWidth(),
@@ -1679,7 +1772,7 @@ internal fun DiaryEntryEditorPanel(
 
         if (editor.isPlanned) {
             PillButton(
-                text = "Mark logged",
+                text = stringResource(R.string.food_mark_logged),
                 onClick = onMarkLoggedClick,
                 enabled = !state.isSaving,
                 containerColor = accent.container,
@@ -1689,7 +1782,9 @@ internal fun DiaryEntryEditorPanel(
             )
         }
 
-        SectionOverline("COPY ITEM")
+        SectionOverline(
+            stringResource(R.string.food_copy_item).uppercase(LocalConfiguration.current.locales[0]),
+        )
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1702,14 +1797,14 @@ internal fun DiaryEntryEditorPanel(
                 )
             }
             SelectableChip(
-                text = "Tomorrow",
+                text = stringResource(R.string.food_tomorrow),
                 selected = null,
                 onClick = onCopyTomorrowClick,
             )
         }
 
         PillButton(
-            text = "Delete from diary",
+            text = stringResource(R.string.food_delete_from_diary_action),
             onClick = { confirmDelete = true },
             enabled = !state.isSaving,
             containerColor = MusFitTheme.colors.destructiveContainer,
@@ -1722,7 +1817,10 @@ internal fun DiaryEntryEditorPanel(
     if (confirmDelete) {
         ConfirmDeleteDialog(
             title = stringResource(R.string.food_delete_from_diary),
-            body = "This removes \"${editor.name.ifBlank { "this item" }}\" from the day. You can undo right after.",
+            body = stringResource(
+                R.string.food_delete_diary_item_body,
+                editor.name.ifBlank { stringResource(R.string.food_this_item) },
+            ),
             onConfirm = {
                 confirmDelete = false
                 onDeleteClick()
@@ -1864,11 +1962,11 @@ internal fun MealSettingsPanel(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(meal.title, style = MaterialTheme.typography.titleSmall)
+                        Text(meal.titleText.asString(), style = MaterialTheme.typography.titleSmall)
                         Text(
                             listOfNotNull(
                                 if (meal.isDefault) defaultLabel else customLabel,
-                                meal.timeLabel,
+                                meal.timeLabelText.asString(),
                                 stringResource(R.string.food_order_value, meal.sortOrder),
                                 if (meal.isHidden) hiddenLabel else null,
                             ).joinToString(" - "),
@@ -1985,11 +2083,11 @@ internal fun SavedFoodEditorScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         InnerScreenHeader(
-            title = if (isExistingFood) "Edit food" else "New food",
+            title = stringResource(if (isExistingFood) R.string.food_edit_food else R.string.food_new_food),
             onBack = onBack,
             trailing = {
                 PillButton(
-                    text = if (state.isSaving) "Saving" else "Save",
+                    text = stringResource(if (state.isSaving) R.string.food_saving else R.string.food_save),
                     onClick = onSaveClick,
                     enabled = !state.isSaving,
                     height = 48.dp,
@@ -2007,7 +2105,7 @@ internal fun SavedFoodEditorScreen(
             if (savedSource != null) {
                 when (savedSource.trust.level) {
                     FoodTrustLevel.Imported ->
-                        FoodTrustChip(Icons.Outlined.Verified, MusFitTheme.colors.brand, savedSource.sourceLabel)
+                        FoodTrustChip(Icons.Outlined.Verified, MusFitTheme.colors.brand, savedSource.sourceText.asString())
 
                     FoodTrustLevel.Manual ->
                         FoodTrustChip(Icons.Outlined.Edit, MusFitTheme.colors.onSurfaceVariant, savedSource.trust.label.asString())
@@ -2017,10 +2115,12 @@ internal fun SavedFoodEditorScreen(
                 }
             }
 
-            SectionOverline("IDENTITY")
+            SectionOverline(
+                stringResource(R.string.food_identity).uppercase(LocalConfiguration.current.locales[0]),
+            )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 FieldCell(
-                    label = "Name",
+                    label = stringResource(R.string.food_name),
                     value = editor.name,
                     onValueChange = onNameChanged,
                     shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 8.dp, bottomEnd = 8.dp),
@@ -2028,14 +2128,14 @@ internal fun SavedFoodEditorScreen(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                     FieldCell(
-                        label = "Brand",
+                        label = stringResource(R.string.food_brand),
                         value = editor.brand,
                         onValueChange = onBrandChanged,
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.weight(1f),
                     )
                     FieldCell(
-                        label = "Category",
+                        label = stringResource(R.string.food_category),
                         value = editor.category,
                         onValueChange = onCategoryChanged,
                         shape = RoundedCornerShape(8.dp),
@@ -2043,7 +2143,7 @@ internal fun SavedFoodEditorScreen(
                     )
                 }
                 FieldCell(
-                    label = "Barcode",
+                    label = stringResource(R.string.food_add_mode_barcode),
                     value = editor.barcode,
                     onValueChange = onBarcodeChanged,
                     shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 20.dp, bottomEnd = 20.dp),
@@ -2052,7 +2152,9 @@ internal fun SavedFoodEditorScreen(
                 )
             }
 
-            SectionOverline("SERVING")
+            SectionOverline(
+                stringResource(R.string.food_serving).uppercase(LocalConfiguration.current.locales[0]),
+            )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Surface(
                     color = MusFitTheme.colors.surface,
@@ -2065,7 +2167,13 @@ internal fun SavedFoodEditorScreen(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                     ) {
                         Text(
-                            text = "1 ${editor.servingName.ifBlank { "serving" }} = ${editor.servingGrams.ifBlank { "0" }} g",
+                            text = stringResource(
+                                R.string.food_serving_definition,
+                                editor.servingName.ifBlank {
+                                    stringResource(R.string.food_serving).lowercase(LocalConfiguration.current.locales[0])
+                                },
+                                editor.servingGrams.ifBlank { "0" },
+                            ),
                             style = MusFitTheme.typography.bodyMedium.copy(fontSize = 14.sp, fontWeight = FontWeight.W700),
                             color = MusFitTheme.colors.onSurface,
                             modifier = Modifier.weight(1f),
@@ -2080,14 +2188,14 @@ internal fun SavedFoodEditorScreen(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                     FieldCell(
-                        label = "Serving name",
+                        label = stringResource(R.string.food_serving_name),
                         value = editor.servingName,
                         onValueChange = onServingNameChanged,
                         shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 20.dp, bottomEnd = 8.dp),
                         modifier = Modifier.weight(1f),
                     )
                     FieldCell(
-                        label = "Serving grams",
+                        label = stringResource(R.string.food_serving_grams_label),
                         value = editor.servingGrams,
                         onValueChange = onServingChanged,
                         shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 20.dp),
@@ -2123,7 +2231,7 @@ internal fun SavedFoodEditorScreen(
                         .padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
-                        text = "Favorite",
+                        text = stringResource(R.string.food_favorite),
                         style = MusFitTheme.typography.bodyMedium.copy(fontSize = 13.5.sp, fontWeight = FontWeight.W700),
                         color = MusFitTheme.colors.onSurface,
                         modifier = Modifier.weight(1f),
@@ -2149,7 +2257,7 @@ internal fun SavedFoodEditorScreen(
                     .padding(bottom = 18.dp),
             ) {
                 PillButton(
-                    text = "Duplicate",
+                    text = stringResource(R.string.food_duplicate),
                     onClick = onDuplicateClick,
                     enabled = !state.isSaving,
                     icon = Icons.Outlined.ContentCopy,
@@ -2159,7 +2267,7 @@ internal fun SavedFoodEditorScreen(
                     modifier = Modifier.weight(1f),
                 )
                 PillButton(
-                    text = "Delete",
+                    text = stringResource(R.string.food_delete),
                     onClick = { confirmDelete = true },
                     enabled = !state.isSaving,
                     icon = Icons.Outlined.Delete,
@@ -2176,7 +2284,10 @@ internal fun SavedFoodEditorScreen(
     if (confirmDelete) {
         ConfirmDeleteDialog(
             title = stringResource(R.string.food_delete_saved_food),
-            body = "\"${editor.name.ifBlank { "This food" }}\" is removed from your database. Diary entries keep their logged values.",
+            body = stringResource(
+                R.string.food_delete_saved_food_body,
+                editor.name.ifBlank { stringResource(R.string.food_this_food) },
+            ),
             onConfirm = {
                 confirmDelete = false
                 onDeleteClick()
@@ -2237,11 +2348,11 @@ internal fun NutritionLabelScanPanel(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "Nutrition label scan",
+                text = stringResource(R.string.food_nutrition_label_scan),
                 style = MaterialTheme.typography.headlineSmall,
             )
             Text(
-                text = "Review fields before saving",
+                text = stringResource(R.string.food_review_fields_before_saving),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -2336,7 +2447,7 @@ internal fun NutritionLabelScanPanel(
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
         ) {
-            Text(if (state.isSaving) "Saving" else "Save food")
+            Text(stringResource(if (state.isSaving) R.string.food_saving else R.string.food_save_food))
         }
     }
 }
@@ -2363,12 +2474,15 @@ private fun SavedFoodNutritionFields(
     var showMicronutrients by rememberSaveable { mutableStateOf(false) }
     val colors = MusFitTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionOverline("NUTRITION PER 100 G")
+        SectionOverline(
+            stringResource(R.string.food_nutrition_per_hundred_grams)
+                .uppercase(LocalConfiguration.current.locales[0]),
+        )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             // 2×2 macro grid with macro-tinted labels (9e).
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 FieldCell(
-                    label = "Calories",
+                    label = stringResource(R.string.food_calories),
                     value = editor.caloriesPer100g,
                     onValueChange = onCaloriesChanged,
                     shape = gridGroupShape(row = 0, rowCount = 2, column = 0, columnCount = 2, outer = 20.dp),
@@ -2376,7 +2490,7 @@ private fun SavedFoodNutritionFields(
                     modifier = Modifier.weight(1f),
                 )
                 FieldCell(
-                    label = "Carbs",
+                    label = stringResource(R.string.food_carbs),
                     value = editor.carbsPer100g,
                     onValueChange = onCarbsChanged,
                     shape = gridGroupShape(row = 0, rowCount = 2, column = 1, columnCount = 2, outer = 20.dp),
@@ -2387,7 +2501,7 @@ private fun SavedFoodNutritionFields(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 FieldCell(
-                    label = "Protein",
+                    label = stringResource(R.string.food_protein),
                     value = editor.proteinPer100g,
                     onValueChange = onProteinChanged,
                     shape = gridGroupShape(row = 1, rowCount = 2, column = 0, columnCount = 2, outer = 20.dp),
@@ -2396,7 +2510,7 @@ private fun SavedFoodNutritionFields(
                     modifier = Modifier.weight(1f),
                 )
                 FieldCell(
-                    label = "Fat",
+                    label = stringResource(R.string.food_fat),
                     value = editor.fatPer100g,
                     onValueChange = onFatChanged,
                     shape = gridGroupShape(row = 1, rowCount = 2, column = 1, columnCount = 2, outer = 20.dp),
@@ -2418,7 +2532,11 @@ private fun SavedFoodNutritionFields(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
             ) {
                 Text(
-                    text = if (showMicronutrients) "Hide micronutrients" else "Micronutrients (10)",
+                    text = if (showMicronutrients) {
+                        stringResource(R.string.food_hide_micronutrients)
+                    } else {
+                        stringResource(R.string.food_micronutrients_count, 10)
+                    },
                     style = MusFitTheme.typography.bodyMedium.copy(fontSize = 13.5.sp, fontWeight = FontWeight.W800),
                     color = colors.brand,
                     modifier = Modifier.weight(1f),
@@ -2436,24 +2554,24 @@ private fun SavedFoodNutritionFields(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 val rows = listOf(
                     listOf(
-                        Triple("Fiber", editor.fiberPer100g, onFiberChanged),
-                        Triple("Sugar", editor.sugarPer100g, onSugarChanged),
+                        Triple(stringResource(R.string.food_fiber), editor.fiberPer100g, onFiberChanged),
+                        Triple(stringResource(R.string.food_sugar), editor.sugarPer100g, onSugarChanged),
                     ),
                     listOf(
-                        Triple("Sat fat", editor.saturatedFatPer100g, onSaturatedFatChanged),
-                        Triple("Sodium mg", editor.sodiumMgPer100g, onSodiumChanged),
+                        Triple(stringResource(R.string.food_saturated_fat_grams), editor.saturatedFatPer100g, onSaturatedFatChanged),
+                        Triple(stringResource(R.string.food_sodium_milligrams), editor.sodiumMgPer100g, onSodiumChanged),
                     ),
                     listOf(
-                        Triple("Potassium mg", editor.potassiumMgPer100g, onPotassiumChanged),
-                        Triple("Calcium mg", editor.calciumMgPer100g, onCalciumChanged),
+                        Triple(stringResource(R.string.food_potassium_milligrams), editor.potassiumMgPer100g, onPotassiumChanged),
+                        Triple(stringResource(R.string.food_calcium_milligrams), editor.calciumMgPer100g, onCalciumChanged),
                     ),
                     listOf(
-                        Triple("Iron mg", editor.ironMgPer100g, onIronChanged),
-                        Triple("Vit D mcg", editor.vitaminDMcgPer100g, onVitaminDChanged),
+                        Triple(stringResource(R.string.food_iron_milligrams), editor.ironMgPer100g, onIronChanged),
+                        Triple(stringResource(R.string.food_vitamin_d_micrograms), editor.vitaminDMcgPer100g, onVitaminDChanged),
                     ),
                     listOf(
-                        Triple("Vit C mg", editor.vitaminCMgPer100g, onVitaminCChanged),
-                        Triple("Magnesium mg", editor.magnesiumMgPer100g, onMagnesiumChanged),
+                        Triple(stringResource(R.string.food_vitamin_c_milligrams), editor.vitaminCMgPer100g, onVitaminCChanged),
+                        Triple(stringResource(R.string.food_magnesium_milligrams), editor.magnesiumMgPer100g, onMagnesiumChanged),
                     ),
                 )
                 rows.forEachIndexed { rowIndex, row ->
@@ -2522,7 +2640,7 @@ internal fun GoalEditorScreen(
             onBack = onBack,
             trailing = {
                 PillButton(
-                    text = if (state.isSaving) "Saving" else "Save",
+                    text = stringResource(if (state.isSaving) R.string.food_saving else R.string.food_save),
                     onClick = onSaveClick,
                     enabled = !state.isSaving,
                     height = 48.dp,
@@ -2586,7 +2704,7 @@ internal fun GoalEditorScreen(
             // Editable gram targets feed the split card live.
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 FieldCell(
-                    label = "Carbs g",
+                    label = stringResource(R.string.food_carbs_grams),
                     value = editor.carbsGramsInput,
                     onValueChange = onCarbsChanged,
                     shape = gridGroupShape(row = 0, rowCount = 1, column = 0, columnCount = 3, outer = 20.dp),
@@ -2595,7 +2713,7 @@ internal fun GoalEditorScreen(
                     modifier = Modifier.weight(1f),
                 )
                 FieldCell(
-                    label = "Protein g",
+                    label = stringResource(R.string.food_protein_grams),
                     value = editor.proteinGramsInput,
                     onValueChange = onProteinChanged,
                     shape = gridGroupShape(row = 0, rowCount = 1, column = 1, columnCount = 3, outer = 20.dp),
@@ -2604,7 +2722,7 @@ internal fun GoalEditorScreen(
                     modifier = Modifier.weight(1f),
                 )
                 FieldCell(
-                    label = "Fat g",
+                    label = stringResource(R.string.food_fat_grams),
                     value = editor.fatGramsInput,
                     onValueChange = onFatChanged,
                     shape = gridGroupShape(row = 0, rowCount = 1, column = 2, columnCount = 3, outer = 20.dp),
@@ -2621,20 +2739,22 @@ internal fun GoalEditorScreen(
                         .padding(horizontal = 20.dp, vertical = 4.dp),
                 ) {
                     GoalToggleRow(
-                        label = "Include training calories",
+                        label = stringResource(R.string.food_include_training_calories),
                         checked = editor.includeTrainingInput,
                         onCheckedChange = onTrainingChanged,
                     )
                     HorizontalDivider(thickness = 1.dp, color = colors.outline)
                     GoalToggleRow(
-                        label = "Count net carbs",
+                        label = stringResource(R.string.food_count_net_carbs),
                         checked = editor.useNetCarbsInput,
                         onCheckedChange = onNetCarbsChanged,
                     )
                 }
             }
 
-            SectionOverline("PROGRAMS")
+            SectionOverline(
+                stringResource(R.string.food_programs).uppercase(LocalConfiguration.current.locales[0]),
+            )
             val visiblePrograms = if (showAllPrograms) state.foodPrograms else state.foodPrograms.take(3)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 visiblePrograms.forEachIndexed { index, program ->
@@ -2656,7 +2776,11 @@ internal fun GoalEditorScreen(
                         .padding(horizontal = 4.dp),
                 ) {
                     Text(
-                        text = "All ${state.foodPrograms.size} programs",
+                        text = pluralStringResource(
+                            R.plurals.food_all_programs,
+                            state.foodPrograms.size,
+                            state.foodPrograms.size,
+                        ),
                         style = MusFitTheme.typography.bodyMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.W800),
                         color = colors.brand,
                     )
@@ -2669,11 +2793,13 @@ internal fun GoalEditorScreen(
                 }
             }
 
-            SectionOverline("ADVANCED TARGETS")
+            SectionOverline(
+                stringResource(R.string.food_advanced_targets).uppercase(LocalConfiguration.current.locales[0]),
+            )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                     FieldCell(
-                        label = "Fiber g",
+                        label = stringResource(R.string.food_fiber_grams),
                         value = editor.fiberGramsInput,
                         onValueChange = onFiberChanged,
                         shape = gridGroupShape(row = 0, rowCount = 2, column = 0, columnCount = 2, outer = 20.dp),
@@ -2681,7 +2807,7 @@ internal fun GoalEditorScreen(
                         modifier = Modifier.weight(1f),
                     )
                     FieldCell(
-                        label = "Sugar g",
+                        label = stringResource(R.string.food_sugar_grams),
                         value = editor.sugarGramsInput,
                         onValueChange = onSugarChanged,
                         shape = gridGroupShape(row = 0, rowCount = 2, column = 1, columnCount = 2, outer = 20.dp),
@@ -2691,7 +2817,7 @@ internal fun GoalEditorScreen(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                     FieldCell(
-                        label = "Sat fat g",
+                        label = stringResource(R.string.food_saturated_fat_grams),
                         value = editor.saturatedFatGramsInput,
                         onValueChange = onSaturatedFatChanged,
                         shape = gridGroupShape(row = 1, rowCount = 2, column = 0, columnCount = 2, outer = 20.dp),
@@ -2699,7 +2825,7 @@ internal fun GoalEditorScreen(
                         modifier = Modifier.weight(1f),
                     )
                     FieldCell(
-                        label = "Sodium mg",
+                        label = stringResource(R.string.food_sodium_milligrams),
                         value = editor.sodiumMgInput,
                         onValueChange = onSodiumChanged,
                         shape = gridGroupShape(row = 1, rowCount = 2, column = 1, columnCount = 2, outer = 20.dp),
@@ -2726,9 +2852,9 @@ private fun GoalMacroSplitCard(editor: GoalEditorState) {
         fat = editor.fatGramsInput,
     )
     val entries = listOf(
-        Triple("Carbs", carbsPct, editor.carbsGramsInput),
-        Triple("Protein", proteinPct, editor.proteinGramsInput),
-        Triple("Fat", fatPct, editor.fatGramsInput),
+        Triple(stringResource(R.string.food_carbs), carbsPct, editor.carbsGramsInput),
+        Triple(stringResource(R.string.food_protein), proteinPct, editor.proteinGramsInput),
+        Triple(stringResource(R.string.food_fat), fatPct, editor.fatGramsInput),
     )
     Surface(color = colors.surface, shape = RoundedCornerShape(24.dp)) {
         Column(
@@ -2739,7 +2865,7 @@ private fun GoalMacroSplitCard(editor: GoalEditorState) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Macro split",
+                    text = stringResource(R.string.food_macro_split),
                     style = MusFitTheme.typography.bodyMedium.copy(fontSize = 14.sp, fontWeight = FontWeight.W800),
                     color = colors.onSurface,
                     modifier = Modifier.weight(1f),
@@ -2768,7 +2894,7 @@ private fun GoalMacroSplitCard(editor: GoalEditorState) {
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
-                                text = "${entry.second}%",
+                                text = stringResource(R.string.food_percentage, entry.second),
                                 style = MusFitTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.sp),
                                 color = colors.onSurfaceVariant,
                             )
@@ -2779,7 +2905,7 @@ private fun GoalMacroSplitCard(editor: GoalEditorState) {
                             trackColor = colors.macroTracks[index],
                         )
                         Text(
-                            text = "${entry.third.ifBlank { "0" }} g",
+                            text = stringResource(R.string.food_value_grams, entry.third.ifBlank { "0" }),
                             style = MusFitTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.sp),
                             color = colors.onSurfaceVariant,
                         )
@@ -2850,14 +2976,14 @@ private fun GoalProgramRow(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = program.title,
+                    text = program.title.asString(),
                     style = MusFitTheme.typography.titleSmall.copy(fontWeight = FontWeight.W800, letterSpacing = (-0.2).sp),
                     color = colors.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = program.subtitle,
+                    text = program.subtitle.asString(),
                     style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = colors.onSurfaceVariant,
                     maxLines = 1,
@@ -2872,7 +2998,7 @@ private fun GoalProgramRow(
                 contentColor = if (program.isSelected) accent.onContainer else colors.onSurface,
             ) {
                 Text(
-                    text = if (program.isSelected) "Applied" else "Apply",
+                    text = stringResource(if (program.isSelected) R.string.food_applied else R.string.food_apply),
                     style = MusFitTheme.typography.labelMedium.copy(fontWeight = FontWeight.W800),
                     modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
                 )
@@ -2926,7 +3052,9 @@ internal fun RecipeBrowserScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (isEditorPage) {
-            val editorTitle = if (state.recipeEditor.editingRecipeId == null) "New recipe" else "Edit recipe"
+            val editorTitle = stringResource(
+                if (state.recipeEditor.editingRecipeId == null) R.string.food_new_recipe else R.string.food_edit_recipe,
+            )
             if (showEditorBack) {
                 InnerScreenHeader(title = editorTitle, onBack = onHomeClick)
             } else {
@@ -2983,7 +3111,10 @@ internal fun RecipeBrowserScreen(
     }
 }
 
-private fun RecipeDiscoveryFilter.chipLabel(): String = if (this == RecipeDiscoveryFilter.All) "For you" else label
+@Composable
+private fun RecipeDiscoveryFilter.chipLabel(): String = stringResource(
+    if (this == RecipeDiscoveryFilter.All) R.string.food_filter_for_you else labelResource(),
+)
 
 private const val RECIPE_GRID_COLUMN_COUNT = 2
 
@@ -3032,8 +3163,8 @@ private fun RecipeBrowserHome(
     var searchVisible by rememberSaveable { mutableStateOf(state.recipeDiscovery.query.isNotBlank()) }
     var showMyRecipes by rememberSaveable { mutableStateOf(false) }
     val mealTitle = state.visibleMealDefinitions
-        .firstOrNull { it.id == state.recipeBrowserMealType }?.title
-        ?: state.recipeBrowserMealType
+        .firstOrNull { it.id == state.recipeBrowserMealType }?.titleText?.asString()
+        ?: state.recipeBrowserMealType.mealTitleText().asString()
     val visibleItems = state.recipeDiscovery.visibleItems
     val featured = visibleItems.firstOrNull { it.programRelevant } ?: visibleItems.firstOrNull()
     val gridItems = visibleItems.filterNot { it.id == featured?.id }
@@ -3087,7 +3218,7 @@ private fun RecipeBrowserHome(
                     Box(modifier = Modifier.weight(1f)) {
                         if (state.recipeDiscovery.query.isEmpty()) {
                             Text(
-                                text = "Find recipes",
+                                text = stringResource(R.string.food_find_recipes),
                                 style = MusFitTheme.typography.bodyMedium.copy(fontSize = 14.5.sp),
                                 color = colors.onSurfaceFaint,
                             )
@@ -3218,7 +3349,9 @@ private fun RecipeBrowserHome(
                     key = "my-recipes-heading",
                     span = { GridItemSpan(maxLineSpan) },
                 ) {
-                    SectionOverline("MY RECIPES")
+                    SectionOverline(
+                        stringResource(R.string.food_my_recipes).uppercase(LocalConfiguration.current.locales[0]),
+                    )
                 }
                 verticalGap("gap-after-my-recipes-heading", 12.dp)
                 if (state.recipes.isEmpty()) {
@@ -3242,8 +3375,12 @@ private fun RecipeBrowserHome(
                                 title = recipe.name,
                                 subtitle = listOfNotNull(
                                     recipe.itemSummary.ifBlank { null },
-                                    "${recipe.servings.formatNutritionDisplay()} servings",
-                                ).joinToString(" · "),
+                                    pluralStringResource(
+                                        R.plurals.food_servings_count,
+                                        if (recipe.servings == 1.0) 1 else 2,
+                                        recipe.servings.formatNutritionDisplay(),
+                                    ),
+                                ).joinToString(stringResource(R.string.food_separator)),
                                 onClick = { onEditRecipeClick(recipe.id) },
                                 fallbackIcon = Icons.Filled.RiceBowl,
                                 badgeSize = 44.dp,
@@ -3255,7 +3392,9 @@ private fun RecipeBrowserHome(
                                         IconButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
                                             Icon(
                                                 imageVector = if (recipe.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                                contentDescription = if (recipe.isFavorite) "Unfavorite" else "Favorite",
+                                                contentDescription = stringResource(
+                                                    if (recipe.isFavorite) R.string.food_unfavorite else R.string.food_favorite,
+                                                ),
                                                 tint = if (recipe.isFavorite) colors.macroProtein else colors.onSurfaceVariant,
                                                 modifier = Modifier.size(20.dp),
                                             )
@@ -3298,7 +3437,11 @@ private fun RecipeBrowserHome(
                 .padding(bottom = 14.dp),
         ) {
             PillButton(
-                text = "My recipes · ${state.recipes.size}",
+                text = pluralStringResource(
+                    R.plurals.food_my_recipes_count,
+                    state.recipes.size,
+                    state.recipes.size,
+                ),
                 onClick = { showMyRecipes = !showMyRecipes },
                 icon = Icons.Outlined.Bookmark,
                 containerColor = accent.container,
@@ -3307,7 +3450,7 @@ private fun RecipeBrowserHome(
                 modifier = Modifier.weight(1f),
             )
             PillButton(
-                text = "New recipe",
+                text = stringResource(R.string.food_new_recipe),
                 onClick = onCreateClick,
                 icon = Icons.Outlined.Add,
                 height = 54.dp,
@@ -3408,7 +3551,7 @@ private fun RecipePlanDateControls(
             modifier = Modifier
                 .weight(1f)
                 .heightIn(min = 48.dp)
-                .clickable(onClickLabel = "Jump to today", onClick = onTodayClick),
+                .clickable(onClickLabel = stringResource(R.string.food_jump_to_today), onClick = onTodayClick),
         ) {
             Text(
                 text = state.recipeBrowserDate.toString(),
@@ -3420,7 +3563,7 @@ private fun RecipePlanDateControls(
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                text = "Today",
+                text = stringResource(R.string.food_today),
                 style = MusFitTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                 color = colors.brand,
                 maxLines = 1,
@@ -3459,7 +3602,7 @@ private fun RecipePlanMealControls(
             modifier = Modifier.weight(1f),
         )
         FieldCell(
-            label = "Serv",
+            label = stringResource(R.string.food_serving_short),
             value = state.recipeServingsToLog,
             onValueChange = onServingsChanged,
             shape = RoundedCornerShape(16.dp),
@@ -3470,6 +3613,7 @@ private fun RecipePlanMealControls(
 }
 
 @Composable
+@Suppress("LongMethod")
 internal fun RecipeFeaturedCard(
     item: RecipeDiscoveryItemUiState,
     mealTitle: String,
@@ -3543,7 +3687,7 @@ private fun RecipeFeaturedSummary(item: RecipeDiscoveryItemUiState, modifier: Mo
     val accent = tabAccentFor(TabAccentRole.Food)
     Column(modifier = modifier) {
         Text(
-            text = item.title,
+            text = item.titleText.asString(),
             style = MusFitTheme.typography.titleMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.W800),
             color = accent.onContainer,
             maxLines = 1,
@@ -3553,10 +3697,10 @@ private fun RecipeFeaturedSummary(item: RecipeDiscoveryItemUiState, modifier: Mo
         )
         Text(
             text = buildList {
-                add("${item.caloriesKcal.roundToInt()} kcal")
-                add("${item.proteinGrams.formatNutritionDisplay()} g protein")
-                item.tagLabels.firstOrNull()?.let(::add)
-            }.joinToString(" · "),
+                add(stringResource(R.string.food_value_kcal, item.caloriesKcal.formatNutritionDisplay()))
+                add(stringResource(R.string.food_value_protein_grams, item.proteinGrams.formatNutritionDisplay()))
+                item.tagTexts.firstOrNull()?.asString()?.let(::add)
+            }.joinToString(stringResource(R.string.food_separator)),
             style = MusFitTheme.typography.bodySmall.copy(fontSize = 12.sp),
             color = accent.onContainerVariant,
             maxLines = 2,
@@ -3585,7 +3729,7 @@ private fun RecipeGridCard(
             )
             Column(modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 11.dp, bottom = 13.dp)) {
                 Text(
-                    text = item.title,
+                    text = item.titleText.asString(),
                     style = MusFitTheme.typography.titleSmall.copy(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.W800,
@@ -3597,10 +3741,10 @@ private fun RecipeGridCard(
                 )
                 Text(
                     text = buildList {
-                        add("${item.caloriesKcal.roundToInt()} kcal")
-                        add("P ${item.proteinGrams.formatNutritionDisplay()}")
-                        if (item.isSavedRecipe) add("Saved")
-                    }.joinToString(" · "),
+                        add(stringResource(R.string.food_value_kcal, item.caloriesKcal.formatNutritionDisplay()))
+                        add(stringResource(R.string.food_protein_abbreviation, item.proteinGrams.formatNutritionDisplay()))
+                        if (item.isSavedRecipe) add(stringResource(R.string.food_saved))
+                    }.joinToString(stringResource(R.string.food_separator)),
                     style = MusFitTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 1,
@@ -3653,7 +3797,7 @@ internal fun RecipeEditorPanel(
     ) {
         if (!isFullScreen) {
             Text(
-                text = if (editor.editingRecipeId == null) "Recipe" else "Edit recipe",
+                text = stringResource(if (editor.editingRecipeId == null) R.string.food_recipe else R.string.food_edit_recipe),
                 style = MusFitTheme.typography.headlineSmall.copy(fontSize = 22.sp, fontWeight = FontWeight.W800),
                 color = MusFitTheme.colors.onSurface,
             )
@@ -3673,10 +3817,12 @@ internal fun RecipeEditorPanel(
                 onFavoriteClick = onFavoriteClick,
             )
         }
-        SectionOverline("RECIPE")
+        SectionOverline(
+            stringResource(R.string.food_recipe).uppercase(LocalConfiguration.current.locales[0]),
+        )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FieldCell(
-                label = "Recipe name",
+                label = stringResource(R.string.food_recipe_name),
                 value = editor.name,
                 onValueChange = onNameChanged,
                 shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 8.dp, bottomEnd = 8.dp),
@@ -3684,14 +3830,14 @@ internal fun RecipeEditorPanel(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 FieldCell(
-                    label = "Category",
+                    label = stringResource(R.string.food_category),
                     value = editor.category,
                     onValueChange = onCategoryChanged,
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.weight(1f),
                 )
                 FieldCell(
-                    label = "Serving",
+                    label = stringResource(R.string.food_serving),
                     value = editor.servingName,
                     onValueChange = onServingNameChanged,
                     shape = RoundedCornerShape(8.dp),
@@ -3700,7 +3846,7 @@ internal fun RecipeEditorPanel(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 FieldCell(
-                    label = "Servings",
+                    label = stringResource(R.string.food_servings),
                     value = editor.servingsCount,
                     onValueChange = onServingsCountChanged,
                     shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 20.dp, bottomEnd = 8.dp),
@@ -3708,7 +3854,7 @@ internal fun RecipeEditorPanel(
                     modifier = Modifier.weight(1f),
                 )
                 FieldCell(
-                    label = "Cooked yield g",
+                    label = stringResource(R.string.food_cooked_yield_grams),
                     value = editor.cookedYieldGrams,
                     onValueChange = onCookedYieldChanged,
                     shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 20.dp),
@@ -3718,11 +3864,19 @@ internal fun RecipeEditorPanel(
             }
         }
         Text(
-            text = "${editor.servingGrams.ifBlank { "0" }} g per ${editor.servingName.ifBlank { "serving" }}",
+            text = stringResource(
+                R.string.food_grams_per_serving,
+                editor.servingGrams.ifBlank { "0" },
+                editor.servingName.ifBlank {
+                    stringResource(R.string.food_serving).lowercase(LocalConfiguration.current.locales[0])
+                },
+            ),
             style = MusFitTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
         )
-        SectionOverline("INGREDIENTS")
+        SectionOverline(
+            stringResource(R.string.food_ingredients).uppercase(LocalConfiguration.current.locales[0]),
+        )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             items(items = state.savedFoods, key = SavedFoodUiState::id) { food ->
                 SelectableChip(
@@ -3750,7 +3904,7 @@ internal fun RecipeEditorPanel(
             modifier = Modifier.fillMaxWidth(),
         ) {
             FieldCell(
-                label = "Amount g",
+                label = stringResource(R.string.food_amount_grams_short),
                 value = editor.ingredientQuantityGrams,
                 onValueChange = onIngredientQuantityChanged,
                 shape = RoundedCornerShape(20.dp),
@@ -3758,7 +3912,7 @@ internal fun RecipeEditorPanel(
                 modifier = Modifier.weight(1f),
             )
             PillButton(
-                text = "Add",
+                text = stringResource(R.string.food_add),
                 onClick = onAddIngredientClick,
                 icon = Icons.Outlined.Add,
                 containerColor = MusFitTheme.colors.surfaceVariant,
@@ -3776,7 +3930,12 @@ internal fun RecipeEditorPanel(
                     editor.ingredients.forEachIndexed { index, ingredient ->
                         HairlineDetailRow(
                             label = ingredient.foodName,
-                            value = "${ingredient.unitQuantity.formatNutritionDisplay()} ${ingredient.unitLabel} · ${ingredient.quantityGrams.roundToInt()} g",
+                            value = stringResource(
+                                R.string.food_ingredient_amount,
+                                ingredient.unitQuantity.formatNutritionDisplay(),
+                                ingredient.unitLabel,
+                                ingredient.quantityGrams.formatNutritionDisplay(),
+                            ),
                             showDivider = index != editor.ingredients.lastIndex,
                         )
                     }
@@ -3785,14 +3944,14 @@ internal fun RecipeEditorPanel(
         }
         state.message?.let { Text(it.asString(), style = MusFitTheme.typography.bodyMedium, color = MusFitTheme.colors.brand) }
         PillButton(
-            text = if (state.isSaving) "Saving" else "Save recipe",
+            text = stringResource(if (state.isSaving) R.string.food_saving else R.string.food_save_recipe),
             onClick = onSaveClick,
             enabled = !state.isSaving,
             modifier = Modifier.fillMaxWidth(),
         )
         if (editor.editingRecipeId != null) {
             PillButton(
-                text = "Delete recipe",
+                text = stringResource(R.string.food_delete_recipe_action),
                 onClick = { confirmDelete = true },
                 enabled = !state.isSaving,
                 icon = Icons.Outlined.Delete,
@@ -3806,7 +3965,10 @@ internal fun RecipeEditorPanel(
     if (confirmDelete) {
         ConfirmDeleteDialog(
             title = stringResource(R.string.food_delete_recipe),
-            body = "\"${editor.name.ifBlank { "This recipe" }}\" is removed from your recipes.",
+            body = stringResource(
+                R.string.food_delete_recipe_body,
+                editor.name.ifBlank { stringResource(R.string.food_this_recipe) },
+            ),
             onConfirm = {
                 confirmDelete = false
                 onDeleteClick()
@@ -3824,7 +3986,7 @@ private fun SavedRecipesSection(
     onFavoriteClick: (String, Boolean) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        SectionTitle("Saved recipes")
+        SectionTitle(stringResource(R.string.food_saved_recipes))
         Column(modifier = Modifier.fillMaxWidth()) {
             recipes.forEach { recipe ->
                 Row(
@@ -3839,10 +4001,14 @@ private fun SavedRecipesSection(
                         Text(
                             listOfNotNull(
                                 recipe.itemSummary,
-                                "${recipe.servings.formatNutritionDisplay()} servings",
-                                "${recipe.cookedYieldGrams.formatNutritionDisplay()} g yield",
-                                if (recipe.isFavorite) "Favorite" else null,
-                            ).joinToString(" - "),
+                                pluralStringResource(
+                                    R.plurals.food_servings_count,
+                                    if (recipe.servings == 1.0) 1 else 2,
+                                    recipe.servings.formatNutritionDisplay(),
+                                ),
+                                stringResource(R.string.food_yield_grams, recipe.cookedYieldGrams.formatNutritionDisplay()),
+                                if (recipe.isFavorite) stringResource(R.string.food_favorite) else null,
+                            ).joinToString(stringResource(R.string.food_separator)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MusFitTheme.colors.onSurfaceVariant,
                             maxLines = 1,
@@ -3851,7 +4017,7 @@ private fun SavedRecipesSection(
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
                         MusFitOutlinedButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
-                            Text(if (recipe.isFavorite) "Starred" else "Star")
+                            Text(stringResource(if (recipe.isFavorite) R.string.food_starred else R.string.food_star))
                         }
                         MusFitOutlinedButton(onClick = { onEditRecipeClick(recipe.id) }) {
                             Text(stringResource(DesignR.string.common_edit))
@@ -3867,17 +4033,16 @@ private fun SavedRecipesSection(
     }
 }
 
-private val RecipeDiscoveryFilter.label: String
-    get() =
-        when (this) {
-            RecipeDiscoveryFilter.All -> "All"
-            RecipeDiscoveryFilter.HighProtein -> "High protein"
-            RecipeDiscoveryFilter.LowCarb -> "Low carb"
-            RecipeDiscoveryFilter.Vegetarian -> "Vegetarian"
-            RecipeDiscoveryFilter.Quick -> "Quick"
-            RecipeDiscoveryFilter.Favorites -> "Favorites"
-            RecipeDiscoveryFilter.Program -> "Program"
-        }
+@androidx.annotation.StringRes
+private fun RecipeDiscoveryFilter.labelResource(): Int = when (this) {
+    RecipeDiscoveryFilter.All -> R.string.food_filter_all
+    RecipeDiscoveryFilter.HighProtein -> R.string.food_recipe_tag_high_protein
+    RecipeDiscoveryFilter.LowCarb -> R.string.food_recipe_tag_low_carb
+    RecipeDiscoveryFilter.Vegetarian -> R.string.food_recipe_tag_vegetarian
+    RecipeDiscoveryFilter.Quick -> R.string.food_recipe_tag_quick
+    RecipeDiscoveryFilter.Favorites -> R.string.food_filter_favorites
+    RecipeDiscoveryFilter.Program -> R.string.food_filter_program
+}
 
 internal data class RecipeBrowserSections(
     val savedRecipes: List<RecipeDiscoveryItemUiState>,
@@ -3893,6 +4058,7 @@ internal data class RecipeBrowserLane(
     val id: String,
     val title: String,
     val items: List<RecipeDiscoveryItemUiState>,
+    val titleText: UiText = UiText.Verbatim(title),
 )
 
 internal fun recipeBrowserMealLanes(
@@ -3907,11 +4073,15 @@ internal fun recipeBrowserMealLanes(
                 if (laneItems.isEmpty()) {
                     null
                 } else {
-                    RecipeBrowserLane(id = meal.id, title = meal.title, items = laneItems)
+                    RecipeBrowserLane(id = meal.id, title = meal.title, items = laneItems, titleText = meal.titleText)
                 }
             }
     return lanes.ifEmpty {
-        if (items.isEmpty()) emptyList() else listOf(RecipeBrowserLane("all", "All recipes", items))
+        if (items.isEmpty()) {
+            emptyList()
+        } else {
+            listOf(RecipeBrowserLane("all", "all", items, uiText(R.string.food_all_recipes)))
+        }
     }
 }
 
@@ -3961,19 +4131,19 @@ private fun RecipeDiscoveryCatalog(
     onItemClick: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionTitle("Recipe discovery")
+        SectionTitle(stringResource(R.string.food_recipe_discovery))
         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RecipeDiscoveryFilter.entries.forEach { filter ->
                 FilterChip(
                     selected = state.recipeDiscovery.filter == filter,
                     onClick = { onFilterChanged(filter) },
-                    label = { Text(filter.label) },
+                    label = { Text(stringResource(filter.labelResource())) },
                 )
             }
         }
         if (state.recipeDiscovery.visibleItems.isEmpty()) {
             Text(
-                text = "No recipes match this filter yet.",
+                text = stringResource(R.string.food_no_recipes_match_filter),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -3988,24 +4158,35 @@ private fun RecipeDiscoveryCatalog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                text = item.subtitle,
+                                item.titleText.asString(),
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = item.subtitleText.asString(),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MusFitTheme.colors.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = "${item.caloriesKcal.formatNutritionDisplay()} kcal - P ${item.proteinGrams.formatNutritionDisplay()} - C ${item.carbsGrams.formatNutritionDisplay()} - F ${item.fatGrams.formatNutritionDisplay()}",
+                                text = stringResource(
+                                    R.string.food_recipe_macro_summary,
+                                    item.caloriesKcal.formatNutritionDisplay(),
+                                    item.proteinGrams.formatNutritionDisplay(),
+                                    item.carbsGrams.formatNutritionDisplay(),
+                                    item.fatGrams.formatNutritionDisplay(),
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MusFitTheme.colors.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            if (item.tagLabels.isNotEmpty()) {
+                            if (item.tagTexts.isNotEmpty()) {
                                 Text(
-                                    text = item.tagLabels.joinToString(" - "),
+                                    text = item.tagTexts.joinAsString(stringResource(R.string.food_separator)),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MusFitTheme.colors.brand,
                                     maxLines = 1,
@@ -4014,7 +4195,13 @@ private fun RecipeDiscoveryCatalog(
                             }
                         }
                         Button(onClick = { onItemClick(item.id) }, modifier = Modifier.width(96.dp)) {
-                            Text(if (item.isSavedRecipe) state.foodEntryActionVerb() else "Use")
+                            Text(
+                                if (item.isSavedRecipe) {
+                                    state.foodEntryActionVerb()
+                                } else {
+                                    stringResource(R.string.food_use)
+                                },
+                            )
                         }
                     }
                     HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
@@ -4022,6 +4209,15 @@ private fun RecipeDiscoveryCatalog(
             }
         }
     }
+}
+
+@Composable
+private fun List<UiText>.joinAsString(separator: String): String {
+    val values = mutableListOf<String>()
+    for (text in this) {
+        values += text.asString()
+    }
+    return values.joinToString(separator)
 }
 
 @Composable
@@ -4054,7 +4250,7 @@ internal fun MealTemplatesPanel(
         state.mealTemplateEditor?.let { editor ->
             item(key = "meal-template-editor") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionTitle("Edit template")
+                    SectionTitle(stringResource(R.string.food_edit_template))
                     OutlinedTextField(
                         value = editor.name,
                         onValueChange = onNameChanged,
@@ -4123,7 +4319,7 @@ internal fun MealTemplatesPanel(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = MusFitTheme.colors.brand),
                     ) {
-                        Text(if (state.isSaving) "Saving" else "Save template")
+                        Text(stringResource(if (state.isSaving) R.string.food_saving else R.string.food_save_template))
                     }
                 }
             }
@@ -4168,7 +4364,7 @@ internal fun MealTemplatesPanel(
                             Text(state.foodEntryActionVerb())
                         }
                         MusFitOutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
-                            Text(if (template.isFavorite) "Starred" else "Star")
+                            Text(stringResource(if (template.isFavorite) R.string.food_starred else R.string.food_star))
                         }
                         MusFitOutlinedButton(onClick = { onEditClick(template.id) }) {
                             Text(stringResource(DesignR.string.common_edit))

@@ -48,6 +48,7 @@ import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.feature.food.R
 import com.musfit.testing.MainDispatcherRule
+import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.UiText
 import com.musfit.ui.text.pluralUiText
 import com.musfit.ui.text.uiText
@@ -72,6 +73,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FoodViewModelTest {
@@ -621,7 +623,7 @@ class FoodViewModelTest {
         assertTrue(
             uiText(
                 R.string.food_insight_meal_balanced,
-                UiText.Argument.Text("Breakfast"),
+                UiText.Argument.Resource(R.string.food_meal_breakfast),
             ) in insightTitles,
         )
     }
@@ -3469,20 +3471,35 @@ class FoodViewModelTest {
 
         assertEquals(
             listOf(
-                "Balanced",
-                "High protein",
-                "Muscle gain",
-                "Weight loss",
-                "Keto low carb",
-                "Mediterranean-style",
-                "Clean eating",
+                uiText(R.string.food_program_balanced_title),
+                uiText(R.string.food_program_high_protein_title),
+                uiText(R.string.food_program_muscle_gain_title),
+                uiText(R.string.food_program_weight_loss_title),
+                uiText(R.string.food_program_keto_title),
+                uiText(R.string.food_program_mediterranean_title),
+                uiText(R.string.food_program_clean_title),
             ),
             programs.map { it.title },
         )
-        assertTrue(programs.first { it.title == "Balanced" }.isSelected)
-        assertTrue(programs.first { it.title == "High protein" }.macroTargetsLabel.contains("156 g protein"))
-        assertTrue(programs.first { it.title == "Mediterranean-style" }.suggestedHabits.any { it.contains("olive", ignoreCase = true) })
-        assertTrue(programs.first { it.title == "Clean eating" }.mealPlanningTip.contains("prep", ignoreCase = true))
+        assertTrue(programs.first { it.id == "balanced" }.isSelected)
+        assertEquals(
+            uiText(
+                R.string.food_program_macro_targets,
+                UiText.Argument.Decimal(2083.0),
+                UiText.Argument.Decimal(156.0),
+                UiText.Argument.Decimal(208.0),
+                UiText.Argument.Decimal(69.0),
+            ),
+            programs.first { it.id == "high-protein" }.macroTargetsLabel,
+        )
+        assertTrue(
+            uiText(R.string.food_program_mediterranean_habit_fats) in
+                programs.first { it.id == "mediterranean-style" }.suggestedHabits,
+        )
+        assertEquals(
+            uiText(R.string.food_program_clean_tip),
+            programs.first { it.id == "clean-eating" }.mealPlanningTip,
+        )
     }
 
     @Test
@@ -3503,7 +3520,7 @@ class FoodViewModelTest {
         assertEquals(
             uiText(
                 R.string.food_message_applied_program,
-                UiText.Argument.Text("Mediterranean-style"),
+                UiText.Argument.Resource(R.string.food_program_mediterranean_title),
             ),
             viewModel.state.value.message,
         )
@@ -4715,16 +4732,32 @@ class FoodViewModelTest {
             viewModel.state.value.fastingTimer.programs.map { it.id },
         )
         assertEquals("16-8", viewModel.state.value.fastingTimer.selectedProgramId)
-        assertEquals("20:00 - 12:00", viewModel.state.value.fastingTimer.fastingWindowLabel)
-        assertEquals("12:00 - 20:00", viewModel.state.value.fastingTimer.eatingWindowLabel)
+        val initialStart = LocalizedFormatter.time(LocalTime.of(20, 0))
+        val initialEnd = LocalizedFormatter.time(LocalTime.of(12, 0))
+        assertEquals(
+            uiText(R.string.food_time_window, UiText.Argument.Text(initialStart), UiText.Argument.Text(initialEnd)),
+            viewModel.state.value.fastingTimer.fastingWindowLabel,
+        )
+        assertEquals(
+            uiText(R.string.food_time_window, UiText.Argument.Text(initialEnd), UiText.Argument.Text(initialStart)),
+            viewModel.state.value.fastingTimer.eatingWindowLabel,
+        )
         assertEquals(16.0 / 24.0, viewModel.state.value.fastingTimer.progress, 0.01)
 
         viewModel.selectFastingProgram("14-10")
         viewModel.onFastingStartTimeChanged("21:30")
 
         assertEquals("14-10", viewModel.state.value.fastingTimer.selectedProgramId)
-        assertEquals("21:30 - 11:30", viewModel.state.value.fastingTimer.fastingWindowLabel)
-        assertEquals("11:30 - 21:30", viewModel.state.value.fastingTimer.eatingWindowLabel)
+        val updatedStart = LocalizedFormatter.time(LocalTime.of(21, 30))
+        val updatedEnd = LocalizedFormatter.time(LocalTime.of(11, 30))
+        assertEquals(
+            uiText(R.string.food_time_window, UiText.Argument.Text(updatedStart), UiText.Argument.Text(updatedEnd)),
+            viewModel.state.value.fastingTimer.fastingWindowLabel,
+        )
+        assertEquals(
+            uiText(R.string.food_time_window, UiText.Argument.Text(updatedEnd), UiText.Argument.Text(updatedStart)),
+            viewModel.state.value.fastingTimer.eatingWindowLabel,
+        )
     }
 
     @Test
@@ -4739,8 +4772,22 @@ class FoodViewModelTest {
 
         val custom = viewModel.state.value.fastingTimer.programs.single { it.id == "custom" }
         assertEquals("custom", viewModel.state.value.fastingTimer.selectedProgramId)
-        assertEquals("Custom 18:6", custom.title)
-        assertEquals("20:00 - 14:00", viewModel.state.value.fastingTimer.fastingWindowLabel)
+        assertEquals(
+            uiText(
+                R.string.food_fasting_custom_title,
+                UiText.Argument.Text("18"),
+                UiText.Argument.Text("6"),
+            ),
+            custom.title,
+        )
+        assertEquals(
+            uiText(
+                R.string.food_time_window,
+                UiText.Argument.Text(LocalizedFormatter.time(LocalTime.of(20, 0))),
+                UiText.Argument.Text(LocalizedFormatter.time(LocalTime.of(14, 0))),
+            ),
+            viewModel.state.value.fastingTimer.fastingWindowLabel,
+        )
         assertEquals(uiText(R.string.food_message_custom_fasting_active), viewModel.state.value.message)
 
         viewModel.onCustomFastingHoursChanged("19")
@@ -4768,7 +4815,13 @@ class FoodViewModelTest {
         assertEquals("16", viewModel.state.value.proteinPer100g)
         assertEquals("19", viewModel.state.value.carbsPer100g)
         assertEquals("11", viewModel.state.value.fatPer100g)
-        assertEquals("Local estimate: eggs, toast", viewModel.state.value.aiLoggingDraftReview)
+        assertEquals(
+            uiText(
+                R.string.food_local_estimate_named,
+                UiText.Argument.Text("eggs, toast"),
+            ),
+            viewModel.state.value.aiLoggingDraftReviewText,
+        )
         assertEquals(uiText(R.string.food_message_review_ai_suggestion), viewModel.state.value.message)
 
         viewModel.onCaloriesChanged("360")
@@ -4819,7 +4872,8 @@ class FoodViewModelTest {
 
         assertNull(repository.savedLog)
         assertTrue(viewModel.state.value.aiLoggingHasDraft)
-        assertEquals("Voice draft", viewModel.state.value.productName)
+        assertEquals("", viewModel.state.value.productName)
+        assertEquals(uiText(R.string.food_voice_draft), viewModel.state.value.aiLoggingDraftNameText)
         assertEquals(uiText(R.string.food_message_voice_placeholder), viewModel.state.value.message)
 
         viewModel.startAiPhotoLoggingPlaceholder()
@@ -4827,7 +4881,8 @@ class FoodViewModelTest {
 
         assertNull(repository.savedLog)
         assertTrue(viewModel.state.value.aiLoggingHasDraft)
-        assertEquals("Photo draft", viewModel.state.value.productName)
+        assertEquals("", viewModel.state.value.productName)
+        assertEquals(uiText(R.string.food_photo_draft), viewModel.state.value.aiLoggingDraftNameText)
         assertEquals(uiText(R.string.food_message_photo_placeholder), viewModel.state.value.message)
     }
 

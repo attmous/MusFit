@@ -38,6 +38,9 @@ sealed interface UiText {
 
         @JvmInline
         value class Resource(@StringRes val resourceId: Int) : Argument
+
+        @JvmInline
+        value class Nested(val value: UiText) : Argument
     }
 }
 
@@ -72,5 +75,6 @@ private fun List<UiText.Argument>.toFormatArguments(resources: Resources): Array
         is UiText.Argument.LongInteger -> argument.value
         is UiText.Argument.Decimal -> argument.value
         is UiText.Argument.Resource -> resources.getString(argument.resourceId)
+        is UiText.Argument.Nested -> argument.value.resolve(resources)
     }
 }.toTypedArray()

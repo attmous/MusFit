@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.UiText
 import com.musfit.ui.theme.MusFitTheme
 import java.util.Locale
@@ -221,16 +222,11 @@ internal fun SmallNumberField(
     )
 }
 
-internal fun Double.formatNutritionDisplay(): String {
-    val tenths = (this * 10.0).roundToInt()
-    val whole = tenths / 10
-    val decimal = tenths % 10
-    return if (decimal == 0) {
-        whole.toString()
-    } else {
-        "$whole.$decimal"
-    }
-}
+internal fun Double.formatNutritionDisplay(): String = LocalizedFormatter.number(
+    value = this,
+    maximumFractionDigits = 1,
+    grouping = false,
+)
 
 internal fun Double.formatMicronutrientDisplay(): String = if (this < 10.0 && this != roundToInt().toDouble()) {
     formatNutritionDisplay()

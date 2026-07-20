@@ -1,5 +1,6 @@
 package com.musfit.ui.food
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -45,6 +46,7 @@ import com.musfit.domain.model.FoodNutrition
 import com.musfit.domain.model.NutritionTotals
 import com.musfit.domain.nutrition.NutritionCalculator
 import com.musfit.feature.food.R
+import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.UiText
 import com.musfit.ui.text.pluralUiText
 import com.musfit.ui.text.uiText
@@ -135,6 +137,7 @@ data class FoodMacroProgressUiState(
     val label: String,
     val currentGrams: Double,
     val goalGrams: Double,
+    val labelText: UiText = UiText.Verbatim(label),
 )
 
 data class FoodNutrientProgressUiState(
@@ -143,12 +146,14 @@ data class FoodNutrientProgressUiState(
     val goalValue: Double,
     val unit: String,
     val isLimit: Boolean,
+    val labelText: UiText = UiText.Verbatim(label),
 )
 
 data class FoodMicronutrientUiState(
     val label: String,
     val value: Double,
     val unit: String,
+    val labelText: UiText = UiText.Verbatim(label),
 )
 
 enum class FoodInsightTone {
@@ -216,12 +221,12 @@ data class NutritionLabelScanReviewUiState(
 data class FoodProgramUiState(
     val id: String,
     val mode: FoodGoalMode,
-    val title: String,
-    val subtitle: String,
-    val description: String,
-    val macroTargetsLabel: String,
-    val suggestedHabits: List<String>,
-    val mealPlanningTip: String,
+    val title: UiText,
+    val subtitle: UiText,
+    val description: UiText,
+    val macroTargetsLabel: UiText,
+    val suggestedHabits: List<UiText>,
+    val mealPlanningTip: UiText,
     val isSelected: Boolean,
 )
 
@@ -250,6 +255,11 @@ data class RecipeDiscoveryItemUiState(
     val sourceRecipeId: String? = null,
     val mealTypeIds: List<String> = emptyList(),
     val thumbnailKey: String = "bowl",
+    val titleText: UiText = UiText.Verbatim(title),
+    val subtitleText: UiText = UiText.Verbatim(subtitle),
+    val categoryText: UiText = UiText.Verbatim(category),
+    val servingNameText: UiText = UiText.Verbatim(servingName),
+    val tagTexts: List<UiText> = tagLabels.map(UiText::Verbatim),
 )
 
 enum class FoodHabitStatus {
@@ -348,6 +358,9 @@ data class FoodMealSectionUiState(
     val micronutrients: List<FoodMicronutrientUiState> = emptyList(),
     val rating: FoodRatingUiState? = null,
     val entries: List<FoodMealEntryUiState>,
+    val titleText: UiText = UiText.Verbatim(title),
+    val recommendationText: UiText = UiText.Verbatim(recommendation),
+    val carbsLabelText: UiText = UiText.Verbatim(carbsLabel),
 )
 
 data class FoodPlanDayUiState(
@@ -366,6 +379,7 @@ data class ShoppingListItemUiState(
     val quantityLabel: String,
     val isChecked: Boolean,
     val isManual: Boolean,
+    val quantityLabelText: UiText = UiText.Verbatim(quantityLabel),
 )
 
 data class ShoppingListGroupUiState(
@@ -381,6 +395,8 @@ data class FoodMealDefinitionUiState(
     val sortOrder: Int,
     val isDefault: Boolean,
     val isHidden: Boolean = false,
+    val titleText: UiText = UiText.Verbatim(title),
+    val timeLabelText: UiText = UiText.Verbatim(timeLabel),
 )
 
 enum class FoodTrustLevel {
@@ -442,6 +458,7 @@ data class SavedFoodUiState(
     val sourceLabel: String = "Manual",
     val trust: FoodTrustUiState = emptyFoodTrust(),
     val servings: List<SavedFoodServingUiState> = emptyList(),
+    val sourceText: UiText = uiText(R.string.food_manual_entry),
 )
 
 data class SavedFoodServingUiState(
@@ -455,6 +472,7 @@ data class FoodDuplicateGroupUiState(
     val duplicateFoodIds: List<String>,
     val title: String,
     val reason: String,
+    val reasonText: UiText = UiText.Verbatim(reason),
 )
 
 data class OnlineFoodResultUiState(
@@ -492,18 +510,19 @@ data class BarcodeComparisonItemUiState(
     val sugarPer100g: Double,
     val sodiumMgPer100g: Double,
     val imageUrl: String? = null,
+    val sourceText: UiText = UiText.Verbatim(sourceLabel),
 )
 
 data class BarcodeComparisonHighlightUiState(
     val label: UiText,
-    val leftValue: String,
-    val rightValue: String,
+    val leftValue: UiText,
+    val rightValue: UiText,
     val winnerSide: BarcodeComparisonSide?,
 ) {
     constructor(label: String, leftValue: String, rightValue: String, winnerSide: BarcodeComparisonSide?) : this(
         UiText.Verbatim(label),
-        leftValue,
-        rightValue,
+        UiText.Verbatim(leftValue),
+        UiText.Verbatim(rightValue),
         winnerSide,
     )
 }
@@ -522,10 +541,10 @@ data class BarcodeComparisonUiState(
 
 data class FastingProgramUiState(
     val id: String,
-    val title: String,
+    val title: UiText,
     val fastingHours: Double,
     val eatingHours: Double,
-    val description: String,
+    val description: UiText,
     val isSelected: Boolean,
 )
 
@@ -533,9 +552,20 @@ data class FastingTimerUiState(
     val selectedProgramId: String = "16-8",
     val programs: List<FastingProgramUiState> = emptyFastingPrograms("16-8", 16.0, 8.0),
     val fastingStartInput: String = "20:00",
-    val fastingWindowLabel: String = "20:00 - 12:00",
-    val eatingWindowLabel: String = "12:00 - 20:00",
-    val statusLabel: String = "16:8 fasting plan active",
+    val fastingWindowLabel: UiText = uiText(
+        R.string.food_time_window,
+        UiText.Argument.Text("20:00"),
+        UiText.Argument.Text("12:00"),
+    ),
+    val eatingWindowLabel: UiText = uiText(
+        R.string.food_time_window,
+        UiText.Argument.Text("12:00"),
+        UiText.Argument.Text("20:00"),
+    ),
+    val statusLabel: UiText = uiText(
+        R.string.food_fasting_plan_active,
+        UiText.Argument.Resource(R.string.food_fasting_sixteen_title),
+    ),
     val progress: Double = 16.0 / 24.0,
     val customFastingHoursInput: String = "16",
     val customEatingHoursInput: String = "8",
@@ -621,7 +651,7 @@ data class FavoriteAddItemUiState(
     val id: String,
     val type: FavoriteAddItemType,
     val title: String,
-    val subtitle: String,
+    val subtitleText: UiText,
 )
 
 data class DeletedDiaryEntrySnapshot(
@@ -793,6 +823,7 @@ private fun FoodRestorationState.toFoodUiStateOrNull(): FoodUiState? {
         addTab = AddTab.entries.firstOrNull { it.name == addTab } ?: AddTab.Recents,
         mealType = mealType,
         selectedMealTitle = selectedMealTitle,
+        selectedMealTitleText = mealType.mealTitleText(),
         foodDatabaseQuery = foodDatabaseQuery,
         barcode = barcode,
         productName = productName,
@@ -881,7 +912,7 @@ data class FoodUiState(
     val foodHealthConnectCanRequestPermissions: Boolean = false,
     val foodHealthConnectCanSync: Boolean = false,
     val foodHealthConnectRequestablePermissions: Set<String> = emptySet(),
-    val foodHealthConnectPermissionSummary: String = "Health Connect unavailable",
+    val foodHealthConnectPermissionSummary: UiText = uiText(R.string.food_health_connect_unavailable),
     val foodHealthConnectLastSyncAtEpochMillis: Long? = null,
     val foodHealthConnectLastFailureMessage: String? = null,
     val shoppingListGroups: List<ShoppingListGroupUiState> = emptyList(),
@@ -910,6 +941,7 @@ data class FoodUiState(
     val isAddPanelVisible: Boolean = false,
     val sheetMode: FoodSheetMode? = null,
     val selectedMealTitle: String = "Breakfast",
+    val selectedMealTitleText: UiText = uiText(R.string.food_meal_breakfast),
     val addMode: FoodAddMode = FoodAddMode.Saved,
     val savedFoodQuantityGrams: String = "100",
     val selectedSavedFoodDetail: SavedFoodUiState? = null,
@@ -920,8 +952,9 @@ data class FoodUiState(
     val quickFatGrams: String = "",
     val aiLoggingText: String = "",
     val aiLoggingHasDraft: Boolean = false,
-    val aiLoggingDraftSourceLabel: String? = null,
-    val aiLoggingDraftReview: String? = null,
+    val aiLoggingDraftNameText: UiText? = null,
+    val aiLoggingDraftSourceText: UiText? = null,
+    val aiLoggingDraftReviewText: UiText? = null,
     val nutritionLabelScanReview: NutritionLabelScanReviewUiState? = null,
     val keepAddingFoods: Boolean = false,
     val foodDatabaseQuery: String = "",
@@ -1140,7 +1173,10 @@ class FoodViewModel @Inject constructor(
                         val mealDefinitions = definitions.toMealDefinitionUiStates()
                         val updatedState = currentState.copy(mealDefinitions = mealDefinitions)
                         updatedState
-                            .copy(selectedMealTitle = updatedState.mealTitleFor(updatedState.mealType))
+                            .copy(
+                                selectedMealTitle = updatedState.mealTitleFor(updatedState.mealType),
+                                selectedMealTitleText = updatedState.mealTitleTextFor(updatedState.mealType),
+                            )
                             .withDiary(currentDiary)
                     }
                 }
@@ -1476,6 +1512,7 @@ class FoodViewModel @Inject constructor(
                 sheetMode = FoodSheetMode.AddFood,
                 mealType = normalizedMealType,
                 selectedMealTitle = currentState.mealTitleFor(normalizedMealType),
+                selectedMealTitleText = currentState.mealTitleTextFor(normalizedMealType),
                 addMode = FoodAddMode.Saved,
                 addTab = AddTab.Recents,
                 message = null,
@@ -1531,12 +1568,12 @@ class FoodViewModel @Inject constructor(
             it.withAiLoggingDraft(
                 draft = AiLoggingDraft(
                     name = text.take(80),
-                    sourceLabel = "Text",
+                    sourceText = uiText(R.string.food_source_text),
                     caloriesPer100g = draft.caloriesKcal.formatInputNumber(),
                     proteinPer100g = draft.proteinGrams.formatInputNumber(),
                     carbsPer100g = draft.carbsGrams.formatInputNumber(),
                     fatPer100g = draft.fatGrams.formatInputNumber(),
-                    review = draft.review,
+                    reviewText = draft.reviewText,
                 ),
                 message = uiText(R.string.food_message_review_ai_suggestion),
             )
@@ -1546,7 +1583,11 @@ class FoodViewModel @Inject constructor(
     fun startAiVoiceLoggingPlaceholder() {
         mutableState.update {
             it.withAiLoggingDraft(
-                draft = AiLoggingDraft(name = "Voice draft", sourceLabel = "Voice"),
+                draft = AiLoggingDraft(
+                    name = "",
+                    sourceText = uiText(R.string.food_source_voice),
+                    nameText = uiText(R.string.food_voice_draft),
+                ),
                 message = uiText(R.string.food_message_voice_placeholder),
             )
         }
@@ -1555,7 +1596,11 @@ class FoodViewModel @Inject constructor(
     fun startAiPhotoLoggingPlaceholder() {
         mutableState.update {
             it.withAiLoggingDraft(
-                draft = AiLoggingDraft(name = "Photo draft", sourceLabel = "Photo"),
+                draft = AiLoggingDraft(
+                    name = "",
+                    sourceText = uiText(R.string.food_source_photo),
+                    nameText = uiText(R.string.food_photo_draft),
+                ),
                 message = uiText(R.string.food_message_photo_placeholder),
             )
         }
@@ -3431,6 +3476,7 @@ class FoodViewModel @Inject constructor(
             it.copy(
                 mealType = value,
                 selectedMealTitle = it.mealTitleFor(value),
+                selectedMealTitleText = it.mealTitleTextFor(value),
                 message = null,
             )
         }
@@ -4159,7 +4205,7 @@ class FoodViewModel @Inject constructor(
                             sheetMode = null,
                             message = uiText(
                                 R.string.food_message_applied_program,
-                                UiText.Argument.Text(program.title),
+                                UiText.Argument.Resource(program.titleResourceId),
                             ),
                         )
                 }
@@ -4821,8 +4867,9 @@ class FoodViewModel @Inject constructor(
         amountServingChoices = defaultAmountServingChoices(),
         lookupResult = null,
         aiLoggingHasDraft = true,
-        aiLoggingDraftSourceLabel = draft.sourceLabel,
-        aiLoggingDraftReview = draft.review,
+        aiLoggingDraftNameText = draft.nameText,
+        aiLoggingDraftSourceText = draft.sourceText,
+        aiLoggingDraftReviewText = draft.reviewText,
         nutritionLabelScanReview = null,
         message = message,
     ).withAmountNutritionPreview()
@@ -4842,26 +4889,30 @@ class FoodViewModel @Inject constructor(
         amountServingChoices = emptyList(),
         lookupResult = null,
         aiLoggingHasDraft = false,
-        aiLoggingDraftSourceLabel = null,
-        aiLoggingDraftReview = null,
+        aiLoggingDraftNameText = null,
+        aiLoggingDraftSourceText = null,
+        aiLoggingDraftReviewText = null,
         nutritionLabelScanReview = null,
     )
 }
 
 private data class AiLoggingDraft(
     val name: String,
-    val sourceLabel: String,
+    val sourceText: UiText,
+    val nameText: UiText? = null,
     val caloriesPer100g: String = "250",
     val proteinPer100g: String = "12",
     val carbsPer100g: String = "30",
     val fatPer100g: String = "8",
-    val review: String? = "Local estimate: generic meal",
+    val reviewText: UiText? = uiText(R.string.food_local_estimate_generic),
 )
 
 private data class MealDefinition(
     val id: String,
     val title: String,
+    @StringRes val titleResourceId: Int,
     val recommendation: String,
+    @StringRes val recommendationResourceId: Int,
     val calorieTargetKcal: Double,
     val sortOrder: Int,
     val timeMinutes: Int? = null,
@@ -4882,11 +4933,11 @@ private data class GoalPreset(
 private data class FoodProgramDefinition(
     val id: String,
     val mode: FoodGoalMode,
-    val title: String,
-    val subtitle: String,
-    val description: String,
-    val suggestedHabits: List<String>,
-    val mealPlanningTip: String,
+    @StringRes val titleResourceId: Int,
+    @StringRes val subtitleResourceId: Int,
+    @StringRes val descriptionResourceId: Int,
+    val suggestedHabitResourceIds: List<Int>,
+    @StringRes val mealPlanningTipResourceId: Int,
 )
 
 private fun FoodUiState.goalForProgram(
@@ -4914,25 +4965,29 @@ private fun FoodUiState.goalForProgram(
 private data class RecipeCatalogItem(
     val id: String,
     val title: String,
+    @StringRes val titleResourceId: Int,
     val category: String,
+    @StringRes val categoryResourceId: Int,
     val mealTypeIds: List<String>,
     val thumbnailKey: String,
     val servingName: String,
+    @StringRes val servingNameResourceId: Int,
     val servingGrams: Double,
     val caloriesKcal: Double,
     val proteinGrams: Double,
     val carbsGrams: Double,
     val fatGrams: Double,
     val tags: List<String>,
+    val tagResourceIds: List<Int>,
     val relevantModes: Set<FoodGoalMode>,
 )
 
 private data class FastingProgramDefinition(
     val id: String,
-    val title: String,
+    @StringRes val titleResourceId: Int,
     val fastingHours: Double,
     val eatingHours: Double,
-    val description: String,
+    @StringRes val descriptionResourceId: Int,
 )
 
 private data class LocalAiNutritionDraft(
@@ -4940,15 +4995,47 @@ private data class LocalAiNutritionDraft(
     val proteinGrams: Double,
     val carbsGrams: Double,
     val fatGrams: Double,
-    val review: String,
+    val reviewText: UiText,
 )
 
 private val mealDefinitions =
     listOf(
-        MealDefinition("breakfast", "Breakfast", "Recommended 417 - 625 kcal", 625.0, sortOrder = 0),
-        MealDefinition("lunch", "Lunch", "Recommended 625 - 833 kcal", 833.0, sortOrder = 10),
-        MealDefinition("dinner", "Dinner", "Recommended 625 - 833 kcal", 833.0, sortOrder = 20),
-        MealDefinition("snacks", "Snacks", "Recommended 104 - 208 kcal", 208.0, sortOrder = 30),
+        MealDefinition(
+            id = "breakfast",
+            title = "Breakfast",
+            titleResourceId = R.string.food_meal_breakfast,
+            recommendation = "Recommended 417 - 625 kcal",
+            recommendationResourceId = R.string.food_meal_breakfast_recommendation,
+            calorieTargetKcal = 625.0,
+            sortOrder = 0,
+        ),
+        MealDefinition(
+            id = "lunch",
+            title = "Lunch",
+            titleResourceId = R.string.food_meal_lunch,
+            recommendation = "Recommended 625 - 833 kcal",
+            recommendationResourceId = R.string.food_meal_lunch_recommendation,
+            calorieTargetKcal = 833.0,
+            sortOrder = 10,
+        ),
+        MealDefinition(
+            id = "dinner",
+            title = "Dinner",
+            titleResourceId = R.string.food_meal_dinner,
+            recommendation = "Recommended 625 - 833 kcal",
+            recommendationResourceId = R.string.food_meal_dinner_recommendation,
+            calorieTargetKcal = 833.0,
+            sortOrder = 20,
+        ),
+        MealDefinition(
+            id = "snacks",
+            title = "Snacks",
+            titleResourceId = R.string.food_meal_snacks,
+            recommendation = "Recommended 104 - 208 kcal",
+            recommendationResourceId = R.string.food_meal_snacks_recommendation,
+            calorieTargetKcal = 208.0,
+            sortOrder = 30,
+        ),
     )
 
 private val defaultMealDefinitionIds = mealDefinitions.map { it.id }.toSet()
@@ -4978,65 +5065,93 @@ private val foodProgramDefinitions =
         FoodProgramDefinition(
             id = "balanced",
             mode = FoodGoalMode.Balanced,
-            title = "Balanced",
-            subtitle = "Steady everyday nutrition",
-            description = "A practical calorie and macro split for general tracking.",
-            suggestedHabits = listOf("Water daily", "Fruit or vegetables at two meals", "Protein with each main meal"),
-            mealPlanningTip = "Plan simple repeatable meals, then adjust portions by hunger and progress.",
+            titleResourceId = R.string.food_program_balanced_title,
+            subtitleResourceId = R.string.food_program_balanced_subtitle,
+            descriptionResourceId = R.string.food_program_balanced_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_balanced_habit_water,
+                R.string.food_program_balanced_habit_produce,
+                R.string.food_program_balanced_habit_protein,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_balanced_tip,
         ),
         FoodProgramDefinition(
             id = "high-protein",
             mode = FoodGoalMode.HighProtein,
-            title = "High protein",
-            subtitle = "Protein-forward meals",
-            description = "Raises protein while keeping carbs and fats moderate.",
-            suggestedHabits = listOf("Lean protein each meal", "High-protein snack", "Fiber side with protein meals"),
-            mealPlanningTip = "Build templates around eggs, yogurt, fish, meat, tofu, or legumes.",
+            titleResourceId = R.string.food_program_high_protein_title,
+            subtitleResourceId = R.string.food_program_high_protein_subtitle,
+            descriptionResourceId = R.string.food_program_high_protein_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_high_protein_habit_meals,
+                R.string.food_program_high_protein_habit_snack,
+                R.string.food_program_high_protein_habit_fiber,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_high_protein_tip,
         ),
         FoodProgramDefinition(
             id = "muscle-gain",
             mode = FoodGoalMode.MuscleGain,
-            title = "Muscle gain",
-            subtitle = "More energy with protein",
-            description = "Adds calories and carbs while keeping protein high.",
-            suggestedHabits = listOf("Protein every 3-5 hours", "Carbs around training", "Consistent water"),
-            mealPlanningTip = "Plan larger lunches and dinners so calories do not pile up late.",
+            titleResourceId = R.string.food_program_muscle_gain_title,
+            subtitleResourceId = R.string.food_program_muscle_gain_subtitle,
+            descriptionResourceId = R.string.food_program_muscle_gain_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_muscle_gain_habit_protein,
+                R.string.food_program_muscle_gain_habit_carbs,
+                R.string.food_program_muscle_gain_habit_water,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_muscle_gain_tip,
         ),
         FoodProgramDefinition(
             id = "weight-loss",
             mode = FoodGoalMode.WeightLoss,
-            title = "Weight loss",
-            subtitle = "Controlled energy, high satiety",
-            description = "Moderates calories while protecting protein and fiber.",
-            suggestedHabits = listOf("Protein first", "Vegetables daily", "Lower-sugar snacks"),
-            mealPlanningTip = "Pre-plan snacks and dinner portions before the day gets busy.",
+            titleResourceId = R.string.food_program_weight_loss_title,
+            subtitleResourceId = R.string.food_program_weight_loss_subtitle,
+            descriptionResourceId = R.string.food_program_weight_loss_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_weight_loss_habit_protein,
+                R.string.food_program_weight_loss_habit_vegetables,
+                R.string.food_program_weight_loss_habit_snacks,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_weight_loss_tip,
         ),
         FoodProgramDefinition(
             id = "keto-low-carb",
             mode = FoodGoalMode.KetoLowCarb,
-            title = "Keto low carb",
-            subtitle = "Lower carbs with net-carb tracking",
-            description = "Keeps carbs low and uses fats for more energy.",
-            suggestedHabits = listOf("Track net carbs", "Electrolyte-aware hydration", "Non-starchy vegetables"),
-            mealPlanningTip = "Plan protein plus low-carb vegetables before adding fats.",
+            titleResourceId = R.string.food_program_keto_title,
+            subtitleResourceId = R.string.food_program_keto_subtitle,
+            descriptionResourceId = R.string.food_program_keto_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_keto_habit_net_carbs,
+                R.string.food_program_keto_habit_hydration,
+                R.string.food_program_keto_habit_vegetables,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_keto_tip,
         ),
         FoodProgramDefinition(
             id = "mediterranean-style",
             mode = FoodGoalMode.MediterraneanStyle,
-            title = "Mediterranean-style",
-            subtitle = "Fiber, fish, olive oil, legumes",
-            description = "Emphasizes higher fiber carbs, unsaturated fats, and fish or legumes.",
-            suggestedHabits = listOf("Olive oil or nuts", "Fish weekly", "Beans, grains, fruit, and vegetables"),
-            mealPlanningTip = "Plan bowls, salads, fish dinners, and legume-based lunches.",
+            titleResourceId = R.string.food_program_mediterranean_title,
+            subtitleResourceId = R.string.food_program_mediterranean_subtitle,
+            descriptionResourceId = R.string.food_program_mediterranean_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_mediterranean_habit_fats,
+                R.string.food_program_mediterranean_habit_fish,
+                R.string.food_program_mediterranean_habit_plants,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_mediterranean_tip,
         ),
         FoodProgramDefinition(
             id = "clean-eating",
             mode = FoodGoalMode.CleanEating,
-            title = "Clean eating",
-            subtitle = "Simple whole-food structure",
-            description = "Focuses on protein, fiber, lower sugar, and less sodium.",
-            suggestedHabits = listOf("Whole-food protein", "Vegetables twice daily", "Limit sugary packaged snacks"),
-            mealPlanningTip = "Prep a protein, a grain or potato, and chopped vegetables for fast meals.",
+            titleResourceId = R.string.food_program_clean_title,
+            subtitleResourceId = R.string.food_program_clean_subtitle,
+            descriptionResourceId = R.string.food_program_clean_description,
+            suggestedHabitResourceIds = listOf(
+                R.string.food_program_clean_habit_protein,
+                R.string.food_program_clean_habit_vegetables,
+                R.string.food_program_clean_habit_snacks,
+            ),
+            mealPlanningTipResourceId = R.string.food_program_clean_tip,
         ),
     )
 
@@ -5045,151 +5160,199 @@ private val recipeCatalogItems =
         RecipeCatalogItem(
             id = "catalog-high-protein-chicken-bowl",
             title = "High-protein chicken bowl",
+            titleResourceId = R.string.food_recipe_catalog_chicken_bowl,
             category = "Lunch",
+            categoryResourceId = R.string.food_meal_lunch,
             mealTypeIds = listOf("lunch", "dinner"),
             thumbnailKey = "chicken-bowl",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 420.0,
             caloriesKcal = 520.0,
             proteinGrams = 48.0,
             carbsGrams = 48.0,
             fatGrams = 14.0,
             tags = listOf("High protein", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_high_protein, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain),
         ),
         RecipeCatalogItem(
             id = "catalog-keto-salmon-plate",
             title = "Low-carb salmon plate",
+            titleResourceId = R.string.food_recipe_catalog_salmon_plate,
             category = "Dinner",
+            categoryResourceId = R.string.food_meal_dinner,
             mealTypeIds = listOf("dinner"),
             thumbnailKey = "salmon-plate",
             servingName = "Plate",
+            servingNameResourceId = R.string.food_serving_plate,
             servingGrams = 360.0,
             caloriesKcal = 610.0,
             proteinGrams = 42.0,
             carbsGrams = 16.0,
             fatGrams = 42.0,
             tags = listOf("High protein", "Low carb"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_high_protein, R.string.food_recipe_tag_low_carb),
             relevantModes = setOf(FoodGoalMode.KetoLowCarb, FoodGoalMode.HighProtein, FoodGoalMode.MediterraneanStyle),
         ),
         RecipeCatalogItem(
             id = "catalog-mediterranean-chickpea-bowl",
             title = "Mediterranean chickpea bowl",
+            titleResourceId = R.string.food_recipe_catalog_chickpea_bowl,
             category = "Vegetarian",
+            categoryResourceId = R.string.food_recipe_category_vegetarian,
             mealTypeIds = listOf("lunch", "dinner"),
             thumbnailKey = "chickpea-bowl",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 380.0,
             caloriesKcal = 470.0,
             proteinGrams = 24.0,
             carbsGrams = 62.0,
             fatGrams = 15.0,
             tags = listOf("Vegetarian", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-clean-breakfast-bowl",
             title = "Clean breakfast bowl",
+            titleResourceId = R.string.food_recipe_catalog_breakfast_bowl,
             category = "Breakfast",
+            categoryResourceId = R.string.food_meal_breakfast,
             mealTypeIds = listOf("breakfast"),
             thumbnailKey = "breakfast-bowl",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 330.0,
             caloriesKcal = 430.0,
             proteinGrams = 32.0,
             carbsGrams = 46.0,
             fatGrams = 12.0,
             tags = listOf("High protein", "Vegetarian", "Quick"),
+            tagResourceIds = listOf(
+                R.string.food_recipe_tag_high_protein,
+                R.string.food_recipe_tag_vegetarian,
+                R.string.food_recipe_tag_quick,
+            ),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-overnight-oats",
             title = "Silken tofu overnight oats",
+            titleResourceId = R.string.food_recipe_catalog_overnight_oats,
             category = "Breakfast",
+            categoryResourceId = R.string.food_meal_breakfast,
             mealTypeIds = listOf("breakfast"),
             thumbnailKey = "overnight-oats",
             servingName = "Jar",
+            servingNameResourceId = R.string.food_serving_jar,
             servingGrams = 340.0,
             caloriesKcal = 495.0,
             proteinGrams = 31.0,
             carbsGrams = 58.0,
             fatGrams = 14.0,
             tags = listOf("High protein", "Vegetarian", "Quick"),
+            tagResourceIds = listOf(
+                R.string.food_recipe_tag_high_protein,
+                R.string.food_recipe_tag_vegetarian,
+                R.string.food_recipe_tag_quick,
+            ),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.CleanEating),
         ),
         RecipeCatalogItem(
             id = "catalog-sweet-potato-muffins",
             title = "Sweet potato protein muffins",
+            titleResourceId = R.string.food_recipe_catalog_protein_muffins,
             category = "Breakfast",
+            categoryResourceId = R.string.food_meal_breakfast,
             mealTypeIds = listOf("breakfast", "snacks"),
             thumbnailKey = "muffins",
             servingName = "Plate",
+            servingNameResourceId = R.string.food_serving_plate,
             servingGrams = 180.0,
             caloriesKcal = 280.0,
             proteinGrams = 18.0,
             carbsGrams = 38.0,
             fatGrams = 7.0,
             tags = listOf("Vegetarian", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.WeightLoss, FoodGoalMode.CleanEating),
         ),
         RecipeCatalogItem(
             id = "catalog-apple-kale-salad",
             title = "Apple, walnut, and kale salad",
+            titleResourceId = R.string.food_recipe_catalog_kale_salad,
             category = "Lunch",
+            categoryResourceId = R.string.food_meal_lunch,
             mealTypeIds = listOf("lunch"),
             thumbnailKey = "kale-salad",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 320.0,
             caloriesKcal = 343.0,
             proteinGrams = 14.0,
             carbsGrams = 34.0,
             fatGrams = 19.0,
             tags = listOf("Vegetarian", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-avocado-bean-dip",
             title = "Avocado and bean dip",
+            titleResourceId = R.string.food_recipe_catalog_bean_dip,
             category = "Lunch",
+            categoryResourceId = R.string.food_meal_lunch,
             mealTypeIds = listOf("lunch", "snacks"),
             thumbnailKey = "bean-dip",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 250.0,
             caloriesKcal = 225.0,
             proteinGrams = 11.0,
             carbsGrams = 27.0,
             fatGrams = 9.0,
             tags = listOf("Vegetarian", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-tomato-lentil-soup",
             title = "Tomato lentil soup",
+            titleResourceId = R.string.food_recipe_catalog_lentil_soup,
             category = "Dinner",
+            categoryResourceId = R.string.food_meal_dinner,
             mealTypeIds = listOf("dinner", "lunch"),
             thumbnailKey = "soup",
             servingName = "Bowl",
+            servingNameResourceId = R.string.food_serving_bowl,
             servingGrams = 420.0,
             caloriesKcal = 390.0,
             proteinGrams = 24.0,
             carbsGrams = 52.0,
             fatGrams = 10.0,
             tags = listOf("Vegetarian"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_vegetarian),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.MediterraneanStyle, FoodGoalMode.CleanEating, FoodGoalMode.WeightLoss),
         ),
         RecipeCatalogItem(
             id = "catalog-protein-snack-box",
             title = "Protein snack box",
+            titleResourceId = R.string.food_recipe_catalog_snack_box,
             category = "Snacks",
+            categoryResourceId = R.string.food_meal_snacks,
             mealTypeIds = listOf("snacks"),
             thumbnailKey = "snack-box",
             servingName = "Box",
+            servingNameResourceId = R.string.food_serving_box,
             servingGrams = 220.0,
             caloriesKcal = 310.0,
             proteinGrams = 30.0,
             carbsGrams = 22.0,
             fatGrams = 12.0,
             tags = listOf("High protein", "Quick"),
+            tagResourceIds = listOf(R.string.food_recipe_tag_high_protein, R.string.food_recipe_tag_quick),
             relevantModes = setOf(FoodGoalMode.Balanced, FoodGoalMode.HighProtein, FoodGoalMode.MuscleGain),
         ),
     )
@@ -5198,31 +5361,31 @@ private val fastingProgramDefinitions =
     listOf(
         FastingProgramDefinition(
             id = "12-12",
-            title = "12:12",
+            titleResourceId = R.string.food_fasting_twelve_title,
             fastingHours = 12.0,
             eatingHours = 12.0,
-            description = "A gentle overnight fast with an even eating window.",
+            descriptionResourceId = R.string.food_fasting_twelve_description,
         ),
         FastingProgramDefinition(
             id = "14-10",
-            title = "14:10",
+            titleResourceId = R.string.food_fasting_fourteen_title,
             fastingHours = 14.0,
             eatingHours = 10.0,
-            description = "A moderate fast that still leaves room for three meals.",
+            descriptionResourceId = R.string.food_fasting_fourteen_description,
         ),
         FastingProgramDefinition(
             id = "16-8",
-            title = "16:8",
+            titleResourceId = R.string.food_fasting_sixteen_title,
             fastingHours = 16.0,
             eatingHours = 8.0,
-            description = "A focused daily fasting window with a compact eating window.",
+            descriptionResourceId = R.string.food_fasting_sixteen_description,
         ),
         FastingProgramDefinition(
             id = "custom",
-            title = "Custom 16:8",
+            titleResourceId = R.string.food_fasting_custom_title,
             fastingHours = 16.0,
             eatingHours = 8.0,
-            description = "Set a custom fasting and eating split that totals 24 hours.",
+            descriptionResourceId = R.string.food_fasting_custom_description,
         ),
     )
 
@@ -5306,17 +5469,18 @@ private fun buildFoodProgramUiStates(selectedMode: FoodGoalMode): List<FoodProgr
     FoodProgramUiState(
         id = program.id,
         mode = program.mode,
-        title = program.title,
-        subtitle = program.subtitle,
-        description = program.description,
-        macroTargetsLabel = listOf(
-            "${preset.dailyCaloriesKcal.formatInputNumber()} kcal",
-            "${preset.proteinGrams.formatInputNumber()} g protein",
-            "${preset.carbsGrams.formatInputNumber()} g carbs",
-            "${preset.fatGrams.formatInputNumber()} g fat",
-        ).joinToString(" - "),
-        suggestedHabits = program.suggestedHabits,
-        mealPlanningTip = program.mealPlanningTip,
+        title = uiText(program.titleResourceId),
+        subtitle = uiText(program.subtitleResourceId),
+        description = uiText(program.descriptionResourceId),
+        macroTargetsLabel = uiText(
+            R.string.food_program_macro_targets,
+            UiText.Argument.Decimal(preset.dailyCaloriesKcal),
+            UiText.Argument.Decimal(preset.proteinGrams),
+            UiText.Argument.Decimal(preset.carbsGrams),
+            UiText.Argument.Decimal(preset.fatGrams),
+        ),
+        suggestedHabits = program.suggestedHabitResourceIds.map(::uiText),
+        mealPlanningTip = uiText(program.mealPlanningTipResourceId),
         isSelected = program.mode == selectedMode,
     )
 }
@@ -5361,6 +5525,15 @@ private fun RecipeUiState.toDiscoveryItem(goalMode: FoodGoalMode): RecipeDiscove
         sourceRecipeId = id,
         mealTypeIds = recipeMealTypeIds(category.orEmpty(), searchableText),
         thumbnailKey = recipeThumbnailKey(searchableText),
+        titleText = UiText.Verbatim(name),
+        subtitleText = listOfNotNull(
+            category?.takeIf { it.isNotBlank() },
+            itemSummary.takeIf { it.isNotBlank() },
+        ).joinToString(" - ").takeIf { it.isNotBlank() }?.let(UiText::Verbatim)
+            ?: uiText(R.string.food_saved_recipe),
+        categoryText = UiText.Verbatim(category.orEmpty()),
+        servingNameText = UiText.Verbatim(servingName),
+        tagTexts = tagLabels.map(::recipeTagUiText),
     )
 }
 
@@ -5383,6 +5556,14 @@ private fun RecipeCatalogItem.toDiscoveryItem(goalMode: FoodGoalMode): RecipeDis
         programRelevant = goalMode in relevantModes,
         mealTypeIds = mealTypeIds,
         thumbnailKey = thumbnailKey,
+        titleText = uiText(titleResourceId),
+        subtitleText = uiText(
+            R.string.food_recipe_idea_calories,
+            UiText.Argument.Decimal(caloriesKcal),
+        ),
+        categoryText = uiText(categoryResourceId),
+        servingNameText = uiText(servingNameResourceId),
+        tagTexts = tagResourceIds.map(::uiText),
     )
 }
 
@@ -5408,6 +5589,16 @@ private fun buildRecipeTags(
         add("Quick")
     }
 }
+
+private fun recipeTagUiText(tag: String): UiText = uiText(
+    when (tag) {
+        "High protein" -> R.string.food_recipe_tag_high_protein
+        "Low carb" -> R.string.food_recipe_tag_low_carb
+        "Vegetarian" -> R.string.food_recipe_tag_vegetarian
+        "Quick" -> R.string.food_recipe_tag_quick
+        else -> return UiText.Verbatim(tag)
+    },
+)
 
 private fun isRecipeRelevantForProgram(
     goalMode: FoodGoalMode,
@@ -5507,15 +5698,37 @@ private fun buildFastingTimerUiState(
     val selectedProgram = programs.firstOrNull { it.id == selectedProgramId } ?: programs.first { it.id == "16-8" }
     val startTime = fastingStartInput.toFastingStartTimeOrDefault()
     val fastingEndTime = startTime.plusMinutes((selectedProgram.fastingHours * 60.0).roundToInt().toLong())
-    val startLabel = startTime.toHourMinuteLabel()
-    val fastingEndLabel = fastingEndTime.toHourMinuteLabel()
+    val inputStartLabel = startTime.toHourMinuteInput()
+    val startLabel = LocalizedFormatter.time(startTime)
+    val fastingEndLabel = LocalizedFormatter.time(fastingEndTime)
     return FastingTimerUiState(
         selectedProgramId = selectedProgram.id,
         programs = programs,
-        fastingStartInput = startLabel,
-        fastingWindowLabel = "$startLabel - $fastingEndLabel",
-        eatingWindowLabel = "$fastingEndLabel - $startLabel",
-        statusLabel = "${selectedProgram.title} fasting plan active",
+        fastingStartInput = inputStartLabel,
+        fastingWindowLabel = uiText(
+            R.string.food_time_window,
+            UiText.Argument.Text(startLabel),
+            UiText.Argument.Text(fastingEndLabel),
+        ),
+        eatingWindowLabel = uiText(
+            R.string.food_time_window,
+            UiText.Argument.Text(fastingEndLabel),
+            UiText.Argument.Text(startLabel),
+        ),
+        statusLabel = if (selectedProgram.id == "custom") {
+            uiText(
+                R.string.food_fasting_plan_active,
+                UiText.Argument.Text(
+                    "${selectedProgram.fastingHours.formatInputNumber()}:${selectedProgram.eatingHours.formatInputNumber()}",
+                ),
+            )
+        } else {
+            val definition = fastingProgramDefinitions.first { it.id == selectedProgram.id }
+            uiText(
+                R.string.food_fasting_plan_active,
+                UiText.Argument.Resource(definition.titleResourceId),
+            )
+        },
         progress = selectedProgram.fastingHours.fractionOf(24.0),
         customFastingHoursInput = customFastingHoursInput,
         customEatingHoursInput = customEatingHoursInput,
@@ -5532,13 +5745,17 @@ private fun emptyFastingPrograms(
     FastingProgramUiState(
         id = program.id,
         title = if (program.id == "custom") {
-            "Custom ${fastingHours.formatInputNumber()}:${eatingHours.formatInputNumber()}"
+            uiText(
+                R.string.food_fasting_custom_title,
+                UiText.Argument.Text(fastingHours.formatInputNumber()),
+                UiText.Argument.Text(eatingHours.formatInputNumber()),
+            )
         } else {
-            program.title
+            uiText(program.titleResourceId)
         },
         fastingHours = fastingHours,
         eatingHours = eatingHours,
-        description = program.description,
+        description = uiText(program.descriptionResourceId),
         isSelected = program.id == selectedProgramId,
     )
 }
@@ -5562,7 +5779,7 @@ private fun String.toFastingStartTimeOrDefault(): LocalTime {
     }
 }
 
-private fun LocalTime.toHourMinuteLabel(): String = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+private fun LocalTime.toHourMinuteInput(): String = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
 
 private fun String.toLocalAiNutritionDraft(): LocalAiNutritionDraft {
     val lower = lowercase()
@@ -5605,14 +5822,23 @@ private fun String.toLocalAiNutritionDraft(): LocalAiNutritionDraft {
     }
 
     if (matched.isEmpty()) {
-        return LocalAiNutritionDraft(250.0, 12.0, 30.0, 8.0, "Local estimate: generic meal")
+        return LocalAiNutritionDraft(
+            250.0,
+            12.0,
+            30.0,
+            8.0,
+            uiText(R.string.food_local_estimate_generic),
+        )
     }
     return LocalAiNutritionDraft(
         caloriesKcal = calories,
         proteinGrams = protein,
         carbsGrams = carbs,
         fatGrams = fat,
-        review = "Local estimate: ${matched.joinToString(", ")}",
+        reviewText = uiText(
+            R.string.food_local_estimate_named,
+            UiText.Argument.Text(matched.joinToString(", ")),
+        ),
     )
 }
 
@@ -5683,17 +5909,22 @@ private fun FoodUiState.withFoodHealthConnectSyncState(syncState: FoodHealthConn
     foodHealthConnectLastFailureMessage = syncState.lastFailureMessage,
 )
 
-private fun FoodHealthConnectSyncState.permissionSummary(): String = when (availability) {
+private fun FoodHealthConnectSyncState.permissionSummary(): UiText = when (availability) {
     HealthConnectAvailability.Available ->
         if (requestablePermissionCount == 0) {
-            "No Food permissions requested"
+            uiText(R.string.food_health_permissions_none)
         } else {
-            "$grantedPermissionCount / $requestablePermissionCount Food permissions granted"
+            pluralUiText(
+                R.plurals.food_health_permissions_granted,
+                requestablePermissionCount,
+                UiText.Argument.Integer(grantedPermissionCount),
+                UiText.Argument.Integer(requestablePermissionCount),
+            )
         }
 
-    HealthConnectAvailability.NotInstalled -> "Health Connect needs install or update"
+    HealthConnectAvailability.NotInstalled -> uiText(R.string.food_health_connect_needs_install)
 
-    HealthConnectAvailability.NotSupported -> "Health Connect unavailable"
+    HealthConnectAvailability.NotSupported -> uiText(R.string.food_health_connect_unavailable)
 }
 
 private fun FoodHealthConnectSyncResult.toFoodHealthConnectMessage(): UiText = pluralUiText(
@@ -5719,7 +5950,11 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
     return listOf(
         FoodRatingFactorUiState(
             label = uiText(R.string.food_calories),
-            valueLabel = UiText.Verbatim("${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal"),
+            valueLabel = uiText(
+                R.string.food_value_ratio_kcal,
+                UiText.Argument.Text(LocalizedFormatter.integer(calories.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(calorieGoalKcal.roundToInt().toLong())),
+            ),
             explanation = when {
                 calories > calorieGoalKcal * 1.1 -> uiText(R.string.food_rating_calories_above_today)
                 calories < calorieGoalKcal * 0.5 -> uiText(R.string.food_rating_calories_low_today)
@@ -5733,7 +5968,11 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
         ),
         FoodRatingFactorUiState(
             label = uiText(R.string.food_protein),
-            valueLabel = UiText.Verbatim("${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g"),
+            valueLabel = uiText(
+                R.string.food_value_ratio_grams,
+                UiText.Argument.Text(protein.formatNutritionDisplay()),
+                UiText.Argument.Text(proteinGoalGrams.formatNutritionDisplay()),
+            ),
             explanation = when {
                 protein < proteinGoalGrams * 0.6 -> uiText(R.string.food_rating_protein_well_below)
                 protein < proteinGoalGrams * 0.9 -> uiText(R.string.food_rating_protein_short)
@@ -5747,7 +5986,11 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
         ),
         FoodRatingFactorUiState(
             label = uiText(R.string.food_fiber),
-            valueLabel = UiText.Verbatim("${fiber.formatNutritionDisplay()} / ${fiberGoalGrams.formatNutritionDisplay()} g"),
+            valueLabel = uiText(
+                R.string.food_value_ratio_grams,
+                UiText.Argument.Text(fiber.formatNutritionDisplay()),
+                UiText.Argument.Text(fiberGoalGrams.formatNutritionDisplay()),
+            ),
             explanation = when {
                 fiber < fiberGoalGrams * 0.5 -> uiText(R.string.food_rating_fiber_low)
                 fiber < fiberGoalGrams * 0.8 -> uiText(R.string.food_rating_fiber_more)
@@ -5761,7 +6004,11 @@ internal fun FoodUiState.buildDayRatingFactors(diary: FoodDiary): List<FoodRatin
         ),
         FoodRatingFactorUiState(
             label = uiText(R.string.food_sodium),
-            valueLabel = UiText.Verbatim("${sodium.roundToInt()} / ${sodiumGoalMilligrams.roundToInt()} mg"),
+            valueLabel = uiText(
+                R.string.food_value_ratio_milligrams,
+                UiText.Argument.Text(LocalizedFormatter.integer(sodium.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(sodiumGoalMilligrams.roundToInt().toLong())),
+            ),
             explanation = if (sodium > sodiumGoalMilligrams) {
                 uiText(R.string.food_rating_sodium_above_today)
             } else {
@@ -5778,7 +6025,11 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
         val protein = diary.totals.proteinGrams
         FoodRatingFactorUiState(
             label = uiText(R.string.food_high_protein_focus),
-            valueLabel = UiText.Verbatim("${protein.formatNutritionDisplay()} / ${proteinGoalGrams.formatNutritionDisplay()} g"),
+            valueLabel = uiText(
+                R.string.food_value_ratio_grams,
+                UiText.Argument.Text(protein.formatNutritionDisplay()),
+                UiText.Argument.Text(proteinGoalGrams.formatNutritionDisplay()),
+            ),
             explanation = if (protein >= proteinGoalGrams * 0.9) {
                 uiText(R.string.food_rating_high_protein_on_track)
             } else {
@@ -5796,7 +6047,11 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
         }
         FoodRatingFactorUiState(
             label = uiText(R.string.food_low_carb_focus),
-            valueLabel = UiText.Verbatim("${carbs.formatNutritionDisplay()} / ${carbsGoalGrams.formatNutritionDisplay()} g"),
+            valueLabel = uiText(
+                R.string.food_value_ratio_grams,
+                UiText.Argument.Text(carbs.formatNutritionDisplay()),
+                UiText.Argument.Text(carbsGoalGrams.formatNutritionDisplay()),
+            ),
             explanation = if (carbs <= carbsGoalGrams) {
                 uiText(R.string.food_rating_low_carb_within)
             } else {
@@ -5810,7 +6065,11 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
         val calories = diary.totals.caloriesKcal
         FoodRatingFactorUiState(
             label = uiText(R.string.food_muscle_gain_focus),
-            valueLabel = UiText.Verbatim("${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal"),
+            valueLabel = uiText(
+                R.string.food_value_ratio_kcal,
+                UiText.Argument.Text(LocalizedFormatter.integer(calories.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(calorieGoalKcal.roundToInt().toLong())),
+            ),
             explanation = if (calories >= calorieGoalKcal * 0.85 && diary.totals.proteinGrams >= proteinGoalGrams * 0.9) {
                 uiText(R.string.food_rating_muscle_gain_enough)
             } else {
@@ -5828,7 +6087,11 @@ private fun FoodUiState.buildDietModeRatingFactor(diary: FoodDiary): FoodRatingF
         val calories = diary.totals.caloriesKcal
         FoodRatingFactorUiState(
             label = uiText(R.string.food_weight_loss_focus),
-            valueLabel = UiText.Verbatim("${calories.roundToInt()} / ${calorieGoalKcal.roundToInt()} kcal"),
+            valueLabel = uiText(
+                R.string.food_value_ratio_kcal,
+                UiText.Argument.Text(LocalizedFormatter.integer(calories.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(calorieGoalKcal.roundToInt().toLong())),
+            ),
             explanation = if (calories <= calorieGoalKcal && diary.totals.proteinGrams >= proteinGoalGrams * 0.8) {
                 uiText(R.string.food_rating_weight_loss_controlled)
             } else {
@@ -5921,7 +6184,11 @@ private fun FoodDiaryMeal?.toFoodMealRating(calorieTargetKcal: Double): FoodRati
     val factors = listOf(
         FoodRatingFactorUiState(
             label = uiText(R.string.food_calories),
-            valueLabel = UiText.Verbatim("${meal.totals.caloriesKcal.roundToInt()} / ${calorieTargetKcal.roundToInt()} kcal"),
+            valueLabel = uiText(
+                R.string.food_value_ratio_kcal,
+                UiText.Argument.Text(LocalizedFormatter.integer(meal.totals.caloriesKcal.roundToInt().toLong())),
+                UiText.Argument.Text(LocalizedFormatter.integer(calorieTargetKcal.roundToInt().toLong())),
+            ),
             explanation = if (meal.totals.caloriesKcal > calorieTargetKcal * 1.15) {
                 uiText(R.string.food_meal_above_target)
             } else {
@@ -5931,7 +6198,10 @@ private fun FoodDiaryMeal?.toFoodMealRating(calorieTargetKcal: Double): FoodRati
         ),
         FoodRatingFactorUiState(
             label = uiText(R.string.food_protein),
-            valueLabel = UiText.Verbatim("${meal.totals.proteinGrams.formatNutritionDisplay()} g"),
+            valueLabel = uiText(
+                R.string.food_value_grams,
+                UiText.Argument.Text(meal.totals.proteinGrams.formatNutritionDisplay()),
+            ),
             explanation = uiText(
                 if (meal.totals.proteinGrams >= 20.0) R.string.food_meal_protein_covered else R.string.food_meal_add_protein_anchor,
             ),
@@ -5939,7 +6209,10 @@ private fun FoodDiaryMeal?.toFoodMealRating(calorieTargetKcal: Double): FoodRati
         ),
         FoodRatingFactorUiState(
             label = uiText(R.string.food_fiber),
-            valueLabel = UiText.Verbatim("${meal.detailTotals.fiberGrams.formatNutritionDisplay()} g"),
+            valueLabel = uiText(
+                R.string.food_value_grams,
+                UiText.Argument.Text(meal.detailTotals.fiberGrams.formatNutritionDisplay()),
+            ),
             explanation = uiText(
                 if (meal.detailTotals.fiberGrams >= 5.0) R.string.food_meal_fiber_helpful else R.string.food_meal_fiber_light,
             ),
@@ -5947,7 +6220,10 @@ private fun FoodDiaryMeal?.toFoodMealRating(calorieTargetKcal: Double): FoodRati
         ),
         FoodRatingFactorUiState(
             label = uiText(R.string.food_sodium),
-            valueLabel = UiText.Verbatim("${meal.detailTotals.sodiumMilligrams.roundToInt()} mg"),
+            valueLabel = uiText(
+                R.string.food_value_milligrams,
+                UiText.Argument.Text(LocalizedFormatter.integer(meal.detailTotals.sodiumMilligrams.roundToInt().toLong())),
+            ),
             explanation = uiText(
                 if (meal.detailTotals.sodiumMilligrams > 900.0) R.string.food_meal_high_sodium else R.string.food_meal_not_high_sodium,
             ),
@@ -6002,7 +6278,7 @@ private fun FoodDiaryEntry.toFoodEntryRating(): FoodRatingUiState? {
     val factors = listOf(
         FoodRatingFactorUiState(
             label = uiText(R.string.food_protein),
-            valueLabel = UiText.Verbatim("${proteinGrams.formatNutritionDisplay()} g"),
+            valueLabel = uiText(R.string.food_value_grams, UiText.Argument.Text(proteinGrams.formatNutritionDisplay())),
             explanation = uiText(
                 if (proteinGrams >= 10.0) R.string.food_entry_protein_useful else R.string.food_entry_protein_low,
             ),
@@ -6010,7 +6286,10 @@ private fun FoodDiaryEntry.toFoodEntryRating(): FoodRatingUiState? {
         ),
         FoodRatingFactorUiState(
             label = uiText(R.string.food_fiber),
-            valueLabel = UiText.Verbatim("${nutritionDetails.fiberGrams.formatNutritionDisplay()} g"),
+            valueLabel = uiText(
+                R.string.food_value_grams,
+                UiText.Argument.Text(nutritionDetails.fiberGrams.formatNutritionDisplay()),
+            ),
             explanation = uiText(
                 if (nutritionDetails.fiberGrams >= 2.0) R.string.food_entry_adds_fiber else R.string.food_entry_little_fiber,
             ),
@@ -6018,7 +6297,10 @@ private fun FoodDiaryEntry.toFoodEntryRating(): FoodRatingUiState? {
         ),
         FoodRatingFactorUiState(
             label = uiText(R.string.food_sugar),
-            valueLabel = UiText.Verbatim("${nutritionDetails.sugarGrams.formatNutritionDisplay()} g"),
+            valueLabel = uiText(
+                R.string.food_value_grams,
+                UiText.Argument.Text(nutritionDetails.sugarGrams.formatNutritionDisplay()),
+            ),
             explanation = uiText(
                 if (nutritionDetails.sugarGrams > 20.0) R.string.food_entry_sugar_high_short else R.string.food_entry_sugar_not_high,
             ),
@@ -6026,7 +6308,10 @@ private fun FoodDiaryEntry.toFoodEntryRating(): FoodRatingUiState? {
         ),
         FoodRatingFactorUiState(
             label = uiText(R.string.food_sodium),
-            valueLabel = UiText.Verbatim("${nutritionDetails.sodiumMilligrams.roundToInt()} mg"),
+            valueLabel = uiText(
+                R.string.food_value_milligrams,
+                UiText.Argument.Text(LocalizedFormatter.integer(nutritionDetails.sodiumMilligrams.roundToInt().toLong())),
+            ),
             explanation = uiText(
                 if (nutritionDetails.sodiumMilligrams > 700.0) R.string.food_entry_sodium_high_short else R.string.food_entry_sodium_not_high,
             ),
@@ -6169,13 +6454,6 @@ internal val fishHabitKeywords =
         "prawn",
     )
 
-internal fun Int.toFoodRatingLabel(): String = when {
-    this >= 85 -> "Great"
-    this >= 70 -> "Good"
-    this >= 50 -> "Watch"
-    else -> "Needs work"
-}
-
 internal fun Int.toFoodRatingText(): UiText = uiText(
     when {
         this >= 85 -> R.string.food_rating_great
@@ -6231,6 +6509,8 @@ internal fun FoodDiary.toMealSections(
                     timeLabel = "No time",
                     sortOrder = 100 + index,
                     isDefault = false,
+                    titleText = mealType.mealTitleText(),
+                    timeLabelText = uiText(R.string.food_no_time),
                 )
             }
 
@@ -6306,6 +6586,11 @@ internal fun FoodDiary.toMealSections(
                     imageUrl = entry.imageUrl,
                 )
             },
+            titleText = definition.titleText,
+            recommendationText = definition.timeMinutes?.toLocalizedMealTimeLabel()?.let(UiText::Verbatim)
+                ?: defaultDefinition?.recommendationText()
+                ?: uiText(R.string.food_custom_meal),
+            carbsLabelText = uiText(if (useNetCarbs) R.string.food_net_carbs else R.string.food_carbs),
         )
     }
 }
@@ -6365,6 +6650,7 @@ private fun SavedFoodItem.toUiState(isReported: Boolean = false): SavedFoodUiSta
                 grams = serving.grams,
             )
         },
+        sourceText = sourceLabel.toSourceUiText(),
     )
 }
 
@@ -6457,6 +6743,10 @@ private fun ShoppingListItem.toUiState(): ShoppingListItemUiState = ShoppingList
     quantityLabel = "${quantityGrams.formatInputNumber()} g",
     isChecked = isChecked,
     isManual = isManual,
+    quantityLabelText = uiText(
+        R.string.food_value_grams,
+        UiText.Argument.Text(quantityGrams.formatNutritionDisplay()),
+    ),
 )
 
 private fun SavedFoodItem.sourceLabel(): String = when {
@@ -6464,6 +6754,14 @@ private fun SavedFoodItem.sourceLabel(): String = when {
     !barcode.isNullOrBlank() -> "Scanned"
     else -> "Manual"
 }
+
+private fun String.toSourceUiText(): UiText = uiText(
+    when (this) {
+        "Label" -> R.string.food_source_label
+        "Scanned" -> R.string.food_source_scanned
+        else -> R.string.food_source_manual
+    },
+)
 
 private fun SavedFoodUiState.toRecipeIngredientServingChoices(): List<RecipeIngredientServingChoiceUiState> {
     val choices = mutableListOf(
@@ -6505,6 +6803,10 @@ private fun List<SavedFoodUiState>.toDuplicateFoodGroups(): List<FoodDuplicateGr
                 duplicateFoodIds = duplicateIds,
                 title = primaryFood.name,
                 reason = "Barcode ${primaryFood.barcode}",
+                reasonText = uiText(
+                    R.string.food_duplicate_barcode,
+                    UiText.Argument.Text(primaryFood.barcode.orEmpty()),
+                ),
             )
             groupedFoodIds += sortedFoods.map { it.id }
         }
@@ -6526,6 +6828,7 @@ private fun List<SavedFoodUiState>.toDuplicateFoodGroups(): List<FoodDuplicateGr
                 duplicateFoodIds = sortedFoods.drop(1).map { it.id },
                 title = primaryFood.name,
                 reason = "Name and brand",
+                reasonText = uiText(R.string.food_duplicate_name_brand),
             )
         }
 
@@ -6544,6 +6847,7 @@ private fun SavedFoodUiState.toBarcodeComparisonItem(): BarcodeComparisonItemUiS
     sugarPer100g = sugarPer100g,
     sodiumMgPer100g = sodiumMgPer100g,
     imageUrl = imageUrl,
+    sourceText = uiText(R.string.food_source_saved_food),
 )
 
 private fun ProductLookupResult.Found.toBarcodeComparisonItem(): BarcodeComparisonItemUiState = BarcodeComparisonItemUiState(
@@ -6558,6 +6862,7 @@ private fun ProductLookupResult.Found.toBarcodeComparisonItem(): BarcodeComparis
     sugarPer100g = nutritionDetailsPer100g.sugarGrams,
     sodiumMgPer100g = nutritionDetailsPer100g.sodiumMilligrams,
     imageUrl = imageUrl,
+    sourceText = uiText(R.string.food_source_open_food_facts),
 )
 
 private fun buildBarcodeComparisonHighlights(
@@ -6568,12 +6873,12 @@ private fun buildBarcodeComparisonHighlights(
         return emptyList()
     }
     return listOf(
-        barcodeComparisonHighlight(uiText(R.string.food_calories), leftItem.caloriesPer100g, rightItem.caloriesPer100g, lowerIsBetter = true, unit = "kcal"),
-        barcodeComparisonHighlight(uiText(R.string.food_protein), leftItem.proteinPer100g, rightItem.proteinPer100g, lowerIsBetter = false, unit = "g"),
-        barcodeComparisonHighlight(uiText(R.string.food_carbs), leftItem.carbsPer100g, rightItem.carbsPer100g, lowerIsBetter = true, unit = "g"),
-        barcodeComparisonHighlight(uiText(R.string.food_fat), leftItem.fatPer100g, rightItem.fatPer100g, lowerIsBetter = true, unit = "g"),
-        barcodeComparisonHighlight(uiText(R.string.food_sugar), leftItem.sugarPer100g, rightItem.sugarPer100g, lowerIsBetter = true, unit = "g"),
-        barcodeComparisonHighlight(uiText(R.string.food_sodium), leftItem.sodiumMgPer100g, rightItem.sodiumMgPer100g, lowerIsBetter = true, unit = "mg"),
+        barcodeComparisonHighlight(uiText(R.string.food_calories), leftItem.caloriesPer100g, rightItem.caloriesPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_kcal),
+        barcodeComparisonHighlight(uiText(R.string.food_protein), leftItem.proteinPer100g, rightItem.proteinPer100g, lowerIsBetter = false, valueResourceId = R.string.food_value_grams),
+        barcodeComparisonHighlight(uiText(R.string.food_carbs), leftItem.carbsPer100g, rightItem.carbsPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_grams),
+        barcodeComparisonHighlight(uiText(R.string.food_fat), leftItem.fatPer100g, rightItem.fatPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_grams),
+        barcodeComparisonHighlight(uiText(R.string.food_sugar), leftItem.sugarPer100g, rightItem.sugarPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_grams),
+        barcodeComparisonHighlight(uiText(R.string.food_sodium), leftItem.sodiumMgPer100g, rightItem.sodiumMgPer100g, lowerIsBetter = true, valueResourceId = R.string.food_value_milligrams),
     )
 }
 
@@ -6582,11 +6887,11 @@ private fun barcodeComparisonHighlight(
     leftValue: Double,
     rightValue: Double,
     lowerIsBetter: Boolean,
-    unit: String,
+    @StringRes valueResourceId: Int,
 ): BarcodeComparisonHighlightUiState = BarcodeComparisonHighlightUiState(
     label = label,
-    leftValue = leftValue.toComparisonValueLabel(unit),
-    rightValue = rightValue.toComparisonValueLabel(unit),
+    leftValue = leftValue.toComparisonValueLabel(valueResourceId),
+    rightValue = rightValue.toComparisonValueLabel(valueResourceId),
     winnerSide = when {
         leftValue == rightValue -> null
 
@@ -6604,7 +6909,10 @@ private fun barcodeComparisonHighlight(
     },
 )
 
-private fun Double.toComparisonValueLabel(unit: String): String = "${formatInputNumber()} $unit"
+private fun Double.toComparisonValueLabel(@StringRes valueResourceId: Int): UiText = uiText(
+    valueResourceId,
+    UiText.Argument.Text(formatNutritionDisplay()),
+)
 
 private fun MealTemplate.toUiState(): MealTemplateUiState = MealTemplateUiState(
     id = id,
@@ -6771,6 +7079,8 @@ private fun emptyMealSections(): List<FoodMealSectionUiState> = mealDefinitions.
         carbsGrams = 0.0,
         fatGrams = 0.0,
         entries = emptyList(),
+        titleText = uiText(definition.titleResourceId),
+        recommendationText = uiText(definition.recommendationResourceId),
     )
 }
 
@@ -6810,10 +7120,13 @@ private fun MealDefinition.toUiState(): FoodMealDefinitionUiState = FoodMealDefi
     sortOrder = sortOrder,
     isDefault = true,
     isHidden = false,
+    titleText = uiText(titleResourceId),
+    timeLabelText = timeMinutes?.toLocalizedMealTimeLabel()?.let(UiText::Verbatim) ?: uiText(R.string.food_no_time),
 )
 
 private fun FoodMealDefinition.toUiState(): FoodMealDefinitionUiState {
     val mealId = id.normalizedMealType()
+    val defaultDefinition = mealDefinitions.firstOrNull { it.id == mealId }
     return FoodMealDefinitionUiState(
         id = mealId,
         title = name,
@@ -6822,6 +7135,12 @@ private fun FoodMealDefinition.toUiState(): FoodMealDefinitionUiState {
         sortOrder = sortOrder,
         isDefault = mealId in defaultMealDefinitionIds,
         isHidden = isHidden,
+        titleText = if (defaultDefinition != null && name == defaultDefinition.title) {
+            uiText(defaultDefinition.titleResourceId)
+        } else {
+            UiText.Verbatim(name)
+        },
+        timeLabelText = timeMinutes?.toLocalizedMealTimeLabel()?.let(UiText::Verbatim) ?: uiText(R.string.food_no_time),
     )
 }
 
@@ -6829,11 +7148,20 @@ private fun FoodMealDefinitionUiState.recommendation(): String = timeMinutes?.to
     ?: mealDefinitions.firstOrNull { it.id == id }?.recommendation
     ?: "Custom meal"
 
+private fun FoodMealDefinitionUiState.recommendationText(): UiText = timeMinutes?.toLocalizedMealTimeLabel()?.let(UiText::Verbatim)
+    ?: mealDefinitions.firstOrNull { it.id == id }?.let { uiText(it.recommendationResourceId) }
+    ?: uiText(R.string.food_custom_meal)
+
 private fun FoodMealDefinitionUiState.calorieTargetKcal(): Double = mealDefinitions.firstOrNull { it.id == id }?.calorieTargetKcal
     ?: (CALORIE_GOAL_KCAL / 4.0)
 
 private fun FoodUiState.mealTitleFor(mealType: String): String = mealDefinitions.firstOrNull { it.id == mealType.normalizedMealType() }?.title
     ?: mealType.mealTitle()
+
+private fun FoodUiState.mealTitleTextFor(mealType: String): UiText = mealDefinitions
+    .firstOrNull { it.id == mealType.normalizedMealType() }
+    ?.titleText
+    ?: mealType.mealTitleText()
 
 private fun FoodUiState.nextMealSortOrder(): Int = (mealDefinitions.maxOfOrNull { it.sortOrder } ?: 30) + 10
 
@@ -6890,9 +7218,18 @@ internal fun String.mealTitle(): String = mealDefinitions.firstOrNull { it.id ==
         .split(" ")
         .filter { it.isNotBlank() }
         .joinToString(" ") { word ->
-            word.lowercase().replaceFirstChar { char -> char.uppercase() }
+            word.lowercase(Locale.getDefault()).replaceFirstChar { char -> char.titlecase(Locale.getDefault()) }
         }
         .ifBlank { "Meal" }
+
+internal fun String.mealTitleText(): UiText = mealDefinitions.firstOrNull { it.id == normalizedMealType() }
+    ?.let { uiText(it.titleResourceId) }
+    ?: mealTitle().takeIf { it.isNotBlank() && it != "Meal" }?.let(UiText::Verbatim)
+    ?: uiText(R.string.food_meal)
+
+internal fun String.mealTitleArgument(): UiText.Argument = mealDefinitions.firstOrNull { it.id == normalizedMealType() }
+    ?.let { UiText.Argument.Resource(it.titleResourceId) }
+    ?: UiText.Argument.Text(mealTitle())
 
 private fun String.parseMealTimeMinutesOrNull(): Int? {
     val parts = trim().split(":")
@@ -6908,6 +7245,8 @@ private fun String.parseMealTimeMinutesOrNull(): Int? {
 }
 
 private fun Int.toMealTimeLabel(): String = "${(this / 60).toString().padStart(2, '0')}:${(this % 60).toString().padStart(2, '0')}"
+
+private fun Int.toLocalizedMealTimeLabel(): String = LocalizedFormatter.time(LocalTime.of(this / 60, this % 60))
 
 private fun String.parseNutritionValue(): Double? = trim()
     .takeIf { it.isNotEmpty() }

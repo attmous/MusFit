@@ -91,8 +91,14 @@ class TrainingDashboardDisplayTest {
 
     @Test
     fun trainingWeekVolumeFigure_switchesToTonnesAtOneThousandKg() {
-        assertEquals("3.8 t", trainingWeekVolumeFigure(3800.0))
-        assertEquals("950 kg", trainingWeekVolumeFigure(950.0))
+        assertEquals(
+            uiText(R.string.training_tonnes, UiText.Argument.Text("3.8")),
+            trainingWeekVolumeFigure(3800.0),
+        )
+        assertEquals(
+            uiText(R.string.training_kilograms, UiText.Argument.Text("950")),
+            trainingWeekVolumeFigure(950.0),
+        )
     }
 
     @Test
@@ -134,7 +140,7 @@ class TrainingDashboardDisplayTest {
             routineLastPerformedMeta(routine, listOf(workout("full body a", LocalDate.of(2026, 7, 3))), today),
         )
         assertEquals(
-            uiText(R.string.training_last_performed, UiText.Argument.Text("26 Jun")),
+            uiText(R.string.training_last_performed, UiText.Argument.Text("26 Jun 2026")),
             routineLastPerformedMeta(routine, listOf(workout("Full Body A", LocalDate.of(2026, 6, 26))), today),
         )
         assertEquals(
@@ -155,8 +161,9 @@ class TrainingDashboardDisplayTest {
             trainingCoachCue(TrainingHistoryOverview(currentWeekWorkoutCount = 0), "Full Body A"),
         )
         assertEquals(
-            uiText(
-                R.string.training_sessions_next_routine,
+            pluralUiText(
+                R.plurals.training_sessions_next_routine,
+                2,
                 UiText.Argument.Integer(2),
                 UiText.Argument.Integer(3),
                 UiText.Argument.Text("Full Body B"),
@@ -164,16 +171,18 @@ class TrainingDashboardDisplayTest {
             trainingCoachCue(TrainingHistoryOverview(currentWeekWorkoutCount = 2), "Full Body B"),
         )
         assertEquals(
-            uiText(
-                R.string.training_week_goal_done,
+            pluralUiText(
+                R.plurals.training_week_goal_done,
+                3,
                 UiText.Argument.Integer(3),
                 UiText.Argument.Integer(3),
             ),
             trainingCoachCue(TrainingHistoryOverview(currentWeekWorkoutCount = 3), "Full Body A"),
         )
         assertEquals(
-            uiText(
-                R.string.training_sessions_one_more,
+            pluralUiText(
+                R.plurals.training_sessions_one_more,
+                1,
                 UiText.Argument.Integer(1),
                 UiText.Argument.Integer(3),
             ),
@@ -181,8 +190,9 @@ class TrainingDashboardDisplayTest {
         )
         // The cue honors the user's weekly session target from the Today editor.
         assertEquals(
-            uiText(
-                R.string.training_sessions_next_routine,
+            pluralUiText(
+                R.plurals.training_sessions_next_routine,
+                2,
                 UiText.Argument.Integer(2),
                 UiText.Argument.Integer(4),
                 UiText.Argument.Text("Full Body B"),

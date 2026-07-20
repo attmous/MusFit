@@ -55,6 +55,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -68,6 +70,7 @@ import com.musfit.ui.components.SectionOverline
 import com.musfit.ui.components.StepperCircleButton
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.gridGroupShape
+import com.musfit.ui.text.LocalizedFormatter
 import com.musfit.ui.text.asString
 import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitTheme
@@ -148,11 +151,11 @@ internal fun AddFoodPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         FoodSheetHeader(
-            title = if (state.isPlanningMode) "Plan food" else "Add food",
+            title = stringResource(if (state.isPlanningMode) R.string.food_plan_food else R.string.food_add_food),
             onClose = onClose,
             chip = {
                 MealTargetChip(
-                    label = "to ${state.selectedMealTitle}",
+                    label = stringResource(R.string.food_to_meal, state.selectedMealTitleText.asString()),
                     meals = state.visibleMealDefinitions,
                     onMealSelected = onMealTargetSelected,
                 )
@@ -300,7 +303,7 @@ internal fun AddFoodPanel(
                         text = if (state.isSaving) {
                             state.foodEntryActionProgressLabel()
                         } else {
-                            state.foodEntryActionLabel("food")
+                            state.foodEntryActionLabel(R.string.food_target_food)
                         },
                         onClick = onLogFoodClick,
                         icon = Icons.Outlined.Add,
@@ -343,7 +346,11 @@ internal fun AddFoodPanel(
                         text = if (state.isSaving) {
                             state.foodEntryActionProgressLabel()
                         } else {
-                            "${state.foodEntryActionVerb()} $kcal kcal"
+                            stringResource(
+                                R.string.food_action_calories,
+                                state.foodEntryActionVerb(),
+                                LocalizedFormatter.integer(kcal.toLong()),
+                            )
                         },
                         onClick = onQuickLogClick,
                         icon = Icons.Outlined.Bolt,
@@ -360,7 +367,7 @@ internal fun AddFoodPanel(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         PillButton(
-                            text = "Adjust items",
+                            text = stringResource(R.string.food_adjust_items),
                             onClick = { aiAdjustExpanded = !aiAdjustExpanded },
                             icon = Icons.Outlined.Tune,
                             containerColor = MusFitTheme.colors.surfaceVariant,
@@ -369,7 +376,11 @@ internal fun AddFoodPanel(
                             modifier = Modifier.weight(1f),
                         )
                         PillButton(
-                            text = if (state.isSaving) state.foodEntryActionProgressLabel() else "Log draft",
+                            text = if (state.isSaving) {
+                                state.foodEntryActionProgressLabel()
+                            } else {
+                                stringResource(R.string.food_log_draft)
+                            },
                             onClick = onLogFoodClick,
                             icon = Icons.Outlined.Add,
                             enabled = !state.isSaving,
@@ -379,7 +390,7 @@ internal fun AddFoodPanel(
                     }
                 } else {
                     PillButton(
-                        text = "Review text",
+                        text = stringResource(R.string.food_review_text),
                         onClick = onAiTextDraftClick,
                         enabled = !state.isSaving,
                         modifier = Modifier.fillMaxWidth(),
@@ -395,10 +406,10 @@ private fun FoodUiState.barcodeLogLabel(): String {
     val result = lookupResult
     return when {
         isSaving -> foodEntryActionProgressLabel()
-        result != null && result.servingQuantityGrams != null -> foodEntryActionLabel("1 serving")
-        result != null -> foodEntryActionLabel("food")
+        result != null && result.servingQuantityGrams != null -> foodEntryActionLabel(R.string.food_target_one_serving)
+        result != null -> foodEntryActionLabel(R.string.food_target_food)
         barcode.isNotBlank() -> saveAndFoodEntryActionLabel()
-        else -> foodEntryActionLabel("food")
+        else -> foodEntryActionLabel(R.string.food_target_food)
     }
 }
 
@@ -415,7 +426,7 @@ private fun FavoriteAddSection(
 ) {
     if (items.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        SectionTitle("Favorites")
+        SectionTitle(stringResource(R.string.food_favorites))
         // Hairline rows — no card chrome inside the sheet.
         Column(modifier = Modifier.fillMaxWidth()) {
             items.forEach { item ->
@@ -434,7 +445,7 @@ private fun FavoriteAddSection(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = item.subtitle,
+                            text = item.subtitleText.asString(),
                             style = MaterialTheme.typography.bodySmall,
                             color = MusFitTheme.colors.onSurfaceVariant,
                             maxLines = 1,
@@ -481,7 +492,7 @@ private fun SavedFoodPicker(
 
         if (state.savedFoods.isEmpty()) {
             Text(
-                text = "No saved foods yet",
+                text = stringResource(R.string.food_no_saved_foods),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
@@ -532,7 +543,11 @@ private fun SavedFoodPickerRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = "${food.defaultServingGrams.roundToInt()} g - ${food.caloriesPerServingKcal.roundToInt()} kcal",
+                        text = stringResource(
+                            R.string.food_serving_grams,
+                            food.defaultServingGrams.roundToInt(),
+                            food.caloriesPerServingKcal.roundToInt(),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MusFitTheme.colors.onSurfaceVariant,
                     )
@@ -546,23 +561,45 @@ private fun SavedFoodPickerRow(
                 }
             }
 
-            val servingOptions = food.servings.ifEmpty {
-                listOf(SavedFoodServingUiState("${food.id}:default", food.servingName ?: "${food.defaultServingGrams.roundToInt()} g", food.defaultServingGrams))
-            }
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                servingOptions.forEach { serving ->
-                    FilterChip(
-                        selected = selectedServingGrams == serving.grams,
-                        onClick = { onServingSelected(serving.grams) },
-                        label = { Text(serving.label) },
-                    )
-                }
-            }
+            SavedFoodServingChips(
+                food = food,
+                selectedServingGrams = selectedServingGrams,
+                onServingSelected = onServingSelected,
+            )
         }
         HorizontalDivider(thickness = 1.dp, color = MusFitTheme.colors.outline)
+    }
+}
+
+@Composable
+private fun SavedFoodServingChips(
+    food: SavedFoodUiState,
+    selectedServingGrams: Double?,
+    onServingSelected: (Double) -> Unit,
+) {
+    val servingOptions = food.servings.ifEmpty {
+        listOf(
+            SavedFoodServingUiState(
+                "${food.id}:default",
+                food.servingName ?: stringResource(
+                    R.string.food_value_grams,
+                    LocalizedFormatter.number(food.defaultServingGrams, maximumFractionDigits = 1),
+                ),
+                food.defaultServingGrams,
+            ),
+        )
+    }
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        servingOptions.forEach { serving ->
+            FilterChip(
+                selected = selectedServingGrams == serving.grams,
+                onClick = { onServingSelected(serving.grams) },
+                label = { Text(serving.label) },
+            )
+        }
     }
 }
 
@@ -575,7 +612,7 @@ private fun TemplateQuickList(
 ) {
     if (templates.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        SectionTitle("Meal templates")
+        SectionTitle(stringResource(R.string.food_meal_templates))
         Column(modifier = Modifier.fillMaxWidth()) {
             templates.forEach { template ->
                 Row(
@@ -590,8 +627,8 @@ private fun TemplateQuickList(
                         Text(
                             listOfNotNull(
                                 template.itemSummary,
-                                if (template.isFavorite) "Favorite" else null,
-                            ).joinToString(" - "),
+                                if (template.isFavorite) stringResource(R.string.food_favorite) else null,
+                            ).joinToString(stringResource(R.string.food_separator)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MusFitTheme.colors.onSurfaceVariant,
                             maxLines = 1,
@@ -600,7 +637,7 @@ private fun TemplateQuickList(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         MusFitOutlinedButton(onClick = { onFavoriteClick(template.id, !template.isFavorite) }) {
-                            Text(if (template.isFavorite) "Starred" else "Star")
+                            Text(stringResource(if (template.isFavorite) R.string.food_starred else R.string.food_star))
                         }
                         MusFitOutlinedButton(onClick = { onTemplateClick(template.id) }) {
                             Text(actionVerb)
@@ -622,7 +659,7 @@ private fun RecipeQuickList(
 ) {
     if (state.recipes.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionTitle("Recipes")
+        SectionTitle(stringResource(R.string.food_recipes))
         OutlinedTextField(
             value = state.recipeServingsToLog,
             onValueChange = onRecipeServingsChanged,
@@ -644,19 +681,22 @@ private fun RecipeQuickList(
                         Text(recipe.name, style = MaterialTheme.typography.titleSmall)
                         Text(
                             text = listOfNotNull(
-                                "${recipe.caloriesPerServingKcal.roundToInt()} kcal",
-                                "P ${recipe.proteinPerServingGrams.roundToInt()}g",
-                                "C ${recipe.carbsPerServingGrams.roundToInt()}g",
-                                "F ${recipe.fatPerServingGrams.roundToInt()}g",
-                                if (recipe.isFavorite) "Favorite" else null,
-                            ).joinToString(" - "),
+                                stringResource(
+                                    R.string.food_recipe_macro_summary,
+                                    recipe.caloriesPerServingKcal.formatNutritionDisplay(),
+                                    recipe.proteinPerServingGrams.formatNutritionDisplay(),
+                                    recipe.carbsPerServingGrams.formatNutritionDisplay(),
+                                    recipe.fatPerServingGrams.formatNutritionDisplay(),
+                                ),
+                                if (recipe.isFavorite) stringResource(R.string.food_favorite) else null,
+                            ).joinToString(stringResource(R.string.food_separator)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MusFitTheme.colors.onSurfaceVariant,
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         MusFitOutlinedButton(onClick = { onFavoriteClick(recipe.id, !recipe.isFavorite) }) {
-                            Text(if (recipe.isFavorite) "Starred" else "Star")
+                            Text(stringResource(if (recipe.isFavorite) R.string.food_starred else R.string.food_star))
                         }
                         MusFitOutlinedButton(onClick = { onRecipeClick(recipe.id) }) {
                             Text(state.foodEntryActionVerb())
@@ -713,12 +753,12 @@ private fun AiLoggingForm(
             }
             Column {
                 Text(
-                    text = "Describe your meal",
+                    text = stringResource(R.string.food_describe_meal),
                     style = MusFitTheme.typography.headlineSmall.copy(fontSize = 22.sp),
                     color = MusFitTheme.colors.onSurface,
                 )
                 Text(
-                    text = "Local estimate · to ${state.selectedMealTitle}",
+                    text = stringResource(R.string.food_local_estimate_to_meal, state.selectedMealTitleText.asString()),
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -730,7 +770,7 @@ private fun AiLoggingForm(
             onValueChange = onAiTextChanged,
             placeholder = {
                 Text(
-                    text = "2 scrambled eggs and a slice of toast…",
+                    text = stringResource(R.string.food_meal_description_example),
                     color = MusFitTheme.colors.onSurfaceFaint,
                 )
             },
@@ -776,7 +816,7 @@ private fun AiLoggingForm(
                         modifier = Modifier.size(15.dp),
                     )
                     Text(
-                        text = "DRAFT — ESTIMATES, NOT MEASUREMENTS",
+                        text = stringResource(R.string.food_draft_estimate_warning),
                         style = MusFitTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.W800,
                             letterSpacing = 0.6.sp,
@@ -785,7 +825,7 @@ private fun AiLoggingForm(
                     )
                 }
                 Text(
-                    text = "Amounts below are approximate. Adjust anything before logging.",
+                    text = stringResource(R.string.food_approximate_amounts_warning),
                     style = MusFitTheme.typography.bodySmall,
                     color = MusFitTheme.colors.warning,
                 )
@@ -800,16 +840,21 @@ private fun AiLoggingForm(
                 enabled = state.aiLoggingText.isNotBlank() && !state.isSaving,
             ) {
                 Text(
-                    text = "Re-estimate from text",
+                    text = stringResource(R.string.food_reestimate_from_text),
                     color = MusFitTheme.colors.brand,
                 )
             }
             FoodListItemRow(
                 index = 0,
                 count = 1,
-                title = state.productName.ifBlank { "AI draft" },
-                subtitle = state.aiLoggingDraftReview
-                    ?: "${state.aiLoggingDraftSourceLabel ?: "AI"} draft",
+                title = state.productName.ifBlank {
+                    state.aiLoggingDraftNameText?.asString() ?: stringResource(R.string.food_ai_draft)
+                },
+                subtitle = state.aiLoggingDraftReviewText?.asString()
+                    ?: stringResource(
+                        R.string.food_named_draft,
+                        state.aiLoggingDraftSourceText?.asString() ?: stringResource(R.string.food_ai),
+                    ),
                 onClick = onToggleAdjust,
                 fallbackIcon = Icons.Filled.EggAlt,
                 badgeSize = 44.dp,
@@ -833,7 +878,7 @@ private fun AiLoggingForm(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "Draft total",
+                            text = stringResource(R.string.food_draft_total),
                             style = MusFitTheme.typography.bodyMedium.copy(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.W800,
@@ -842,12 +887,17 @@ private fun AiLoggingForm(
                             modifier = Modifier.weight(1f),
                         )
                         Text(
-                            text = "${preview.caloriesKcal.roundToInt()} kcal",
+                            text = stringResource(R.string.food_integer_kcal, preview.caloriesKcal.roundToInt()),
                             style = MusFitTheme.typography.titleLarge.copy(fontSize = 18.sp),
                             color = accent.onContainer,
                         )
                         Text(
-                            text = " · C ${preview.carbsGrams.roundToInt()} · P ${preview.proteinGrams.roundToInt()} · F ${preview.fatGrams.roundToInt()}",
+                            text = stringResource(
+                                R.string.food_macro_summary,
+                                preview.carbsGrams.roundToInt(),
+                                preview.proteinGrams.roundToInt(),
+                                preview.fatGrams.roundToInt(),
+                            ),
                             style = MusFitTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                             color = accent.onContainerVariant,
                             maxLines = 1,
@@ -875,7 +925,7 @@ private fun AiLoggingForm(
             // Photo capture is still a placeholder — keep it quiet.
             TextButton(onClick = onAiPhotoClick) {
                 Text(
-                    text = "Photo · placeholder",
+                    text = stringResource(R.string.food_photo_placeholder),
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
             }
@@ -947,7 +997,7 @@ private fun BarcodeFoodForm(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GroupedFieldCell(
-                label = "Barcode",
+                label = stringResource(R.string.food_add_mode_barcode),
                 value = state.barcode,
                 onValueChange = onBarcodeChanged,
                 shape = RoundedCornerShape(20.dp),
@@ -955,7 +1005,7 @@ private fun BarcodeFoodForm(
                 modifier = Modifier.weight(1f),
             )
             PillButton(
-                text = if (state.isLoading) "Loading" else "Lookup",
+                text = stringResource(if (state.isLoading) R.string.food_loading else R.string.food_lookup),
                 onClick = onLookupClick,
                 enabled = !state.isLoading && !state.isSaving,
                 containerColor = MusFitTheme.colors.surfaceVariant,
@@ -964,7 +1014,7 @@ private fun BarcodeFoodForm(
         }
 
         PillButton(
-            text = "Scan barcode",
+            text = stringResource(R.string.food_scan_barcode),
             onClick = onScanClick,
             icon = Icons.Outlined.QrCodeScanner,
             enabled = !state.isLoading && !state.isSaving,
@@ -982,7 +1032,7 @@ private fun BarcodeFoodForm(
 
         if (state.lookupResult != null && !editDetails) {
             PillButton(
-                text = "Edit details",
+                text = stringResource(R.string.food_edit_details),
                 onClick = { editDetails = true },
                 icon = Icons.Outlined.Edit,
                 containerColor = accent.container,
@@ -1016,7 +1066,7 @@ private fun BarcodeFoodForm(
                 enabled = !state.isLoading && !state.isSaving,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (state.isSaving) "Saving" else "Save to database")
+                Text(stringResource(if (state.isSaving) R.string.food_saving else R.string.food_save_to_database))
             }
         }
     }
@@ -1050,7 +1100,7 @@ private fun BarcodeLookupSummary(
                     modifier = Modifier.size(15.dp),
                 )
                 Text(
-                    text = "Match found · Open Food Facts",
+                    text = stringResource(R.string.food_match_found_open_food_facts),
                     style = MusFitTheme.typography.labelMedium.copy(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.W800,
@@ -1074,7 +1124,7 @@ private fun BarcodeLookupSummary(
             )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = state.productName.ifBlank { "Scanned product" },
+                    text = state.productName.ifBlank { stringResource(R.string.food_scanned_product) },
                     style = MusFitTheme.typography.headlineSmall.copy(fontSize = 19.sp),
                     color = MusFitTheme.colors.onSurface,
                     maxLines = 1,
@@ -1082,8 +1132,10 @@ private fun BarcodeLookupSummary(
                 )
                 val subtitle = listOfNotNull(
                     state.brand.takeIf { it.isNotBlank() },
-                    servingGrams?.let { "1 serving = ${it.formatNutritionDisplay()} g" },
-                ).joinToString(" · ")
+                    servingGrams?.let {
+                        stringResource(R.string.food_serving_equals_grams, it.formatNutritionDisplay())
+                    },
+                ).joinToString(stringResource(R.string.food_separator))
                 if (subtitle.isNotEmpty()) {
                     Text(
                         text = subtitle,
@@ -1101,15 +1153,15 @@ private fun BarcodeLookupSummary(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             FoodStatTile(
-                label = "KCAL",
+                label = stringResource(R.string.food_kcal).uppercase(LocalConfiguration.current.locales[0]),
                 labelColor = MusFitTheme.colors.onSurfaceVariant,
-                value = state.caloriesPer100g.ifBlank { "—" },
+                value = state.caloriesPer100g.ifBlank { stringResource(R.string.food_not_available_dash) },
                 index = 0,
                 count = 4,
                 modifier = Modifier.weight(1f),
             )
             FoodStatTile(
-                label = "CARBS",
+                label = stringResource(R.string.food_carbs).uppercase(LocalConfiguration.current.locales[0]),
                 labelColor = MusFitTheme.colors.macroCarbs,
                 value = statTileGrams(state.carbsPer100g),
                 index = 1,
@@ -1117,7 +1169,7 @@ private fun BarcodeLookupSummary(
                 modifier = Modifier.weight(1f),
             )
             FoodStatTile(
-                label = "PROTEIN",
+                label = stringResource(R.string.food_protein).uppercase(LocalConfiguration.current.locales[0]),
                 labelColor = MusFitTheme.colors.macroProtein,
                 value = statTileGrams(state.proteinPer100g),
                 index = 2,
@@ -1125,7 +1177,7 @@ private fun BarcodeLookupSummary(
                 modifier = Modifier.weight(1f),
             )
             FoodStatTile(
-                label = "FAT",
+                label = stringResource(R.string.food_fat).uppercase(LocalConfiguration.current.locales[0]),
                 labelColor = MusFitTheme.colors.macroFat,
                 value = statTileGrams(state.fatPer100g),
                 index = 3,
@@ -1135,14 +1187,17 @@ private fun BarcodeLookupSummary(
         }
 
         Text(
-            text = "Per 100 g, imported values. Review and edit before saving — imports aren't always exact.",
+            text = stringResource(R.string.food_imported_values_warning),
             style = MusFitTheme.typography.bodySmall,
             color = MusFitTheme.colors.onSurfaceVariant,
         )
     }
 }
 
-private fun statTileGrams(raw: String): String = raw.takeIf { it.isNotBlank() }?.let { "$it g" } ?: "—"
+@Composable
+private fun statTileGrams(raw: String): String = raw.takeIf { it.isNotBlank() }
+    ?.let { stringResource(R.string.food_value_grams, it) }
+    ?: stringResource(R.string.food_not_available_dash)
 
 @Composable
 private fun NutritionLabelScanReview(
@@ -1150,10 +1205,18 @@ private fun NutritionLabelScanReview(
 ) {
     val review = state.nutritionLabelScanReview ?: return
     val parsedDetails = listOfNotNull(
-        state.fiberPer100g.takeIf { it.isNotBlank() }?.let { "Fiber $it g" },
-        state.sugarPer100g.takeIf { it.isNotBlank() }?.let { "Sugar $it g" },
-        state.saturatedFatPer100g.takeIf { it.isNotBlank() }?.let { "Sat fat $it g" },
-        state.sodiumMgPer100g.takeIf { it.isNotBlank() }?.let { "Sodium $it mg" },
+        state.fiberPer100g.takeIf { it.isNotBlank() }?.let {
+            stringResource(R.string.food_named_grams, stringResource(R.string.food_fiber), it)
+        },
+        state.sugarPer100g.takeIf { it.isNotBlank() }?.let {
+            stringResource(R.string.food_named_grams, stringResource(R.string.food_sugar), it)
+        },
+        state.saturatedFatPer100g.takeIf { it.isNotBlank() }?.let {
+            stringResource(R.string.food_named_grams, stringResource(R.string.food_saturated_fat), it)
+        },
+        state.sodiumMgPer100g.takeIf { it.isNotBlank() }?.let {
+            stringResource(R.string.food_named_milligrams, stringResource(R.string.food_sodium), it)
+        },
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1170,13 +1233,17 @@ private fun NutritionLabelScanReview(
                 color = MusFitTheme.colors.brandInk,
             )
             Text(
-                text = "${review.parsedFieldCount} fields found. Review before saving.",
+                text = pluralStringResource(
+                    R.plurals.food_parsed_fields_found,
+                    review.parsedFieldCount,
+                    review.parsedFieldCount,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
             )
             if (parsedDetails.isNotEmpty()) {
                 Text(
-                    text = parsedDetails.joinToString("  |  "),
+                    text = parsedDetails.joinToString(stringResource(R.string.food_detail_separator)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     maxLines = 2,
@@ -1214,7 +1281,7 @@ internal fun CreateFoodForm(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PillButton(
-                text = "Scan barcode",
+                text = stringResource(R.string.food_scan_barcode),
                 onClick = onScanBarcode,
                 icon = Icons.Outlined.QrCodeScanner,
                 enabled = !state.isLoading && !state.isSaving,
@@ -1224,7 +1291,7 @@ internal fun CreateFoodForm(
                 modifier = Modifier.weight(1f),
             )
             PillButton(
-                text = "Scan label",
+                text = stringResource(R.string.food_scan_label),
                 onClick = onScanLabel,
                 icon = Icons.Outlined.DocumentScanner,
                 enabled = !state.isLoading && !state.isSaving,
@@ -1241,7 +1308,7 @@ internal fun CreateFoodForm(
 
         if (state.lookupResult != null && !editDetails) {
             PillButton(
-                text = "Edit details",
+                text = stringResource(R.string.food_edit_details),
                 onClick = { editDetails = true },
                 icon = Icons.Outlined.Edit,
                 containerColor = accent.container,
@@ -1275,7 +1342,7 @@ internal fun CreateFoodForm(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PillButton(
-                text = if (state.isSaving) "Saving" else "Save to database",
+                text = stringResource(if (state.isSaving) R.string.food_saving else R.string.food_save_to_database),
                 onClick = onSaveProduct,
                 enabled = !state.isLoading && !state.isSaving,
                 containerColor = MusFitTheme.colors.surfaceVariant,
@@ -1286,8 +1353,8 @@ internal fun CreateFoodForm(
             PillButton(
                 text = when {
                     state.isSaving -> state.foodEntryActionProgressLabel()
-                    state.lookupResult?.servingQuantityGrams != null -> state.foodEntryActionLabel("1 serving")
-                    else -> state.foodEntryActionLabel("food")
+                    state.lookupResult?.servingQuantityGrams != null -> state.foodEntryActionLabel(R.string.food_target_one_serving)
+                    else -> state.foodEntryActionLabel(R.string.food_target_food)
                 },
                 onClick = onLogFood,
                 icon = Icons.Outlined.Add,
@@ -1342,7 +1409,7 @@ private fun ProductFields(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         GroupedFieldCell(
-            label = "Food name",
+            label = stringResource(R.string.food_food_name),
             value = state.productName,
             onValueChange = onProductNameChanged,
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 8.dp, bottomEnd = 8.dp),
@@ -1353,14 +1420,14 @@ private fun ProductFields(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             GroupedFieldCell(
-                label = "Brand",
+                label = stringResource(R.string.food_brand),
                 value = state.brand,
                 onValueChange = onBrandChanged,
                 shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 20.dp, bottomEnd = 8.dp),
                 modifier = Modifier.weight(1f),
             )
             GroupedFieldCell(
-                label = "Amount (g)",
+                label = stringResource(R.string.food_amount_grams),
                 value = state.quantityGrams,
                 onValueChange = onQuantityChanged,
                 shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 20.dp),
@@ -1398,14 +1465,17 @@ private fun NutritionFields(
     onFatChanged: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionOverline("NUTRITION PER 100 G")
+        SectionOverline(
+            stringResource(R.string.food_nutrition_per_hundred_grams)
+                .uppercase(LocalConfiguration.current.locales[0]),
+        )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 GroupedFieldCell(
-                    label = "Calories",
+                    label = stringResource(R.string.food_calories),
                     value = state.caloriesPer100g,
                     onValueChange = onCaloriesChanged,
                     shape = gridGroupShape(row = 0, rowCount = 2, column = 0, columnCount = 2, outer = 20.dp),
@@ -1413,7 +1483,7 @@ private fun NutritionFields(
                     modifier = Modifier.weight(1f),
                 )
                 GroupedFieldCell(
-                    label = "Carbs",
+                    label = stringResource(R.string.food_carbs),
                     value = state.carbsPer100g,
                     onValueChange = onCarbsChanged,
                     shape = gridGroupShape(row = 0, rowCount = 2, column = 1, columnCount = 2, outer = 20.dp),
@@ -1427,7 +1497,7 @@ private fun NutritionFields(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 GroupedFieldCell(
-                    label = "Protein",
+                    label = stringResource(R.string.food_protein),
                     value = state.proteinPer100g,
                     onValueChange = onProteinChanged,
                     shape = gridGroupShape(row = 1, rowCount = 2, column = 0, columnCount = 2, outer = 20.dp),
@@ -1436,7 +1506,7 @@ private fun NutritionFields(
                     modifier = Modifier.weight(1f),
                 )
                 GroupedFieldCell(
-                    label = "Fat",
+                    label = stringResource(R.string.food_fat),
                     value = state.fatPer100g,
                     onValueChange = onFatChanged,
                     shape = gridGroupShape(row = 1, rowCount = 2, column = 1, columnCount = 2, outer = 20.dp),
@@ -1466,23 +1536,29 @@ private fun AmountNutritionPreview(
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = "${preview.caloriesKcal.roundToInt()}",
+                    text = LocalizedFormatter.integer(
+                        preview.caloriesKcal.roundToInt().toLong(),
+                        locale = LocalConfiguration.current.locales[0],
+                    ),
                     style = MusFitTheme.typography.headlineMedium,
                     color = accent.onContainer,
                     maxLines = 1,
                 )
                 Text(
-                    text = "kcal",
+                    text = stringResource(R.string.food_kcal),
                     style = MusFitTheme.typography.bodySmall.copy(fontWeight = FontWeight.W600),
                     color = accent.onContainerVariant,
                     modifier = Modifier.padding(start = 5.dp, bottom = 5.dp),
                 )
             }
             Text(
-                text = "for ${preview.quantityGrams.formatNutritionDisplay()} g · " +
-                    "C ${preview.carbsGrams.formatNutritionDisplay()} · " +
-                    "P ${preview.proteinGrams.formatNutritionDisplay()} · " +
-                    "F ${preview.fatGrams.formatNutritionDisplay()}",
+                text = stringResource(
+                    R.string.food_amount_macro_summary,
+                    preview.quantityGrams.formatNutritionDisplay(),
+                    preview.carbsGrams.formatNutritionDisplay(),
+                    preview.proteinGrams.formatNutritionDisplay(),
+                    preview.fatGrams.formatNutritionDisplay(),
+                ),
                 style = MusFitTheme.typography.bodySmall,
                 color = accent.onContainerVariant,
                 maxLines = 1,
@@ -1537,7 +1613,7 @@ private fun QuickCalorieForm(
                         maxLines = 1,
                     )
                     Text(
-                        text = "kcal · steps of $QUICK_KCAL_STEP",
+                        text = stringResource(R.string.food_kcal_step, QUICK_KCAL_STEP),
                         style = MusFitTheme.typography.bodySmall.copy(fontWeight = FontWeight.W600),
                         color = MusFitTheme.colors.onSurfaceVariant,
                     )
@@ -1553,14 +1629,21 @@ private fun QuickCalorieForm(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionOverline("FAVORITE PRESETS")
+            SectionOverline(
+                stringResource(R.string.food_favorite_presets)
+                    .uppercase(LocalConfiguration.current.locales[0]),
+            )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 state.quickCaloriePresets.forEach { preset ->
                     SelectableChip(
-                        text = "${preset.name} · ${preset.caloriesKcal.roundToInt()}",
+                        text = stringResource(
+                            R.string.food_named_calories,
+                            preset.name,
+                            preset.caloriesKcal.roundToInt(),
+                        ),
                         selected = quickInputsMatchPreset(state, preset),
                         onClick = {
                             onQuickCaloriesChanged(preset.caloriesKcal.formatNutritionDisplay())
@@ -1571,7 +1654,7 @@ private fun QuickCalorieForm(
                     )
                 }
                 SelectableChip(
-                    text = "Save preset",
+                    text = stringResource(R.string.food_save_preset),
                     selected = null,
                     onClick = onQuickSaveFavoriteClick,
                     unselectedContent = MusFitTheme.colors.brand,
@@ -1585,19 +1668,19 @@ private fun QuickCalorieForm(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SmallNumberField(
-                label = "Protein",
+                label = stringResource(R.string.food_protein),
                 value = state.quickProteinGrams,
                 onValueChange = onQuickProteinChanged,
                 modifier = Modifier.weight(1f),
             )
             SmallNumberField(
-                label = "Carbs",
+                label = stringResource(R.string.food_carbs),
                 value = state.quickCarbsGrams,
                 onValueChange = onQuickCarbsChanged,
                 modifier = Modifier.weight(1f),
             )
             SmallNumberField(
-                label = "Fat",
+                label = stringResource(R.string.food_fat),
                 value = state.quickFatGrams,
                 onValueChange = onQuickFatChanged,
                 modifier = Modifier.weight(1f),

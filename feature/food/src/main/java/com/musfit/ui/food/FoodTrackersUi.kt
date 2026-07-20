@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.musfit.feature.food.R
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import kotlin.math.roundToInt
 import com.musfit.core.designsystem.R as DesignR
@@ -209,7 +210,7 @@ internal fun FoodHealthConnectSyncCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.food_health_connect), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    state.foodHealthConnectPermissionSummary,
+                    state.foodHealthConnectPermissionSummary.asString(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )

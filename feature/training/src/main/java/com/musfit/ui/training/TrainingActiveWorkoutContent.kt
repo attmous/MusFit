@@ -99,6 +99,11 @@ import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.PillButton
 import com.musfit.ui.components.TonalHeaderIconButton
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.BrandCoral
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
@@ -312,8 +317,8 @@ private fun ActiveWorkoutHeader(
         totalVolumeKg = workout.totalVolumeKg,
         completedSetCount = workout.completedSetCount,
         totalSetCount = totalSets,
-    )
-    val clock = statLine.substringBefore(" · ")
+    ).asString()
+    val clock = elapsedSeconds.toElapsedClock()
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -407,6 +412,7 @@ private fun RestTimerHero(
 ) {
     if (!restTimer.isVisible) return
     val quietPill = MusFitTheme.colors.surface.copy(alpha = 0.75f)
+    val remainingDescription = restTimerRemainingContentDescription(restTimer.remainingSeconds).asString()
     Surface(
         color = accent.container,
         shape = RoundedCornerShape(28.dp),
@@ -432,9 +438,7 @@ private fun RestTimerHero(
                         style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
                         color = accent.onContainer,
                         modifier = Modifier.semantics {
-                            contentDescription = restTimerRemainingContentDescription(
-                                restTimer.remainingSeconds,
-                            )
+                            contentDescription = remainingDescription
                         },
                     )
                     Text(
@@ -532,6 +536,7 @@ private fun CollapsedExerciseRow(
 ) {
     val isComplete = block.sets.isNotEmpty() && block.sets.all { it.completed }
     val completeDescription = stringResource(R.string.training_complete)
+    val upNextDescription = upNextTarget(block).asString()
     Surface(
         onClick = onClick,
         color = MusFitTheme.colors.surface,
@@ -540,7 +545,7 @@ private fun CollapsedExerciseRow(
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
                 contentDescription = block.exercise.name
-                stateDescription = if (isComplete) completeDescription else upNextTarget(block)
+                stateDescription = if (isComplete) completeDescription else upNextDescription
                 role = Role.Button
             },
     ) {
@@ -571,21 +576,34 @@ private fun CollapsedExerciseRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (isComplete) {
-                Icon(
-                    imageVector = Icons.Outlined.Check,
-                    contentDescription = null,
-                    tint = accent.color,
-                    modifier = Modifier.size(18.dp),
-                )
-            } else {
-                Text(
-                    text = upNextTarget(block),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MusFitTheme.colors.onSurfaceVariant,
-                )
-            }
+            CollapsedExerciseStatus(
+                isComplete = isComplete,
+                upNextDescription = upNextDescription,
+                accent = accent,
+            )
         }
+    }
+}
+
+@Composable
+private fun CollapsedExerciseStatus(
+    isComplete: Boolean,
+    upNextDescription: String,
+    accent: TabAccent,
+) {
+    if (isComplete) {
+        Icon(
+            imageVector = Icons.Outlined.Check,
+            contentDescription = null,
+            tint = accent.color,
+            modifier = Modifier.size(18.dp),
+        )
+    } else {
+        Text(
+            text = upNextDescription,
+            style = MaterialTheme.typography.bodySmall,
+            color = MusFitTheme.colors.onSurfaceVariant,
+        )
     }
 }
 
@@ -705,7 +723,7 @@ private fun FocusedExerciseSection(
                         )
                     }
                 }
-                plateSummary(block, barWeightKg, availablePlatesKg)?.let { plates ->
+                plateSummary(block, barWeightKg, availablePlatesKg)?.asString()?.let { plates ->
                     Text(
                         text = plates,
                         style = MaterialTheme.typography.bodySmall,
@@ -1303,7 +1321,7 @@ private fun RestTimerDefaultDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = restTimerSettingsSummaryText(restTimerDefaultSecondsInput),
+                    text = restTimerSettingsSummaryText(restTimerDefaultSecondsInput).asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -1349,6 +1367,7 @@ private fun RestTimerTicker(
 /** Exercise options bottom sheet (M3 list items). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("LongMethod")
 private fun ExerciseOptionsSheet(
     exerciseName: String,
     canMakeSuperset: Boolean,
@@ -1702,25 +1721,42 @@ internal fun activeWorkoutStatLine(
     totalVolumeKg: Double,
     completedSetCount: Int,
     totalSetCount: Int,
-): String {
-    val parts = mutableListOf(
-        elapsedSeconds.toElapsedClock(),
-        "${totalVolumeKg.formatKg()} kg",
+): UiText {
+    val parts = mutableListOf<UiText>(
+        UiText.Verbatim(elapsedSeconds.toElapsedClock()),
+        uiText(
+            R.string.training_kilograms,
+            UiText.Argument.Text(totalVolumeKg.formatKg()),
+        ),
     )
     if (totalSetCount > 0) {
-        parts += "set ${(completedSetCount + 1).coerceAtMost(totalSetCount)} of $totalSetCount"
+        parts += uiText(
+            R.string.training_set_position,
+            UiText.Argument.Integer((completedSetCount + 1).coerceAtMost(totalSetCount)),
+            UiText.Argument.Integer(totalSetCount),
+        )
     }
-    return parts.joinToString(" · ")
+    return parts.joinedWithMiddleDot()
 }
 
 /** Up-next trailing target: "3 × 8" from the planned sets, or a plain set count. */
-internal fun upNextTarget(block: WorkoutExerciseBlock): String {
+internal fun upNextTarget(block: WorkoutExerciseBlock): UiText {
     val setCount = block.sets.size
     val reps = block.targetReps?.trim()?.takeIf(String::isNotBlank)
     return when {
-        setCount == 0 -> "no sets"
-        reps != null -> "$setCount × $reps"
-        else -> "$setCount ${if (setCount == 1) "set" else "sets"}"
+        setCount == 0 -> uiText(R.string.training_no_sets)
+
+        reps != null -> uiText(
+            R.string.training_sets_by_reps,
+            UiText.Argument.Integer(setCount),
+            UiText.Argument.Text(reps),
+        )
+
+        else -> pluralUiText(
+            R.plurals.training_set_count,
+            setCount,
+            UiText.Argument.Integer(setCount),
+        )
     }
 }
 
@@ -1769,21 +1805,31 @@ internal fun plateSummary(
     block: WorkoutExerciseBlock,
     barWeightKg: Double,
     availablePlatesKg: List<Double>,
-): String? {
-    val weight = block.sets.lastOrNull { (it.weightKg ?: 0.0) > 0.0 }?.weightKg ?: return null
-    val plates = PlateCalculator.platesPerSide(weight, barWeightKg, availablePlatesKg)
-    if (plates.isEmpty()) return null
-    return "Plates ${plates.joinToString(" + ") { it.formatPlate() }}"
+): UiText? {
+    val plates = block.sets
+        .lastOrNull { (it.weightKg ?: 0.0) > 0.0 }
+        ?.weightKg
+        ?.let { weight -> PlateCalculator.platesPerSide(weight, barWeightKg, availablePlatesKg) }
+        .orEmpty()
+    return plates.takeIf(List<Double>::isNotEmpty)?.let { available ->
+        uiText(
+            R.string.training_plates,
+            UiText.Argument.Text(available.joinToString(" + ") { it.formatPlate() }),
+        )
+    }
 }
 
 internal fun plateLineText(
     weightKg: Double,
     barWeightKg: Double,
     availablePlatesKg: List<Double>,
-): String? {
+): UiText? {
     val plates = PlateCalculator.platesPerSide(weightKg, barWeightKg, availablePlatesKg)
     if (plates.isEmpty()) return null
-    return "Plates · ${plates.joinToString(" + ") { it.formatPlate() }} / side"
+    return uiText(
+        R.string.training_plates_per_side,
+        UiText.Argument.Text(plates.joinToString(" + ") { it.formatPlate() }),
+    )
 }
 
 internal fun compactExerciseSuggestions(
@@ -1808,34 +1854,47 @@ internal fun compactExerciseSuggestions(
     return filtered.take(limit)
 }
 
-internal fun restTimerSettingsSummaryText(restTimerDefaultSecondsInput: String): String {
+internal fun restTimerSettingsSummaryText(restTimerDefaultSecondsInput: String): UiText {
     val seconds = restTimerDefaultSecondsInput.trim().takeIf(String::isNotBlank)
     return if (seconds == null) {
-        "Set rest after each completed set"
+        uiText(R.string.training_rest_after_each_set_default)
     } else {
-        "$seconds sec after each completed set"
+        uiText(
+            R.string.training_rest_after_each_set_value,
+            UiText.Argument.Text(seconds),
+        )
     }
 }
 
-internal fun restTimerDisplayText(restTimer: RestTimerState): String = when {
-    !restTimer.isVisible || restTimer.remainingSeconds <= 0 -> "Rest Timer: OFF"
-    restTimer.isRunning -> "Rest Timer: ${restTimer.remainingSeconds.formatDuration()}"
-    else -> "Rest Timer: Paused at ${restTimer.remainingSeconds.formatDuration()}"
+internal fun restTimerDisplayText(restTimer: RestTimerState): UiText = when {
+    !restTimer.isVisible || restTimer.remainingSeconds <= 0 -> uiText(R.string.training_rest_timer_off)
+
+    restTimer.isRunning -> uiText(
+        R.string.training_rest_timer_running,
+        UiText.Argument.Nested(restTimer.remainingSeconds.formatDuration()),
+    )
+
+    else -> uiText(
+        R.string.training_rest_timer_paused,
+        UiText.Argument.Nested(restTimer.remainingSeconds.formatDuration()),
+    )
 }
 
-internal fun restTimerRemainingContentDescription(remainingSeconds: Int): String = "Rest timer ${remainingSeconds.coerceAtLeast(0)} seconds remaining"
+internal fun restTimerRemainingContentDescription(remainingSeconds: Int): UiText {
+    val safeSeconds = remainingSeconds.coerceAtLeast(0)
+    return pluralUiText(
+        R.plurals.training_rest_seconds_remaining,
+        safeSeconds,
+        UiText.Argument.Integer(safeSeconds),
+    )
+}
 
 private fun Double?.formatCompact(): String = when {
     this == null -> ""
-    this % 1.0 == 0.0 -> toInt().toString()
-    else -> String.format(Locale.ROOT, "%.2f", this).trimEnd('0').trimEnd('.')
+    else -> LocalizedFormatter.number(this, grouping = false)
 }
 
-private fun Double.formatPlate(): String = if (this % 1.0 == 0.0) {
-    toInt().toString()
-} else {
-    String.format(Locale.ROOT, "%.2f", this).trimEnd('0').trimEnd('.')
-}
+private fun Double.formatPlate(): String = LocalizedFormatter.number(this, grouping = false)
 
 private fun Int.toMinSec(): String {
     val minutes = this / 60
@@ -1843,13 +1902,22 @@ private fun Int.toMinSec(): String {
     return String.format(Locale.getDefault(), "%d:%02d", minutes, seconds)
 }
 
-private fun Int.formatDuration(): String {
+private fun Int.formatDuration(): UiText {
     val minutes = this / 60
     val seconds = this % 60
     return if (minutes > 0) {
-        "${minutes}min ${seconds}s"
+        pluralUiText(
+            R.plurals.training_duration_minutes_seconds,
+            minutes,
+            UiText.Argument.Integer(minutes),
+            UiText.Argument.Integer(seconds),
+        )
     } else {
-        "${seconds}s"
+        pluralUiText(
+            R.plurals.training_duration_seconds,
+            seconds,
+            UiText.Argument.Integer(seconds),
+        )
     }
 }
 
@@ -1864,11 +1932,7 @@ private fun Long.toElapsedClock(): String {
     }
 }
 
-private fun Double.formatKg(): String = if (this % 1.0 == 0.0) {
-    toInt().toString()
-} else {
-    String.format(Locale.getDefault(), "%.2f", this).trimEnd('0').trimEnd('.')
-}
+private fun Double.formatKg(): String = LocalizedFormatter.number(this, grouping = false)
 
 private const val SET_TYPE_WARMUP = "warmup"
 private const val SET_TYPE_WORKING = "working"

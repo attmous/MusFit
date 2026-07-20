@@ -121,7 +121,7 @@ import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccent
 import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
-import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -585,9 +585,9 @@ private fun FoodProjectedSurface(
         return
     }
     val selectedMealDetail = state.selectedMealDetailForDisplay()
-    val selectedMealTemplateName = stringResource(R.string.food_template_name, state.selectedMealTitle)
+    val selectedMealTemplateName = stringResource(R.string.food_template_name, state.selectedMealTitleText.asString())
     val selectedMealDetailTemplateName = selectedMealDetail?.let { meal ->
-        stringResource(R.string.food_template_name, meal.title)
+        stringResource(R.string.food_template_name, meal.titleText.asString())
     }
     val isRecipeFullScreen =
         state.isAddPanelVisible &&
@@ -1205,7 +1205,7 @@ private fun FoodDateChip(
     val accent = tabAccentFor(TabAccentRole.Food)
     val locale = LocalConfiguration.current.locales[0]
     val formattedDate = remember(date, locale) {
-        date.format(DateTimeFormatter.ofPattern("EEE · d MMM", locale))
+        LocalizedFormatter.date(date, FormatStyle.MEDIUM, locale)
     }
     Surface(
         color = MusFitTheme.colors.surface,
@@ -1382,7 +1382,11 @@ internal fun FoodUiState.foodEntryActionVerb(): String = stringResource(if (isPl
 internal fun FoodUiState.foodEntryActionProgressLabel(): String = stringResource(if (isPlanningMode) R.string.food_planning else R.string.food_logging)
 
 @Composable
-internal fun FoodUiState.foodEntryActionLabel(target: String): String = stringResource(R.string.food_action_target, foodEntryActionVerb(), target)
+internal fun FoodUiState.foodEntryActionLabel(@androidx.annotation.StringRes targetResourceId: Int): String = stringResource(
+    R.string.food_action_target,
+    foodEntryActionVerb(),
+    stringResource(targetResourceId),
+)
 
 @Composable
 internal fun FoodUiState.saveAndFoodEntryActionLabel(): String = stringResource(if (isPlanningMode) R.string.food_save_and_plan else R.string.food_save_and_log)
@@ -1632,7 +1636,7 @@ private fun MacroProgressColumn(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = macro.label,
+                text = macro.labelText.asString(),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = MusFitTheme.colors.onSurface,
@@ -2020,7 +2024,7 @@ private fun AdvancedNutritionProgressListRow(nutrient: FoodNutrientProgressUiSta
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = nutrient.label,
+                text = nutrient.labelText.asString(),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MusFitTheme.colors.brandInk,
@@ -2089,7 +2093,7 @@ private fun AdvancedNutritionProgressCard(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = nutrient.label,
+                text = nutrient.labelText.asString(),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -2179,7 +2183,7 @@ private fun MicronutrientStat(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = micronutrient.label,
+            text = micronutrient.labelText.asString(),
             style = MaterialTheme.typography.bodyMedium,
             color = MusFitTheme.colors.onSurfaceVariant,
             maxLines = 1,
@@ -2234,7 +2238,7 @@ private fun MicronutrientCard(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = micronutrient.label,
+                text = micronutrient.labelText.asString(),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -2275,7 +2279,7 @@ private fun MealDetailScreen(
     val accent = tabAccentFor(TabAccentRole.Food)
     val locale = LocalConfiguration.current.locales[0]
     val selectedDateLabel = remember(selectedDate, locale) {
-        selectedDate.format(DateTimeFormatter.ofPattern("EEE d MMM", locale))
+        LocalizedFormatter.date(selectedDate, FormatStyle.MEDIUM, locale)
     }
     var detailExpanded by rememberSaveable(meal.id) { mutableStateOf(false) }
     val hasDetail = meal.rating?.factors?.isNotEmpty() == true ||
@@ -2292,7 +2296,7 @@ private fun MealDetailScreen(
         ) {
             val itemsLabel = pluralStringResource(R.plurals.food_item_count, meal.entries.size, meal.entries.size)
             InnerScreenHeader(
-                title = meal.title,
+                title = meal.titleText.asString(),
                 onBack = actions.onBackClick,
                 subtitle = stringResource(R.string.food_meal_summary, selectedDateLabel, itemsLabel),
                 trailing = {
@@ -2432,7 +2436,7 @@ private fun MealDetailScreen(
             )
             TonalIconSquare(
                 icon = Icons.Outlined.ContentCopy,
-                contentDescription = stringResource(R.string.food_copy_yesterdays_meal, meal.title),
+                contentDescription = stringResource(R.string.food_copy_yesterdays_meal, meal.titleText.asString()),
                 onClick = actions.onCopyYesterdayClick,
                 containerColor = accent.container,
                 contentColor = accent.onContainer,
@@ -2548,7 +2552,7 @@ private fun MealDetailSummaryHero(
 
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 MealDetailHeroMacro(
-                    label = meal.carbsLabel,
+                    label = meal.carbsLabelText.asString(),
                     grams = meal.effectiveCarbsGrams,
                     goalGrams = meal.carbsGoalGrams,
                     color = MusFitTheme.colors.macroColors[0],
@@ -2774,7 +2778,7 @@ private fun MealSummaryRow(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = meal.title,
+                    text = meal.titleText.asString(),
                     style = MaterialTheme.typography.titleLarge,
                     color = MusFitTheme.colors.onSurface,
                     maxLines = 1,
@@ -2812,7 +2816,7 @@ private fun MealSummaryRow(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.food_add_to_meal, meal.title),
+                        contentDescription = stringResource(R.string.food_add_to_meal, meal.titleText.asString()),
                         modifier = Modifier.size(22.dp),
                     )
                 }

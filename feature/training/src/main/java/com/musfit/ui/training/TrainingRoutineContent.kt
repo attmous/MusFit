@@ -137,6 +137,11 @@ import com.musfit.ui.components.asShape
 import com.musfit.ui.components.expressiveBadgeShapeFor
 import com.musfit.ui.components.gridGroupShape
 import com.musfit.ui.components.groupedShape
+import com.musfit.ui.text.LocalizedFormatter
+import com.musfit.ui.text.UiText
+import com.musfit.ui.text.asString
+import com.musfit.ui.text.pluralUiText
+import com.musfit.ui.text.uiText
 import com.musfit.ui.theme.MusFitMotion
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.NeutralOutline
@@ -620,7 +625,7 @@ private fun RoutineRow(
             )
             routineDescription(routine)?.let { description ->
                 Text(
-                    description,
+                    description.asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -926,15 +931,23 @@ private fun RoutineDetailExerciseRow(
     onOpen: (target: String) -> Unit,
 ) {
     val target = if (!exercise.targetReps.isNullOrBlank()) {
-        "${exercise.targetSets} x ${exercise.targetReps}"
+        uiText(
+            R.string.training_sets_by_reps,
+            UiText.Argument.Integer(exercise.targetSets),
+            UiText.Argument.Text(exercise.targetReps.orEmpty()),
+        ).asString()
     } else {
-        "${exercise.targetSets} sets"
+        pluralUiText(
+            R.plurals.training_set_count,
+            exercise.targetSets,
+            UiText.Argument.Integer(exercise.targetSets),
+        ).asString()
     }
     val setTypeSummary = exercise.setPlans
         .takeIf { it.isNotEmpty() }
-        ?.mapIndexed { index, setPlan -> routineSetTypeToken(setPlan.setType, index) }
+        ?.mapIndexed { index, setPlan -> routineSetTypeToken(setPlan.setType, index).asString() }
         ?.joinToString(" ")
-    val restSummary = exercise.restSeconds?.let { "Rest ${it}s" }
+    val restSummary = exercise.restSeconds?.let { stringResource(R.string.training_rest_seconds, it) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1082,7 +1095,7 @@ private fun RoutineMuscleChip(label: String) {
 
 internal fun nextQuickLogExpanded(current: Boolean): Boolean = !current
 
-internal const val MY_ROUTINES_GROUP_TITLE = "My routines"
+internal const val MY_ROUTINES_GROUP_TITLE = "__my_routines__"
 
 internal data class RoutineGroup(
     val title: String,
@@ -1106,7 +1119,9 @@ private data class RoutineDragState(
     val position: Offset,
 )
 
-internal fun routineFolderMoveTargets(folders: List<RoutineFolder>): List<RoutineFolderMoveTarget> = listOf(RoutineFolderMoveTarget(folderId = null, label = "My routines")) +
+internal fun routineFolderMoveTargets(folders: List<RoutineFolder>): List<RoutineFolderMoveTarget> = listOf(
+    RoutineFolderMoveTarget(folderId = null, label = MY_ROUTINES_GROUP_TITLE),
+) +
     folders.map { folder -> RoutineFolderMoveTarget(folderId = folder.id, label = folder.name) }
 
 internal fun groupRoutineSummariesByFolder(
@@ -1163,8 +1178,11 @@ internal fun routineCardActions(isStarter: Boolean): List<String> = if (isStarte
     listOf(ROUTINE_ACTION_START, ROUTINE_ACTION_EDIT, ROUTINE_ACTION_DUPLICATE, ROUTINE_ACTION_DELETE)
 }
 
-internal fun routineDescription(routine: RoutineSummary): String? = routine.notes?.trim()?.takeIf(String::isNotBlank)
-    ?: if (routine.isStarter) "Pre-saved routine" else null
+internal fun routineDescription(routine: RoutineSummary): UiText? = routine.notes
+    ?.trim()
+    ?.takeIf(String::isNotBlank)
+    ?.let(UiText::Verbatim)
+    ?: if (routine.isStarter) uiText(R.string.training_pre_saved_routine) else null
 
 private const val ROUTINE_ACTION_START = "Start"
 private const val ROUTINE_ACTION_EDIT = "Edit"
@@ -1174,7 +1192,7 @@ private const val ROUTINE_ACTION_DELETE = "Delete"
 /** Result of validating a routine target field for display (storage still coerces independently). */
 sealed interface TargetFieldResult {
     object Valid : TargetFieldResult
-    data class Invalid(val message: String) : TargetFieldResult
+    data class Invalid(val message: UiText) : TargetFieldResult
 }
 
 internal fun validateTargetSets(raw: String): TargetFieldResult {
@@ -1182,14 +1200,14 @@ internal fun validateTargetSets(raw: String): TargetFieldResult {
     return if (sets != null && sets in 1..20) {
         TargetFieldResult.Valid
     } else {
-        TargetFieldResult.Invalid("Enter 1-20 sets")
+        TargetFieldResult.Invalid(uiText(R.string.training_enter_sets_range))
     }
 }
 
 internal fun validateTargetReps(raw: String): TargetFieldResult {
     val trimmed = raw.trim()
     if (trimmed.isEmpty()) return TargetFieldResult.Valid
-    val invalid = TargetFieldResult.Invalid("Use a number or range, e.g. 8 or 8-12")
+    val invalid = TargetFieldResult.Invalid(uiText(R.string.training_enter_reps_or_range))
     if (trimmed.contains('-')) {
         val parts = trimmed.split('-').map { it.trim() }
         if (parts.size != 2) return invalid
@@ -1202,46 +1220,80 @@ internal fun validateTargetReps(raw: String): TargetFieldResult {
 }
 
 /** Collapsed-row subline (mock 5f): "3 × 8 · 150s rest" — one line, nothing else. */
-internal fun routineExerciseSubline(exercise: RoutineExerciseInput): String {
+internal fun routineExerciseSubline(exercise: RoutineExerciseInput): UiText {
     val sets = if (exercise.setPlans.isNotEmpty()) exercise.setPlans.size else exercise.targetSets
     val reps = exercise.targetReps?.trim()?.takeIf(String::isNotBlank)
-    val base = if (reps != null) "$sets × $reps" else "$sets ${if (sets == 1) "set" else "sets"}"
-    val rest = exercise.restSeconds?.let { "${it}s rest" }
-    return listOfNotNull(base, rest).joinToString(" · ")
+    val base = if (reps != null) {
+        uiText(
+            R.string.training_sets_by_reps,
+            UiText.Argument.Integer(sets),
+            UiText.Argument.Text(reps),
+        )
+    } else {
+        pluralUiText(R.plurals.training_set_count, sets, UiText.Argument.Integer(sets))
+    }
+    val rest = exercise.restSeconds?.let { seconds ->
+        uiText(R.string.training_seconds_rest, UiText.Argument.Integer(seconds))
+    }
+    return listOfNotNull(base, rest).joinedWithMiddleDot()
 }
 
 /** One quiet sentence describing what the per-set plan holds beyond straight working sets. */
-internal fun setPlanSummaryLabel(setPlans: List<RoutineSetInput>): String {
-    if (setPlans.isEmpty()) return "Straight sets"
-    val parts = mutableListOf<String>()
+internal fun setPlanSummaryLabel(setPlans: List<RoutineSetInput>): UiText {
+    if (setPlans.isEmpty()) return uiText(R.string.training_straight_sets)
+    val parts = mutableListOf<UiText>()
     val warmups = setPlans.count { it.setType.equals("warmup", ignoreCase = true) }
-    if (warmups == 1) parts += "1 warm-up set"
-    if (warmups > 1) parts += "$warmups warm-up sets"
+    if (warmups > 0) {
+        parts += pluralUiText(
+            R.plurals.training_warmup_set_count,
+            warmups,
+            UiText.Argument.Integer(warmups),
+        )
+    }
     val failureIndex = setPlans.indexOfFirst { it.setType.equals("failure", ignoreCase = true) }
     when {
-        failureIndex == 0 -> parts += "First set to failure"
-        failureIndex > 0 -> parts += "Set ${failureIndex + 1} to failure"
+        failureIndex == 0 -> parts += uiText(R.string.training_first_set_to_failure)
+
+        failureIndex > 0 -> parts += uiText(
+            R.string.training_numbered_set_to_failure,
+            UiText.Argument.Integer(failureIndex + 1),
+        )
     }
     val drops = setPlans.count { it.setType.equals("drop", ignoreCase = true) }
-    if (drops == 1) parts += "1 drop set"
-    if (drops > 1) parts += "$drops drop sets"
-    return if (parts.isEmpty()) "Straight sets" else parts.joinToString(" · ")
+    if (drops > 0) {
+        parts += pluralUiText(
+            R.plurals.training_drop_set_count,
+            drops,
+            UiText.Argument.Integer(drops),
+        )
+    }
+    return if (parts.isEmpty()) uiText(R.string.training_straight_sets) else parts.joinedWithMiddleDot()
 }
 
 /** Editor meta line (mock 5f): "Strength block · 5 exercises · ~40 min". */
-internal fun routineEditorMetaLine(editor: RoutineEditorState): String {
-    val block = editor.folderName.trim().takeIf(String::isNotBlank)
-        ?: if (editor.isStarter) "Pre-made routine" else "Routine"
+internal fun routineEditorMetaLine(editor: RoutineEditorState): UiText {
+    val block = editor.folderName
+        .trim()
+        .takeIf(String::isNotBlank)
+        ?.let(UiText::Verbatim)
+        ?: uiText(if (editor.isStarter) R.string.training_pre_made_routine else R.string.training_routine)
     val exerciseCount = editor.exercises.size
     val totalSets = editor.exercises.sumOf { exercise ->
         if (exercise.setPlans.isNotEmpty()) exercise.setPlans.size else exercise.targetSets
     }
     val estimatedMinutes = RoutineDisplayCalculator.estimatedMinutes(totalSets)
-    return buildString {
-        append(block)
-        append(" · $exerciseCount ${if (exerciseCount == 1) "exercise" else "exercises"}")
-        if (estimatedMinutes > 0) append(" · ~$estimatedMinutes min")
+    val parts = mutableListOf(
+        block,
+        pluralUiText(
+            R.plurals.training_exercise_count_plain,
+            exerciseCount,
+            UiText.Argument.Integer(exerciseCount),
+        ),
+    )
+    if (estimatedMinutes > 0) {
+        parts += uiText(R.string.training_approx_minutes, UiText.Argument.Integer(estimatedMinutes))
     }
+    return parts.joinedWithMiddleDot()
 }
 
 internal fun routineEditorCanSave(name: String, exercises: List<RoutineExerciseInput>): Boolean {
@@ -1337,7 +1389,7 @@ fun TrainingRoutineEditor(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = routineEditorMetaLine(editor),
+                text = routineEditorMetaLine(editor).asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MusFitTheme.colors.onSurfaceVariant,
                 maxLines = 1,
@@ -1474,6 +1526,12 @@ private fun RoutineEditorCollapsedRow(
     onMoveDown: (Int) -> Unit,
 ) {
     val collapsedDescription = stringResource(R.string.training_collapsed)
+    val exerciseSubline = routineExerciseSubline(exercise).asString()
+    val stateDescriptionText = stringResource(
+        R.string.training_description_state,
+        exerciseSubline,
+        collapsedDescription,
+    )
     Surface(
         onClick = onExpand,
         color = MusFitTheme.colors.surface,
@@ -1482,7 +1540,7 @@ private fun RoutineEditorCollapsedRow(
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
                 contentDescription = exerciseName
-                stateDescription = "${routineExerciseSubline(exercise)}. $collapsedDescription"
+                stateDescription = stateDescriptionText
                 role = Role.Button
             },
     ) {
@@ -1508,7 +1566,7 @@ private fun RoutineEditorCollapsedRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = routineExerciseSubline(exercise),
+                    text = exerciseSubline,
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.padding(top = 1.dp),
@@ -1529,7 +1587,7 @@ private fun RoutineEditorCollapsedRow(
  * position through the existing move-up/move-down actions.
  */
 @Composable
-@Suppress("LongParameterList")
+@Suppress("LongMethod", "LongParameterList")
 private fun RoutineEditorDragHandle(
     exerciseId: String,
     currentIndexOf: (String) -> Int,
@@ -1621,8 +1679,8 @@ private fun RoutineEditorExpandedCard(
     onRemoveExercise: () -> Unit,
 ) {
     var perSetPlanOpen by rememberSaveable(exercise.exerciseId) { mutableStateOf(false) }
-    val setsError = (validateTargetSets(exercise.targetSets.toString()) as? TargetFieldResult.Invalid)?.message
-    val repsError = (validateTargetReps(exercise.targetReps.orEmpty()) as? TargetFieldResult.Invalid)?.message
+    val setsError = (validateTargetSets(exercise.targetSets.toString()) as? TargetFieldResult.Invalid)?.message?.asString()
+    val repsError = (validateTargetReps(exercise.targetReps.orEmpty()) as? TargetFieldResult.Invalid)?.message?.asString()
     val setPlans = exercise.setPlans.ifEmpty { defaultRoutineEditorSetPlans(exercise.targetSets, exercise.targetReps) }
     val expandedDescription = stringResource(R.string.training_expanded)
 
@@ -1679,25 +1737,29 @@ private fun RoutineEditorExpandedCard(
                 )
             }
 
+            val restLabel = stringResource(R.string.training_rest_short)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 RoutineEditorMiniField(
                     label = stringResource(R.string.training_sets),
                     value = exercise.targetSets.toString(),
-                    isError = setsError != null,
+                    options = RoutineEditorMiniFieldOptions(isError = setsError != null),
                     onValueChange = onTargetSetsChange,
                     modifier = Modifier.weight(1f),
                 )
                 RoutineEditorMiniField(
                     label = stringResource(R.string.training_reps),
                     value = exercise.targetReps.orEmpty(),
-                    isError = repsError != null,
+                    options = RoutineEditorMiniFieldOptions(isError = repsError != null),
                     onValueChange = onTargetRepsChange,
                     modifier = Modifier.weight(1f),
                 )
                 RoutineEditorMiniField(
-                    label = stringResource(R.string.training_rest_short),
+                    label = restLabel,
                     value = exercise.restSeconds?.toString().orEmpty(),
-                    suffix = "s",
+                    options = RoutineEditorMiniFieldOptions(
+                        suffix = stringResource(R.string.training_seconds_symbol),
+                        contentDescription = stringResource(R.string.training_seconds_field, restLabel),
+                    ),
                     onValueChange = onRestSecondsChange,
                     modifier = Modifier.weight(1f),
                 )
@@ -1716,7 +1778,7 @@ private fun RoutineEditorExpandedCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = setPlanSummaryLabel(setPlans),
+                    text = setPlanSummaryLabel(setPlans).asString(),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
                     color = MusFitTheme.colors.onSurfaceVariant,
                 )
@@ -1771,16 +1833,20 @@ private fun RoutineEditorExpandedCard(
 }
 
 /** Quiet cream input tile (10e): 11sp label over a 16/800 value on a 14dp-radius fill. */
+private data class RoutineEditorMiniFieldOptions(
+    val suffix: String? = null,
+    val contentDescription: String? = null,
+    val isError: Boolean = false,
+)
+
 @Composable
 private fun RoutineEditorMiniField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    suffix: String? = null,
-    isError: Boolean = false,
+    options: RoutineEditorMiniFieldOptions = RoutineEditorMiniFieldOptions(),
 ) {
-    val secondsDescription = stringResource(R.string.training_seconds_field, label)
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
@@ -1791,7 +1857,7 @@ private fun RoutineEditorMiniField(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.sp),
             fontWeight = FontWeight.Medium,
-            color = if (isError) MaterialTheme.colorScheme.error else MusFitTheme.colors.onSurfaceVariant,
+            color = if (options.isError) MaterialTheme.colorScheme.error else MusFitTheme.colors.onSurfaceVariant,
             modifier = Modifier.clearAndSetSemantics { },
         )
         Row(
@@ -1813,7 +1879,7 @@ private fun RoutineEditorMiniField(
                     .widthIn(min = 20.dp)
                     .heightIn(min = 48.dp)
                     .semantics {
-                        contentDescription = if (suffix == "s") secondsDescription else label
+                        contentDescription = options.contentDescription ?: label
                     },
                 decorationBox = { innerTextField ->
                     Box(
@@ -1824,9 +1890,9 @@ private fun RoutineEditorMiniField(
                     }
                 },
             )
-            if (suffix != null && value.isNotBlank()) {
+            if (options.suffix != null && value.isNotBlank()) {
                 Text(
-                    text = " $suffix",
+                    text = " ${options.suffix}",
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.ExtraBold),
                     color = MusFitTheme.colors.onSurface,
                     modifier = Modifier.clearAndSetSemantics { },
@@ -2318,7 +2384,7 @@ private fun PickerFilterButton(
     val filterDescription = if (activeCount == 0) {
         stringResource(R.string.training_filters)
     } else {
-        stringResource(R.string.training_filters_active, activeCount)
+        pluralStringResource(R.plurals.training_filters_active, activeCount, activeCount)
     }
     Box {
         Box(
@@ -2974,7 +3040,7 @@ private fun RoutineEditorSetRow(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    routineSetTypeToken(setPlan.setType, setIndex),
+                    routineSetTypeToken(setPlan.setType, setIndex).asString(),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = routineSetTypeContentColor(setPlan.setType, accent),
@@ -3055,7 +3121,7 @@ internal fun routineExercisePickerSuggestions(
 /** "Barbell · Quads" — title-cased active filters for the picker's summary line. */
 internal fun pickerFilterSummary(
     filters: TrainingPickerFilters,
-    doneBeforeLabel: String = "Done before",
+    doneBeforeLabel: String,
     locale: Locale = Locale.getDefault(),
 ): String = buildList {
     addAll(filters.equipment.map { it.displayExerciseToken(locale) })
@@ -3063,10 +3129,14 @@ internal fun pickerFilterSummary(
     if (filters.onlyDone) add(doneBeforeLabel)
 }.joinToString(" · ")
 
-internal fun pickerConfirmLabel(selectedCount: Int): String = when (selectedCount) {
-    0 -> "Add exercises"
-    1 -> "Add 1 exercise"
-    else -> "Add $selectedCount exercises"
+internal fun pickerConfirmLabel(selectedCount: Int): UiText = if (selectedCount == 0) {
+    uiText(R.string.training_add_exercises)
+} else {
+    pluralUiText(
+        R.plurals.training_add_exercise_count,
+        selectedCount,
+        UiText.Argument.Integer(selectedCount),
+    )
 }
 
 /** Picker row subline (10c): "Quads · barbell" — lead muscle + equipment. */
@@ -3150,11 +3220,11 @@ private fun nextRoutineSetType(current: String): String = when (current.lowercas
     else -> "working"
 }
 
-private fun routineSetTypeToken(setType: String, setIndex: Int): String = when (setType.lowercase(java.util.Locale.ROOT)) {
-    "warmup" -> "W"
-    "failure" -> "F"
-    "drop" -> "D"
-    else -> (setIndex + 1).toString()
+private fun routineSetTypeToken(setType: String, setIndex: Int): UiText = when (setType.lowercase(java.util.Locale.ROOT)) {
+    "warmup" -> uiText(R.string.training_set_type_warmup_short)
+    "failure" -> uiText(R.string.training_set_type_failure_short)
+    "drop" -> uiText(R.string.training_set_type_drop_short)
+    else -> UiText.Verbatim(LocalizedFormatter.integer((setIndex + 1).toLong()))
 }
 
 private fun routineSetTypeColor(setType: String, accent: TabAccent): androidx.compose.ui.graphics.Color = when (setType.lowercase(java.util.Locale.ROOT)) {

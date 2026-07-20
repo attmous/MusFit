@@ -251,7 +251,7 @@ class MusFitComposeSemanticsTest {
 
         compose.onNodeWithText("Bench press").performClick()
 
-        assertEquals(listOf("bench:3 x 5"), opened)
+        assertEquals(listOf("bench:3 × 5"), opened)
     }
 
     @Test

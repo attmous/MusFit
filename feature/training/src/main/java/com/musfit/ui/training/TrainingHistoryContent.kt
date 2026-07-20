@@ -100,7 +100,7 @@ fun WorkoutCompleteContent(
                     color = MusFitTheme.colors.onSurface,
                 )
                 Text(
-                    text = workoutCompleteSubtitle(detail.summary, locale),
+                    text = workoutCompleteSubtitle(detail.summary, locale).asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
                     modifier = Modifier.padding(top = 1.dp),
@@ -402,6 +402,13 @@ private fun HistoryMonthHero(overview: TrainingHistoryOverview, accent: TabAccen
         ?.format(DateTimeFormatter.ofPattern("MMMM yyyy", locale))
         ?: stringResource(R.string.training_this_month)
     val sessionWord = pluralStringResource(R.plurals.training_session_word, sessions)
+    val volumeFigure = trainingWeekVolumeFigure(volumeKg, locale).asString()
+    val monthMeta = stringResource(
+        R.string.training_history_month_meta,
+        sessionWord,
+        volumeFigure,
+        stringResource(R.string.training_volume),
+    )
     Surface(
         color = accent.container,
         shape = RoundedCornerShape(28.dp),
@@ -415,12 +422,12 @@ private fun HistoryMonthHero(overview: TrainingHistoryOverview, accent: TabAccen
             )
             Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 2.dp)) {
                 Text(
-                    text = sessions.toString(),
+                    text = LocalizedFormatter.integer(sessions.toLong(), locale = locale),
                     style = MaterialTheme.typography.displayMedium,
                     color = accent.onContainer,
                 )
                 Text(
-                    text = " $sessionWord · ${trainingWeekVolumeFigure(volumeKg, locale)} ${stringResource(R.string.training_volume)}",
+                    text = " $monthMeta",
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                     fontWeight = FontWeight.SemiBold,
                     color = accent.onContainer.copy(alpha = 0.85f),
@@ -441,6 +448,8 @@ private fun HistorySessionRow(
     onClick: () -> Unit,
 ) {
     val meta = historyRowMeta(workout, LocalConfiguration.current.locales[0])
+    val volumeLabel = meta.volumeLabel.asString()
+    val durationLabel = meta.durationLabel?.asString()
     Surface(
         onClick = onClick,
         color = MusFitTheme.colors.surface,
@@ -473,9 +482,9 @@ private fun HistorySessionRow(
                         withStyle(
                             SpanStyle(fontWeight = FontWeight.ExtraBold, color = MusFitTheme.colors.onSurface),
                         ) {
-                            append(meta.volumeLabel)
+                            append(volumeLabel)
                         }
-                        meta.durationLabel?.let { append(" · $it") }
+                        durationLabel?.let { append(" · $it") }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MusFitTheme.colors.onSurfaceVariant,
@@ -649,7 +658,7 @@ private fun HistoryExerciseBlockSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = historySetLabel(index, set.setType),
+                    text = historySetLabel(index, set.setType).asString(),
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.weight(0.35f),
                 )
@@ -698,12 +707,16 @@ internal fun historyDetailGroupingsForDisplay(detail: WorkoutHistoryDetail): Lis
 internal fun workoutCompleteSubtitle(
     summary: WorkoutHistorySummary,
     locale: Locale = Locale.getDefault(),
-): String {
+): UiText {
     val date = Instant.ofEpochMilli(summary.startedAtEpochMillis)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
-        .format(DateTimeFormatter.ofPattern("EEE d MMM", locale))
-    return "$date · ${summary.title}"
+        .let { LocalizedFormatter.date(it, java.time.format.FormatStyle.MEDIUM, locale) }
+    return uiText(
+        R.string.training_date_and_title,
+        UiText.Argument.Text(date),
+        UiText.Argument.Text(summary.title),
+    )
 }
 
 /** Whole minutes for the duration hero; a sub-minute session still reads "1". */
@@ -769,17 +782,15 @@ internal fun workoutPrDisplays(
 internal fun workoutCompleteCoachNote(recap: WorkoutRecapSummary): UiText {
     val minutes = workoutDurationMinutes(recap.durationSeconds)
     return when {
-        recap.personalRecordCount > 0 -> uiText(
-            if (recap.personalRecordCount == 1) {
-                R.string.training_coach_strong_session
-            } else {
-                R.string.training_coach_strong_session_plural
-            },
+        recap.personalRecordCount > 0 -> pluralUiText(
+            R.plurals.training_coach_strong_session,
+            recap.personalRecordCount,
             UiText.Argument.Integer(recap.personalRecordCount),
         )
 
-        recap.completedSetCount > 0 -> uiText(
-            R.string.training_coach_solid_work,
+        recap.completedSetCount > 0 -> pluralUiText(
+            R.plurals.training_coach_solid_work,
+            recap.completedSetCount,
             UiText.Argument.Integer(recap.completedSetCount),
             UiText.Argument.Integer(minutes),
         )
@@ -824,7 +835,9 @@ internal fun historyWeekSections(
 
                 else -> uiText(
                     R.string.training_week_of,
-                    UiText.Argument.Text(weekStart.format(DateTimeFormatter.ofPattern("d MMM", locale))),
+                    UiText.Argument.Text(
+                        LocalizedFormatter.date(weekStart, java.time.format.FormatStyle.MEDIUM, locale),
+                    ),
                 )
             }
             HistoryWeekSection(title = title, workouts = workouts)
@@ -833,8 +846,8 @@ internal fun historyWeekSections(
 
 internal data class HistoryRowMeta(
     val dateLabel: String,
-    val volumeLabel: String,
-    val durationLabel: String?,
+    val volumeLabel: UiText,
+    val durationLabel: UiText?,
 )
 
 /** Row subline parts (10g): "Thu 2 Jul" · "1.9 t" (emphasized) · "41 min". */
@@ -845,13 +858,18 @@ internal fun historyRowMeta(
     val dateLabel = Instant.ofEpochMilli(summary.startedAtEpochMillis)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
-        .format(DateTimeFormatter.ofPattern("EEE d MMM", locale))
+        .let { LocalizedFormatter.date(it, java.time.format.FormatStyle.MEDIUM, locale) }
     val durationSeconds = summary.endedAtEpochMillis
         ?.let { ((it - summary.startedAtEpochMillis) / 1000L).toInt() }
         ?.coerceAtLeast(0)
     val durationLabel = durationSeconds
         ?.takeIf { it > 0 }
-        ?.let { LocalizedFormatter.integer(workoutDurationMinutes(it).toLong(), locale = locale) + " min" }
+        ?.let { minutes ->
+            uiText(
+                R.string.training_minutes_value,
+                UiText.Argument.Integer(workoutDurationMinutes(minutes)),
+            )
+        }
     return HistoryRowMeta(
         dateLabel = dateLabel,
         volumeLabel = trainingWeekVolumeFigure(summary.totalVolumeKg, locale),
@@ -884,11 +902,11 @@ private fun WorkoutHistorySummary.durationSeconds(): Int {
     return ((endedAt - startedAtEpochMillis).coerceAtLeast(0L) / 1000L).toInt()
 }
 
-private fun historySetLabel(index: Int, setType: String): String = when (setType.lowercase(Locale.ROOT)) {
-    "warmup" -> "W"
-    "drop" -> "D"
-    "failure" -> "F"
-    else -> "${index + 1}"
+private fun historySetLabel(index: Int, setType: String): UiText = when (setType.lowercase(Locale.ROOT)) {
+    "warmup" -> uiText(R.string.training_set_type_warmup_short)
+    "drop" -> uiText(R.string.training_set_type_drop_short)
+    "failure" -> uiText(R.string.training_set_type_failure_short)
+    else -> UiText.Verbatim(LocalizedFormatter.integer((index + 1).toLong()))
 }
 
 private fun Double.formatKg(locale: Locale = Locale.getDefault()): String = LocalizedFormatter.number(this, maximumFractionDigits = 1, locale = locale)

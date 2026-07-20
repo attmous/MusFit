@@ -74,9 +74,14 @@
     <string name="training_last_week">Last week</string>
     <string name="training_week_of">Week of %1$s</string>
     <string name="training_minutes_value">%1$d min</string>
-    <string name="training_coach_strong_session">Strong session &#8212; %1$d personal record. Recover well and repeat the pattern.</string>
-    <string name="training_coach_strong_session_plural">Strong session &#8212; %1$d personal records. Recover well and repeat the pattern.</string>
-    <string name="training_coach_solid_work">Solid work &#8212; %1$d sets in %2$d min. Consistency beats intensity.</string>
+    <plurals name="training_coach_strong_session">
+        <item quantity="one">Strong session &#8212; %1$d personal record. Recover well and repeat the pattern.</item>
+        <item quantity="other">Strong session &#8212; %1$d personal records. Recover well and repeat the pattern.</item>
+    </plurals>
+    <plurals name="training_coach_solid_work">
+        <item quantity="one">Solid work &#8212; %1$d set in %2$d min. Consistency beats intensity.</item>
+        <item quantity="other">Solid work &#8212; %1$d sets in %2$d min. Consistency beats intensity.</item>
+    </plurals>
     <string name="training_coach_session_logged">Session logged. Even a short visit keeps the habit alive.</string>
     <string name="training_period_twelve_weeks">12 weeks</string>
     <string name="training_period_six_months">6 months</string>
@@ -101,7 +106,15 @@
     <string name="training_no_weekly_volume_data">No weekly volume data yet.</string>
     <string name="training_kg_e1rm">%1$s kg e1RM</string>
     <string name="training_workout_volume">%1$s workout volume</string>
-    <string name="training_workout_set_summary">%1$d workouts &#183; %2$d completed sets</string>
+    <string name="training_workout_set_summary">%1$s &#183; %2$s</string>
+    <plurals name="training_workout_count">
+        <item quantity="one">%1$d workout</item>
+        <item quantity="other">%1$d workouts</item>
+    </plurals>
+    <plurals name="training_completed_set_count">
+        <item quantity="one">%1$d completed set</item>
+        <item quantity="other">%1$d completed sets</item>
+    </plurals>
     <string name="training_selected">Selected</string>
     <string name="training_not_selected">Not selected</string>
     <string name="training_select_data_point">Select data point</string>
@@ -212,7 +225,10 @@
     <string name="training_add_exercises">Add exercises</string>
     <string name="training_select_exercises">Select exercises</string>
     <string name="training_search_exercises_ellipsis">Search exercises&#8230;</string>
-    <string name="training_filters_active">Filters, %1$d active</string>
+    <plurals name="training_filters_active">
+        <item quantity="one">Filters, %1$d active</item>
+        <item quantity="other">Filters, %1$d active</item>
+    </plurals>
     <string name="training_muscle_group">Muscle group</string>
     <string name="training_done_before">Done before</string>
     <plurals name="training_add_exercise_count">
@@ -236,7 +252,6 @@
         <item quantity="other">%1$d exercises</item>
     </plurals>
     <string name="training_workout_summary">%1$s\n%2$s</string>
-    <string name="training_set_volume_summary">%1$d sets &#183; %2$s kg</string>
     <string name="training_week_sessions_target">%1$d of %2$d</string>
     <string name="training_week_sessions_count">%1$d</string>
     <string name="training_tonnes">%1$s t</string>
@@ -246,11 +261,20 @@
     <string name="training_last_performed">last: %1$s</string>
     <string name="training_last_today">last: today</string>
     <string name="training_last_yesterday">last: yesterday</string>
-    <string name="training_week_goal_done">Weekly goal done &#8212; %1$d of %2$d sessions. Recovery counts too.</string>
+    <plurals name="training_week_goal_done">
+        <item quantity="one">Weekly goal done &#8212; %1$d of %2$d session. Recovery counts too.</item>
+        <item quantity="other">Weekly goal done &#8212; %1$d of %2$d sessions. Recovery counts too.</item>
+    </plurals>
     <string name="training_no_sessions_routine">No sessions yet this week &#8212; %1$s would be a good start.</string>
     <string name="training_no_sessions_empty">No sessions yet this week &#8212; start with an empty workout.</string>
-    <string name="training_sessions_next_routine">%1$d of %2$d sessions this week &#8212; %3$s is up next.</string>
-    <string name="training_sessions_one_more">%1$d of %2$d sessions this week &#8212; one more keeps the plan on track.</string>
+    <plurals name="training_sessions_next_routine">
+        <item quantity="one">%1$d of %2$d session this week &#8212; %3$s is up next.</item>
+        <item quantity="other">%1$d of %2$d sessions this week &#8212; %3$s is up next.</item>
+    </plurals>
+    <plurals name="training_sessions_one_more">
+        <item quantity="one">%1$d of %2$d session this week &#8212; one more keeps the plan on track.</item>
+        <item quantity="other">%1$d of %2$d sessions this week &#8212; one more keeps the plan on track.</item>
+    </plurals>
     <string name="training_routine_meta_minutes">%1$s &#183; ~%2$d min</string>
     <plurals name="training_set_count">
         <item quantity="one">%1$d set</item>
@@ -280,4 +304,81 @@
         <item quantity="one">session</item>
         <item quantity="other">sessions</item>
     </plurals>
+    <string name="training_select_routine">Select a routine</string>
+    <string name="training_select_workout">Select a workout</string>
+    <string name="training_loading_demo">Loading demo</string>
+    <string name="training_demo_unavailable">Demo unavailable</string>
+    <string name="training_join_middle_dot">%1$s &#183; %2$s</string>
+    <string name="training_set_position">set %1$d of %2$d</string>
+    <string name="training_sets_by_reps">%1$d &#215; %2$s</string>
+    <string name="training_no_sets">no sets</string>
+    <string name="training_plates">Plates %1$s</string>
+    <string name="training_plates_per_side">Plates &#183; %1$s / side</string>
+    <string name="training_rest_after_each_set_default">Set rest after each completed set</string>
+    <string name="training_rest_after_each_set_value">%1$s sec after each completed set</string>
+    <string name="training_rest_timer_off">Rest Timer: OFF</string>
+    <string name="training_rest_timer_running">Rest Timer: %1$s</string>
+    <string name="training_rest_timer_paused">Rest Timer: Paused at %1$s</string>
+    <plurals name="training_rest_seconds_remaining">
+        <item quantity="one">Rest timer: %1$d second remaining</item>
+        <item quantity="other">Rest timer: %1$d seconds remaining</item>
+    </plurals>
+    <plurals name="training_duration_minutes_seconds">
+        <item quantity="one">%1$dmin %2$ds</item>
+        <item quantity="other">%1$dmin %2$ds</item>
+    </plurals>
+    <plurals name="training_duration_seconds">
+        <item quantity="one">%1$ds</item>
+        <item quantity="other">%1$ds</item>
+    </plurals>
+    <string name="training_pre_saved_routine">Pre-saved routine</string>
+    <string name="training_pre_made_routine">Pre-made routine</string>
+    <string name="training_enter_sets_range">Enter 1&#8211;20 sets</string>
+    <string name="training_enter_reps_or_range">Use a number or range, e.g. 8 or 8&#8211;12</string>
+    <string name="training_seconds_rest">%1$ds rest</string>
+    <string name="training_straight_sets">Straight sets</string>
+    <plurals name="training_warmup_set_count">
+        <item quantity="one">%1$d warm-up set</item>
+        <item quantity="other">%1$d warm-up sets</item>
+    </plurals>
+    <string name="training_first_set_to_failure">First set to failure</string>
+    <string name="training_numbered_set_to_failure">Set %1$d to failure</string>
+    <plurals name="training_drop_set_count">
+        <item quantity="one">%1$d drop set</item>
+        <item quantity="other">%1$d drop sets</item>
+    </plurals>
+    <string name="training_description_state">%1$s. %2$s</string>
+    <string name="training_rest_seconds">Rest %1$d s</string>
+    <string name="training_seconds_symbol">s</string>
+    <string name="training_set_type_warmup_short">W</string>
+    <string name="training_set_type_failure_short">F</string>
+    <string name="training_set_type_drop_short">D</string>
+    <string name="training_delta_positive">+%1$s kg</string>
+    <string name="training_delta_negative">&#8722;%1$s kg</string>
+    <string name="training_week_number">W%1$d</string>
+    <string name="training_e1rm_chart_named">Estimated one rep max chart for %1$s.</string>
+    <string name="training_e1rm_chart">Estimated one rep max chart.</string>
+    <string name="training_weekly_volume_chart">Weekly training volume chart.</string>
+    <string name="training_sentence_pair">%1$s %2$s</string>
+    <plurals name="training_e1rm_chart_point_summary">
+        <item quantity="one">%1$s %2$d data point %3$s</item>
+        <item quantity="other">%1$s %2$d data points %3$s</item>
+    </plurals>
+    <plurals name="training_weekly_chart_summary">
+        <item quantity="one">%1$s %2$d week %3$s</item>
+        <item quantity="other">%1$s %2$d weeks %3$s</item>
+    </plurals>
+    <string name="training_range_on_date">on %1$s.</string>
+    <string name="training_range_from_to">from %1$s to %2$s.</string>
+    <string name="training_range_on_week">on week of %1$s.</string>
+    <string name="training_range_from_week_to_week">from week of %1$s to week of %2$s.</string>
+    <string name="training_no_data_sentence">No data.</string>
+    <string name="training_no_data_selected">No data selected</string>
+    <string name="training_selected_e1rm">Selected %1$s, %2$s estimated one rep max, point %3$d of %4$d</string>
+    <string name="training_selected_weekly_volume">Selected week of %1$s, %2$s total volume, %3$s, %4$s, week %5$d of %6$d</string>
+    <string name="training_e1rm_data_row">%1$s, %2$s estimated one rep max, %3$s workout volume</string>
+    <string name="training_weekly_volume_data_row">Week of %1$s, %2$s total volume, %3$s, %4$s</string>
+    <string name="training_pr_row_meta">%1$s kg &#215; %2$d &#183; %3$s</string>
+    <string name="training_history_month_meta">%1$s &#183; %2$s %3$s</string>
+    <string name="training_date_and_title">%1$s &#183; %2$s</string>
 </resources>

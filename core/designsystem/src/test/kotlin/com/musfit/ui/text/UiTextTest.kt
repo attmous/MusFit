@@ -53,6 +53,20 @@ class UiTextTest {
     }
 
     @Test
+    fun `resource resolves nested formatted text argument`() {
+        val nested = uiText(
+            R.string.common_selected_value,
+            UiText.Argument.Resource(R.string.common_save),
+        )
+        val text = uiText(
+            R.string.common_selected_value,
+            UiText.Argument.Nested(nested),
+        )
+
+        assertEquals("Selected: Selected: Save", text.resolve(resources))
+    }
+
+    @Test
     fun `verbatim preserves user supplied text`() {
         assertEquals("User recipe", UiText.Verbatim("User recipe").resolve(resources))
     }

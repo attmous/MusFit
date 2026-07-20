@@ -55,7 +55,7 @@ data class FoodTrackerUiState(
     val foodHealthConnectCanRequestPermissions: Boolean,
     val foodHealthConnectCanSync: Boolean,
     val foodHealthConnectRequestablePermissions: Set<String>,
-    val foodHealthConnectPermissionSummary: String,
+    val foodHealthConnectPermissionSummary: UiText,
     val foodHealthConnectLastFailureMessage: String?,
 )
 
@@ -202,6 +202,7 @@ internal object FoodPresentationReducers {
             isAddPanelVisible = state.isAddPanelVisible,
             sheetMode = state.sheetMode,
             selectedMealTitle = state.selectedMealTitle,
+            selectedMealTitleText = state.selectedMealTitleText,
             addMode = state.addMode,
             savedFoodQuantityGrams = state.savedFoodQuantityGrams,
             selectedSavedFoodDetail = state.selectedSavedFoodDetail,
@@ -212,8 +213,9 @@ internal object FoodPresentationReducers {
             quickFatGrams = state.quickFatGrams,
             aiLoggingText = state.aiLoggingText,
             aiLoggingHasDraft = state.aiLoggingHasDraft,
-            aiLoggingDraftSourceLabel = state.aiLoggingDraftSourceLabel,
-            aiLoggingDraftReview = state.aiLoggingDraftReview,
+            aiLoggingDraftNameText = state.aiLoggingDraftNameText,
+            aiLoggingDraftSourceText = state.aiLoggingDraftSourceText,
+            aiLoggingDraftReviewText = state.aiLoggingDraftReviewText,
             nutritionLabelScanReview = state.nutritionLabelScanReview,
             keepAddingFoods = state.keepAddingFoods,
             foodDatabaseQuery = state.foodDatabaseQuery,
@@ -269,6 +271,7 @@ internal object FoodPresentationReducers {
             isAddPanelVisible = state.isAddPanelVisible,
             sheetMode = state.sheetMode,
             selectedMealTitle = state.selectedMealTitle,
+            selectedMealTitleText = state.selectedMealTitleText,
             recipeServingsToLog = state.recipeServingsToLog,
             diaryEntryEditor = state.diaryEntryEditor,
             mealTemplateEditor = state.mealTemplateEditor,
@@ -290,11 +293,26 @@ internal object FoodPresentationReducers {
                     id = food.id,
                     type = FavoriteAddItemType.Food,
                     title = food.name,
-                    subtitle = listOfNotNull(
-                        "Food",
-                        food.brand,
-                        "${food.caloriesPerServingKcal.formatInputNumber()} kcal",
-                    ).joinToString(" - "),
+                    subtitleText = food.brand?.takeIf { it.isNotBlank() }?.let { brand ->
+                        uiText(
+                            R.string.food_favorite_food_summary_brand,
+                            UiText.Argument.Text(brand),
+                            UiText.Argument.Nested(
+                                uiText(
+                                    R.string.food_value_kcal,
+                                    UiText.Argument.Text(food.caloriesPerServingKcal.formatNutritionDisplay()),
+                                ),
+                            ),
+                        )
+                    } ?: uiText(
+                        R.string.food_favorite_food_summary,
+                        UiText.Argument.Nested(
+                            uiText(
+                                R.string.food_value_kcal,
+                                UiText.Argument.Text(food.caloriesPerServingKcal.formatNutritionDisplay()),
+                            ),
+                        ),
+                    ),
                 ),
             )
         }
@@ -304,11 +322,14 @@ internal object FoodPresentationReducers {
                     id = template.id,
                     type = FavoriteAddItemType.MealTemplate,
                     title = template.name,
-                    subtitle = listOf(
-                        "Meal",
-                        template.mealType,
-                        template.itemSummary.ifBlank { "Saved template" },
-                    ).joinToString(" - "),
+                    subtitleText = uiText(
+                        R.string.food_favorite_meal_summary,
+                        UiText.Argument.Nested(template.mealType.mealTitleText()),
+                        UiText.Argument.Nested(
+                            template.itemSummary.takeIf { it.isNotBlank() }?.let(UiText::Verbatim)
+                                ?: uiText(R.string.food_saved_template),
+                        ),
+                    ),
                 ),
             )
         }
@@ -318,11 +339,21 @@ internal object FoodPresentationReducers {
                     id = recipe.id,
                     type = FavoriteAddItemType.Recipe,
                     title = recipe.name,
-                    subtitle = listOf(
-                        "Recipe",
-                        "${recipe.caloriesPerServingKcal.formatInputNumber()} kcal",
-                        "${recipe.proteinPerServingGrams.formatInputNumber()} g protein",
-                    ).joinToString(" - "),
+                    subtitleText = uiText(
+                        R.string.food_favorite_recipe_summary,
+                        UiText.Argument.Nested(
+                            uiText(
+                                R.string.food_value_kcal,
+                                UiText.Argument.Text(recipe.caloriesPerServingKcal.formatNutritionDisplay()),
+                            ),
+                        ),
+                        UiText.Argument.Nested(
+                            uiText(
+                                R.string.food_value_protein_grams,
+                                UiText.Argument.Text(recipe.proteinPerServingGrams.formatNutritionDisplay()),
+                            ),
+                        ),
+                    ),
                 ),
             )
         }
@@ -332,13 +363,33 @@ internal object FoodPresentationReducers {
                     id = preset.id,
                     type = FavoriteAddItemType.QuickLog,
                     title = preset.name,
-                    subtitle = listOf(
-                        "Quick log",
-                        "${preset.caloriesKcal.formatInputNumber()} kcal",
-                        "P ${preset.proteinGrams.formatInputNumber()}",
-                        "C ${preset.carbsGrams.formatInputNumber()}",
-                        "F ${preset.fatGrams.formatInputNumber()}",
-                    ).joinToString(" - "),
+                    subtitleText = uiText(
+                        R.string.food_favorite_quick_summary,
+                        UiText.Argument.Nested(
+                            uiText(
+                                R.string.food_value_kcal,
+                                UiText.Argument.Text(preset.caloriesKcal.formatNutritionDisplay()),
+                            ),
+                        ),
+                        UiText.Argument.Nested(
+                            uiText(
+                                R.string.food_protein_abbreviation,
+                                UiText.Argument.Text(preset.proteinGrams.formatNutritionDisplay()),
+                            ),
+                        ),
+                        UiText.Argument.Nested(
+                            uiText(
+                                R.string.food_carbs_abbreviation,
+                                UiText.Argument.Text(preset.carbsGrams.formatNutritionDisplay()),
+                            ),
+                        ),
+                        UiText.Argument.Nested(
+                            uiText(
+                                R.string.food_fat_abbreviation,
+                                UiText.Argument.Text(preset.fatGrams.formatNutritionDisplay()),
+                            ),
+                        ),
+                    ),
                 ),
             )
         }
@@ -446,7 +497,7 @@ internal fun FoodUiState.buildDailyInsights(diary: FoodDiary): List<FoodInsightU
         insights += FoodInsightUiState(
             title = uiText(
                 R.string.food_insight_meal_balanced,
-                UiText.Argument.Text(balancedMeal.type.mealTitle()),
+                balancedMeal.type.mealTitleArgument(),
             ),
             body = uiText(R.string.food_insight_meal_balanced_body),
             tone = FoodInsightTone.Positive,
@@ -560,9 +611,10 @@ internal fun NutritionTotals.toMacroProgress(
         label = if (useNetCarbs) "Net carbs" else "Carbs",
         currentGrams = if (useNetCarbs) (carbsGrams - fiberGrams).coerceAtLeast(0.0) else carbsGrams,
         goalGrams = carbsGoalGrams,
+        labelText = uiText(if (useNetCarbs) R.string.food_net_carbs else R.string.food_carbs),
     ),
-    FoodMacroProgressUiState("Protein", proteinGrams, proteinGoalGrams),
-    FoodMacroProgressUiState("Fat", fatGrams, fatGoalGrams),
+    FoodMacroProgressUiState("Protein", proteinGrams, proteinGoalGrams, uiText(R.string.food_protein)),
+    FoodMacroProgressUiState("Fat", fatGrams, fatGoalGrams, uiText(R.string.food_fat)),
 )
 
 internal fun NutritionDetails.toAdvancedNutritionProgress(
@@ -571,20 +623,20 @@ internal fun NutritionDetails.toAdvancedNutritionProgress(
     saturatedFatGoalGrams: Double = SATURATED_FAT_GOAL_GRAMS,
     sodiumGoalMilligrams: Double = SODIUM_GOAL_MILLIGRAMS,
 ): List<FoodNutrientProgressUiState> = listOf(
-    FoodNutrientProgressUiState("Fiber", fiberGrams, fiberGoalGrams, "g", false),
-    FoodNutrientProgressUiState("Sugar", sugarGrams, sugarGoalGrams, "g", true),
-    FoodNutrientProgressUiState("Sat fat", saturatedFatGrams, saturatedFatGoalGrams, "g", true),
-    FoodNutrientProgressUiState("Sodium", sodiumMilligrams, sodiumGoalMilligrams, "mg", true),
+    FoodNutrientProgressUiState("Fiber", fiberGrams, fiberGoalGrams, "g", false, uiText(R.string.food_fiber)),
+    FoodNutrientProgressUiState("Sugar", sugarGrams, sugarGoalGrams, "g", true, uiText(R.string.food_sugar)),
+    FoodNutrientProgressUiState("Sat fat", saturatedFatGrams, saturatedFatGoalGrams, "g", true, uiText(R.string.food_saturated_fat)),
+    FoodNutrientProgressUiState("Sodium", sodiumMilligrams, sodiumGoalMilligrams, "mg", true, uiText(R.string.food_sodium)),
 )
 
 internal fun NutritionDetails.toMicronutrients(): List<FoodMicronutrientUiState> = listOf(
-    FoodMicronutrientUiState("Sodium", sodiumMilligrams, "mg"),
-    FoodMicronutrientUiState("Potassium", potassiumMilligrams, "mg"),
-    FoodMicronutrientUiState("Calcium", calciumMilligrams, "mg"),
-    FoodMicronutrientUiState("Iron", ironMilligrams, "mg"),
-    FoodMicronutrientUiState("Vitamin D", vitaminDMicrograms, "mcg"),
-    FoodMicronutrientUiState("Vitamin C", vitaminCMilligrams, "mg"),
-    FoodMicronutrientUiState("Magnesium", magnesiumMilligrams, "mg"),
+    FoodMicronutrientUiState("Sodium", sodiumMilligrams, "mg", uiText(R.string.food_sodium)),
+    FoodMicronutrientUiState("Potassium", potassiumMilligrams, "mg", uiText(R.string.food_potassium)),
+    FoodMicronutrientUiState("Calcium", calciumMilligrams, "mg", uiText(R.string.food_calcium)),
+    FoodMicronutrientUiState("Iron", ironMilligrams, "mg", uiText(R.string.food_iron)),
+    FoodMicronutrientUiState("Vitamin D", vitaminDMicrograms, "mcg", uiText(R.string.food_vitamin_d)),
+    FoodMicronutrientUiState("Vitamin C", vitaminCMilligrams, "mg", uiText(R.string.food_vitamin_c)),
+    FoodMicronutrientUiState("Magnesium", magnesiumMilligrams, "mg", uiText(R.string.food_magnesium)),
 )
 
 internal fun List<SavedFoodUiState>.filterForDatabaseQuery(query: String): List<SavedFoodUiState> {

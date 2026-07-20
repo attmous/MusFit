@@ -546,7 +546,10 @@ class TrainingViewModel @Inject constructor(
                     message = uiText(
                         R.string.training_message_routine_moved,
                         UiText.Argument.Text(routine.name),
-                        UiText.Argument.Text(targetFolder?.name ?: MY_ROUTINES_GROUP_TITLE),
+                        UiText.Argument.Nested(
+                            targetFolder?.name?.let(UiText::Verbatim)
+                                ?: uiText(R.string.training_my_routines),
+                        ),
                     ),
                 )
             }

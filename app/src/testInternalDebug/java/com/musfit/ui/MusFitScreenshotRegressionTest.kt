@@ -1,5 +1,6 @@
 package com.musfit.ui
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.musfit.data.repository.ExerciseSummary
 import com.musfit.data.repository.WeeklyTrainingVolume
@@ -44,6 +46,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.time.LocalDate
+import com.musfit.feature.food.R as FoodR
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -56,15 +59,17 @@ class MusFitScreenshotRegressionTest {
     @Test
     @Config(qualifiers = "w400dp-h800dp-mdpi")
     fun foodAdd_phone_light_ltr() = capture("food-add-phone-light-ltr.png", dark = false) {
-        AddFoodScreen(
-            state = FoodUiState(),
-            onBack = {}, onQueryChange = {}, onScanClick = {}, onTabSelected = {},
-            onFoodClick = {}, onQuickTrack = {}, onAdjustGoals = {}, onCopyYesterday = {},
-            onSaveTemplate = {}, onScanLabel = {}, onProductNameChanged = {}, onBrandChanged = {},
-            onQuantityChanged = {}, onAmountServingChoiceSelected = {}, onCaloriesChanged = {},
-            onProteinChanged = {}, onCarbsChanged = {}, onFatChanged = {}, onSaveProduct = {},
-            onLogFood = {}, onCreateRecipe = {},
-        )
+        FoodAddFixture()
+    }
+
+    @Test
+    @Config(qualifiers = "en-rXA-w400dp-h800dp-mdpi")
+    fun foodAdd_phone_pseudo_largeFont() = capture(
+        "food-add-phone-pseudo-font-150.png",
+        dark = false,
+        fontScale = 1.5f,
+    ) {
+        FoodAddFixture()
     }
 
     @Test
@@ -177,6 +182,26 @@ class MusFitScreenshotRegressionTest {
         }
     }
 
+    @Test
+    @Config(qualifiers = "ar-rXB-w400dp-h800dp-mdpi")
+    fun trainingProgress_phone_pseudoRtl_largeFont() = capture(
+        "training-progress-phone-pseudo-rtl-font-150.png",
+        dark = false,
+        rtl = true,
+        fontScale = 1.5f,
+    ) {
+        TrainingProgressFixture()
+    }
+
+    @Test
+    @Config(qualifiers = "de-rDE-w900dp-h700dp-mdpi")
+    fun trainingProgress_tablet_german() = capture(
+        "training-progress-tablet-german.png",
+        dark = false,
+    ) {
+        TrainingProgressFixture()
+    }
+
     private fun capture(
         fileName: String,
         dark: Boolean,
@@ -194,6 +219,26 @@ class MusFitScreenshotRegressionTest {
 
     private fun assertTouchTargets() {
         val minimum = with(compose.density) { 48.dp.toPx() }
+        val resources = ApplicationProvider.getApplicationContext<Context>().resources
+        val localizedKnownDebtResourceIds: List<Int> = listOf(
+            FoodR.string.food_change_meal,
+            FoodR.string.food_edit,
+            FoodR.string.food_favorites,
+            FoodR.string.food_more_actions,
+            FoodR.string.food_recents,
+            FoodR.string.food_recipes,
+            FoodR.string.food_templates,
+            FoodR.string.food_create,
+            FoodR.string.food_add_mode_saved,
+            FoodR.string.food_add_mode_manual,
+            FoodR.string.food_add_mode_barcode,
+            FoodR.string.food_add_mode_quick,
+            FoodR.string.food_add_mode_ai,
+        )
+        val localizedKnownDebt = localizedKnownDebtResourceIds.map { resourceId ->
+            resources.getString(resourceId)
+        }.toSet()
+        val localizedSearchPrefix = resources.getString(FoodR.string.food_search_foods_hint).trimEnd('…')
         compose.onAllNodes(hasClickAction()).fetchSemanticsNodes().forEach { node ->
             // A vertically scrolling screen retains semantics for composed rows below
             // the viewport; Robolectric reports those nodes at 0x0 until scrolled to.
@@ -203,9 +248,11 @@ class MusFitScreenshotRegressionTest {
                     ?: node.config.getOrNull(SemanticsProperties.Text)?.joinToString { it.text }
                     ?: node.config.getOrNull(SemanticsProperties.Role)?.let { "<unlabelled:$it>" }
                     ?: "<unlabelled>"
-            val knownDebt = label in knownTouchTargetDebt || label.startsWith("Search foods, brands, recipes")
+            val knownDebt = label in knownTouchTargetDebt ||
+                label in localizedKnownDebt ||
+                label.startsWith(localizedSearchPrefix)
             assertTrue(
-                "Touch target '$label' was ${node.boundsInRoot.width}x${node.boundsInRoot.height}",
+                "Touch target '$label' was ${node.boundsInRoot.width}x${node.boundsInRoot.height}; semantics=${node.config}",
                 knownDebt || (node.boundsInRoot.width >= minimum && node.boundsInRoot.height >= minimum),
             )
         }
@@ -225,6 +272,37 @@ class MusFitScreenshotRegressionTest {
             "Templates",
             "Create",
             "<unlabelled:Switch>",
+        )
+    }
+}
+
+@Composable
+private fun FoodAddFixture() {
+    AddFoodScreen(
+        state = FoodUiState(),
+        onBack = {}, onQueryChange = {}, onScanClick = {}, onTabSelected = {},
+        onFoodClick = {}, onQuickTrack = {}, onAdjustGoals = {}, onCopyYesterday = {},
+        onSaveTemplate = {}, onScanLabel = {}, onProductNameChanged = {}, onBrandChanged = {},
+        onQuantityChanged = {}, onAmountServingChoiceSelected = {}, onCaloriesChanged = {},
+        onProteinChanged = {}, onCarbsChanged = {}, onFatChanged = {}, onSaveProduct = {},
+        onLogFood = {}, onCreateRecipe = {},
+    )
+}
+
+@Composable
+private fun TrainingProgressFixture() {
+    val trend = screenshotTrend()
+    Box(Modifier.fillMaxSize().padding(24.dp)) {
+        TrainingProgressContent(
+            data = TrainingProgressContentData(
+                progress = screenshotProgress(trend),
+                period = TrainingProgressPeriod.Year,
+                weeklyVolume = screenshotWeeks(),
+                recentPrs = emptyList(),
+                today = screenshotToday,
+            ),
+            accent = tabAccentFor(AppDestination.Training),
+            actions = TrainingProgressContentActions(onOpenAllExercises = {}),
         )
     }
 }

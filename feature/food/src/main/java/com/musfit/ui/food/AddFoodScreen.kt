@@ -60,6 +60,7 @@ import com.musfit.feature.food.R
 import com.musfit.ui.components.InnerScreenHeader
 import com.musfit.ui.components.SectionOverline
 import com.musfit.ui.components.TonalHeaderIconButton
+import com.musfit.ui.text.asString
 import com.musfit.ui.theme.MusFitTheme
 import com.musfit.ui.theme.TabAccentRole
 import com.musfit.ui.theme.tabAccentFor
@@ -104,8 +105,8 @@ fun AddFoodScreen(
     // logs the first item; a batching VM callback should replace the fallback.
     onLogAllYesterday: (() -> Unit)? = null,
 ) {
-    val mealLabel = state.visibleMealDefinitions.firstOrNull { it.id == state.mealType }?.title
-        ?: state.selectedMealTitle
+    val mealLabel = state.visibleMealDefinitions.firstOrNull { it.id == state.mealType }?.titleText?.asString()
+        ?: state.selectedMealTitleText.asString()
     val actionVerb = state.foodEntryActionVerb()
     val locale = LocalConfiguration.current.locales[0]
     Column(
@@ -119,11 +120,6 @@ fun AddFoodScreen(
             onBack = onBack,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp),
         ) {
-            MealTargetChip(
-                label = stringResource(R.string.food_to_meal, mealLabel),
-                meals = state.visibleMealDefinitions,
-                onMealSelected = onMealRetarget,
-            )
             Box {
                 var menuOpen by remember { mutableStateOf(false) }
                 TonalHeaderIconButton(
@@ -152,6 +148,12 @@ fun AddFoodScreen(
                 }
             }
         }
+        MealTargetChip(
+            label = stringResource(R.string.food_to_meal, mealLabel),
+            meals = state.visibleMealDefinitions,
+            onMealSelected = onMealRetarget,
+            modifier = Modifier.padding(start = 68.dp, end = 16.dp, top = 8.dp),
+        )
 
         LazyColumn(
             modifier = Modifier
