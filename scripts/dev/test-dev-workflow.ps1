@@ -815,6 +815,35 @@ Assert-Equal "Approved benchmark threshold" 10 ([double] $approvedBenchmark.thre
 if (@($approvedBenchmark.measurements).Count -eq 0) {
     throw "Approved benchmark baseline must contain regression measurements."
 }
+$s20Performance = $approvedBenchmark.provenance.s20MeasuredCloseout
+if ($null -eq $s20Performance) {
+    throw "Approved benchmark baseline must retain the S20 measured-closeout provenance."
+}
+Assert-Equal "S20 controlled benchmark iterations" 5 ([int] $s20Performance.iterations)
+if ([double] $s20Performance.controlledFrameCpuImprovementPercent -lt 10.0) {
+    throw "S20 controlled frame CPU evidence must retain at least a 10% P90 improvement."
+}
+if ([string] $s20Performance.rootCause -notmatch 'RenderThread EGL') {
+    throw "S20 measured-closeout provenance must retain the Perfetto root-cause classification."
+}
+foreach ($calibration in @(
+    [pscustomobject]@{
+        Key = "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingJourney|frameDurationCpuMs"
+        Expected = [double] $s20Performance.hostedTrainingFrameCpuP90Ms
+    },
+    [pscustomobject]@{
+        Key = "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items|frameDurationCpuMs"
+        Expected = [double] $s20Performance.hostedImageFrameCpuP90Ms
+    },
+    [pscustomobject]@{
+        Key = "api37-sdk_gphone16k_x86_64|com.musfit.benchmark.MusFitJourneyBenchmark.trainingExerciseImageBrowse100Items|frameOverrunMs"
+        Expected = [double] $s20Performance.hostedImageFrameOverrunP90Ms
+    }
+)) {
+    $measurement = @($approvedBenchmark.measurements | Where-Object { $_.key -ceq $calibration.Key })
+    Assert-Equal "S20 hosted calibration count for $($calibration.Key)" 1 $measurement.Count
+    Assert-Equal "S20 hosted calibration value for $($calibration.Key)" $calibration.Expected ([double] $measurement[0].approvedValue)
+}
 
 if ($SelfTest) {
     $mismatchDetected = $false
