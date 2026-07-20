@@ -1,6 +1,7 @@
 package com.musfit.ui.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -391,17 +396,32 @@ private fun HistoryEntryRow(
                 )
             }
             Box {
-                Surface(
-                    onClick = { menuOpen = true },
-                    color = MusFitTheme.colors.surface,
-                    contentColor = MusFitTheme.colors.onSurfaceFaint,
-                    shape = RoundedCornerShape(99.dp),
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .semantics { contentDescription = "Entry options" }
+                        .clip(RoundedCornerShape(99.dp))
+                        .clickable(
+                            onClickLabel = "Entry options",
+                            role = Role.Button,
+                            onClick = { menuOpen = true },
+                        ),
                 ) {
-                    Icon(
-                        Icons.Outlined.MoreVert,
-                        contentDescription = "Entry options",
-                        modifier = Modifier.padding(6.dp).size(20.dp),
-                    )
+                    Surface(
+                        color = MusFitTheme.colors.surface,
+                        contentColor = MusFitTheme.colors.onSurfaceFaint,
+                        shape = RoundedCornerShape(99.dp),
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Outlined.MoreVert,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(

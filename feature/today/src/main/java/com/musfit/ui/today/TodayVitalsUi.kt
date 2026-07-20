@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -160,7 +161,10 @@ private fun VitalsTile(
         onClick = onClick,
         color = family.container,
         shape = shape,
-        modifier = modifier.semantics { contentDescription = "$label: $figure $caption" },
+        modifier = modifier.semantics {
+            role = Role.Button
+            contentDescription = "$label: $figure $caption"
+        },
     ) {
         Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(
@@ -379,10 +383,20 @@ fun DashboardEditSheet(
                         modifier = Modifier.weight(1f),
                     )
                     val arrowColors = IconButtonDefaults.iconButtonColors(contentColor = MusFitTheme.colors.onSurfaceVariant)
-                    IconButton(onClick = { onMovePin(metric, true) }, enabled = index > 0, colors = arrowColors) {
+                    IconButton(
+                        onClick = { onMovePin(metric, true) },
+                        enabled = index > 0,
+                        colors = arrowColors,
+                        modifier = Modifier.size(48.dp).semantics { role = Role.Button },
+                    ) {
                         Icon(Icons.Outlined.ArrowUpward, contentDescription = "Move ${metric.label} up")
                     }
-                    IconButton(onClick = { onMovePin(metric, false) }, enabled = index < pinned.lastIndex, colors = arrowColors) {
+                    IconButton(
+                        onClick = { onMovePin(metric, false) },
+                        enabled = index < pinned.lastIndex,
+                        colors = arrowColors,
+                        modifier = Modifier.size(48.dp).semantics { role = Role.Button },
+                    ) {
                         Icon(Icons.Outlined.ArrowDownward, contentDescription = "Move ${metric.label} down")
                     }
                 }

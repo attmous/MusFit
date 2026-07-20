@@ -22,9 +22,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -60,6 +62,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -101,7 +104,9 @@ internal fun GroupLabel(
                 onClick = onAction,
                 color = Color.Transparent,
                 shape = RoundedCornerShape(99.dp),
-                modifier = Modifier.heightIn(min = 48.dp),
+                modifier = Modifier
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .semantics { role = Role.Button },
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
                     Text(
@@ -137,7 +142,13 @@ internal fun ProfileHubRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .let { if (onClick != null) it.clickable(onClickLabel = onClickLabel, onClick = onClick) else it },
+            .let {
+                if (onClick != null) {
+                    it.clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
+                } else {
+                    it
+                }
+            },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 13.dp),
@@ -230,7 +241,9 @@ internal fun HeroActionPill(
         color = if (enabled) accent.color else accent.color.copy(alpha = 0.5f),
         contentColor = accent.onColor,
         shape = RoundedCornerShape(99.dp),
-        modifier = modifier,
+        modifier = modifier
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .semantics { role = Role.Button },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -265,7 +278,9 @@ internal fun TonalActionPill(
         color = accent.container,
         contentColor = accent.onContainer,
         shape = RoundedCornerShape(99.dp),
-        modifier = modifier,
+        modifier = modifier
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .semantics { role = Role.Button },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -291,19 +306,60 @@ internal fun HeroChip(
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(99.dp)
+    if (onClick == null) {
+        HeroChipVisual(text = text, accent = accent, shape = shape, modifier = modifier)
+    } else {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = modifier
+                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                .clip(shape)
+                .clickable(onClickLabel = text, role = Role.Button, onClick = onClick),
+        ) {
+            HeroChipVisual(text = text, accent = accent, shape = shape)
+        }
+    }
+}
+
+@Composable
+private fun HeroChipVisual(
+    text: String,
+    accent: TabAccent,
+    shape: RoundedCornerShape,
+    modifier: Modifier = Modifier,
+) {
     Surface(
         color = MusFitTheme.colors.surface,
         contentColor = accent.onContainer,
         shape = shape,
-        modifier = modifier.let {
-            if (onClick != null) it.clip(shape).clickable(onClickLabel = text, onClick = onClick) else it
-        },
+        modifier = modifier,
     ) {
         Text(
             text,
             style = MusFitTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.W800),
             maxLines = 1,
             modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
+        )
+    }
+}
+
+/** Low-emphasis sheet action with a full button-sized interaction target. */
+@Composable
+internal fun ProfileCancelAction(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .clip(RoundedCornerShape(99.dp))
+            .clickable(onClickLabel = "Cancel", role = Role.Button, onClick = onClick),
+    ) {
+        Text(
+            "Cancel",
+            style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
+            color = MusFitTheme.colors.onSurfaceVariant,
         )
     }
 }
@@ -457,24 +513,35 @@ internal fun AccentSwitch(
     accent: TabAccent,
     modifier: Modifier = Modifier,
 ) {
-    Switch(
-        checked = checked,
-        onCheckedChange = onCheckedChange,
-        colors = SwitchDefaults.colors(
-            checkedTrackColor = accent.color,
-            checkedThumbColor = MusFitTheme.colors.surface,
-            checkedIconColor = accent.color,
-            uncheckedTrackColor = MusFitTheme.colors.track,
-            uncheckedThumbColor = MusFitTheme.colors.surface,
-            uncheckedBorderColor = Color.Transparent,
-        ),
-        thumbContent = if (checked) {
-            { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
-        } else {
-            null
-        },
-        modifier = modifier,
-    )
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            ),
+    ) {
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = accent.color,
+                checkedThumbColor = MusFitTheme.colors.surface,
+                checkedIconColor = accent.color,
+                uncheckedTrackColor = MusFitTheme.colors.track,
+                uncheckedThumbColor = MusFitTheme.colors.surface,
+                uncheckedBorderColor = Color.Transparent,
+            ),
+            thumbContent = if (checked) {
+                { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
+            } else {
+                null
+            },
+            modifier = Modifier.clearAndSetSemantics {},
+        )
+    }
 }
 
 /** 22dp M3E radio: selected = 2dp accent ring + 10dp dot; unselected = quiet ring. */

@@ -4,6 +4,7 @@ package com.musfit.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -36,10 +37,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -129,16 +132,32 @@ fun TonalIconSquare(
     contentColor: Color = MusFitTheme.colors.onSurface,
     enabled: Boolean = true,
 ) {
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(cornerRadius),
-        color = containerColor,
-        contentColor = contentColor,
-        modifier = modifier.size(size),
+    val interactionSize = maxOf(size, 48.dp)
+    val shape = RoundedCornerShape(cornerRadius)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(interactionSize)
+            .semantics {
+                contentDescription?.let { this.contentDescription = it }
+            }
+            .clip(shape)
+            .clickable(
+                enabled = enabled,
+                onClickLabel = contentDescription,
+                role = Role.Button,
+                onClick = onClick,
+            ),
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(22.dp))
+        Surface(
+            shape = shape,
+            color = containerColor,
+            contentColor = contentColor,
+            modifier = Modifier.size(size),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+            }
         }
     }
 }

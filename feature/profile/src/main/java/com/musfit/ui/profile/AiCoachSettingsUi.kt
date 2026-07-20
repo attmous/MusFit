@@ -3,7 +3,6 @@
 package com.musfit.ui.profile
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +14,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,11 +29,12 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.password
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -217,7 +218,9 @@ private fun ApiKeyRow(
                     onClick = onClear,
                     color = androidx.compose.ui.graphics.Color.Transparent,
                     shape = RoundedCornerShape(99.dp),
-                    modifier = Modifier.heightIn(min = 48.dp),
+                    modifier = Modifier
+                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        .semantics { role = Role.Button },
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
                         Text(
@@ -361,15 +364,9 @@ fun AiCoachEditorSheet(
                 height = 50.dp,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             )
-            Text(
-                "Cancel",
-                style = MusFitTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.W800),
-                color = MusFitTheme.colors.onSurfaceVariant,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .clip(RoundedCornerShape(99.dp))
-                    .clickable(onClickLabel = "Cancel", onClick = onDismiss)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ProfileCancelAction(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
     }

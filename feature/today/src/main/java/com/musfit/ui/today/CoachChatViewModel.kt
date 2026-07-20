@@ -67,15 +67,20 @@ class CoachChatViewModel @Inject constructor(
             providerLabel = settings.providerKind.chatLabel(settings.localAgentKind),
             baseUrl = settings.baseUrl,
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, CoachChatUiState())
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+        initialValue = mutableState.value,
+    )
 
     fun onInputChanged(value: String) {
         mutableState.update { it.copy(input = value, errorMessage = null) }
     }
 
     fun send() {
-        val prompt = state.value.input.trim()
-        if (prompt.isBlank() || state.value.isSending) return
+        val current = mutableState.value
+        val prompt = current.input.trim()
+        if (prompt.isBlank() || current.isSending) return
         mutableState.update { it.copy(input = "", isSending = true, errorMessage = null) }
         viewModelScope.launch {
             runCatching {

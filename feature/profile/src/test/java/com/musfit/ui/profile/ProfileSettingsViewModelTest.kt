@@ -54,9 +54,15 @@ import com.musfit.testing.MainDispatcherRule
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -71,7 +77,7 @@ class ProfileSettingsViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
     private val dispatcher get() = mainDispatcherRule.dispatcher
 
-    private fun settingsViewModel(
+    private fun TestScope.settingsViewModel(
         healthRepository: HealthRepository = FakeHealthRepository(),
         accountRepository: AccountRepository = FakeAccountRepository(),
         accountErasureRepository: AccountErasureRepository = FakeAccountErasureRepository(),
@@ -81,18 +87,85 @@ class ProfileSettingsViewModelTest {
         aiCoachChatRepository: AiCoachChatRepository = FakeAiCoachChatRepository(),
         foodRepository: FoodRepository = FakeFoodRepository(),
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
-    ) = ProfileSettingsViewModel(
-        healthRepository,
-        AccountSettingsRepositories(accountRepository, accountErasureRepository),
-        ProfileSettingsRepositories(
-            profileRepository,
-            aiCoachRepository,
-            aiCoachChatRepository,
-            foodRepository,
-        ),
-        externalAuthRepository,
-        savedStateHandle,
-    )
+        collectState: Boolean = true,
+    ): ProfileSettingsViewModel {
+        val viewModel = ProfileSettingsViewModel(
+            healthRepository,
+            AccountSettingsRepositories(accountRepository, accountErasureRepository),
+            ProfileSettingsRepositories(
+                profileRepository,
+                aiCoachRepository,
+                aiCoachChatRepository,
+                foodRepository,
+            ),
+            externalAuthRepository,
+            savedStateHandle,
+        )
+        if (collectState) observeSettings(viewModel)
+        return viewModel
+    }
+
+    @Test
+    fun repositoryObservation_stopsAfterGraceAndResumesCurrentUiValues() = runTest {
+        val healthRepository = FakeHealthRepository()
+        val foodRepository = FakeFoodRepository()
+        val accountRepository = FakeAccountRepository()
+        val viewModel = settingsViewModel(
+            healthRepository = healthRepository,
+            foodRepository = foodRepository,
+            accountRepository = accountRepository,
+            collectState = false,
+        )
+        testScheduler.runCurrent()
+
+        assertTrue(accountRepository.ensured)
+        assertEquals(0, healthRepository.activePreferredStepsCollectors)
+        assertEquals(0, foodRepository.activeGoalCollectors)
+
+        val firstCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        val secondCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.state.collect { }
+        }
+        testScheduler.runCurrent()
+        assertEquals(1, healthRepository.activePreferredStepsCollectors)
+        assertEquals(1, foodRepository.activeGoalCollectors)
+        assertEquals(1, healthRepository.maxPreferredStepsCollectors)
+        assertEquals(1, foodRepository.maxGoalCollectors)
+
+        firstCollector.cancel()
+        testScheduler.runCurrent()
+        assertEquals(1, healthRepository.activePreferredStepsCollectors)
+
+        secondCollector.cancel()
+        testScheduler.advanceTimeBy(4_999)
+        testScheduler.runCurrent()
+        assertEquals(1, healthRepository.activePreferredStepsCollectors)
+        assertEquals(1, foodRepository.activeGoalCollectors)
+        testScheduler.advanceTimeBy(2)
+        testScheduler.runCurrent()
+        assertEquals(0, healthRepository.activePreferredStepsCollectors)
+        assertEquals(0, foodRepository.activeGoalCollectors)
+
+        healthRepository.emitPreferredStepsPackage("com.example.watch")
+        foodRepository.emitIncludeBurnedCalories(true)
+        testScheduler.runCurrent()
+        assertEquals(null, viewModel.state.value.preferredStepsPackage)
+        assertFalse(viewModel.state.value.includeBurnedCalories)
+
+        val resumedCollector = observeSettings(viewModel)
+        assertEquals("com.example.watch", viewModel.state.value.preferredStepsPackage)
+        assertTrue(viewModel.state.value.includeBurnedCalories)
+        assertEquals(2, healthRepository.preferredStepsSubscriptionStarts)
+        assertEquals(2, foodRepository.goalSubscriptionStarts)
+
+        resumedCollector.cancel()
+        testScheduler.advanceTimeBy(5_001)
+        testScheduler.runCurrent()
+        assertEquals(0, healthRepository.activePreferredStepsCollectors)
+        assertEquals(0, foodRepository.activeGoalCollectors)
+    }
 
     @Test
     fun refreshStatus_showsAvailableWhenGatewayAvailable() = runTest {
@@ -927,6 +1000,12 @@ class ProfileSettingsViewModelTest {
         assertEquals("AI coach API key cleared.", viewModel.state.value.aiCoachMessage)
     }
 
+    private fun TestScope.observeSettings(viewModel: ProfileSettingsViewModel): Job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+        viewModel.state.collect { }
+    }.also {
+        testScheduler.runCurrent()
+    }
+
     private class FakeHealthRepository(
         private var status: HealthConnectStatus = HealthConnectStatus(
             availability = HealthConnectAvailability.Available,
@@ -943,6 +1022,14 @@ class ProfileSettingsViewModelTest {
         var exportCalls = 0
         val preferredStepsWrites = mutableListOf<String?>()
         var preferredStepsWriteGate: CompletableDeferred<Unit>? = null
+        private val preferredStepsPackage = MutableStateFlow<String?>(null)
+        var activePreferredStepsCollectors = 0
+        var maxPreferredStepsCollectors = 0
+        var preferredStepsSubscriptionStarts = 0
+
+        fun emitPreferredStepsPackage(packageName: String?) {
+            preferredStepsPackage.value = packageName
+        }
 
         override suspend fun status(): HealthConnectStatus {
             statusException?.let { throw it }
@@ -952,6 +1039,17 @@ class ProfileSettingsViewModelTest {
         override suspend fun requestablePermissions(): Set<String> = requestablePermissions
 
         override fun observeDailySummary(date: LocalDate): Flow<DailyHealthSummaryEntity?> = flowOf(null)
+
+        override fun observePreferredStepsPackage(): Flow<String?> = preferredStepsPackage
+            .onStart {
+                activePreferredStepsCollectors += 1
+                preferredStepsSubscriptionStarts += 1
+                maxPreferredStepsCollectors = maxOf(
+                    maxPreferredStepsCollectors,
+                    activePreferredStepsCollectors,
+                )
+            }
+            .onCompletion { activePreferredStepsCollectors -= 1 }
 
         override suspend fun importDailySummary(date: LocalDate): com.musfit.data.repository.HealthConnectImportResult {
             importedDate = date
@@ -987,6 +1085,7 @@ class ProfileSettingsViewModelTest {
         override suspend fun setPreferredStepsPackage(packageName: String?) {
             preferredStepsWrites += packageName
             preferredStepsWriteGate?.await()
+            preferredStepsPackage.value = packageName
         }
     }
 
@@ -1074,8 +1173,21 @@ class ProfileSettingsViewModelTest {
         var updatedGoal: FoodGoal? = null
         var updateError: Throwable? = null
         var updateGate: CompletableDeferred<Unit>? = null
+        var activeGoalCollectors = 0
+        var maxGoalCollectors = 0
+        var goalSubscriptionStarts = 0
+
+        fun emitIncludeBurnedCalories(enabled: Boolean) {
+            goalFlow.value = goalFlow.value.copy(includeTrainingCalories = enabled)
+        }
 
         override fun observeFoodGoal(): Flow<FoodGoal> = goalFlow
+            .onStart {
+                activeGoalCollectors += 1
+                goalSubscriptionStarts += 1
+                maxGoalCollectors = maxOf(maxGoalCollectors, activeGoalCollectors)
+            }
+            .onCompletion { activeGoalCollectors -= 1 }
 
         override suspend fun updateFoodGoal(goal: FoodGoal) {
             updateGate?.await()

@@ -33,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +52,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.musfit.ui.components.ExpressiveBadge
 import com.musfit.ui.components.ExpressiveBadgeShape
 import com.musfit.ui.components.MusFitScreenHeader
@@ -84,7 +85,7 @@ fun ProfileScreen(
     onOpenNutritionTrends: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val accent = tabAccentFor(TabAccentRole.Profile)
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -246,7 +247,11 @@ private fun HealthConnectNudge(onOpen: () -> Unit) {
             .fillMaxWidth()
             // Clip before clickable so the ripple stays inside the rounded shape.
             .clip(shape)
-            .clickable(onClickLabel = "Open Health Connect settings", onClick = onOpen),
+            .clickable(
+                onClickLabel = "Open Health Connect settings",
+                role = Role.Button,
+                onClick = onOpen,
+            ),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
@@ -291,7 +296,11 @@ private fun WeightHeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .clickable(onClickLabel = "Open weight history") { onOpenEntries() },
+            .clickable(
+                onClickLabel = "Open weight history",
+                role = Role.Button,
+                onClick = onOpenEntries,
+            ),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 22.dp, vertical = 18.dp),
@@ -466,6 +475,7 @@ private fun MeasurementCell(
             .clip(shape)
             .clickable(
                 onClickLabel = if (empty) "Log ${tile.label}" else "Open ${tile.label} history",
+                role = Role.Button,
                 onClick = onClick,
             ),
     ) {

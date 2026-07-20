@@ -5,12 +5,14 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -29,13 +31,13 @@ import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +46,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.musfit.domain.coach.CoachAction
 import com.musfit.ui.components.EmptyState
 import com.musfit.ui.components.MusFitScreenScaffold
@@ -63,7 +66,7 @@ fun TodayScreen(
     onOpenTraining: () -> Unit = {},
     onOpenHealth: () -> Unit = {},
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
@@ -215,35 +218,42 @@ private fun CoachSectionHeader(hasUnread: Boolean) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReadinessHeaderChip(
+internal fun ReadinessHeaderChip(
     readiness: TodayReadinessUiState,
     onClick: () -> Unit,
     accent: TabAccent,
 ) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = accent.container,
-        modifier = Modifier.semantics {
-            contentDescription = "Readiness estimate ${readiness.score}, ${readiness.levelLabel}"
-        },
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics {
+                contentDescription = "Readiness estimate ${readiness.score}, ${readiness.levelLabel}"
+            },
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Surface(
+            shape = CircleShape,
+            color = accent.container,
         ) {
-            Icon(
-                Icons.Outlined.MonitorHeart,
-                contentDescription = null,
-                tint = accent.onContainer,
-            )
-            Text(
-                text = readiness.label,
-                style = MusFitTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium,
-                color = accent.onContainer,
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Outlined.MonitorHeart,
+                    contentDescription = null,
+                    tint = accent.onContainer,
+                )
+                Text(
+                    text = readiness.label,
+                    style = MusFitTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = accent.onContainer,
+                )
+            }
         }
     }
 }

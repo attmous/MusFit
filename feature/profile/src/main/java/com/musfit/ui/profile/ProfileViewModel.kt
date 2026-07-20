@@ -171,7 +171,11 @@ class ProfileViewModel internal constructor(
             plansSummary = buildPlansSummary(base.profile, goal, routines, userGoals),
             isHealthConnectNudgeVisible = nudge,
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, ProfileUiState())
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+        initialValue = ProfileUiState(),
+    )
 
     /** Re-checked on screen resume — permissions are granted OUTSIDE the app, and the
      *  ViewModel survives Profile→Settings→Profile, so init-only would never hide it.
