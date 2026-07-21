@@ -17,9 +17,8 @@ For exact truth, read:
   contracts and persistence orchestration;
 - `core/database/src/main/java/com/musfit/core/di/DatabaseModule.kt` and the other
   `core/di` modules for migrations, construction, and boundary bindings;
-- the current [architecture audit](app-architecture-audit-2026-07-10.md) and
-  [remediation backlog](architecture-remediation-backlog-2026-07-10.md) for
-  known ownership or dependency defects.
+- the historical [architecture audit](app-architecture-audit-2026-07-10.md) for
+  the evidence behind the July 2026 ownership and dependency remediation.
 
 ## Ownership Rules
 

@@ -9,18 +9,15 @@ schema versions, file sizes, or roadmap tables into it.
 Follow the current user request. For factual repository truth, use this order:
 
 1. current source, build files, helper scripts, and CI;
-2. the latest applicable audit or remediation package, revalidated against
-   current `origin/master`;
-3. living architecture and feature docs;
-4. historical plans/specs, which explain intent but are not current status.
+2. living architecture and feature docs;
+3. dated audits and historical plans/specs, which explain evidence and intent
+   but are not current status.
 
 If a living doc conflicts with source, source wins and the doc should be fixed
-in the same PR. The current repo-wide engineering handoff is:
-
-- [`docs/architecture/app-architecture-audit-2026-07-10.md`](docs/architecture/app-architecture-audit-2026-07-10.md)
-- [`docs/architecture/architecture-remediation-backlog-2026-07-10.md`](docs/architecture/architecture-remediation-backlog-2026-07-10.md)
-
-The audit is a dated snapshot. Re-check a finding before implementing it.
+in the same PR. The July 2026
+[`app architecture audit`](docs/architecture/app-architecture-audit-2026-07-10.md)
+is a dated historical snapshot; its remediation program is complete. Re-check
+an audit finding against current source before acting on it.
 
 ## Product Boundary
 
@@ -238,9 +235,9 @@ Use `scripts/dev/new-task-branch.ps1` when it fits; it starts from current
 For each task:
 
 1. Fetch `origin`, confirm a clean checkout/worktree, and create a scoped branch.
-2. Read current source, tests, and applicable architecture/feature docs. For
-   remediation work, also read the exact audit finding/package and keep one
-   remediation package per PR unless the user explicitly changes that scope.
+2. Read current source, tests, and applicable architecture/feature docs. Use a
+   dated audit only as historical evidence and revalidate it against current
+   source before changing behavior.
 3. Add or adjust focused tests first for behavior changes where practical.
 4. Implement the smallest coherent change without widening into unrelated
    feature areas.
