@@ -6,10 +6,9 @@ focused on routes, entrypoints, ownership, and result flow; do not copy complete
 UI-state constructors, ViewModel action lists, file sizes, or other volatile
 implementation detail into it.
 
-For known architecture, restoration, testing, and integration limitations, use
-the source-derived [July 2026 architecture audit](app-architecture-audit-2026-07-10.md)
-and its [remediation backlog](architecture-remediation-backlog-2026-07-10.md).
-Revalidate a dated finding against current source before changing behavior.
+The source-derived [July 2026 architecture audit](app-architecture-audit-2026-07-10.md)
+is retained as historical evidence for the remediation that followed. Revalidate
+any dated finding against current source before changing behavior.
 
 ## App Shell
 

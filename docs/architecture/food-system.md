@@ -2,9 +2,9 @@
 
 The Food miniapp is the largest and most polished area of MusFit. This document
 is the feature deep-dive: feature map, typed feature navigation, `FoodUiState`,
-domain logic, and a record of the completed structure refactor. For current
-cross-cutting defects or new structural work, the July 2026 architecture audit
-and remediation backlog take precedence.
+domain logic, and a record of the completed structure refactor. Current source,
+tests, and the living architecture map take precedence over its historical
+refactor notes.
 
 It complements, and does not duplicate, the cross-cutting docs:
 
@@ -146,15 +146,12 @@ endpoints but does not currently write Food data.
 
 ## Remaining Food work
 
-The Lifesum-style feature-parity loop is closed. The list below is
-Food-specific deferred scope; repo-wide data-safety, account, performance,
-Health Connect, and architecture work remains in the remediation backlog.
+The Lifesum-style feature-parity loop and the July 2026 architecture remediation
+program are closed. The list below is Food-specific deferred product scope.
 
 - AI voice/photo logging remain UX shells and require explicit product scope
   before becoming model-backed write flows.
 - Nutrition-label OCR parsing is best-effort and always review-before-save/log.
-- Provider-side deletion/revocation reconciliation for imported Health data is
-  tracked separately by `W3-HC-03B`.
 - The Profile nutrition-trends score uses a neutral training factor until a real weekly
   Training/Health Connect signal is connected.
 - Food trust reports are local UI state, not a persisted review queue.
@@ -264,10 +261,9 @@ Run the focused Food suites:
 
 ## Historical Structure-Refactor Record
 
-This section records the earlier behavior-preserving Food cleanup. It is not the
-active architecture backlog. The broad Food state surface remains governed by
-the current remediation plan; transport and feature-boundary imports are
-enforced separately by `ArchitectureBoundaryTest`.
+This section records the earlier behavior-preserving Food cleanup. It is not an
+active backlog. Current state ownership is documented above; transport and
+feature-boundary imports are enforced separately by `ArchitectureBoundaryTest`.
 
 Each item is behavior-preserving and gated on the full verification command
 (`verifyReleaseVariantMatrix testInternalDebugUnitTest
@@ -331,11 +327,11 @@ change. **Done.**
 ### Decisions Recorded By The Original Refactor
 
 These constraints explain the earlier slice. A newer, explicitly scoped
-architecture-remediation package may supersede them.
+architecture change may supersede them.
 
 - **Do not** split `FoodViewModel` into per-sheet ViewModels — it breaks the
   unified state machine and the single-fake test model.
 - **Do not** introduce a generic `(field, value)` callback bus — it loses the
   type-safety of named `onXxx` actions.
 - **Defer** splitting `FoodRepository` into per-domain repositories until a
-  current remediation package identifies and tests a natural seam.
+  current change identifies and tests a natural seam.

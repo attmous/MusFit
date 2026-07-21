@@ -361,7 +361,7 @@ Assert-FileContains "AGENTS.md" '(?is)legacy exported seed receiver.{0,120}has b
 Assert-FileContains "README.md" '(?is)legacy exported seed receiver has been removed.{0,220}instrumentation APK'
 Assert-FileContains "docs/ops/auto-update.md" '(?is)legacy exported seed receiver tracked as SEC-001 has been removed.{0,220}instrumentation APK'
 Assert-FileContains "docs/architecture/app-architecture-audit-2026-07-10.md" '(?is)Post-audit status.{0,500}SEC-001 was resolved.{0,500}DATA-001 was resolved'
-Assert-FileContains "docs/architecture/architecture-remediation-backlog-2026-07-10.md" '(?is)W1-SEC-01.{0,120}Completed by PR #79'
+Assert-FileContains "docs/architecture/app-architecture-audit-2026-07-10.md" '(?is)Program completion.{0,220}S01-S20.{0,120}PRs #150-#177'
 Assert-FileContains "CLAUDE.md" "app/src/androidTest/java/com/musfit/"
 Assert-FileContains "docs/architecture/README.md" "app/src/androidTest/java/com/musfit/"
 Assert-FileDoesNotContain "AGENTS.md" '(?m)^\.\\scripts\\dev\\verify-musfit\.ps1[^\r\n]*-InstallSeed[^\r\n]*-DeviceSerial'

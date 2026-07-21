@@ -222,8 +222,8 @@ deep dive into the Food miniapp in
 [`docs/architecture/food-system.md`](docs/architecture/food-system.md). The design system
 (shared header/summary-card language, per-tab accents, spacing/shape/type tokens) is documented
 under [`docs/design/`](docs/design/musfit-design-system.md). Historical feature specs and
-implementation plans are kept in [`docs/superpowers/`](docs/superpowers/); the current
-repo-wide engineering queue is the architecture remediation backlog.
+implementation plans are kept in [`docs/superpowers/`](docs/superpowers/); they record
+intent and shipped work, not the current engineering queue.
 
 ## Building from source
 
@@ -259,19 +259,20 @@ adb -s <serial> shell am start -W -n com.musfit.internal/com.musfit.MainActivity
 
 CI (GitHub Actions, [`android.yml`](.github/workflows/android.yml)) runs the workflow contract
 and both variant gates on every PR and on pushes to `master`/`main`. It retains the internal
-APK as a seven-day verification artifact. GitHub Release/Obtainium publication is suspended;
-the production-shaped APK/AAB remain unsigned and undistributed.
+APK as a seven-day verification artifact and does not publish it. Production publication uses
+the separate, manually dispatched, environment-protected workflow documented in
+[`docs/ops/production-release.md`](docs/ops/production-release.md).
 
 ## Status
 
 MusFit is a personal project under active development. Food, Training, Today, and Profile are
 all substantial shipped surfaces. The AI coach is usable for read-only conversation, while
-agent actions, photo/voice logging, and production release hardening remain in progress. There
-is no Play release and no current GitHub Release publication lane.
+agent actions and photo/voice logging remain in progress. Production releases are explicit,
+protected operations rather than outputs of normal CI.
 The legacy exported seed receiver has been removed; deterministic development seeding targets
 only the internal app through a separately installed instrumentation APK on the dedicated
-emulator. Production signing, install migration, shrinking, and verified publication remain
-gated remediation work.
+emulator. Production signing, install migration, shrinking, and exact-artifact publication are
+implemented behind the protected release workflow.
 
 ## Privacy
 

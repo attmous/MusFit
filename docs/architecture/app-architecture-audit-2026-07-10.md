@@ -22,6 +22,10 @@ are committed.
 > original findings below remain unchanged as evidence for the pinned audit
 > commit.
 
+> **Program completion:** the follow-up remediation campaign finished with
+> slices S01-S20 in PRs #150-#177. This file remains a historical evidence
+> snapshot, not an active defect list or execution plan.
+
 Severity is interpreted as follows:
 
 - **P0** — verified data-loss, security, release-integrity, or blocking correctness risk.
@@ -32,13 +36,13 @@ Severity is interpreted as follows:
 Confidence is **Confirmed** for direct source/runtime proof, **Measured** for a
 repeatable quantitative observation, and **Advisory** for a justified target
 that still requires a product or platform adoption decision. Sizes are S, M,
-or L; no XL item is handed off without being split in the remediation backlog.
+or L; no XL item was handed off without being split during remediation planning.
 
 ## Executive outcome
 
 The app has a strong local-first functional core and a substantial unit-test
-suite, but it is not currently safe to distribute as the assumed optimized
-Obtainium APK or Play-ready AAB. Three P0 issues lead the backlog:
+suite, but at the audited commit it was not safe to distribute as the assumed
+optimized Obtainium APK or Play-ready AAB. Three P0 issues led the program:
 
 1. CI distributes a debuggable APK and there is no signed, optimized production lane.
 2. That distributed APK exports an unpermissioned receiver that can erase and reseed the database; an external adb broadcast reproduced the reset.
@@ -50,9 +54,9 @@ oversized Food/Training state domains, missing process restoration, eager
 Compose collections, incomplete edge-to-edge/accessibility behavior, and a
 single module that cannot enforce the intended boundaries.
 
-Finding count: **3 P0, 27 P1, 18 P2, and 1 P3**. The follow-up document
-[Architecture remediation backlog](architecture-remediation-backlog-2026-07-10.md)
-turns every finding into dependency-ordered, one-agent/one-PR packages.
+Finding count: **3 P0, 27 P1, 18 P2, and 1 P3**. These findings were converted
+into dependency-ordered implementation packages during the completed July 2026
+remediation campaign.
 
 ## Measured baseline
 
